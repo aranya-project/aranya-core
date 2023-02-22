@@ -3,4 +3,37 @@ name = "flow3-rs"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+defaults = []
+std = []
+# Use the mmap-based allocator.
+mmap-allocator = []
+# This platform has mremap.
+mremap = []
+
 [dependencies]
+libc = "0.2"
+libc_alloc = "1.0"
+cfg-if = "1.0"
+
+[build-dependencies]
+cbindgen = "0.24.3"
+
+[dev-dependencies]
+
+[profile.dev]
+panic = "abort"
+
+[profile.dev-std]
+inherits = "dev"
+panic = "unwind"
+
+[profile.release]
+panic = "abort"
+
+[profile.release-std]
+inherits = "release"
+panic = "unwind"

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+# cargo install cargo-watch https 
+cargo watch -s 'cargo doc && http -a 127.0.0.1 -p 8080 target/doc'
