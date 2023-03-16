@@ -1,0 +1,17 @@
+[package]
+name = "flow3-policy-lang"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde_yaml = "0.9"
+pest = "2"
+pest_derive = "2"
+markdown = "1.0.0-alpha.5"
+
+# By default, `serde` has the `std` feature enabled, which makes it unsuitable for embedded targets
+# disabling default-features fixes this
+serde = { version = "1.0.*", default-features = false, features = ["derive"] }
+clap = { version = "4.0.25", features = ["derive"] }
