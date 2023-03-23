@@ -1,14 +1,14 @@
 use std::fmt::Display;
 
-use pest::pratt_parser::{PrattParser, Op, Assoc};
-use pest::{Parser, Span};
-use pest::iterators::{Pair, Pairs};
 use pest::error::{Error as PestError, LineColLocation};
+use pest::iterators::{Pair, Pairs};
+use pest::pratt_parser::{Assoc, Op, PrattParser};
+use pest::{Parser, Span};
 
 use super::{ast, Version};
 
 mod markdown;
-pub use self::markdown::{parse_policy_document, extract_policy};
+pub use self::markdown::{extract_policy, parse_policy_document};
 
 mod internal {
     // This is a hack to work around ambiguity between pest_derive::Parser and pest::Parser.
@@ -68,7 +68,7 @@ impl ParseError {
                 let text = s.as_str();
                 let (line, col) = s.start_pos().line_col();
                 format!("line {line} column {col}: {text}: ")
-            },
+            }
             None => String::from(""),
         };
         ParseError {
@@ -104,7 +104,10 @@ impl From<PestError<Rule>> for ParseError {
             LineColLocation::Span(p, _) => p,
         };
         let message = match e.path() {
-            Some(path) => format!("Syntax Error in {} line {} column {}: {}", path, line, column, e),
+            Some(path) => format!(
+                "Syntax Error in {} line {} column {}: {}",
+                path, line, column, e
+            ),
             None => format!("Syntax error line {} column {}: {}", line, column, e),
         };
         ParseError::new(ParseErrorKind::Syntax, message, None)
@@ -153,7 +156,7 @@ impl<'a> ParserContext<'a> {
                 ParseErrorKind::Unknown,
                 format!("Got wrong rule: {:?} expected {:?}", token.as_rule(), rule),
                 Some(token.as_span()),
-            ))
+            ));
         }
         Ok(token)
     }
@@ -180,7 +183,10 @@ impl<'a> ParserContext<'a> {
 
     /// Consumes the next Pair out of this context and returns it as an
     /// [ast::Expression].
-    fn consume_expression(&mut self, pratt: &PrattParser<Rule>) -> Result<ast::Expression, ParseError> {
+    fn consume_expression(
+        &mut self,
+        pratt: &PrattParser<Rule>,
+    ) -> Result<ast::Expression, ParseError> {
         let token = self.consume_of_type(Rule::expression)?;
         Ok(parse_expression(token, pratt)?)
     }
@@ -213,16 +219,14 @@ fn parse_type(token: Pair<Rule>) -> Result<ast::VType, ParseError> {
         Rule::id_t => Ok(ast::VType::ID),
         Rule::optional_t => {
             let mut pairs = token.clone().into_inner();
-            let token = pairs.next().ok_or(
-                ParseError::new(
-                    ParseErrorKind::Unknown,
-                    String::from("no type following optional"),
-                    Some(token.as_span()),
-                )
-            )?;
+            let token = pairs.next().ok_or(ParseError::new(
+                ParseErrorKind::Unknown,
+                String::from("no type following optional"),
+                Some(token.as_span()),
+            ))?;
             let vtype = parse_type(token)?;
             Ok(ast::VType::Optional(Box::new(vtype)))
-        },
+        }
         _ => Err(ParseError::new(
             ParseErrorKind::InvalidType,
             format!("{:?} {}", token.as_rule(), token.as_str().to_owned()),
@@ -243,7 +247,9 @@ fn parse_field_definition(field: Pair<Rule>) -> Result<ast::FieldDefinition, Par
     })
 }
 
-fn parse_effect_field_definition(field: Pair<Rule>) -> Result<ast::EffectFieldDefinition, ParseError> {
+fn parse_effect_field_definition(
+    field: Pair<Rule>,
+) -> Result<ast::EffectFieldDefinition, ParseError> {
     let mut pc = descend(field);
     let identifier = pc.consume_string(Rule::identifier)?;
     let field_type = pc.consume_type()?;
@@ -285,17 +291,18 @@ fn parse_string_literal(string: Pair<Rule>) -> Result<String, ParseError> {
                         match next {
                             'x' => {
                                 let s: String = it.take(2).into_iter().collect();
-                                let v = u8::from_str_radix(&s, 16)
-                                    .map_err(|e| ParseError::new(
+                                let v = u8::from_str_radix(&s, 16).map_err(|e| {
+                                    ParseError::new(
                                         ParseErrorKind::InvalidNumber,
                                         format!("{}: {}", s, e),
                                         Some(string.as_span()),
-                                    ))?;
+                                    )
+                                })?;
                                 out.push(v as char);
-                            },
+                            }
                             'n' => {
                                 out.push('\n');
-                            },
+                            }
                             _ => {
                                 return Err(ParseError::new(
                                     ParseErrorKind::InvalidString,
@@ -311,7 +318,7 @@ fn parse_string_literal(string: Pair<Rule>) -> Result<String, ParseError> {
                             Some(string.as_span()),
                         ));
                     }
-                },
+                }
                 '"' => break,
                 _ => out.push(c),
             }
@@ -323,19 +330,22 @@ fn parse_string_literal(string: Pair<Rule>) -> Result<String, ParseError> {
     Ok(out)
 }
 
-fn parse_named_struct_literal(named_struct: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::NamedStruct, ParseError> {
+fn parse_named_struct_literal(
+    named_struct: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::NamedStruct, ParseError> {
     let mut pc = descend(named_struct);
     let identifier = pc.consume_string(Rule::identifier)?;
 
     // key/expression pairs follow the identifier
     let fields = parse_kv_literal_fields(pc.unwrap(), pratt)?;
-    Ok(ast::NamedStruct {
-        identifier,
-        fields
-    })
+    Ok(ast::NamedStruct { identifier, fields })
 }
 
-fn parse_function_call(call: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::FunctionCall, ParseError> {
+fn parse_function_call(
+    call: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::FunctionCall, ParseError> {
     let mut pc = descend(call);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -345,7 +355,7 @@ fn parse_function_call(call: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<as
         let expr = parse_expression(arg, pratt)?;
         arguments.push(expr);
     }
-    Ok(ast::FunctionCall{
+    Ok(ast::FunctionCall {
         identifier,
         arguments,
     })
@@ -362,25 +372,29 @@ fn parse_function_call(call: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<as
 /// equivalent precedence will create a lopsided tree. For example:
 ///
 /// `A + B + C` => `Add(Add(A, B), C)`
-pub fn parse_expression(expr: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::Expression, ParseError> {
+pub fn parse_expression(
+    expr: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::Expression, ParseError> {
     assert_eq!(expr.as_rule(), Rule::expression);
     let pairs = expr.into_inner();
 
-    pratt.map_primary(|primary|{
-        match primary.as_rule() {
+    pratt
+        .map_primary(|primary| match primary.as_rule() {
             Rule::int_literal => {
-                let n = i64::from_str_radix(primary.as_str(), 10)
-                    .map_err(|e| ParseError::new(
+                let n = i64::from_str_radix(primary.as_str(), 10).map_err(|e| {
+                    ParseError::new(
                         ParseErrorKind::InvalidNumber,
                         e.to_string(),
                         Some(primary.as_span()),
-                    ))?;
+                    )
+                })?;
                 Ok(ast::Expression::Int(n))
-            },
+            }
             Rule::string_literal => {
                 let s = parse_string_literal(primary)?;
                 Ok(ast::Expression::String(s))
-            },
+            }
             Rule::bool_literal => {
                 let mut pairs = primary.clone().into_inner();
                 let token = pairs.next().ok_or(ParseError::new(
@@ -397,108 +411,104 @@ pub fn parse_expression(expr: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<a
                         Some(primary.as_span()),
                     )),
                 }
-            },
+            }
             Rule::optional_literal => {
                 let mut pairs = primary.clone().into_inner();
-                let token = pairs.next()
-                    .ok_or(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("no token in optional literal"),
-                        Some(primary.as_span()),
-                    ))?;
-                Ok(ast::Expression::Optional(
-                    match token.as_rule() {
-                        Rule::none => None,
-                        Rule::some => {
-                            let token = pairs.next()
-                                .ok_or(ParseError::new(
-                                    ParseErrorKind::Unknown,
-                                    String::from("bad Some expression"),
-                                    Some(primary.as_span()),
-                                ))?;
-                            let e = parse_expression(token, pratt)?;
-                            Some(Box::new(e))
-                        },
-                        t => return Err(ParseError::new(
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::Unknown,
+                    String::from("no token in optional literal"),
+                    Some(primary.as_span()),
+                ))?;
+                Ok(ast::Expression::Optional(match token.as_rule() {
+                    Rule::none => None,
+                    Rule::some => {
+                        let token = pairs.next().ok_or(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("bad Some expression"),
+                            Some(primary.as_span()),
+                        ))?;
+                        let e = parse_expression(token, pratt)?;
+                        Some(Box::new(e))
+                    }
+                    t => {
+                        return Err(ParseError::new(
                             ParseErrorKind::Unknown,
                             format!("invalid token in optional: {:?}", t),
                             Some(primary.as_span()),
-                        )),
+                        ))
                     }
-                ))
-            },
+                }))
+            }
             Rule::named_struct_literal => {
                 let ns = parse_named_struct_literal(primary, pratt)?;
                 Ok(ast::Expression::NamedStruct(ns))
-            },
-            Rule::function_call => Ok(ast::Expression::FunctionCall(
-                parse_function_call(primary, pratt)?
-            )),
+            }
+            Rule::function_call => Ok(ast::Expression::FunctionCall(parse_function_call(
+                primary, pratt,
+            )?)),
             Rule::query => {
                 let mut pairs = primary.clone().into_inner();
-                let token = pairs.next()
-                    .ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("query requires fact literal"),
-                        Some(primary.as_span()),
-                    ))?;
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::InvalidFunctionCall,
+                    String::from("query requires fact literal"),
+                    Some(primary.as_span()),
+                ))?;
                 let fact_literal = parse_fact_literal(token, pratt)?;
-                Ok(ast::Expression::InternalFunction(ast::InternalFunction::Query(
-                    fact_literal,
-                )))
-            },
+                Ok(ast::Expression::InternalFunction(
+                    ast::InternalFunction::Query(fact_literal),
+                ))
+            }
             Rule::exists => {
                 let mut pairs = primary.clone().into_inner();
-                let token = pairs.next()
-                    .ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("exists requires fact literal"),
-                        Some(primary.as_span()),
-                    ))?;
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::InvalidFunctionCall,
+                    String::from("exists requires fact literal"),
+                    Some(primary.as_span()),
+                ))?;
                 let fact_literal = parse_fact_literal(token, pratt)?;
-                Ok(ast::Expression::InternalFunction(ast::InternalFunction::Exists(
-                    fact_literal,
-                )))
-            },
+                Ok(ast::Expression::InternalFunction(
+                    ast::InternalFunction::Exists(fact_literal),
+                ))
+            }
             Rule::if_e => {
                 let mut pairs = primary.clone().into_inner();
-                let token = pairs.next()
-                    .ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("if requires expression"),
-                        Some(primary.as_span()),
-                    ))?;
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::InvalidFunctionCall,
+                    String::from("if requires expression"),
+                    Some(primary.as_span()),
+                ))?;
                 let condition = parse_expression(token, pratt)?;
 
-                let token = pairs.next()
-                    .ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("if requires then case"),
-                        Some(primary.as_span()),
-                    ))?;
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::InvalidFunctionCall,
+                    String::from("if requires then case"),
+                    Some(primary.as_span()),
+                ))?;
                 let then_expr = parse_expression(token, pratt)?;
 
-                let token = pairs.next()
-                    .ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("if requires else case"),
-                        Some(primary.as_span()),
-                    ))?;
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::InvalidFunctionCall,
+                    String::from("if requires else case"),
+                    Some(primary.as_span()),
+                ))?;
                 let else_expr = parse_expression(token, pratt)?;
 
-                Ok(ast::Expression::InternalFunction(ast::InternalFunction::If(
-                    Box::new(condition), Box::new(then_expr), Box::new(else_expr),
-                )))
-            },
+                Ok(ast::Expression::InternalFunction(
+                    ast::InternalFunction::If(
+                        Box::new(condition),
+                        Box::new(then_expr),
+                        Box::new(else_expr),
+                    ),
+                ))
+            }
             Rule::id_e | Rule::author_id => {
                 let rule = primary.as_rule();
                 let mut pairs = primary.clone().into_inner();
-                let token = pairs.next()
-                    .ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("id() requires one argument"),
-                        Some(primary.as_span()),
-                    ))?;
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::InvalidFunctionCall,
+                    String::from("id() requires one argument"),
+                    Some(primary.as_span()),
+                ))?;
 
                 let command = parse_expression(token, pratt)?;
                 let f = match rule {
@@ -507,86 +517,90 @@ pub fn parse_expression(expr: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<a
                     _ => unreachable!(),
                 };
                 Ok(ast::Expression::InternalFunction(f))
-            },
+            }
             Rule::identifier => Ok(ast::Expression::Identifier(primary.as_str().to_owned())),
             Rule::expression => {
                 let subexpr = parse_expression(primary, pratt)?;
                 Ok(ast::Expression::Parentheses(Box::new(subexpr)))
-            },
+            }
             Rule::bind => Ok(ast::Expression::Bind),
             _ => Err(ParseError::new(
                 ParseErrorKind::Expression,
                 format!("bad atom: {:?}", primary.as_rule()),
                 Some(primary.as_span()),
             )),
-        }
-    })
-    .map_prefix(|op, rhs| match op.as_rule() {
-        Rule::neg => Ok(ast::Expression::Negative(Box::new(rhs?))),
-        Rule::not => Ok(ast::Expression::Not(Box::new(rhs?))),
-        Rule::unwrap => Ok(ast::Expression::Unwrap(Box::new(rhs?))),
-        _ => Err(ParseError::new(
-            ParseErrorKind::Expression,
-            format!("bad prefix: {:?}", op.as_rule()),
-            Some(op.as_span()),
-        )),
-    })
-    .map_infix(|lhs, op, rhs| match op.as_rule() {
-        Rule::add => Ok(ast::Expression::Add(Box::new(lhs?), Box::new(rhs?))),
-        Rule::subtract => Ok(ast::Expression::Subtract(Box::new(lhs?), Box::new(rhs?))),
-        Rule::modulus => Ok(ast::Expression::Modulus(Box::new(lhs?), Box::new(rhs?))),
-        Rule::and => Ok(ast::Expression::And(Box::new(lhs?), Box::new(rhs?))),
-        Rule::or => Ok(ast::Expression::Or(Box::new(lhs?), Box::new(rhs?))),
-        Rule::equal => Ok(ast::Expression::Equal(Box::new(lhs?), Box::new(rhs?))),
-        Rule::not_equal => Ok(ast::Expression::NotEqual(Box::new(lhs?), Box::new(rhs?))),
-        Rule::greater_than => Ok(ast::Expression::GreaterThan(Box::new(lhs?), Box::new(rhs?))),
-        Rule::less_than => Ok(ast::Expression::LessThan(Box::new(lhs?), Box::new(rhs?))),
-        Rule::greater_than_or_equal => Ok(ast::Expression::GreaterThanOrEqual(Box::new(lhs?), Box::new(rhs?))),
-        Rule::less_than_or_equal => Ok(ast::Expression::LessThanOrEqual(Box::new(lhs?), Box::new(rhs?))),
-        Rule::dot => {
-            match rhs? {
+        })
+        .map_prefix(|op, rhs| match op.as_rule() {
+            Rule::neg => Ok(ast::Expression::Negative(Box::new(rhs?))),
+            Rule::not => Ok(ast::Expression::Not(Box::new(rhs?))),
+            Rule::unwrap => Ok(ast::Expression::Unwrap(Box::new(rhs?))),
+            _ => Err(ParseError::new(
+                ParseErrorKind::Expression,
+                format!("bad prefix: {:?}", op.as_rule()),
+                Some(op.as_span()),
+            )),
+        })
+        .map_infix(|lhs, op, rhs| match op.as_rule() {
+            Rule::add => Ok(ast::Expression::Add(Box::new(lhs?), Box::new(rhs?))),
+            Rule::subtract => Ok(ast::Expression::Subtract(Box::new(lhs?), Box::new(rhs?))),
+            Rule::modulus => Ok(ast::Expression::Modulus(Box::new(lhs?), Box::new(rhs?))),
+            Rule::and => Ok(ast::Expression::And(Box::new(lhs?), Box::new(rhs?))),
+            Rule::or => Ok(ast::Expression::Or(Box::new(lhs?), Box::new(rhs?))),
+            Rule::equal => Ok(ast::Expression::Equal(Box::new(lhs?), Box::new(rhs?))),
+            Rule::not_equal => Ok(ast::Expression::NotEqual(Box::new(lhs?), Box::new(rhs?))),
+            Rule::greater_than => Ok(ast::Expression::GreaterThan(Box::new(lhs?), Box::new(rhs?))),
+            Rule::less_than => Ok(ast::Expression::LessThan(Box::new(lhs?), Box::new(rhs?))),
+            Rule::greater_than_or_equal => Ok(ast::Expression::GreaterThanOrEqual(
+                Box::new(lhs?),
+                Box::new(rhs?),
+            )),
+            Rule::less_than_or_equal => Ok(ast::Expression::LessThanOrEqual(
+                Box::new(lhs?),
+                Box::new(rhs?),
+            )),
+            Rule::dot => match rhs? {
                 ast::Expression::Identifier(s) => Ok(ast::Expression::Dot(Box::new(lhs?), s)),
                 e => Err(ParseError::new(
                     ParseErrorKind::InvalidMember,
                     format!("{:?}", e),
                     Some(op.as_span()),
                 )),
-            }
-        },
-        _ => Err(ParseError::new(
-            ParseErrorKind::Expression,
-            format!("bad infix: {:?}", op.as_rule()),
-            Some(op.as_span()),
-        )),
-    })
-    .map_postfix(|lhs, op| match op.as_rule() {
-        Rule::is => {
-            let op_span = op.as_span();
-            let mut pairs = op.into_inner();
-            let token = pairs.next()
-                .ok_or(ParseError::new(
+            },
+            _ => Err(ParseError::new(
+                ParseErrorKind::Expression,
+                format!("bad infix: {:?}", op.as_rule()),
+                Some(op.as_span()),
+            )),
+        })
+        .map_postfix(|lhs, op| match op.as_rule() {
+            Rule::is => {
+                let op_span = op.as_span();
+                let mut pairs = op.into_inner();
+                let token = pairs.next().ok_or(ParseError::new(
                     ParseErrorKind::InvalidFunctionCall,
                     String::from("if requires expression"),
                     Some(op_span),
                 ))?;
-            let some = match token.as_rule() {
-                Rule::some => true,
-                Rule::none => false,
-                _ => return Err(ParseError::new(
-                    ParseErrorKind::Unknown,
-                    format!("not none or some after is: {:?}", token.as_rule()),
-                    Some(token.as_span()),
-                )),
-            };
-            Ok(ast::Expression::Is(Box::new(lhs?), some))
-        },
-        _ => Err(ParseError::new(
-            ParseErrorKind::Expression,
-            format!("bad postfix: {:?}", op.as_rule()),
-            Some(op.as_span()),
-        )),
-    })
-    .parse(pairs)
+                let some = match token.as_rule() {
+                    Rule::some => true,
+                    Rule::none => false,
+                    _ => {
+                        return Err(ParseError::new(
+                            ParseErrorKind::Unknown,
+                            format!("not none or some after is: {:?}", token.as_rule()),
+                            Some(token.as_span()),
+                        ))
+                    }
+                };
+                Ok(ast::Expression::Is(Box::new(lhs?), some))
+            }
+            _ => Err(ParseError::new(
+                ParseErrorKind::Expression,
+                format!("bad postfix: {:?}", op.as_rule()),
+                Some(op.as_span()),
+            )),
+        })
+        .parse(pairs)
 }
 
 /// Parses a list of Rule::struct_literal_field items into (String,
@@ -594,23 +608,27 @@ pub fn parse_expression(expr: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<a
 ///
 /// This is used any place where something looks like a struct literal -
 /// fact key/values, emit, and effects.
-fn parse_kv_literal_fields(fields: Pairs<Rule>, pratt: &PrattParser<Rule>) -> Result<Vec<(String, ast::Expression)>, ParseError> {
+fn parse_kv_literal_fields(
+    fields: Pairs<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<Vec<(String, ast::Expression)>, ParseError> {
     let mut out = vec![];
 
     for field in fields {
         let mut pc = descend(field);
         let identifier = pc.consume_string(Rule::identifier)?;
         let expression = pc.consume_expression(pratt)?;
-        out.push(
-            (identifier, expression)
-        );
+        out.push((identifier, expression));
     }
 
     Ok(out)
 }
 
 /// Parse a Rule::emit_statement into an EmitStatement.
-fn parse_emit_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::Expression, ParseError> {
+fn parse_emit_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::Expression, ParseError> {
     assert_eq!(item.as_rule(), Rule::emit_statement);
 
     let mut pc = descend(item);
@@ -620,7 +638,10 @@ fn parse_emit_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<a
 }
 
 /// Parse a Rule::fact_literal into a FactLiteral.
-fn parse_fact_literal(fact: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::FactLiteral, ParseError> {
+fn parse_fact_literal(
+    fact: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::FactLiteral, ParseError> {
     let mut pc = descend(fact);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -629,14 +650,12 @@ fn parse_fact_literal(fact: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast
 
     let value_fields = if pc.peek().is_some() {
         let token = pc.consume_of_type(Rule::fact_literal_value)?;
-        Some(
-            parse_kv_literal_fields(token.into_inner(), pratt)?
-        )
+        Some(parse_kv_literal_fields(token.into_inner(), pratt)?)
     } else {
         None
     };
 
-    Ok(ast::FactLiteral{
+    Ok(ast::FactLiteral {
         identifier,
         key_fields,
         value_fields,
@@ -644,19 +663,25 @@ fn parse_fact_literal(fact: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast
 }
 
 /// Parse a Rule::let_statement into a LetStatement.
-fn parse_let_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::LetStatement, ParseError> {
+fn parse_let_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::LetStatement, ParseError> {
     let mut pc = descend(item);
     let identifier = pc.consume_string(Rule::identifier)?;
     let expression = pc.consume_expression(pratt)?;
 
-    Ok(ast::LetStatement{
+    Ok(ast::LetStatement {
         identifier,
         expression,
     })
 }
 
 /// Parse a Rule::check_statement into a CheckStatement.
-fn parse_check_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::CheckStatement, ParseError> {
+fn parse_check_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::CheckStatement, ParseError> {
     let mut pc = descend(item);
     let token = pc.consume()?;
     let (origin, expression_token) = if token.as_rule() == Rule::origin_modifier {
@@ -666,14 +691,14 @@ fn parse_check_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<
     };
     let expression = parse_expression(expression_token, pratt)?;
 
-    Ok(ast::CheckStatement{
-        origin,
-        expression,
-    })
+    Ok(ast::CheckStatement { origin, expression })
 }
 
 /// Parse a Rule::match_statement into a MatchStatement.
-fn parse_match_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::MatchStatement, ParseError> {
+fn parse_match_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::MatchStatement, ParseError> {
     let mut pc = descend(item);
     let expression = pc.consume_expression(pratt)?;
 
@@ -686,76 +711,80 @@ fn parse_match_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<
         let value = match token.as_rule() {
             Rule::match_default => None,
             Rule::expression => Some(parse_expression(token, pratt)?),
-            _ => return Err(ParseError::new(
-                ParseErrorKind::Unknown,
-                String::from("invalid token in match arm"),
-                Some(token.as_span()),
-            )),
+            _ => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Unknown,
+                    String::from("invalid token in match arm"),
+                    Some(token.as_span()),
+                ))
+            }
         };
 
         // Remaining tokens are policy statements
         let statements = parse_policy_statement_list(pc.unwrap(), pratt)?;
 
-        arms.push(ast::MatchArm{
-            value,
-            statements,
-        });
+        arms.push(ast::MatchArm { value, statements });
     }
 
-    Ok(ast::MatchStatement{
-        expression,
-        arms,
-    })
+    Ok(ast::MatchStatement { expression, arms })
 }
 
 /// Parse a rule::when_statement into a WhenStatement
-fn parse_when_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::WhenStatement, ParseError> {
+fn parse_when_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::WhenStatement, ParseError> {
     let mut pc = descend(item);
     let expression = pc.consume_expression(pratt)?;
     let statements = parse_policy_statement_list(pc.unwrap(), pratt)?;
 
-    Ok(ast::WhenStatement{
+    Ok(ast::WhenStatement {
         expression,
         statements,
     })
 }
 
 /// Parse a Rule::create_statement into a CreateStatement.
-fn parse_create_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::CreateStatement, ParseError> {
+fn parse_create_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::CreateStatement, ParseError> {
     let mut pc = descend(item);
     let fact = pc.consume_fact(pratt)?;
 
-    Ok(ast::CreateStatement{
-        fact,
-    })
+    Ok(ast::CreateStatement { fact })
 }
 
 /// Parse a Rule::update_statement into an UpdateStatement.
-fn parse_update_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::UpdateStatement, ParseError> {
+fn parse_update_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::UpdateStatement, ParseError> {
     let mut pc = descend(item);
     let fact = pc.consume_fact(pratt)?;
 
     let token = pc.consume_of_type(Rule::fact_literal_value)?;
     let to = parse_kv_literal_fields(token.into_inner(), pratt)?;
 
-    Ok(ast::UpdateStatement{
-        fact,
-        to,
-    })
+    Ok(ast::UpdateStatement { fact, to })
 }
 
 /// Parse a Rule::delete_statement into a DeleteStatement.
-fn parse_delete_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::DeleteStatement, ParseError> {
+fn parse_delete_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::DeleteStatement, ParseError> {
     let mut pc = descend(item);
     let fact = pc.consume_fact(pratt)?;
 
-    Ok(ast::DeleteStatement{
-        fact,
-    })
+    Ok(ast::DeleteStatement { fact })
 }
 
 /// Parse a Rule::effect_statement into an EffectStatement.
-fn parse_effect_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::Expression, ParseError> {
+fn parse_effect_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::Expression, ParseError> {
     assert_eq!(item.as_rule(), Rule::effect_statement);
 
     let mut pc = descend(item);
@@ -765,13 +794,14 @@ fn parse_effect_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result
 }
 
 /// Parse a Rule::return_statementinto a ReturnStatement.
-fn parse_return_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::ReturnStatement, ParseError> {
+fn parse_return_statement(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::ReturnStatement, ParseError> {
     let mut pc = descend(item);
     let expression = pc.consume_expression(pratt)?;
 
-    Ok(ast::ReturnStatement{
-        expression,
-    })
+    Ok(ast::ReturnStatement { expression })
 }
 
 /// Parse a list of statements inside a finish block.
@@ -781,20 +811,35 @@ fn parse_return_statement(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result
 /// - [UpdateStatement](ast::UpdateStatement)
 /// - [DeleteStatement](ast::DeleteStatement)
 /// - [EffectStatement](ast::EffectStatement)
-fn parse_finish_statement_list(list: Pairs<Rule>, pratt: &PrattParser<Rule>) -> Result<Vec<ast::FinishStatement>, ParseError> {
+fn parse_finish_statement_list(
+    list: Pairs<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<Vec<ast::FinishStatement>, ParseError> {
     let mut statements = vec![];
     for statement in list {
         let ps = match statement.as_rule() {
-            Rule::create_statement => ast::FinishStatement::Create(parse_create_statement(statement, pratt)?),
-            Rule::update_statement => ast::FinishStatement::Update(parse_update_statement(statement, pratt)?),
-            Rule::delete_statement => ast::FinishStatement::Delete(parse_delete_statement(statement, pratt)?),
-            Rule::effect_statement => ast::FinishStatement::Effect(parse_effect_statement(statement, pratt)?),
-            Rule::function_call => ast::FinishStatement::FunctionCall(parse_function_call(statement, pratt)?),
-            s => return Err(ParseError::new(
-                ParseErrorKind::InvalidStatement,
-                format!("found {:?} in finish block", s),
-                Some(statement.as_span()),
-            )),
+            Rule::create_statement => {
+                ast::FinishStatement::Create(parse_create_statement(statement, pratt)?)
+            }
+            Rule::update_statement => {
+                ast::FinishStatement::Update(parse_update_statement(statement, pratt)?)
+            }
+            Rule::delete_statement => {
+                ast::FinishStatement::Delete(parse_delete_statement(statement, pratt)?)
+            }
+            Rule::effect_statement => {
+                ast::FinishStatement::Effect(parse_effect_statement(statement, pratt)?)
+            }
+            Rule::function_call => {
+                ast::FinishStatement::FunctionCall(parse_function_call(statement, pratt)?)
+            }
+            s => {
+                return Err(ParseError::new(
+                    ParseErrorKind::InvalidStatement,
+                    format!("found {:?} in finish block", s),
+                    Some(statement.as_span()),
+                ))
+            }
         };
         statements.push(ps);
     }
@@ -810,23 +855,32 @@ fn parse_finish_statement_list(list: Pairs<Rule>, pratt: &PrattParser<Rule>) -> 
 /// - [MatchStatement](ast::MatchStatement)
 /// - [WhenStatement](ast::WhenStatement)
 /// - [FinishStatement](ast::FinishStatement)
-fn parse_policy_statement_list(list: Pairs<Rule>, pratt: &PrattParser<Rule>) -> Result<Vec<ast::Statement>, ParseError> {
+fn parse_policy_statement_list(
+    list: Pairs<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<Vec<ast::Statement>, ParseError> {
     let mut statements = vec![];
     for statement in list {
         let ps = match statement.as_rule() {
             Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
-            Rule::check_statement => ast::Statement::Check(parse_check_statement(statement, pratt)?),
-            Rule::match_statement => ast::Statement::Match(parse_match_statement(statement, pratt)?),
+            Rule::check_statement => {
+                ast::Statement::Check(parse_check_statement(statement, pratt)?)
+            }
+            Rule::match_statement => {
+                ast::Statement::Match(parse_match_statement(statement, pratt)?)
+            }
             Rule::when_statement => ast::Statement::When(parse_when_statement(statement, pratt)?),
             Rule::finish_statement => {
                 let pairs = statement.into_inner();
                 ast::Statement::Finish(parse_finish_statement_list(pairs, pratt)?)
-            },
-            s => return Err(ParseError::new(
-                ParseErrorKind::Expression,
-                format!("found {:?} in policy block", s),
-                Some(statement.as_span()),
-            )),
+            }
+            s => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Expression,
+                    format!("found {:?} in policy block", s),
+                    Some(statement.as_span()),
+                ))
+            }
         };
         statements.push(ps);
     }
@@ -841,19 +895,28 @@ fn parse_policy_statement_list(list: Pairs<Rule>, pratt: &PrattParser<Rule>) -> 
 /// - [MatchStatement](ast::MatchStatement)
 /// - [WhenStatement](ast::WhenStatement)
 /// - [ReturnStatement](ast::ReturnStatement)
-fn parse_function_statement_list(list: Pairs<Rule>, pratt: &PrattParser<Rule>) -> Result<Vec<ast::Statement>, ParseError> {
+fn parse_function_statement_list(
+    list: Pairs<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<Vec<ast::Statement>, ParseError> {
     let mut statements = vec![];
     for statement in list {
         let ps = match statement.as_rule() {
             Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
-            Rule::match_statement => ast::Statement::Match(parse_match_statement(statement, pratt)?),
+            Rule::match_statement => {
+                ast::Statement::Match(parse_match_statement(statement, pratt)?)
+            }
             Rule::when_statement => ast::Statement::When(parse_when_statement(statement, pratt)?),
-            Rule::return_statement => ast::Statement::Return(parse_return_statement(statement, pratt)?),
-            s => return Err(ParseError::new(
-                ParseErrorKind::InvalidStatement,
-                format!("found {:?} in function block", s),
-                Some(statement.as_span()),
-            )),
+            Rule::return_statement => {
+                ast::Statement::Return(parse_return_statement(statement, pratt)?)
+            }
+            s => {
+                return Err(ParseError::new(
+                    ParseErrorKind::InvalidStatement,
+                    format!("found {:?} in function block", s),
+                    Some(statement.as_span()),
+                ))
+            }
         };
         statements.push(ps);
     }
@@ -881,7 +944,7 @@ fn parse_fact_definition(field: Pair<Rule>) -> Result<ast::FactDefinition, Parse
         value.push(parse_field_definition(field)?);
     }
 
-    Ok(ast::FactDefinition{
+    Ok(ast::FactDefinition {
         identifier,
         key,
         value,
@@ -889,7 +952,10 @@ fn parse_fact_definition(field: Pair<Rule>) -> Result<ast::FactDefinition, Parse
 }
 
 /// Parse a `Rule::action_definition` into an [ActionDefinition](ast::ActionDefinition).
-fn parse_action_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::ActionDefinition, ParseError> {
+fn parse_action_definition(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::ActionDefinition, ParseError> {
     assert_eq!(item.as_rule(), Rule::action_definition);
 
     let mut pc = descend(item);
@@ -906,19 +972,23 @@ fn parse_action_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Resul
     for statement in pc.unwrap() {
         let ps = match statement.as_rule() {
             Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
-            Rule::match_statement => ast::Statement::Match(parse_match_statement(statement, pratt)?),
+            Rule::match_statement => {
+                ast::Statement::Match(parse_match_statement(statement, pratt)?)
+            }
             Rule::when_statement => ast::Statement::When(parse_when_statement(statement, pratt)?),
             Rule::emit_statement => ast::Statement::Emit(parse_emit_statement(statement, pratt)?),
-            s => return Err(ParseError::new(
-                ParseErrorKind::InvalidStatement,
-                format!("invalid statement in action: {:?}", s),
-                Some(statement.as_span()),
-            )),
+            s => {
+                return Err(ParseError::new(
+                    ParseErrorKind::InvalidStatement,
+                    format!("invalid statement in action: {:?}", s),
+                    Some(statement.as_span()),
+                ))
+            }
         };
         statements.push(ps);
     }
 
-    Ok(ast::ActionDefinition{
+    Ok(ast::ActionDefinition {
         identifier,
         arguments,
         statements,
@@ -938,14 +1008,14 @@ fn parse_effect_definition(item: Pair<Rule>) -> Result<ast::EffectDefinition, Pa
         fields.push(parse_effect_field_definition(field)?);
     }
 
-    Ok(ast::EffectDefinition{
-        identifier,
-        fields,
-    })
+    Ok(ast::EffectDefinition { identifier, fields })
 }
 
 /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
-fn parse_command_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::CommandDefinition, ParseError> {
+fn parse_command_definition(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::CommandDefinition, ParseError> {
     assert_eq!(item.as_rule(), Rule::command_definition);
 
     let mut pc = descend(item);
@@ -960,20 +1030,22 @@ fn parse_command_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Resu
                 for field in pairs {
                     fields.push(parse_field_definition(field)?);
                 }
-            },
+            }
             Rule::policy_statement => {
                 let pairs = token.into_inner();
                 policy = parse_policy_statement_list(pairs, pratt)?;
-            },
-            t => return Err(ParseError::new(
-                ParseErrorKind::InvalidStatement,
-                format!("found {:?} in command definition", t),
-                Some(token.as_span()),
-            )),
+            }
+            t => {
+                return Err(ParseError::new(
+                    ParseErrorKind::InvalidStatement,
+                    format!("found {:?} in command definition", t),
+                    Some(token.as_span()),
+                ))
+            }
         }
     }
 
-    Ok(ast::CommandDefinition{
+    Ok(ast::CommandDefinition {
         identifier,
         fields,
         policy,
@@ -981,7 +1053,10 @@ fn parse_command_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Resu
 }
 
 /// Parse a `Rule::function_definition` into an [FunctionDefinition](ast::FunctionDefinition).
-fn parse_function_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::FunctionDefinition, ParseError> {
+fn parse_function_definition(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::FunctionDefinition, ParseError> {
     let mut pc = descend(item);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -996,7 +1071,7 @@ fn parse_function_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Res
     let token = pc.consume_of_type(Rule::function_block)?;
     let statements = parse_function_statement_list(token.into_inner(), pratt)?;
 
-    Ok(ast::FunctionDefinition{
+    Ok(ast::FunctionDefinition {
         identifier,
         arguments,
         return_type,
@@ -1005,7 +1080,10 @@ fn parse_function_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Res
 }
 
 /// Parse a `Rule::finish_function_definition` into an [FinishFunctionDefinition](ast::FinishFunctionDefinition).
-fn parse_finish_function_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>) -> Result<ast::FinishFunctionDefinition, ParseError> {
+fn parse_finish_function_definition(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::FinishFunctionDefinition, ParseError> {
     let mut pc = descend(item);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -1018,7 +1096,7 @@ fn parse_finish_function_definition(item: Pair<Rule>, pratt: &PrattParser<Rule>)
     let token = pc.consume_of_type(Rule::finish_function_block)?;
     let statements = parse_finish_statement_list(token.into_inner(), pratt)?;
 
-    Ok(ast::FinishFunctionDefinition{
+    Ok(ast::FinishFunctionDefinition {
         identifier,
         arguments,
         statements,
@@ -1048,13 +1126,17 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
             Rule::effect_definition => effects.push(parse_effect_definition(item)?),
             Rule::command_definition => commands.push(parse_command_definition(item, &pratt)?),
             Rule::function_definition => functions.push(parse_function_definition(item, &pratt)?),
-            Rule::finish_function_definition => finish_functions.push(parse_finish_function_definition(item, &pratt)?),
+            Rule::finish_function_definition => {
+                finish_functions.push(parse_finish_function_definition(item, &pratt)?)
+            }
             Rule::EOI => (),
-            _ => return Err(ParseError::new(
-                ParseErrorKind::Unknown,
-                format!("Impossible rule: {:?}", item.as_rule()),
-                Some(item.as_span()),
-            )),
+            _ => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Unknown,
+                    format!("Impossible rule: {:?}", item.as_rule()),
+                    Some(item.as_span()),
+                ))
+            }
         }
     }
     let policy = ast::Policy {
@@ -1084,22 +1166,17 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
 /// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
 pub fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
-    .op(Op::infix(Rule::and, Assoc::Left) |
-        Op::infix(Rule::or, Assoc::Left))
-    .op(Op::infix(Rule::equal, Assoc::Left) |
-        Op::infix(Rule::not_equal, Assoc::Left))
-    .op(Op::infix(Rule::greater_than, Assoc::Left) |
-        Op::infix(Rule::less_than, Assoc::Left) |
-        Op::infix(Rule::greater_than_or_equal, Assoc::Left) |
-        Op::infix(Rule::less_than_or_equal, Assoc::Left) |
-        Op::postfix(Rule::is))
-    .op(Op::infix(Rule::add, Assoc::Left) |
-        Op::infix(Rule::subtract, Assoc::Left))
-    .op(Op::infix(Rule::modulus, Assoc::Left))
-    .op(Op::prefix(Rule::neg) |
-        Op::prefix(Rule::not) |
-        Op::prefix(Rule::unwrap))
-    .op(Op::infix(Rule::dot, Assoc::Left))
+        .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
+        .op(Op::infix(Rule::equal, Assoc::Left) | Op::infix(Rule::not_equal, Assoc::Left))
+        .op(Op::infix(Rule::greater_than, Assoc::Left)
+            | Op::infix(Rule::less_than, Assoc::Left)
+            | Op::infix(Rule::greater_than_or_equal, Assoc::Left)
+            | Op::infix(Rule::less_than_or_equal, Assoc::Left)
+            | Op::postfix(Rule::is))
+        .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
+        .op(Op::infix(Rule::modulus, Assoc::Left))
+        .op(Op::prefix(Rule::neg) | Op::prefix(Rule::not) | Op::prefix(Rule::unwrap))
+        .op(Op::infix(Rule::dot, Assoc::Left))
 }
 
 #[cfg(test)]

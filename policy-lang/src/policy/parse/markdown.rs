@@ -1,9 +1,9 @@
-use ::markdown::{to_mdast, ParseOptions};
 use ::markdown::mdast::{Node, Yaml};
+use ::markdown::{to_mdast, ParseOptions};
 use serde::Deserialize;
 
-use crate::policy::{Version, ast};
 use super::{parse_policy_str, ParseError, ParseErrorKind};
+use crate::policy::{ast, Version};
 
 #[derive(Deserialize)]
 struct FrontMatter {
@@ -13,18 +13,16 @@ struct FrontMatter {
 
 fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
     let fm: FrontMatter = serde_yaml::from_str(&yaml.value)
-    .map_err(|e| ParseError::new(
-        ParseErrorKind::FrontMatter,
-        e.to_string(),
-        None,
-    ))?;
+        .map_err(|e| ParseError::new(ParseErrorKind::FrontMatter, e.to_string(), None))?;
     let v = match fm.policy_version.as_str() {
         "3" => Version::V3,
-        _ => return Err(ParseError::new(
+        _ => {
+            return Err(ParseError::new(
                 ParseErrorKind::InvalidVersion,
                 fm.policy_version,
                 None,
-            )),
+            ))
+        }
     };
     Ok(v)
 }
@@ -75,11 +73,7 @@ pub fn extract_policy(data: &str) -> Result<(String, Version), ParseError> {
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;
     let tree = to_mdast(data, &parseoptions)
-        .map_err(|s| ParseError::new(
-            ParseErrorKind::Unknown,
-            s,
-            None,
-        ))?;
+        .map_err(|s| ParseError::new(ParseErrorKind::Unknown, s, None))?;
     let (policy_text, version) = extract_policy_from_markdown(&tree)?;
     Ok((policy_text, version))
 }

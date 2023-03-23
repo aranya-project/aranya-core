@@ -44,12 +44,7 @@ unsafe impl GlobalAlloc for MmapAllocator {
     }
 
     #[inline]
-    unsafe fn realloc(
-        &self,
-        ptr: *mut u8,
-        layout: Layout,
-        new_size: usize,
-    ) -> *mut u8 {
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         cfg_if! {
             if #[cfg(feature = "mremap")] {
                 let old_addr = ptr as *mut c_void;

@@ -1,7 +1,7 @@
 use super::Version;
 
 /// The type of a value
-/// 
+///
 /// It is not called `Type` because that conflicts with reserved keywords.
 #[derive(Debug, Clone, PartialEq)]
 pub enum VType {
@@ -18,7 +18,7 @@ pub enum VType {
 }
 
 /// An identifier and its type
-/// 
+///
 /// Field definitions are used in Command fields, fact
 /// key/value fields, and action/function arguments.
 #[derive(Debug, Clone, PartialEq)]
@@ -30,7 +30,7 @@ pub struct FieldDefinition {
 }
 
 /// An identifier and its type and dynamic effect marker
-/// 
+///
 /// A variant used exclusively for Effects
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectFieldDefinition {
@@ -43,7 +43,7 @@ pub struct EffectFieldDefinition {
 }
 
 /// A fact and its key/value field values.
-/// 
+///
 /// It is used to create, read, update, and delete facts.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FactLiteral {
@@ -56,7 +56,7 @@ pub struct FactLiteral {
 }
 
 /// A function call with a list of arguments.
-/// 
+///
 /// Can only be used in expressions, not on its own.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionCall {
@@ -177,7 +177,7 @@ pub struct MatchArm {
 }
 
 /// Match a value and execute one possibility out of many
-/// 
+///
 /// Match arms are tested in order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchStatement {
@@ -220,7 +220,7 @@ pub struct DeleteStatement {
 }
 
 /// Return from a function
-/// 
+///
 /// Only valid within functions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReturnStatement {
@@ -336,7 +336,7 @@ pub struct FinishFunctionDefinition {
 }
 
 /// The policy AST root
-/// 
+///
 /// This contains all of the definitions that comprise a policy.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Policy {

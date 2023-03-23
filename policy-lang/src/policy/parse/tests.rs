@@ -1,20 +1,15 @@
 use std::fs::OpenOptions;
 use std::io::Read;
 
-use pest::{Parser, iterators::Pair, error::Error as PestError};
+use pest::{error::Error as PestError, iterators::Pair, Parser};
 
-use crate::policy::Version;
 use crate::policy::ast::{CreateStatement, DeleteStatement};
+use crate::policy::Version;
 
-use super::{
-    PolicyParser,
-    Rule,
-    ParseError,
-    parse_policy_str,
-    get_pratt_parser,
-    parse_policy_document,
-};
 use super::ast;
+use super::{
+    get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
+};
 
 #[test]
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
@@ -43,12 +38,7 @@ fn parse_atom_string() -> Result<(), PestError<Rule>> {
     assert_eq!(token.as_rule(), Rule::string_literal);
 
     // invalid escapes
-    let cases = vec![
-        r#""\b""#,
-        r#""\xfg""#,
-        r#""\x""#,
-        r#""\""#,
-    ];
+    let cases = vec![r#""\b""#, r#""\xfg""#, r#""\x""#, r#""\""#];
     for c in cases {
         let result = PolicyParser::parse(Rule::atom, c);
         assert!(result.is_err());
@@ -69,11 +59,12 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
     assert_eq!(token.as_rule(), Rule::function_call);
 
     // terminal comma
-    let mut pair = PolicyParser::parse(Rule::atom,
+    let mut pair = PolicyParser::parse(
+        Rule::atom,
         r#"call(
             3,
             4,
-        )"#
+        )"#,
     )?;
     let token = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::function_call);
@@ -94,11 +85,7 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
     assert_eq!(token.as_str(), "foo()");
 
     // bad calls
-    let cases = vec![
-        "call(,)",
-        "call(a a)",
-        "call(-)",
-    ];
+    let cases = vec!["call(,)", "call(a a)", "call(-)"];
     for c in cases {
         // We use Rule::function_call here directly as otherwise
         // these bad calls fall back to parsing as identifiers.
@@ -145,22 +132,30 @@ fn parse_expression() -> Result<(), PestError<Rule>> {
 
 #[test]
 fn parse_expression_pratt() -> Result<(), ParseError> {
-    let mut pairs = PolicyParser::parse(Rule::expression, r#"
+    let mut pairs = PolicyParser::parse(
+        Rule::expression,
+        r#"
         unwrap call(3 + 7, -b, "foo\x7b")
-    "#.trim())?;
+    "#
+        .trim(),
+    )?;
     let pratt = get_pratt_parser();
     let expr = pairs.next().unwrap();
     let expr_parsed = super::parse_expression(expr, &pratt)?;
-    assert_eq!(expr_parsed, ast::Expression::Unwrap(
-        Box::new(ast::Expression::FunctionCall(ast::FunctionCall{
+    assert_eq!(
+        expr_parsed,
+        ast::Expression::Unwrap(Box::new(ast::Expression::FunctionCall(ast::FunctionCall {
             identifier: String::from("call"),
             arguments: vec![
-                ast::Expression::Add(Box::new(ast::Expression::Int(3)), Box::new(ast::Expression::Int(7))),
+                ast::Expression::Add(
+                    Box::new(ast::Expression::Int(3)),
+                    Box::new(ast::Expression::Int(7))
+                ),
                 ast::Expression::Negative(Box::new(ast::Expression::Identifier(String::from("b")))),
                 ast::Expression::String(String::from("foo\x7b")),
             ]
-        }))
-    ));
+        })))
+    );
     Ok(())
 }
 
@@ -173,27 +168,20 @@ struct ErrorInput {
 
 #[test]
 fn parse_errors() -> Result<(), ParseError> {
-    let cases = vec![
-        ErrorInput{
-            description: String::from("Invalid function body"),
-            input: r#"function foo(x int) bool { invalid }"#.to_string(),
-            error_message: String::from(
-                " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
+    let cases = vec![ErrorInput {
+        description: String::from("Invalid function body"),
+        input: r#"function foo(x int) bool { invalid }"#.to_string(),
+        error_message: String::from(
+            " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
                 |                            ^---\n  |\n  = expected let_statement, \
-                match_statement, when_statement, or return_statement"
-            ),
-            rule: Rule::top_level_statement,
-        },
-    ];
+                match_statement, when_statement, or return_statement",
+        ),
+        rule: Rule::top_level_statement,
+    }];
     for case in cases {
         match PolicyParser::parse(case.rule, &case.input) {
             Ok(_) => panic!("{}", case.description),
-            Err(e) => assert_eq!(
-                case.error_message,
-                e.to_string(),
-                "{}",
-                case.description,
-            ),
+            Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
         }
     }
     Ok(())
@@ -202,31 +190,32 @@ fn parse_errors() -> Result<(), ParseError> {
 #[test]
 fn parse_expression_errors() -> Result<(), ParseError> {
     let cases = vec![
-        ErrorInput{
+        ErrorInput {
             description: String::from("Integer overflow"),
             input: r#"18446744073709551617"#.to_string(),
             error_message: String::from(
                 "Invalid number: line 1 column 1: 18446744073709551617: \
-                number too large to fit in target type"
+                number too large to fit in target type",
             ),
             rule: Rule::expression,
         },
-        ErrorInput{
+        ErrorInput {
             description: String::from("Integer overflow line 2"),
             input: r#"call(
                 18446744073709551617
-            )"#.to_string(),
+            )"#
+            .to_string(),
             error_message: String::from(
                 "Invalid number: line 2 column 17: 18446744073709551617: \
-                number too large to fit in target type"
+                number too large to fit in target type",
             ),
             rule: Rule::expression,
         },
-        ErrorInput{
+        ErrorInput {
             description: String::from("Invalid string escape"),
             input: r#""\\""#.to_string(),
             error_message: String::from(
-                "Invalid string: line 1 column 1: \"\\\\\": invalid escape: \\"
+                "Invalid string: line 1 column 1: \"\\\\\": invalid escape: \\",
             ),
             rule: Rule::expression,
         },
@@ -237,12 +226,7 @@ fn parse_expression_errors() -> Result<(), ParseError> {
         let expr = pairs.next().unwrap();
         match super::parse_expression(expr, &pratt) {
             Ok(_) => panic!("{}", case.description),
-            Err(e) => assert_eq!(
-                case.error_message,
-                e.to_string(),
-                "{}",
-                case.description,
-            ),
+            Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
         }
     }
     Ok(())
@@ -264,7 +248,8 @@ fn parse_field() -> Result<(), PestError<Rule>> {
 fn parse_fact() -> Result<(), PestError<Rule>> {
     let src = r#"
         fact Foo[a int] => {b ID, c string}
-    "#.trim();
+    "#
+    .trim();
 
     let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
     let token = pairs.next().unwrap();
@@ -281,7 +266,8 @@ fn parse_action() -> Result<(), PestError<Rule>> {
                 Owner: owner
             }
         }
-    "#.trim();
+    "#
+    .trim();
     let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::action_definition);
@@ -295,7 +281,8 @@ fn parse_effect() -> Result<(), PestError<Rule>> {
         effect Foo {
             owner ID dynamic,
         }
-    "#.trim();
+    "#
+    .trim();
     let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::effect_definition);
@@ -317,7 +304,8 @@ fn parse_command() -> Result<(), PestError<Rule>> {
                 }
             }
         }
-    "#.trim();
+    "#
+    .trim();
     let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::command_definition);
@@ -331,7 +319,8 @@ fn parse_function() -> Result<(), PestError<Rule>> {
     function foo(x int) bool {
         return true
     }
-    "#.trim();
+    "#
+    .trim();
     let mut pairs = PolicyParser::parse(Rule::top_level_statement, src)?;
     let token = pairs.next().unwrap();
     assert_eq!(token.as_rule(), Rule::function_definition);
@@ -341,7 +330,8 @@ fn parse_function() -> Result<(), PestError<Rule>> {
 
 #[test]
 fn parse_policy_test() -> Result<(), ParseError> {
-    let policy = parse_policy_str(r#"
+    let policy = parse_policy_str(
+        r#"
         // This is not a valid policy. It is just meant to exercise
         // every feature of the parser.
         /* block comment */
@@ -403,263 +393,250 @@ fn parse_policy_test() -> Result<(), ParseError> {
             create Next[]=>{}
         }
 
-    "#, Version::V3)?;
+    "#,
+        Version::V3,
+    )?;
 
-    let want = ast::Policy{
+    let want = ast::Policy {
         version: Version::V3,
-        facts: vec![
-            ast::FactDefinition{
-                identifier: String::from("F"),
-                key: vec![
-                    ast::FieldDefinition{
-                        identifier: String::from("v"),
-                        field_type: ast::VType::String,
-                    }
-                ],
-                value: vec![
-                    ast::FieldDefinition{
-                        identifier: String::from("x"),
-                        field_type: ast::VType::Int,
-                    },
-                    ast::FieldDefinition{
-                        identifier: String::from("y"),
-                        field_type: ast::VType::Bool,
-                    },
-                ],
-            }
-        ],
-        actions: vec![
-            ast::ActionDefinition{
-                identifier: String::from("add"),
-                arguments: vec![
-                    ast::FieldDefinition{
-                        identifier: String::from("x"),
-                        field_type: ast::VType::Int,
-                    },
-                    ast::FieldDefinition{
-                        identifier: String::from("y"),
-                        field_type: ast::VType::Int,
-                    },
-                ],
-                statements: vec![
-                    ast::Statement::Let(ast::LetStatement{
-                        identifier: String::from("obj"),
-                        expression: ast::Expression::NamedStruct(ast::NamedStruct{
-                            identifier: String::from("Add"),
-                            fields: vec![
-                                (String::from("count"), ast::Expression::Identifier(String::from("x"))),
-                            ]
-                        }),
+        facts: vec![ast::FactDefinition {
+            identifier: String::from("F"),
+            key: vec![ast::FieldDefinition {
+                identifier: String::from("v"),
+                field_type: ast::VType::String,
+            }],
+            value: vec![
+                ast::FieldDefinition {
+                    identifier: String::from("x"),
+                    field_type: ast::VType::Int,
+                },
+                ast::FieldDefinition {
+                    identifier: String::from("y"),
+                    field_type: ast::VType::Bool,
+                },
+            ],
+        }],
+        actions: vec![ast::ActionDefinition {
+            identifier: String::from("add"),
+            arguments: vec![
+                ast::FieldDefinition {
+                    identifier: String::from("x"),
+                    field_type: ast::VType::Int,
+                },
+                ast::FieldDefinition {
+                    identifier: String::from("y"),
+                    field_type: ast::VType::Int,
+                },
+            ],
+            statements: vec![
+                ast::Statement::Let(ast::LetStatement {
+                    identifier: String::from("obj"),
+                    expression: ast::Expression::NamedStruct(ast::NamedStruct {
+                        identifier: String::from("Add"),
+                        fields: vec![(
+                            String::from("count"),
+                            ast::Expression::Identifier(String::from("x")),
+                        )],
                     }),
-                    ast::Statement::Emit(ast::Expression::Identifier(String::from("obj"))),
-                ],
-            }
-        ],
-        effects: vec![
-            ast::EffectDefinition{
-                identifier: String::from("Added"),
-                fields: vec![
-                    ast::EffectFieldDefinition{
-                        identifier: String::from("x"),
-                        field_type: ast::VType::Int,
-                        dynamic: true,
-                    },
-                    ast::EffectFieldDefinition{
-                        identifier: String::from("y"),
-                        field_type: ast::VType::Int,
-                        dynamic: false,
-                    },
-                ]
-            }
-        ],
-        commands: vec![
-            ast::CommandDefinition {
-                identifier: String::from("Add"),
-                fields: vec![
-                    ast::FieldDefinition {
-                        identifier: String::from("count"),
-                        field_type: ast::VType::Int},
-                ],
-                policy: vec![
-                    ast::Statement::Let(ast::LetStatement{
-                        identifier: String::from("id"),
-                        expression: ast::Expression::InternalFunction(
-                            ast::InternalFunction::Id(
-                                Box::new(ast::Expression::Identifier(String::from("self")))
-                            )
-                        ),
-                    }),
-                    ast::Statement::Let(ast::LetStatement{
-                        identifier: String::from("author"),
-                        expression: ast::Expression::InternalFunction(
-                            ast::InternalFunction::AuthorId(
-                                Box::new(ast::Expression::Identifier(String::from("self")))
-                            )
-                        ),
-                    }),
-                    ast::Statement::Let(ast::LetStatement{
-                        identifier: String::from("new_x"),
-                        expression: ast::Expression::Add(
-                            Box::new(ast::Expression::Identifier(String::from("x"))),
-                            Box::new(ast::Expression::Identifier(String::from("count"))),
-                        ),
-                    }),
-                    ast::Statement::Check(ast::CheckStatement{
-                        origin: false,
-                        expression: ast::Expression::InternalFunction(ast::InternalFunction::Exists(
-                            ast::FactLiteral{
-                                identifier: String::from("TestFact"),
-                                key_fields: vec![
-                                    (String::from("v"), ast::Expression::String(String::from("test"))),
-                                ],
-                                value_fields: Some(vec![]),
-                            }
-                        )),
-                    }),
-                    ast::Statement::Match(ast::MatchStatement{
-                        expression: ast::Expression::Modulus(
-                            Box::new(ast::Expression::Identifier(String::from("x"))),
-                            Box::new(ast::Expression::Int(2))
-                        ),
-                        arms: vec![
-                            ast::MatchArm{
-                                value: Some(ast::Expression::Int(0)),
-                                statements: vec![
-                                    ast::Statement::Check(ast::CheckStatement{
-                                        origin: false,
-                                        expression: ast::Expression::FunctionCall(ast::FunctionCall{
-                                            identifier: String::from("positive"),
-                                            arguments: vec![
-                                                ast::Expression::Optional(Some(Box::new(
-                                                    ast::Expression::Identifier(String::from("new_x"))
-                                                ))),
-                                            ],
-                                        }),
-                                    }),
-                                ],
-                            },
-                            ast::MatchArm{
-                                value: Some(ast::Expression::Int(1)),
-                                statements: vec![
-                                    ast::Statement::Check(ast::CheckStatement{
-                                        origin: true,
-                                        expression: ast::Expression::FunctionCall(ast::FunctionCall{
-                                            identifier: String::from("positive"),
-                                            arguments: vec![
-                                                ast::Expression::Optional(None),
-                                            ]
-                                        })
-                                    }),
-                                ],
-                            },
-                        ],
-                    }),
-                    ast::Statement::When(ast::WhenStatement{
-                        expression: ast::Expression::Equal(
-                            Box::new(ast::Expression::Identifier(String::from("x"))),
-                            Box::new(ast::Expression::Int(3))
-                        ),
-                        statements: vec![
-                            ast::Statement::Check(ast::CheckStatement{
-                                origin: false,
-                                expression: ast::Expression::LessThan(
-                                    Box::new(ast::Expression::Identifier(String::from("new_x"))),
-                                    Box::new(ast::Expression::Int(10))
-                                ),
-                            })
-                        ],
-                    }),
-                    ast::Statement::Finish(vec![
-                        ast::FinishStatement::Create(CreateStatement{
-                            fact: ast::FactLiteral{
-                                identifier: String::from("F"),
-                                key_fields: vec![
-                                    (String::from("v"), ast::Expression::String(String::from("hello"))),
-                                ],
-                                value_fields: Some(vec![
-                                    (String::from("x"), ast::Expression::Identifier(String::from("x"))),
-                                    (String::from("y"), ast::Expression::Negative(
-                                        Box::new(ast::Expression::Identifier(String::from("x"))),
-                                    )),
-                                ])
-                            }
-                        }),
-                        ast::FinishStatement::Update(ast::UpdateStatement{
-                            fact: ast::FactLiteral{
-                                identifier: String::from("F"),
-                                key_fields: vec![],
-                                value_fields: Some(vec![
-                                    (String::from("x"), ast::Expression::Identifier(String::from("x"))),
-                                ])
-                            },
-                            to: vec![
-                                (String::from("x"), ast::Expression::Identifier(String::from("new_x"))),
-                            ]
-                        }),
-                        ast::FinishStatement::Delete(DeleteStatement{
-                            fact: ast::FactLiteral{
-                                identifier: String::from("F"),
-                                key_fields: vec![
-                                    (String::from("v"), ast::Expression::String(String::from("hello"))),
-                                ],
-                                value_fields: None,
-                            }
-                        }),
-                        ast::FinishStatement::Effect(ast::Expression::NamedStruct(ast::NamedStruct{
-                            identifier: String::from("Added"),
-                            fields: vec![
-                                (String::from("x"), ast::Expression::Identifier(String::from("new_x"))),
-                                (String::from("y"), ast::Expression::Identifier(String::from("count"))),
-                            ]
-                        }))
-                    ])
-                ],
-            },
-        ],
-        functions: vec![
-            ast::FunctionDefinition{
-                identifier: String::from("positive"),
-                arguments: vec![
-                    ast::FieldDefinition{
-                        identifier: String::from("v"),
-                        field_type: ast::VType::Optional(Box::new(ast::VType::Int)),
-                    }
-                ],
-                return_type: ast::VType::Bool,
-                statements: vec![
-                    ast::Statement::Let(ast::LetStatement{
-                        identifier: String::from("x"),
-                        expression: ast::Expression::Unwrap(Box::new(ast::Expression::Identifier(String::from("v")))),
-                    }),
-                    ast::Statement::Return(ast::ReturnStatement{
-                        expression: ast::Expression::GreaterThan(
-                            Box::new(ast::Expression::Identifier(String::from("x"))),
-                            Box::new(ast::Expression::Int(0))
-                        ),
-                    })
-                ]
-            }
-        ],
-        finish_functions: vec![
-            ast::FinishFunctionDefinition{
-                identifier: String::from("next"),
-                arguments: vec![
-                    ast::FieldDefinition{
-                        identifier: String::from("x"),
-                        field_type: ast::VType::Int,
-                    }
-                ],
-                statements: vec![
-                    ast::FinishStatement::Create(ast::CreateStatement{
-                        fact: ast::FactLiteral{
-                            identifier: String::from("Next"),
-                            key_fields: vec![],
+                }),
+                ast::Statement::Emit(ast::Expression::Identifier(String::from("obj"))),
+            ],
+        }],
+        effects: vec![ast::EffectDefinition {
+            identifier: String::from("Added"),
+            fields: vec![
+                ast::EffectFieldDefinition {
+                    identifier: String::from("x"),
+                    field_type: ast::VType::Int,
+                    dynamic: true,
+                },
+                ast::EffectFieldDefinition {
+                    identifier: String::from("y"),
+                    field_type: ast::VType::Int,
+                    dynamic: false,
+                },
+            ],
+        }],
+        commands: vec![ast::CommandDefinition {
+            identifier: String::from("Add"),
+            fields: vec![ast::FieldDefinition {
+                identifier: String::from("count"),
+                field_type: ast::VType::Int,
+            }],
+            policy: vec![
+                ast::Statement::Let(ast::LetStatement {
+                    identifier: String::from("id"),
+                    expression: ast::Expression::InternalFunction(ast::InternalFunction::Id(
+                        Box::new(ast::Expression::Identifier(String::from("self"))),
+                    )),
+                }),
+                ast::Statement::Let(ast::LetStatement {
+                    identifier: String::from("author"),
+                    expression: ast::Expression::InternalFunction(ast::InternalFunction::AuthorId(
+                        Box::new(ast::Expression::Identifier(String::from("self"))),
+                    )),
+                }),
+                ast::Statement::Let(ast::LetStatement {
+                    identifier: String::from("new_x"),
+                    expression: ast::Expression::Add(
+                        Box::new(ast::Expression::Identifier(String::from("x"))),
+                        Box::new(ast::Expression::Identifier(String::from("count"))),
+                    ),
+                }),
+                ast::Statement::Check(ast::CheckStatement {
+                    origin: false,
+                    expression: ast::Expression::InternalFunction(ast::InternalFunction::Exists(
+                        ast::FactLiteral {
+                            identifier: String::from("TestFact"),
+                            key_fields: vec![(
+                                String::from("v"),
+                                ast::Expression::String(String::from("test")),
+                            )],
                             value_fields: Some(vec![]),
                         },
+                    )),
+                }),
+                ast::Statement::Match(ast::MatchStatement {
+                    expression: ast::Expression::Modulus(
+                        Box::new(ast::Expression::Identifier(String::from("x"))),
+                        Box::new(ast::Expression::Int(2)),
+                    ),
+                    arms: vec![
+                        ast::MatchArm {
+                            value: Some(ast::Expression::Int(0)),
+                            statements: vec![ast::Statement::Check(ast::CheckStatement {
+                                origin: false,
+                                expression: ast::Expression::FunctionCall(ast::FunctionCall {
+                                    identifier: String::from("positive"),
+                                    arguments: vec![ast::Expression::Optional(Some(Box::new(
+                                        ast::Expression::Identifier(String::from("new_x")),
+                                    )))],
+                                }),
+                            })],
+                        },
+                        ast::MatchArm {
+                            value: Some(ast::Expression::Int(1)),
+                            statements: vec![ast::Statement::Check(ast::CheckStatement {
+                                origin: true,
+                                expression: ast::Expression::FunctionCall(ast::FunctionCall {
+                                    identifier: String::from("positive"),
+                                    arguments: vec![ast::Expression::Optional(None)],
+                                }),
+                            })],
+                        },
+                    ],
+                }),
+                ast::Statement::When(ast::WhenStatement {
+                    expression: ast::Expression::Equal(
+                        Box::new(ast::Expression::Identifier(String::from("x"))),
+                        Box::new(ast::Expression::Int(3)),
+                    ),
+                    statements: vec![ast::Statement::Check(ast::CheckStatement {
+                        origin: false,
+                        expression: ast::Expression::LessThan(
+                            Box::new(ast::Expression::Identifier(String::from("new_x"))),
+                            Box::new(ast::Expression::Int(10)),
+                        ),
+                    })],
+                }),
+                ast::Statement::Finish(vec![
+                    ast::FinishStatement::Create(CreateStatement {
+                        fact: ast::FactLiteral {
+                            identifier: String::from("F"),
+                            key_fields: vec![(
+                                String::from("v"),
+                                ast::Expression::String(String::from("hello")),
+                            )],
+                            value_fields: Some(vec![
+                                (
+                                    String::from("x"),
+                                    ast::Expression::Identifier(String::from("x")),
+                                ),
+                                (
+                                    String::from("y"),
+                                    ast::Expression::Negative(Box::new(
+                                        ast::Expression::Identifier(String::from("x")),
+                                    )),
+                                ),
+                            ]),
+                        },
                     }),
-                ],
-            }
-        ],
+                    ast::FinishStatement::Update(ast::UpdateStatement {
+                        fact: ast::FactLiteral {
+                            identifier: String::from("F"),
+                            key_fields: vec![],
+                            value_fields: Some(vec![(
+                                String::from("x"),
+                                ast::Expression::Identifier(String::from("x")),
+                            )]),
+                        },
+                        to: vec![(
+                            String::from("x"),
+                            ast::Expression::Identifier(String::from("new_x")),
+                        )],
+                    }),
+                    ast::FinishStatement::Delete(DeleteStatement {
+                        fact: ast::FactLiteral {
+                            identifier: String::from("F"),
+                            key_fields: vec![(
+                                String::from("v"),
+                                ast::Expression::String(String::from("hello")),
+                            )],
+                            value_fields: None,
+                        },
+                    }),
+                    ast::FinishStatement::Effect(ast::Expression::NamedStruct(ast::NamedStruct {
+                        identifier: String::from("Added"),
+                        fields: vec![
+                            (
+                                String::from("x"),
+                                ast::Expression::Identifier(String::from("new_x")),
+                            ),
+                            (
+                                String::from("y"),
+                                ast::Expression::Identifier(String::from("count")),
+                            ),
+                        ],
+                    })),
+                ]),
+            ],
+        }],
+        functions: vec![ast::FunctionDefinition {
+            identifier: String::from("positive"),
+            arguments: vec![ast::FieldDefinition {
+                identifier: String::from("v"),
+                field_type: ast::VType::Optional(Box::new(ast::VType::Int)),
+            }],
+            return_type: ast::VType::Bool,
+            statements: vec![
+                ast::Statement::Let(ast::LetStatement {
+                    identifier: String::from("x"),
+                    expression: ast::Expression::Unwrap(Box::new(ast::Expression::Identifier(
+                        String::from("v"),
+                    ))),
+                }),
+                ast::Statement::Return(ast::ReturnStatement {
+                    expression: ast::Expression::GreaterThan(
+                        Box::new(ast::Expression::Identifier(String::from("x"))),
+                        Box::new(ast::Expression::Int(0)),
+                    ),
+                }),
+            ],
+        }],
+        finish_functions: vec![ast::FinishFunctionDefinition {
+            identifier: String::from("next"),
+            arguments: vec![ast::FieldDefinition {
+                identifier: String::from("x"),
+                field_type: ast::VType::Int,
+            }],
+            statements: vec![ast::FinishStatement::Create(ast::CreateStatement {
+                fact: ast::FactLiteral {
+                    identifier: String::from("Next"),
+                    key_fields: vec![],
+                    value_fields: Some(vec![]),
+                },
+            })],
+        }],
     };
     assert_eq!(policy, want);
     Ok(())
@@ -671,12 +648,12 @@ fn parse_policy_test() -> Result<(), ParseError> {
 fn parse_tictactoe() {
     let text = {
         let mut buf = vec![];
-        let mut f = OpenOptions::new().read(true).open("src/policy/tictactoe.policy")
+        let mut f = OpenOptions::new()
+            .read(true)
+            .open("src/policy/tictactoe.policy")
             .expect("could not open policy");
-        f.read_to_end(&mut buf)
-            .expect("could not read policy file");
-        String::from_utf8(buf)
-            .expect("File is not valid UTF-8")
+        f.read_to_end(&mut buf).expect("could not read policy file");
+        String::from_utf8(buf).expect("File is not valid UTF-8")
     };
 
     let policy = match parse_policy_str(&text, Version::V3) {
@@ -685,10 +662,10 @@ fn parse_tictactoe() {
             // we do this rather than .expect() so we can see the nice error formatting
             println!("{}", e);
             panic!();
-        },
+        }
     };
     assert_eq!(policy.facts.len(), 4);
-    assert_eq!(policy.actions.len(),  2);
+    assert_eq!(policy.actions.len(), 2);
     assert_eq!(policy.actions.len(), 2);
     assert_eq!(policy.commands.len(), 3);
     assert_eq!(policy.functions.len(), 2);
@@ -736,7 +713,7 @@ action foo() {
             // we do this rather than .expect() so we can see the nice error formatting
             println!("{}", e);
             panic!();
-        },
+        }
     };
 
     assert!(policy.version == Version::V3);

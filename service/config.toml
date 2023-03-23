@@ -1,0 +1,16 @@
+# Defines Cargo configuration values
+# More info: https://doc.rust-lang.org/cargo/reference/config.html
+
+[profile.dev]
+panic = "abort"
+
+[profile.dev-std]
+inherits = "dev"
+panic = "unwind"
+
+[profile.release]
+panic = "abort"
+
+[profile.release-std]
+inherits = "release"
+panic = "unwind"

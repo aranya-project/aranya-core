@@ -1,15 +1,9 @@
-mod parse;
 pub mod ast;
+mod parse;
 
 pub use parse::{
-    PolicyParser,
-    Rule,
-    ParseError,
-    get_pratt_parser,
-    parse_policy_str,
-    parse_expression,
-    parse_policy_document,
-    extract_policy,
+    extract_policy, get_pratt_parser, parse_expression, parse_policy_document, parse_policy_str,
+    ParseError, PolicyParser, Rule,
 };
 
 #[derive(Debug, Clone, PartialEq, Copy)]
