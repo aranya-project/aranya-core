@@ -15,3 +15,7 @@ runs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Install Rustup
       uses: spideroak-inc/setup-rust@fork
+    - name: glibc version
+      shell: bash
+      run: ldd --version
+      if: ${{ matrix.os == 'self-hosted-linux-arm' }}
