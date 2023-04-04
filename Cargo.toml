@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
-    "service",
-    "policy-lang"
+    "policy-lang",
+    "runtime",
+    "service"
 ]
