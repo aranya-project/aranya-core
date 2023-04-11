@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "crypto",
     "policy-lang",
     "runtime",
     "service"

@@ -1,0 +1,15 @@
+[package]
+name = "flow3-crypto"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+aead = { version = "0.5.1", features = ["alloc"] }
+digest = { version = "0.10.6", features = ["mac"] }
+chacha20poly1305 = { version = "0.10.1" }
+sha2 = { version = "0.10.6" }
+hmac = { version = "0.12.1" }
+
+[features]
+defaults = []
+std = []
