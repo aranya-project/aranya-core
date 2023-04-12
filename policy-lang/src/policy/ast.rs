@@ -307,6 +307,8 @@ pub struct CommandDefinition {
     pub fields: Vec<FieldDefinition>,
     /// The policy rule statements for this command
     pub policy: Vec<Statement>,
+    /// The recall rule statements for this command
+    pub recall: Vec<Statement>,
 }
 
 /// A function definition

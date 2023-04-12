@@ -189,6 +189,10 @@ fields_statement = { "fields" ~ struct_def }
 // actual policy governing the command.
 policy_statement = { "policy" ~ "{" ~ policy_statements* ~ "}" }
 policy_statements = _{ let_statement | check_statement | match_statement | when_statement | finish_statement }
+// The recall statement defines a block of statements that will be
+// executed when a command of this type is recalled.
+recall_statement = { "recall" ~ "{" ~ recall_statements* ~ "}" }
+recall_statements = _{ let_statement | match_statement | when_statement | finish_statement }
 // A let statement assigns a value to an identifier. Identifiers can
 // only be assigned once.
 let_statement = { "let" ~ identifier ~ "=" ~ expression }
@@ -229,7 +233,7 @@ action_definition = { "action" ~ identifier ~ function_arguments ~ "{" ~ action_
 // effect Foo { bar ID }
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 // command Foo { ... }
-command_statements = _{ fields_statement | policy_statement }
+command_statements = _{ fields_statement | policy_statement | recall_statement }
 command_definition = { "command" ~ identifier ~ "{" ~ command_statements+ ~ "}" }
 // function foo(a int) int { return a }
 function_statements = _{ let_statement | match_statement | when_statement | return_statement }

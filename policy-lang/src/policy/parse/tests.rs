@@ -382,6 +382,20 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     }
                 }
             }
+            recall {
+                let id = id(self)
+                let author = author_id(self)
+                let new_x = x + count
+                finish {
+                    create F[v: "hello"]=>{x: x, y: -x}
+                    update F[]=>{x: x} to {x: new_x}
+                    delete F[v: "hello"]
+                    effect Added {
+                        x: new_x,
+                        y: count,
+                    }
+                }
+            }
         }
 
         function positive(v optional int) bool {
@@ -538,6 +552,87 @@ fn parse_policy_test() -> Result<(), ParseError> {
                             Box::new(ast::Expression::Int(10)),
                         ),
                     })],
+                }),
+                ast::Statement::Finish(vec![
+                    ast::FinishStatement::Create(CreateStatement {
+                        fact: ast::FactLiteral {
+                            identifier: String::from("F"),
+                            key_fields: vec![(
+                                String::from("v"),
+                                ast::Expression::String(String::from("hello")),
+                            )],
+                            value_fields: Some(vec![
+                                (
+                                    String::from("x"),
+                                    ast::Expression::Identifier(String::from("x")),
+                                ),
+                                (
+                                    String::from("y"),
+                                    ast::Expression::Negative(Box::new(
+                                        ast::Expression::Identifier(String::from("x")),
+                                    )),
+                                ),
+                            ]),
+                        },
+                    }),
+                    ast::FinishStatement::Update(ast::UpdateStatement {
+                        fact: ast::FactLiteral {
+                            identifier: String::from("F"),
+                            key_fields: vec![],
+                            value_fields: Some(vec![(
+                                String::from("x"),
+                                ast::Expression::Identifier(String::from("x")),
+                            )]),
+                        },
+                        to: vec![(
+                            String::from("x"),
+                            ast::Expression::Identifier(String::from("new_x")),
+                        )],
+                    }),
+                    ast::FinishStatement::Delete(DeleteStatement {
+                        fact: ast::FactLiteral {
+                            identifier: String::from("F"),
+                            key_fields: vec![(
+                                String::from("v"),
+                                ast::Expression::String(String::from("hello")),
+                            )],
+                            value_fields: None,
+                        },
+                    }),
+                    ast::FinishStatement::Effect(ast::Expression::NamedStruct(ast::NamedStruct {
+                        identifier: String::from("Added"),
+                        fields: vec![
+                            (
+                                String::from("x"),
+                                ast::Expression::Identifier(String::from("new_x")),
+                            ),
+                            (
+                                String::from("y"),
+                                ast::Expression::Identifier(String::from("count")),
+                            ),
+                        ],
+                    })),
+                ]),
+            ],
+            recall: vec![
+                ast::Statement::Let(ast::LetStatement {
+                    identifier: String::from("id"),
+                    expression: ast::Expression::InternalFunction(ast::InternalFunction::Id(
+                        Box::new(ast::Expression::Identifier(String::from("self"))),
+                    )),
+                }),
+                ast::Statement::Let(ast::LetStatement {
+                    identifier: String::from("author"),
+                    expression: ast::Expression::InternalFunction(ast::InternalFunction::AuthorId(
+                        Box::new(ast::Expression::Identifier(String::from("self"))),
+                    )),
+                }),
+                ast::Statement::Let(ast::LetStatement {
+                    identifier: String::from("new_x"),
+                    expression: ast::Expression::Add(
+                        Box::new(ast::Expression::Identifier(String::from("x"))),
+                        Box::new(ast::Expression::Identifier(String::from("count"))),
+                    ),
                 }),
                 ast::Statement::Finish(vec![
                     ast::FinishStatement::Create(CreateStatement {

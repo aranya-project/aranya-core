@@ -846,6 +846,42 @@ fn parse_finish_statement_list(
 
     Ok(statements)
 }
+/// Parse a list of statements inside a recall block.
+///
+/// Valid in this context:
+/// - [LetStatement](ast::LetStatement)
+/// - [MatchStatement](ast::MatchStatement)
+/// - [WhenStatement](ast::WhenStatement)
+/// - [FinishStatement](ast::FinishStatement)
+fn parse_recall_statement_list(
+    list: Pairs<Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<Vec<ast::Statement>, ParseError> {
+    let mut statements = vec![];
+    for statement in list {
+        let ps = match statement.as_rule() {
+            Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
+            Rule::match_statement => {
+                ast::Statement::Match(parse_match_statement(statement, pratt)?)
+            }
+            Rule::when_statement => ast::Statement::When(parse_when_statement(statement, pratt)?),
+            Rule::finish_statement => {
+                let pairs = statement.into_inner();
+                ast::Statement::Finish(parse_finish_statement_list(pairs, pratt)?)
+            }
+            s => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Expression,
+                    format!("found {:?} in policy block", s),
+                    Some(statement.as_span()),
+                ))
+            }
+        };
+        statements.push(ps);
+    }
+
+    Ok(statements)
+}
 
 /// Parse a list of statements inside a policy block.
 ///
@@ -1023,6 +1059,7 @@ fn parse_command_definition(
 
     let mut fields = vec![];
     let mut policy = vec![];
+    let mut recall = vec![];
     for token in pc.unwrap() {
         match token.as_rule() {
             Rule::fields_statement => {
@@ -1034,6 +1071,10 @@ fn parse_command_definition(
             Rule::policy_statement => {
                 let pairs = token.into_inner();
                 policy = parse_policy_statement_list(pairs, pratt)?;
+            }
+            Rule::recall_statement => {
+                let pairs = token.into_inner();
+                recall = parse_recall_statement_list(pairs, pratt)?;
             }
             t => {
                 return Err(ParseError::new(
@@ -1049,6 +1090,7 @@ fn parse_command_definition(
         identifier,
         fields,
         policy,
+        recall,
     })
 }
 
