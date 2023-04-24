@@ -35,19 +35,34 @@ jobs:
         run: rustup show
       - name: Show version
         run: cargo --version --verbose
-      - name: Clean target
-        run: cargo clean
-        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Check code
-        run: cargo check --features std
       - name: Unit Tests std
         run: cargo test --features std --verbose
         # TODO: test with no_std pending
         # https://github.com/rust-lang/rust/issues/48665
 
-  build-release:
+  lint-code:
+    strategy:
+      matrix:
+        os: [
+          "ubuntu-latest",
+          "macos-latest",
+          "self-hosted-linux-arm"
+        ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Clean temp files
+        run: rm -rf ${{ github.workspace }}/_temp
+        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+      - uses: ./.github/actions/setup
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Check code without `std`
+        run: cargo check
+      - name: Check code with `std`
+        run: cargo check --features std
+
+  build-release-std:
     strategy:
       matrix:
         os: [
@@ -63,12 +78,23 @@ jobs:
         run: rm -rf ${{ github.workspace }}/_temp
         if: ${{ matrix.os == 'self-hosted-linux-arm' }}
       - uses: ./.github/actions/setup
-      - name: Show toolchains
-        run: rustup show
-      - name: Show version
-        run: cargo --version --verbose
-      - name: Clean target
-        run: cargo clean
-        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
       - name: Build code
         run: cargo build --verbose --release --features std
+
+  build-release-no-std:
+    strategy:
+      matrix:
+        os: [
+          "ubuntu-latest",
+          "macos-latest",
+          "self-hosted-linux-arm"
+        ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Clean temp files
+        run: rm -rf ${{ github.workspace }}/_temp
+        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+      - uses: ./.github/actions/setup
+      - name: Build code
+        run: cargo build --verbose --release
