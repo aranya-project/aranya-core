@@ -1,3 +1,9 @@
+//! Interfaces for graph storage.
+//!
+//! The [`StorageProvider`] and [`Storage`] interfaces enable high-level
+//! actions on the graph. Traversing the graph is made simpler by splitting
+//! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
+//! [`Perspective`]s, which represent a slice of state.
 use alloc::vec::Vec;
 
 use crate::{
@@ -5,121 +11,232 @@ use crate::{
     engine::{Engine, EngineError, PolicyId},
 };
 
-pub trait StorageProvider<T, K, V>
-where
-    T: Command,
-    K: Ord,
-{
-    type Perspective<'a>: Perspective<'a, T, K, V, Update = Self::Update>
-    where
-        Self: 'a;
+/// Handle to storage implementations used by the runtime engine.
+pub trait StorageProvider {
+    type Perspective: Perspective<Update = Self::Update>;
     type Update;
-    type Storage: Storage<T, K, V, Update = Self::Update>;
+    type Storage: Storage<Update = Self::Update>;
 
-    fn new_perspective<'a>(&'a mut self, policy_id: &PolicyId) -> Self::Perspective<'a>;
-    fn new_storage<'a>(
-        &'a mut self,
+    /// Create an unrooted perspective, intended for creating a new graph.
+    ///
+    /// # Arguments
+    ///
+    /// * `policy_id` - The policy to associated with the graph.
+    fn new_perspective(&mut self, policy_id: &PolicyId) -> Self::Perspective;
+
+    /// Create a new graph.
+    ///
+    /// # Arguments
+    ///
+    /// * `group` - Id of the command that initializes the new graph.
+    /// * `update` - Contains the data necessary to update the new graph.
+    fn new_storage(
+        &mut self,
         group: &command::Id,
         update: Self::Update,
-    ) -> Result<&'a mut Self::Storage, StorageError>;
-    fn get_storage<'a>(
-        &'a mut self,
-        group: &command::Id,
-    ) -> Result<&'a mut Self::Storage, StorageError>;
+    ) -> Result<&mut Self::Storage, StorageError>;
+
+    /// Get an existing graph.
+    ///
+    /// # Arguments
+    ///
+    /// * `group` - Id of the command that initialized the graph.
+    fn get_storage(&mut self, group: &command::Id) -> Result<&mut Self::Storage, StorageError>;
 }
 
-/// Represents the parent graph of commands.
-pub trait Storage<T, K, V>
-where
-    T: Command,
-{
-    type Perspective<'a>: Perspective<'a, T, K, V, Update = Self::Update>
-    where
-        Self: 'a;
+/// Represents the runtime's graph; [`Command`](s) in storage have been validated
+/// by an associated [`Policy`] and committed to state.
+pub trait Storage {
+    type Perspective: Perspective<Update = Self::Update>;
     type Update;
-    type Segment;
+    type Segment: Segment;
 
-    /// Return the location of Command with id if it has been stored.
+    /// Return the location of the specified command, if it has been stored
+    /// in this graph.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Uniquely identifies the (serialized) command.
     fn get_location(&self, id: &command::Id) -> Result<Option<Location>, StorageError>;
 
-    /// Return a mutable reference to the fact db perspective in the graph at
-    /// the command with id, or None if the id can not be found.
-    fn get_perspective<'b>(
-        &'b self,
-        id: &command::Id,
-    ) -> Result<Option<Self::Perspective<'b>>, StorageError>;
+    /// Return the Id of the specified [`Command`] from the graph.
+    ///
+    /// # Arguments
+    ///
+    /// * `location` - References a point in the graph.
+    fn get_id(&self, location: &Location) -> Result<command::Id, StorageError>;
 
-    /// Return true if the location is a head.
+    /// Return the specified [`Segment`] from the graph. Returns None if the
+    /// Id cannot be found
+    ///
+    /// # Arguments
+    ///
+    /// * `location` - References a point in the graph.
+    fn get_segment(&self, location: &Location) -> Result<Option<&Self::Segment>, StorageError>;
+
+    /// Return a mutable reference to a perspective of the graph at
+    /// the specified command.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Uniquely identifies the (serialized) command.
+    fn get_perspective(&self, id: &command::Id) -> Result<Option<Self::Perspective>, StorageError>;
+
+    /// Return true if the specified command is a head.
+    ///
+    /// # Arguments
+    ///
+    /// * `location` - References a point in the graph.
     fn is_head(&self, location: &Location) -> Result<bool, StorageError>;
 
-    /// Return the heads of the graph.
+    /// Return the locations of command heads in the graph.
     fn get_heads(&self) -> Result<Vec<Location>, StorageError>;
 
-    /// Add merge commands until there is one head. Returns the head of the graph.
-    fn merge_branches<E: Engine<T, K, V>>(
-        &mut self,
-        engine: &E,
-    ) -> Result<command::Id, StorageError>;
+    /// Add merge commands until there is one head. The final merge head's
+    /// ID is returned.
+    fn merge_branches(&mut self, engine: &impl Engine) -> Result<command::Id, StorageError>;
 
-    /// Split the segment if the location is not the head of the segment.
-    /// Returns true if split was performed, false othewise.
+    /// Split a segment at a specified command. Returns true if the
+    /// segment was split, and false if it was not.
+    ///
+    /// # Arguments
+    ///
+    /// * `location` - References a point in the graph.
     fn split(&mut self, at: &Location) -> Result<bool, StorageError>;
 
+    /// Commit a sequence of commands to this graph.
+    ///
+    /// # Arguments
+    ///
+    /// * `update` - Contains the data necessary to update this graph.
     fn commit(&mut self, update: Self::Update) -> Result<(), StorageError>;
 }
 
 /// Represents a mutable slice of state.
-pub trait Perspective<'a, T, K, V>
-where
-    T: Command,
-{
+pub trait Perspective {
     type Update;
-    type Location;
-    /// Create an update to apply this perspective to the parent graph.
+
+    /// Consumes the perspective and produce an update, to be committed to
+    /// the graph.
     fn to_update(self) -> Self::Update;
 
-    fn query<'b>(&'b self, key: &K) -> Result<Option<&'b V>, StorageError>;
+    /// Returns the fact's value, if it has been stored.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - A byte slice that holds a fact key
+    fn query(&self, key: &[u8]) -> Result<Option<&[u8]>, StorageError>;
 
-    fn insert(&mut self, key: K, value: V);
-    fn delete(&mut self, key: K);
+    /// Adds a fact to this perspective.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - A byte slice that holds a fact's key
+    /// * `value` - A byte slice that holds a fact's value
+    fn insert(&mut self, key: &[u8], value: &[u8]);
 
+    /// Deletes a fact from this perspective.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - A byte slice that hold's a fact's key
+    fn delete(&mut self, key: &[u8]);
+
+    /// Return the index of the perspective's latest command.
     fn checkpoint(&self) -> Checkpoint;
-    /// Rollback commands that have occurred since the `checkpoint`.
+
+    /// Rollback commands since the one specified by `checkpoint`.
+    ///
+    /// # Arguments
+    ///
+    /// * `checkpoint` - A struct containing the `index` of a command in
+    ///   this perspective.
     fn revert(&mut self, checkpoint: Checkpoint);
 
-    fn location(&self) -> &Option<Self::Location>;
+    /// Return the location of this perspective, in relation to the parent
+    /// graph.
+    fn location(&self) -> &Option<Location>;
 
+    /// Return an ID for this perspective's associated policy.
     fn policy(&self) -> PolicyId;
 
-    fn add_command(&mut self, command: T) -> Result<usize, StorageError>;
+    /// Add the `command` to this perspective, returning it's new index.
+    ///
+    /// # Arguments
+    ///
+    /// * `command` - Represents an effect on the graph
+    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
 
+    /// Get a mutable reference to this perspective's serialization buffer.
     fn get_target(&mut self) -> Result<&mut [u8], StorageError>;
 }
 
-pub trait Segment<T: Command> {
-    /// Returns the head of the segment.
-    fn head(&self) -> Option<&T>;
+/// Represents a sequence of linear [`Command`]s.
+pub trait Segment {
+    type Command: Command;
+    type Commands<'a>: Iterator<Item = Option<&'a Self::Command>>
+    where
+        Self: 'a;
 
-    /// Returns the first Command in the segment.
-    fn first(&self) -> Option<&T>;
+    /// Return the head of this segment.
+    fn head(&self) -> Option<&Self::Command>;
 
-    /// Return true if the head of the segment has an id that
-    /// matches the supplied id, false othewise.
-    fn is_head(&self, id: command::Id) -> bool;
+    /// Return the first Command in the segment.
+    fn first(&self) -> Option<&Self::Command>;
+
+    /// Return the location of the first command in this segment.
+    fn first_location(&self) -> Option<Location>;
+
+    /// Return true if the head of this segment is a command with
+    /// the supplied id, or false othewise.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Uniquely identifies the (serialized) command.
+    fn location_is_head(&self, id: command::Id) -> bool;
+
+    /// Return true if the segment contains the given `location`.
+    ///
+    /// # Arguments
+    ///
+    /// * `location` - References a point in the graph.
+    fn contains(&self, location: &Location) -> bool;
 
     /// Add a child to the segment and return its index.
-    fn add_child(&mut self, command: T) -> usize;
+    ///
+    /// # Arguments
+    ///
+    /// * `command` - Represents an effect on the graph
+    fn add_child(&mut self, command: &impl Command) -> usize;
 
-    /// Return the id for the policy used for this segment.
+    /// Return the ID for this segment's policy.
     fn policy(&self) -> PolicyId;
+
+    /// Return the prior segnemts for this segment.
+    fn prior(&self) -> Vec<Location>;
+
+    /// Returns the command at `location`
+    ///
+    /// # Arguments
+    ///
+    /// * `location` - References a point in the graph.
+    fn get_command(&self, location: &Location) -> Option<&Self::Command>;
+
+    /// Returns an iterator of [`Command`]s starting at the given `location`.
+    ///
+    /// # Arguments
+    ///
+    /// * `location` - [`Location`] struct; contains a [`Command`] ID and its
+    ///   [`Segment`] index from this graph.
+    fn get_from<'a>(&'a self, location: &Location) -> Self::Commands<'a>;
 }
 
-/// The index of a finalization command within a `Perspective`.
+/// Identifies the index [`Command`] within a sequence.
 pub struct Checkpoint {
     _index: usize,
 }
 
-/// Identifies a command in the parent graph.
+/// Represents where a [`Command`] is within the parent graph.
 #[derive(Debug, Clone)]
 pub struct Location {
     _segment: usize,
@@ -135,7 +252,7 @@ impl Location {
     }
 }
 
-/// Returned by storage implementations.
+/// Returned by graph storage implementations.
 #[derive(Debug)]
 pub enum StorageError {
     StorageExists,

@@ -31,10 +31,6 @@ jobs:
         run: rm -rf ${{ github.workspace }}/_temp
         if: ${{ matrix.os == 'self-hosted-linux-arm' }}
       - uses: ./.github/actions/setup
-      - name: Show toolchains
-        run: rustup show
-      - name: Show version
-        run: cargo --version --verbose
       - name: Unit Tests std
         run: cargo test --features std --verbose
         # TODO: test with no_std pending

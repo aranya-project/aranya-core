@@ -15,9 +15,10 @@ runs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Install Rustup
       uses: spideroak-inc/setup-rust@fork
-    - name: Show toolchains
+    - name: List toolchains
       shell: bash
-      run: rustup show
+      run: rustup toolchain list
+      if: ${{ matrix.os == 'self-hosted-linux-arm' }}
     - name: Show version
       shell: bash
       run: cargo --version --verbose
