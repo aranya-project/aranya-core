@@ -4,6 +4,9 @@
 //! actions on the graph. Traversing the graph is made simpler by splitting
 //! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
 //! [`Perspective`]s, which represent a slice of state.
+
+mod memory;
+
 use alloc::vec::Vec;
 
 use crate::{
@@ -13,16 +16,29 @@ use crate::{
 
 /// Handle to storage implementations used by the runtime engine.
 pub trait StorageProvider {
-    type Perspective: Perspective<Update = Self::Update>;
+    // A `Perspective` must be able to reference historical graph data. So, we
+    // need to explicitly tell the compiler the implementor (Self) outlives the
+    // reference held by a perspective.
+    type Perspective<'segment_storage>: Perspective<'segment_storage, Update = Self::Update>
+    where
+        Self: 'segment_storage;
     type Update;
-    type Storage: Storage<Update = Self::Update>;
+    type Segment: Segment;
+    type Storage: Storage<Update = Self::Update, Segment = Self::Segment>;
 
     /// Create an unrooted perspective, intended for creating a new graph.
+    ///
+    /// This method also requires the data referenced by the returned
+    /// `Perspective`, provided by Self (`StorageProvider`), must outlive
+    /// that returned reference.
     ///
     /// # Arguments
     ///
     /// * `policy_id` - The policy to associated with the graph.
-    fn new_perspective(&mut self, policy_id: &PolicyId) -> Self::Perspective;
+    fn new_perspective<'segment_storage, 'provider: 'segment_storage>(
+        &'provider mut self,
+        policy_id: &PolicyId,
+    ) -> Self::Perspective<'segment_storage>;
 
     /// Create a new graph.
     ///
@@ -47,7 +63,12 @@ pub trait StorageProvider {
 /// Represents the runtime's graph; [`Command`](s) in storage have been validated
 /// by an associated [`Policy`] and committed to state.
 pub trait Storage {
-    type Perspective: Perspective<Update = Self::Update>;
+    // A `Perspective` must be able to reference historical graph data. So, we
+    // need to explicitly tell the compiler the implementor (Self) outlives the
+    // reference held by a perspective.
+    type Perspective<'segment_storage>: Perspective<'segment_storage, Update = Self::Update>
+    where
+        Self: 'segment_storage;
     type Update;
     type Segment: Segment;
 
@@ -74,13 +95,20 @@ pub trait Storage {
     /// * `location` - References a point in the graph.
     fn get_segment(&self, location: &Location) -> Result<Option<&Self::Segment>, StorageError>;
 
-    /// Return a mutable reference to a perspective of the graph at
+    /// Return a reference to a perspective of the graph at
     /// the specified command.
+    ///
+    /// This method also requires the data referenced by the returned
+    /// `Perspective`, provided by Self (`Storage`), must outlive that
+    /// returned reference.
     ///
     /// # Arguments
     ///
     /// * `id` - Uniquely identifies the (serialized) command.
-    fn get_perspective(&self, id: &command::Id) -> Result<Option<Self::Perspective>, StorageError>;
+    fn get_perspective<'segment_storage, 'storage: 'segment_storage>(
+        &'storage self,
+        id: &command::Id,
+    ) -> Result<Option<Self::Perspective<'segment_storage>>, StorageError>;
 
     /// Return true if the specified command is a head.
     ///
@@ -101,7 +129,7 @@ pub trait Storage {
     ///
     /// # Arguments
     ///
-    /// * `location` - References a point in the graph.
+    /// * `at` - References a point in the graph.
     fn split(&mut self, at: &Location) -> Result<bool, StorageError>;
 
     /// Commit a sequence of commands to this graph.
@@ -113,7 +141,7 @@ pub trait Storage {
 }
 
 /// Represents a mutable slice of state.
-pub trait Perspective {
+pub trait Perspective<'segment_storage> {
     type Update;
 
     /// Consumes the perspective and produce an update, to be committed to
@@ -167,16 +195,16 @@ pub trait Perspective {
     /// * `command` - Represents an effect on the graph
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
 
-    /// Get a mutable reference to this perspective's serialization buffer.
-    fn get_target(&mut self) -> Result<&mut [u8], StorageError>;
+    /// Get a section of this perspective's serialization buffer.
+    fn get_target(&mut self) -> Result<Vec<u8>, StorageError>;
 }
 
 /// Represents a sequence of linear [`Command`]s.
 pub trait Segment {
     type Command: Command;
-    type Commands<'a>: Iterator<Item = Option<&'a Self::Command>>
+    type Commands<'segment_cmd>: Iterator<Item = &'segment_cmd Self::Command>
     where
-        Self: 'a;
+        Self: 'segment_cmd;
 
     /// Return the head of this segment.
     fn head(&self) -> Option<&Self::Command>;
@@ -192,8 +220,8 @@ pub trait Segment {
     ///
     /// # Arguments
     ///
-    /// * `id` - Uniquely identifies the (serialized) command.
-    fn location_is_head(&self, id: command::Id) -> bool;
+    /// * `location` - Represents a point in the graph.
+    fn location_is_head(&self, location: &Location) -> bool;
 
     /// Return true if the segment contains the given `location`.
     ///
@@ -207,12 +235,12 @@ pub trait Segment {
     /// # Arguments
     ///
     /// * `command` - Represents an effect on the graph
-    fn add_child(&mut self, command: &impl Command) -> usize;
+    fn add_merge(&mut self, command: &impl Command) -> usize;
 
     /// Return the ID for this segment's policy.
     fn policy(&self) -> PolicyId;
 
-    /// Return the prior segnemts for this segment.
+    /// Return the prior segments for this segment.
     fn prior(&self) -> Vec<Location>;
 
     /// Returns the command at `location`
@@ -226,29 +254,28 @@ pub trait Segment {
     ///
     /// # Arguments
     ///
-    /// * `location` - [`Location`] struct; contains a [`Command`] ID and its
-    ///   [`Segment`] index from this graph.
-    fn get_from<'a>(&'a self, location: &Location) -> Self::Commands<'a>;
+    /// * `location` - References a point in the graph.
+    fn get_from<'segment_cmd, 'segment: 'segment_cmd>(
+        &'segment self,
+        location: &Location,
+    ) -> Self::Commands<'segment_cmd>;
 }
 
 /// Identifies the index [`Command`] within a sequence.
 pub struct Checkpoint {
-    _index: usize,
+    index: usize,
 }
 
 /// Represents where a [`Command`] is within the parent graph.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Location {
-    _segment: usize,
-    _command: usize,
+    segment: usize,
+    command: usize,
 }
 
 impl Location {
-    fn _new(segment: usize, command: usize) -> Location {
-        Location {
-            _segment: segment,
-            _command: command,
-        }
+    fn new(segment: usize, command: usize) -> Location {
+        Location { segment, command }
     }
 }
 

@@ -6,9 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = []
+default = [ "alloc" ]
 
-std = []
+alloc = []
+std = [ "alloc" ]
 
 [dependencies]
 # By default, `serde` has the `std` feature enabled, which makes it unsuitable for embedded targets

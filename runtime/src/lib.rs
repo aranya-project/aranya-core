@@ -1,10 +1,11 @@
-#![no_std]
+#![cfg_attr(all(not(feature = "std"), not(test)), no_std)]
 
+#[cfg(feature = "alloc")]
 extern crate alloc;
-#[cfg(any(feature = "std", test))]
-extern crate std;
 
 pub mod command;
+#[cfg(feature = "alloc")]
 pub mod engine;
+#[cfg(feature = "alloc")]
 pub mod storage;
 pub mod sync;

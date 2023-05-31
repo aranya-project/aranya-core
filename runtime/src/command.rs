@@ -25,7 +25,7 @@ pub trait Command {
 /// Identify how the engine will sort the associated [`Command`]. If a
 /// command has `Priority::Message`, the engine will use the
 /// variant's internal value to order the command.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub enum Priority {
     /// Indicates state is initialized; the associated command is a common
     /// ancestor to all other commands in the graph. A command with this
@@ -43,7 +43,7 @@ pub enum Priority {
 }
 
 /// Identify prior [`Command`](s).
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub enum Parent {
     None,
     Id(Id),

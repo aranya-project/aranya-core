@@ -63,10 +63,10 @@ pub trait Policy {
     /// * `facts` - A mutable slice of the graph.
     /// * `sink` - Produces effects caused by the `command`; graph changes to
     ///   be consumed by the application.
-    fn call_rule(
+    fn call_rule<'segment_storage>(
         &self,
         command: &impl Command,
-        facts: &mut impl Perspective,
+        facts: &mut impl Perspective<'segment_storage>,
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError>;
 
@@ -82,11 +82,11 @@ pub trait Policy {
     /// * `facts` - A mutable slice of the graph.
     /// * `sink` - Produces effects caused by the `command`s; graph changes to
     ///   be consumed by the application.
-    fn call_action(
+    fn call_action<'segment_storage>(
         &self,
         id: &Id,
         action: &Self::Actions,
-        facts: &mut impl Perspective,
+        facts: &mut impl Perspective<'segment_storage>,
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError>;
 
