@@ -15,11 +15,17 @@ runs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
     - name: Install Rustup
       uses: spideroak-inc/setup-rust@fork
-    - name: List toolchains
+    # Various runners have a 64-bit kernel with a 32-bit userspace.
+    # Setting rustup's default host to armv7 allows using the 32-bit executables.
+    - name: Set rustup's host
       shell: bash
-      run: rustup toolchain list
+      run: rustup set default-host armv7-unknown-linux-gnueabihf
       if: ${{ matrix.os == 'self-hosted-linux-arm' }}
-    - name: Show version
+    - name: Verify toolchain
+      shell: bash
+      run: rustup show active-toolchain
+      if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+    - name: cargo version
       shell: bash
       run: cargo --version --verbose
     - name: glibc version
