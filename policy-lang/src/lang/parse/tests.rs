@@ -3,15 +3,13 @@ use std::io::Read;
 
 use pest::{error::Error as PestError, iterators::Pair, Parser};
 
-use crate::policy::ast::{CreateStatement, DeleteStatement};
-use crate::policy::Version;
-
-use super::ast;
 use super::{
-    get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
+    ast, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError, PolicyParser, Rule,
+    Version,
 };
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
 
@@ -21,6 +19,7 @@ fn parse_atom_number() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_atom_string() -> Result<(), PestError<Rule>> {
     // basic string
     let mut pair = PolicyParser::parse(Rule::atom, r#""foo bar""#)?;
@@ -47,6 +46,7 @@ fn parse_atom_string() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_atom_fn() -> Result<(), PestError<Rule>> {
     // bare call
     let mut pair = PolicyParser::parse(Rule::atom, r#"call()"#)?;
@@ -97,6 +97,7 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_expression() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::expression, r#"unwrap call(3 + 7, -b, "foo\x7b")"#)?;
 
@@ -233,6 +234,7 @@ fn parse_expression_errors() -> Result<(), ParseError> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
 
@@ -245,6 +247,7 @@ fn parse_field() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_fact() -> Result<(), PestError<Rule>> {
     let src = r#"
         fact Foo[a int] => {b ID, c string}
@@ -259,6 +262,7 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
         action init(owner ID) {
@@ -276,6 +280,7 @@ fn parse_action() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_effect() -> Result<(), PestError<Rule>> {
     let src = r#"
         effect Foo {
@@ -291,6 +296,7 @@ fn parse_effect() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
         command Foo {
@@ -314,6 +320,7 @@ fn parse_command() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_function() -> Result<(), PestError<Rule>> {
     let src = r#"
     function foo(x int) bool {
@@ -359,7 +366,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 let author = author_id(self)
                 let new_x = x + count
                 check exists TestFact[v: "test"]=>{}
-                match x % 2 {
+                match x {
                     0 => {
                         check positive(Some new_x)
                     }
@@ -511,10 +518,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     )),
                 }),
                 ast::Statement::Match(ast::MatchStatement {
-                    expression: ast::Expression::Modulus(
-                        Box::new(ast::Expression::Identifier(String::from("x"))),
-                        Box::new(ast::Expression::Int(2)),
-                    ),
+                    expression: ast::Expression::Identifier(String::from("x")),
                     arms: vec![
                         ast::MatchArm {
                             value: Some(ast::Expression::Int(0)),
@@ -554,7 +558,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     })],
                 }),
                 ast::Statement::Finish(vec![
-                    ast::FinishStatement::Create(CreateStatement {
+                    ast::FinishStatement::Create(ast::CreateStatement {
                         fact: ast::FactLiteral {
                             identifier: String::from("F"),
                             key_fields: vec![(
@@ -589,7 +593,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                             ast::Expression::Identifier(String::from("new_x")),
                         )],
                     }),
-                    ast::FinishStatement::Delete(DeleteStatement {
+                    ast::FinishStatement::Delete(ast::DeleteStatement {
                         fact: ast::FactLiteral {
                             identifier: String::from("F"),
                             key_fields: vec![(
@@ -635,7 +639,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     ),
                 }),
                 ast::Statement::Finish(vec![
-                    ast::FinishStatement::Create(CreateStatement {
+                    ast::FinishStatement::Create(ast::CreateStatement {
                         fact: ast::FactLiteral {
                             identifier: String::from("F"),
                             key_fields: vec![(
@@ -670,7 +674,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                             ast::Expression::Identifier(String::from("new_x")),
                         )],
                     }),
-                    ast::FinishStatement::Delete(DeleteStatement {
+                    ast::FinishStatement::Delete(ast::DeleteStatement {
                         fact: ast::FactLiteral {
                             identifier: String::from("F"),
                             key_fields: vec![(
@@ -745,7 +749,7 @@ fn parse_tictactoe() {
         let mut buf = vec![];
         let mut f = OpenOptions::new()
             .read(true)
-            .open("src/policy/tictactoe.policy")
+            .open("src/lang/tictactoe.policy")
             .expect("could not open policy");
         f.read_to_end(&mut buf).expect("could not read policy file");
         String::from_utf8(buf).expect("File is not valid UTF-8")
@@ -770,12 +774,12 @@ fn parse_tictactoe() {
 #[test]
 fn empty_policy() -> Result<(), ParseError> {
     let policy = parse_policy_str("", Version::V3)?;
-    assert!(policy.facts.len() == 0);
-    assert!(policy.actions.len() == 0);
-    assert!(policy.effects.len() == 0);
-    assert!(policy.commands.len() == 0);
-    assert!(policy.functions.len() == 0);
-    assert!(policy.finish_functions.len() == 0);
+    assert!(policy.facts.is_empty());
+    assert!(policy.actions.is_empty());
+    assert!(policy.effects.is_empty());
+    assert!(policy.commands.is_empty());
+    assert!(policy.functions.is_empty());
+    assert!(policy.finish_functions.is_empty());
     Ok(())
 }
 
@@ -802,7 +806,7 @@ action foo() {
 ```
 "#;
 
-    let policy = match parse_policy_document(&md) {
+    let policy = match parse_policy_document(md) {
         Ok(p) => p,
         Err(e) => {
             // we do this rather than .expect() so we can see the nice error formatting

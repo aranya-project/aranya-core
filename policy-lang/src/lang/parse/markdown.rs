@@ -2,8 +2,7 @@ use ::markdown::mdast::{Node, Yaml};
 use ::markdown::{to_mdast, ParseOptions};
 use serde::Deserialize;
 
-use super::{parse_policy_str, ParseError, ParseErrorKind};
-use crate::policy::{ast, Version};
+use crate::lang::{ast, parse_policy_str, ParseError, ParseErrorKind, Version};
 
 #[derive(Deserialize)]
 struct FrontMatter {

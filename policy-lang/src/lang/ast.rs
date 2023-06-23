@@ -1,4 +1,4 @@
-use super::Version;
+use crate::lang::Version;
 
 /// The type of a value
 ///
@@ -40,6 +40,17 @@ pub struct EffectFieldDefinition {
     pub field_type: VType,
     /// Whether the field is marked "dynamic" or not
     pub dynamic: bool,
+}
+
+/// Convert from EffectFieldDefinition to FieldDefinition, losing the
+/// dynamic information.
+impl From<&EffectFieldDefinition> for FieldDefinition {
+    fn from(value: &EffectFieldDefinition) -> Self {
+        FieldDefinition {
+            identifier: value.identifier.clone(),
+            field_type: value.field_type.clone(),
+        }
+    }
 }
 
 /// A fact and its key/value field values.
@@ -117,8 +128,6 @@ pub enum Expression {
     Add(Box<Expression>, Box<Expression>),
     /// `expr - expr`
     Subtract(Box<Expression>, Box<Expression>),
-    /// expr % expr`
-    Modulus(Box<Expression>, Box<Expression>),
     /// expr && expr`
     And(Box<Expression>, Box<Expression>),
     /// expr || expr`

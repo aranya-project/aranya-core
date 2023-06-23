@@ -5,16 +5,16 @@ use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest::{Parser, Span};
 
-use super::{ast, Version};
-
 mod markdown;
+
 pub use self::markdown::{extract_policy, parse_policy_document};
+use crate::lang::{ast, Version};
 
 mod internal {
     // This is a hack to work around ambiguity between pest_derive::Parser and pest::Parser.
     use pest_derive::Parser;
     #[derive(Parser)]
-    #[grammar = "policy/parse/policy.pest"]
+    #[grammar = "lang/parse/policy.pest"]
     pub struct PolicyParser;
 }
 
@@ -114,6 +114,9 @@ impl From<PestError<Rule>> for ParseError {
     }
 }
 
+// Implement default Error via Display and Debug
+impl std::error::Error for ParseError {}
+
 /// Captures the iterator over a Pair's contents, and the span
 /// information for error reporting.
 struct ParserContext<'a> {
@@ -178,7 +181,7 @@ impl<'a> ParserContext<'a> {
 
     fn consume_fact(&mut self, pratt: &PrattParser<Rule>) -> Result<ast::FactLiteral, ParseError> {
         let token = self.consume_of_type(Rule::fact_literal)?;
-        Ok(parse_fact_literal(token, pratt)?)
+        parse_fact_literal(token, pratt)
     }
 
     /// Consumes the next Pair out of this context and returns it as an
@@ -188,7 +191,7 @@ impl<'a> ParserContext<'a> {
         pratt: &PrattParser<Rule>,
     ) -> Result<ast::Expression, ParseError> {
         let token = self.consume_of_type(Rule::expression)?;
-        Ok(parse_expression(token, pratt)?)
+        parse_expression(token, pratt)
     }
 
     /// Consumes the ParserContext and returns the inner Pairs.
@@ -202,7 +205,7 @@ impl<'a> ParserContext<'a> {
 /// children of a token. Makes the parsing process a little more
 /// self-documenting.
 fn descend(p: Pair<Rule>) -> ParserContext {
-    let span = p.as_span().clone();
+    let span = p.as_span();
     ParserContext {
         pairs: p.into_inner(),
         span,
@@ -256,10 +259,7 @@ fn parse_effect_field_definition(
 
     let token = pc.next();
     // If there is another token, it has to be the "dynamic" marker
-    let dynamic = match token {
-        Some(_) => true,
-        None => false,
-    };
+    let dynamic = token.is_some();
 
     Ok(ast::EffectFieldDefinition {
         identifier,
@@ -283,47 +283,43 @@ fn parse_string_literal(string: Pair<Rule>) -> Result<String, ParseError> {
             Some(string.as_span()),
         ));
     }
-    loop {
-        if let Some(c) = it.next() {
-            match c {
-                '\\' => {
-                    if let Some(next) = it.next() {
-                        match next {
-                            'x' => {
-                                let s: String = it.take(2).into_iter().collect();
-                                let v = u8::from_str_radix(&s, 16).map_err(|e| {
-                                    ParseError::new(
-                                        ParseErrorKind::InvalidNumber,
-                                        format!("{}: {}", s, e),
-                                        Some(string.as_span()),
-                                    )
-                                })?;
-                                out.push(v as char);
-                            }
-                            'n' => {
-                                out.push('\n');
-                            }
-                            _ => {
-                                return Err(ParseError::new(
-                                    ParseErrorKind::InvalidString,
-                                    format!("invalid escape: {}", next),
+    while let Some(c) = it.next() {
+        match c {
+            '\\' => {
+                if let Some(next) = it.next() {
+                    match next {
+                        'x' => {
+                            let s: String = it.take(2).collect();
+                            let v = u8::from_str_radix(&s, 16).map_err(|e| {
+                                ParseError::new(
+                                    ParseErrorKind::InvalidNumber,
+                                    format!("{}: {}", s, e),
                                     Some(string.as_span()),
-                                ));
-                            }
+                                )
+                            })?;
+                            out.push(v as char);
                         }
-                    } else {
-                        return Err(ParseError::new(
-                            ParseErrorKind::InvalidString,
-                            String::from("end of string while processing escape"),
-                            Some(string.as_span()),
-                        ));
+                        'n' => {
+                            out.push('\n');
+                        }
+                        _ => {
+                            return Err(ParseError::new(
+                                ParseErrorKind::InvalidString,
+                                format!("invalid escape: {}", next),
+                                Some(string.as_span()),
+                            ));
+                        }
                     }
+                } else {
+                    return Err(ParseError::new(
+                        ParseErrorKind::InvalidString,
+                        String::from("end of string while processing escape"),
+                        Some(string.as_span()),
+                    ));
                 }
-                '"' => break,
-                _ => out.push(c),
             }
-        } else {
-            break;
+            '"' => break,
+            _ => out.push(c),
         }
     }
 
@@ -382,7 +378,7 @@ pub fn parse_expression(
     pratt
         .map_primary(|primary| match primary.as_rule() {
             Rule::int_literal => {
-                let n = i64::from_str_radix(primary.as_str(), 10).map_err(|e| {
+                let n = primary.as_str().parse::<i64>().map_err(|e| {
                     ParseError::new(
                         ParseErrorKind::InvalidNumber,
                         e.to_string(),
@@ -543,7 +539,6 @@ pub fn parse_expression(
         .map_infix(|lhs, op, rhs| match op.as_rule() {
             Rule::add => Ok(ast::Expression::Add(Box::new(lhs?), Box::new(rhs?))),
             Rule::subtract => Ok(ast::Expression::Subtract(Box::new(lhs?), Box::new(rhs?))),
-            Rule::modulus => Ok(ast::Expression::Modulus(Box::new(lhs?), Box::new(rhs?))),
             Rule::and => Ok(ast::Expression::And(Box::new(lhs?), Box::new(rhs?))),
             Rule::or => Ok(ast::Expression::Or(Box::new(lhs?), Box::new(rhs?))),
             Rule::equal => Ok(ast::Expression::Equal(Box::new(lhs?), Box::new(rhs?))),
@@ -1216,7 +1211,6 @@ pub fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
         .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
-        .op(Op::infix(Rule::modulus, Assoc::Left))
         .op(Op::prefix(Rule::neg) | Op::prefix(Rule::not) | Op::prefix(Rule::unwrap))
         .op(Op::infix(Rule::dot, Assoc::Left))
 }
