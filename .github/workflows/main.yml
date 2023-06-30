@@ -19,10 +19,10 @@ jobs:
     strategy:
       matrix:
         os: [
-          "ubuntu-latest",
           "macos-latest",
-          "windows-latest",
-          "self-hosted-linux-arm"
+          "self-hosted-linux-arm",
+          "self-hosted-linux-arm64",
+          "ubuntu-latest",
         ]
     runs-on: ${{ matrix.os }}
     steps:
@@ -31,18 +31,19 @@ jobs:
         run: rm -rf ${{ github.workspace }}/_temp
         if: ${{ matrix.os == 'self-hosted-linux-arm' }}
       - uses: ./.github/actions/setup
-      - name: Unit Tests std
-        run: cargo test --features std --verbose
-        # TODO: test with no_std pending
-        # https://github.com/rust-lang/rust/issues/48665
+        with:
+          gh-token: ${{ secrets.CC_BUILD_TOKEN }}
+      - name: Unit Tests
+        run: cargo test-all-features
 
   lint-code:
     strategy:
       matrix:
         os: [
-          "ubuntu-latest",
           "macos-latest",
-          "self-hosted-linux-arm"
+          "self-hosted-linux-arm",
+          "self-hosted-linux-arm64",
+          "ubuntu-latest",
         ]
     runs-on: ${{ matrix.os }}
     steps:
@@ -51,21 +52,25 @@ jobs:
         run: rm -rf ${{ github.workspace }}/_temp
         if: ${{ matrix.os == 'self-hosted-linux-arm' }}
       - uses: ./.github/actions/setup
+        with:
+          gh-token: ${{ secrets.CC_BUILD_TOKEN }}
       - name: Check formatting
         run: cargo fmt --all -- --check
-      - name: Check code without `std`
-        run: cargo check
-      - name: Check code with `std`
-        run: cargo check --features std
+      - name: Check code
+        run: cargo check-all-features
+        # TODO(eric): once the rest of the code passes, enable
+        # this for all crates.
+      - name: Clippy
+        run: cargo clippy -p crypto -- -D warnings
 
-  build-release-std:
+  build-release:
     strategy:
       matrix:
         os: [
-          "ubuntu-latest",
           "macos-latest",
-          "windows-latest",
-          "self-hosted-linux-arm"
+          "self-hosted-linux-arm",
+          "self-hosted-linux-arm64",
+          "ubuntu-latest",
         ]
     runs-on: ${{ matrix.os }}
     steps:
@@ -74,23 +79,7 @@ jobs:
         run: rm -rf ${{ github.workspace }}/_temp
         if: ${{ matrix.os == 'self-hosted-linux-arm' }}
       - uses: ./.github/actions/setup
+        with:
+          gh-token: ${{ secrets.CC_BUILD_TOKEN }}
       - name: Build code
-        run: cargo build --verbose --release --features std
-
-  build-release-no-std:
-    strategy:
-      matrix:
-        os: [
-          "ubuntu-latest",
-          "macos-latest",
-          "self-hosted-linux-arm"
-        ]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v3
-      - name: Clean temp files
-        run: rm -rf ${{ github.workspace }}/_temp
-        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
-      - uses: ./.github/actions/setup
-      - name: Build code
-        run: cargo build --verbose --release
+        run: cargo --verbose build-all-features --release

@@ -1,8 +1,46 @@
 [workspace]
 
 members = [
-    "crypto",
-    "policy-lang",
-    "runtime",
-    "service"
+	"base58",
+	"crypto",
+	"policy-lang",
+	"runtime",
+	"service"
 ]
+
+[workspace.package]
+publish = false
+edition = "2021"
+
+[workspace.dependencies]
+byteorder = { version = "1", default-features = false }
+cfg-if = { version = "1" }
+libc = { version = "0.2", default-features = false }
+heapless = { version = "0.7" }
+postcard = { version = "1", default-features = false }
+rand = { version = "0.8", default-features = false }
+rand_core = { version = "0.6", default-features = false }
+serde = { version = "1", default-features = false }
+
+[profile.dev]
+panic = "abort"
+
+[profile.dev-std]
+inherits = "dev"
+panic = "unwind"
+
+[profile.release]
+lto = "thin"
+panic = "abort"
+
+[profile.release-small]
+inherits = "release"
+opt-level = "s"
+strip = "debuginfo"
+
+[profile.release-std]
+inherits = "release"
+panic = "unwind"
+
+[profile.bench]
+inherits = "release"

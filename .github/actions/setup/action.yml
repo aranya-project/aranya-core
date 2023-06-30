@@ -1,8 +1,52 @@
 name: 'Setup build tools'
-description: 'Action for setting up Platform build tools'
+description: 'Action for setting up build tools'
+inputs:
+  gh-token:
+    description: 'GitHub Access Token'
+    required: true
+  go-version:
+    description: 'Go version'
+    required: true
+    default: 'stable'
 runs:
   using: "composite"
   steps:
+    - name: Set up git
+      run: |
+        git config --global url."https://${{ inputs.gh-token }}@github.com/".insteadOf https://github.com/
+        echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> $GITHUB_ENV
+      shell: bash
+
+      # There is a bug in the version of GCC that ships with our
+      # arm64 runners that prevents BoringSSL from compiling. So,
+      # use Clang instead.
+    - name: Install arm64 system dependencies
+      run: |
+        set -x
+
+        lsb_release -a
+
+        sudo apt-get update -y
+        sudo apt-get install -y --no-install-recommends \
+          build-essential \
+          clang-12 \
+          clang-tools-12 \
+          cmake \
+          libc++-12-dev \
+          libc++abi-12-dev \
+          libclang-12-dev \
+          libclang1-12 \
+          llvm-12 \
+          llvm-12-dev \
+          lld-12 \
+          ninja-build
+
+          echo "CC=$(which clang-12)" >> $GITHUB_ENV
+          echo "CXX=$GITHUB_WORKSPACE/clang++12" >> $GITHUB_ENV
+          echo "LD=$(which lld-12)" >> $GITHUB_ENV
+      shell: bash
+      if: ${{ matrix.os == 'self-hosted-linux-arm64' }}
+
     - name: Cache Rust
       uses: actions/cache@v3
       with:
@@ -13,6 +57,13 @@ runs:
           ~/.cargo/git/db/
           target/
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      # Downloading the cache takes longer than building from
+      # scratch.
+      #
+      # TODO(eric): investigate whether we want to get rid of the
+      # cache entirely. We already did it for Go.
+      if: ${{ matrix.os != 'self-hosted-linux-arm64' }}
+
     - name: Install Rustup
       uses: spideroak-inc/setup-rust@fork
     # Various runners have a 64-bit kernel with a 32-bit userspace.
@@ -32,3 +83,29 @@ runs:
       shell: bash
       run: ldd --version
       if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+    - name: Intall cargo-all-features
+      run: cargo install --force cargo-all-features
+      shell: bash
+
+    # BoringSSL uses Go.
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: ${{ inputs.go-version }}
+        check-latest: true
+    - name: Export GO_VERSION
+      run: |
+        echo "GO_VERSION=${{ inputs.go-version }}" >> $GITHUB_ENV
+        go env -w "GONOPROXY=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GONOSUMDB=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GOPRIVATE=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+      shell: bash
+      if: ${{ matrix.os != 'windows-latest' }}
+    - name: Export GO_VERSION
+      run: |
+        echo "GO_VERSION=${{ inputs.go-version }}" >> $env:GITHUB_ENV
+        go env -w "GONOPROXY=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GONOSUMDB=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GOPRIVATE=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+      shell: pwsh
+      if: ${{ matrix.os == 'windows-latest' }}

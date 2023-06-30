@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+clang++-12 -stdlib=libc++ $@
