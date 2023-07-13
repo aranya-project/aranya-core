@@ -10,75 +10,30 @@ use {
         engine::Engine,
         error::Error,
         groupkey::GroupKey,
-        hash::tuple_hash,
+        hash::{tuple_hash, Hash},
         hpke::{Hpke, Mode},
         hybrid_array::{
             typenum::{operator_aliases::Sum, U64},
             ArraySize, ByteArray,
         },
-        id::Id,
+        id::{custom_id, Id},
         import::{ExportError, Import, ImportError},
         kem::{DecapKey, Kem},
         keys::{PublicKey, SecretKey},
         signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
         zeroize::ZeroizeOnDrop,
     },
-    core::{
-        borrow::Borrow,
-        fmt::{self, Debug, Display},
-        ops::Add,
-        result::Result,
-    },
+    core::{borrow::Borrow, ops::Add, result::Result},
     serde::{Deserialize, Serialize},
 };
 
 // These are shorthand for lots::of::turbo::fish.
-type SigningKeyData<E> = <<<E as CipherSuite>::Signer as Signer>::SigningKey as SecretKey>::Data;
-type VerifyingKeyData<E> =
+pub(crate) type SigningKeyData<E> =
+    <<<E as CipherSuite>::Signer as Signer>::SigningKey as SecretKey>::Data;
+pub(crate) type VerifyingKeyData<E> =
     <<<E as CipherSuite>::Signer as Signer>::VerifyingKey as PublicKey>::Data;
-type DecapKeyData<E> = <<<E as CipherSuite>::Kem as Kem>::DecapKey as SecretKey>::Data;
-type EncapKeyData<E> = <<<E as CipherSuite>::Kem as Kem>::EncapKey as PublicKey>::Data;
-
-macro_rules! key_id {
-    ($name:ident, $doc:expr) => {
-        #[doc = $doc]
-        #[derive(Copy, Clone, Eq, PartialEq)]
-        pub struct $name(Id);
-
-        impl AsRef<[u8]> for $name {
-            #[inline]
-            fn as_ref(&self) -> &[u8] {
-                self.0.as_ref()
-            }
-        }
-
-        impl From<Id> for $name {
-            #[inline]
-            fn from(id: Id) -> Self {
-                Self(id)
-            }
-        }
-
-        impl From<$name> for Id {
-            #[inline]
-            fn from(id: $name) -> Self {
-                id.0
-            }
-        }
-
-        impl Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                Display::fmt(&self.0, f)
-            }
-        }
-
-        impl Debug for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, concat!(stringify!($name), " {}"), self.0)
-            }
-        }
-    };
-}
+pub(crate) type DecapKeyData<E> = <<<E as CipherSuite>::Kem as Kem>::DecapKey as SecretKey>::Data;
+pub(crate) type EncapKeyData<E> = <<<E as CipherSuite>::Kem as Kem>::EncapKey as PublicKey>::Data;
 
 macro_rules! key_misc {
     ($name:ident) => {
@@ -88,24 +43,24 @@ macro_rules! key_misc {
             }
         }
 
-        impl<E: Engine + ?Sized> Display for $name<E> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        impl<E: Engine + ?Sized> ::core::fmt::Display for $name<E> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 write!(f, "{}", self.id())
             }
         }
 
-        impl<E: Engine + ?Sized> Debug for $name<E> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        impl<E: Engine + ?Sized> ::core::fmt::Debug for $name<E> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 write!(f, concat!(stringify!($name), " {}"), self.id())
             }
         }
     };
 }
+pub(crate) use key_misc;
 
-/// A signature created by an [`IdentityKey`] or by
-/// a [`SigningKey`].
+/// A signature created by a signing key.
 #[derive(Clone, Debug)]
-pub struct Signature<E: Engine + ?Sized>(<E::Signer as Signer>::Signature);
+pub struct Signature<E: Engine + ?Sized>(pub(crate) <E::Signer as Signer>::Signature);
 
 impl<E: Engine + ?Sized> Signature<E> {
     /// Returns the byte representation of the signature.
@@ -204,7 +159,7 @@ impl<E: Engine + ?Sized> IdentityKey<E> {
     }
 }
 key_misc!(IdentityKey);
-key_id!(UserId, "Uniquely identifies an [`IdentityKey`].");
+custom_id!(UserId, "Uniquely identifies an [`IdentityKey`].");
 
 /// The public half of [`IdentityKey`].
 pub struct IdentityVerifyingKey<E: Engine + ?Sized>(<E::Signer as Signer>::VerifyingKey);
@@ -353,7 +308,7 @@ impl<E: Engine + ?Sized> SigningKey<E> {
     }
 }
 key_misc!(SigningKey);
-key_id!(SigningKeyId, "Uniquely identifies a [`SigningKey`].");
+custom_id!(SigningKeyId, "Uniquely identifies a [`SigningKey`].");
 
 /// The public half of [`SigningKey`].
 pub struct VerifyingKey<E: Engine + ?Sized>(<E::Signer as Signer>::VerifyingKey);
@@ -432,7 +387,7 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
     }
 
     /// Decrypts and authenticates a [`GroupKey`] received from
-    /// a peer using the `local` secret key.
+    /// a peer.
     pub fn open_group_key(
         &self,
         enc: &<E::Kem as Kem>::Encap,
@@ -455,8 +410,7 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
             E::ID.as_bytes(),
             group.as_bytes(),
         ]);
-        let mut ctx =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(&Mode::Base, enc, &self.0, &info)?;
+        let mut ctx = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Base, enc, &self.0, &info)?;
         let mut seed = [0u8; 64];
         ctx.open(&mut seed, ciphertext.as_bytes(), &info)?;
         Ok(GroupKey::from_seed(seed))
@@ -478,7 +432,7 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
     }
 }
 key_misc!(EncryptionKey);
-key_id!(EncryptionKeyId, "Uniquely identifies a [`EncryptionKey`].");
+custom_id!(EncryptionKeyId, "Uniquely identifies a [`EncryptionKey`].");
 
 /// The public half of [`EncryptionKey`].
 pub struct EncryptionPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
@@ -518,7 +472,7 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
             group.as_bytes(),
         ]);
         let (enc, mut ctx) =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, &Mode::Base, &self.0, &info)?;
+            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
         let mut dst = ByteArray::default();
         ctx.seal(&mut dst, key.raw_seed(), &info)?;
         Ok((enc, EncryptedGroupKey(dst)))
@@ -568,15 +522,23 @@ pub struct ExportedKey<D: Borrow<[u8]>> {
 }
 
 impl<D: Borrow<[u8]>> ExportedKey<D> {
-    fn from_data<E: Engine + ?Sized>(data: D) -> Self {
+    pub(crate) fn from_data<E: Engine + ?Sized>(data: D) -> Self {
         Self {
             eng_id: E::ID,
             suite_id: SuiteIds::from_suite::<E>(),
             data,
         }
     }
+
+    pub(crate) fn hash<H: Hash>(&self) -> H::Digest {
+        tuple_hash::<H, _>([
+            self.eng_id.as_bytes(),
+            &self.suite_id.into_bytes(),
+            self.data.borrow(),
+        ])
+    }
 }
 
-fn valid_context<E: Engine + ?Sized>(key: &ExportedKey<impl Borrow<[u8]>>) -> bool {
+pub(crate) fn valid_context<E: Engine + ?Sized>(key: &ExportedKey<impl Borrow<[u8]>>) -> bool {
     key.eng_id == E::ID && key.suite_id == SuiteIds::from_suite::<E>()
 }

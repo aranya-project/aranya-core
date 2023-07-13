@@ -150,6 +150,60 @@ impl<'de> Deserialize<'de> for Id {
     }
 }
 
+macro_rules! custom_id {
+    ($name:ident, $doc:expr) => {
+        #[doc = $doc]
+        #[derive(Copy, Clone, Default, Eq, PartialEq)]
+        pub struct $name($crate::id::Id);
+
+        impl $name {
+            /// Same as [`Default`], but const.
+            pub const fn default() -> Self {
+                Self(Id::default())
+            }
+
+            /// Returns itself as a byte slice.
+            pub const fn as_bytes(&self) -> &[u8] {
+                self.0.as_bytes()
+            }
+        }
+
+        impl AsRef<[u8]> for $name {
+            #[inline]
+            fn as_ref(&self) -> &[u8] {
+                self.0.as_ref()
+            }
+        }
+
+        impl From<$crate::id::Id> for $name {
+            #[inline]
+            fn from(id: $crate::id::Id) -> Self {
+                Self(id)
+            }
+        }
+
+        impl From<$name> for $crate::id::Id {
+            #[inline]
+            fn from(id: $name) -> Self {
+                id.0
+            }
+        }
+
+        impl ::core::fmt::Display for $name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                ::core::fmt::Display::fmt(&self.0, f)
+            }
+        }
+
+        impl ::core::fmt::Debug for $name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                write!(f, concat!(stringify!($name), " {}"), self.0)
+            }
+        }
+    };
+}
+pub(crate) use custom_id;
+
 /// Enumerates the possible key IDs.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum KeyId {

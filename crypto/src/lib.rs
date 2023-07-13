@@ -61,6 +61,7 @@
 mod util;
 
 pub mod aead;
+pub mod apq;
 pub mod asn1;
 pub mod bearssl;
 pub mod boring;

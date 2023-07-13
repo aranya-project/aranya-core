@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 use {
     crate::{
         aead::{Aead, AeadError, BufferTooSmallError, KeyData},
@@ -9,7 +11,7 @@ use {
         id::Id,
         import::{try_import, Import, ImportError},
         kdf::{Kdf, KdfError},
-        mac::{Mac, MacKey},
+        mac::Mac,
         userkeys::VerifyingKey,
         zeroize::{Zeroize, ZeroizeOnDrop},
     },
@@ -17,7 +19,6 @@ use {
         borrow::{Borrow, BorrowMut},
         fmt,
         marker::PhantomData,
-        mem,
         result::Result,
     },
     subtle::{Choice, ConstantTimeEq},
@@ -58,14 +59,6 @@ impl<E: Engine + ?Sized> GroupKey<E> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> GroupKeyId {
-        impl<const N: usize> From<&[u8; N]> for &MacKey<N> {
-            #[inline]
-            fn from(v: &[u8; N]) -> Self {
-                // SAFETY: `[u8; N]` and `MacKey` have the same
-                // memory layout.
-                unsafe { mem::transmute(v) }
-            }
-        }
         // ID = MAC(
         //     key=GroupKey,
         //     message="GroupKeyId-v1" || suite_id,
@@ -90,7 +83,7 @@ impl<E: Engine + ?Sized> GroupKey<E> {
     }
 
     /// Encrypts and authenticates `plaintext` in a particular
-    /// context using `key`.
+    /// context.
     ///
     /// The resulting ciphertext is written to `dst`, which must
     /// be at least [`overhead`][Self::overhead] bytes longer
@@ -160,7 +153,7 @@ impl<E: Engine + ?Sized> GroupKey<E> {
     }
 
     /// Decrypts and authenticates `ciphertext` in a particular
-    /// context using `key`.
+    /// context.
     ///
     /// The resulting plaintext is written to `dst`, which must
     /// be at least as long as the original plaintext (i.e.,

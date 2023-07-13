@@ -90,6 +90,16 @@ impl<'a, T> Mode<'a, T> {
         psk_id: &[],
     };
 
+    /// Converts from `Mode<'_, T>` to `Mode<'_, &T>`.
+    pub const fn as_ref(&self) -> Mode<'_, &T> {
+        match *self {
+            Self::Base => Mode::Base,
+            Self::Psk(psk) => Mode::Psk(psk),
+            Self::Auth(ref k) => Mode::Auth(k),
+            Self::AuthPsk(ref k, psk) => Mode::AuthPsk(k, psk),
+        }
+    }
+
     fn psk(&self) -> &Psk<'a> {
         match self {
             Mode::Psk(psk) => psk,
@@ -98,7 +108,7 @@ impl<'a, T> Mode<'a, T> {
         }
     }
 
-    fn id(&self) -> u8 {
+    const fn id(&self) -> u8 {
         match self {
             Self::Base => 0x00,
             Self::Psk(_) => 0x01,
@@ -110,6 +120,7 @@ impl<'a, T> Mode<'a, T> {
 
 /// A pre-shared key and its ID.
 #[cfg_attr(test, derive(Debug))]
+#[derive(Copy, Clone)]
 pub struct Psk<'a> {
     /// The pre-shared key.
     psk: &'a [u8],
@@ -371,7 +382,7 @@ impl<K: Kem, F: Kdf, A: Aead> Hpke<K, F, A> {
     #[allow(clippy::type_complexity)]
     pub fn setup_send<R: Csprng>(
         rng: &mut R,
-        mode: &Mode<'_, K::DecapKey>,
+        mode: Mode<'_, &K::DecapKey>,
         pkR: &K::EncapKey,
         info: &[u8],
     ) -> Result<(K::Encap, SendCtx<K, F, A>), HpkeError> {
@@ -402,7 +413,7 @@ impl<K: Kem, F: Kdf, A: Aead> Hpke<K, F, A> {
     /// - it must never be reused
     #[allow(clippy::type_complexity)]
     pub fn setup_send_deterministically(
-        mode: &Mode<'_, K::DecapKey>,
+        mode: Mode<'_, &K::DecapKey>,
         pkR: &K::EncapKey,
         info: &[u8],
         skE: K::DecapKey,
@@ -423,7 +434,7 @@ impl<K: Kem, F: Kdf, A: Aead> Hpke<K, F, A> {
     /// The `mode` and `info` parameters must be the same
     /// parameters used by the sender.
     pub fn setup_recv(
-        mode: &Mode<'_, K::EncapKey>,
+        mode: Mode<'_, &K::EncapKey>,
         enc: &K::Encap,
         skR: &K::DecapKey,
         info: &[u8],
@@ -458,7 +469,7 @@ impl<K: Kem, F: Kdf, A: Aead> Hpke<K, F, A> {
     ];
 
     fn key_schedule<T>(
-        mode: &Mode<'_, T>,
+        mode: Mode<'_, T>,
         shared_secret: &K::Secret,
         info: &[u8],
     ) -> Result<Context<K, F, A>, HpkeError> {

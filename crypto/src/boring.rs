@@ -2239,18 +2239,18 @@ mod fun_crypto {
                 .expect("unable to import public key");
 
                 // pkR = small_order
-                Hpke::<K, F, A>::setup_send(&mut Rand, &Mode::Base, &small_order, &[])
+                Hpke::<K, F, A>::setup_send(&mut Rand, Mode::Base, &small_order, &[])
                     .err()
                     .expect("should not succeed");
-                let key = &Mode::Auth(K::DecapKey::new(&mut Rand));
+                let key = Mode::Auth(K::DecapKey::new(&mut Rand));
                 // Also in auth mode.
-                Hpke::<K, F, A>::setup_send(&mut Rand, key, &small_order, &[])
+                Hpke::<K, F, A>::setup_send(&mut Rand, key.as_ref(), &small_order, &[])
                     .err()
                     .expect("should not succeed");
 
                 // enc = small_order
                 Hpke::<K, F, A>::setup_recv(
-                    &Mode::Base,
+                    Mode::Base,
                     &small_order.export(),
                     &K::DecapKey::new(&mut Rand),
                     &[],
@@ -2260,7 +2260,7 @@ mod fun_crypto {
 
                 // pkSm = small_order
                 Hpke::<K, F, A>::setup_recv(
-                    &Mode::Auth(small_order.clone()),
+                    Mode::Auth(small_order.clone()).as_ref(),
                     &valid.export(),
                     &K::DecapKey::new(&mut Rand),
                     &[],
@@ -2269,7 +2269,7 @@ mod fun_crypto {
                 .expect("should not succeed");
                 // skR = small_order
                 Hpke::<K, F, A>::setup_recv(
-                    &Mode::Auth(valid),
+                    Mode::Auth(valid).as_ref(),
                     &small_order.export(),
                     &K::DecapKey::new(&mut Rand),
                     &[],

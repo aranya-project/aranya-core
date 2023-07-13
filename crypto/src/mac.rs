@@ -5,14 +5,13 @@
 //! This is a low-level module. You should not be using it
 //! directly unless you are implementing an engine.
 
-#![forbid(unsafe_code)]
-
 use {
     crate::keys::{raw_key, SecretKey},
     cfg_if::cfg_if,
     core::{
         array::TryFromSliceError,
         fmt::{self, Debug},
+        mem,
         result::Result,
     },
     serde::{Deserialize, Serialize},
@@ -132,6 +131,15 @@ pub trait Mac: Clone + Sized {
 raw_key! {
     /// A [`Mac`] key.
     pub MacKey,
+}
+
+impl<'a, const N: usize> From<&'a [u8; N]> for &'a MacKey<N> {
+    #[inline]
+    fn from(v: &[u8; N]) -> Self {
+        // SAFETY: `[u8; N]` and `MacKey` have the same
+        // memory layout.
+        unsafe { mem::transmute(v) }
+    }
 }
 
 /// A [`Mac`] authentication tag.

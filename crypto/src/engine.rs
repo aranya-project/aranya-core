@@ -10,6 +10,7 @@
 use {
     crate::{
         aead::{Aead, AeadError, AeadId},
+        apq::{ReceiverSecretKey, SenderSecretKey, SenderSigningKey},
         ciphersuite::CipherSuite,
         groupkey::GroupKey,
         id::Id,
@@ -141,6 +142,12 @@ pub enum KeyType {
     Identity(SignerId),
     /// See [`UnwrappedKey::Mac`].
     Mac(MacId),
+    /// See [`UnwrappedKey::ReceiverSecret`].
+    ReceiverSecret(SignerId),
+    /// See [`UnwrappedKey::SenderSecret`].
+    SenderSecret(SignerId),
+    /// See [`UnwrappedKey::SenderSigning`].
+    SenderSigning(SignerId),
     /// See [`UnwrappedKey::Signing`].
     Signing(SignerId),
 }
@@ -152,10 +159,10 @@ pub trait WrappedKey: Sized {
     /// Identifies the type of that was wrapped.
     fn id(&self) -> KeyType;
 
-    /// The output of [`Self::encode`].
+    /// The output of [`encode`][Self::encode].
     type Output: Borrow<[u8]>;
-    /// The error returned by [`Self::encode`] and
-    /// [`Self::decode`].
+    /// The error returned by [`encode`][Self::encode] and
+    /// [`decode`][Self::decode].
     type Error: Debug + Display;
 
     /// Encodes itself as bytes.
@@ -182,6 +189,12 @@ pub enum UnwrappedKey<E: Engine + ?Sized> {
     Identity(IdentityKey<E>),
     /// A [`Mac::Key`].
     Mac(<E::Mac as Mac>::Key),
+    /// A [`ReceiverSecretKey`].
+    ReceiverSecret(ReceiverSecretKey<E>),
+    /// A [`SenderSecretKey`].
+    SenderSecret(SenderSecretKey<E>),
+    /// A [`SenderSigningKey`].
+    SenderSigning(SenderSigningKey<E>),
     /// A [`SigningKey`].
     Signing(SigningKey<E>),
 }
@@ -195,6 +208,9 @@ impl<E: Engine + ?Sized> UnwrappedKey<E> {
             Self::Group(_) => KeyType::Group,
             Self::Identity(_) => KeyType::Identity(E::Signer::ID),
             Self::Mac(_) => KeyType::Mac(E::Mac::ID),
+            Self::ReceiverSecret(_) => KeyType::ReceiverSecret(E::Signer::ID),
+            Self::SenderSecret(_) => KeyType::SenderSecret(E::Signer::ID),
+            Self::SenderSigning(_) => KeyType::SenderSigning(E::Signer::ID),
             Self::Signing(_) => KeyType::Signing(E::Signer::ID),
         }
     }
@@ -209,6 +225,9 @@ impl<E: Engine> Import<(KeyType, &[u8])> for UnwrappedKey<E> {
             KeyType::Group => Self::Group(GroupKey::try_from(secret)?),
             KeyType::Identity(_) => Self::Identity(IdentityKey::import(secret)?),
             KeyType::Mac(_) => Self::Mac(<E::Mac as Mac>::Key::import(secret)?),
+            KeyType::ReceiverSecret(_) => Self::ReceiverSecret(ReceiverSecretKey::import(secret)?),
+            KeyType::SenderSecret(_) => Self::SenderSecret(SenderSecretKey::import(secret)?),
+            KeyType::SenderSigning(_) => Self::SenderSigning(SenderSigningKey::import(secret)?),
             KeyType::Signing(_) => Self::Signing(SigningKey::import(secret)?),
         };
         Ok(v)
@@ -259,6 +278,9 @@ macro_rules! conv_key {
 conv_key!(EncryptionKey, Encryption);
 conv_key!(GroupKey, Group);
 conv_key!(IdentityKey, Identity);
+conv_key!(ReceiverSecretKey, ReceiverSecret);
+conv_key!(SenderSecretKey, SenderSecret);
+conv_key!(SenderSigningKey, SenderSigning);
 conv_key!(SigningKey, Signing);
 
 /// The secret data from an [`UnwrappedKey`].
@@ -273,6 +295,12 @@ pub enum SecretData<'a, E: Engine + ?Sized> {
     Identity(<<E::Signer as Signer>::SigningKey as SecretKey>::Data),
     /// See [`UnwrappedKey::Mac`].
     Mac(<<E::Mac as Mac>::Key as SecretKey>::Data),
+    /// See [`UnwrappedKey::ReceiverSecret`].
+    ReceiverSecret(<<E::Kem as Kem>::DecapKey as SecretKey>::Data),
+    /// See [`UnwrappedKey::SenderSecret`].
+    SenderSecret(<<E::Kem as Kem>::DecapKey as SecretKey>::Data),
+    /// See [`UnwrappedKey::SenderSigning`].
+    SenderSigning(<<E::Signer as Signer>::SigningKey as SecretKey>::Data),
     /// See [`UnwrappedKey::Signing`].
     Signing(<<E::Signer as Signer>::SigningKey as SecretKey>::Data),
 }
@@ -295,6 +323,9 @@ impl<'a, E: Engine + ?Sized> SecretData<'a, E> {
             UnwrappedKey::Group(key) => Self::Group(key.raw_seed()),
             UnwrappedKey::Identity(key) => Self::Identity(key.try_export_secret()?),
             UnwrappedKey::Mac(key) => Self::Mac(key.try_export_secret()?),
+            UnwrappedKey::ReceiverSecret(key) => Self::ReceiverSecret(key.try_export_secret()?),
+            UnwrappedKey::SenderSecret(key) => Self::SenderSecret(key.try_export_secret()?),
+            UnwrappedKey::SenderSigning(key) => Self::SenderSigning(key.try_export_secret()?),
             UnwrappedKey::Signing(key) => Self::Signing(key.try_export_secret()?),
         };
         Ok(data)
@@ -309,6 +340,9 @@ impl<E: Engine + ?Sized> AsRef<[u8]> for SecretData<'_, E> {
             Self::Group(seed) => seed.as_ref(),
             Self::Identity(sk) => sk.borrow(),
             Self::Mac(key) => key.borrow(),
+            Self::ReceiverSecret(sk) => sk.borrow(),
+            Self::SenderSecret(sk) => sk.borrow(),
+            Self::SenderSigning(sk) => sk.borrow(),
             Self::Signing(sk) => sk.borrow(),
         }
     }

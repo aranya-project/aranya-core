@@ -14,6 +14,7 @@ extern crate alloc;
 use {
     crate::{
         aead::{Aead, AeadError, AeadId},
+        apq::{self, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, TopicKey},
         ciphersuite::CipherSuite,
         csprng::Csprng,
         default::Rng,
@@ -255,9 +256,8 @@ pub mod hpke {
         pub(super) fn get_mode<'a, T: Import<&'a [u8]>>(
             &'a self,
             id: usize,
-            sk: bool,
+            xkSm: &'a [u8],
         ) -> Mode<'_, T> {
-            let xkSm = if sk { &self.skSm[..] } else { &self.pkSm[..] };
             match self.mode {
                 HpkeMode::Base => Mode::Base,
                 HpkeMode::Psk => {
@@ -265,7 +265,10 @@ pub mod hpke {
                         .unwrap_or_else(|_| panic!("{id}"));
                     Mode::Psk(psk)
                 }
-                HpkeMode::Auth => Mode::Auth(T::import(xkSm).unwrap_or_else(|_| panic!("{id}"))),
+                HpkeMode::Auth => {
+                    let xkS = T::import(xkSm).unwrap_or_else(|_| panic!("{id}"));
+                    Mode::Auth(xkS)
+                }
                 HpkeMode::AuthPsk => {
                     let xkS = T::import(xkSm).unwrap_or_else(|_| panic!("{id}"));
                     let psk = Psk::new(&self.psk[..], &self.psk_id[..])
@@ -340,16 +343,36 @@ where
     F: FnMut() -> E,
 {
     fn test<R: Csprng>(rng: &mut R, mut f: F) {
-        Self::test_simple_sign(rng);
+        //
+        // Aranya
+        //
+        Self::test_simple_user_signing_key_sign(rng);
+
         Self::test_simple_send_group_key(rng);
         Self::test_simple_wrap_group_key(rng, f());
         Self::test_simple_wrap_user_identity_key(rng, f());
         Self::test_simple_wrap_user_signing_key(rng, f());
         Self::test_simple_wrap_user_encryption_key(rng, f());
+
         Self::test_group_key_seal(rng);
         Self::test_group_key_open_wrong_key(rng);
         Self::test_group_key_open_wrong_context(rng);
         Self::test_group_key_open_bad_ciphertext(rng);
+
+        //
+        // APQ
+        //
+        Self::test_simple_sender_signing_key_sign(rng);
+
+        Self::test_simple_seal_topic_key(rng);
+        Self::test_simple_wrap_user_sender_secret_key(rng, f());
+        Self::test_simple_wrap_user_sender_signing_key(rng, f());
+        Self::test_simple_wrap_user_receiver_secret_key(rng, f());
+
+        Self::test_topic_key_seal(rng);
+        Self::test_topic_key_open_wrong_key(rng);
+        Self::test_topic_key_open_wrong_context(rng);
+        Self::test_topic_key_open_bad_ciphertext(rng);
     }
 }
 
@@ -360,16 +383,16 @@ where
     Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
 {
     /// Simple positive test for [`UserSigningKey`].
-    fn test_simple_sign<R: Csprng>(rng: &mut R) {
+    fn test_simple_user_signing_key_sign<R: Csprng>(rng: &mut R) {
         const MSG: &[u8] = b"hello, world!";
 
         let sign_key = UserSigningKey::<E>::new(rng);
         let sig = sign_key
-            .sign(MSG, "test_simple_sign")
+            .sign(MSG, "test_simple_user_signing_key_sign")
             .expect("unable to create signature");
         sign_key
             .public()
-            .verify(MSG, "test_simple_sign", &sig)
+            .verify(MSG, "test_simple_user_signing_key_sign", &sig)
             .expect("the signature should be valid");
     }
 
@@ -635,6 +658,222 @@ where
                     author: &author,
                 },
             )
+            .expect_err("should have failed");
+        assert_eq!(err, Error::Aead(AeadError::Authentication));
+    }
+
+    /// Simple positive test for [`SenderSigningKey`].
+    fn test_simple_sender_signing_key_sign<R: Csprng>(rng: &mut R) {
+        const RECORD: &[u8] = b"some encoded record";
+        const RECORD_NAME: &str = "MessageRecord";
+
+        const VERSION: apq::Version = apq::Version(1);
+        const TOPIC: apq::Topic = apq::Topic(4);
+
+        let sign_key = SenderSigningKey::<E>::new(rng);
+        let sig = sign_key
+            .sign(VERSION, TOPIC, RECORD, RECORD_NAME)
+            .expect("unable to create signature");
+        sign_key
+            .public()
+            .verify(VERSION, TOPIC, RECORD, RECORD_NAME, &sig)
+            .expect("the signature should be valid");
+    }
+
+    /// Simple positive test for encrypting/decrypting
+    /// [`TopicKey`]s.
+    fn test_simple_seal_topic_key<R: Csprng>(rng: &mut R) {
+        let send_sk = SenderSecretKey::<E>::new(rng);
+        let send_pk = send_sk.public();
+        let recv_sk = ReceiverSecretKey::<E>::new(rng);
+        let recv_pk = recv_sk.public();
+
+        const VERSION: apq::Version = apq::Version(1);
+        const TOPIC: apq::Topic = apq::Topic(4);
+
+        let want = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
+        let (enc, ciphertext) = recv_pk
+            .seal_topic_key(rng, VERSION, TOPIC, &send_sk, &want)
+            .expect("unable to encrypt `TopicKey`");
+        let got = recv_sk
+            .open_topic_key(VERSION, TOPIC, &send_pk, &enc, &ciphertext)
+            .expect("unable to decrypt `TopicKey`");
+        assert_eq!(want.id(), got.id());
+    }
+
+    /// Simple positive test for wrapping [`SenderSecretKey`]s.
+    fn test_simple_wrap_user_sender_secret_key<R: Csprng>(rng: &mut R, mut eng: E) {
+        let want = SenderSecretKey::new(rng);
+        let bytes = eng
+            .wrap(&want)
+            .expect("should be able to wrap `SenderSecretKey`")
+            .encode()
+            .expect("should be able to encode wrapped `SenderSecretKey`");
+        let wrapped = E::WrappedKey::decode(bytes.borrow())
+            .expect("should be able to decode encoded wrapped `SenderSecretKey`");
+        let got: SenderSecretKey<E> = eng
+            .unwrap(&wrapped)
+            .expect("should be able to unwrap `SenderSecretKey`")
+            .try_into()
+            .expect("should be a `SenderSecretKey`");
+        assert_eq!(want.id(), got.id());
+    }
+
+    /// Simple positive test for wrapping [`SenderSigningKey`]s.
+    fn test_simple_wrap_user_sender_signing_key<R: Csprng>(rng: &mut R, mut eng: E) {
+        let want = SenderSigningKey::new(rng);
+        let bytes = eng
+            .wrap(&want)
+            .expect("should be able to wrap `SenderSigningKey`")
+            .encode()
+            .expect("should be able to encode wrapped `SenderSigningKey`");
+        let wrapped = E::WrappedKey::decode(bytes.borrow())
+            .expect("should be able to decode encoded wrapped `SenderSigningKey`");
+        let got: SenderSigningKey<E> = eng
+            .unwrap(&wrapped)
+            .expect("should be able to unwrap `SenderSigningKey`")
+            .try_into()
+            .expect("should be a `SenderSigningKey`");
+        assert_eq!(want.id(), got.id());
+    }
+
+    /// Simple positive test for wrapping [`ReceiverSecretKey`]s.
+    fn test_simple_wrap_user_receiver_secret_key<R: Csprng>(rng: &mut R, mut eng: E) {
+        let want = ReceiverSecretKey::new(rng);
+        let bytes = eng
+            .wrap(&want)
+            .expect("should be able to wrap `ReceiverSecretKey`")
+            .encode()
+            .expect("should be able to encode wrapped `ReceiverSecretKey`");
+        let wrapped = E::WrappedKey::decode(bytes.borrow())
+            .expect("should be able to decode encoded wrapped `ReceiverSecretKey`");
+        let got: ReceiverSecretKey<E> = eng
+            .unwrap(&wrapped)
+            .expect("should be able to unwrap `ReceiverSecretKey`")
+            .try_into()
+            .expect("should be a `ReceiverSecretKey`");
+        assert_eq!(want.id(), got.id());
+    }
+
+    /// Simple positive test for encryption using a [`TopicKey`].
+    fn test_topic_key_seal<R: Csprng>(rng: &mut R) {
+        const INPUT: &[u8] = b"hello, world!";
+
+        let ident = Sender {
+            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+        };
+
+        const VERSION: apq::Version = apq::Version(1);
+        const TOPIC: apq::Topic = apq::Topic(4);
+
+        let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
+        let ciphertext = {
+            let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
+            tk.seal_message(rng, &mut dst, INPUT, VERSION, TOPIC, &ident)
+                .expect("should succeed");
+            dst
+        };
+        let plaintext = {
+            let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
+            tk.open_message(&mut dst, &ciphertext, VERSION, TOPIC, &ident)
+                .expect("should succeed");
+            dst
+        };
+        assert_eq!(&plaintext, INPUT);
+    }
+
+    /// Negative test for the wrong [`TopicKey`].
+    fn test_topic_key_open_wrong_key<R: Csprng>(rng: &mut R) {
+        const INPUT: &[u8] = b"hello, world!";
+
+        let ident = Sender {
+            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+        };
+
+        const VERSION: apq::Version = apq::Version(1);
+        const TOPIC: apq::Topic = apq::Topic(4);
+
+        let tk1 = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
+        let tk2 = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
+
+        let ciphertext = {
+            let mut dst = vec![0u8; INPUT.len() + tk1.overhead()];
+            tk1.seal_message(rng, &mut dst, INPUT, VERSION, TOPIC, &ident)
+                .expect("should succeed");
+            dst
+        };
+        let mut dst = vec![0u8; ciphertext.len() - tk2.overhead()];
+        let err = tk2
+            .open_message(&mut dst, &ciphertext, VERSION, TOPIC, &ident)
+            .expect_err("should have failed");
+        assert_eq!(err, Error::Aead(AeadError::Authentication));
+    }
+
+    /// Negative test for the wrong [`Context`].
+    fn test_topic_key_open_wrong_context<R: Csprng>(rng: &mut R) {
+        const INPUT: &[u8] = b"hello, world!";
+
+        let ident = Sender {
+            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+        };
+        let wrong_ident = Sender {
+            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+        };
+
+        const VERSION: apq::Version = apq::Version(1);
+        const TOPIC: apq::Topic = apq::Topic(4);
+
+        let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create `TopicKey`");
+        let ciphertext = {
+            let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
+            tk.seal_message(rng, &mut dst, INPUT, VERSION, TOPIC, &ident)
+                .expect("should succeed");
+            dst
+        };
+
+        macro_rules! should_fail {
+            ($msg:expr, $version:expr, $topic:expr, $ident:expr) => {
+                let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
+                let err = tk
+                    .open_message(&mut dst, &ciphertext, $version, $topic, $ident)
+                    .expect_err("should have failed");
+                assert_eq!(err, Error::Aead(AeadError::Authentication), $msg);
+            };
+        }
+        should_fail!("wrong version", apq::Version(VERSION.0 + 1), TOPIC, &ident);
+        should_fail!("wrong topic", VERSION, apq::Topic(TOPIC.0 + 1), &ident);
+        should_fail!("wrong ident", VERSION, TOPIC, &wrong_ident);
+    }
+
+    /// Negative test for a modified ciphertext.
+    fn test_topic_key_open_bad_ciphertext<R: Csprng>(rng: &mut R) {
+        const INPUT: &[u8] = b"hello, world!";
+
+        let ident = Sender {
+            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+        };
+
+        const VERSION: apq::Version = apq::Version(1);
+        const TOPIC: apq::Topic = apq::Topic(4);
+
+        let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create `TopicKey`");
+        let mut ciphertext = {
+            let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
+            tk.seal_message(rng, &mut dst, INPUT, VERSION, TOPIC, &ident)
+                .expect("should succeed");
+            dst
+        };
+
+        ciphertext[0] = ciphertext[0].wrapping_add(1);
+
+        let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
+        let err = tk
+            .open_message(&mut dst, &ciphertext, VERSION, TOPIC, &ident)
             .expect_err("should have failed");
         assert_eq!(err, Error::Aead(AeadError::Authentication));
     }
@@ -961,9 +1200,9 @@ impl<K: Kem, F: Kdf, A: Aead> HpkeTest<K, F, A> {
         let skR = K::DecapKey::new(rng);
         let pkR = skR.public();
 
-        let (enc, mut send) = Hpke::<K, F, A>::setup_send(rng, &Mode::Base, &pkR, INFO)
+        let (enc, mut send) = Hpke::<K, F, A>::setup_send(rng, Mode::Base, &pkR, INFO)
             .expect("unable to create send context");
-        let mut recv = Hpke::<K, F, A>::setup_recv(&Mode::Base, &enc, &skR, INFO)
+        let mut recv = Hpke::<K, F, A>::setup_recv(Mode::Base, &enc, &skR, INFO)
             .expect("unable to create recv context");
 
         let ciphertext = {
@@ -1504,14 +1743,14 @@ where
         let (enc, mut send) = {
             let skE = K::DecapKey::import(&g.skEm[..]).unwrap_or_else(|_| panic!("group={i}"));
             let pkR = K::EncapKey::import(&g.pkRm[..]).unwrap_or_else(|_| panic!("group={i}"));
-            let mode = g.get_mode(i, true);
-            Hpke::<K, F, A>::setup_send_deterministically(&mode, &pkR, &g.info, skE)
+            let mode = g.get_mode(i, &g.skSm[..]);
+            Hpke::<K, F, A>::setup_send_deterministically(mode.as_ref(), &pkR, &g.info, skE)
                 .unwrap_or_else(|_| panic!("group={i}"))
         };
         let mut recv = {
             let skR = K::DecapKey::import(&g.skRm[..]).unwrap_or_else(|_| panic!("group={i}"));
-            let mode = g.get_mode(i, false);
-            Hpke::<K, F, A>::setup_recv(&mode, &enc, &skR, &g.info)
+            let mode = g.get_mode(i, &g.pkSm[..]);
+            Hpke::<K, F, A>::setup_recv(mode.as_ref(), &enc, &skR, &g.info)
                 .unwrap_or_else(|_| panic!("group={i}"))
         };
 
