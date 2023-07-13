@@ -48,7 +48,7 @@ use {
     subtle::ConstantTimeEq,
 };
 
-pub use wycheproof::{aead, ecdh, ecdsa, hkdf, mac, TestResult};
+pub use wycheproof::{aead, ecdh, ecdsa, eddsa, hkdf, mac, TestResult};
 
 macro_rules! msg {
     ($id:expr) => {
@@ -1640,8 +1640,8 @@ pub trait UncheckedSignature<T: Signer + ?Sized> {
     fn from_bytes_unchecked(data: &[u8]) -> Self;
 }
 
-/// Tests a [`Signer`] that implements ECDSA (or EdDSA) against
-/// Project Wycheproof test vectors.
+/// Tests a [`Signer`] that implements ECDSA against Project
+/// Wycheproof test vectors.
 ///
 /// It also performs [`SignerTest`].
 pub fn test_ecdsa<T: Signer>(name: ecdsa::TestName)
@@ -1664,6 +1664,61 @@ where
                 // are valid DER signatures.
                 T::Signature::from_bytes_unchecked(&tc.sig[..])
             };
+
+            let res = pk.verify(&tc.msg[..], &sig);
+            match tc.result {
+                TestResult::Valid | TestResult::Acceptable => {
+                    res.unwrap_or_else(|_| panic!("{id}"));
+                }
+                TestResult::Invalid => {
+                    res.expect_err(msg!(id));
+                }
+            };
+        }
+    }
+}
+
+/// Tests a [`Signer`] that implements EdDSA against Project
+/// Wycheproof test vectors.
+///
+/// It also performs [`SignerTest`].
+pub fn test_eddsa<T: Signer>(name: eddsa::TestName) {
+    SignerTest::<T>::test(&mut Rng, ());
+
+    fn sig_len(name: eddsa::TestName) -> usize {
+        match name {
+            eddsa::TestName::Ed25519 => 64,
+            eddsa::TestName::Ed448 => 114,
+        }
+    }
+
+    let set = eddsa::TestSet::load(name).expect("should be able to load tests");
+    for g in &set.test_groups {
+        for tc in &g.tests {
+            let id = tc.tc_id;
+
+            let pk = T::VerifyingKey::import(&g.key.pk[..]).unwrap_or_else(|_| panic!("{id}"));
+
+            let wrong_len = sig_len(name) != tc.sig.len();
+            let sig = match T::Signature::import(&tc.sig[..]) {
+                Err(_) => {
+                    // Can't import the signature, so it's either
+                    // an incorrect length or (r,s) are invalid.
+                    assert!(wrong_len || tc.result == TestResult::Invalid, "#{id}");
+                    // Since we can't import the signature, it's
+                    // impossible to test.
+                    continue;
+                }
+                Ok(sig) => {
+                    // We could import the signature, so it must
+                    // be the correct length.
+                    assert!(!wrong_len);
+                    sig
+                }
+            };
+
+            // TODO(eric): EdDSA signatures are deterministic, so
+            // also check the output of sign.
 
             let res = pk.verify(&tc.msg[..], &sig);
             match tc.result {

@@ -41,17 +41,18 @@ use {
         EC_KEY_get0_private_key, EC_KEY_get0_public_key, EC_KEY_is_opaque,
         EC_KEY_new_by_curve_name, EC_KEY_oct2key, EC_KEY_oct2priv, EC_KEY_priv2oct,
         EC_KEY_set_public_key, EC_POINT_cmp, EC_POINT_free, EC_POINT_mul, EC_POINT_new,
-        EC_POINT_point2oct, ERR_get_error_line, ERR_lib_error_string, ERR_reason_error_string,
-        EVP_AEAD_CTX_cleanup, EVP_AEAD_CTX_init, EVP_AEAD_CTX_open, EVP_AEAD_CTX_open_gather,
-        EVP_AEAD_CTX_seal, EVP_AEAD_CTX_seal_scatter, EVP_AEAD_CTX_zero, EVP_AEAD_key_length,
-        EVP_AEAD_nonce_length, EVP_aead_aes_256_gcm, NID_X9_62_prime256v1 as NID_secp256r1,
-        NID_secp384r1, NID_secp521r1, RAND_bytes, SHA256_Final, SHA256_Init, SHA256_Update,
-        SHA384_Final, SHA384_Init, SHA384_Update, SHA512_256_Final, SHA512_256_Init,
-        SHA512_256_Update, SHA512_Final, SHA512_Init, SHA512_Update, CIPHER_R_BAD_DECRYPT,
-        CIPHER_R_BAD_KEY_LENGTH, CIPHER_R_BUFFER_TOO_SMALL, CIPHER_R_INVALID_AD_SIZE,
-        CIPHER_R_INVALID_KEY_LENGTH, CIPHER_R_INVALID_NONCE_SIZE, CIPHER_R_TAG_TOO_LARGE,
-        CIPHER_R_TOO_LARGE, ECDSA_R_BAD_SIGNATURE, EC_KEY, EC_R_INVALID_ENCODING,
-        EC_R_INVALID_PRIVATE_KEY, ERR_GET_REASON, EVP_AEAD_CTX, SHA256, SHA256_CBLOCK, SHA256_CTX,
+        EC_POINT_point2oct, ED25519_keypair_from_seed, ED25519_sign, ED25519_verify,
+        ERR_get_error_line, ERR_lib_error_string, ERR_reason_error_string, EVP_AEAD_CTX_cleanup,
+        EVP_AEAD_CTX_init, EVP_AEAD_CTX_open, EVP_AEAD_CTX_open_gather, EVP_AEAD_CTX_seal,
+        EVP_AEAD_CTX_seal_scatter, EVP_AEAD_CTX_zero, EVP_AEAD_key_length, EVP_AEAD_nonce_length,
+        EVP_aead_aes_256_gcm, NID_X9_62_prime256v1 as NID_secp256r1, NID_secp384r1, NID_secp521r1,
+        RAND_bytes, SHA256_Final, SHA256_Init, SHA256_Update, SHA384_Final, SHA384_Init,
+        SHA384_Update, SHA512_256_Final, SHA512_256_Init, SHA512_256_Update, SHA512_Final,
+        SHA512_Init, SHA512_Update, CIPHER_R_BAD_DECRYPT, CIPHER_R_BAD_KEY_LENGTH,
+        CIPHER_R_BUFFER_TOO_SMALL, CIPHER_R_INVALID_AD_SIZE, CIPHER_R_INVALID_KEY_LENGTH,
+        CIPHER_R_INVALID_NONCE_SIZE, CIPHER_R_TAG_TOO_LARGE, CIPHER_R_TOO_LARGE,
+        ECDSA_R_BAD_SIGNATURE, EC_KEY, EC_R_INVALID_ENCODING, EC_R_INVALID_PRIVATE_KEY,
+        ERR_GET_REASON, EVP_AEAD_CTX, NID_ED25519, SHA256, SHA256_CBLOCK, SHA256_CTX,
         SHA256_DIGEST_LENGTH, SHA384, SHA384_CBLOCK, SHA384_DIGEST_LENGTH, SHA512, SHA512_256,
         SHA512_256_DIGEST_LENGTH, SHA512_CBLOCK, SHA512_CTX, SHA512_DIGEST_LENGTH,
     },
@@ -698,6 +699,7 @@ macro_rules! curve_impl {
 curve_impl!(P256, "NIST Curve P-256", NID_secp256r1, Secp256r1);
 curve_impl!(P384, "NIST Curve P-384", NID_secp384r1, Secp384r1);
 curve_impl!(P521, "NIST Curve P-521", NID_secp521r1, Secp521r1);
+curve_impl!(Ed25519, "EdDSA using Ed25519", NID_ED25519, Curve25519);
 
 dhkem_impl!(
     DhKemP256HkdfSha256,
@@ -1203,6 +1205,203 @@ ecdsa_impl!(
     P521Signature,
 );
 
+impl Signer for Ed25519 {
+    const ID: SignerId = SignerId::Ed25519;
+
+    type SigningKey = Ed25519SigningKey;
+    type VerifyingKey = Ed25519VerifyingKey;
+    type Signature = Ed25519Signature;
+}
+
+/// An Ed25519 private key.
+#[derive(Clone, ZeroizeOnDrop)]
+pub struct Ed25519SigningKey {
+    sk: [u8; 64], // seed || public key
+}
+
+impl Ed25519SigningKey {
+    fn from_seed(seed: [u8; 32]) -> Self {
+        let mut sk = [0u8; 64];
+        let mut pk = [0u8; 32];
+        // SAFETY: FFI call, no invariants
+        unsafe {
+            ED25519_keypair_from_seed(
+                ptr::addr_of_mut!(pk),
+                ptr::addr_of_mut!(sk),
+                ptr::addr_of!(seed),
+            );
+        }
+        Self { sk }
+    }
+}
+
+impl SigningKey<Ed25519> for Ed25519SigningKey {
+    #[inline]
+    fn sign(&self, msg: &[u8]) -> Result<Ed25519Signature, SignerError> {
+        let mut out = [0u8; 64];
+
+        // SAFETY: FFI call, no invariants
+        let ret = unsafe {
+            ED25519_sign(
+                ptr::addr_of_mut!(out), // out_sig
+                msg.as_ptr(),           // message
+                msg.len(),              // message_len
+                ptr::addr_of!(self.sk), // private_key
+            )
+        };
+        // Should not fail.
+        assert_eq!(ret, 1);
+
+        Ok(Ed25519Signature(out))
+    }
+
+    #[inline]
+    fn public(&self) -> Ed25519VerifyingKey {
+        // sk is seed || public key
+        Ed25519VerifyingKey(self.sk[32..].try_into().expect("unreachable"))
+    }
+}
+
+impl SecretKey for Ed25519SigningKey {
+    fn new<R: Csprng>(rng: &mut R) -> Self {
+        let mut seed = [0u8; 32];
+        rng.fill_bytes(&mut seed);
+        Self::from_seed(seed)
+    }
+
+    type Data = RawKey<32>;
+
+    #[inline]
+    fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
+        // sk is seed || public key
+        let seed: [u8; 32] = self.sk[..32].try_into().expect("unreachable");
+        Ok(seed.into())
+    }
+}
+
+#[cfg(test)]
+impl Debug for Ed25519SigningKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.sk.to_hex())
+    }
+}
+
+impl ConstantTimeEq for Ed25519SigningKey {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.sk.ct_eq(&other.sk)
+    }
+}
+
+impl Import<[u8; 32]> for Ed25519SigningKey {
+    #[inline]
+    fn import(seed: [u8; 32]) -> Result<Self, ImportError> {
+        Ok(Self::from_seed(seed))
+    }
+}
+
+impl Import<<Self as SecretKey>::Data> for Ed25519SigningKey {
+    #[inline]
+    fn import(seed: <Self as SecretKey>::Data) -> Result<Self, ImportError> {
+        Ok(Self::from_seed(seed.into()))
+    }
+}
+
+impl<'a> Import<&'a [u8]> for Ed25519SigningKey {
+    #[inline]
+    fn import(data: &'a [u8]) -> Result<Self, ImportError> {
+        try_import(data)
+    }
+}
+
+/// An Ed25519 public key.
+#[derive(Clone, Eq, PartialEq)]
+pub struct Ed25519VerifyingKey([u8; 32]);
+
+impl VerifyingKey<Ed25519> for Ed25519VerifyingKey {
+    fn verify(&self, msg: &[u8], sig: &Ed25519Signature) -> Result<(), SignerError> {
+        // SAFETY: FFI call, no invariants
+        let ret = unsafe {
+            ED25519_verify(
+                msg.as_ptr(),          // message
+                msg.len(),             // message_len
+                ptr::addr_of!(sig.0),  // signature
+                ptr::addr_of!(self.0), // public_key
+            )
+        };
+        if ret == 1 {
+            Ok(())
+        } else {
+            Err(SignerError::Verification)
+        }
+    }
+}
+
+impl PublicKey for Ed25519VerifyingKey {
+    type Data = [u8; 32];
+
+    fn export(&self) -> Self::Data {
+        self.0
+    }
+}
+
+impl Import<[u8; 32]> for Ed25519VerifyingKey {
+    fn import(data: [u8; 32]) -> Result<Self, ImportError> {
+        Ok(Self(data))
+    }
+}
+
+impl<'a> Import<&'a [u8]> for Ed25519VerifyingKey {
+    fn import(data: &'a [u8]) -> Result<Self, ImportError> {
+        try_import(data)
+    }
+}
+
+impl Debug for Ed25519VerifyingKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.export().to_hex())
+    }
+}
+
+/// An Ed25519 signature.
+#[derive(Clone, Debug)]
+pub struct Ed25519Signature([u8; 64]);
+
+impl Borrow<[u8]> for Ed25519Signature {
+    #[inline]
+    fn borrow(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl Import<[u8; 64]> for Ed25519Signature {
+    #[inline]
+    fn import(data: [u8; 64]) -> Result<Self, ImportError> {
+        Ok(Self(data))
+    }
+}
+
+impl<'a> Import<&'a [u8]> for Ed25519Signature {
+    #[inline]
+    fn import(data: &[u8]) -> Result<Self, ImportError> {
+        try_import(data)
+    }
+}
+
+#[cfg(test)]
+impl crate::test_util::UncheckedSignature<Ed25519> for Ed25519Signature {
+    fn from_bytes_unchecked(data: &[u8]) -> Self {
+        let mut sig = [0u8; 64];
+        // Cap the number of bytes we copy, otherwise
+        // we'll panic. The Wycheproof test vectors
+        // include invalid signatures that are larger
+        // than the largest valid signature.
+        let n = core::cmp::min(sig.len(), data.len());
+        sig[..n].clone_from_slice(&data[..n]);
+        Self(sig)
+    }
+}
+
 /// A CSPRNG.
 #[derive(Clone, Copy)]
 pub struct Rand;
@@ -1663,9 +1862,8 @@ mod fun_crypto {
         super::*,
         crate::{hkdf::hkdf_impl, hmac::hmac_impl},
         bssl_sys::{
-            ED25519_keypair_from_seed, ED25519_sign, ED25519_verify, EVP_AEAD_CTX_open,
-            EVP_aead_chacha20_poly1305, X25519_keypair, X25519_public_from_private, NID_ED25519,
-            NID_X25519, X25519 as X25519_ecdh,
+            EVP_AEAD_CTX_open, EVP_aead_chacha20_poly1305, X25519_keypair,
+            X25519_public_from_private, NID_X25519, X25519 as X25519_ecdh,
         },
         core::{
             fmt::{self, Debug},
@@ -1703,203 +1901,6 @@ mod fun_crypto {
     );
 
     curve_impl!(X25519, "ECDH using Curve25519", NID_X25519, Curve25519);
-    curve_impl!(Ed25519, "EdDSA using Curve25519", NID_ED25519, Curve25519);
-
-    impl Signer for Ed25519 {
-        const ID: SignerId = SignerId::Ed25519;
-
-        type SigningKey = Ed25519SigningKey;
-        type VerifyingKey = Ed25519VerifyingKey;
-        type Signature = Ed25519Signature;
-    }
-
-    /// An Ed25519 private key.
-    #[derive(Clone, ZeroizeOnDrop)]
-    pub struct Ed25519SigningKey {
-        sk: [u8; 64], // seed || private key
-        pk: [u8; 32],
-    }
-
-    impl Ed25519SigningKey {
-        fn from_seed(seed: [u8; 32]) -> Self {
-            let mut sk = [0u8; 64];
-            let mut pk = [0u8; 32];
-            // SAFETY: FFI call, no invariants
-            unsafe {
-                ED25519_keypair_from_seed(
-                    ptr::addr_of_mut!(pk),
-                    ptr::addr_of_mut!(sk),
-                    ptr::addr_of!(seed),
-                );
-            }
-            Self { sk, pk }
-        }
-    }
-
-    impl SigningKey<Ed25519> for Ed25519SigningKey {
-        #[inline]
-        fn sign(&self, msg: &[u8]) -> Result<Ed25519Signature, SignerError> {
-            let mut out = [0u8; 64];
-
-            // SAFETY: FFI call, no invariants
-            let ret = unsafe {
-                ED25519_sign(
-                    ptr::addr_of_mut!(out), // out_sig
-                    msg.as_ptr(),           // message
-                    msg.len(),              // message_len
-                    ptr::addr_of!(self.sk), // private_key
-                )
-            };
-            // Should not fail.
-            assert_eq!(ret, 1);
-
-            Ok(Ed25519Signature(out))
-        }
-
-        #[inline]
-        fn public(&self) -> Ed25519VerifyingKey {
-            Ed25519VerifyingKey(self.pk)
-        }
-    }
-
-    impl SecretKey for Ed25519SigningKey {
-        fn new<R: Csprng>(rng: &mut R) -> Self {
-            let mut seed = [0u8; 32];
-            rng.fill_bytes(&mut seed);
-            Self::from_seed(seed)
-        }
-
-        type Data = RawKey<32>;
-
-        #[inline]
-        fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
-            let seed: [u8; 32] = self.sk[..32].try_into().expect("unreachable");
-            Ok(seed.into())
-        }
-    }
-
-    #[cfg(test)]
-    impl Debug for Ed25519SigningKey {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self.sk.to_hex())
-        }
-    }
-
-    impl ConstantTimeEq for Ed25519SigningKey {
-        #[inline]
-        fn ct_eq(&self, other: &Self) -> Choice {
-            self.sk.ct_eq(&other.sk)
-        }
-    }
-
-    impl Import<[u8; 32]> for Ed25519SigningKey {
-        #[inline]
-        fn import(seed: [u8; 32]) -> Result<Self, ImportError> {
-            Ok(Self::from_seed(seed))
-        }
-    }
-
-    impl Import<<Self as SecretKey>::Data> for Ed25519SigningKey {
-        #[inline]
-        fn import(seed: <Self as SecretKey>::Data) -> Result<Self, ImportError> {
-            Ok(Self::from_seed(seed.into()))
-        }
-    }
-
-    impl<'a> Import<&'a [u8]> for Ed25519SigningKey {
-        #[inline]
-        fn import(data: &'a [u8]) -> Result<Self, ImportError> {
-            try_import(data)
-        }
-    }
-
-    /// An Ed25519 public key.
-    #[derive(Clone, Eq, PartialEq)]
-    pub struct Ed25519VerifyingKey([u8; 32]);
-
-    impl VerifyingKey<Ed25519> for Ed25519VerifyingKey {
-        fn verify(&self, msg: &[u8], sig: &Ed25519Signature) -> Result<(), SignerError> {
-            // SAFETY: FFI call, no invariants
-            let ret = unsafe {
-                ED25519_verify(
-                    msg.as_ptr(),          // message
-                    msg.len(),             // message_len
-                    ptr::addr_of!(sig.0),  // signature
-                    ptr::addr_of!(self.0), // public_key
-                )
-            };
-            if ret == 1 {
-                Ok(())
-            } else {
-                Err(SignerError::Verification)
-            }
-        }
-    }
-
-    impl PublicKey for Ed25519VerifyingKey {
-        type Data = [u8; 32];
-
-        fn export(&self) -> Self::Data {
-            self.0
-        }
-    }
-
-    impl Import<[u8; 32]> for Ed25519VerifyingKey {
-        fn import(data: [u8; 32]) -> Result<Self, ImportError> {
-            Ok(Self(data))
-        }
-    }
-
-    impl<'a> Import<&'a [u8]> for Ed25519VerifyingKey {
-        fn import(data: &'a [u8]) -> Result<Self, ImportError> {
-            try_import(data)
-        }
-    }
-
-    impl Debug for Ed25519VerifyingKey {
-        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-            write!(f, "{}", self.export().to_hex())
-        }
-    }
-
-    /// An Ed25519 signature.
-    #[derive(Clone, Debug)]
-    pub struct Ed25519Signature([u8; 64]);
-
-    impl Borrow<[u8]> for Ed25519Signature {
-        #[inline]
-        fn borrow(&self) -> &[u8] {
-            self.0.as_ref()
-        }
-    }
-
-    impl Import<[u8; 64]> for Ed25519Signature {
-        #[inline]
-        fn import(data: [u8; 64]) -> Result<Self, ImportError> {
-            Ok(Self(data))
-        }
-    }
-
-    impl<'a> Import<&'a [u8]> for Ed25519Signature {
-        #[inline]
-        fn import(data: &[u8]) -> Result<Self, ImportError> {
-            try_import(data)
-        }
-    }
-
-    #[cfg(test)]
-    impl crate::test_util::UncheckedSignature<Ed25519> for Ed25519Signature {
-        fn from_bytes_unchecked(data: &[u8]) -> Self {
-            let mut sig = [0u8; 64];
-            // Cap the number of bytes we copy, otherwise
-            // we'll panic. The Wycheproof test vectors
-            // include invalid signatures that are larger
-            // than the largest valid signature.
-            let n = core::cmp::min(sig.len(), data.len());
-            sig[..n].clone_from_slice(&data[..n]);
-            Self(sig)
-        }
-    }
 
     dhkem_impl!(
         DhKemX25519HkdfSha256,
@@ -2314,30 +2315,46 @@ mod tests {
     mod ciphersuite_test {
         use super::*;
 
-        #[test]
-        fn test_ciphersuite_128() {
-            test_ciphersuite::<
-                TestCs<Aes256Gcm, Sha512, HkdfSha256, DhKemP256HkdfSha256, HmacSha512, P256>,
-                _,
-            >(&mut Rand);
+        macro_rules! do_test {
+            ($aead:ty, $hash:ty, $kdf:ty, $kem:ty, $mac:ty, $signer:ty $(,)?) => {
+                test_ciphersuite::<TestCs<$aead, $hash, $kdf, $kem, $mac, $signer>, _>(&mut Rand);
+            };
         }
 
         #[test]
-        fn test_ciphersuite_192() {
-            // DkKemP384HkdfSha384 does not exist, so use P256
-            // instead.
-            test_ciphersuite::<
-                TestCs<Aes256Gcm, Sha512, HkdfSha384, DhKemP256HkdfSha256, HmacSha512, P384>,
-                _,
-            >(&mut Rand);
-        }
-
-        #[test]
-        fn test_ciphersuite_256() {
-            test_ciphersuite::<
-                TestCs<Aes256Gcm, Sha512, HkdfSha512, DhKemP521HkdfSha512, HmacSha512, P521>,
-                _,
-            >(&mut Rand);
+        fn test_ciphersuites() {
+            do_test!(
+                Aes256Gcm,
+                Sha512,
+                HkdfSha256,
+                DhKemP256HkdfSha256,
+                HmacSha512,
+                Ed25519,
+            );
+            do_test!(
+                Aes256Gcm,
+                Sha512,
+                HkdfSha256,
+                DhKemP256HkdfSha256,
+                HmacSha512,
+                P256,
+            );
+            do_test!(
+                Aes256Gcm,
+                Sha512,
+                HkdfSha384,
+                DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
+                HmacSha512,
+                P384,
+            );
+            do_test!(
+                Aes256Gcm,
+                Sha512,
+                HkdfSha512,
+                DhKemP521HkdfSha512,
+                HmacSha512,
+                P521,
+            );
         }
     }
 
@@ -2436,6 +2453,15 @@ mod tests {
         #[test]
         fn test_ecdsa_p521() {
             test_ecdsa::<P521>(ecdsa::TestName::EcdsaSecp521r1Sha512);
+        }
+    }
+
+    mod eddsa_test {
+        use super::*;
+
+        #[test]
+        fn test_ed25519() {
+            test_eddsa::<Ed25519>(eddsa::TestName::Ed25519);
         }
     }
 

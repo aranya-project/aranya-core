@@ -67,7 +67,7 @@ impl Csprng for Rng {
 /// - KDF: HKDF-SHA-512
 /// - KEM: DH-KEM(P-256, HKDF-SHA-256)
 /// - MAC: HMAC-SHA-512
-/// - Signatures: P-256
+/// - Signatures: Ed25519
 pub struct DefaultCipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
@@ -76,7 +76,7 @@ impl CipherSuite for DefaultCipherSuite {
     type Kdf = crate::bearssl::HkdfSha512;
     type Kem = crate::bearssl::DhKemP256HkdfSha256;
     type Mac = crate::bearssl::HmacSha512;
-    type Signer = crate::bearssl::P256;
+    type Signer = crate::ed25519::Ed25519;
 }
 
 #[cfg(any(test, feature = "alloc"))]

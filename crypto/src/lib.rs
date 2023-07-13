@@ -69,6 +69,7 @@ mod ciphersuite;
 pub mod csprng;
 mod default;
 pub mod ec;
+pub mod ed25519;
 pub mod engine;
 mod error;
 mod features;

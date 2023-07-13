@@ -1173,30 +1173,38 @@ mod tests {
     mod ciphersuite_test {
         use {super::*, crate::default::Rng};
 
-        #[test]
-        fn test_ciphersuite_128() {
-            test_ciphersuite::<
-                TestCs<Aes256Gcm, Sha512, HkdfSha256, DhKemP256HkdfSha256, HmacSha512, P256>,
-                _,
-            >(&mut Rng);
+        macro_rules! do_test {
+            ($aead:ty, $hash:ty, $kdf:ty, $kem:ty, $mac:ty, $signer:ty $(,)?) => {
+                test_ciphersuite::<TestCs<$aead, $hash, $kdf, $kem, $mac, $signer>, _>(&mut Rng);
+            };
         }
 
         #[test]
-        fn test_ciphersuite_192() {
-            // DkKemP384HkdfSha384 does not exist, so use P256
-            // instead.
-            test_ciphersuite::<
-                TestCs<Aes256Gcm, Sha512, HkdfSha384, DhKemP256HkdfSha256, HmacSha512, P384>,
-                _,
-            >(&mut Rng);
-        }
-
-        #[test]
-        fn test_ciphersuite_256() {
-            test_ciphersuite::<
-                TestCs<Aes256Gcm, Sha512, HkdfSha512, DhKemP521HkdfSha512, HmacSha512, P521>,
-                _,
-            >(&mut Rng);
+        fn test_ciphersuites() {
+            do_test!(
+                Aes256Gcm,
+                Sha512,
+                HkdfSha256,
+                DhKemP256HkdfSha256,
+                HmacSha512,
+                P256,
+            );
+            do_test!(
+                Aes256Gcm,
+                Sha512,
+                HkdfSha384,
+                DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
+                HmacSha512,
+                P384,
+            );
+            do_test!(
+                Aes256Gcm,
+                Sha512,
+                HkdfSha512,
+                DhKemP521HkdfSha512,
+                HmacSha512,
+                P521,
+            );
         }
     }
 

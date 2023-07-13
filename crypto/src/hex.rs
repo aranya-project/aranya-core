@@ -225,7 +225,7 @@ pub fn ct_encode(dst: &mut [u8], src: &[u8]) -> Result<usize, Error> {
     // The implementation is taken from
     // https://github.com/ericlagergren/subtle/blob/890d697da01053c79157a7fdfbed548317eeb0a6/hex/constant_time.go
 
-    if dst.len() / 2 < dst.len() {
+    if dst.len() / 2 < src.len() {
         return Err(Error::InvalidLength);
     }
     for (v, chunk) in src.iter().zip(dst.chunks_mut(2)) {
