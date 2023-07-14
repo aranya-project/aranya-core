@@ -86,6 +86,7 @@ pub mod kdf;
 pub mod kem;
 pub mod keys;
 pub mod mac;
+mod misc;
 pub mod signer;
 pub mod test_util;
 mod userkeys;

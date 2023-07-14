@@ -24,22 +24,24 @@ pub struct Id([u8; 64]);
 
 impl Id {
     /// Derives an [`Id`] from the hash of some data.
-    pub fn new<E: Engine + ?Sized>(data: &[u8], tag: &'static [u8]) -> Id {
-        // id = H("ID-v1" || suites || data || tag)
+    pub fn new<E: Engine + ?Sized>(data: &[u8], tag: &'static str) -> Id {
+        // id = H("ID-v1" || eng_id || suites || data || tag)
         tuple_hash::<E::Hash, _>([
             "ID-v1".as_bytes(),
+            E::ID.as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             data,
-            tag,
+            tag.as_bytes(),
         ])
         .into()
     }
 
     /// Derives an [`Id`] from `msg` and a signature over `msg`.
     pub fn from_sig<E: Engine + ?Sized>(msg: &[u8], sig: &Signature<E>) -> Id {
-        // id = H("ID-v1" || suites || sig || msg)
+        // id = H("ID-v1" || eng_id || suites || sig || msg)
         tuple_hash::<E::Hash, _>([
             "ID-v1".as_bytes(),
+            E::ID.as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             sig.as_bytes(),
             msg,

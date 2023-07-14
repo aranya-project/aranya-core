@@ -292,7 +292,7 @@ impl<E: Engine + ?Sized> Context<'_, E> {
         tuple_hash::<E::Hash, _>([
             self.label.as_bytes(),
             self.parent.as_ref(),
-            self.author.export().data.borrow(),
+            self.author.id().as_bytes(),
         ])
     }
 }

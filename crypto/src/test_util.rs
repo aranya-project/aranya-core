@@ -351,8 +351,11 @@ where
         Self::test_simple_send_group_key(rng);
         Self::test_simple_wrap_group_key(rng, f());
         Self::test_simple_wrap_user_identity_key(rng, f());
+        Self::test_simple_export_user_identity_key(rng, f());
         Self::test_simple_wrap_user_signing_key(rng, f());
+        Self::test_simple_export_user_signing_key(rng, f());
         Self::test_simple_wrap_user_encryption_key(rng, f());
+        Self::test_simple_export_user_encryption_key(rng, f());
 
         Self::test_group_key_seal(rng);
         Self::test_group_key_open_wrong_key(rng);
@@ -449,6 +452,17 @@ where
         assert_eq!(want.id(), got.id());
     }
 
+    /// Simple positive test for exporting the public half of
+    /// [`IdentityKey`]s.
+    fn test_simple_export_user_identity_key<R: Csprng>(rng: &mut R, _eng: E) {
+        let want = IdentityKey::<E>::new(rng).public();
+        let bytes = postcard::to_allocvec(&want)
+            .expect("should be able to encode an `IdentityVerifyingKey`");
+        let got = postcard::from_bytes(&bytes)
+            .expect("should be able to decode an `IdentityVerifyingKey`");
+        assert_eq!(want, got);
+    }
+
     /// Simple positive test for wrapping [`UserSigningKey`]s.
     fn test_simple_wrap_user_signing_key<R: Csprng>(rng: &mut R, mut eng: E) {
         let want = UserSigningKey::new(rng);
@@ -467,6 +481,16 @@ where
         assert_eq!(want.id(), got.id());
     }
 
+    /// Simple positive test for exporting the public half of
+    /// [`UserSigningKey`]s.
+    fn test_simple_export_user_signing_key<R: Csprng>(rng: &mut R, _eng: E) {
+        let want = UserSigningKey::<E>::new(rng).public();
+        let bytes =
+            postcard::to_allocvec(&want).expect("should be able to encode an `VerifyingKey`");
+        let got = postcard::from_bytes(&bytes).expect("should be able to decode an `VerifyingKey`");
+        assert_eq!(want, got);
+    }
+
     /// Simple positive test for wrapping [`EncryptionKey`]s.
     fn test_simple_wrap_user_encryption_key<R: Csprng>(rng: &mut R, mut eng: E) {
         let want = EncryptionKey::new(rng);
@@ -483,6 +507,17 @@ where
             .try_into()
             .expect("should be a `EncryptionKey`");
         assert_eq!(want.id(), got.id());
+    }
+
+    /// Simple positive test for exporting the public half of
+    /// [`EncryptionKey`]s.
+    fn test_simple_export_user_encryption_key<R: Csprng>(rng: &mut R, _eng: E) {
+        let want = EncryptionKey::<E>::new(rng).public();
+        let bytes = postcard::to_allocvec(&want)
+            .expect("should be able to encode an `EncryptionPublicKey`");
+        let got = postcard::from_bytes(&bytes)
+            .expect("should be able to decode an `EncryptionPublicKey`");
+        assert_eq!(want, got);
     }
 
     /// Simple positive test for encryption using a [`GroupKey`].

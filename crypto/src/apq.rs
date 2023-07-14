@@ -23,11 +23,9 @@ use {
         kem::{DecapKey, Kem},
         keys::{PublicKey, SecretKey},
         mac::Mac,
+        misc::{key_misc, DecapKeyData, SigningKeyData},
         signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
-        userkeys::{
-            key_misc, valid_context, DecapKeyData, EncapKeyData, ExportedKey, Signature,
-            SigningKeyData, VerifyingKeyData,
-        },
+        userkeys::Signature,
         zeroize::{Zeroize, ZeroizeOnDrop},
     },
     core::{
@@ -235,8 +233,8 @@ impl<E: Engine + ?Sized> TopicKey<E> {
             &version.to_be_bytes()[..],
             &topic.to_be_bytes()[..],
             &SuiteIds::from_suite::<E>().into_bytes(),
-            &ident.enc_key.export().hash::<E::Hash>(),
-            &ident.sign_key.export().hash::<E::Hash>(),
+            ident.enc_key.id().as_bytes(),
+            ident.sign_key.id().as_bytes(),
         ]);
         let (nonce, out) = dst.split_at_mut(E::Aead::NONCE_SIZE);
         rng.fill_bytes(nonce);
@@ -273,8 +271,8 @@ impl<E: Engine + ?Sized> TopicKey<E> {
             &version.to_be_bytes()[..],
             &topic.to_be_bytes()[..],
             &SuiteIds::from_suite::<E>().into_bytes(),
-            &ident.enc_key.export().hash::<E::Hash>(),
-            &ident.sign_key.export().hash::<E::Hash>(),
+            ident.enc_key.id().as_bytes(),
+            ident.sign_key.id().as_bytes(),
         ]);
         Ok(E::Aead::new(&self.key).open(dst, nonce, ciphertext, &ad)?)
     }
@@ -359,30 +357,19 @@ where
     }
 }
 
-custom_id!(
-    SenderSigningKeyId,
-    "Uniquely identifies a [`SenderSigningKey`]."
-);
-
 /// The private half of a [SenderSigningKey].
 ///
 /// [SenderSigningKey]: https://github.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
 #[derive(ZeroizeOnDrop)]
 pub struct SenderSigningKey<E: Engine + ?Sized>(<E::Signer as Signer>::SigningKey);
 
+key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
+
 impl<E: Engine + ?Sized> SenderSigningKey<E> {
     /// Creates a `SenderSigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Signer as Signer>::SigningKey::new(rng);
         SenderSigningKey(sk)
-    }
-
-    /// Uniquely identifies the `SenderSigningKey`.
-    ///
-    /// Two keys with the same ID are the same key.
-    #[inline]
-    pub fn id(&self) -> SenderSigningKeyId {
-        self.public().id()
     }
 
     /// Creates a signature over an encoded record.
@@ -451,17 +438,11 @@ impl<E: Engine + ?Sized> SenderSigningKey<E> {
             &version.to_be_bytes(),
             &topic.to_be_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
-            &self.public().export().hash::<E::Hash>(),
+            self.public().id().as_bytes(),
             record,
         ]);
         let sig = self.0.sign(&msg)?;
         Ok(Signature(sig))
-    }
-
-    /// Returns the public half of the key.
-    #[inline]
-    pub fn public(&self) -> SenderVerifyingKey<E> {
-        SenderVerifyingKey(self.0.public())
     }
 
     // Utility routines for other modules.
@@ -474,7 +455,6 @@ impl<E: Engine + ?Sized> SenderSigningKey<E> {
         self.0.try_export_secret()
     }
 }
-key_misc!(SenderSigningKey);
 
 /// The public half of a [SenderSigningKey].
 ///
@@ -482,14 +462,6 @@ key_misc!(SenderSigningKey);
 pub struct SenderVerifyingKey<E: Engine + ?Sized>(<E::Signer as Signer>::VerifyingKey);
 
 impl<E: Engine + ?Sized> SenderVerifyingKey<E> {
-    /// Uniquely identifies the `SenderSigningKey`.
-    ///
-    /// Two keys with the same ID are the same key.
-    #[inline]
-    pub fn id(&self) -> SenderSigningKeyId {
-        SenderSigningKeyId(Id::new::<E>(self.0.export().borrow(), b"SenderSigningKey"))
-    }
-
     /// Verifies the signature allegedly created over an encoded
     /// record.
     pub fn verify(
@@ -514,31 +486,12 @@ impl<E: Engine + ?Sized> SenderVerifyingKey<E> {
             &version.to_be_bytes(),
             &topic.to_be_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
-            &self.export().hash::<E::Hash>(),
+            self.id().as_bytes(),
             record,
         ]);
         Ok(self.0.verify(&msg, &sig.0)?)
     }
-
-    /// Returns its exported representation.
-    pub fn export(&self) -> ExportedKey<impl Borrow<[u8]>> {
-        ExportedKey::from_data::<E>(self.0.export())
-    }
 }
-key_misc!(SenderVerifyingKey);
-
-impl<E: Engine + ?Sized> Import<&ExportedKey<VerifyingKeyData<E>>> for SenderVerifyingKey<E> {
-    fn import(key: &ExportedKey<VerifyingKeyData<E>>) -> Result<Self, ImportError> {
-        if !valid_context::<E>(key) {
-            Err(ImportError::InvalidContext)
-        } else {
-            let pk = <E::Signer as Signer>::VerifyingKey::import(key.data.borrow())?;
-            Ok(Self(pk))
-        }
-    }
-}
-
-custom_id!(SenderKeyId, "Uniquely identifies a [`SenderSecretKey`].");
 
 /// The private half of a [SenderKey].
 ///
@@ -546,25 +499,13 @@ custom_id!(SenderKeyId, "Uniquely identifies a [`SenderSecretKey`].");
 #[derive(ZeroizeOnDrop)]
 pub struct SenderSecretKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
 
+key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
+
 impl<E: Engine + ?Sized> SenderSecretKey<E> {
     /// Creates a `SenderSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Kem as Kem>::DecapKey::new(rng);
         SenderSecretKey(sk)
-    }
-
-    /// Uniquely identifies the `SenderSecretKey`.
-    ///
-    /// Two keys with the same ID are the same key.
-    #[inline]
-    pub fn id(&self) -> SenderKeyId {
-        self.public().id()
-    }
-
-    /// Returns the public half of the key.
-    #[inline]
-    pub fn public(&self) -> SenderPublicKey<E> {
-        SenderPublicKey(self.0.public())
     }
 
     // Utility routines for other modules.
@@ -577,44 +518,11 @@ impl<E: Engine + ?Sized> SenderSecretKey<E> {
         self.0.try_export_secret()
     }
 }
-key_misc!(SenderSecretKey);
 
 /// The public half of a [SenderKey].
 ///
 /// [SenderKey]: https://github.com/spideroak-inc/apq/blob/spec/design.md#senderkey
 pub struct SenderPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
-
-impl<E: Engine + ?Sized> SenderPublicKey<E> {
-    /// Uniquely identifies the `SenderSecretKey`.
-    ///
-    /// Two keys with the same ID are the same key.
-    #[inline]
-    pub fn id(&self) -> SenderKeyId {
-        SenderKeyId(Id::new::<E>(self.0.export().borrow(), b"SenderSecretKey"))
-    }
-
-    /// Returns its exported representation.
-    pub fn export(&self) -> ExportedKey<impl Borrow<[u8]>> {
-        ExportedKey::from_data::<E>(self.0.export())
-    }
-}
-key_misc!(SenderPublicKey);
-
-impl<E: Engine + ?Sized> Import<&ExportedKey<EncapKeyData<E>>> for SenderPublicKey<E> {
-    fn import(key: &ExportedKey<EncapKeyData<E>>) -> Result<Self, ImportError> {
-        if !valid_context::<E>(key) {
-            Err(ImportError::InvalidContext)
-        } else {
-            let pk = <E::Kem as Kem>::EncapKey::import(key.data.borrow())?;
-            Ok(Self(pk))
-        }
-    }
-}
-
-custom_id!(
-    ReceiverKeyId,
-    "Uniquely identifies a [`ReceiverSecretKey`]."
-);
 
 /// The private half of a [ReceiverKey].
 ///
@@ -622,19 +530,13 @@ custom_id!(
 #[derive(ZeroizeOnDrop)]
 pub struct ReceiverSecretKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
 
+key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
+
 impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
     /// Creates a `ReceiverSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Kem as Kem>::DecapKey::new(rng);
         ReceiverSecretKey(sk)
-    }
-
-    /// Uniquely identifies the `ReceiverSecretKey`.
-    ///
-    /// Two keys with the same ID are the same key.
-    #[inline]
-    pub fn id(&self) -> ReceiverKeyId {
-        self.public().id()
     }
 
     /// Decrypts and authenticates a [`TopicKey`] received from
@@ -679,12 +581,6 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
         TopicKey::from_seed(seed, version, topic)
     }
 
-    /// Returns the public half of the key.
-    #[inline]
-    pub fn public(&self) -> ReceiverPublicKey<E> {
-        ReceiverPublicKey(self.0.public())
-    }
-
     // Utility routines for other modules.
 
     pub(crate) fn import(data: &[u8]) -> Result<Self, ImportError> {
@@ -695,7 +591,6 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
         self.0.try_export_secret()
     }
 }
-key_misc!(ReceiverSecretKey);
 
 /// The public half of a [ReceiverKey].
 ///
@@ -703,14 +598,6 @@ key_misc!(ReceiverSecretKey);
 pub struct ReceiverPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
 
 impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
-    /// Uniquely identifies the `ReceiverSecretKey`.
-    ///
-    /// Two keys with the same ID are the same key.
-    #[inline]
-    pub fn id(&self) -> ReceiverKeyId {
-        ReceiverKeyId(Id::new::<E>(self.0.export().borrow(), b"ReceiverKey"))
-    }
-
     /// Encrypts and authenticates the [`TopicKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`ReceiverPublicKey`].
@@ -820,22 +707,5 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
         let mut dst = ByteArray::default();
         ctx.seal(&mut dst, &key.seed, &ad)?;
         Ok((enc, EncryptedTopicKey(dst)))
-    }
-
-    /// Returns its exported representation.
-    pub fn export(&self) -> ExportedKey<impl Borrow<[u8]>> {
-        ExportedKey::from_data::<E>(self.0.export())
-    }
-}
-key_misc!(ReceiverPublicKey);
-
-impl<E: Engine + ?Sized> Import<&ExportedKey<EncapKeyData<E>>> for ReceiverPublicKey<E> {
-    fn import(key: &ExportedKey<EncapKeyData<E>>) -> Result<Self, ImportError> {
-        if !valid_context::<E>(key) {
-            Err(ImportError::InvalidContext)
-        } else {
-            let pk = <E::Kem as Kem>::EncapKey::import(key.data.borrow())?;
-            Ok(Self(pk))
-        }
     }
 }
