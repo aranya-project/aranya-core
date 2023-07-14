@@ -20,7 +20,7 @@ use {
         default::Rng,
         engine::{Engine, WrappedKey},
         error::Error,
-        groupkey::GroupKey,
+        groupkey::{Context, GroupKey},
         hash::Hash,
         hpke::{Hpke, Mode, Psk, RecvCtx, SendCtx},
         hybrid_array::{
@@ -28,24 +28,24 @@ use {
             ArraySize,
         },
         id::Id,
-        import::Import,
+        import::{ExportError, Import, ImportError},
         kdf::{Kdf, KdfError, KdfId},
         kem::{DecapKey, Ecdh, Kem},
-        keys::SecretKey,
+        keys::{PublicKey, SecretKey},
         mac::{Mac, MacId, MacKey, Tag},
-        signer::{Signer, SigningKey, VerifyingKey},
+        signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
         userkeys::{EncryptionKey, IdentityKey, SigningKey as UserSigningKey},
-        Context,
+        zeroize::ZeroizeOnDrop,
     },
-    alloc::{string::ToString, vec},
+    alloc::{string::ToString, vec, vec::Vec},
     core::{
         borrow::{Borrow, BorrowMut},
-        fmt::Debug,
+        fmt::{self, Debug},
         marker::PhantomData,
         ops::{Add, FnMut},
     },
     more_asserts::assert_ge,
-    subtle::ConstantTimeEq,
+    subtle::{Choice, ConstantTimeEq},
 };
 
 pub use wycheproof::{aead, ecdh, ecdsa, eddsa, hkdf, mac, TestResult};
@@ -938,6 +938,7 @@ pub fn test_ciphersuite<S: CipherSuite, R: Csprng>(rng: &mut R) {
         MacTest => S::Mac;
         MacTest => MacWithDefaults<S::Mac>;
         SignerTest => S::Signer;
+        SignerTest => SignerWithDefaults<S::Signer>;
     }
 }
 
@@ -948,7 +949,7 @@ pub fn test_ciphersuite<S: CipherSuite, R: Csprng>(rng: &mut R) {
 pub struct AeadTest<A: Aead>(PhantomData<A>);
 
 impl<A: Aead> Test for AeadTest<A> {
-    fn test<R: Csprng>(_rng: &mut R, _opts: ()) {
+    fn test<R: Csprng>(rng: &mut R, _opts: ()) {
         // The minimum key size is 128 bits.
         assert_ge!(A::KEY_SIZE, 16);
         // The minimum tag size is 128 bits.
@@ -973,13 +974,14 @@ impl<A: Aead> Test for AeadTest<A> {
         );
         assert_all_zero!(data);
 
-        Self::test_round_trip();
-        Self::test_in_place_round_trip();
-        Self::test_bad_key();
-        Self::test_bad_nonce();
-        Self::test_bad_ciphertext();
-        Self::test_bad_ad();
-        Self::test_bad_tag();
+        Self::test_new_key(rng);
+        Self::test_round_trip(rng);
+        Self::test_in_place_round_trip(rng);
+        Self::test_bad_key(rng);
+        Self::test_bad_nonce(rng);
+        Self::test_bad_ciphertext(rng);
+        Self::test_bad_ad(rng);
+        Self::test_bad_tag(rng);
 
         // TODO(eric): add tests for boundaries. E.g., nonce is
         // too long, tag is too short, etc.
@@ -990,10 +992,16 @@ impl<A: Aead> AeadTest<A> {
     const GOLDEN: &[u8] = b"hello, world!";
     const AD: &[u8] = b"some additional data";
 
+    /// Tests that [`A::Key::new`] returns unique keys.
+    fn test_new_key<R: Csprng>(rng: &mut R) {
+        let k1 = A::Key::new(rng);
+        let k2 = A::Key::new(rng);
+        assert_ct_ne!(k1, k2);
+    }
+
     /// A round-trip positive test.
-    fn test_round_trip() {
-        let key =
-            A::Key::import(<A::Key as SecretKey>::Data::default()).expect("unable to import key");
+    fn test_round_trip<R: Csprng>(rng: &mut R) {
+        let key = A::Key::new(rng);
         let nonce = A::Nonce::default();
         assert_all_zero!(nonce);
 
@@ -1016,9 +1024,8 @@ impl<A: Aead> AeadTest<A> {
     }
 
     /// An in-place round-trip positive test.
-    fn test_in_place_round_trip() {
-        let key =
-            A::Key::import(<A::Key as SecretKey>::Data::default()).expect("unable to import key");
+    fn test_in_place_round_trip<R: Csprng>(rng: &mut R) {
+        let key = A::Key::new(rng);
         let nonce = A::Nonce::default();
         assert_all_zero!(nonce);
 
@@ -1044,14 +1051,12 @@ impl<A: Aead> AeadTest<A> {
     }
 
     /// Decryption should fail with an incorrect key.
-    fn test_bad_key() {
+    fn test_bad_key<R: Csprng>(rng: &mut R) {
         let nonce = A::Nonce::default();
         assert_all_zero!(nonce);
 
         let ciphertext = {
-            let mut data = <A::Key as SecretKey>::Data::default();
-            data.borrow_mut().fill(b'A');
-            let key = A::Key::import(data).expect("unable to import key");
+            let key = A::Key::new(rng);
 
             let mut dst = vec![0u8; Self::GOLDEN.len() + A::TAG_SIZE];
             A::new(&key)
@@ -1060,11 +1065,7 @@ impl<A: Aead> AeadTest<A> {
             dst
         };
 
-        let mut data = <A::Key as SecretKey>::Data::default();
-        assert_all_zero!(data);
-        data.borrow_mut().fill(b'B');
-        let key = A::Key::import(data).expect("unable to import key");
-
+        let key = A::Key::new(rng);
         let mut dst = vec![0u8; ciphertext.len() - A::TAG_SIZE];
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, Self::AD)
@@ -1073,9 +1074,8 @@ impl<A: Aead> AeadTest<A> {
     }
 
     /// Decryption should fail with an incorrect nonce.
-    fn test_bad_nonce() {
-        let key =
-            A::Key::import(<A::Key as SecretKey>::Data::default()).expect("unable to import key");
+    fn test_bad_nonce<R: Csprng>(rng: &mut R) {
+        let key = A::Key::new(rng);
 
         let ciphertext = {
             let mut nonce = A::Nonce::default();
@@ -1101,9 +1101,8 @@ impl<A: Aead> AeadTest<A> {
     }
 
     /// Decryption should fail with a modified AD.
-    fn test_bad_ad() {
-        let key =
-            A::Key::import(<A::Key as SecretKey>::Data::default()).expect("unable to import key");
+    fn test_bad_ad<R: Csprng>(rng: &mut R) {
+        let key = A::Key::new(rng);
         let nonce = A::Nonce::default();
         assert_all_zero!(nonce);
 
@@ -1123,9 +1122,8 @@ impl<A: Aead> AeadTest<A> {
     }
 
     /// Decryption should fail with a modified ciphertext.
-    fn test_bad_ciphertext() {
-        let key =
-            A::Key::import(<A::Key as SecretKey>::Data::default()).expect("unable to import key");
+    fn test_bad_ciphertext<R: Csprng>(rng: &mut R) {
+        let key = A::Key::new(rng);
         let nonce = A::Nonce::default();
         assert_all_zero!(nonce);
 
@@ -1148,9 +1146,8 @@ impl<A: Aead> AeadTest<A> {
 
     /// Decryption should fail with a modified authentication
     /// tag.
-    fn test_bad_tag() {
-        let key =
-            A::Key::import(<A::Key as SecretKey>::Data::default()).expect("unable to import key");
+    fn test_bad_tag<R: Csprng>(rng: &mut R) {
+        let key = A::Key::new(rng);
         let nonce = A::Nonce::default();
         assert_all_zero!(nonce);
 
@@ -1437,6 +1434,8 @@ impl<T: Signer> Test for SignerTest<T> {
         Self::test_pk_eq(rng);
         Self::test_sk_ct_eq(rng);
         Self::test_public(rng);
+        Self::test_batch_simple_good(rng);
+        Self::test_batch_simple_bad(rng);
     }
 }
 
@@ -1486,8 +1485,8 @@ impl<T: Signer> SignerTest<T> {
         let pk2 = T::SigningKey::new(rng).public();
 
         fn same_key<T: Signer, K: VerifyingKey<T>>(k: K) {
-            let pk1 = K::import(k.export()).expect("should be able to import key");
-            let pk2 = K::import(k.export()).expect("should be able to import key");
+            let pk1 = K::import(k.export().borrow()).expect("should be able to import key");
+            let pk2 = K::import(k.export().borrow()).expect("should be able to import key");
             assert_eq!(pk1, pk2);
         }
 
@@ -1502,6 +1501,55 @@ impl<T: Signer> SignerTest<T> {
     fn test_public<R: Csprng>(rng: &mut R) {
         let sk = T::SigningKey::new(rng);
         assert_eq!(sk.public(), sk.public());
+    }
+
+    /// Simple positive test for [`Signer::verify_batch`].
+    fn test_batch_simple_good<R: Csprng>(rng: &mut R) {
+        const MSGS: &[&[u8]] = &[
+            b"hello",
+            b"world",
+            b"!",
+            b"a longer message",
+            b"",
+            b"test_batch_simple_good",
+            b"message #7",
+            b"message #9",
+            b"off by one",
+        ];
+        let (pks, sigs): (Vec<_>, Vec<_>) = MSGS
+            .iter()
+            .map(|msg| {
+                let sk = T::SigningKey::new(rng);
+                let sig = sk.sign(msg).expect("should not fail");
+                (sk.public(), sig)
+            })
+            .unzip();
+        T::verify_batch(MSGS, &sigs[..], &pks[..]).expect("should not fail")
+    }
+
+    /// Simple negative test for [`Signer::verify_batch`].
+    fn test_batch_simple_bad<R: Csprng>(rng: &mut R) {
+        let msgs: &mut [&[u8]] = &mut [
+            b"hello",
+            b"world",
+            b"!",
+            b"a longer message",
+            b"",
+            b"test_batch_simple_bad",
+            b"message #7",
+            b"message #9",
+            b"off by one",
+        ];
+        let (pks, sigs): (Vec<_>, Vec<_>) = msgs
+            .iter()
+            .map(|msg| {
+                let sk = T::SigningKey::new(rng);
+                let sig = sk.sign(msg).expect("should not fail");
+                (sk.public(), sig)
+            })
+            .unzip();
+        msgs[msgs.len() / 2] = b"AAAAAAAAAAAAA";
+        T::verify_batch(msgs, &sigs[..], &pks[..]).expect_err("should fail");
     }
 }
 
@@ -1668,6 +1716,142 @@ pub fn test_ecdh<T: Ecdh>(name: ecdh::TestName) {
     }
 }
 
+/// A [`Signer`] that that uses the default trait methods.
+pub struct SignerWithDefaults<T: Signer + ?Sized>(T);
+
+impl<T: Signer + ?Sized> Signer for SignerWithDefaults<T> {
+    const ID: SignerId = T::ID;
+
+    type SigningKey = SigningKeyWithDefaults<T>;
+    type VerifyingKey = VerifyingKeyWithDefaults<T>;
+    type Signature = SignatureWithDefaults<T>;
+}
+
+/// A [`SigningKey`] that uses the default trait methods.
+pub struct SigningKeyWithDefaults<T: Signer + ?Sized>(T::SigningKey);
+
+impl<T: Signer + ?Sized> SigningKey<SignerWithDefaults<T>> for SigningKeyWithDefaults<T> {
+    fn sign(&self, msg: &[u8]) -> Result<SignatureWithDefaults<T>, SignerError> {
+        Ok(SignatureWithDefaults(self.0.sign(msg)?))
+    }
+
+    fn public(&self) -> VerifyingKeyWithDefaults<T> {
+        VerifyingKeyWithDefaults(self.0.public())
+    }
+}
+
+impl<T: Signer + ?Sized> SecretKey for SigningKeyWithDefaults<T> {
+    fn new<R: Csprng>(rng: &mut R) -> Self {
+        Self(T::SigningKey::new(rng))
+    }
+
+    type Data = <T::SigningKey as SecretKey>::Data;
+
+    fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
+        self.0.try_export_secret()
+    }
+}
+
+impl<T: Signer + ?Sized> ConstantTimeEq for SigningKeyWithDefaults<T> {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        ConstantTimeEq::ct_eq(&self.0, &other.0)
+    }
+}
+
+impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for SigningKeyWithDefaults<T> {
+    fn import(data: &'a [u8]) -> Result<Self, ImportError> {
+        Ok(Self(T::SigningKey::import(data)?))
+    }
+}
+
+impl<T: Signer + ?Sized> Clone for SigningKeyWithDefaults<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T: Signer + ?Sized> ZeroizeOnDrop for SigningKeyWithDefaults<T> {}
+
+/// A [`VerifyingKey`] that uses the default trait methods.
+pub struct VerifyingKeyWithDefaults<T: Signer + ?Sized>(T::VerifyingKey);
+
+impl<T: Signer + ?Sized> VerifyingKey<SignerWithDefaults<T>> for VerifyingKeyWithDefaults<T> {
+    fn verify(&self, msg: &[u8], sig: &SignatureWithDefaults<T>) -> Result<(), SignerError> {
+        self.0.verify(msg, &sig.0)
+    }
+}
+
+impl<T: Signer + ?Sized> PublicKey for VerifyingKeyWithDefaults<T> {
+    type Data = <T::VerifyingKey as PublicKey>::Data;
+
+    fn export(&self) -> Self::Data {
+        self.0.export()
+    }
+}
+
+impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for VerifyingKeyWithDefaults<T> {
+    fn import(data: &'a [u8]) -> Result<Self, ImportError> {
+        Ok(Self(T::VerifyingKey::import(data)?))
+    }
+}
+
+impl<T: Signer + ?Sized> Clone for VerifyingKeyWithDefaults<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T: Signer + ?Sized> Debug for VerifyingKeyWithDefaults<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl<T: Signer + ?Sized> Eq for VerifyingKeyWithDefaults<T> {}
+impl<T: Signer + ?Sized> PartialEq for VerifyingKeyWithDefaults<T> {
+    fn eq(&self, other: &Self) -> bool {
+        PartialEq::eq(&self.0, &other.0)
+    }
+}
+
+/// [`Signer::Signature`] that uses the default trait methods.
+pub struct SignatureWithDefaults<T: Signer + ?Sized>(T::Signature);
+
+impl<T: Signer + ?Sized> Signature<SignerWithDefaults<T>> for SignatureWithDefaults<T> {
+    type Data = <T::Signature as Signature<T>>::Data;
+
+    fn export(&self) -> Self::Data {
+        self.0.export()
+    }
+}
+
+impl<T: Signer + ?Sized> Clone for SignatureWithDefaults<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T: Signer + ?Sized> Debug for SignatureWithDefaults<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        Debug::fmt(&self.0, f)
+    }
+}
+
+impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for SignatureWithDefaults<T> {
+    fn import(data: &'a [u8]) -> Result<Self, ImportError> {
+        Ok(Self(T::Signature::import(data)?))
+    }
+}
+
+impl<T: Signer + ?Sized> UncheckedSignature<SignerWithDefaults<T>> for SignatureWithDefaults<T>
+where
+    T::Signature: UncheckedSignature<T>,
+{
+    fn from_bytes_unchecked(data: &[u8]) -> Self {
+        Self(T::Signature::from_bytes_unchecked(data))
+    }
+}
+
 /// A digital signature that can be created without validation.
 pub trait UncheckedSignature<T: Signer + ?Sized> {
     /// Creates a signature from its byte representation without
@@ -1678,8 +1862,18 @@ pub trait UncheckedSignature<T: Signer + ?Sized> {
 /// Tests a [`Signer`] that implements ECDSA against Project
 /// Wycheproof test vectors.
 ///
+/// It tests both `T` and [`SignerWithDefaults<T>`].
+///
 /// It also performs [`SignerTest`].
 pub fn test_ecdsa<T: Signer>(name: ecdsa::TestName)
+where
+    <T as Signer>::Signature: UncheckedSignature<T>,
+{
+    test_ecdsa_inner::<T>(name);
+    test_ecdsa_inner::<SignerWithDefaults<T>>(name);
+}
+
+fn test_ecdsa_inner<T: Signer>(name: ecdsa::TestName)
 where
     <T as Signer>::Signature: UncheckedSignature<T>,
 {
@@ -1716,8 +1910,15 @@ where
 /// Tests a [`Signer`] that implements EdDSA against Project
 /// Wycheproof test vectors.
 ///
+/// It tests both `T` and [`SignerWithDefaults<T>`].
+///
 /// It also performs [`SignerTest`].
 pub fn test_eddsa<T: Signer>(name: eddsa::TestName) {
+    test_eddsa_inner::<T>(name);
+    test_eddsa_inner::<SignerWithDefaults<T>>(name);
+}
+
+fn test_eddsa_inner<T: Signer>(name: eddsa::TestName) {
     SignerTest::<T>::test(&mut Rng, ());
 
     fn sig_len(name: eddsa::TestName) -> usize {

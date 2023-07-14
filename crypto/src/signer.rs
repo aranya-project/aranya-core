@@ -39,6 +39,9 @@ pub enum SignerError {
     Encoding(EncodingError),
     /// The signature could not be verified.
     Verification,
+    /// [`Signer::verify_batch`] was called with different
+    /// lengths for messages, signatures, or verifying keys.
+    InvalidBatchLengths,
 }
 
 impl fmt::Display for SignerError {
@@ -47,6 +50,7 @@ impl fmt::Display for SignerError {
             Self::Other(msg) => write!(f, "{}", msg),
             Self::Encoding(err) => write!(f, "{}", err),
             Self::Verification => write!(f, "unable to verify signature"),
+            Self::InvalidBatchLengths => write!(f, "invalid `verify_batch` lengths"),
         }
     }
 }
@@ -59,6 +63,7 @@ impl error::Error for SignerError {
             Self::Other(_) => None,
             Self::Encoding(err) => Some(err),
             Self::Verification => None,
+            Self::InvalidBatchLengths => None,
         }
     }
 }
@@ -127,7 +132,30 @@ pub trait Signer {
     /// A public key used verify signatures.
     type VerifyingKey: VerifyingKey<Self>;
     /// A digital signature.
-    type Signature: Borrow<[u8]> + Clone + Debug + for<'a> Import<&'a [u8]>;
+    type Signature: Signature<Self>;
+
+    /// Verifies all (message, signature, verifying key) tuples
+    /// as a batch.
+    ///
+    /// For some digital signature schemes, batch verification
+    /// can differ from regular signature verification. For
+    /// example, see some [Ed25519 quirks][quirks]. This function
+    /// MUST NOT diverge from regular signature verification.
+    ///
+    /// [quirks]: https://hdevalence.ca/blog/2020-10-04-its-25519am
+    fn verify_batch(
+        msgs: &[&[u8]],
+        sigs: &[Self::Signature],
+        pks: &[Self::VerifyingKey],
+    ) -> Result<(), SignerError> {
+        if msgs.len() != sigs.len() || sigs.len() != pks.len() {
+            return Err(SignerError::InvalidBatchLengths);
+        }
+        for (msg, (sig, pk)) in msgs.iter().zip(sigs.iter().zip(pks)) {
+            pk.verify(msg, sig)?;
+        }
+        Ok(())
+    }
 }
 
 /// An asymmetric secret key used to create digital signatures.
@@ -144,4 +172,15 @@ pub trait SigningKey<T: Signer + ?Sized>: SecretKey {
 pub trait VerifyingKey<T: Signer + ?Sized>: PublicKey {
     /// Reports whether the signature over `msg` is valid.
     fn verify(&self, msg: &[u8], sig: &T::Signature) -> Result<(), SignerError>;
+}
+
+/// A canonical digital signature.
+pub trait Signature<T: Signer + ?Sized>: Clone + Debug + for<'a> Import<&'a [u8]> {
+    /// The fixed-length byte encoding of the signature.
+    ///
+    /// This should be `[u8; N]` or similar.
+    type Data: Borrow<[u8]> + Clone + Sized;
+
+    /// Returns the byte encoding of the signature.
+    fn export(&self) -> Self::Data;
 }

@@ -25,9 +25,7 @@ use {
 ///
 /// Secret keys are either symmetric keys (e.g., for AES) or
 /// asymmetric private keys (e.g., for ECDH).
-pub trait SecretKey:
-    Clone + ConstantTimeEq + for<'a> Import<&'a [u8]> + Import<Self::Data> + ZeroizeOnDrop
-{
+pub trait SecretKey: Clone + ConstantTimeEq + for<'a> Import<&'a [u8]> + ZeroizeOnDrop {
     /// Creates a random key, possibly using entropy from `rng`.
     ///
     /// Implementations are free to ignore `rng` and callers must
@@ -44,9 +42,9 @@ pub trait SecretKey:
 }
 
 /// A fixed-length asymmetric public key.
-pub trait PublicKey: Clone + Debug + Eq + for<'a> Import<&'a [u8]> + Import<Self::Data> {
+pub trait PublicKey: Clone + Debug + Eq + for<'a> Import<&'a [u8]> {
     /// The fixed-length byte encoding of the key.
-    type Data: Borrow<[u8]> + Sized;
+    type Data: Borrow<[u8]> + Clone + Copy + Sized;
 
     /// Returns the byte representation of the public key.
     fn export(&self) -> Self::Data;
@@ -123,28 +121,28 @@ macro_rules! raw_key {
             }
         }
 
-        impl<const N: usize> AsRef<[u8]> for $name<N> {
+        impl<const N: usize> ::core::convert::AsRef<[u8]> for $name<N> {
             #[inline]
             fn as_ref(&self) -> &[u8] {
                 self.0.as_ref()
             }
         }
 
-        impl<const N: usize> AsMut<[u8]> for $name<N> {
+        impl<const N: usize> ::core::convert::AsMut<[u8]> for $name<N> {
             #[inline]
             fn as_mut(&mut self) -> &mut [u8] {
                 self.0.as_mut()
             }
         }
 
-        impl<const N: usize> AsRef<[u8; N]> for $name<N> {
+        impl<const N: usize> ::core::convert::AsRef<[u8; N]> for $name<N> {
             #[inline]
             fn as_ref(&self) -> &[u8; N] {
                 &self.0
             }
         }
 
-        impl<const N: usize> AsMut<[u8; N]> for $name<N> {
+        impl<const N: usize> ::core::convert::AsMut<[u8; N]> for $name<N> {
             #[inline]
             fn as_mut(&mut self) -> &mut [u8; N] {
                 &mut self.0
@@ -172,46 +170,60 @@ macro_rules! raw_key {
             }
         }
 
-        impl<const N: usize> From<[u8; N]> for $name<N> {
+        impl<const N: usize> ::core::convert::From<&[u8; N]> for $name<N> {
+            #[inline]
+            fn from(key: &[u8; N]) -> Self {
+                Self(*key)
+            }
+        }
+
+        impl<const N: usize> ::core::convert::From<[u8; N]> for $name<N> {
             #[inline]
             fn from(key: [u8; N]) -> Self {
                 Self(key)
             }
         }
 
-        impl<const N: usize> From<$name<N>> for [u8; N] {
+        impl<const N: usize> ::core::convert::From<$name<N>> for [u8; N] {
             #[inline]
             fn from(key: $name<N>) -> Self {
                 key.0
             }
         }
 
+        impl<const N: usize> ::core::convert::TryFrom<&[u8]> for $name<N> {
+            type Error = $crate::import::InvalidSizeError;
+
+            #[inline]
+            fn try_from(data: &[u8]) -> ::core::result::Result<Self, Self::Error> {
+                Ok(Self(*$crate::import::try_from_slice(data)?))
+            }
+        }
+
         impl<const N: usize> $crate::import::Import<Self> for $name<N> {
             #[inline]
             fn import(data: Self) -> ::core::result::Result<Self, $crate::import::ImportError> {
-                Ok(data)
+                ::core::result::Result::Ok(data)
+            }
+        }
+
+        impl<const N: usize> $crate::import::Import<&[u8; N]> for $name<N> {
+            #[inline]
+            fn import(key: &[u8; N]) -> ::core::result::Result<Self, $crate::import::ImportError> {
+                ::core::result::Result::Ok(Self(*key))
             }
         }
 
         impl<const N: usize> $crate::import::Import<[u8; N]> for $name<N> {
             #[inline]
             fn import(key: [u8; N]) -> ::core::result::Result<Self, $crate::import::ImportError> {
-                Ok(Self(key))
+                ::core::result::Result::Ok(Self(key))
             }
         }
 
         impl<const N: usize> $crate::import::Import<&[u8]> for $name<N> {
             #[inline]
             fn import(data: &[u8]) -> ::core::result::Result<Self, $crate::import::ImportError> {
-                $crate::import::try_import(data)
-            }
-        }
-
-        impl<const N: usize> TryFrom<&[u8]> for $name<N> {
-            type Error = $crate::import::ImportError;
-
-            #[inline]
-            fn try_from(data: &[u8]) -> ::core::result::Result<Self, $crate::import::ImportError> {
                 $crate::import::try_import(data)
             }
         }

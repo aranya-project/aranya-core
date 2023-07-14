@@ -192,7 +192,7 @@ impl<E: Engine + ?Sized> GroupKey<E> {
         // )
         let prk = Self::labeled_extract(&[], b"EventKey_prk", &self.seed);
         let key = Self::labeled_expand::<KeyData<E::Aead>, 12>(&prk, b"EventKey_key", info)?;
-        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(key)?)
+        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(key.borrow())?)
     }
 
     fn labeled_extract<const N: usize>(

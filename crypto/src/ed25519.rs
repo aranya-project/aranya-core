@@ -12,9 +12,7 @@
 //! directly unless you are implementing an engine.
 //!
 //! [ed25519-dalek]: https://github.com/dalek-cryptography/ed25519-dalek
-//! [weal-key]: https://github.com/dalek-cryptography/ed25519-dalek/tree/58a967f6fb28806a21180c880bbec4fdeb907aef#weak-key-forgery-and-verify_strict
-
-#![forbid(unsafe_code)]
+//! [weak-key]: https://github.com/dalek-cryptography/ed25519-dalek/tree/58a967f6fb28806a21180c880bbec4fdeb907aef#weak-key-forgery-and-verify_strict
 
 use {
     crate::{
@@ -25,10 +23,7 @@ use {
         signer::{self, Signer, SignerError, SignerId},
         zeroize::{ZeroizeOnDrop, Zeroizing},
     },
-    core::{
-        borrow::Borrow,
-        fmt::{self, Debug},
-    },
+    core::fmt::{self, Debug},
     ed25519_dalek as dalek,
     subtle::{Choice, ConstantTimeEq},
 };
@@ -42,6 +37,25 @@ impl Signer for Ed25519 {
     type SigningKey = SigningKey;
     type VerifyingKey = VerifyingKey;
     type Signature = Signature;
+
+    #[cfg_attr(docs, doc(cfg(feature = "alloc")))]
+    #[cfg(feature = "alloc")]
+    fn verify_batch(
+        msgs: &[&[u8]],
+        sigs: &[Self::Signature],
+        pks: &[Self::VerifyingKey],
+    ) -> Result<(), SignerError> {
+        dalek::verify_batch(
+            msgs,
+            // SAFETY: [`Signature`] has the same layout as
+            // [`dalek::Signature`].
+            unsafe { core::mem::transmute(sigs) },
+            // SAFETY: [`VerifyingKey`] has the same layout as
+            // [`dalek::VerifyingKey`].
+            unsafe { core::mem::transmute(pks) },
+        )
+        .map_err(|_| SignerError::Verification)
+    }
 }
 
 /// An Ed25519 signing key.
@@ -50,7 +64,7 @@ pub struct SigningKey(dalek::SigningKey);
 
 impl signer::SigningKey<Ed25519> for SigningKey {
     fn sign(&self, msg: &[u8]) -> Result<Signature, SignerError> {
-        let sig = dalek::Signer::sign(&self.0, msg).to_bytes();
+        let sig = dalek::Signer::sign(&self.0, msg);
         Ok(Signature(sig))
     }
 
@@ -108,12 +122,13 @@ impl Import<&[u8]> for SigningKey {
 
 /// An Ed25519 signature verifying key.
 #[derive(Clone, Eq, PartialEq)]
+#[repr(transparent)]
 pub struct VerifyingKey(dalek::VerifyingKey);
 
 impl signer::VerifyingKey<Ed25519> for VerifyingKey {
     fn verify(&self, msg: &[u8], sig: &Signature) -> Result<(), SignerError> {
         self.0
-            .verify_strict(msg, &dalek::Signature::from_bytes(&sig.0))
+            .verify_strict(msg, &sig.0)
             .map_err(|_| SignerError::Verification)
     }
 }
@@ -153,17 +168,26 @@ impl Debug for VerifyingKey {
 
 /// An Ed25519 signature.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Signature([u8; 64]);
+#[repr(transparent)]
+pub struct Signature(dalek::Signature);
 
-impl Borrow<[u8]> for Signature {
-    fn borrow(&self) -> &[u8] {
-        &self.0
+impl signer::Signature<Ed25519> for Signature {
+    type Data = [u8; 64];
+
+    fn export(&self) -> Self::Data {
+        self.0.to_bytes()
+    }
+}
+
+impl Import<&[u8; 64]> for Signature {
+    fn import(data: &[u8; 64]) -> Result<Self, ImportError> {
+        Ok(Signature(dalek::Signature::from_bytes(data)))
     }
 }
 
 impl Import<[u8; 64]> for Signature {
     fn import(data: [u8; 64]) -> Result<Self, ImportError> {
-        Ok(Signature(data))
+        Self::import(&data)
     }
 }
 
@@ -175,14 +199,21 @@ impl Import<&[u8]> for Signature {
 
 #[cfg(test)]
 mod tests {
-    pub use {super::*, crate::test_util::*};
+    use {
+        super::*,
+        crate::{
+            default::Rng,
+            test_util::{eddsa, test_eddsa, SignerTest, Test},
+        },
+    };
 
-    mod eddsa_test {
-        use super::*;
+    #[test]
+    fn test_signer() {
+        SignerTest::<Ed25519>::test(&mut Rng, ());
+    }
 
-        #[test]
-        fn test_ed25519() {
-            test_eddsa::<Ed25519>(eddsa::TestName::Ed25519);
-        }
+    #[test]
+    fn test_wycheproof() {
+        test_eddsa::<Ed25519>(eddsa::TestName::Ed25519);
     }
 }

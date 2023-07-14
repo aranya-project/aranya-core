@@ -10,7 +10,7 @@
 use {
     crate::{
         import::{Import, ImportError},
-        signer::Signer,
+        signer::{Signature, Signer},
         util::copy,
     },
     cfg_if::cfg_if,
@@ -76,7 +76,6 @@ impl From<EncodingError> for ImportError {
 /// `N` should be the maximum number of bytes required by the
 /// signature. This figure can be determined with
 /// [`max_sig_len`].
-#[derive(Clone)]
 pub struct Sig<S: Signer + ?Sized, const N: usize> {
     /// The ASN.1 DER encoded signature.
     ///
@@ -88,6 +87,16 @@ pub struct Sig<S: Signer + ?Sized, const N: usize> {
     /// The number of bytes used in `sig`.
     len: usize,
     _s: PhantomData<S>,
+}
+
+impl<S: Signer + ?Sized, const N: usize> Clone for Sig<S, N> {
+    fn clone(&self) -> Self {
+        Self {
+            sig: self.sig,
+            len: self.len,
+            _s: PhantomData,
+        }
+    }
 }
 
 impl<S: Signer + ?Sized, const N: usize> Sig<S, N> {
@@ -150,6 +159,14 @@ impl<S: Signer + ?Sized, const N: usize> Sig<S, N> {
     /// The length of the result will be in `[0, N)`.
     pub fn as_bytes(&self) -> &[u8] {
         &self.sig[..self.len]
+    }
+}
+
+impl<S: Signer + ?Sized, const N: usize> Signature<S> for Sig<S, N> {
+    type Data = Self;
+
+    fn export(&self) -> Self::Data {
+        self.clone()
     }
 }
 

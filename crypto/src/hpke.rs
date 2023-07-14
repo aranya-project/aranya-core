@@ -499,7 +499,7 @@ impl<K: Kem, F: Kdf, A: Aead> Hpke<K, F, A> {
         let exporter_secret = Self::labeled_expand(&secret, b"exp", &ks_ctx)?;
 
         Ok(Context::new(
-            &A::Key::import(key)?,
+            &A::Key::import(key.borrow())?,
             base_nonce,
             exporter_secret,
         ))

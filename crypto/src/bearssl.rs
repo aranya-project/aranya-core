@@ -1144,7 +1144,13 @@ impl<'a> RngWrapper<'a> {
 
 #[cfg(test)]
 mod tests {
-    pub use {super::*, crate::test_util::*};
+    use {
+        super::*,
+        crate::test_util::{
+            aead, ecdh, ecdsa, hkdf, hpke, mac, test_aead, test_ciphersuite, test_ecdh, test_ecdsa,
+            test_hkdf, test_hpke, test_mac, TestCs,
+        },
+    };
 
     mod ct_test {
         use super::*;

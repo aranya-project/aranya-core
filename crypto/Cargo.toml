@@ -63,7 +63,7 @@ bearssl-sys = { git = "https://github.com/spideroak-inc/bearssl.git", branch = "
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true }
 der = { version = "0.7" }
-ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
+ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["batch", "zeroize"] }
 getrandom = { version = "0.2", features = ["custom"] }
 heapless = { workspace = true }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }

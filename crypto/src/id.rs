@@ -10,7 +10,10 @@ use {
         userkeys::{EncryptionKeyId, Signature, SigningKeyId, UserId},
     },
     base58::{String64, ToBase58},
-    core::fmt::{self, Debug, Display},
+    core::{
+        borrow::Borrow,
+        fmt::{self, Debug, Display},
+    },
     serde::{
         de::{self, SeqAccess, Visitor},
         ser::SerializeTuple,
@@ -43,7 +46,7 @@ impl Id {
             "ID-v1".as_bytes(),
             E::ID.as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
-            sig.as_bytes(),
+            sig.raw_sig().borrow(),
             msg,
         ])
         .into()

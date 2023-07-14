@@ -302,7 +302,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
             b"topic_key_key",
             &((u64::from(version.0) << 32) | u64::from(topic.0)).to_be_bytes(),
         )?;
-        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(key)?)
+        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(key.borrow())?)
     }
 
     fn labeled_extract<const N: usize>(

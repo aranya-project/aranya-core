@@ -20,11 +20,15 @@ use {
         import::{ExportError, Import, ImportError},
         kem::{DecapKey, Kem},
         keys::{PublicKey, SecretKey},
-        misc::{key_misc, DecapKeyData, SigningKeyData},
-        signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+        misc::{
+            key_misc, DecapKeyData, ExportedData, ExportedDataType, SerdeBorrowedSig,
+            SerdeOwnedSig, SigData, SigningKeyData,
+        },
+        signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
         zeroize::ZeroizeOnDrop,
     },
     core::{borrow::Borrow, ops::Add, result::Result},
+    serde::{de, Deserialize, Deserializer, Serialize, Serializer},
 };
 
 /// A signature created by a signing key.
@@ -32,9 +36,40 @@ use {
 pub struct Signature<E: Engine + ?Sized>(pub(crate) <E::Signer as Signer>::Signature);
 
 impl<E: Engine + ?Sized> Signature<E> {
-    /// Returns the byte representation of the signature.
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.borrow()
+    /// Returns the raw signature.
+    ///
+    /// Should only be used in situations where contextual data
+    /// is being merged in. E.g., [`Id::from_sig`]. Otherwise,
+    /// use [`Serialize`].
+    pub(crate) fn raw_sig(&self) -> SigData<E> {
+        signer::Signature::export(&self.0)
+    }
+}
+
+impl<E: Engine + ?Sized> Serialize for Signature<E> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        ExportedData::<SerdeBorrowedSig<'_, E::Signer>>::from_sig::<E>(
+            &self.0,
+            ExportedDataType::Signature,
+        )
+        .serialize(serializer)
+    }
+}
+
+impl<'de, E: Engine + ?Sized> Deserialize<'de> for Signature<E> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let data = ExportedData::<SerdeOwnedSig<E::Signer>>::deserialize(deserializer)?;
+        if !data.valid_context::<E>(ExportedDataType::Signature) {
+            Err(de::Error::custom(ImportError::InvalidContext))
+        } else {
+            Ok(Self(data.data.0))
+        }
     }
 }
 

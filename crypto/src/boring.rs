@@ -31,7 +31,7 @@ use {
             SharedSecret,
         },
         keys::{PublicKey, RawKey, SecretKey},
-        signer::{Signer, SignerError, SignerId, SigningKey, VerifyingKey},
+        signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
         zeroize::{Zeroize, ZeroizeOnDrop},
     },
     alloc::alloc::handle_alloc_error,
@@ -1366,6 +1366,14 @@ impl Debug for Ed25519VerifyingKey {
 /// An Ed25519 signature.
 #[derive(Clone, Debug)]
 pub struct Ed25519Signature([u8; 64]);
+
+impl Signature<Ed25519> for Ed25519Signature {
+    type Data = [u8; 64];
+
+    fn export(&self) -> Self::Data {
+        self.0
+    }
+}
 
 impl Borrow<[u8]> for Ed25519Signature {
     #[inline]

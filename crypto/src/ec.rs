@@ -12,7 +12,7 @@ use {
             typenum::{Double, Unsigned, B1, U133, U32, U33, U48, U49, U65, U66, U67, U97},
             ArrayOps, ArraySize, ByteArray,
         },
-        import::{Import, ImportError},
+        import::{Import, ImportError, InvalidSizeError},
         zeroize::{Zeroize, ZeroizeOnDrop},
     },
     core::{
@@ -169,10 +169,10 @@ macro_rules! pk_impl {
         }
 
         impl<C: Curve> TryFrom<&[u8]> for $name<C> {
-            type Error = ImportError;
+            type Error = InvalidSizeError;
 
-            fn try_from(data: &[u8]) -> Result<Self, ImportError> {
-                Self::import(data)
+            fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+                Ok(Self::from(data.try_into()?))
             }
         }
 
@@ -188,9 +188,11 @@ macro_rules! pk_impl {
 
         impl<C: Curve> Import<&[u8]> for $name<C> {
             fn import(data: &[u8]) -> Result<Self, ImportError> {
-                let v = data.try_into().map_err(|_| ImportError::InvalidSize {
-                    got: data.len(),
-                    want: C::$size::USIZE..C::$size::USIZE,
+                let v = data.try_into().map_err(|_| {
+                    ImportError::InvalidSize(InvalidSizeError {
+                        got: data.len(),
+                        want: C::$size::USIZE..C::$size::USIZE,
+                    })
                 })?;
                 Ok(Self(v))
             }
@@ -287,10 +289,10 @@ where
 }
 
 impl<C: Curve> TryFrom<&[u8]> for Scalar<C> {
-    type Error = ImportError;
+    type Error = InvalidSizeError;
 
-    fn try_from(data: &[u8]) -> Result<Self, ImportError> {
-        Self::import(data)
+    fn try_from(data: &[u8]) -> Result<Self, Self::Error> {
+        data.try_into()
     }
 }
 
@@ -306,9 +308,11 @@ where
 
 impl<C: Curve> Import<&[u8]> for Scalar<C> {
     fn import(data: &[u8]) -> Result<Self, ImportError> {
-        let v = data.try_into().map_err(|_| ImportError::InvalidSize {
-            got: data.len(),
-            want: C::ScalarSize::USIZE..C::ScalarSize::USIZE,
+        let v = data.try_into().map_err(|_| {
+            ImportError::InvalidSize(InvalidSizeError {
+                got: data.len(),
+                want: C::ScalarSize::USIZE..C::ScalarSize::USIZE,
+            })
         })?;
         Ok(Self(v))
     }
