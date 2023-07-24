@@ -39,11 +39,18 @@ pub enum Priority {
     Finalize,
     /// Indicates a user-specific action; the runtime uses the internal u32
     /// for ordering.
-    Message(u32),
+    Basic(u32),
 }
 
 /// Identify prior [`Command`](s).
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
+// The `serde(untagged)` attribute causes Serde to serialize and
+// deserialize this enum without specifying the variant. Serde
+// uses the inner values to determine which variant is being represented.
+// Since each `Parent` variant has a unique inner value, serde would be
+// able to easily detect the represented variant. Making this enum
+// untagged also makes test data human-readable and more concise.
+#[cfg_attr(test, serde(untagged))]
 pub enum Parent {
     None,
     Id(Id),
@@ -52,4 +59,49 @@ pub enum Parent {
 
 /// First 32-bytes of the cryptographic hash of a serialized [`Command`].
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Ord, PartialOrd, Debug, Serialize, Deserialize)]
+// The `serde(from = "u64")` attribute causes serde to deserialize this
+// type to a u64 and then converts it to an Id struct (`From<u64> for Id` must
+// be implemented). This attribute is only used by tests. Representing an Id
+// as a u64 is more human-readable and concise than the inner type as-written.
+#[cfg_attr(test, serde(from = "u64"))]
 pub struct Id([u8; 32]);
+
+#[cfg(test)]
+mod test {
+    use super::Id;
+
+    // Implements methods for the Id struct to be used in
+    // testing.
+    impl Id {
+        pub fn new(val: [u8; 32]) -> Self {
+            Self(val)
+        }
+
+        // The inner value of an Id should not be publicly accessible. This
+        // method is implemented for test validation.
+        pub fn into_inner(self) -> [u8; 32] {
+            self.0
+        }
+    }
+
+    // Serde requires this implementation to deserialize data as u64 to an Id.
+    impl From<u64> for Id {
+        fn from(init: u64) -> Self {
+            let mut value: [u8; 32] = [0; 32];
+
+            for (i, b) in init.to_be_bytes().iter_mut().enumerate() {
+                value[i + 24] = *b;
+            }
+            Id(value)
+        }
+    }
+
+    // Creates a readable version in case an error occurs pertaining to the Id.
+    impl From<Id> for u64 {
+        fn from(id: Id) -> Self {
+            let mut id_buf: [u8; 8] = [0u8; 8];
+            id_buf.copy_from_slice(&id.into_inner()[24..]);
+            u64::from_be_bytes(id_buf)
+        }
+    }
+}

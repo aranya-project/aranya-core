@@ -18,6 +18,7 @@ byteorder = { version = "1", default-features = false }
 cfg-if = { version = "1" }
 heapless = { version = "0.7" }
 libc = { version = "0.2", default-features = false }
+log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }

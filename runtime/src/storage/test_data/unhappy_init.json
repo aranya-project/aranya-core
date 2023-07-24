@@ -1,0 +1,60 @@
+[
+    {
+        "command": {
+            "priority": "Init",
+            "parent": null,
+            "id": 0
+        },
+        "segment_index": 0,
+        "command_index": 0,
+        "max_cut": 0,
+        "heads": 1,
+        "key": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        "value": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    },
+    {
+        "command": {
+            "priority": {
+                "Basic": 0
+            },
+            "parent": 0,
+            "id": 1
+        },
+        "segment_index": 0,
+        "command_index": 1,
+        "max_cut": 0,
+        "heads": 1,
+        "key": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        "value": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    },
+    {
+        "command": {
+            "priority": {
+                "Basic": 0
+            },
+            "parent": 1,
+            "id": 2
+        },
+        "segment_index": 0,
+        "command_index": 2,
+        "max_cut": 1,
+        "heads": 1,
+        "key": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+        "value": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+    },
+    {
+        "command": {
+            "priority": {
+                "Basic": 0
+            },
+            "parent": 1,
+            "id": 3
+        },
+        "segment_index": 1,
+        "command_index": 0,
+        "max_cut": 2,
+        "heads": 1,
+        "key": [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+        "value": [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3]
+    }
+]

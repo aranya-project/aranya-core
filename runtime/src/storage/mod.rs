@@ -5,9 +5,13 @@
 //! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
 //! [`Perspective`]s, which represent a slice of state.
 
-mod memory;
+pub(crate) mod memory;
+#[cfg(test)]
+#[macro_use]
+pub mod test_util;
 
 use alloc::vec::Vec;
+use core::fmt::{self, Display};
 
 use crate::{
     command::{self, Command},
@@ -93,7 +97,7 @@ pub trait Storage {
     /// # Arguments
     ///
     /// * `location` - References a point in the graph.
-    fn get_segment(&self, location: &Location) -> Result<Option<&Self::Segment>, StorageError>;
+    fn get_segment(&self, location: &Location) -> Result<&Self::Segment, StorageError>;
 
     /// Return a reference to a perspective of the graph at
     /// the specified command.
@@ -206,6 +210,12 @@ pub trait Segment {
     where
         Self: 'segment_cmd;
 
+    fn index(&self) -> usize;
+
+    /// Longest walk from the root of the graph to the head of the segment
+    /// preceding it (0 indicates a prior segment does not exist).
+    fn max_cut(&self) -> usize;
+
     /// Return the head of this segment.
     fn head(&self) -> Option<&Self::Command>;
 
@@ -284,6 +294,7 @@ impl Location {
 pub enum StorageError {
     StorageExists,
     NoSuchStorage,
+    NoSuchSegment(usize),
     LocationOutOfBounds,
     InternalError,
     IoError,
@@ -294,5 +305,20 @@ pub enum StorageError {
 impl From<EngineError> for StorageError {
     fn from(error: EngineError) -> Self {
         StorageError::EngineError(error)
+    }
+}
+
+impl Display for StorageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::StorageExists => write!(f, "Requested resource does not exist"),
+            Self::NoSuchStorage => write!(f, "Requested storage does not exist"),
+            Self::NoSuchSegment(idx) => write!(f, "Requested segment {} does not exist", idx),
+            Self::LocationOutOfBounds => write!(f, "Requested storage is out of bounds"),
+            Self::InternalError => write!(f, "Encountered an unrecoverable error"),
+            Self::IoError => write!(f, "Storage encountered I/O error"),
+            Self::NoHeads => write!(f, "No segment heads were found in storage"),
+            Self::EngineError(err) => write!(f, "{:?}", err),
+        }
     }
 }

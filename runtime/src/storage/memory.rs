@@ -13,6 +13,8 @@ use crate::{
     storage::{Checkpoint, Location, Perspective, Segment, Storage, StorageError, StorageProvider},
 };
 
+use log::error;
+
 const MAX_COMMAND_LENGTH: usize = 2048;
 
 /// Data representing a [`Command`] in memory-backed storage
@@ -67,7 +69,8 @@ pub struct MemStorageProvider {
 }
 
 impl MemStorageProvider {
-    pub fn _new() -> MemStorageProvider {
+    #[allow(dead_code)]
+    pub fn new() -> MemStorageProvider {
         MemStorageProvider {
             storage: Vec::new(),
             graph: BTreeMap::new(),
@@ -142,25 +145,33 @@ impl MemStorage {
         }
     }
 
-    fn new_segment(&mut self, policy: PolicyId, prior: Vec<usize>) -> usize {
-        let index = self.segments.len();
-        let segment = MemSegment::new(index, policy, prior, None);
+    fn new_segment(&mut self, policy: PolicyId, prior: Vec<usize>) -> Result<usize, StorageError> {
+        let mut prior_max_cut: Option<usize> = None;
+        for segment_idx in &prior {
+            // At most, there will be two segments to retrieve cuts from.
+            let check_max_cut: Option<usize> = Some(
+                self.segments
+                    .get(*segment_idx)
+                    .ok_or(StorageError::NoSuchSegment(*segment_idx))?
+                    .head_max_cut(),
+            );
+            // Option implements the `PartialOrd` trait which compares the
+            // inner values, if they exist. No value is always less than
+            // some value.
+            if check_max_cut > prior_max_cut {
+                prior_max_cut = check_max_cut;
+            }
+        }
+        // Unwrap the max cut retrieved from prior segments or default to 0
+        // if none exist.
+        let prior_cut = prior_max_cut.unwrap_or(0);
+        let new_idx = self.segments.len();
 
-        self.heads.insert(self.segments.len());
+        let segment = MemSegment::new(new_idx, policy, prior, prior_cut, None);
+        self.heads.insert(new_idx);
         self.segments.push(segment);
 
-        index
-    }
-
-    fn _get_segment(&mut self, id: Id) -> Result<Option<&MemSegment>, StorageError> {
-        let Some(location) = self.commands.get(&id) else {
-            return Ok(None);
-        };
-        let segment = self
-            .segments
-            .get_mut(location.segment)
-            .ok_or(StorageError::NoSuchStorage)?;
-        Ok(Some(segment))
+        Ok(new_idx)
     }
 
     fn segment_head(&self, segment_index: &usize) -> Result<&MemCommand, StorageError> {
@@ -168,7 +179,7 @@ impl MemStorage {
         let segment = self
             .segments
             .get(*segment_index)
-            .ok_or(StorageError::InternalError)?;
+            .ok_or(StorageError::NoSuchSegment(*segment_index))?;
 
         let data = segment.commands.last().ok_or(StorageError::InternalError)?;
 
@@ -199,7 +210,7 @@ impl MemStorage {
         }
 
         let segment_index =
-            self.new_segment(policy_id, vec![left.segment_index, right.segment_index]);
+            self.new_segment(policy_id, vec![left.segment_index, right.segment_index])?;
 
         // TODO: The serialization buffer created here for the new segment
         // should be coming from its backing perspective. However, at this
@@ -212,7 +223,7 @@ impl MemStorage {
         let id = new.id();
 
         let Some(segment) = self.segments.get_mut(segment_index) else {
-            return Err(StorageError::LocationOutOfBounds);
+            return Err(StorageError::NoSuchSegment(segment_index));
         };
 
         let command_index = segment.add_merge(&new);
@@ -248,7 +259,7 @@ impl Storage for MemStorage {
         let segment = self
             .segments
             .get(location.segment)
-            .ok_or(StorageError::InternalError)?;
+            .ok_or(StorageError::NoSuchSegment(location.segment))?;
 
         let command = segment
             .get_command(location)
@@ -268,7 +279,7 @@ impl Storage for MemStorage {
         let segment = self
             .segments
             .get(location.segment)
-            .ok_or(StorageError::InternalError)?;
+            .ok_or(StorageError::NoSuchSegment(location.segment))?;
 
         let policy = segment.policy();
         let from = Some(location.segment);
@@ -278,8 +289,10 @@ impl Storage for MemStorage {
         Ok(Some(perspective))
     }
 
-    fn get_segment(&self, location: &Location) -> Result<Option<&Self::Segment>, StorageError> {
-        Ok(self.segments.get(location.segment))
+    fn get_segment(&self, location: &Location) -> Result<&Self::Segment, StorageError> {
+        self.segments
+            .get(location.segment)
+            .ok_or(StorageError::NoSuchSegment(location.segment))
     }
 
     fn is_head(&self, location: &Location) -> Result<bool, StorageError> {
@@ -291,7 +304,7 @@ impl Storage for MemStorage {
         let segment = self
             .segments
             .get(location.segment)
-            .ok_or(StorageError::InternalError)?;
+            .ok_or(StorageError::NoSuchSegment(location.segment))?;
 
         Ok(segment.location_is_head(location))
     }
@@ -305,7 +318,7 @@ impl Storage for MemStorage {
                     .segments
                     .get(*segment_index)
                     .map(|s| s.commands.len())
-                    .ok_or(StorageError::InternalError)?
+                    .ok_or(StorageError::NoSuchSegment(*segment_index))?
                     - 1;
                 Ok(Location::new(*segment_index, cmd_index))
             })
@@ -320,7 +333,7 @@ impl Storage for MemStorage {
         let to_split = self
             .segments
             .get_mut(at.segment)
-            .ok_or(StorageError::LocationOutOfBounds)?;
+            .ok_or(StorageError::NoSuchSegment(at.segment))?;
 
         // Don't split if the location is the head of the segment.
         if to_split.location_is_head(at) {
@@ -360,7 +373,7 @@ impl Storage for MemStorage {
             let segment = self
                 .segments
                 .get(*segment_index)
-                .ok_or(StorageError::InternalError)?;
+                .ok_or(StorageError::NoSuchSegment(*segment_index))?;
             let policy_id = segment.policy();
 
             let head = self.segment_head(segment_index)?;
@@ -402,7 +415,7 @@ impl Storage for MemStorage {
             // we need to create a new segment.
             None => {
                 let policy_id = update.policy;
-                self.new_segment(policy_id, vec![])
+                self.new_segment(policy_id, vec![])?
             }
             // If the location does exist, we need to check if
             // the specified location is the head of the segment.
@@ -415,7 +428,7 @@ impl Storage for MemStorage {
                     location.segment
                 } else {
                     let policy_id = update.policy;
-                    self.new_segment(policy_id, vec![location.segment])
+                    self.new_segment(policy_id, vec![location.segment])?
                 }
             }
         };
@@ -423,7 +436,7 @@ impl Storage for MemStorage {
         let segment = self
             .segments
             .get_mut(segment_index)
-            .ok_or(StorageError::LocationOutOfBounds)?;
+            .ok_or(StorageError::NoSuchSegment(segment_index))?;
 
         // Update the facts for the segment
         for data in &update.updates {
@@ -465,6 +478,9 @@ pub struct MemSegment {
     prior: Vec<SegmentId>,
     policy: PolicyId,
     commands: Vec<CommandData>,
+    // Maximum number of steps between the graph's root and the head of the
+    // prior segment(s).
+    max_cut: usize,
     prior_facts: Option<SegmentId>,
     facts: BTreeMap<Vec<u8>, Option<Vec<u8>>>,
 }
@@ -474,6 +490,7 @@ impl MemSegment {
         index: usize,
         policy: PolicyId,
         prior: Vec<usize>,
+        max_cut: usize,
         prior_facts: Option<SegmentId>,
     ) -> MemSegment {
         let index: SegmentId = index;
@@ -482,6 +499,7 @@ impl MemSegment {
             prior,
             policy,
             commands: Vec::new(),
+            max_cut,
             facts: BTreeMap::new(),
             prior_facts,
         }
@@ -496,15 +514,22 @@ impl MemSegment {
     }
 
     fn split(&mut self, new_index: usize, at: &Location) -> Result<MemSegment, StorageError> {
-        if self.commands.len() >= at.command {
+        if self.commands.len() <= at.command {
+            error!(
+                "split location out of bounds: {} > {}",
+                at.command,
+                self.commands.len()
+            );
             return Err(StorageError::LocationOutOfBounds);
         }
 
-        let next = at.command + 1;
-        let commands = self.commands.split_off(next);
+        // Set values for the new segment
+        let new_segment_max_cut = self.max_cut + at.command;
         let prior = vec![at.segment];
         let policy = self.policy();
         let mut facts = BTreeMap::new();
+        let next = at.command + 1;
+        let commands = self.commands.split_off(next);
 
         // reset facts for existing segment
         self.facts.clear();
@@ -523,6 +548,7 @@ impl MemSegment {
             policy,
             prior,
             commands,
+            max_cut: new_segment_max_cut,
             prior_facts: Some(self.index),
         })
     }
@@ -533,6 +559,11 @@ impl MemSegment {
             None => false,
         }
     }
+
+    // Longest walk to this segment's head from the graph root.
+    fn head_max_cut(&self) -> usize {
+        self.max_cut() + self.commands.len()
+    }
 }
 
 impl Segment for MemSegment {
@@ -540,6 +571,15 @@ impl Segment for MemSegment {
     type Commands<'segment_cmd> = MemCommandIter<'segment_cmd>
     where
         Self: 'segment_cmd;
+
+    fn index(&self) -> usize {
+        self.index
+    }
+
+    /// Longest walk from the graph root to the beginning of this segment.
+    fn max_cut(&self) -> usize {
+        self.max_cut
+    }
 
     fn head(&self) -> Option<&MemCommand> {
         match self.commands.last() {
@@ -783,13 +823,13 @@ impl<'segment_storage> Perspective<'segment_storage> for MemPerspective<'segment
         let segment = storage
             .segments
             .get(from)
-            .ok_or(StorageError::InternalError)?;
+            .ok_or(StorageError::NoSuchSegment(from))?;
 
         let mut prior_option = &segment.prior_facts;
 
         while let Some(prior_index) = prior_option {
             let Some(prior_segment) = storage.segments.get(*prior_index) else {
-                return Err(StorageError::InternalError)
+                return Err(StorageError::NoSuchSegment(*prior_index))
             };
 
             match prior_segment.facts.get(key) {
@@ -861,5 +901,40 @@ impl<'segment_storage> Perspective<'segment_storage> for MemPerspective<'segment
     fn get_target(&mut self) -> Result<Vec<u8>, StorageError> {
         let (requested_target, _) = self.target.split_at_mut(MAX_COMMAND_LENGTH);
         Ok(requested_target.to_vec())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::{MemCommand, MemStorageProvider};
+
+    use crate::command::Id;
+    use crate::storage::test_util::{
+        create_storage_tests, load_test_file, run, StateDelta, StateLog, TestCommand, TEST_POLICY,
+    };
+
+    impl From<TestCommand> for MemCommand {
+        fn from(test_cmd: TestCommand) -> Self {
+            let id_slice = test_cmd.id.into_inner();
+            let mut data = [0u8; 16];
+            data.copy_from_slice(&id_slice[..16]);
+            let policy: Option<Vec<u8>> = TEST_POLICY.map(|slice| slice.to_vec());
+            MemCommand {
+                priority: test_cmd.priority,
+                id: Id::new(id_slice),
+                parent: test_cmd.parent,
+                policy,
+                data: data.to_vec(),
+            }
+        }
+    }
+
+    create_storage_tests! {
+        (MemStorageProvider::new(), MemCommand)
+        happy_init,
+        // TODO: Storage implementations should verify the parent(s) of
+        // commands. The last command added in the following test
+        // should produce an error from storage.
+        // unhappy_init,
     }
 }
