@@ -14,7 +14,9 @@ extern crate alloc;
 use {
     crate::{
         aead::{Aead, AeadError, AeadId},
-        apq::{self, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, TopicKey},
+        apq::{
+            ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic, TopicKey, Version,
+        },
         ciphersuite::CipherSuite,
         csprng::Csprng,
         default::Rng,
@@ -352,6 +354,7 @@ where
         Self::test_simple_wrap_group_key(rng, f());
         Self::test_simple_wrap_user_identity_key(rng, f());
         Self::test_simple_export_user_identity_key(rng, f());
+        Self::test_simple_identity_key_sign(rng);
         Self::test_simple_wrap_user_signing_key(rng, f());
         Self::test_simple_export_user_signing_key(rng, f());
         Self::test_simple_wrap_user_encryption_key(rng, f());
@@ -385,18 +388,35 @@ where
     <E::Aead as Aead>::TagSize: Add<U64>,
     Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
 {
-    /// Simple positive test for [`UserSigningKey`].
+    /// Simple test for [`UserSigningKey`].
     fn test_simple_user_signing_key_sign<R: Csprng>(rng: &mut R) {
         const MSG: &[u8] = b"hello, world!";
+        const CONTEXT: &str = "test_simple_user_signing_key_sign";
 
         let sign_key = UserSigningKey::<E>::new(rng);
+
         let sig = sign_key
-            .sign(MSG, "test_simple_user_signing_key_sign")
+            .sign(MSG, CONTEXT)
             .expect("unable to create signature");
+
         sign_key
             .public()
-            .verify(MSG, "test_simple_user_signing_key_sign", &sig)
+            .verify(MSG, CONTEXT, &sig)
             .expect("the signature should be valid");
+
+        sign_key
+            .public()
+            .verify(MSG, "wrong context", &sig)
+            .expect_err("should fail with wrong context");
+
+        let wrong_sig = sign_key
+            .sign(b"different", "signature")
+            .expect("should not fail to create signature");
+
+        sign_key
+            .public()
+            .verify(MSG, CONTEXT, &wrong_sig)
+            .expect_err("should fail with wrong signature");
     }
 
     /// Simple positive test for encrypting/decrypting
@@ -461,6 +481,39 @@ where
         let got = postcard::from_bytes(&bytes)
             .expect("should be able to decode an `IdentityVerifyingKey`");
         assert_eq!(want, got);
+    }
+
+    /// Simple test for [`IdentityKey`].
+    /// Creates a signature over `msg` bound to some `context`.
+    /// `msg` must NOT be pre-hashed.
+    fn test_simple_identity_key_sign<R: Csprng>(rng: &mut R) {
+        let sign_key = IdentityKey::<E>::new(rng);
+
+        const MESSAGE: &[u8] = b"hello, world!";
+        const CONTEXT: &str = "test_simple_identity_key_sign";
+
+        let sig = sign_key
+            .sign(MESSAGE, CONTEXT)
+            .expect("should not fail to create signature");
+
+        sign_key
+            .public()
+            .verify(MESSAGE, CONTEXT, &sig)
+            .expect("should not fail with correct signature");
+
+        sign_key
+            .public()
+            .verify(MESSAGE, "wrong context", &sig)
+            .expect_err("should fail with wrong context");
+
+        let wrong_sig = sign_key
+            .sign(b"different", "signature")
+            .expect("should not fail to create signature");
+
+        sign_key
+            .public()
+            .verify(MESSAGE, CONTEXT, &wrong_sig)
+            .expect_err("should fail with wrong signature");
     }
 
     /// Simple positive test for wrapping [`UserSigningKey`]s.
@@ -697,22 +750,53 @@ where
         assert_eq!(err, Error::Aead(AeadError::Authentication));
     }
 
-    /// Simple positive test for [`SenderSigningKey`].
+    /// Simple test for [`SenderSigningKey`].
+    /// Creates a signature over an encoded record.
     fn test_simple_sender_signing_key_sign<R: Csprng>(rng: &mut R) {
         const RECORD: &[u8] = b"some encoded record";
         const RECORD_NAME: &str = "MessageRecord";
 
-        const VERSION: apq::Version = apq::Version(1);
-        const TOPIC: apq::Topic = apq::Topic(4);
+        const VERSION: Version = Version(1);
+        const TOPIC: Topic = Topic(4);
 
         let sign_key = SenderSigningKey::<E>::new(rng);
         let sig = sign_key
             .sign(VERSION, TOPIC, RECORD, RECORD_NAME)
             .expect("unable to create signature");
+
         sign_key
             .public()
             .verify(VERSION, TOPIC, RECORD, RECORD_NAME, &sig)
             .expect("the signature should be valid");
+
+        sign_key
+            .public()
+            .verify(Version(VERSION.0 + 1), TOPIC, RECORD, RECORD_NAME, &sig)
+            .expect_err("should fail: wrong version");
+
+        sign_key
+            .public()
+            .verify(VERSION, Topic(TOPIC.0 + 1), RECORD, RECORD_NAME, &sig)
+            .expect_err("should fail: wrong topic");
+
+        sign_key
+            .public()
+            .verify(VERSION, TOPIC, b"wrong", RECORD_NAME, &sig)
+            .expect_err("should fail: wrong record");
+
+        sign_key
+            .public()
+            .verify(VERSION, TOPIC, RECORD, "SomeRecord", &sig)
+            .expect_err("should fail: wrong record name");
+
+        let wrong_sig = sign_key
+            .sign(Version(VERSION.0 + 1), Topic(TOPIC.0 + 1), b"foo", "bar")
+            .expect("should not fail to create signature");
+
+        sign_key
+            .public()
+            .verify(VERSION, TOPIC, RECORD, RECORD_NAME, &wrong_sig)
+            .expect_err("should fail: wrong signature");
     }
 
     /// Simple positive test for encrypting/decrypting
@@ -723,8 +807,8 @@ where
         let recv_sk = ReceiverSecretKey::<E>::new(rng);
         let recv_pk = recv_sk.public();
 
-        const VERSION: apq::Version = apq::Version(1);
-        const TOPIC: apq::Topic = apq::Topic(4);
+        const VERSION: Version = Version(1);
+        const TOPIC: Topic = Topic(4);
 
         let want = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
         let (enc, ciphertext) = recv_pk
@@ -799,8 +883,8 @@ where
             sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
         };
 
-        const VERSION: apq::Version = apq::Version(1);
-        const TOPIC: apq::Topic = apq::Topic(4);
+        const VERSION: Version = Version(1);
+        const TOPIC: Topic = Topic(4);
 
         let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
         let ciphertext = {
@@ -827,8 +911,8 @@ where
             sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
         };
 
-        const VERSION: apq::Version = apq::Version(1);
-        const TOPIC: apq::Topic = apq::Topic(4);
+        const VERSION: Version = Version(1);
+        const TOPIC: Topic = Topic(4);
 
         let tk1 = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
         let tk2 = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
@@ -859,8 +943,8 @@ where
             sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
         };
 
-        const VERSION: apq::Version = apq::Version(1);
-        const TOPIC: apq::Topic = apq::Topic(4);
+        const VERSION: Version = Version(1);
+        const TOPIC: Topic = Topic(4);
 
         let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create `TopicKey`");
         let ciphertext = {
@@ -879,8 +963,8 @@ where
                 assert_eq!(err, Error::Aead(AeadError::Authentication), $msg);
             };
         }
-        should_fail!("wrong version", apq::Version(VERSION.0 + 1), TOPIC, &ident);
-        should_fail!("wrong topic", VERSION, apq::Topic(TOPIC.0 + 1), &ident);
+        should_fail!("wrong version", Version(VERSION.0 + 1), TOPIC, &ident);
+        should_fail!("wrong topic", VERSION, Topic(TOPIC.0 + 1), &ident);
         should_fail!("wrong ident", VERSION, TOPIC, &wrong_ident);
     }
 
@@ -893,8 +977,8 @@ where
             sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
         };
 
-        const VERSION: apq::Version = apq::Version(1);
-        const TOPIC: apq::Topic = apq::Topic(4);
+        const VERSION: Version = Version(1);
+        const TOPIC: Topic = Topic(4);
 
         let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create `TopicKey`");
         let mut ciphertext = {
