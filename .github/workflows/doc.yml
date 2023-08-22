@@ -1,0 +1,46 @@
+name: "Generate Docs"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+    secrets:
+      CC_BUILD_TOKEN:
+        required: true
+
+env:
+  REV: ${{ github.run_id }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  doc:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./.github/actions/setup
+        with:
+          gh-token: ${{ secrets.CC_BUILD_TOKEN }}
+      - name: Install nightly
+        run: rustup toolchain install nightly
+      - name: Generate docs
+        run: |
+          export RUSTDOCFLAGS="--cfg docs"
+          cargo +nightly doc --all-features --workspace
+      - name: Publish docs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: docs
+          path: |
+            target/doc
+          if-no-files-found: error

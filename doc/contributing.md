@@ -1,6 +1,7 @@
 ---
 title: Contributing
 ---
+
 # `flow3-rs` Overview
 
 `flow3-rs` mirrors in some ways its earlier [Go counterpart](https://github.com/spideroak-inc/flow3) in that it provides a C library interface to the Flow3 Policy Engine and Weave Engine. This repo is still heavily in-progress, so it does not yet form a coherent whole.
@@ -15,7 +16,16 @@ You will find:
 
 # Releases
 
-TBD
+Use semver versioning. Create release & tag in GitHub. `publish.yml` will trigger when a new release tag is created and upload the release artifacts automatically.
+
+Install cargo-all-features with:
+`cargo install --force cargo-all-features`
+
+To build a release:
+`cargo --verbose build-all-features --release`
+
+Release artifacts are generated at the following path:
+`<repo>/target/release`
 
 # Issues
 
@@ -36,11 +46,33 @@ The rust code in this repo follows the usual rusty ways of doing things. CI will
 
 Write tests using the standard Cargo tooling.
 
+# Dependencies
+
+- rust
+- cmake
+- ninja-build
+
 # Running Tests/Builds Locally
 
 We're using standard Cargo-based tooling for builds and tests. Currently tests have to be run in each sub-crate since they are not dependents of the main library.
 
 Due to the main library being a `no_std` project, tests for it have to be run with `cargo test --features std` to enable the `std` feature that the tests require.
+
+# Generating And Viewing Documentation
+
+To generate the API documentation:
+
+```bash
+export RUSTDOCFLAGS="--cfg docs"
+rustup toolchain install nightly
+cargo +nightly doc --all-features --workspace
+```
+
+To view the documentation:
+`cargo +nightly doc --all-features --workspace --open`
+
+Documentation is generated at the following path:
+`<repo>/target/doc`
 
 # Continuous Integration
 
