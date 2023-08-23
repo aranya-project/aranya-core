@@ -113,7 +113,7 @@ pub trait Kem {
     type Secret: Borrow<[u8]> + BorrowMut<[u8]> + Default + ZeroizeOnDrop;
 
     /// An encapsulated [`Self::Secret`].
-    type Encap: Borrow<[u8]>;
+    type Encap: Borrow<[u8]> + for<'a> Import<&'a [u8]>;
 
     /// A randomized algorithm that generates an ephemeral,
     /// fixed-length symmetric key and an 'encapsulation' of that

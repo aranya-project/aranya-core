@@ -36,7 +36,9 @@ use {
         keys::{PublicKey, SecretKey},
         mac::{Mac, MacId, MacKey, Tag},
         signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
-        userkeys::{EncryptionKey, IdentityKey, SigningKey as UserSigningKey},
+        userkeys::{
+            Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
+        },
         zeroize::ZeroizeOnDrop,
     },
     alloc::{string::ToString, vec, vec::Vec},
@@ -364,6 +366,8 @@ where
         Self::test_group_key_open_wrong_key(rng);
         Self::test_group_key_open_wrong_context(rng);
         Self::test_group_key_open_bad_ciphertext(rng);
+
+        Self::test_encrypted_group_key_encode(rng);
 
         //
         // APQ
@@ -748,6 +752,25 @@ where
             )
             .expect_err("should have failed");
         assert_eq!(err, Error::Aead(AeadError::Authentication));
+    }
+
+    /// Test encoding/decoding [`EncryptedGroupKey`].
+    fn test_encrypted_group_key_encode<R: Csprng>(rng: &mut R) {
+        let enc_key = EncryptionKey::<E>::new(rng);
+
+        let group = Id::default();
+        let want = GroupKey::new(rng);
+        let (enc, ciphertext) = enc_key
+            .public()
+            .seal_group_key(rng, &want, group)
+            .expect("unable to encrypt `GroupKey`");
+        let enc = Encap::<E>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
+        let ciphertext = EncryptedGroupKey::<E>::from_bytes(ciphertext.as_bytes())
+            .expect("should be able to decode `EncryptedGroupKey`");
+        let got = enc_key
+            .open_group_key(&enc, &ciphertext, group)
+            .expect("unable to decrypt `GroupKey`");
+        assert_eq!(want.id(), got.id());
     }
 
     /// Simple test for [`SenderSigningKey`].

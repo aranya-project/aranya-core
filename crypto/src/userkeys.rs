@@ -17,7 +17,7 @@ use {
             ArraySize, ByteArray,
         },
         id::Id,
-        import::{ExportError, Import, ImportError},
+        import::{ExportError, Import, ImportError, InvalidSizeError},
         kem::{DecapKey, Kem},
         keys::{PublicKey, SecretKey},
         misc::{
@@ -310,7 +310,7 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
     /// a peer.
     pub fn open_group_key(
         &self,
-        enc: &<E::Kem as Kem>::Encap,
+        enc: &Encap<E>,
         ciphertext: &EncryptedGroupKey<E>,
         group: Id,
     ) -> Result<GroupKey<E>, Error>
@@ -330,7 +330,8 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
             E::ID.as_bytes(),
             group.as_bytes(),
         ]);
-        let mut ctx = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Base, enc, &self.0, &info)?;
+        let mut ctx =
+            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
         let mut seed = [0u8; 64];
         ctx.open(&mut seed, ciphertext.as_bytes(), &info)?;
         Ok(GroupKey::from_seed(seed))
@@ -359,7 +360,7 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
         rng: &mut R,
         key: &GroupKey<E>,
         group: Id,
-    ) -> Result<(<E::Kem as Kem>::Encap, EncryptedGroupKey<E>), Error>
+    ) -> Result<(Encap<E>, EncryptedGroupKey<E>), Error>
     where
         <E::Aead as Aead>::TagSize: Add<U64>,
         Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
@@ -380,7 +381,23 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
             Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
         let mut dst = ByteArray::default();
         ctx.seal(&mut dst, key.raw_seed(), &info)?;
-        Ok((enc, EncryptedGroupKey(dst)))
+        Ok((Encap(enc), EncryptedGroupKey(dst)))
+    }
+}
+
+/// An encapsulated symmetric key.
+pub struct Encap<E: Engine + ?Sized>(<E::Kem as Kem>::Encap);
+
+impl<E: Engine + ?Sized> Encap<E> {
+    /// Encodes itself as bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.borrow()
+    }
+
+    /// Returns itself from its byte encoding.
+    pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
+        let enc = <E::Kem as Kem>::Encap::import(data)?;
+        Ok(Self(enc))
     }
 }
 
@@ -395,8 +412,19 @@ where
     <E::Aead as Aead>::TagSize: Add<U64>,
     Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
 {
-    /// Reutrns itself as bytes.
+    const SIZE: usize = 64 + E::Aead::TAG_SIZE;
+
+    /// Encodes itself as bytes.
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
+    }
+
+    /// Returns itself from its byte encoding.
+    pub fn from_bytes(data: &[u8]) -> Result<Self, InvalidSizeError> {
+        let v = data.try_into().map_err(|_| InvalidSizeError {
+            got: data.len(),
+            want: Self::SIZE..Self::SIZE,
+        })?;
+        Ok(Self(v))
     }
 }
