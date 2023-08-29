@@ -1,0 +1,46 @@
+name: "Unit tests"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+    secrets:
+      CC_BUILD_TOKEN:
+        required: true
+
+env:
+  REV: ${{ github.run_id }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    strategy:
+      matrix:
+        os:
+          [
+            "macos-latest",
+            "self-hosted-linux-arm",
+            "self-hosted-linux-arm64",
+            "ubuntu-latest",
+          ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Clean temp files
+        run: rm -rf ${{ github.workspace }}/_temp
+        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+      - uses: ./.github/actions/setup
+        with:
+          gh-token: ${{ secrets.CC_BUILD_TOKEN }}
+      - name: Unit Tests
+        run: cargo test-all-features
