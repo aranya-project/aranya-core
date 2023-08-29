@@ -59,7 +59,7 @@ result_option_inspect = []
 [dependencies]
 base58 = { path = "../base58" }
 bssl-sys = { git = "https://github.com/spideroak-inc/bssl.git", branch = "main", optional = true }
-bearssl-sys = { git = "https://github.com/spideroak-inc/bearssl.git", branch = "main" }
+bearssl-sys = { git = "https://github.com/spideroak-inc/bearssl.git", tag = "v0.1.0" }
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true }
 der = { version = "0.7" }
