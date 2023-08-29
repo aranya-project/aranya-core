@@ -98,6 +98,13 @@ all-features = true
 [package.metadata.cargo-all-features]
 always_include_features = []
 
+skip_feature_sets = [
+	["std", "alloc"],
+	["std", "rand_core"],
+	["boringssl", "alloc"],
+	["test_util", "alloc"],
+]
+
 denylist = [
 	"error_in_core",
 	"result_option_inspect",
