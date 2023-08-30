@@ -46,7 +46,5 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Check code
         run: cargo check-all-features
-        # TODO(eric): once the rest of the code passes, enable
-        # this for all crates.
       - name: Clippy
-        run: cargo clippy -p crypto -- -D warnings
+        run: cargo clippy --tests --benches -- -D warnings

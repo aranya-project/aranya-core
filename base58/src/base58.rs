@@ -214,7 +214,7 @@ macro_rules! encode_x {
             impl PartialOrd for $name {
                 #[inline]
                 fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                    PartialOrd::partial_cmp(&self[..], &other[..])
+                    Some(self.cmp(other))
                 }
             }
 

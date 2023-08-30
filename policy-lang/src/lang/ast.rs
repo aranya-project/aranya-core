@@ -270,7 +270,7 @@ pub enum FinishStatement {
     Update(UpdateStatement),
     /// A [DeleteStatement]
     Delete(DeleteStatement),
-    /// An [EffectStatement]
+    /// An [Expression]
     Effect(Expression),
     /// A function call (only for finish functions)
     FunctionCall(FunctionCall),

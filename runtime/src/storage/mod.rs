@@ -64,8 +64,8 @@ pub trait StorageProvider {
     fn get_storage(&mut self, group: &command::Id) -> Result<&mut Self::Storage, StorageError>;
 }
 
-/// Represents the runtime's graph; [`Command`](s) in storage have been validated
-/// by an associated [`Policy`] and committed to state.
+/// Represents the runtime's graph; [`Command`]s in storage have been validated
+/// by an associated policy and committed to state.
 pub trait Storage {
     // A `Perspective` must be able to reference historical graph data. So, we
     // need to explicitly tell the compiler the implementor (Self) outlives the

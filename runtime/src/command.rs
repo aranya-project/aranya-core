@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-/// An action message interpreted by its associated [`Policy`] to affect state.
+/// An action message interpreted by its associated policy to affect state.
 ///
 /// A [`Command`] is opaque to the runtime engine. When the engine receives a
 /// message, it is validated and serialized by its policy. The policy
@@ -42,7 +42,7 @@ pub enum Priority {
     Basic(u32),
 }
 
-/// Identify prior [`Command`](s).
+/// Identify prior [`Command`]s.
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 // The `serde(untagged)` attribute causes Serde to serialize and
 // deserialize this enum without specifying the variant. Serde

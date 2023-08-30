@@ -1884,7 +1884,6 @@ mod fun_crypto {
     // AES-256-GCM-SIV is disabled for x86-64 because it doesn't
     // currently support EVP_AEAD_CTX_open_gather.
 
-    #[cfg_attr(docs, doc(cfg(not(target_arch = "x86_64"))))]
     #[cfg(any(docs, not(target_arch = "x86_64")))]
     aead_impl!(
         Aes256GcmSiv,

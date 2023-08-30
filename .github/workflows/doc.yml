@@ -33,8 +33,9 @@ jobs:
       - name: Install nightly
         run: rustup toolchain install nightly
       - name: Generate docs
+        env:
+          RUSTDOCFLAGS: "--cfg docs -Dwarnings"
         run: |
-          export RUSTDOCFLAGS="--cfg docs"
           cargo +nightly doc --all-features --workspace
           zip -qr docs.zip target/doc
       - name: Publish docs

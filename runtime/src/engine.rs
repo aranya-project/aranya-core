@@ -100,7 +100,7 @@ pub trait Policy {
     /// * `target` - A mutable buffer used by the policy for serialization.
     /// * `policy_data` - Byte slice that holds the policy that will
     ///   validate the command.
-    /// * `payload` - The policy's associated [`Payload`] type.
+    /// * `payload` - The policy's associated payload type.
     fn init(
         &self,
         target: &mut [u8],
@@ -127,7 +127,7 @@ pub trait Policy {
     ///
     /// * `target` - A mutable buffer used by the policy for serialization.
     /// * `parent` - The command prior to the one to be created.
-    /// * `payload` - The policy's associated [`Payload`] type.
+    /// * `payload` - The policy's associated payload type.
     fn basic(
         &self,
         target: &mut [u8],

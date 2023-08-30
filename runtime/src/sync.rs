@@ -29,7 +29,7 @@ const _SEGMENT_BUFFER_MAX: usize = 100;
 // https://docs.rs/postcard/latest/postcard/experimental/max_size/index.html
 pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RESPONSE_MAX;
 
-/// Represents high-level data of a [`Command`].
+/// Represents high-level data of a command.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommandMeta {
     priority: Priority,
@@ -43,6 +43,7 @@ pub struct CommandMeta {
 // As the buffer consts will be compile-time variables in the future, we will be
 // able to tune these buffers for smaller footprints. Right now, this enum is not
 // suitable for small devices (`SyncRequest` is ~3256 bytes and change).
+#[allow(clippy::large_enum_variant)]
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SyncMessage {
     /// Initiate a new Sync

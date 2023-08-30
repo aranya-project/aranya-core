@@ -1096,8 +1096,8 @@ impl<A: Aead> Test for AeadTest<A> {
 }
 
 impl<A: Aead> AeadTest<A> {
-    const GOLDEN: &[u8] = b"hello, world!";
-    const AD: &[u8] = b"some additional data";
+    const GOLDEN: &'static [u8] = b"hello, world!";
+    const AD: &'static [u8] = b"some additional data";
 
     /// Tests that [`A::Key::new`] returns unique keys.
     fn test_new_key<R: Csprng>(rng: &mut R) {
@@ -1473,7 +1473,7 @@ impl<T: Mac> MacTest<T>
 where
     T::Key: ConstantTimeEq,
 {
-    const DATA: &[u8] = b"hello, world!";
+    const DATA: &'static [u8] = b"hello, world!";
 
     /// Basic positive test.
     fn test_default<R: Csprng>(rng: &mut R) {
