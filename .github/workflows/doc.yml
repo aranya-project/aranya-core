@@ -36,11 +36,11 @@ jobs:
         run: |
           export RUSTDOCFLAGS="--cfg docs"
           cargo +nightly doc --all-features --workspace
+          zip -qr docs.zip target/doc
       - name: Publish docs
         if: ${{ always() }}
         uses: actions/upload-artifact@v3
         with:
-          name: docs
-          path: |
-            target/doc
+          name: docs.zip
+          path: docs.zip
           if-no-files-found: error

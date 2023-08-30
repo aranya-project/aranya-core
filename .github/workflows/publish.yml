@@ -36,12 +36,10 @@ jobs:
       - name: Download doc artifacts
         uses: actions/download-artifact@v3
         with:
-          name: docs
-          path: docs
+          name: docs.zip
+          path: docs.zip
       - name: List files
         run: ls -R -al
-      - name: Zip
-        run: zip -r docs.zip docs
       - name: Upload docs to tagged release
         uses: actions/upload-release-asset@v1.0.2
         env:
