@@ -125,7 +125,7 @@ macro_rules! hkdf_impl {
         pub struct $name;
 
         impl $name {
-            const DIGEST_SIZE: usize = $hash::DIGEST_SIZE;
+            const DIGEST_SIZE: usize = <$hash as $crate::hash::Hash>::DIGEST_SIZE;
         }
 
         impl $crate::kdf::Kdf for $name {
@@ -136,7 +136,7 @@ macro_rules! hkdf_impl {
 
             const PRK_SIZE: usize = Self::DIGEST_SIZE;
 
-            type Prk = Prk<{ Self::DIGEST_SIZE }>;
+            type Prk = $crate::kdf::Prk<{ Self::DIGEST_SIZE }>;
 
             fn extract_multi(ikm: &[&[u8]], salt: &[u8]) -> Self::Prk {
                 $crate::hkdf::Hkdf::<$hash, { Self::DIGEST_SIZE }>::extract_multi(ikm, salt)
@@ -146,7 +146,7 @@ macro_rules! hkdf_impl {
                 out: &mut [u8],
                 prk: &Self::Prk,
                 info: &[&[u8]],
-            ) -> Result<(), KdfError> {
+            ) -> Result<(), $crate::kdf::KdfError> {
                 $crate::hkdf::Hkdf::<$hash, { Self::DIGEST_SIZE }>::expand_multi(out, prk, info)
             }
         }

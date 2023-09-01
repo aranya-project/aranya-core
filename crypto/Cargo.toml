@@ -12,14 +12,41 @@ default = []
 
 # Enable allocations.
 alloc = [
-	"zeroize/alloc",
 	"postcard/alloc",
+	"zeroize/alloc",
 ]
 
 # Enable BoringSSL.
 boringssl = [
 	"alloc",
 	"dep:bssl-sys",
+]
+
+# Enable Ed25519 batch signature verification.
+#
+# NB: this is NOT supported on big-endian architectures.
+#
+# This is its own feature because of a weird interaction
+# between cargo, ed25519-dalek, and VxWorks.
+#
+# ed25519-dalek's `batch` feature requires `alloc`, so normally
+# we'd put "ed25519-dalek/batch" behind our `alloc` feature.
+#
+# However, ed25519-dalek's `batch` feature does not build for
+# vxworks/ppc because its merlin dependency does not support
+# big-endian architectures.
+#
+# Cargo does not support target-specific features, so we're
+# unable to express "enable ed25519-dalek/batch only if `alloc`
+# is enabled and the current architecture is little-endian."
+ed25519_batch = [
+	"alloc",
+	"ed25519-dalek/batch",
+]
+
+# Build for Project Moonshot.
+moonshot = [
+	"dep:aes",
 ]
 
 # Makes `OsRng` implement `Csprng`.
@@ -57,26 +84,25 @@ error_in_core = []
 result_option_inspect = []
 
 [dependencies]
+aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 base58 = { path = "../base58" }
 bssl-sys = { git = "https://github.com/spideroak-inc/bssl.git", branch = "main", optional = true }
-bearssl-sys = { git = "https://github.com/spideroak-inc/bearssl.git", tag = "v0.1.0" }
+bearssl-sys = { git = "https://github.com/spideroak-inc/bearssl.git", tag = "v0.2.0" }
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true }
 der = { version = "0.7" }
-ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["batch", "zeroize"] }
-getrandom = { version = "0.2", features = ["custom"] }
+ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
 heapless = { workspace = true }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
+lazy_static = { version = "1.4", features = ["spin_no_std"] }
 more-asserts = { version = "0.3" }
-# `rand_core` is only pulled in when `rand_core` is enabled. It's
-# only used to add trait impls for `OsRng`.
-rand_core = { workspace = true, default-features = false, features = ["getrandom"], optional = true }
 # `rand` is only pulled in when `std` is enabled. It's only used
 # to add trait impls for `ThreadRng`.
 rand = { workspace = true, features = ["std", "std_rng"], optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, optional = true }
 serde_repr = { version = "0.1", default-features = false, optional = true }
+spin = { workspace = true, features = ["mutex", "once", "spin_mutex"] }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
 typenum = { version = "1" }
 # Only pulled into non-dev builds if `test_util` is enabled. It
@@ -85,8 +111,27 @@ typenum = { version = "1" }
 wycheproof = { version = "0.5", optional = true }
 zeroize = { version = "1", features = ["zeroize_derive"] }
 
+# While `getrandom` supports VxWorks, it only supports VxWorks 7.
+# Since it uses `target_os = "vxworks"`, it indiscriminately
+# tries to build for all VxWorks versions, resulting in
+# compilation errors for VxWorks 6.9.
+#
+# We currently do not need to support VxWorks 7, so just disable
+# `getrandom` for VxWorks.
+[target.'cfg(target_os = "vxworks")'.dependencies]
+# `rand_core` is only pulled in when `rand_core` is enabled. It's
+# only used to add trait impls for `OsRng`.
+rand_core = { workspace = true, default-features = false, optional = true }
+
+[target.'cfg(not(target_os = "vxworks"))'.dependencies]
+getrandom = { version = "0.2", features = ["custom"] }
+# `rand_core` is only pulled in when `rand_core` is enabled. It's
+# only used to add trait impls for `OsRng`.
+rand_core = { workspace = true, default-features = false, features = ["getrandom"], optional = true }
+
 [dev-dependencies]
 postcard = { workspace = true, features = ["alloc", "heapless"] }
+rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false }
 serde_repr = { version = "0.1", default-features = false }

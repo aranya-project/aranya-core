@@ -8,6 +8,11 @@ inputs:
     description: 'Go version'
     required: true
     default: 'stable'
+  os:
+    description: 'OS being used (e.g., macos-latest)'
+    required: true
+  target:
+    description: 'OS-arch target being compiled for (e.g., linux-arm64)'
 runs:
   using: "composite"
   steps:
@@ -45,7 +50,7 @@ runs:
           echo "CXX=$GITHUB_WORKSPACE/clang++12" >> $GITHUB_ENV
           echo "LD=$(which lld-12)" >> $GITHUB_ENV
       shell: bash
-      if: ${{ matrix.os == 'self-hosted-linux-arm64' }}
+      if: ${{ inputs.os == 'self-hosted-linux-arm64' }}
 
     - name: Cache Rust
       uses: actions/cache@v3
@@ -62,8 +67,11 @@ runs:
       #
       # TODO(eric): investigate whether we want to get rid of the
       # cache entirely. We already did it for Go.
-      if: ${{ matrix.os != 'self-hosted-linux-arm64' }}
+      if: ${{ inputs.os != 'self-hosted-linux-arm64' }}
 
+    #
+    # Set up Rust
+    #
     - name: Install Rustup
       uses: spideroak-inc/setup-rust@fork
     # Various runners have a 64-bit kernel with a 32-bit userspace.
@@ -71,21 +79,22 @@ runs:
     - name: Set rustup's host
       shell: bash
       run: rustup set default-host armv7-unknown-linux-gnueabihf
-      if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+      if: ${{ inputs.os == 'self-hosted-linux-arm' }}
     - name: Verify toolchain
       shell: bash
       run: rustup show active-toolchain
-      if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+      if: ${{ inputs.os == 'self-hosted-linux-arm' }}
     - name: cargo version
       shell: bash
       run: cargo --version --verbose
     - name: glibc version
       shell: bash
       run: ldd --version
-      if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+      if: ${{ inputs.os == 'self-hosted-linux-arm' }}
     - name: Intall cargo-all-features
       run: cargo install --force cargo-all-features
       shell: bash
+      if: ${{ inputs.target != 'vxworks-ppc' }}
 
     # BoringSSL uses Go.
     - name: Set up Go
@@ -100,7 +109,7 @@ runs:
         go env -w "GONOSUMDB=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
         go env -w "GOPRIVATE=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
       shell: bash
-      if: ${{ matrix.os != 'windows-latest' }}
+      if: ${{ matrix.os != 'windows-latest' && inputs.target != 'vxworks-ppc' }}
     - name: Export GO_VERSION
       run: |
         echo "GO_VERSION=${{ inputs.go-version }}" >> $env:GITHUB_ENV
@@ -108,4 +117,4 @@ runs:
         go env -w "GONOSUMDB=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
         go env -w "GOPRIVATE=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
       shell: pwsh
-      if: ${{ matrix.os == 'windows-latest' }}
+      if: ${{ matrix.os == 'windows-latest' && inputs.target != 'vxworks-ppc' }}

@@ -92,7 +92,7 @@ impl<E: Engine + ?Sized> GroupKey<E> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(feature = "alloc")]
+    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
     /// # {
     /// use crypto::{
     ///     Context,

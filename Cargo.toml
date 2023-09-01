@@ -23,6 +23,7 @@ postcard = { version = "1", default-features = false }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
 serde = { version = "1", default-features = false }
+spin = { version = "0.9", default-features = false }
 
 [profile.dev]
 panic = "abort"

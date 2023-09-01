@@ -26,14 +26,14 @@ jobs:
   build-release:
     strategy:
       matrix:
-        os:
+        target:
           [
-            "macos-latest",
-            "self-hosted-linux-arm",
-            "self-hosted-linux-arm64",
-            "ubuntu-latest",
+            { os: "macos-latest", suffix: "darwin-amd64" },
+            { os: "self-hosted-linux-arm", suffix: "linux-arm" },
+            { os: "self-hosted-linux-arm64", suffix: "linux-arm64" },
+            { os: "ubuntu-latest", suffix: "linux-amd64" },
           ]
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.target.os }}
     steps:
       - uses: actions/checkout@v3
       - name: Clean temp files
@@ -42,5 +42,8 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           gh-token: ${{ secrets.CC_BUILD_TOKEN }}
+          os: ${{ matrix.target.os }}
+          target: ${{ matrix.target.suffix }}
+
       - name: Build code
         run: cargo --verbose build-all-features --release

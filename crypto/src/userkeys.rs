@@ -93,7 +93,7 @@ impl<E: Engine + ?Sized> IdentityKey<E> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(feature = "alloc")]
+    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
     /// # {
     /// use crypto::{
     ///     DefaultCipherSuite,
@@ -203,7 +203,7 @@ impl<E: Engine + ?Sized> SigningKey<E> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(feature = "alloc")]
+    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
     /// # {
     /// use crypto::{
     ///     DefaultCipherSuite,

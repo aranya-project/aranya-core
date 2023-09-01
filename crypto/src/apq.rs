@@ -150,7 +150,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(feature = "alloc")]
+    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
     /// # {
     /// use crypto::{
     ///     apq::{
@@ -377,7 +377,7 @@ impl<E: Engine + ?Sized> SenderSigningKey<E> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(feature = "alloc")]
+    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
     /// # {
     /// use crypto::{
     ///     apq::{SenderSigningKey, Topic, Version},
@@ -605,7 +605,7 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(feature = "alloc")]
+    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
     /// # {
     /// use crypto::{
     ///     apq::{

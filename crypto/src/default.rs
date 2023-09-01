@@ -14,6 +14,7 @@ use {
 ///
 /// Certain feature flags will change the default CSPRNG:
 ///
+/// - `moonshot`: Uses a CSPRNG specific to Project Moonshot.
 /// - `std`: Uses [`ThreadRng`][rand::rngs::ThreadRng].
 /// - `boringssl`: Uses [`boring:Rand`][crate::boring::Rand].
 ///
@@ -46,8 +47,10 @@ impl Rng {
 impl Csprng for Rng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         cfg_if! {
-            // Check `std` first so that we can use `ThreadRng`.
-            if #[cfg(feature = "std")] {
+            if #[cfg(feature = "moonshot")] {
+                crate::csprng::moonshot::thread_rng().fill_bytes(dst)
+            } else if #[cfg(feature = "std")] {
+                // Try to use `ThreadRng` if possible.
                 rand::thread_rng().fill_bytes(dst)
             } else if #[cfg(feature = "boringssl")] {
                 crate::boring::Rand.fill_bytes(dst)

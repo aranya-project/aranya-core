@@ -42,6 +42,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           gh-token: ${{ secrets.CC_BUILD_TOKEN }}
+          os: ${{ matrix.os }}
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Check code

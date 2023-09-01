@@ -25,7 +25,7 @@ use {
         hmac::hmac_impl,
         hybrid_array::typenum::{Unsigned, U12, U16, U32},
         import::{try_import, ExportError, Import, ImportError},
-        kdf::{Kdf, KdfError, Prk},
+        kdf::Kdf,
         kem::{
             dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId,
             SharedSecret,
