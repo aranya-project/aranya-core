@@ -43,6 +43,6 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v3
         with:
-          name: docs.zip
+          name: docs
           path: docs.zip
           if-no-files-found: error
