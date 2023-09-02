@@ -386,7 +386,7 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
 }
 
 /// An encapsulated symmetric key.
-pub struct Encap<E: Engine + ?Sized>(<E::Kem as Kem>::Encap);
+pub struct Encap<E: Engine + ?Sized>(pub(crate) <E::Kem as Kem>::Encap);
 
 impl<E: Engine + ?Sized> Encap<E> {
     /// Encodes itself as bytes.

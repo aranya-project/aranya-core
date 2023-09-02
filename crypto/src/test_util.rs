@@ -15,7 +15,8 @@ use {
     crate::{
         aead::{Aead, AeadError, AeadId},
         apq::{
-            ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic, TopicKey, Version,
+            EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
+            TopicKey, Version,
         },
         ciphersuite::CipherSuite,
         csprng::Csprng,
@@ -837,6 +838,9 @@ where
         let (enc, ciphertext) = recv_pk
             .seal_topic_key(rng, VERSION, TOPIC, &send_sk, &want)
             .expect("unable to encrypt `TopicKey`");
+        let enc = Encap::<E>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
+        let ciphertext = EncryptedTopicKey::<E>::from_bytes(ciphertext.as_bytes())
+            .expect("should be able to decode `EncryptedTopicKey`");
         let got = recv_sk
             .open_topic_key(VERSION, TOPIC, &send_pk, &enc, &ciphertext)
             .expect("unable to decrypt `TopicKey`");

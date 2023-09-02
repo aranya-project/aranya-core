@@ -18,14 +18,14 @@ use {
             ArraySize, ByteArray,
         },
         id::{custom_id, Id},
-        import::{ExportError, Import, ImportError},
+        import::{ExportError, Import, ImportError, InvalidSizeError},
         kdf::{Kdf, KdfError},
         kem::{DecapKey, Kem},
         keys::{PublicKey, SecretKey},
         mac::Mac,
         misc::{key_misc, DecapKeyData, SigningKeyData},
         signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
-        userkeys::Signature,
+        userkeys::{Encap, Signature},
         zeroize::{Zeroize, ZeroizeOnDrop},
     },
     core::{
@@ -351,9 +351,20 @@ where
     <E::Aead as Aead>::TagSize: Add<U64>,
     Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
 {
+    const SIZE: usize = 64 + E::Aead::TAG_SIZE;
+
     /// Reutrns itself as bytes.
     pub fn as_bytes(&self) -> &[u8] {
         self.0.as_ref()
+    }
+
+    /// Returns itself from its byte encoding.
+    pub fn from_bytes(data: &[u8]) -> Result<Self, InvalidSizeError> {
+        let v = data.try_into().map_err(|_| InvalidSizeError {
+            got: data.len(),
+            want: Self::SIZE..Self::SIZE,
+        })?;
+        Ok(Self(v))
     }
 }
 
@@ -546,7 +557,7 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
         version: Version,
         topic: Topic,
         pk: &SenderPublicKey<E>,
-        enc: &<E::Kem as Kem>::Encap,
+        enc: &Encap<E>,
         ciphertext: &EncryptedTopicKey<E>,
     ) -> Result<TopicKey<E>, Error>
     where
@@ -575,7 +586,7 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
         //     ad=ad,
         // )
         let mut ctx =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Auth(&pk.0), enc, &self.0, &ad)?;
+            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Auth(&pk.0), &enc.0, &self.0, &ad)?;
         let mut seed = [0u8; 64];
         ctx.open(&mut seed, ciphertext.as_bytes(), &ad)?;
         TopicKey::from_seed(seed, version, topic)
@@ -677,7 +688,7 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
         topic: Topic,
         sk: &SenderSecretKey<E>,
         key: &TopicKey<E>,
-    ) -> Result<(<E::Kem as Kem>::Encap, EncryptedTopicKey<E>), Error>
+    ) -> Result<(Encap<E>, EncryptedTopicKey<E>), Error>
     where
         <E::Aead as Aead>::TagSize: Add<U64>,
         Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
@@ -706,6 +717,6 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
             Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, Mode::Auth(&sk.0), &self.0, &ad)?;
         let mut dst = ByteArray::default();
         ctx.seal(&mut dst, &key.seed, &ad)?;
-        Ok((enc, EncryptedTopicKey(dst)))
+        Ok((Encap(enc), EncryptedTopicKey(dst)))
     }
 }
