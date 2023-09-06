@@ -14,7 +14,7 @@ use {
     crate::{
         aead::{
             check_open_in_place_params, check_seal_in_place_params, Aead, AeadError, AeadId,
-            AeadKey, Nonce,
+            AeadKey, Lifetime, Nonce,
         },
         asn1::{max_sig_len, raw_sig_len, RawSig, Sig},
         csprng::Csprng,
@@ -99,6 +99,9 @@ impl Drop for Aes256Gcm {
 
 impl Aead for Aes256Gcm {
     const ID: AeadId = AeadId::Aes256Gcm;
+
+    // Assumes a random nonce.
+    const LIFETIME: Lifetime = Lifetime::Messages(u32::MAX as u64);
 
     type KeySize = U32;
     type NonceSize = U12;

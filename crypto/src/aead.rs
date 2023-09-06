@@ -25,6 +25,7 @@ use {
     cfg_if::cfg_if,
     core::{
         borrow::{Borrow, BorrowMut},
+        cmp::{Eq, PartialEq},
         fmt::{self, Debug},
         mem,
         result::Result,
@@ -146,6 +147,63 @@ impl From<BufferTooSmallError> for AeadError {
     }
 }
 
+/// The lifetime of a cryptographic key.
+///
+/// It can be decremented to track usage. For example:
+///
+/// ```rust
+/// # use crypto::aead::Lifetime;
+/// let mut remain = Lifetime::Messages(3);
+/// assert_eq!(remain, 3);
+///
+/// remain = remain.consume(1).expect("should be 2");
+/// assert_eq!(remain, 2);
+///
+/// remain = remain.consume(1).expect("should be 1");
+/// assert_eq!(remain, 1);
+///
+/// remain = remain.consume(1).expect("should be 0");
+/// assert_eq!(remain, 0);
+///
+/// assert!(remain.consume(1).is_none());
+/// ```
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Lifetime {
+    /// The maximum number of messages that can be sealed.
+    ///
+    /// In other words, the maximum number of calls to
+    /// [`Aead::seal`], etc.
+    Messages(u64),
+    /// The maximum number of bytes that can be encrypted.
+    Bytes(u64),
+}
+
+impl Lifetime {
+    const fn as_u64(self) -> u64 {
+        match self {
+            Self::Messages(x) => x,
+            Self::Bytes(x) => x,
+        }
+    }
+
+    /// Decrements the lifetime by the length of the plaintext,
+    /// `bytes`.
+    #[inline]
+    #[must_use]
+    pub fn consume(self, bytes: u64) -> Option<Self> {
+        match self {
+            Self::Messages(x) => x.checked_sub(1).map(Self::Messages),
+            Self::Bytes(x) => x.checked_sub(bytes).map(Self::Bytes),
+        }
+    }
+}
+
+impl PartialEq<u64> for Lifetime {
+    fn eq(&self, other: &u64) -> bool {
+        self.as_u64() == *other
+    }
+}
+
 /// A symmetric cipher implementing a particular Authenticated
 /// Encryption with Associated Data (AEAD) algorithm per
 /// [RFC 5116].
@@ -188,6 +246,9 @@ impl From<BufferTooSmallError> for AeadError {
 pub trait Aead {
     /// Uniquely identifies the AEAD algorithm.
     const ID: AeadId;
+
+    /// The lifetime of a cryptographic key.
+    const LIFETIME: Lifetime;
 
     /// The size in octets of a key used by this [`Aead`].
     ///
@@ -263,6 +324,9 @@ pub trait Aead {
     ///   bytes long.
     /// * `additional_data` must be at most
     ///   [`Self::MAX_ADDITIONAL_DATA_SIZE`] bytes long.
+    ///
+    /// It must not be used more than permitted by its
+    /// [`liftime`][`Aead::LIFETIME`].
     fn seal(
         &self,
         dst: &mut [u8],
@@ -294,6 +358,9 @@ pub trait Aead {
     /// * `tag` must be exactly [`Self::TAG_SIZE`] bytes long.
     /// * `additional_data` must be at most
     ///   [`Self::MAX_ADDITIONAL_DATA_SIZE`] bytes long.
+    ///
+    /// It must not be used more than permitted by its
+    /// [`liftime`][`Aead::LIFETIME`].
     fn seal_in_place(
         &self,
         nonce: &[u8],

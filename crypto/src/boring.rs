@@ -16,7 +16,8 @@ use {
     crate::{
         aead::{
             check_open_in_place_params, check_open_params, check_seal_in_place_params,
-            check_seal_params, Aead, AeadError, AeadId, AeadKey, BufferTooSmallError, Nonce,
+            check_seal_params, Aead, AeadError, AeadId, AeadKey, BufferTooSmallError, Lifetime,
+            Nonce,
         },
         asn1::{max_sig_len, EncodingError, Sig},
         csprng::Csprng,
@@ -354,6 +355,7 @@ macro_rules! aead_impl {
         $type:ident,
         $doc:expr,
         $aead:expr,
+        $lifetime:expr,
         $max_pt_size:expr,
         $max_ad_size:expr,
         $id:expr $(,)?
@@ -372,6 +374,8 @@ macro_rules! aead_impl {
 
         impl Aead for $type {
             const ID: AeadId = $id;
+
+            const LIFETIME: Lifetime = $lifetime;
 
             type KeySize = U32;
             type NonceSize = U12;
@@ -578,8 +582,9 @@ aead_impl!(
     Aes256Gcm,
     "AES-256-GCM",
     EVP_aead_aes_256_gcm,
-    (1 << 36) - 32, // 2^36 - 32
-    (1 << 61) - 1,  // 2^61 - 1
+    Lifetime::Messages(u32::MAX as u64), // random nonce
+    (1 << 36) - 32,                      // 2^36 - 32
+    (1 << 61) - 1,                       // 2^61 - 1
     AeadId::Aes256Gcm,
 );
 
@@ -1889,6 +1894,11 @@ mod fun_crypto {
         Aes256GcmSiv,
         "AES-256-GCM-SIV",
         bssl_sys::EVP_aead_aes_256_gcm_siv,
+        // Assumes a random nonce.
+        //
+        // We can technically go higher than this, but it's not
+        // worth it.
+        Lifetime::Messages(u32::MAX as u64),
         (1 << 36) - 32, // 2^36 - 32
         (1 << 61) - 1,  // 2^61 - 1
         // SAFETY: obviously non-zero
@@ -1899,6 +1909,7 @@ mod fun_crypto {
         ChaCha20Poly1305,
         "ChaCha20-Poly1305",
         EVP_aead_chacha20_poly1305,
+        Lifetime::Messages(u64::MAX),
         // 64*(2^32)-64 = 2^38-64
         (1 << 38) - 64,
         // 2^64-1 from RFC 7539.

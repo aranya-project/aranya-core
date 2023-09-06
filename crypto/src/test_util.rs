@@ -13,7 +13,7 @@ extern crate alloc;
 
 use {
     crate::{
-        aead::{Aead, AeadError, AeadId},
+        aead::{Aead, AeadError, AeadId, Lifetime},
         apq::{
             EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
             TopicKey, Version,
@@ -1755,6 +1755,8 @@ pub struct AeadWithDefaults<T: Aead>(T);
 
 impl<T: Aead> Aead for AeadWithDefaults<T> {
     const ID: AeadId = T::ID;
+
+    const LIFETIME: Lifetime = T::LIFETIME;
 
     type KeySize = T::KeySize;
     const KEY_SIZE: usize = T::KEY_SIZE;
