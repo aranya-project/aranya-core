@@ -77,8 +77,8 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 ||||
 |-|-|-|
 |`fact.new`     | `( s -- f )`         | create a fact object of the given name
-|`fact.kset`    | `( f v s -- f )`     | set a key member
-|`fact.vset`    | `( f v s -- f )`     | set a value member
+|`fact.kset`    | `( f v s -- f )`     | set a key member (overwrites any existing entry)
+|`fact.vset`    | `( f v s -- f )`     | set a value member (overwrites any existing entry)
 
 ## structs
 ||||

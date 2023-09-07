@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{hash_map, BTreeMap, HashMap};
 use std::fs::OpenOptions;
 use std::io::{stdin, Read};
 
@@ -49,7 +49,7 @@ struct Args {
     args: Vec<String>,
 }
 
-fn debug_loop<M>(rs: &mut RunState<M>) -> anyhow::Result<()>
+fn debug_loop<M>(rs: &mut RunState<'_, M>) -> anyhow::Result<()>
 where
     M: MachineIO,
 {
@@ -58,7 +58,7 @@ where
     while status == MachineStatus::Executing {
         println!("{}", rs);
         stdin().read_line(&mut buf)?;
-        status = rs.step()?;
+        status = rs.step().map_err(anyhow::Error::msg)?;
     }
     println!("Execution stopped: {}", status);
     Ok(())
@@ -77,13 +77,20 @@ fn convert_arg_value(a: String) -> Value {
     }
 }
 
-type MachExpFactKey = (String, Vec<(String, HashableValue)>);
-type MachExpFactValue = Vec<(String, Value)>;
+/// Returns true if the k/v pairs in a exist in b, otherwise false.
+fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
+    for entry in a {
+        if !b.iter().any(|e| e == entry) {
+            return false;
+        }
+    }
+    true
+}
 
 struct MachExpIO {
-    facts: HashMap<MachExpFactKey, MachExpFactValue>,
-    emits: Vec<(String, Vec<(String, Value)>)>,
-    effects: Vec<(String, Vec<(String, Value)>)>,
+    facts: HashMap<(String, FactKeyList), FactValueList>,
+    emits: Vec<(String, Vec<KVPair>)>,
+    effects: Vec<(String, Vec<KVPair>)>,
 }
 
 impl MachExpIO {
@@ -96,44 +103,77 @@ impl MachExpIO {
     }
 }
 
+struct MachExpQueryIterator {
+    name: String,
+    key: FactKeyList,
+    iter: hash_map::IntoIter<(String, FactKeyList), FactValueList>,
+}
+
+impl Iterator for MachExpQueryIterator {
+    type Item = (FactKeyList, FactValueList);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter
+            .next()
+            .filter(|((n, k), _)| *n == self.name && subset_key_match(k, &self.key))
+            .map(|((_, k), v)| (k, v))
+    }
+}
+
 impl MachineIO for MachExpIO {
+    type QueryIterator = MachExpQueryIterator;
+
     fn fact_insert(
         &mut self,
         name: String,
-        key: impl IntoIterator<Item = (String, HashableValue)>,
-        value: impl IntoIterator<Item = (String, Value)>,
-    ) -> Result<(), MachineError> {
+        key: impl IntoIterator<Item = FactKey>,
+        value: impl IntoIterator<Item = FactValue>,
+    ) -> Result<(), MachineIOError> {
         let key = key.into_iter().collect();
         let value = value.into_iter().collect();
-        self.facts.insert((name, key), value);
-        Ok(())
+        match self.facts.entry((name, key)) {
+            hash_map::Entry::Vacant(entry) => {
+                entry.insert(value);
+                Ok(())
+            }
+            hash_map::Entry::Occupied(_) => Err(MachineIOError::FactExists),
+        }
     }
 
     fn fact_delete(
         &mut self,
         name: String,
-        key: impl IntoIterator<Item = (String, HashableValue)>,
-    ) -> Result<(), MachineError> {
+        key: impl IntoIterator<Item = FactKey>,
+    ) -> Result<(), MachineIOError> {
         let key = key.into_iter().collect();
-        let k = (name, key);
-        self.facts.remove(&k);
-        Ok(())
+        match self.facts.entry((name, key)) {
+            hash_map::Entry::Vacant(_) => Err(MachineIOError::FactNotFound),
+            hash_map::Entry::Occupied(entry) => {
+                entry.remove();
+                Ok(())
+            }
+        }
     }
 
-    fn fact_query<'a>(
+    fn fact_query(
         &self,
-        _name: String,
-        _key: impl IntoIterator<Item = (String, HashableValue)>,
-    ) -> Result<FactIterator<'a>, MachineError> {
-        todo!()
+        name: String,
+        key: impl IntoIterator<Item = FactKey>,
+    ) -> Result<Self::QueryIterator, MachineIOError> {
+        let key: Vec<_> = key.into_iter().collect();
+        Ok(MachExpQueryIterator {
+            name,
+            key,
+            iter: self.facts.clone().into_iter(),
+        })
     }
 
-    fn emit(&mut self, name: String, fields: impl IntoIterator<Item = (String, Value)>) {
+    fn emit(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
         let fields = fields.into_iter().collect();
         self.emits.push((name, fields))
     }
 
-    fn effect(&mut self, name: String, fields: impl IntoIterator<Item = (String, Value)>) {
+    fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
         let fields = fields.into_iter().collect();
         self.effects.push((name, fields))
     }
@@ -178,7 +218,8 @@ fn main() -> anyhow::Result<()> {
         Mode::Exec | Mode::Debug => {
             if let Some(action) = &args.action {
                 let call_args: Vec<Value> = args.args.into_iter().map(convert_arg_value).collect();
-                rs.setup_action(action, &call_args)?;
+                rs.setup_action(action, &call_args)
+                    .map_err(anyhow::Error::msg)?;
             } else if let Some(command) = args.command {
                 let fields: BTreeMap<String, Value> = args
                     .args
@@ -192,13 +233,14 @@ fn main() -> anyhow::Result<()> {
                     name: command.clone(),
                     fields,
                 };
-                rs.setup_command_policy(&command, &self_data)?;
+                rs.setup_command_policy(&command, &self_data)
+                    .map_err(anyhow::Error::msg)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }
 
             if mode == Mode::Exec {
-                rs.run()?;
+                rs.run().map_err(anyhow::Error::msg)?;
             } else {
                 match debug_loop(&mut rs) {
                     Ok(()) => (),
@@ -206,30 +248,30 @@ fn main() -> anyhow::Result<()> {
                 }
             }
             println!("Facts:");
-            for (k, v) in &io.facts {
-                print!("  {}[", k.0);
-                for (k, v) in &k.1 {
-                    print!("{}: {}", k, v);
+            for ((name, k), v) in &io.facts {
+                print!("  {}[", name);
+                for e in k {
+                    print!("{}", e);
                 }
                 print!("]=>{{");
-                for (k, v) in v {
-                    print!("{}: {}", k, v);
+                for e in v {
+                    print!("{}", e);
                 }
                 println!("}}");
             }
             println!("Effects:");
-            for e in &io.effects {
-                println!("  {} {{", e.0);
-                for (k, v) in &e.1 {
-                    println!("    {}: {}", k, v);
+            for (name, fields) in &io.effects {
+                println!("  {} {{", name);
+                for f in fields {
+                    println!("    {}", f);
                 }
                 println!("  }}");
             }
             println!("Emitted Commands:");
-            for e in &io.emits {
-                println!("  {} {{", e.0);
-                for (k, v) in &e.1 {
-                    println!("    {}: {}", k, v);
+            for (name, fields) in &io.emits {
+                println!("  {} {{", name);
+                for f in fields {
+                    println!("    {}", f);
                 }
                 println!("  }}");
             }

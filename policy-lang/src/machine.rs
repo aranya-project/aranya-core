@@ -6,22 +6,31 @@ use core::fmt::Display;
 use crate::lang::ast;
 
 mod data;
-pub use data::{Fact, FactIterator, HashableValue, Struct, Value};
+pub use data::{
+    Fact, FactKey, FactKeyList, FactValue, FactValueList, HashableValue, KVPair, Struct, Value,
+};
+
+mod error;
+pub use error::{MachineError, MachineErrorType};
 
 mod instructions;
 pub use instructions::{Instruction, Target};
 
+mod io;
+pub use io::{MachineIO, MachineIOError};
+
 mod compile;
 pub use self::compile::{CompileError, CompileState};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else {
-        use std::error;
+/// Returns true if all of the k/v pairs in a exist in b, or false
+/// otherwise.
+fn fact_value_subset_match(a: &[FactValue], b: &[FactValue]) -> bool {
+    for entry in a {
+        if !b.iter().any(|e| e == entry) {
+            return false;
+        }
     }
+    true
 }
 
 /// Status of machine execution after stepping through each
@@ -47,75 +56,6 @@ impl Display for MachineStatus {
         }
     }
 }
-
-/// Possible machine errors.
-// TODO(chip): These should be elaborated with additional data, and/or
-// more fine grained types.
-#[derive(Debug)]
-pub enum MachineError {
-    /// Stack underflow - an operation tried to consume a value from an
-    /// empty stack.
-    StackUnderflow,
-    /// Stack overflow - an operation tried to push a value onto a full
-    /// stack. N.B. that there are currently no size limits on the
-    /// stack, so this cannot be reached.
-    StackOverflow,
-    /// Name already defined - an attempt was made to define a name
-    /// that was already defined.
-    AlreadyDefined,
-    /// Name not defined - an attempt was made to access a name that
-    /// has not been defined.
-    NotDefined,
-    /// Invalid type - An operation was given a value of the wrong
-    /// type. E.g. addition with strings.
-    InvalidType,
-    /// Invalid struct - An attempt to access a member not present in a
-    /// struct, or an attempt to emit a Command struct that does not
-    /// match its definition.
-    InvalidStruct,
-    /// Invalid fact - An attempt was made to access a fact in a way
-    /// that does not match the Fact schema.
-    InvalidFact,
-    /// Unresolved target - A branching instruction attempted to jump
-    /// to a target whose address has not yet been resolved.
-    UnresolvedTarget,
-    /// Target not found - An attempt to resolve an unresolved branch
-    /// target did not find anything.
-    TargetNotFound,
-    /// Invalid address - An attempt to execute an instruction went
-    /// beyond instruction bounds, or an action/command lookup did not
-    /// find an address for the given name.
-    InvalidAddress,
-    /// Bad state - Some internal state is invalid and execution cannot
-    /// continue.
-    BadState,
-    /// Unknown - every other possible problem
-    Unknown,
-}
-
-impl Display for MachineError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            MachineError::StackUnderflow => write!(f, "stack underflow"),
-            MachineError::StackOverflow => write!(f, "stack overflow"),
-            MachineError::AlreadyDefined => write!(f, "name already defined"),
-            MachineError::NotDefined => write!(f, "name not defined"),
-            MachineError::InvalidType => write!(f, "invalid type for operation"),
-            MachineError::InvalidStruct => write!(f, "invalid struct"),
-            MachineError::InvalidFact => write!(f, "invalid fact"),
-            MachineError::UnresolvedTarget => write!(f, "unresolved branch/jump target"),
-            MachineError::TargetNotFound => write!(f, "target not found"),
-            MachineError::InvalidAddress => write!(f, "invalid address"),
-            MachineError::BadState => write!(f, "Bad state"),
-            MachineError::Unknown => write!(f, "unknown error"),
-        }
-    }
-}
-
-// Implementing Display and deriving Debug implements
-// error::Error with default behavior by declaring this empty
-// implementation.
-impl error::Error for MachineError {}
 
 /// Types of Labels
 #[derive(Debug, Clone, PartialEq)]
@@ -197,36 +137,6 @@ impl Display for Machine {
     }
 }
 
-pub trait MachineIO {
-    // Insert a fact
-    fn fact_insert(
-        &mut self,
-        name: String,
-        key: impl IntoIterator<Item = (String, HashableValue)>,
-        value: impl IntoIterator<Item = (String, Value)>,
-    ) -> Result<(), MachineError>;
-
-    /// Delete a fact
-    fn fact_delete(
-        &mut self,
-        name: String,
-        key: impl IntoIterator<Item = (String, HashableValue)>,
-    ) -> Result<(), MachineError>;
-
-    /// Query a fact
-    fn fact_query<'a>(
-        &self,
-        name: String,
-        key: impl IntoIterator<Item = (String, HashableValue)>,
-    ) -> Result<FactIterator<'a>, MachineError>;
-
-    /// Emit a command
-    fn emit(&mut self, name: String, fields: impl IntoIterator<Item = (String, Value)>);
-
-    /// Create an effect
-    fn effect(&mut self, name: String, fields: impl IntoIterator<Item = (String, Value)>);
-}
-
 /// The "run state" of the machine. It's separated from the rest of
 /// the VM so that it can be managed independently and potentially in
 /// multiple simultaneous instances.
@@ -251,7 +161,10 @@ where
     M: MachineIO,
 {
     /// Create a new, empty MachineState
-    pub fn new<'b>(machine: &'b Machine, io: &'b mut M) -> RunState<'b, M> {
+    pub fn new<'b>(machine: &'b Machine, io: &'b mut M) -> RunState<'a, M>
+    where
+        'b: 'a,
+    {
         RunState {
             machine,
             defs: BTreeMap::new(),
@@ -259,6 +172,10 @@ where
             pc: 0,
             io,
         }
+    }
+
+    fn err(&self, err_type: MachineErrorType) -> MachineError {
+        MachineError::new_with_position(err_type, self.pc)
     }
 
     /// Reset the machine state - undefine all named values, empty the
@@ -289,25 +206,31 @@ where
     /// Return a mutable reference to the top Value of the machine
     /// stack.
     fn peek_value(&mut self) -> Result<&mut Value, MachineError> {
-        self.stack.last_mut().ok_or(MachineError::StackUnderflow)
+        // Can't borrow self for .err() while it's being borrowed &mut
+        // by last_mut(), so this error has to be created ahead of
+        // time.
+        let err = self.err(MachineErrorType::StackUnderflow);
+        self.stack.last_mut().ok_or(err)
     }
 
     /// Return the value on the top of the machine stack.
     fn pop_value(&mut self) -> Result<Value, MachineError> {
-        self.stack.pop().ok_or(MachineError::StackUnderflow)
+        self.stack
+            .pop()
+            .ok_or_else(|| self.err(MachineErrorType::StackUnderflow))
     }
 
     /// Return the value on the top of the machine stack if it is a
     /// Value::String.
     fn pop_string(&mut self) -> Result<String, MachineError> {
-        self.pop_value()?.try_into_string()
+        self.pop_value()?.try_into_string().map_err(|t| self.err(t))
     }
 
     /// Execute one machine instruction and return the status of the
     /// machine or a MachineError.
     pub fn step(&mut self) -> Result<MachineStatus, MachineError> {
         if self.pc() >= self.machine.progmem.len() {
-            return Err(MachineError::InvalidAddress);
+            return Err(self.err(MachineErrorType::InvalidAddress));
         }
         // Clone the instruction so we don't take an immutable
         // reference to self while we manipulate the stack later.
@@ -318,23 +241,44 @@ where
                 let key = self.pop_string()?;
                 let value = self.pop_value()?;
                 if self.defs.contains_key(&key) {
-                    return Err(MachineError::AlreadyDefined);
+                    return Err(self.err(MachineErrorType::AlreadyDefined));
                 }
                 self.defs.insert(key, value);
             }
             Instruction::Get => {
                 let key = self.pop_string()?;
-                let v = self.defs.get(&key).ok_or(MachineError::NotDefined)?;
+                let v = self
+                    .defs
+                    .get(&key)
+                    .ok_or_else(|| self.err(MachineErrorType::NotDefined))?;
                 self.stack.push(v.to_owned());
             }
-            Instruction::Swap(_d) => todo!(),
-            Instruction::Dup(_d) => todo!(),
+            Instruction::Swap(d) => {
+                if d > self.stack.len() {
+                    return Err(self.err(MachineErrorType::StackUnderflow));
+                }
+                if d == 0 {
+                    return Err(self.err(MachineErrorType::BadState));
+                }
+                let i1 = self.stack.len() - 1;
+                let i2 = self.stack.len() - d - 1;
+                self.stack.swap(i1, i2);
+            }
+            Instruction::Dup(d) => {
+                if d > self.stack.len() {
+                    return Err(self.err(MachineErrorType::StackUnderflow));
+                }
+                let v = self.stack[self.stack.len() - d - 1].clone();
+                self.stack.push(v);
+            }
             Instruction::Pop => todo!(),
             Instruction::Block => todo!(),
             Instruction::End => todo!(),
             Instruction::Jump(t) => {
                 match t {
-                    Target::Unresolved(_) => return Err(MachineError::UnresolvedTarget),
+                    Target::Unresolved(_) => {
+                        return Err(self.err(MachineErrorType::UnresolvedTarget))
+                    }
                     Target::Resolved(n) => {
                         // subtract one to account for the PC increment below.
                         self.pc = n - 1;
@@ -342,10 +286,12 @@ where
                 }
             }
             Instruction::Branch(t) => {
-                let conditional = self.pop_value()?.try_to_bool()?;
+                let conditional = self.pop_value()?.try_to_bool().map_err(|t| self.err(t))?;
                 if conditional {
                     match t {
-                        Target::Unresolved(_) => return Err(MachineError::UnresolvedTarget),
+                        Target::Unresolved(_) => {
+                            return Err(self.err(MachineErrorType::UnresolvedTarget))
+                        }
                         Target::Resolved(n) => {
                             // subtract one to account for the PC increment below.
                             self.pc = n - 1;
@@ -360,8 +306,8 @@ where
             Instruction::Exit => return Ok(MachineStatus::Exited),
             Instruction::Panic => return Ok(MachineStatus::Panicked),
             Instruction::Add | Instruction::Sub => {
-                let a = self.pop_value()?.try_to_int()?;
-                let b = self.pop_value()?.try_to_int()?;
+                let a = self.pop_value()?.try_to_int().map_err(|t| self.err(t))?;
+                let b = self.pop_value()?.try_to_int().map_err(|t| self.err(t))?;
                 let r = match instruction {
                     Instruction::Add => a + b,
                     Instruction::Sub => a - b,
@@ -370,8 +316,8 @@ where
                 self.stack.push(Value::Int(r));
             }
             Instruction::And | Instruction::Or => {
-                let a = self.pop_value()?.try_to_bool()?;
-                let b = self.pop_value()?.try_to_bool()?;
+                let a = self.pop_value()?.try_to_bool().map_err(|t| self.err(t))?;
+                let b = self.pop_value()?.try_to_bool().map_err(|t| self.err(t))?;
                 let r = match instruction {
                     Instruction::And => a && b,
                     Instruction::Or => a || b,
@@ -380,7 +326,7 @@ where
                 self.stack.push(Value::Bool(r));
             }
             Instruction::Not => {
-                let a = self.pop_value()?.try_to_bool()?;
+                let a = self.pop_value()?.try_to_bool().map_err(|t| self.err(t))?;
                 self.stack.push(Value::Bool(!a));
             }
             Instruction::Gt | Instruction::Lt | Instruction::Eq => {
@@ -389,11 +335,11 @@ where
                 let v = match instruction {
                     Instruction::Gt => match (a, b) {
                         (Value::Int(a), Value::Int(b)) => a > b,
-                        _ => return Err(MachineError::InvalidType),
+                        _ => return Err(self.err(MachineErrorType::InvalidType)),
                     },
                     Instruction::Lt => match (a, b) {
                         (Value::Int(a), Value::Int(b)) => a < b,
-                        _ => return Err(MachineError::InvalidType),
+                        _ => return Err(self.err(MachineErrorType::InvalidType)),
                     },
                     // This leans heavily on PartialEq to do the work.
                     // Equality depends on values having the same type and
@@ -405,29 +351,25 @@ where
             }
             Instruction::FactNew => {
                 let name = self.pop_string()?;
-                let fact = Fact {
-                    name,
-                    keys: BTreeMap::new(),
-                    values: BTreeMap::new(),
-                };
+                let fact = Fact::new(name);
                 self.push_value(Value::Fact(fact))?;
             }
             Instruction::FactKeySet => {
                 let varname = self.pop_string()?;
-                let value = self.pop_value()?;
+                let v: HashableValue = self.pop_value()?.try_into().map_err(|t| self.err(t))?;
                 if let Value::Fact(f) = self.peek_value()? {
-                    f.keys.insert(varname, value.try_into()?);
+                    f.set_key(varname, v);
                 } else {
-                    return Err(MachineError::InvalidType);
+                    return Err(self.err(MachineErrorType::InvalidType));
                 }
             }
             Instruction::FactValueSet => {
                 let varname = self.pop_string()?;
                 let value = self.pop_value()?;
                 if let Value::Fact(f) = self.peek_value()? {
-                    f.values.insert(varname, value);
+                    f.set_value(varname, value);
                 } else {
-                    return Err(MachineError::InvalidType);
+                    return Err(self.err(MachineErrorType::InvalidType));
                 }
             }
             Instruction::StructNew => {
@@ -441,36 +383,45 @@ where
                 if let Value::Struct(s) = self.peek_value()? {
                     s.fields.insert(varname, value);
                 } else {
-                    return Err(MachineError::InvalidType);
+                    return Err(self.err(MachineErrorType::InvalidType));
                 }
             }
             Instruction::StructGet => {
                 let varname = self.pop_string()?;
                 let v = if let Value::Struct(s) = self.pop_value()? {
-                    let v = s.fields.get(&varname).ok_or(MachineError::InvalidStruct)?;
+                    let v = s
+                        .fields
+                        .get(&varname)
+                        .ok_or_else(|| self.err(MachineErrorType::InvalidStruct))?;
                     v.clone()
                 } else {
-                    return Err(MachineError::StackUnderflow);
+                    return Err(self.err(MachineErrorType::StackUnderflow));
                 };
                 self.push_value(v)?;
             }
             Instruction::Emit => {
-                let s = self.pop_value()?.try_into_struct()?;
+                let s = self
+                    .pop_value()?
+                    .try_into_struct()
+                    .map_err(|t| self.err(t))?;
                 let def = self
                     .machine
                     .struct_defs
                     .get(&s.name)
-                    .ok_or(MachineError::InvalidStruct)?;
+                    .ok_or(self.err(MachineErrorType::InvalidStruct))?;
                 for field_def in def {
                     if !s.fields.contains_key(&field_def.identifier) {
-                        return Err(MachineError::InvalidStruct);
+                        return Err(self.err(MachineErrorType::InvalidStruct));
                     }
                 }
 
-                self.io.emit(s.name, s.fields);
+                let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
+
+                self.io.emit(s.name, fields);
             }
             Instruction::Create => {
-                let f = self.pop_value()?.try_into_fact()?;
+                let f = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
+                println!("fact: {}", f);
                 self.io.fact_insert(f.name, f.keys, f.values)?;
             }
             Instruction::Delete => {
@@ -478,15 +429,46 @@ where
                 // then iterate over them to find which ones match the
                 // values.
                 // TODO(chip) describe this better as it is very confusing
-                let f = self.pop_value()?.try_into_fact()?;
+                let f = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
                 self.io.fact_delete(f.name, f.keys)?;
             }
-            Instruction::Update => todo!(),
-            Instruction::Effect => {
-                let s = self.pop_value()?.try_into_struct()?;
-                self.io.effect(s.name, s.fields);
+            Instruction::Update => {
+                let fact_to = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
+                let fact_from = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
+                let replaced_fact = {
+                    let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
+                    iter.next()
+                        .ok_or_else(|| self.err(MachineErrorType::InvalidFact))?
+                };
+                self.io.fact_delete(fact_from.name, replaced_fact.0)?;
+                self.io
+                    .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
-            Instruction::Query => todo!(),
+            Instruction::Effect => {
+                let s = self
+                    .pop_value()?
+                    .try_into_struct()
+                    .map_err(|t| self.err(t))?;
+                let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
+                self.io.effect(s.name, fields);
+            }
+            Instruction::Query => {
+                let qf = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
+                let result = {
+                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys)?;
+                    iter.find(|f| fact_value_subset_match(&qf.values, &f.1))
+                };
+                match result {
+                    Some(f) => {
+                        let mut fields: Vec<KVPair> = vec![];
+                        fields.append(&mut f.0.into_iter().map(|e| e.into()).collect());
+                        fields.append(&mut f.1.into_iter().map(|e| e.into()).collect());
+                        let f = Struct::new(&qf.name, &fields);
+                        self.push_value(Value::Struct(f))?;
+                    }
+                    None => self.push_value(Value::None)?,
+                }
+            }
             Instruction::Exists => todo!(),
             Instruction::Id => todo!(),
             Instruction::AuthorId => todo!(),
@@ -497,10 +479,16 @@ where
     }
 
     /// Execute machine instructions while each instruction returns
-    /// MachineStatus::Executing.
-    pub fn run(&mut self) -> Result<(), MachineError> {
-        while self.step()? == MachineStatus::Executing {}
-        Ok(())
+    /// MachineStatus::Executing. Returns the MachineStatus it exited
+    /// with, or an error.
+    pub fn run(&mut self) -> Result<MachineStatus, MachineError> {
+        loop {
+            let status = self.step()?;
+            if status == MachineStatus::Executing {
+                continue;
+            }
+            return Ok(status);
+        }
     }
 
     /// Set the program counter to the given label.
@@ -509,12 +497,12 @@ where
             .machine
             .labels
             .get(name)
-            .ok_or(MachineError::InvalidAddress)?;
+            .ok_or_else(|| self.err(MachineErrorType::InvalidAddress))?;
         if name.ltype == ltype {
             self.pc = name.addr;
             Ok(())
         } else {
-            Err(MachineError::InvalidAddress)
+            Err(self.err(MachineErrorType::InvalidAddress))
         }
     }
 
@@ -538,10 +526,9 @@ where
         &mut self,
         name: &str,
         self_data: &Struct,
-    ) -> Result<(), MachineError> {
+    ) -> Result<MachineStatus, MachineError> {
         self.setup_command_policy(name, self_data)?;
-        self.run()?;
-        Ok(())
+        self.run()
     }
 
     /// Set up machine state for an action call.
@@ -564,13 +551,12 @@ where
     // TODO(chip): I don't really like how V: Into<Value> works here
     // because it still means all of the args have to have the same
     // type.
-    pub fn call_action<V>(&mut self, name: &str, args: &[V]) -> Result<(), MachineError>
+    pub fn call_action<V>(&mut self, name: &str, args: &[V]) -> Result<MachineStatus, MachineError>
     where
         V: Into<Value> + Clone,
     {
         self.setup_action(name, args)?;
-        self.run()?;
-        Ok(())
+        self.run()
     }
 }
 

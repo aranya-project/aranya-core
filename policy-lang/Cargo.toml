@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 error_in_core = []
+std = []
 
 [dependencies]
 cfg-if = { version = "1" }
@@ -17,7 +18,8 @@ anyhow = "1.0"
 # By default, `serde` has the `std` feature enabled, which makes it unsuitable for embedded targets
 # disabling default-features fixes this
 serde = { version = "1.0.*", default-features = false, features = ["derive"] }
-clap = { version = "4.0.25", features = ["derive"] }
+# Clap 4.4 requires unstable features under no_std, so we limit to 4.3
+clap = { version = "~4.3", features = ["derive"] }
 
 [package.metadata.cargo-all-features]
 denylist = [

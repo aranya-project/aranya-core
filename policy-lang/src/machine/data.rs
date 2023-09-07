@@ -1,90 +1,12 @@
 extern crate alloc;
 
 use alloc::collections::BTreeMap;
-use core::fmt::Display;
+use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
 use crate::lang::ast::VType;
-use crate::machine::MachineError;
-
-/// A Fact value
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Fact {
-    /// The name of the fact
-    pub name: String,
-    /// The keys of the fact
-    pub keys: BTreeMap<String, HashableValue>,
-    /// The values of the fact
-    pub values: BTreeMap<String, Value>,
-}
-
-impl Display for Fact {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}[", self.name)?;
-        let mut i = false;
-        for (k, v) in &self.keys {
-            if i {
-                write!(f, ", ")?;
-            }
-            i = true;
-            write!(f, "{}: {}", k, v)?;
-        }
-        write!(f, "]=>{{")?;
-        i = false;
-        for (k, v) in &self.values {
-            if i {
-                write!(f, ", ")?;
-            }
-            i = true;
-            write!(f, "{}: {}", k, v)?;
-        }
-        write!(f, " }}")
-    }
-}
-
-pub struct FactIterator<'a> {
-    key: &'a [u8],
-    q: &'a dyn Fn(&[u8]) -> Option<&'a [u8]>,
-}
-
-impl<'a> Iterator for FactIterator<'a> {
-    type Item = &'a [u8];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        (self.q)(self.key)
-    }
-}
-
-/// A Struct value
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Struct {
-    /// The name of the struct
-    pub name: String,
-    /// the fields of the struct
-    pub fields: BTreeMap<String, Value>,
-}
-
-impl From<Struct> for (String, Vec<(String, Value)>) {
-    fn from(value: Struct) -> Self {
-        (value.name, value.fields.into_iter().collect())
-    }
-}
-
-impl Display for Struct {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}{{", self.name)?;
-        let mut i = false;
-        for (k, v) in &self.fields {
-            if i {
-                write!(f, ", ")?;
-            }
-            i = true;
-            write!(f, "{}: {}", k, v)?;
-        }
-        write!(f, "}}")
-    }
-}
+use crate::machine::MachineErrorType;
 
 /// All of the value types allowed in the VM
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -105,51 +27,51 @@ pub enum Value {
 
 impl Value {
     /// Coerce this value into an i64 or error
-    pub fn try_to_int(&self) -> Result<i64, MachineError> {
+    pub fn try_to_int(&self) -> Result<i64, MachineErrorType> {
         if let Value::Int(i) = self {
             return Ok(*i);
         }
-        Err(MachineError::InvalidType)
+        Err(MachineErrorType::InvalidType)
     }
 
     /// Coerce this value into a bool or error
-    pub fn try_to_bool(&self) -> Result<bool, MachineError> {
+    pub fn try_to_bool(&self) -> Result<bool, MachineErrorType> {
         if let Value::Bool(b) = self {
             return Ok(*b);
         }
-        Err(MachineError::InvalidType)
+        Err(MachineErrorType::InvalidType)
     }
 
     /// Coerce this value into an &str or error
-    pub fn try_as_str(&self) -> Result<&str, MachineError> {
+    pub fn try_as_str(&self) -> Result<&str, MachineErrorType> {
         if let Value::String(s) = self {
             return Ok(s);
         }
-        Err(MachineError::InvalidType)
+        Err(MachineErrorType::InvalidType)
     }
 
     /// Convert this value into a String or error
-    pub fn try_into_string(self) -> Result<String, MachineError> {
+    pub fn try_into_string(self) -> Result<String, MachineErrorType> {
         if let Value::String(s) = self {
             return Ok(s);
         }
-        Err(MachineError::InvalidType)
+        Err(MachineErrorType::InvalidType)
     }
 
     /// Convert this value into a Struct or error
-    pub fn try_into_struct(self) -> Result<Struct, MachineError> {
+    pub fn try_into_struct(self) -> Result<Struct, MachineErrorType> {
         if let Value::Struct(s) = self {
             return Ok(s);
         }
-        Err(MachineError::InvalidType)
+        Err(MachineErrorType::InvalidType)
     }
 
     /// Convert this value into a Fact or error
-    pub fn try_into_fact(self) -> Result<Fact, MachineError> {
+    pub fn try_into_fact(self) -> Result<Fact, MachineErrorType> {
         if let Value::Fact(f) = self {
             return Ok(f);
         }
-        Err(MachineError::InvalidType)
+        Err(MachineErrorType::InvalidType)
     }
 
     /// Get the ast:::Vtype if possible
@@ -165,7 +87,7 @@ impl Value {
     }
 }
 
-impl Display for Value {
+impl fmt::Display for Value {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Value::Int(i) => write!(f, "{}", i),
@@ -198,7 +120,7 @@ impl From<&str> for Value {
 
 /// The subset of Values that can be hashed. Only these types of values
 /// can be used in the key portion of a Fact.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum HashableValue {
     Int(i64),
     Bool(bool),
@@ -218,14 +140,14 @@ impl HashableValue {
 }
 
 impl TryFrom<Value> for HashableValue {
-    type Error = MachineError;
+    type Error = MachineErrorType;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         match value {
             Value::Int(v) => Ok(HashableValue::Int(v)),
             Value::Bool(v) => Ok(HashableValue::Bool(v)),
             Value::String(v) => Ok(HashableValue::String(v)),
-            _ => Err(MachineError::InvalidType),
+            _ => Err(MachineErrorType::InvalidType),
         }
     }
 }
@@ -240,9 +162,195 @@ impl From<HashableValue> for Value {
     }
 }
 
-impl Display for HashableValue {
+impl fmt::Display for HashableValue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let real_value: Value = self.to_owned().into();
         write!(f, "{}", real_value)
+    }
+}
+
+/// One labeled value in a fact key. A sequence of FactKeys mapped to
+/// a sequence of FactValues comprises a Fact.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct FactKey(String, HashableValue);
+
+impl FactKey {
+    pub fn new(key: &str, value: HashableValue) -> FactKey {
+        FactKey(key.to_owned(), value)
+    }
+}
+
+impl fmt::Display for FactKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.0, self.1)
+    }
+}
+
+/// One labeled value in a fact value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FactValue(String, Value);
+
+impl FactValue {
+    pub fn new(key: &str, value: Value) -> FactValue {
+        FactValue(key.to_owned(), value)
+    }
+}
+
+impl fmt::Display for FactValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.0, self.1)
+    }
+}
+
+pub type FactKeyList = Vec<FactKey>;
+pub type FactValueList = Vec<FactValue>;
+
+/// A generic key/value pair. Used for Effects and Command fields.
+/// Technically identical to a FactValue but separate to distinguish
+/// usage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KVPair(String, Value);
+
+impl KVPair {
+    pub fn new(key: &str, value: Value) -> KVPair {
+        KVPair(key.to_owned(), value)
+    }
+
+    pub fn new_int(key: &str, value: i64) -> KVPair {
+        KVPair(key.to_owned(), Value::Int(value))
+    }
+}
+
+impl fmt::Display for KVPair {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.0, self.1)
+    }
+}
+
+impl From<&KVPair> for (String, Value) {
+    fn from(value: &KVPair) -> Self {
+        (value.0.clone(), value.1.clone())
+    }
+}
+
+impl From<FactKey> for KVPair {
+    fn from(value: FactKey) -> Self {
+        KVPair(value.0, value.1.into())
+    }
+}
+
+impl From<FactValue> for KVPair {
+    fn from(value: FactValue) -> Self {
+        KVPair(value.0, value.1)
+    }
+}
+
+/// A Fact
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Fact {
+    /// The name of the fact
+    pub name: String,
+    /// The keys of the fact
+    pub keys: FactKeyList,
+    /// The values of the fact
+    pub values: FactValueList,
+}
+
+impl Fact {
+    pub fn new(name: String) -> Fact {
+        Fact {
+            name,
+            keys: vec![],
+            values: vec![],
+        }
+    }
+    pub fn set_key<V>(&mut self, name: String, value: V)
+    where
+        V: Into<HashableValue>,
+    {
+        match self.keys.iter_mut().find(|e| e.0 == name) {
+            None => self.keys.push(FactKey(name, value.into())),
+            Some(e) => e.1 = value.into(),
+        }
+    }
+
+    pub fn set_value<V>(&mut self, name: String, value: V)
+    where
+        V: Into<Value>,
+    {
+        match self.values.iter_mut().find(|e| e.0 == name) {
+            None => self.values.push(FactValue(name, value.into())),
+            Some(e) => e.1 = value.into(),
+        }
+    }
+}
+
+impl fmt::Display for Fact {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}[", self.name)?;
+        let mut i = false;
+        for FactKey(k, v) in &self.keys {
+            if i {
+                write!(f, ", ")?;
+            }
+            i = true;
+            write!(f, "{}: {}", k, v)?;
+        }
+        write!(f, "]=>{{")?;
+        i = false;
+        for FactValue(k, v) in &self.values {
+            if i {
+                write!(f, ", ")?;
+            }
+            i = true;
+            write!(f, "{}: {}", k, v)?;
+        }
+        write!(f, " }}")
+    }
+}
+
+/// A Struct value
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Struct {
+    /// The name of the struct
+    pub name: String,
+    /// the fields of the struct
+    pub fields: BTreeMap<String, Value>,
+}
+
+impl Struct {
+    pub fn new(name: &str, fields: &[KVPair]) -> Struct {
+        Struct {
+            name: name.to_owned(),
+            fields: fields.iter().map(|p| p.into()).collect(),
+        }
+    }
+}
+
+impl From<Struct> for (String, Vec<KVPair>) {
+    fn from(value: Struct) -> Self {
+        (
+            value.name,
+            value
+                .fields
+                .into_iter()
+                .map(|(k, v)| KVPair(k, v))
+                .collect(),
+        )
+    }
+}
+
+impl fmt::Display for Struct {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}{{", self.name)?;
+        let mut i = false;
+        for (k, v) in &self.fields {
+            if i {
+                write!(f, ", ")?;
+            }
+            i = true;
+            write!(f, "{}: {}", k, v)?;
+        }
+        write!(f, "}}")
     }
 }

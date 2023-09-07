@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::collections::BTreeMap;
 
 use crate::lang::ast;
-use crate::machine::{Instruction, Label, LabelType, Machine, MachineError, Target, Value};
+use crate::machine::{Instruction, Label, LabelType, Machine, Target, Value};
 
 use cfg_if::cfg_if;
 
@@ -95,10 +95,10 @@ impl CompileState {
     fn resolve_target(
         target: &mut Target,
         labels: &mut BTreeMap<String, Label>,
-    ) -> Result<(), MachineError> {
+    ) -> Result<(), CompileError> {
         match target.clone() {
             Target::Unresolved(s) => {
-                let name = labels.get(&s).ok_or(MachineError::TargetNotFound)?;
+                let name = labels.get(&s).ok_or(CompileError::BadTarget)?;
 
                 *target = Target::Resolved(name.addr);
                 if name.ltype == LabelType::Temporary {
@@ -111,7 +111,7 @@ impl CompileState {
     }
 
     /// Attempt to resolve any unresolved targets.
-    pub fn resolve_targets(&mut self) -> Result<(), MachineError> {
+    pub fn resolve_targets(&mut self) -> Result<(), CompileError> {
         for ref mut instr in &mut self.m.progmem {
             match instr {
                 Instruction::Branch(t) | Instruction::Jump(t) | Instruction::Call(t) => {
@@ -153,7 +153,7 @@ impl CompileState {
                 }
                 self.compile_expression(&field.1)?;
                 self.append_instruction(Instruction::Const(Value::String(field.0.clone())));
-                self.append_instruction(Instruction::FactKeySet);
+                self.append_instruction(Instruction::FactValueSet);
             }
         }
         Ok(())
@@ -285,7 +285,25 @@ impl CompileState {
             }
             ast::Expression::Negative(_) => todo!(),
             ast::Expression::Not(_) => todo!(),
-            ast::Expression::Unwrap(_) => todo!(),
+            ast::Expression::Unwrap(e) => {
+                // create an anonymous name for the successful case
+                let not_none = self.anonymous_name();
+                // evaluate the expression
+                self.compile_expression(e)?;
+                // Duplicate value for testing
+                self.append_instruction(Instruction::Dup(0));
+                // Push a None to compare against
+                self.append_instruction(Instruction::Const(Value::None));
+                // Is the value not equal to None?
+                self.append_instruction(Instruction::Eq);
+                self.append_instruction(Instruction::Not);
+                // Then branch over the Panic
+                self.append_instruction(Instruction::Branch(Target::Unresolved(not_none.clone())));
+                // If the value is equal to None, panic
+                self.append_instruction(Instruction::Panic);
+                // Define the target of the branch as the instruction after the Panic
+                self.define_label(&not_none, self.wp, LabelType::Temporary);
+            }
             ast::Expression::Is(_, _) => todo!(),
         }
 
@@ -344,8 +362,7 @@ impl CompileState {
                 }
                 ast::FinishStatement::Update(s) => {
                     self.compile_fact_literal(&s.fact)?;
-                    let mut to_fact = s.fact.clone();
-                    to_fact.value_fields = Some(vec![]);
+                    self.append_instruction(Instruction::Dup(0));
                     for (k, v) in &s.to {
                         if *v == ast::Expression::Bind {
                             // Cannot bind in the set statement
@@ -353,8 +370,9 @@ impl CompileState {
                         }
                         self.compile_expression(v)?;
                         self.append_instruction(Instruction::Const(Value::String(k.clone())));
-                        self.append_instruction(Instruction::FactKeySet);
+                        self.append_instruction(Instruction::FactValueSet);
                     }
+                    self.append_instruction(Instruction::Update);
                 }
                 ast::FinishStatement::Delete(s) => {
                     self.compile_fact_literal(&s.fact)?;
@@ -415,10 +433,7 @@ impl CompileState {
             self.define_struct(&effect.identifier, &fields);
         }
 
-        self.resolve_targets().map_err(|e| match e {
-            MachineError::TargetNotFound => CompileError::BadTarget,
-            e => CompileError::Unknown(e.to_string()),
-        })?;
+        self.resolve_targets()?;
 
         Ok(())
     }
