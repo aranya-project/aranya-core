@@ -18,6 +18,9 @@ use {
             EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
             TopicKey, Version,
         },
+        aranya::{
+            Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
+        },
         ciphersuite::CipherSuite,
         csprng::Csprng,
         default::Rng,
@@ -37,9 +40,6 @@ use {
         keys::{PublicKey, SecretKey},
         mac::{Mac, MacId, MacKey, Tag},
         signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
-        userkeys::{
-            Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
-        },
         zeroize::ZeroizeOnDrop,
     },
     alloc::{string::ToString, vec, vec::Vec},

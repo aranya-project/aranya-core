@@ -7,6 +7,7 @@
 use {
     crate::{
         aead::{Aead, AeadError, BufferTooSmallError, KeyData},
+        aranya::{Encap, Signature},
         ciphersuite::SuiteIds,
         csprng::Csprng,
         engine::Engine,
@@ -25,7 +26,6 @@ use {
         mac::Mac,
         misc::{key_misc, DecapKeyData, SigningKeyData},
         signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
-        userkeys::{Encap, Signature},
         zeroize::{Zeroize, ZeroizeOnDrop},
     },
     core::{

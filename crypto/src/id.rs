@@ -2,12 +2,12 @@
 
 use {
     crate::{
+        aranya::{EncryptionKeyId, Signature, SigningKeyId, UserId},
         ciphersuite::SuiteIds,
         engine::Engine,
         groupkey::GroupKeyId,
         hash::tuple_hash,
         mac::Tag,
-        userkeys::{EncryptionKeyId, Signature, SigningKeyId, UserId},
     },
     base58::{String64, ToBase58},
     core::{

@@ -11,6 +11,7 @@ use {
     crate::{
         aead::{Aead, AeadError, AeadId},
         apq::{ReceiverSecretKey, SenderSecretKey, SenderSigningKey},
+        aranya::{EncryptionKey, IdentityKey, SigningKey},
         ciphersuite::CipherSuite,
         groupkey::GroupKey,
         id::Id,
@@ -19,7 +20,6 @@ use {
         keys::SecretKey,
         mac::{Mac, MacId},
         signer::{Signer, SignerId},
-        userkeys::{EncryptionKey, IdentityKey, SigningKey},
     },
     cfg_if::cfg_if,
     core::{

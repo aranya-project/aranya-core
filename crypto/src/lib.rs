@@ -62,6 +62,7 @@ mod util;
 
 pub mod aead;
 pub mod apq;
+mod aranya;
 pub mod asn1;
 pub mod bearssl;
 pub mod boring;
@@ -89,11 +90,11 @@ pub mod mac;
 mod misc;
 pub mod signer;
 pub mod test_util;
-mod userkeys;
 pub mod zeroize;
 
 pub use {
     aead::{AeadError, BufferTooSmallError},
+    aranya::*,
     ciphersuite::*,
     default::*,
     engine::{Engine, UnwrapError, UnwrappedKey, WrapError, WrongKeyTypeError},
@@ -106,5 +107,4 @@ pub use {
     kem::{EcdhError, KemError},
     mac::MacError,
     signer::SignerError,
-    userkeys::*,
 };

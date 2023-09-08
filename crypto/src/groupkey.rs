@@ -3,6 +3,7 @@
 use {
     crate::{
         aead::{Aead, AeadError, BufferTooSmallError, KeyData},
+        aranya::VerifyingKey,
         ciphersuite::SuiteIds,
         csprng::Csprng,
         engine::Engine,
@@ -12,7 +13,6 @@ use {
         import::{try_import, Import, ImportError},
         kdf::{Kdf, KdfError},
         mac::Mac,
-        userkeys::VerifyingKey,
         zeroize::{Zeroize, ZeroizeOnDrop},
     },
     core::{
