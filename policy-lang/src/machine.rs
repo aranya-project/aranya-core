@@ -94,6 +94,18 @@ pub struct Machine {
 }
 
 impl Machine {
+    pub fn new<I>(instructions: I) -> Self
+    where
+        I: IntoIterator<Item = Instruction>,
+    {
+        Machine {
+            progmem: Vec::from_iter(instructions),
+            labels: BTreeMap::new(),
+            fact_defs: BTreeMap::new(),
+            struct_defs: BTreeMap::new(),
+        }
+    }
+
     /// Create a new Machine by compiling a policy AST.
     pub fn compile_from_policy(policy: &ast::Policy) -> Result<Machine, CompileError> {
         let mut cs = CompileState::new(Machine {
@@ -261,7 +273,7 @@ where
                     return Err(self.err(MachineErrorType::BadState));
                 }
                 let i1 = self.stack.len() - 1;
-                let i2 = self.stack.len() - d - 1;
+                let i2 = i1 - d;
                 self.stack.swap(i1, i2);
             }
             Instruction::Dup(d) => {
@@ -271,7 +283,9 @@ where
                 let v = self.stack[self.stack.len() - d - 1].clone();
                 self.stack.push(v);
             }
-            Instruction::Pop => todo!(),
+            Instruction::Pop => {
+                let _ = self.pop_value();
+            }
             Instruction::Block => todo!(),
             Instruction::End => todo!(),
             Instruction::Jump(t) => {

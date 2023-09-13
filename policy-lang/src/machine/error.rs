@@ -15,7 +15,7 @@ cfg_if! {
 /// Possible machine errors.
 // TODO(chip): These should be elaborated with additional data, and/or
 // more fine grained types.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum MachineErrorType {
     /// Stack underflow - an operation tried to consume a value from an
     /// empty stack.
@@ -74,11 +74,10 @@ impl fmt::Display for MachineErrorType {
         }
     }
 }
-
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct MachineError {
     /// The type of the error
-    err_type: MachineErrorType,
+    pub err_type: MachineErrorType,
     /// The line and column of the error, if it exists
     instruction: Option<usize>,
 }

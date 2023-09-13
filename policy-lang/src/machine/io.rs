@@ -13,7 +13,7 @@ cfg_if! {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum MachineIOError {
     /// Attempted to create a fact that already exists
     FactExists,

@@ -5,8 +5,8 @@ use anyhow;
 
 use crate::lang::{parse_policy_str, Version};
 use crate::machine::{
-    FactKey, FactKeyList, FactValue, FactValueList, KVPair, Machine, MachineIO, MachineIOError,
-    RunState, Struct, Value,
+    FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair, Machine, MachineErrorType,
+    MachineIO, MachineIOError, MachineStatus, RunState, Struct, Value,
 };
 
 #[derive(Debug)]
@@ -304,4 +304,95 @@ fn test_fact_query() -> anyhow::Result<()> {
     assert_eq!(io.facts[&fk], fv);
 
     Ok(())
+}
+
+#[test]
+fn test_pop() {
+    let machine = Machine::new([Instruction::Pop]);
+    let mut io = TestIO::new();
+    let mut rs = machine.create_run_state(&mut io);
+
+    // Add something to the stack
+    rs.push_value(Value::Int(5)).unwrap();
+
+    // Pop value
+    assert!(
+        rs.step().unwrap() == MachineStatus::Executing,
+        "Still running"
+    );
+    assert!(rs.stack.is_empty(), "Stack is empty");
+
+    // Try to pop from empty stack
+    assert!(rs.step().is_err(), "Popping empty stack aborts");
+}
+
+#[test]
+fn test_swap_empty() {
+    let machine = Machine::new([Instruction::Swap(1)]);
+    let mut io = TestIO::new();
+    let mut rs = machine.create_run_state(&mut io);
+
+    // Empty stack - should fail
+    let result = rs.step();
+    assert!(result.is_err_and(|result| result.err_type == MachineErrorType::StackUnderflow));
+}
+
+#[test]
+fn test_swap_top() {
+    let machine = Machine::new([
+        // Swap with self (first) - should fail
+        Instruction::Swap(0),
+    ]);
+    let mut io = TestIO::new();
+    let mut rs = machine.create_run_state(&mut io);
+
+    rs.push_value(Value::Int(5)).unwrap();
+    assert!(rs
+        .step()
+        .is_err_and(|result| result.err_type == MachineErrorType::BadState));
+}
+
+#[test]
+fn test_swap_middle() {
+    let machine = Machine::new([Instruction::Swap(1)]);
+    let mut io = TestIO::new();
+    let mut rs = machine.create_run_state(&mut io);
+
+    // Swap with second - should succeed
+    rs.push_value(Value::Int(3)).unwrap();
+    rs.push_value(Value::Int(5)).unwrap();
+    rs.push_value(Value::Int(8)).unwrap();
+    assert!(rs.step().unwrap() == MachineStatus::Executing);
+    assert!(rs.stack[0].try_to_int().unwrap() == 3);
+    assert!(rs.stack[1].try_to_int().unwrap() == 8);
+    assert!(rs.stack[2].try_to_int().unwrap() == 5);
+}
+
+#[test]
+fn test_dup_underflow() {
+    let machine = Machine::new([Instruction::Dup(2)]);
+    let mut io = TestIO::new();
+    let mut rs = machine.create_run_state(&mut io);
+
+    // Try to dup with invalid stack index - should fail
+    rs.push_value(Value::Int(3)).unwrap();
+    assert!(rs
+        .step()
+        .is_err_and(|result| result.err_type == MachineErrorType::StackUnderflow));
+}
+
+#[test]
+fn test_dup() {
+    let machine = Machine::new([Instruction::Dup(1)]);
+    let mut io = TestIO::new();
+    let mut rs = machine.create_run_state(&mut io);
+
+    // Dup second value in stack - should succeed.
+    rs.push_value(Value::Int(3)).unwrap();
+    rs.push_value(Value::Int(5)).unwrap();
+    assert!(rs.step().unwrap() == MachineStatus::Executing);
+    assert!(rs.stack.len() == 3);
+    assert!(rs.stack[0].try_to_int().unwrap() == 3);
+    assert!(rs.stack[1].try_to_int().unwrap() == 5);
+    assert!(rs.stack[2].try_to_int().unwrap() == 3);
 }
