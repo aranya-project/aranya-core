@@ -25,77 +25,19 @@ pub enum Value {
     None,
 }
 
+pub trait TryAsMut<T: ?Sized> {
+    type Error;
+    fn try_as_mut(&mut self) -> Result<&mut T, Self::Error>;
+}
+
 impl Value {
-    /// Coerce this value into an i64 or error
-    pub fn try_to_int(&self) -> Result<i64, MachineErrorType> {
-        if let Value::Int(i) = self {
-            return Ok(*i);
-        }
-        Err(MachineErrorType::InvalidType)
-    }
-
-    /// Coerce this value into a bool or error
-    pub fn try_to_bool(&self) -> Result<bool, MachineErrorType> {
-        if let Value::Bool(b) = self {
-            return Ok(*b);
-        }
-        Err(MachineErrorType::InvalidType)
-    }
-
-    /// Coerce this value into an &str or error
-    pub fn try_as_str(&self) -> Result<&str, MachineErrorType> {
-        if let Value::String(s) = self {
-            return Ok(s);
-        }
-        Err(MachineErrorType::InvalidType)
-    }
-
-    /// Convert this value into a String or error
-    pub fn try_into_string(self) -> Result<String, MachineErrorType> {
-        if let Value::String(s) = self {
-            return Ok(s);
-        }
-        Err(MachineErrorType::InvalidType)
-    }
-
-    /// Convert this value into a Struct or error
-    pub fn try_into_struct(self) -> Result<Struct, MachineErrorType> {
-        if let Value::Struct(s) = self {
-            return Ok(s);
-        }
-        Err(MachineErrorType::InvalidType)
-    }
-
-    /// Convert this value into a Fact or error
-    pub fn try_into_fact(self) -> Result<Fact, MachineErrorType> {
-        if let Value::Fact(f) = self {
-            return Ok(f);
-        }
-        Err(MachineErrorType::InvalidType)
-    }
-
     /// Get the ast:::Vtype if possible
     pub fn vtype(&self) -> Option<VType> {
         match self {
             Value::Int(_) => Some(VType::Int),
             Value::Bool(_) => Some(VType::Bool),
             Value::String(_) => Some(VType::String),
-            Value::Struct(_) => None,
-            Value::Fact(_) => None,
-            Value::None => None,
-        }
-    }
-}
-
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Value::Int(i) => write!(f, "{}", i),
-            Value::Bool(b) => write!(f, "{}", b),
-            Value::String(s) => write!(f, "\"{}\"", s),
-            Value::Struct(s) => s.fmt(f),
-            Value::Fact(fa) => fa.fmt(f),
-            Value::None => write!(f, "None"),
+            _ => None,
         }
     }
 }
@@ -115,6 +57,136 @@ impl From<bool> for Value {
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
         Value::String(value.to_owned())
+    }
+}
+
+impl From<Struct> for Value {
+    fn from(value: Struct) -> Self {
+        Value::Struct(value)
+    }
+}
+
+impl From<Fact> for Value {
+    fn from(value: Fact) -> Self {
+        Value::Fact(value)
+    }
+}
+
+impl TryFrom<Value> for i64 {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Int(i) = value {
+            return Ok(i);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryFrom<Value> for bool {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Bool(b) = value {
+            return Ok(b);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryFrom<Value> for String {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::String(s) = value {
+            return Ok(s);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryFrom<Value> for Struct {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Struct(s) = value {
+            return Ok(s);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryFrom<Value> for Fact {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Fact(f) = value {
+            return Ok(f);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryAsMut<i64> for Value {
+    type Error = MachineErrorType;
+    fn try_as_mut(&mut self) -> Result<&mut i64, Self::Error> {
+        if let Self::Int(s) = self {
+            return Ok(s);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryAsMut<bool> for Value {
+    type Error = MachineErrorType;
+    fn try_as_mut(&mut self) -> Result<&mut bool, Self::Error> {
+        if let Self::Bool(b) = self {
+            return Ok(b);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryAsMut<str> for Value {
+    type Error = MachineErrorType;
+    fn try_as_mut(&mut self) -> Result<&mut str, Self::Error> {
+        if let Self::String(s) = self {
+            return Ok(s);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryAsMut<Struct> for Value {
+    type Error = MachineErrorType;
+    fn try_as_mut(&mut self) -> Result<&mut Struct, Self::Error> {
+        if let Self::Struct(s) = self {
+            return Ok(s);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryAsMut<Fact> for Value {
+    type Error = MachineErrorType;
+    fn try_as_mut(&mut self) -> Result<&mut Fact, Self::Error> {
+        if let Self::Fact(f) = self {
+            return Ok(f);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Value::Int(i) => write!(f, "{}", i),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Struct(s) => s.fmt(f),
+            Value::Fact(fa) => fa.fmt(f),
+            Value::None => write!(f, "None"),
+        }
     }
 }
 

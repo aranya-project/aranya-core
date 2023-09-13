@@ -21,6 +21,10 @@ pub use io::{MachineIO, MachineIOError};
 
 mod compile;
 pub use self::compile::{CompileError, CompileState};
+use self::data::TryAsMut;
+
+mod stack;
+pub use stack::Stack;
 
 /// Returns true if all of the k/v pairs in a exist in b, or false
 /// otherwise.
@@ -186,6 +190,8 @@ where
         }
     }
 
+    /// Internal function to produce a MachineError with location
+    /// information.
     fn err(&self, err_type: MachineErrorType) -> MachineError {
         MachineError::new_with_position(err_type, self.pc)
     }
@@ -203,39 +209,44 @@ where
         self.pc
     }
 
-    /// Push a Value onto the machine stack.
-    pub fn push_value(&mut self, v: Value) -> Result<(), MachineError> {
-        // No size checking yet
-        self.stack.push(v);
-        Ok(())
+    /// Internal wrapper around [Stack::push] that translates
+    /// [StackError] into [MachineError] with location information.
+    fn ipush<V>(&mut self, value: V) -> Result<(), MachineError>
+    where
+        V: Into<Value>,
+    {
+        self.push(value).map_err(|e| self.err(e))
     }
 
-    /// Push an integer onto the machine stack as a [Value::Int].
-    pub fn push_int(&mut self, i: i64) -> Result<(), MachineError> {
-        self.push_value(Value::Int(i))
+    /// Internal wrapper around [Stack::pop] that translates
+    /// [StackError] into [MachineError] with location information.
+    fn ipop<V>(&mut self) -> Result<V, MachineError>
+    where
+        V: TryFrom<Value, Error = MachineErrorType>,
+    {
+        self.pop().map_err(|e| self.err(e))
     }
 
-    /// Return a mutable reference to the top Value of the machine
-    /// stack.
-    fn peek_value(&mut self) -> Result<&mut Value, MachineError> {
-        // Can't borrow self for .err() while it's being borrowed &mut
-        // by last_mut(), so this error has to be created ahead of
-        // time.
-        let err = self.err(MachineErrorType::StackUnderflow);
-        self.stack.last_mut().ok_or(err)
+    /// Internal wrapper around [Stack::pop_value] that translates
+    /// [StackError] into [MachineError] with location information.
+    fn ipop_value(&mut self) -> Result<Value, MachineError> {
+        self.pop_value().map_err(|e| self.err(e))
     }
 
-    /// Return the value on the top of the machine stack.
-    fn pop_value(&mut self) -> Result<Value, MachineError> {
-        self.stack
-            .pop()
-            .ok_or_else(|| self.err(MachineErrorType::StackUnderflow))
-    }
-
-    /// Return the value on the top of the machine stack if it is a
-    /// Value::String.
-    fn pop_string(&mut self) -> Result<String, MachineError> {
-        self.pop_value()?.try_into_string().map_err(|t| self.err(t))
+    /// Internal wrapper around [Stack::peek] that translates
+    /// [StackError] into [MachineError] with location information.
+    fn ipeek<V>(&mut self) -> Result<&mut V, MachineError>
+    where
+        V: ?Sized,
+        Value: TryAsMut<V, Error = MachineErrorType>,
+    {
+        // A little bit of chicanery - copy the PC now so we don't
+        // borrow from self when creating the error (as self.err()
+        // does). We can't do that inside the closure because peek()
+        // takes a mutable reference to self.
+        let pc = self.pc;
+        self.peek()
+            .map_err(|e| MachineError::new_with_position(e, pc))
     }
 
     /// Execute one machine instruction and return the status of the
@@ -250,20 +261,20 @@ where
         match instruction {
             Instruction::Const(v) => self.stack.push(v),
             Instruction::Def => {
-                let key = self.pop_string()?;
-                let value = self.pop_value()?;
+                let key = self.ipop()?;
+                let value = self.ipop_value()?;
                 if self.defs.contains_key(&key) {
                     return Err(self.err(MachineErrorType::AlreadyDefined));
                 }
                 self.defs.insert(key, value);
             }
             Instruction::Get => {
-                let key = self.pop_string()?;
+                let key: String = self.ipop()?;
                 let v = self
                     .defs
                     .get(&key)
                     .ok_or_else(|| self.err(MachineErrorType::NotDefined))?;
-                self.stack.push(v.to_owned());
+                self.ipush(v.to_owned())?;
             }
             Instruction::Swap(d) => {
                 if d > self.stack.len() {
@@ -281,7 +292,7 @@ where
                     return Err(self.err(MachineErrorType::StackUnderflow));
                 }
                 let v = self.stack[self.stack.len() - d - 1].clone();
-                self.stack.push(v);
+                self.ipush(v)?;
             }
             Instruction::Pop => {
                 let _ = self.pop_value();
@@ -300,7 +311,7 @@ where
                 }
             }
             Instruction::Branch(t) => {
-                let conditional = self.pop_value()?.try_to_bool().map_err(|t| self.err(t))?;
+                let conditional = self.ipop()?;
                 if conditional {
                     match t {
                         Target::Unresolved(_) => {
@@ -320,32 +331,32 @@ where
             Instruction::Exit => return Ok(MachineStatus::Exited),
             Instruction::Panic => return Ok(MachineStatus::Panicked),
             Instruction::Add | Instruction::Sub => {
-                let a = self.pop_value()?.try_to_int().map_err(|t| self.err(t))?;
-                let b = self.pop_value()?.try_to_int().map_err(|t| self.err(t))?;
+                let a: i64 = self.ipop()?;
+                let b: i64 = self.ipop()?;
                 let r = match instruction {
                     Instruction::Add => a + b,
                     Instruction::Sub => a - b,
                     _ => unreachable!(),
                 };
-                self.stack.push(Value::Int(r));
+                self.ipush(r)?;
             }
             Instruction::And | Instruction::Or => {
-                let a = self.pop_value()?.try_to_bool().map_err(|t| self.err(t))?;
-                let b = self.pop_value()?.try_to_bool().map_err(|t| self.err(t))?;
+                let a = self.ipop()?;
+                let b = self.ipop()?;
                 let r = match instruction {
                     Instruction::And => a && b,
                     Instruction::Or => a || b,
                     _ => unreachable!(),
                 };
-                self.stack.push(Value::Bool(r));
+                self.ipush(r)?;
             }
             Instruction::Not => {
-                let a = self.pop_value()?.try_to_bool().map_err(|t| self.err(t))?;
-                self.stack.push(Value::Bool(!a));
+                let a: &mut bool = self.ipeek()?;
+                *a = !*a;
             }
             Instruction::Gt | Instruction::Lt | Instruction::Eq => {
-                let b = self.pop_value()?;
-                let a = self.pop_value()?;
+                let b = self.ipop_value()?;
+                let a = self.ipop_value()?;
                 let v = match instruction {
                     Instruction::Gt => match (a, b) {
                         (Value::Int(a), Value::Int(b)) => a > b,
@@ -361,68 +372,52 @@ where
                     Instruction::Eq => a == b,
                     _ => unreachable!(),
                 };
-                self.stack.push(Value::Bool(v));
+                self.ipush(v)?;
             }
             Instruction::FactNew => {
-                let name = self.pop_string()?;
+                let name = self.ipop()?;
                 let fact = Fact::new(name);
-                self.push_value(Value::Fact(fact))?;
+                self.ipush(fact)?;
             }
             Instruction::FactKeySet => {
-                let varname = self.pop_string()?;
-                let v: HashableValue = self.pop_value()?.try_into().map_err(|t| self.err(t))?;
-                if let Value::Fact(f) = self.peek_value()? {
-                    f.set_key(varname, v);
-                } else {
-                    return Err(self.err(MachineErrorType::InvalidType));
-                }
+                let varname = self.ipop()?;
+                let v: HashableValue = self.ipop()?;
+                let f: &mut Fact = self.ipeek()?;
+                f.set_key(varname, v);
             }
             Instruction::FactValueSet => {
-                let varname = self.pop_string()?;
-                let value = self.pop_value()?;
-                if let Value::Fact(f) = self.peek_value()? {
-                    f.set_value(varname, value);
-                } else {
-                    return Err(self.err(MachineErrorType::InvalidType));
-                }
+                let varname = self.ipop()?;
+                let value = self.ipop_value()?;
+                let f: &mut Fact = self.ipeek()?;
+                f.set_value(varname, value);
             }
             Instruction::StructNew => {
-                let name = self.pop_string()?;
+                let name = self.ipop()?;
                 let fields = BTreeMap::new();
                 self.stack.push(Value::Struct(Struct { name, fields }));
             }
             Instruction::StructSet => {
-                let varname = self.pop_string()?;
-                let value = self.pop_value()?;
-                if let Value::Struct(s) = self.peek_value()? {
-                    s.fields.insert(varname, value);
-                } else {
-                    return Err(self.err(MachineErrorType::InvalidType));
-                }
+                let varname = self.ipop()?;
+                let value = self.ipop_value()?;
+                let s: &mut Struct = self.ipeek()?;
+                s.fields.insert(varname, value);
             }
             Instruction::StructGet => {
-                let varname = self.pop_string()?;
-                let v = if let Value::Struct(s) = self.pop_value()? {
-                    let v = s
-                        .fields
-                        .get(&varname)
-                        .ok_or_else(|| self.err(MachineErrorType::InvalidStruct))?;
-                    v.clone()
-                } else {
-                    return Err(self.err(MachineErrorType::StackUnderflow));
-                };
-                self.push_value(v)?;
+                let varname: String = self.ipop()?;
+                let mut s: Struct = self.ipop()?;
+                let v = s
+                    .fields
+                    .remove(&varname)
+                    .ok_or_else(|| self.err(MachineErrorType::InvalidStruct))?;
+                self.ipush(v)?;
             }
             Instruction::Emit => {
-                let s = self
-                    .pop_value()?
-                    .try_into_struct()
-                    .map_err(|t| self.err(t))?;
+                let s: Struct = self.ipop()?;
                 let def = self
                     .machine
                     .struct_defs
                     .get(&s.name)
-                    .ok_or(self.err(MachineErrorType::InvalidStruct))?;
+                    .ok_or_else(|| self.err(MachineErrorType::InvalidStruct))?;
                 for field_def in def {
                     if !s.fields.contains_key(&field_def.identifier) {
                         return Err(self.err(MachineErrorType::InvalidStruct));
@@ -434,21 +429,16 @@ where
                 self.io.emit(s.name, fields);
             }
             Instruction::Create => {
-                let f = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
-                println!("fact: {}", f);
+                let f: Fact = self.ipop()?;
                 self.io.fact_insert(f.name, f.keys, f.values)?;
             }
             Instruction::Delete => {
-                // Find all facts matching our (possibly partial) key,
-                // then iterate over them to find which ones match the
-                // values.
-                // TODO(chip) describe this better as it is very confusing
-                let f = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
+                let f: Fact = self.ipop()?;
                 self.io.fact_delete(f.name, f.keys)?;
             }
             Instruction::Update => {
-                let fact_to = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
-                let fact_from = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
+                let fact_to: Fact = self.ipop()?;
+                let fact_from: Fact = self.ipop()?;
                 let replaced_fact = {
                     let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
                     iter.next()
@@ -459,15 +449,12 @@ where
                     .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
             Instruction::Effect => {
-                let s = self
-                    .pop_value()?
-                    .try_into_struct()
-                    .map_err(|t| self.err(t))?;
+                let s: Struct = self.ipop()?;
                 let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
                 self.io.effect(s.name, fields);
             }
             Instruction::Query => {
-                let qf = self.pop_value()?.try_into_fact().map_err(|t| self.err(t))?;
+                let qf: Fact = self.ipop()?;
                 let result = {
                     let mut iter = self.io.fact_query(qf.name.clone(), qf.keys)?;
                     iter.find(|f| fact_value_subset_match(&qf.values, &f.1))
@@ -477,10 +464,10 @@ where
                         let mut fields: Vec<KVPair> = vec![];
                         fields.append(&mut f.0.into_iter().map(|e| e.into()).collect());
                         fields.append(&mut f.1.into_iter().map(|e| e.into()).collect());
-                        let f = Struct::new(&qf.name, &fields);
-                        self.push_value(Value::Struct(f))?;
+                        let s = Struct::new(&qf.name, &fields);
+                        self.ipush(s)?;
                     }
-                    None => self.push_value(Value::None)?,
+                    None => self.ipush(Value::None)?,
                 }
             }
             Instruction::Exists => todo!(),
@@ -552,7 +539,7 @@ where
     {
         self.set_pc_by_name(name, LabelType::Action)?;
         for a in args {
-            self.push_value(a.to_owned().into())?;
+            self.ipush(a.clone())?;
         }
         self.defs.clear();
 
@@ -571,6 +558,26 @@ where
     {
         self.setup_action(name, args)?;
         self.run()
+    }
+}
+
+impl<M> Stack for RunState<'_, M>
+where
+    M: MachineIO,
+{
+    fn push_value(&mut self, value: Value) -> Result<(), MachineErrorType> {
+        self.stack.push(value);
+        Ok(())
+    }
+
+    fn pop_value(&mut self) -> Result<Value, MachineErrorType> {
+        self.stack.pop().ok_or(MachineErrorType::StackUnderflow)
+    }
+
+    fn peek_value(&mut self) -> Result<&mut Value, MachineErrorType> {
+        self.stack
+            .last_mut()
+            .ok_or(MachineErrorType::StackUnderflow)
     }
 }
 

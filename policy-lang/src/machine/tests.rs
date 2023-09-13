@@ -5,8 +5,8 @@ use anyhow;
 
 use crate::lang::{parse_policy_str, Version};
 use crate::machine::{
-    FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair, Machine, MachineErrorType,
-    MachineIO, MachineIOError, MachineStatus, RunState, Struct, Value,
+    Fact, FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair, Machine,
+    MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState, Stack, Struct, Value,
 };
 
 #[derive(Debug)]
@@ -363,9 +363,9 @@ fn test_swap_middle() {
     rs.push_value(Value::Int(5)).unwrap();
     rs.push_value(Value::Int(8)).unwrap();
     assert!(rs.step().unwrap() == MachineStatus::Executing);
-    assert!(rs.stack[0].try_to_int().unwrap() == 3);
-    assert!(rs.stack[1].try_to_int().unwrap() == 8);
-    assert!(rs.stack[2].try_to_int().unwrap() == 5);
+    assert!(rs.stack[0] == Value::Int(3));
+    assert!(rs.stack[1] == Value::Int(8));
+    assert!(rs.stack[2] == Value::Int(5));
 }
 
 #[test]
@@ -392,7 +392,92 @@ fn test_dup() {
     rs.push_value(Value::Int(5)).unwrap();
     assert!(rs.step().unwrap() == MachineStatus::Executing);
     assert!(rs.stack.len() == 3);
-    assert!(rs.stack[0].try_to_int().unwrap() == 3);
-    assert!(rs.stack[1].try_to_int().unwrap() == 5);
-    assert!(rs.stack[2].try_to_int().unwrap() == 3);
+    assert!(rs.stack[0] == Value::Int(3));
+    assert!(rs.stack[1] == Value::Int(5));
+    assert!(rs.stack[2] == Value::Int(3));
+}
+
+struct TestStack {
+    stack: Vec<Value>,
+}
+
+impl TestStack {
+    pub fn new() -> TestStack {
+        TestStack { stack: vec![] }
+    }
+}
+
+impl Stack for TestStack {
+    fn push_value(&mut self, value: Value) -> Result<(), MachineErrorType> {
+        self.stack.push(value);
+        Ok(())
+    }
+
+    fn pop_value(&mut self) -> Result<Value, MachineErrorType> {
+        self.stack.pop().ok_or(MachineErrorType::StackUnderflow)
+    }
+
+    fn peek_value(&mut self) -> Result<&mut Value, MachineErrorType> {
+        self.stack
+            .last_mut()
+            .ok_or(MachineErrorType::StackUnderflow)
+    }
+}
+
+#[test]
+fn test_stack() -> anyhow::Result<()> {
+    let mut s = TestStack::new();
+
+    // Test pushing every type
+    s.push(3).map_err(anyhow::Error::msg)?;
+    s.push(true).map_err(anyhow::Error::msg)?;
+    s.push("hello").map_err(anyhow::Error::msg)?;
+    s.push(Struct::new("Foo", &[]))
+        .map_err(anyhow::Error::msg)?;
+    s.push(Fact::new("Bar".to_owned()))
+        .map_err(anyhow::Error::msg)?;
+    s.push_value(Value::None).map_err(anyhow::Error::msg)?;
+    assert_eq!(
+        s.stack,
+        vec![
+            Value::Int(3),
+            Value::Bool(true),
+            Value::String(String::from("hello")),
+            Value::Struct(Struct::new("Foo", &[])),
+            Value::Fact(Fact::new("Bar".to_owned())),
+            Value::None,
+        ]
+    );
+
+    // Test pop and peek
+    let v = s.peek_value().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, &Value::None);
+    let v = s.pop_value().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, Value::None);
+
+    let v: &Fact = s.peek().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, &Fact::new("Bar".to_owned()));
+    let v: Fact = s.pop().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, Fact::new("Bar".to_owned()));
+
+    let v: &Struct = s.peek().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, &Struct::new("Foo", &[]));
+    let v: Struct = s.pop().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, Struct::new("Foo", &[]));
+
+    let v: &str = s.peek().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, "hello");
+    let v: String = s.pop().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, "hello".to_owned());
+
+    let v: &bool = s.peek().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, &true);
+    let v: bool = s.pop().map_err(anyhow::Error::msg)?;
+    assert!(v);
+
+    let v: &i64 = s.peek().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, &3);
+    let v: i64 = s.pop().map_err(anyhow::Error::msg)?;
+    assert_eq!(v, 3);
+    Ok(())
 }
