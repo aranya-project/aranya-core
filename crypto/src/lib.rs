@@ -96,6 +96,7 @@ pub use {
     aead::{AeadError, BufferTooSmallError},
     aranya::*,
     ciphersuite::*,
+    csprng::Csprng,
     default::*,
     engine::{Engine, UnwrapError, UnwrappedKey, WrapError, WrongKeyTypeError},
     error::*,
@@ -107,4 +108,5 @@ pub use {
     kem::{EcdhError, KemError},
     mac::MacError,
     signer::SignerError,
+    subtle,
 };

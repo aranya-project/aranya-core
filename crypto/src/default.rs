@@ -160,6 +160,12 @@ mod default_engine {
         }
     }
 
+    impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
+        fn fill_bytes(&mut self, dst: &mut [u8]) {
+            self.rng.fill_bytes(dst)
+        }
+    }
+
     impl<R: Csprng, S: CipherSuite> CipherSuite for DefaultEngine<R, S> {
         type Aead = S::Aead;
         type Hash = S::Hash;
@@ -252,7 +258,7 @@ mod default_engine {
 
         #[test]
         fn test_default_engine() {
-            test_engine::<_, DefaultEngine<_>, _>(&mut Rng, || {
+            test_engine::<DefaultEngine<_>, _>(|| {
                 let (eng, _) = DefaultEngine::from_entropy(Rng);
                 eng
             })

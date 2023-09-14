@@ -321,17 +321,16 @@ pub trait Test<O = ()> {
 /// Test an [`Engine`].
 ///
 /// It also performs [`test_ciphersuite`].
-pub fn test_engine<R, E, F>(rng: &mut R, f: F)
+pub fn test_engine<E, F>(mut f: F)
 where
-    R: Csprng,
     E: Engine,
     <E::Aead as Aead>::TagSize: Add<U64>,
     Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
     F: FnMut() -> E,
 {
-    test_ciphersuite::<E, _>(rng);
+    test_ciphersuite::<E, _>(&mut f());
 
-    EngineTest::test(rng, f);
+    EngineTest::test(&mut f(), f);
 }
 
 /// Tests an [`Engine`].

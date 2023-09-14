@@ -13,6 +13,7 @@ use {
         apq::{ReceiverSecretKey, SenderSecretKey, SenderSigningKey},
         aranya::{EncryptionKey, IdentityKey, SigningKey},
         ciphersuite::CipherSuite,
+        csprng::Csprng,
         groupkey::GroupKey,
         id::Id,
         import::{ExportError, Import, ImportError},
@@ -349,7 +350,7 @@ impl<E: Engine + ?Sized> AsRef<[u8]> for SecretData<'_, E> {
 }
 
 /// The core trait used by the cryptography engine APIs.
-pub trait Engine: CipherSuite + Sized {
+pub trait Engine: CipherSuite + Csprng + Sized {
     /// Uniquely identifies the [`Engine`].
     const ID: Id;
 
