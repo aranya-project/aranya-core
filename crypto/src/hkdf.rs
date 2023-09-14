@@ -157,6 +157,37 @@ pub(crate) use hkdf_impl;
 #[cfg(test)]
 #[allow(clippy::wildcard_imports)]
 mod tests {
+
+    #[cfg(feature = "boringssl")]
+    mod boringssl {
+        use {
+            super::*,
+            crate::{
+                boring::{Sha256, Sha384, Sha512},
+                test_util::{hkdf, test_hkdf},
+            },
+        };
+
+        hkdf_impl!(HkdfSha256, "HKDF-SHA256", Sha256);
+        hkdf_impl!(HkdfSha384, "HKDF-SHA384", Sha384);
+        hkdf_impl!(HkdfSha512, "HKDF-SHA512", Sha512);
+
+        #[test]
+        fn test_hkdf_sha256() {
+            test_hkdf::<HkdfSha256>(hkdf::TestName::HkdfSha256);
+        }
+
+        #[test]
+        fn test_hkdf_sha384() {
+            test_hkdf::<HkdfSha384>(hkdf::TestName::HkdfSha384);
+        }
+
+        #[test]
+        fn test_hkdf_sha512() {
+            test_hkdf::<HkdfSha512>(hkdf::TestName::HkdfSha512);
+        }
+    }
+
     use {
         super::*,
         crate::{
