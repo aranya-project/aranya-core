@@ -86,8 +86,8 @@ result_option_inspect = []
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 base58 = { path = "../base58" }
-bssl-sys = { git = "https://github.com/spideroak-inc/bssl.git", branch = "main", optional = true }
-bearssl-sys = { git = "https://github.com/spideroak-inc/bearssl.git", tag = "v0.2.0" }
+bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branch = "main", optional = true }
+bearssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bearssl.git", tag = "v0.2.0" }
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true }
 der = { version = "0.7" }

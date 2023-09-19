@@ -18,7 +18,7 @@ runs:
   steps:
     - name: Set up git
       run: |
-        git config --global url."https://${{ inputs.gh-token }}@github.com/".insteadOf https://github.com/
+        git config --global url."https://${{ inputs.gh-token }}@git.spideroak-inc.com/".insteadOf https://git.spideroak-inc.com/
         echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> $GITHUB_ENV
       shell: bash
 
@@ -105,16 +105,16 @@ runs:
     - name: Export GO_VERSION
       run: |
         echo "GO_VERSION=${{ inputs.go-version }}" >> $GITHUB_ENV
-        go env -w "GONOPROXY=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GONOSUMDB=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GOPRIVATE=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GONOPROXY=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GONOSUMDB=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GOPRIVATE=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
       shell: bash
       if: ${{ matrix.os != 'windows-latest' && inputs.target != 'vxworks-ppc' }}
     - name: Export GO_VERSION
       run: |
         echo "GO_VERSION=${{ inputs.go-version }}" >> $env:GITHUB_ENV
-        go env -w "GONOPROXY=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GONOSUMDB=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GOPRIVATE=github.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GONOPROXY=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GONOSUMDB=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
+        go env -w "GOPRIVATE=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
       shell: pwsh
       if: ${{ matrix.os == 'windows-latest' && inputs.target != 'vxworks-ppc' }}

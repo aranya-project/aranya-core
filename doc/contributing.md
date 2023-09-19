@@ -4,7 +4,7 @@ title: Contributing
 
 # `flow3-rs` Overview
 
-`flow3-rs` mirrors in some ways its earlier [Go counterpart](https://github.com/spideroak-inc/flow3) in that it provides a C library interface to the Flow3 Policy Engine and Weave Engine. This repo is still heavily in-progress, so it does not yet form a coherent whole.
+`flow3-rs` mirrors in some ways its earlier [Go counterpart](https://git.spideroak-inc.com/spideroak-inc/flow3) in that it provides a C library interface to the Flow3 Policy Engine and Weave Engine. This repo is still heavily in-progress, so it does not yet form a coherent whole.
 
 You will find:
 
@@ -30,15 +30,15 @@ Release artifacts are generated at the following path:
 # Issues
 
 `flow3-rs` repo issues can be viewed/created here:
-[`flow3-rs` Issues](https://github.com/spideroak-inc/flow3-rs/issues)
+[`flow3-rs` Issues](https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues)
 
 Organization and tracking of these issues are done simultaneously with main Flow3 issues in the [Platform Scrum Project](https://github.com/orgs/spideroak-inc/projects/3).
 
-Please refer to the [Flow3 Issues instructions](https://github.com/spideroak-inc/flow3/tree/main/doc/contributing.md#issues) for details on creating issues.
+Please refer to the [Flow3 Issues instructions](https://git.spideroak-inc.com/spideroak-inc/flow3/tree/main/doc/contributing.md#issues) for details on creating issues.
 
 # PRs
 
-Likewise, the [Flow3 PRs section](https://github.com/spideroak-inc/flow3/tree/main/doc/contributing.md#prs) and [Flow3 Reviewing PRs](https://github.com/spideroak-inc/flow3/tree/main/doc/contributing.md#reviewing-prs) describes details for creating and reviewing PRs.
+Likewise, the [Flow3 PRs section](https://git.spideroak-inc.com/spideroak-inc/flow3/tree/main/doc/contributing.md#prs) and [Flow3 Reviewing PRs](https://git.spideroak-inc.com/spideroak-inc/flow3/tree/main/doc/contributing.md#reviewing-prs) describes details for creating and reviewing PRs.
 
 # Coding Standards
 
@@ -86,4 +86,4 @@ We recommend setting up some kind of editor tooling to annotate types, as it rea
 
 The flow3 repo is owned by the Platform team.
 For more information about the Platform team, refer to:
-[Platform Team](https://github.com/spideroak-inc/platform-meta)
+[Platform Team](https://git.spideroak-inc.com/spideroak-inc/platform-meta)

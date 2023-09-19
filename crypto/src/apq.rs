@@ -1,6 +1,6 @@
 //! Cryptography code for [APQ].
 //!
-//! [APQ]: https://github.com/spideroak-inc/apq
+//! [APQ]: https://git.spideroak-inc.com/spideroak-inc/apq
 
 #![forbid(unsafe_code)]
 
@@ -70,7 +70,7 @@ custom_id!(TopicKeyId, "Uniquely identifies a [`TopicKey`].");
 /// A [symmetric key] used to encrypt queue messages for
 /// a particular topic.
 ///
-/// [symmetric key]: https://github.com/spideroak-inc/apq/blob/spec/design.md#topickey
+/// [symmetric key]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#topickey
 pub struct TopicKey<E: Engine + ?Sized> {
     // TopicKey is quite similar to GroupKey. However, unlike
     // GroupKey, we do not compute the key from the seed each
@@ -284,7 +284,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
 
     /// Derives a key for [`Self::open`] and [`Self::seal`].
     ///
-    /// See <https://github.com/spideroak-inc/apq/blob/spec/design.md#topickey-generation>
+    /// See <https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#topickey-generation>
     fn derive_key(
         seed: &[u8; 64],
         version: Version,
@@ -370,7 +370,7 @@ where
 
 /// The private half of a [SenderSigningKey].
 ///
-/// [SenderSigningKey]: https://github.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
+/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
 #[derive(ZeroizeOnDrop)]
 pub struct SenderSigningKey<E: Engine + ?Sized>(<E::Signer as Signer>::SigningKey);
 
@@ -469,7 +469,7 @@ impl<E: Engine + ?Sized> SenderSigningKey<E> {
 
 /// The public half of a [SenderSigningKey].
 ///
-/// [SenderSigningKey]: https://github.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
+/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
 pub struct SenderVerifyingKey<E: Engine + ?Sized>(<E::Signer as Signer>::VerifyingKey);
 
 impl<E: Engine + ?Sized> SenderVerifyingKey<E> {
@@ -506,7 +506,7 @@ impl<E: Engine + ?Sized> SenderVerifyingKey<E> {
 
 /// The private half of a [SenderKey].
 ///
-/// [SenderKey]: https://github.com/spideroak-inc/apq/blob/spec/design.md#senderkey
+/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
 #[derive(ZeroizeOnDrop)]
 pub struct SenderSecretKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
 
@@ -532,12 +532,12 @@ impl<E: Engine + ?Sized> SenderSecretKey<E> {
 
 /// The public half of a [SenderKey].
 ///
-/// [SenderKey]: https://github.com/spideroak-inc/apq/blob/spec/design.md#senderkey
+/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
 pub struct SenderPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
 
 /// The private half of a [ReceiverKey].
 ///
-/// [ReceiverKey]: https://github.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
+/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
 #[derive(ZeroizeOnDrop)]
 pub struct ReceiverSecretKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
 
@@ -605,7 +605,7 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
 
 /// The public half of a [ReceiverKey].
 ///
-/// [ReceiverKey]: https://github.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
+/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
 pub struct ReceiverPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
 
 impl<E: Engine + ?Sized> ReceiverPublicKey<E> {

@@ -34,8 +34,8 @@
 //! contextual binding purposes. Among other things, this helps
 //! prevent cross-version attacks.
 //!
-//! [IDAM crypto]: https://github.com/spideroak-inc/flow3-docs/blob/37bfddf39c37ae258615e8bf2617432aaf8d453a/idam_crypto.md
-//! [IDAM]: https://github.com/spideroak-inc/flow3-docs/blob/8bf06fdfdb4521f96892de9eff8c7b2908413ace/src/idam.md
+//! [IDAM crypto]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/37bfddf39c37ae258615e8bf2617432aaf8d453a/idam_crypto.md
+//! [IDAM]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/8bf06fdfdb4521f96892de9eff8c7b2908413ace/src/idam.md
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docs, feature(doc_cfg))]

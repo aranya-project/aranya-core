@@ -37,6 +37,10 @@ jobs:
         env:
           RUSTDOCFLAGS: "--cfg docs -Dwarnings"
         run: |
+          if ! command -v zip; then
+            sudo apt-get install -y zip \
+              --no-install-recommends
+          fi
           cargo +nightly doc --all-features --workspace
           zip -qr docs.zip target/doc
       - name: Publish docs
