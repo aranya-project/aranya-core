@@ -14,6 +14,8 @@ on:
     secrets:
       CC_BUILD_TOKEN:
         required: true
+      GH_DOTCOM_TOKEN:
+        required: true
 
 env:
   REV: ${{ github.run_id }}
@@ -24,13 +26,17 @@ concurrency:
 
 jobs:
   doc:
-    runs-on: "ubuntu-latest"
+    runs-on: "self-hosted-linux-amd64"
     steps:
+      # Our runners don't get wiped between runs :/
+      - name: nuke old .gitconfig
+        run: rm ~/.gitconfig
       - uses: actions/checkout@v3
       - uses: ./.github/actions/setup
         with:
-          gh-token: ${{ secrets.CC_BUILD_TOKEN }}
-          os: "ubuntu-latest"
+          ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
+          gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
+          os: "self-hosted-linux-amd64"
       - name: Install nightly
         run: rustup toolchain install nightly
       - name: Generate docs

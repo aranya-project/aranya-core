@@ -1,4 +1,4 @@
-name: "Build"
+name: "Build VxWorks"
 
 on:
   push:
@@ -13,6 +13,8 @@ on:
         type: string
     secrets:
       CC_BUILD_TOKEN:
+        required: true
+      GH_DOTCOM_TOKEN:
         required: true
 
 env:
@@ -41,11 +43,15 @@ jobs:
       X86: x86_64-linux-gnu
       X86_BIN: ${{ github.workspace }}/x86_64-linux-gnu/14.0.0/bin
     steps:
+      # Our runners don't get wiped between runs :/
+      - name: nuke old .gitconfig
+        run: rm ~/.gitconfig
       - uses: actions/checkout@v3
 
       - uses: ./.github/actions/setup
         with:
-          gh-token: ${{ secrets.CC_BUILD_TOKEN }}
+          ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
+          gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: ${{ matrix.target.os }}
           target: ${{ matrix.target.suffix }}
 

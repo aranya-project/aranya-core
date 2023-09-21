@@ -14,6 +14,8 @@ on:
     secrets:
       CC_BUILD_TOKEN:
         required: true
+      GH_DOTCOM_TOKEN:
+        required: true
 
 env:
   REV: ${{ github.run_id }}
@@ -26,22 +28,25 @@ jobs:
   build-release:
     strategy:
       matrix:
-        target:
-          [
-            { os: "macos-latest", suffix: "darwin-amd64" },
-            { os: "self-hosted-linux-arm", suffix: "linux-arm" },
-            { os: "self-hosted-linux-arm64", suffix: "linux-arm64" },
-            { os: "ubuntu-latest", suffix: "linux-amd64" },
-          ]
+        include:
+          # TODO(eric): re-enable after we get macOS runners.
+          # - target: { os: "macos-latest", suffix: "darwin-amd64" }
+          - target: { os: "self-hosted-linux-arm", suffix: "linux-arm" }
+          - target: { os: "self-hosted-linux-arm64", suffix: "linux-arm64" }
+          - target: { os: "self-hosted-linux-amd64", suffix: "linux-amd64" }
     runs-on: ${{ matrix.target.os }}
     steps:
+      # Our runners don't get wiped between runs :/
+      - name: nuke old .gitconfig
+        run: rm ~/.gitconfig
       - uses: actions/checkout@v3
       - name: Clean temp files
         run: rm -rf ${{ github.workspace }}/_temp
         if: ${{ matrix.os == 'self-hosted-linux-arm' }}
       - uses: ./.github/actions/setup
         with:
-          gh-token: ${{ secrets.CC_BUILD_TOKEN }}
+          ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
+          gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: ${{ matrix.target.os }}
           target: ${{ matrix.target.suffix }}
 
