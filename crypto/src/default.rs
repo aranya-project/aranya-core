@@ -15,8 +15,8 @@ use {
 /// Certain feature flags will change the default CSPRNG:
 ///
 /// - `moonshot`: Uses a CSPRNG specific to Project Moonshot.
-/// - `std`: Uses [`ThreadRng`][rand::rngs::ThreadRng].
-/// - `boringssl`: Uses [`boring:Rand`][crate::boring::Rand].
+/// - `std`: Uses a thread-local CSPRNG.
+/// - `boringssl`: Uses BoringSSL's CSPRNG.
 ///
 /// In general, `Rng` should be used directly instead of being
 /// created with [`Rng::new`]. For example:

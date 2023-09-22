@@ -36,6 +36,7 @@ use {
         num::NonZeroU16,
         result::Result,
     },
+    postcard::experimental::max_size::MaxSize,
     serde::{Deserialize, Serialize},
     subtle::{Choice, ConstantTimeEq},
 };
@@ -147,7 +148,7 @@ impl ConstantTimeEq for Psk<'_> {
 }
 
 /// KEM algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
 pub enum KemId {
     /// DHKEM(P-256, HKDF-SHA256).
     DhKemP256HkdfSha256,
@@ -196,7 +197,7 @@ impl Display for KemId {
 }
 
 /// KDF algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
 pub enum KdfId {
     /// HKDF-SHA256.
     HkdfSha256,
@@ -237,7 +238,7 @@ impl Display for KdfId {
 }
 
 /// AEAD algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
 pub enum AeadId {
     /// AES-128-GCM.
     Aes128Gcm,

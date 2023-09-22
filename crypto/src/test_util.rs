@@ -777,48 +777,46 @@ where
     /// Creates a signature over an encoded record.
     fn test_simple_sender_signing_key_sign<R: Csprng>(rng: &mut R) {
         const RECORD: &[u8] = b"some encoded record";
-        const RECORD_NAME: &str = "MessageRecord";
 
-        const VERSION: Version = Version(1);
-        const TOPIC: Topic = Topic(4);
+        const VERSION: Version = Version::new(1);
+        let topic = Topic::new("SomeTopic");
 
         let sign_key = SenderSigningKey::<E>::new(rng);
         let sig = sign_key
-            .sign(VERSION, TOPIC, RECORD, RECORD_NAME)
+            .sign(VERSION, &topic, RECORD)
             .expect("unable to create signature");
 
         sign_key
             .public()
-            .verify(VERSION, TOPIC, RECORD, RECORD_NAME, &sig)
+            .verify(VERSION, &topic, RECORD, &sig)
             .expect("the signature should be valid");
 
         sign_key
             .public()
-            .verify(Version(VERSION.0 + 1), TOPIC, RECORD, RECORD_NAME, &sig)
+            .verify(Version::new(VERSION.as_u32() + 1), &topic, RECORD, &sig)
             .expect_err("should fail: wrong version");
 
         sign_key
             .public()
-            .verify(VERSION, Topic(TOPIC.0 + 1), RECORD, RECORD_NAME, &sig)
+            .verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
             .expect_err("should fail: wrong topic");
 
         sign_key
             .public()
-            .verify(VERSION, TOPIC, b"wrong", RECORD_NAME, &sig)
+            .verify(VERSION, &topic, b"wrong", &sig)
             .expect_err("should fail: wrong record");
 
-        sign_key
-            .public()
-            .verify(VERSION, TOPIC, RECORD, "SomeRecord", &sig)
-            .expect_err("should fail: wrong record name");
-
         let wrong_sig = sign_key
-            .sign(Version(VERSION.0 + 1), Topic(TOPIC.0 + 1), b"foo", "bar")
+            .sign(
+                Version::new(VERSION.as_u32() + 1),
+                &Topic::new("AnotherTopic"),
+                b"encoded record",
+            )
             .expect("should not fail to create signature");
 
         sign_key
             .public()
-            .verify(VERSION, TOPIC, RECORD, RECORD_NAME, &wrong_sig)
+            .verify(VERSION, &topic, RECORD, &wrong_sig)
             .expect_err("should fail: wrong signature");
     }
 
@@ -830,18 +828,18 @@ where
         let recv_sk = ReceiverSecretKey::<E>::new(rng);
         let recv_pk = recv_sk.public();
 
-        const VERSION: Version = Version(1);
-        const TOPIC: Topic = Topic(4);
+        const VERSION: Version = Version::new(1);
+        let topic = Topic::new("SomeTopic");
 
-        let want = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
+        let want = TopicKey::new(rng, VERSION, &topic).expect("unable to create new `TopicKey`");
         let (enc, ciphertext) = recv_pk
-            .seal_topic_key(rng, VERSION, TOPIC, &send_sk, &want)
+            .seal_topic_key(rng, VERSION, &topic, &send_sk, &want)
             .expect("unable to encrypt `TopicKey`");
         let enc = Encap::<E>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
         let ciphertext = EncryptedTopicKey::<E>::from_bytes(ciphertext.as_bytes())
             .expect("should be able to decode `EncryptedTopicKey`");
         let got = recv_sk
-            .open_topic_key(VERSION, TOPIC, &send_pk, &enc, &ciphertext)
+            .open_topic_key(VERSION, &topic, &send_pk, &enc, &ciphertext)
             .expect("unable to decrypt `TopicKey`");
         assert_eq!(want.id(), got.id());
     }
@@ -905,23 +903,23 @@ where
         const INPUT: &[u8] = b"hello, world!";
 
         let ident = Sender {
-            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
-            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+            enc_key: &SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: &SenderSigningKey::<E>::new(&mut Rng).public(),
         };
 
-        const VERSION: Version = Version(1);
-        const TOPIC: Topic = Topic(4);
+        const VERSION: Version = Version::new(1);
+        let topic = Topic::new("SomeTopic");
 
-        let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
+        let tk = TopicKey::new(rng, VERSION, &topic).expect("unable to create new `TopicKey`");
         let ciphertext = {
             let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-            tk.seal_message(rng, &mut dst, INPUT, VERSION, TOPIC, &ident)
+            tk.seal_message(rng, &mut dst, INPUT, VERSION, &topic, &ident)
                 .expect("should succeed");
             dst
         };
         let plaintext = {
             let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
-            tk.open_message(&mut dst, &ciphertext, VERSION, TOPIC, &ident)
+            tk.open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
                 .expect("should succeed");
             dst
         };
@@ -933,25 +931,25 @@ where
         const INPUT: &[u8] = b"hello, world!";
 
         let ident = Sender {
-            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
-            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+            enc_key: &SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: &SenderSigningKey::<E>::new(&mut Rng).public(),
         };
 
-        const VERSION: Version = Version(1);
-        const TOPIC: Topic = Topic(4);
+        const VERSION: Version = Version::new(1);
+        let topic = Topic::new("SomeTopic");
 
-        let tk1 = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
-        let tk2 = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create new `TopicKey`");
+        let tk1 = TopicKey::new(rng, VERSION, &topic).expect("unable to create new `TopicKey`");
+        let tk2 = TopicKey::new(rng, VERSION, &topic).expect("unable to create new `TopicKey`");
 
         let ciphertext = {
             let mut dst = vec![0u8; INPUT.len() + tk1.overhead()];
-            tk1.seal_message(rng, &mut dst, INPUT, VERSION, TOPIC, &ident)
+            tk1.seal_message(rng, &mut dst, INPUT, VERSION, &topic, &ident)
                 .expect("should succeed");
             dst
         };
         let mut dst = vec![0u8; ciphertext.len() - tk2.overhead()];
         let err = tk2
-            .open_message(&mut dst, &ciphertext, VERSION, TOPIC, &ident)
+            .open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
             .expect_err("should have failed");
         assert_eq!(err, Error::Aead(AeadError::Authentication));
     }
@@ -961,21 +959,21 @@ where
         const INPUT: &[u8] = b"hello, world!";
 
         let ident = Sender {
-            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
-            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+            enc_key: &SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: &SenderSigningKey::<E>::new(&mut Rng).public(),
         };
         let wrong_ident = Sender {
-            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
-            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+            enc_key: &SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: &SenderSigningKey::<E>::new(&mut Rng).public(),
         };
 
-        const VERSION: Version = Version(1);
-        const TOPIC: Topic = Topic(4);
+        const VERSION: Version = Version::new(1);
+        let topic = Topic::new("SomeTopic");
 
-        let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create `TopicKey`");
+        let tk = TopicKey::new(rng, VERSION, &topic).expect("unable to create `TopicKey`");
         let ciphertext = {
             let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-            tk.seal_message(rng, &mut dst, INPUT, VERSION, TOPIC, &ident)
+            tk.seal_message(rng, &mut dst, INPUT, VERSION, &topic, &ident)
                 .expect("should succeed");
             dst
         };
@@ -989,9 +987,14 @@ where
                 assert_eq!(err, Error::Aead(AeadError::Authentication), $msg);
             };
         }
-        should_fail!("wrong version", Version(VERSION.0 + 1), TOPIC, &ident);
-        should_fail!("wrong topic", VERSION, Topic(TOPIC.0 + 1), &ident);
-        should_fail!("wrong ident", VERSION, TOPIC, &wrong_ident);
+        should_fail!(
+            "wrong version",
+            Version::new(VERSION.as_u32() + 1),
+            &topic,
+            &ident
+        );
+        should_fail!("wrong topic", VERSION, &Topic::new("WrongTopic"), &ident);
+        should_fail!("wrong ident", VERSION, &topic, &wrong_ident);
     }
 
     /// Negative test for a modified ciphertext.
@@ -999,17 +1002,17 @@ where
         const INPUT: &[u8] = b"hello, world!";
 
         let ident = Sender {
-            enc_key: SenderSecretKey::<E>::new(&mut Rng).public(),
-            sign_key: SenderSigningKey::<E>::new(&mut Rng).public(),
+            enc_key: &SenderSecretKey::<E>::new(&mut Rng).public(),
+            sign_key: &SenderSigningKey::<E>::new(&mut Rng).public(),
         };
 
-        const VERSION: Version = Version(1);
-        const TOPIC: Topic = Topic(4);
+        const VERSION: Version = Version::new(1);
+        let topic = Topic::new("SomeTopic");
 
-        let tk = TopicKey::new(rng, VERSION, TOPIC).expect("unable to create `TopicKey`");
+        let tk = TopicKey::new(rng, VERSION, &topic).expect("unable to create `TopicKey`");
         let mut ciphertext = {
             let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-            tk.seal_message(rng, &mut dst, INPUT, VERSION, TOPIC, &ident)
+            tk.seal_message(rng, &mut dst, INPUT, VERSION, &topic, &ident)
                 .expect("should succeed");
             dst
         };
@@ -1018,7 +1021,7 @@ where
 
         let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
         let err = tk
-            .open_message(&mut dst, &ciphertext, VERSION, TOPIC, &ident)
+            .open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
             .expect_err("should have failed");
         assert_eq!(err, Error::Aead(AeadError::Authentication));
     }

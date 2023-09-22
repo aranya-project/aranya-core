@@ -17,17 +17,15 @@ use {
             ArraySize, ByteArray,
         },
         id::Id,
-        import::{ExportError, Import, ImportError, InvalidSizeError},
+        import::{ExportError, Import, ImportError},
         kem::{DecapKey, Kem},
         keys::{PublicKey, SecretKey},
-        misc::{
-            key_misc, DecapKeyData, ExportedData, ExportedDataType, SerdeBorrowedSig,
-            SerdeOwnedSig, SigData, SigningKeyData,
-        },
+        misc::{ciphertext, key_misc, DecapKeyData, SigData, SigningKeyData},
         signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
         zeroize::ZeroizeOnDrop,
     },
-    core::{borrow::Borrow, ops::Add, result::Result},
+    core::{borrow::Borrow, fmt, marker::PhantomData, ops::Add, result::Result},
+    postcard::experimental::max_size::MaxSize,
     serde::{de, Deserialize, Deserializer, Serialize, Serializer},
 };
 
@@ -44,6 +42,17 @@ impl<E: Engine + ?Sized> Signature<E> {
     pub(crate) fn raw_sig(&self) -> SigData<E> {
         signer::Signature::export(&self.0)
     }
+
+    /// Encodes itself as bytes.
+    pub fn to_bytes(&self) -> impl Borrow<[u8]> {
+        self.raw_sig()
+    }
+
+    /// Returns itself from its byte encoding.
+    pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
+        let sig = <E::Signer as Signer>::Signature::import(data)?;
+        Ok(Self(sig))
+    }
 }
 
 impl<E: Engine + ?Sized> Serialize for Signature<E> {
@@ -51,11 +60,7 @@ impl<E: Engine + ?Sized> Serialize for Signature<E> {
     where
         S: Serializer,
     {
-        ExportedData::<SerdeBorrowedSig<'_, E::Signer>>::from_sig::<E>(
-            &self.0,
-            ExportedDataType::Signature,
-        )
-        .serialize(serializer)
+        serializer.serialize_bytes(self.to_bytes().borrow())
     }
 }
 
@@ -64,12 +69,30 @@ impl<'de, E: Engine + ?Sized> Deserialize<'de> for Signature<E> {
     where
         D: Deserializer<'de>,
     {
-        let data = ExportedData::<SerdeOwnedSig<E::Signer>>::deserialize(deserializer)?;
-        if !data.valid_context::<E>(ExportedDataType::Signature) {
-            Err(de::Error::custom(ImportError::InvalidContext))
-        } else {
-            Ok(Self(data.data.0))
+        struct SigVisitor<E: Engine + ?Sized>(PhantomData<E>);
+        impl<'de, G: Engine + ?Sized> de::Visitor<'de> for SigVisitor<G> {
+            type Value = Signature<G>;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "a signature")
+            }
+
+            fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Signature::<G>::from_bytes(v).map_err(de::Error::custom)
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Signature::<G>::from_bytes(v).map_err(de::Error::custom)
+            }
         }
+        let sig = deserializer.deserialize_bytes(SigVisitor::<E>(PhantomData))?;
+        Ok(sig)
     }
 }
 
@@ -401,30 +424,53 @@ impl<E: Engine + ?Sized> Encap<E> {
     }
 }
 
-/// An encrypted [`GroupKey`].
-pub struct EncryptedGroupKey<E: Engine + ?Sized>(ByteArray<Sum<<E::Aead as Aead>::TagSize, U64>>)
+impl<E> Serialize for Encap<E>
 where
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize;
-
-impl<E: Engine + ?Sized> EncryptedGroupKey<E>
-where
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+    E: Engine + ?Sized,
 {
-    const SIZE: usize = 64 + E::Aead::TAG_SIZE;
-
-    /// Encodes itself as bytes.
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-
-    /// Returns itself from its byte encoding.
-    pub fn from_bytes(data: &[u8]) -> Result<Self, InvalidSizeError> {
-        let v = data.try_into().map_err(|_| InvalidSizeError {
-            got: data.len(),
-            want: Self::SIZE..Self::SIZE,
-        })?;
-        Ok(Self(v))
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        s.serialize_bytes(self.as_bytes())
     }
 }
+
+impl<'de, E> Deserialize<'de> for Encap<E>
+where
+    E: Engine + ?Sized,
+{
+    fn deserialize<D>(d: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct EncapVisitor<G>(PhantomData<G>);
+        impl<'de, G> de::Visitor<'de> for EncapVisitor<G>
+        where
+            G: Engine + ?Sized,
+        {
+            type Value = Encap<G>;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "a valid encapsulation")
+            }
+
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Encap::<G>::from_bytes(v).map_err(E::custom)
+            }
+
+            fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Encap::<G>::from_bytes(v).map_err(E::custom)
+            }
+        }
+        d.deserialize_bytes(EncapVisitor(PhantomData))
+    }
+}
+
+ciphertext!(EncryptedGroupKey, U64, "An encrypted [`GroupKey`].");

@@ -14,6 +14,7 @@ use {
         mem,
         result::Result,
     },
+    postcard::experimental::max_size::MaxSize,
     serde::{Deserialize, Serialize},
     subtle::{Choice, ConstantTimeEq},
 };
@@ -49,7 +50,7 @@ impl fmt::Display for MacError {
 impl error::Error for MacError {}
 
 /// MAC algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
 pub enum MacId {
     /// HMAC-SHA256.
     HmacSha256,

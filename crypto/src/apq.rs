@@ -13,55 +13,106 @@ use {
         engine::Engine,
         error::Error,
         hash::tuple_hash,
+        hex::ToHex,
         hpke::{Hpke, Mode},
         hybrid_array::{
             typenum::{operator_aliases::Sum, U64},
             ArraySize, ByteArray,
         },
         id::{custom_id, Id},
-        import::{ExportError, Import, ImportError, InvalidSizeError},
+        import::{ExportError, Import, ImportError},
         kdf::{Kdf, KdfError},
         kem::{DecapKey, Kem},
         keys::{PublicKey, SecretKey},
         mac::Mac,
-        misc::{key_misc, DecapKeyData, SigningKeyData},
+        misc::{ciphertext, key_misc, DecapKeyData, SigningKeyData},
         signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
         zeroize::{Zeroize, ZeroizeOnDrop},
     },
     core::{
         borrow::{Borrow, BorrowMut},
+        fmt,
         ops::Add,
         result::Result,
     },
+    postcard::experimental::max_size::MaxSize,
+    serde::{Deserialize, Serialize},
+    siphasher::sip128::SipHasher24,
 };
 
 /// A sender's identity.
-pub struct Sender<E: Engine + ?Sized> {
+pub struct Sender<'a, E: Engine + ?Sized> {
     /// The sender's public key.
-    pub enc_key: SenderPublicKey<E>,
+    pub enc_key: &'a SenderPublicKey<E>,
     /// The sender's verifying key.
-    pub sign_key: SenderVerifyingKey<E>,
+    pub sign_key: &'a SenderVerifyingKey<E>,
 }
 
 /// The current APQ version.
 #[derive(Copy, Clone, Debug, Default)]
-#[repr(transparent)]
-pub struct Version(pub u32);
+pub struct Version(u32);
 
 impl Version {
+    /// Creates a new version.
+    pub const fn new(version: u32) -> Self {
+        Self(version)
+    }
+
+    /// Returns the version as a `u32`.
+    pub const fn as_u32(self) -> u32 {
+        self.0
+    }
+
     const fn to_be_bytes(self) -> [u8; 4] {
         self.0.to_be_bytes()
     }
 }
 
 /// The APQ topic being used.
-#[derive(Copy, Clone, Debug, Default)]
-#[repr(transparent)]
-pub struct Topic(pub u32);
+#[derive(
+    Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, MaxSize,
+)]
+pub struct Topic([u8; 16]);
 
 impl Topic {
-    const fn to_be_bytes(self) -> [u8; 4] {
-        self.0.to_be_bytes()
+    /// Creates a new topic.
+    pub fn new<T: AsRef<[u8]>>(topic: T) -> Self {
+        let d = SipHasher24::new().hash(topic.as_ref());
+        Self(d.as_bytes())
+    }
+
+    /// Converts itself into its byte representation.
+    pub fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+
+    /// Converts itself into its byte representation.
+    pub fn to_bytes(self) -> [u8; 16] {
+        self.0
+    }
+}
+
+impl AsRef<[u8]> for Topic {
+    fn as_ref(&self) -> &[u8] {
+        &self.0[..]
+    }
+}
+
+impl From<[u8; 16]> for Topic {
+    fn from(val: [u8; 16]) -> Self {
+        Self(val)
+    }
+}
+
+impl From<Topic> for [u8; 16] {
+    fn from(topic: Topic) -> [u8; 16] {
+        topic.0
+    }
+}
+
+impl fmt::Display for Topic {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.to_hex())
     }
 }
 
@@ -107,7 +158,7 @@ impl<E: Engine + ?Sized> Clone for TopicKey<E> {
 
 impl<E: Engine + ?Sized> TopicKey<E> {
     /// Creates a new, random `TopicKey`.
-    pub fn new<R: Csprng>(rng: &mut R, version: Version, topic: Topic) -> Result<Self, Error> {
+    pub fn new<R: Csprng>(rng: &mut R, version: Version, topic: &Topic) -> Result<Self, Error> {
         let mut seed = [0u8; 64];
         rng.fill_bytes(&mut seed);
         Self::from_seed(seed, version, topic)
@@ -168,17 +219,18 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     ///     UserId,
     /// };
     ///
-    /// const VERSION: Version = Version(1);
-    /// const TOPIC: Topic = Topic(4);
+    /// const VERSION: Version = Version::new(1);
+    /// let topic = Topic::new("SomeTopic");
     /// const MESSAGE: &[u8] = b"hello, world!";
+    ///
     /// let ident = Sender {
-    ///     enc_key: SenderSecretKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng)
+    ///     enc_key: &SenderSecretKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng)
     ///         .public(),
-    ///     sign_key: SenderSigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng)
+    ///     sign_key: &SenderSigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng)
     ///         .public(),
     /// };
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, TOPIC)
+    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
     ///     .expect("should not fail");
     ///
     /// let ciphertext = {
@@ -188,7 +240,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     ///         &mut dst,
     ///         MESSAGE,
     ///         VERSION,
-    ///         TOPIC,
+    ///         &topic,
     ///         &ident,
     ///     ).expect("should not fail");
     ///     dst
@@ -199,7 +251,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     ///         &mut dst,
     ///         &ciphertext,
     ///         VERSION,
-    ///         TOPIC,
+    ///         &topic,
     ///         &ident,
     ///     ).expect("should not fail");
     ///     dst
@@ -213,8 +265,8 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         dst: &mut [u8],
         plaintext: &[u8],
         version: Version,
-        topic: Topic,
-        ident: &Sender<E>,
+        topic: &Topic,
+        ident: &Sender<'_, E>,
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
@@ -224,14 +276,14 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         }
         // ad = concat(
         //     i2osp(version, 4),
-        //     i2osp(topic, 4),
+        //     topic,
         //     suite_id,
         //     hash(pk(SenderKey)),
         //     hash(pk(SenderSigningKey)),
         // )
         let ad = tuple_hash::<E::Hash, _>([
             &version.to_be_bytes()[..],
-            &topic.to_be_bytes()[..],
+            &topic.as_bytes()[..],
             &SuiteIds::from_suite::<E>().into_bytes(),
             ident.enc_key.id().as_bytes(),
             ident.sign_key.id().as_bytes(),
@@ -252,8 +304,8 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         dst: &mut [u8],
         ciphertext: &[u8],
         version: Version,
-        topic: Topic,
-        ident: &Sender<E>,
+        topic: &Topic,
+        ident: &Sender<'_, E>,
     ) -> Result<(), Error> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
@@ -263,13 +315,13 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         let (nonce, ciphertext) = ciphertext.split_at(E::Aead::NONCE_SIZE);
         // ad = concat(
         //     i2osp(version, 4),
-        //     i2osp(topic, 4),
+        //     topic,
         //     suite_id,
         //     hash(pk(SenderSigningKey)),
         // )
         let ad = tuple_hash::<E::Hash, _>([
             &version.to_be_bytes()[..],
-            &topic.to_be_bytes()[..],
+            &topic.as_bytes()[..],
             &SuiteIds::from_suite::<E>().into_bytes(),
             ident.enc_key.id().as_bytes(),
             ident.sign_key.id().as_bytes(),
@@ -277,7 +329,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         Ok(E::Aead::new(&self.key).open(dst, nonce, ciphertext, &ad)?)
     }
 
-    fn from_seed(seed: [u8; 64], version: Version, topic: Topic) -> Result<Self, Error> {
+    fn from_seed(seed: [u8; 64], version: Version, topic: &Topic) -> Result<Self, Error> {
         let key = Self::derive_key(&seed, version, topic)?;
         Ok(Self { key, seed })
     }
@@ -288,20 +340,17 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     fn derive_key(
         seed: &[u8; 64],
         version: Version,
-        topic: Topic,
+        topic: &Topic,
     ) -> Result<<E::Aead as Aead>::Key, Error> {
         // prk = LabeledExtract({0}^512, seed, "topic_key_prk")
         let prk = Self::labeled_extract(&[], b"topic_key_prk", seed);
         // info = concat(
         //     i2osp(version, 4),
-        //     i2osp(topic, 4),
+        //     topic,
         // )
         // key = LabeledExpand(prk, "topic_key_key", info, L)
-        let key = Self::labeled_expand::<KeyData<E::Aead>, 13>(
-            &prk,
-            b"topic_key_key",
-            &((u64::from(version.0) << 32) | u64::from(topic.0)).to_be_bytes(),
-        )?;
+        let key =
+            Self::labeled_expand::<KeyData<E::Aead>, 13>(&prk, b"topic_key_key", version, topic)?;
         Ok(<<E::Aead as Aead>::Key as Import<_>>::import(key.borrow())?)
     }
 
@@ -322,7 +371,8 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     fn labeled_expand<T: Borrow<[u8]> + BorrowMut<[u8]> + Default, const N: usize>(
         prk: &<E::Kdf as Kdf>::Prk,
         label: &[u8; N],
-        info: &[u8],
+        version: Version,
+        topic: &Topic,
     ) -> Result<T, KdfError> {
         let mut out = T::default();
         // We know all possible enumerations of `T` and they all
@@ -333,40 +383,15 @@ impl<E: Engine + ?Sized> TopicKey<E> {
             "APQ-v1".as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             label,
-            info,
+            &version.to_be_bytes(),
+            &topic.as_bytes()[..],
         ];
         E::Kdf::expand_multi(out.borrow_mut(), prk, &labeled_info)?;
         Ok(out)
     }
 }
 
-/// An encrypted [`TopicKey`].
-pub struct EncryptedTopicKey<E: Engine + ?Sized>(ByteArray<Sum<<E::Aead as Aead>::TagSize, U64>>)
-where
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize;
-
-impl<E: Engine + ?Sized> EncryptedTopicKey<E>
-where
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
-{
-    const SIZE: usize = 64 + E::Aead::TAG_SIZE;
-
-    /// Reutrns itself as bytes.
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-
-    /// Returns itself from its byte encoding.
-    pub fn from_bytes(data: &[u8]) -> Result<Self, InvalidSizeError> {
-        let v = data.try_into().map_err(|_| InvalidSizeError {
-            got: data.len(),
-            want: Self::SIZE..Self::SIZE,
-        })?;
-        Ok(Self(v))
-    }
-}
+ciphertext!(EncryptedTopicKey, U64, "An encrypted [`TopicKey`].");
 
 /// The private half of a [SenderSigningKey].
 ///
@@ -397,57 +422,54 @@ impl<E: Engine + ?Sized> SenderSigningKey<E> {
     ///     Rng,
     /// };
     ///
-    /// const VERSION: Version = Version(1);
-    /// const TOPIC: Topic = Topic(4);
+    /// const VERSION: Version = Version::new(1);
+    /// let topic = Topic::new("SomeTopic");
     /// const RECORD: &[u8] = b"an encoded record";
-    /// const RECORD_NAME: &str = "MessageRecord";
     ///
     /// let sk = SenderSigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
     ///
-    /// let sig = sk.sign(VERSION, TOPIC, RECORD, RECORD_NAME)
+    /// let sig = sk.sign(VERSION, &topic, RECORD)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(VERSION, TOPIC, RECORD, RECORD_NAME, &sig)
+    /// sk.public().verify(VERSION, &topic, RECORD, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(Version(VERSION.0 + 1), TOPIC, RECORD, RECORD_NAME, &sig)
+    /// sk.public().verify(Version::new(2), &topic, RECORD, &sig)
     ///     .expect_err("should fail: wrong version");
     ///
-    /// sk.public().verify(VERSION, Topic(TOPIC.0 + 1), RECORD, RECORD_NAME, &sig)
+    /// sk.public().verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
     ///     .expect_err("should fail: wrong topic");
     ///
-    /// sk.public().verify(VERSION, TOPIC, b"wrong", RECORD_NAME, &sig)
+    /// sk.public().verify(VERSION, &topic, b"wrong", &sig)
     ///     .expect_err("should fail: wrong record");
     ///
-    /// sk.public().verify(VERSION, TOPIC, RECORD, "SomeRecord", &sig)
-    ///     .expect_err("should fail: wrong record name");
-    ///
-    /// let wrong_sig = sk.sign(Version(VERSION.0 + 1), Topic(TOPIC.0 + 1), b"foo", "bar")
+    /// let wrong_sig = sk
+    ///     .sign(
+    ///         Version::new(2),
+    ///         &Topic::new("AnotherTopic"),
+    ///         b"encoded record",
+    ///     )
     ///     .expect("should not fail");
-    /// sk.public().verify(VERSION, TOPIC, RECORD, RECORD_NAME, &wrong_sig)
+    /// sk.public().verify(VERSION, &topic, RECORD, &wrong_sig)
     ///     .expect_err("should fail: wrong signature");
     /// # }
     /// ```
     pub fn sign(
         &self,
         version: Version,
-        topic: Topic,
+        topic: &Topic,
         record: &[u8],
-        record_name: &'static str,
     ) -> Result<Signature<E>, Error> {
         // message = concat(
-        //     RecordName(record),
         //     i2osp(version, 4),
-        //     i2osp(topic, 4),
+        //     topic,
         //     suite_id,
         //     pk(SenderSigningKey),
-        //     context,
         //     encode(record),
         // )
         let msg = tuple_hash::<E::Hash, _>([
-            record_name.as_bytes(),
             &version.to_be_bytes(),
-            &topic.to_be_bytes(),
+            &topic.as_bytes()[..],
             &SuiteIds::from_suite::<E>().into_bytes(),
             self.public().id().as_bytes(),
             record,
@@ -478,24 +500,21 @@ impl<E: Engine + ?Sized> SenderVerifyingKey<E> {
     pub fn verify(
         &self,
         version: Version,
-        topic: Topic,
+        topic: &Topic,
         record: &[u8],
-        record_name: &'static str,
         sig: &Signature<E>,
     ) -> Result<(), Error> {
         // message = concat(
-        //     RecordName(record),
         //     i2osp(version, 4),
-        //     i2osp(topic, 4),
+        //     topic,
         //     suite_id,
         //     pk(SenderSigningKey),
         //     context,
         //     encode(record),
         // )
         let msg = tuple_hash::<E::Hash, _>([
-            record_name.as_bytes(),
             &version.to_be_bytes(),
-            &topic.to_be_bytes(),
+            &topic.as_bytes()[..],
             &SuiteIds::from_suite::<E>().into_bytes(),
             self.id().as_bytes(),
             record,
@@ -555,7 +574,7 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
     pub fn open_topic_key(
         &self,
         version: Version,
-        topic: Topic,
+        topic: &Topic,
         pk: &SenderPublicKey<E>,
         enc: &Encap<E>,
         ciphertext: &EncryptedTopicKey<E>,
@@ -566,13 +585,13 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
     {
         // ad = concat(
         //     i2osp(version, 4),
-        //     i2osp(topic, 4),
+        //     topic,
         //     suite_id,
         //     "TopicKeyRotation",
         // )
         let ad = tuple_hash::<E::Hash, _>([
             &version.to_be_bytes()[..],
-            &topic.to_be_bytes()[..],
+            &topic.as_bytes()[..],
             &SuiteIds::from_suite::<E>().into_bytes(),
             b"TopicKeyRotation",
         ]);
@@ -633,29 +652,29 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
     ///     UserId,
     /// };
     ///
-    /// const VERSION: Version = Version(1);
-    /// const TOPIC: Topic = Topic(4);
+    /// const VERSION: Version = Version::new(1);
+    /// let topic = Topic::new("SomeTopic");
     ///
     /// let send_sk = SenderSecretKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
     /// let send_pk = send_sk.public();
     /// let recv_sk = ReceiverSecretKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
     /// let recv_pk = recv_sk.public();
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, TOPIC)
+    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
     ///     .expect("should not fail");
     ///
     /// // The sender encrypts...
     /// let (enc, mut ciphertext) = recv_pk.seal_topic_key(
     ///     &mut Rng,
     ///     VERSION,
-    ///     TOPIC,
+    ///     &topic,
     ///     &send_sk,
     ///     &key,
     /// ).expect("should not fail");
     /// // ...and the receiver decrypts.
     /// let got = recv_sk.open_topic_key(
     ///     VERSION,
-    ///     TOPIC,
+    ///     &topic,
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
@@ -664,8 +683,8 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
     ///
     /// // Wrong version.
     /// recv_sk.open_topic_key(
-    ///     Version(VERSION.0 + 1),
-    ///     TOPIC,
+    ///     Version::new(2),
+    ///     &topic,
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
@@ -674,7 +693,7 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
     /// // Wrong topic.
     /// recv_sk.open_topic_key(
     ///     VERSION,
-    ///     Topic(TOPIC.0 + 1),
+    ///     &Topic::new("WrongTopic"),
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
@@ -685,7 +704,7 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
         &self,
         rng: &mut R,
         version: Version,
-        topic: Topic,
+        topic: &Topic,
         sk: &SenderSecretKey<E>,
         key: &TopicKey<E>,
     ) -> Result<(Encap<E>, EncryptedTopicKey<E>), Error>
@@ -695,13 +714,13 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
     {
         // ad = concat(
         //     i2osp(version, 4),
-        //     i2osp(topic, 4),
+        //     topic,
         //     suite_id,
         //     "TopicKeyRotation",
         // )
         let ad = tuple_hash::<E::Hash, _>([
             &version.to_be_bytes()[..],
-            &topic.to_be_bytes()[..],
+            &topic.as_bytes()[..],
             &SuiteIds::from_suite::<E>().into_bytes(),
             b"TopicKeyRotation",
         ]);

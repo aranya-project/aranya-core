@@ -27,6 +27,7 @@ use {
         mac::{Mac, MacId, MacKey, Tag},
         signer::{Signer, SignerId},
     },
+    postcard::experimental::max_size::MaxSize,
     serde::{Deserialize, Serialize},
 };
 
@@ -67,7 +68,7 @@ pub trait CipherSuite {
 /// Identifies the algorithms used by a [`CipherSuite`].
 ///
 /// Used for domain separation and contextual binding.
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
 pub(crate) struct SuiteIds {
     pub aead: AeadId,
     pub hash: HashId,

@@ -14,6 +14,7 @@ use {
         borrow::Borrow,
         fmt::{self, Debug, Display},
     },
+    postcard::experimental::max_size::MaxSize,
     serde::{
         de::{self, SeqAccess, Visitor},
         ser::SerializeTuple,
@@ -22,7 +23,7 @@ use {
 };
 
 /// A unique cryptographic ID.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
 pub struct Id([u8; 64]);
 
 impl Id {
@@ -158,7 +159,18 @@ impl<'de> Deserialize<'de> for Id {
 macro_rules! custom_id {
     ($name:ident, $doc:expr) => {
         #[doc = $doc]
-        #[derive(Copy, Clone, Default, Eq, PartialEq)]
+        #[derive(
+            Copy,
+            Clone,
+            Default,
+            Eq,
+            PartialEq,
+            Ord,
+            PartialOrd,
+            serde::Serialize,
+            serde::Deserialize,
+            ::postcard::experimental::max_size::MaxSize,
+        )]
         pub struct $name($crate::id::Id);
 
         impl $name {

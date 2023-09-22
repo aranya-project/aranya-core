@@ -3,7 +3,7 @@
 use {
     crate::hybrid_array::{
         typenum::{
-            consts::{U128, U133, U2, U32, U33, U48, U49, U64, U65, U66, U67, U97},
+            consts::{U128, U133, U16, U2, U32, U33, U48, U49, U64, U65, U66, U67, U97},
             Double, Integer, PartialQuot, Unsigned, B1, Z0,
         },
         ArrayOps, ArraySize, ByteArray,
@@ -52,6 +52,7 @@ macro_rules! hex_impl {
 pub(crate) use hex_impl;
 
 hex_impl! {
+    U16, // APQ
     U32, // P-256, X25519, ...
     U33, // X9.62 compressed P-256
     U48, // P-384

@@ -15,13 +15,14 @@ use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
     slice::{Iter, IterMut},
 };
+use postcard::experimental::max_size::MaxSize;
 use typenum::Unsigned;
 
 /// Hybrid typenum-based and const generic array type.
 ///
 /// Provides the flexibility of typenum-based expressions while also
 /// allowing interoperability and a transition path to const generics.
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[derive(Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 #[repr(transparent)]
 pub struct Array<T, U: ArraySize>(pub U::ArrayType<T>);
 
@@ -171,6 +172,24 @@ where
     fn borrow_mut(&mut self) -> &mut [T] {
         self.as_mut_slice()
     }
+}
+
+impl<T, U> Clone for Array<T, U>
+where
+    T: Clone,
+    U: ArraySize,
+{
+    fn clone(&self) -> Self {
+        Self(U::ArrayType::<T>::from_fn(|n| self.0.as_ref()[n].clone()))
+    }
+}
+
+impl<T, U> Copy for Array<T, U>
+where
+    T: Copy,
+    U: ArraySize,
+    U::ArrayType<T>: Copy,
+{
 }
 
 impl<T, U> Default for Array<T, U>
@@ -437,6 +456,10 @@ pub trait IntoArray<T> {
 macro_rules! impl_array_size {
     ($($len:expr => $ty:ident),+) => {
         $(
+            impl<T: MaxSize> MaxSize for Array<T, typenum::$ty> {
+                const POSTCARD_MAX_SIZE: usize = <[T; $len] as MaxSize>::POSTCARD_MAX_SIZE;
+            }
+
             impl<T> ArrayOps<T, $len> for Array<T, typenum::$ty> {
                 const SIZE: usize = $len;
                 type Size = typenum::$ty;
@@ -592,7 +615,9 @@ impl_array_size! {
     65 => U65,
     66 => U66,
     67 => U67,
+    76 => U76,
     80 => U80,
+    88 => U88,
     96 => U96,
     97 => U97,
     98 => U98,

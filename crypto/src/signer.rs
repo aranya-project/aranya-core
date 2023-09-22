@@ -19,6 +19,7 @@ use {
         fmt::{self, Debug},
         result::Result,
     },
+    postcard::experimental::max_size::MaxSize,
     serde::{Deserialize, Serialize},
 };
 
@@ -75,7 +76,7 @@ impl From<EncodingError> for SignerError {
 }
 
 /// Digital signature algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
 pub enum SignerId {
     /// ECDSA using NIST Curve P-256.
     P256,
