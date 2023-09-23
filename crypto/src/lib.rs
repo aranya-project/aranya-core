@@ -62,6 +62,7 @@ mod util;
 
 pub mod aead;
 pub mod apq;
+pub mod aps;
 mod aranya;
 pub mod asn1;
 pub mod bearssl;

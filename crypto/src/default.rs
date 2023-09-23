@@ -143,7 +143,7 @@ mod default_engine {
         const TAG_SIZE: usize = S::Aead::TAG_SIZE;
         const OVERHEAD: usize = Self::NONCE_SIZE + Self::TAG_SIZE;
 
-        /// Creates an [`Engine`] using ``.
+        /// Creates an [`Engine`] using `key`.
         pub fn new(key: &<S::Aead as Aead>::Key, rng: R) -> Self {
             Self {
                 aead: S::Aead::new(key),

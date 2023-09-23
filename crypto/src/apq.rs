@@ -19,7 +19,7 @@ use {
             typenum::{operator_aliases::Sum, U64},
             ArraySize, ByteArray,
         },
-        id::{custom_id, Id},
+        id::custom_id,
         import::{ExportError, Import, ImportError},
         kdf::{Kdf, KdfError},
         kem::{DecapKey, Kem},

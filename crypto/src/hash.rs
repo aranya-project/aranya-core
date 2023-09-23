@@ -57,7 +57,7 @@ impl HashId {
 /// length-extension attacks.
 ///
 /// Examples of cryptographic hash functions that fulfill
-/// these requirements include SHA256, SHA-512, and SHA3-512.
+/// these requirements include SHA-256, SHA-512, and SHA3-512.
 pub trait Hash: Clone {
     /// Uniquely identifies the hash algorithm.
     const ID: HashId;

@@ -4,6 +4,7 @@ use {
     crate::{
         aranya::{EncryptionKeyId, Signature, SigningKeyId, UserId},
         ciphersuite::SuiteIds,
+        csprng::Csprng,
         engine::Engine,
         groupkey::GroupKeyId,
         hash::tuple_hash,
@@ -23,6 +24,7 @@ use {
 };
 
 /// A unique cryptographic ID.
+#[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
 pub struct Id([u8; 64]);
 
@@ -58,8 +60,20 @@ impl Id {
         Self([0u8; 64])
     }
 
+    /// Creates a random ID.
+    pub fn random<R: Csprng>(rng: &mut R) -> Self {
+        let mut b = [0u8; 64];
+        rng.fill_bytes(&mut b);
+        Self(b)
+    }
+
     /// Returns the [`Id`] as a byte slice.
     pub const fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Returns the [`Id`] as a byte array.
+    pub const fn as_array(&self) -> &[u8; 64] {
         &self.0
     }
 }
@@ -156,9 +170,12 @@ impl<'de> Deserialize<'de> for Id {
     }
 }
 
+/// Creates a custom ID.
+#[macro_export]
 macro_rules! custom_id {
     ($name:ident, $doc:expr) => {
         #[doc = $doc]
+        #[repr(C)]
         #[derive(
             Copy,
             Clone,
@@ -167,21 +184,31 @@ macro_rules! custom_id {
             PartialEq,
             Ord,
             PartialOrd,
-            serde::Serialize,
-            serde::Deserialize,
+            ::serde::Serialize,
+            ::serde::Deserialize,
             ::postcard::experimental::max_size::MaxSize,
         )]
-        pub struct $name($crate::id::Id);
+        pub struct $name($crate::Id);
 
         impl $name {
             /// Same as [`Default`], but const.
             pub const fn default() -> Self {
-                Self(Id::default())
+                Self($crate::Id::default())
+            }
+
+            /// Creates a random ID.
+            pub fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+                Self($crate::Id::random(rng))
             }
 
             /// Returns itself as a byte slice.
             pub const fn as_bytes(&self) -> &[u8] {
                 self.0.as_bytes()
+            }
+
+            /// Returns itself as a byte array.
+            pub const fn as_array(&self) -> &[u8; 64] {
+                self.0.as_array()
             }
         }
 
@@ -192,14 +219,28 @@ macro_rules! custom_id {
             }
         }
 
-        impl From<$crate::id::Id> for $name {
+        impl From<[u8; 64]> for $name {
             #[inline]
-            fn from(id: $crate::id::Id) -> Self {
+            fn from(id: [u8; 64]) -> Self {
+                Self(id.into())
+            }
+        }
+
+        impl From<$name> for [u8; 64] {
+            #[inline]
+            fn from(id: $name) -> Self {
+                id.0.into()
+            }
+        }
+
+        impl From<$crate::Id> for $name {
+            #[inline]
+            fn from(id: $crate::Id) -> Self {
                 Self(id)
             }
         }
 
-        impl From<$name> for $crate::id::Id {
+        impl From<$name> for $crate::Id {
             #[inline]
             fn from(id: $name) -> Self {
                 id.0
