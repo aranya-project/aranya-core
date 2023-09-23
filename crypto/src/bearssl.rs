@@ -105,7 +105,7 @@ impl Aead for Aes256Gcm {
 
     type KeySize = U32;
     type NonceSize = U12;
-    type TagSize = U16;
+    type Overhead = U16; // tag only
 
     const MAX_PLAINTEXT_SIZE: u64 = (1 << 36) - 32; // 2^36 - 32
     const MAX_ADDITIONAL_DATA_SIZE: u64 = (1 << 61) - 1; // 2^61 - 1
@@ -221,6 +221,44 @@ impl Aead for Aes256Gcm {
         }
     }
 }
+
+#[cfg(feature = "committing-aead")]
+mod committing {
+    use {
+        super::{Aes256Gcm, Sha256},
+        crate::{
+            aead::{AeadKey, BlockCipher},
+            hybrid_array::typenum::Unsigned,
+        },
+        aes::cipher::{BlockEncrypt, BlockSizeUser, KeyInit},
+        generic_array::GenericArray,
+    };
+
+    /// AES-256.
+    #[doc(hidden)]
+    pub struct Aes256(aes::Aes256);
+
+    impl BlockCipher for Aes256 {
+        type BlockSize = <aes::Aes256 as BlockSizeUser>::BlockSize;
+        const BLOCK_SIZE: usize = Self::BlockSize::USIZE;
+        type Key = AeadKey<32>;
+
+        fn new(key: &Self::Key) -> Self {
+            let key: &[u8; 32] = key.into();
+            let cipher = <aes::Aes256 as KeyInit>::new(key.into());
+            Self(cipher)
+        }
+
+        fn encrypt_block(&self, block: &mut GenericArray<u8, Self::BlockSize>) {
+            self.0.encrypt_block(block)
+        }
+    }
+
+    crate::aead::utc_aead!(Cmt1Aes256Gcm, Aes256Gcm, Aes256, "CMT-1 AES-256-GCM.");
+    crate::aead::hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
+}
+#[cfg(feature = "committing-aead")]
+pub use committing::*;
 
 macro_rules! curve_impl {
     ($name:ident, $doc:expr, $id:expr, $curve:ident) => {
@@ -1223,6 +1261,37 @@ mod tests {
         #[test]
         fn test_aead_aes256_gcm() {
             test_aead::<Aes256Gcm>(aead::TestName::AesGcm);
+        }
+
+        #[cfg(feature = "committing-aead")]
+        mod committing {
+            use {
+                super::*,
+                crate::{
+                    default::Rng,
+                    test_util::{AeadTest, AeadWithDefaults, Test},
+                },
+            };
+
+            #[test]
+            fn test_cmt1_aead_aes256_gcm() {
+                AeadTest::<Cmt1Aes256Gcm>::test(&mut Rng, ());
+            }
+
+            #[test]
+            fn test_cmt1_aead_aes256_gcm_with_defaults() {
+                AeadTest::<AeadWithDefaults<Cmt1Aes256Gcm>>::test(&mut Rng, ());
+            }
+
+            #[test]
+            fn test_cmt4_aead_aes256_gcm() {
+                AeadTest::<Cmt4Aes256Gcm>::test(&mut Rng, ());
+            }
+
+            #[test]
+            fn test_cmt4_aead_aes256_gcm_with_defaults() {
+                AeadTest::<AeadWithDefaults<Cmt4Aes256Gcm>>::test(&mut Rng, ());
+            }
         }
     }
 

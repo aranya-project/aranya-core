@@ -25,6 +25,7 @@ macro_rules! const_assert {
         const _: () = assert!($($tt)*);
     }
 }
+pub(crate) use const_assert;
 
 /// Invokes `$name` at some indeterminate time before `fn main`.
 macro_rules! ctor {

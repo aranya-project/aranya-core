@@ -22,6 +22,12 @@ boringssl = [
 	"dep:bssl-sys",
 ]
 
+# Enable committing AEAD implementations.
+committing-aead = [
+	"dep:aes",
+	"dep:generic-array",
+]
+
 # Enable Ed25519 batch signature verification.
 #
 # NB: this is NOT supported on big-endian architectures.
@@ -90,8 +96,10 @@ bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branc
 bearssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bearssl.git", tag = "v0.2.0" }
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true }
+const_format = { workspace = true }
 der = { version = "0.7" }
 ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
+generic-array = { version = "0.14", optional = true }
 heapless = { workspace = true }
 postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
 lazy_static = { version = "1.4", features = ["spin_no_std"] }

@@ -182,7 +182,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
 
     /// The size in bytes of the overhead added to plaintexts
     /// when encrypted.
-    pub const OVERHEAD: usize = E::Aead::NONCE_SIZE + E::Aead::TAG_SIZE;
+    pub const OVERHEAD: usize = E::Aead::NONCE_SIZE + E::Aead::OVERHEAD;
 
     /// Returns the size in bytes of the overhead added to
     /// plaintexts when encrypted.
@@ -580,8 +580,8 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
         ciphertext: &EncryptedTopicKey<E>,
     ) -> Result<TopicKey<E>, Error>
     where
-        <E::Aead as Aead>::TagSize: Add<U64>,
-        Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+        <E::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
     {
         // ad = concat(
         //     i2osp(version, 4),
@@ -709,8 +709,8 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
         key: &TopicKey<E>,
     ) -> Result<(Encap<E>, EncryptedTopicKey<E>), Error>
     where
-        <E::Aead as Aead>::TagSize: Add<U64>,
-        Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+        <E::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
     {
         // ad = concat(
         //     i2osp(version, 4),

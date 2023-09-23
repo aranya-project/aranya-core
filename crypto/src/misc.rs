@@ -29,32 +29,32 @@ macro_rules! ciphertext {
         pub struct $name<E>(
             $crate::hybrid_array::ByteArray<
                 $crate::hybrid_array::typenum::operator_aliases::Sum<
-                    <E::Aead as $crate::aead::Aead>::TagSize,
+                    <E::Aead as $crate::aead::Aead>::Overhead,
                     $size,
                 >,
             >,
         )
         where
             E: $crate::engine::Engine + ?Sized,
-            <E::Aead as $crate::aead::Aead>::TagSize: ::core::ops::Add<$size>,
+            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::TagSize,
+                <E::Aead as $crate::aead::Aead>::Overhead,
                 $size,
             >: $crate::hybrid_array::ArraySize;
 
         impl<E> $name<E>
         where
             E: $crate::engine::Engine + ?Sized,
-            <E::Aead as $crate::aead::Aead>::TagSize: ::core::ops::Add<$size>,
+            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::TagSize,
+                <E::Aead as $crate::aead::Aead>::Overhead,
                 $size,
             >: $crate::hybrid_array::ArraySize,
         {
             /// The size in bytes of the ciphertext.
             pub const SIZE: usize =
                 <$size as $crate::hybrid_array::typenum::marker_traits::Unsigned>::USIZE
-                    + E::Aead::TAG_SIZE;
+                    + E::Aead::OVERHEAD;
 
             /// Encodes itself as bytes.
             pub fn as_bytes(&self) -> &[u8] {
@@ -78,9 +78,9 @@ macro_rules! ciphertext {
         impl<E> Clone for $name<E>
         where
             E: $crate::engine::Engine + ?Sized,
-            <E::Aead as $crate::aead::Aead>::TagSize: ::core::ops::Add<$size>,
+            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::TagSize,
+                <E::Aead as $crate::aead::Aead>::Overhead,
                 $size,
             >: $crate::hybrid_array::ArraySize,
         {
@@ -92,43 +92,43 @@ macro_rules! ciphertext {
         impl<E> ::postcard::experimental::max_size::MaxSize for $name<E>
         where
             E: $crate::engine::Engine + ?Sized,
-            <E::Aead as $crate::aead::Aead>::TagSize: ::core::ops::Add<$size>,
+            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::TagSize,
+                <E::Aead as $crate::aead::Aead>::Overhead,
                 $size,
             >: $crate::hybrid_array::ArraySize,
             $crate::hybrid_array::ByteArray<
                 $crate::hybrid_array::typenum::operator_aliases::Sum<
-                    <E::Aead as $crate::aead::Aead>::TagSize,
+                    <E::Aead as $crate::aead::Aead>::Overhead,
                     $size,
                 >,
             >: ::postcard::experimental::max_size::MaxSize,
         {
             const POSTCARD_MAX_SIZE: usize =
-                <ByteArray<Sum<<E::Aead as Aead>::TagSize, $size>> as MaxSize>::POSTCARD_MAX_SIZE;
+                <ByteArray<Sum<<E::Aead as Aead>::Overhead, $size>> as MaxSize>::POSTCARD_MAX_SIZE;
         }
 
         impl<E>
             From<
                 $crate::hybrid_array::ByteArray<
                     $crate::hybrid_array::typenum::operator_aliases::Sum<
-                        <E::Aead as $crate::aead::Aead>::TagSize,
+                        <E::Aead as $crate::aead::Aead>::Overhead,
                         $size,
                     >,
                 >,
             > for $name<E>
         where
             E: $crate::engine::Engine + ?Sized,
-            <E::Aead as $crate::aead::Aead>::TagSize: ::core::ops::Add<$size>,
+            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::TagSize,
+                <E::Aead as $crate::aead::Aead>::Overhead,
                 $size,
             >: $crate::hybrid_array::ArraySize,
         {
             fn from(
                 buf: $crate::hybrid_array::ByteArray<
                     $crate::hybrid_array::typenum::operator_aliases::Sum<
-                        <E::Aead as $crate::aead::Aead>::TagSize,
+                        <E::Aead as $crate::aead::Aead>::Overhead,
                         $size,
                     >,
                 >,
@@ -140,9 +140,9 @@ macro_rules! ciphertext {
         impl<E> ::serde::Serialize for $name<E>
         where
             E: $crate::engine::Engine + ?Sized,
-            <E::Aead as $crate::aead::Aead>::TagSize: ::core::ops::Add<$size>,
+            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::TagSize,
+                <E::Aead as $crate::aead::Aead>::Overhead,
                 $size,
             >: $crate::hybrid_array::ArraySize,
         {
@@ -157,9 +157,9 @@ macro_rules! ciphertext {
         impl<'de, E> ::serde::Deserialize<'de> for $name<E>
         where
             E: $crate::engine::Engine + ?Sized,
-            <E::Aead as $crate::aead::Aead>::TagSize: ::core::ops::Add<$size>,
+            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::TagSize,
+                <E::Aead as $crate::aead::Aead>::Overhead,
                 $size,
             >: $crate::hybrid_array::ArraySize,
         {
@@ -171,9 +171,9 @@ macro_rules! ciphertext {
                 impl<'de, G> ::serde::de::Visitor<'de> for CiphertextVisitor<G>
                 where
                     G: $crate::engine::Engine + ?Sized,
-                    <G::Aead as $crate::aead::Aead>::TagSize: ::core::ops::Add<$size>,
+                    <G::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
                     $crate::hybrid_array::typenum::operator_aliases::Sum<
-                        <G::Aead as $crate::aead::Aead>::TagSize,
+                        <G::Aead as $crate::aead::Aead>::Overhead,
                         $size,
                     >: $crate::hybrid_array::ArraySize,
                 {

@@ -83,9 +83,16 @@ macro_rules! raw_key {
         $vis struct $name<const N: usize>([u8; N]);
 
         impl<const N: usize> $name<N> {
+            /// Returns itself as a byte array.
+            #[inline]
+            pub const fn as_bytes(&self) -> &[u8; N] {
+                &self.0
+            }
+
             /// Returns a raw pointer to the key data.
             ///
             /// Should only be used for FFI purposes.
+            #[inline]
             pub const fn as_ptr(&self) -> *const u8 {
                 self.0.as_ptr()
             }
@@ -94,6 +101,7 @@ macro_rules! raw_key {
             ///
             /// Will always be exactly `N`.
             #[allow(clippy::len_without_is_empty)]
+            #[inline]
             pub const fn len(&self) -> usize {
                 self.0.len()
             }
@@ -188,6 +196,13 @@ macro_rules! raw_key {
             #[inline]
             fn from(key: $name<N>) -> Self {
                 key.0
+            }
+        }
+
+        impl<'a, const N: usize> ::core::convert::From<&'a $name<N>> for &'a [u8; N] {
+            #[inline]
+            fn from(key: &'a $name<N>) -> Self {
+                &key.0
             }
         }
 

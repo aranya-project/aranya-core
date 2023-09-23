@@ -339,8 +339,8 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
         group: Id,
     ) -> Result<GroupKey<E>, Error>
     where
-        <E::Aead as Aead>::TagSize: Add<U64>,
-        Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+        <E::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
     {
         // info = H(
         //     "GroupKey",
@@ -418,8 +418,8 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
         group: Id,
     ) -> Result<(Encap<E>, EncryptedGroupKey<E>), Error>
     where
-        <E::Aead as Aead>::TagSize: Add<U64>,
-        Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+        <E::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
     {
         // info = H(
         //     "GroupKey",

@@ -147,6 +147,21 @@ impl<'a, const N: usize> From<&'a [u8; N]> for &'a MacKey<N> {
 #[derive(Copy, Clone, Debug)]
 pub struct Tag<const N: usize>([u8; N]);
 
+impl<const N: usize> Tag<N> {
+    /// Returns its length in octets.
+    #[allow(clippy::len_without_is_empty)]
+    #[inline]
+    pub const fn len(&self) -> usize {
+        N
+    }
+
+    /// Returns itself as a byte array.
+    #[inline]
+    pub const fn as_bytes(&self) -> &[u8; N] {
+        &self.0
+    }
+}
+
 impl<const N: usize> ConstantTimeEq for Tag<N> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {

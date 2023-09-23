@@ -319,7 +319,7 @@ fn aead_error() -> AeadError {
         // more likely that the PT is too large than the AD, so
         // we choose that error.
         CIPHER_R_TOO_LARGE => AeadError::PlaintextTooLong,
-        CIPHER_R_TAG_TOO_LARGE => AeadError::InvalidTagSize,
+        CIPHER_R_TAG_TOO_LARGE => AeadError::InvalidOverheadSize,
         CIPHER_R_BAD_KEY_LENGTH | CIPHER_R_INVALID_KEY_LENGTH => AeadError::InvalidKeySize,
         _ => AeadError::Other(err.reason_str()),
     }
@@ -379,7 +379,7 @@ macro_rules! aead_impl {
 
             type KeySize = U32;
             type NonceSize = U12;
-            type TagSize = U16;
+            type Overhead = U16;
 
             const MAX_PLAINTEXT_SIZE: u64 = $max_pt_size;
             const MAX_ADDITIONAL_DATA_SIZE: u64 = $max_ad_size;
@@ -416,7 +416,7 @@ macro_rules! aead_impl {
                         $aead(),                  // aead
                         key.as_ptr(),             // key
                         Self::KEY_SIZE,           // key_len
-                        Self::TAG_SIZE,           // tag_len
+                        Self::OVERHEAD,           // tag_len
                         ptr::null_mut(),          // impl
                     )
                 };
@@ -587,6 +587,52 @@ aead_impl!(
     (1 << 61) - 1,                       // 2^61 - 1
     AeadId::Aes256Gcm,
 );
+
+#[cfg(feature = "committing-aead")]
+mod committing {
+    use {
+        super::{Aes256Gcm, Sha256},
+        crate::{
+            aead::{AeadKey, BlockCipher},
+            hybrid_array::typenum::{Unsigned, U16},
+            util::const_assert,
+        },
+        bssl_sys::{AES_encrypt, AES_set_encrypt_key, AES_BLOCK_SIZE, AES_KEY},
+        core::ptr,
+        generic_array::GenericArray,
+    };
+
+    /// AES-256.
+    #[doc(hidden)]
+    pub struct Aes256(AES_KEY);
+
+    impl BlockCipher for Aes256 {
+        type BlockSize = U16;
+        const BLOCK_SIZE: usize = Self::BlockSize::USIZE;
+        type Key = AeadKey<32>;
+
+        fn new(key: &Self::Key) -> Self {
+            let mut v = AES_KEY::default();
+            // SAFETY: FFI call, no invariants.
+            let ret = unsafe { AES_set_encrypt_key(key.as_ptr(), 256, ptr::addr_of_mut!(v)) };
+            // Unlike other parts of the BoringSSL API, it returns
+            // 0 on success.
+            assert_eq!(ret, 0);
+            Self(v)
+        }
+
+        fn encrypt_block(&self, block: &mut GenericArray<u8, Self::BlockSize>) {
+            const_assert!(Aes256::BLOCK_SIZE == AES_BLOCK_SIZE as usize);
+
+            // SAFETY: FFI call, no invariants.
+            unsafe { AES_encrypt(block.as_ptr(), block.as_mut_ptr(), ptr::addr_of!(self.0)) };
+        }
+    }
+    crate::aead::utc_aead!(Cmt1Aes256Gcm, Aes256Gcm, Aes256, "CMT-1 AES-256-GCM.");
+    crate::aead::hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
+}
+#[cfg(feature = "committing-aead")]
+pub use committing::*;
 
 /// An elliptic curve key.
 struct EcKey(*mut EC_KEY);
@@ -2432,6 +2478,31 @@ mod tests {
         #[test]
         fn test_aead_aes256_gcm() {
             test_aead::<Aes256Gcm>(aead::TestName::AesGcm);
+        }
+
+        #[cfg(feature = "committing-aead")]
+        mod committing {
+            use {super::*, crate::default::Rng};
+
+            #[test]
+            fn test_cmt1_aead_aes256_gcm() {
+                AeadTest::<Cmt1Aes256Gcm>::test(&mut Rng, ());
+            }
+
+            #[test]
+            fn test_cmt1_aead_aes256_gcm_with_defaults() {
+                AeadTest::<AeadWithDefaults<Cmt1Aes256Gcm>>::test(&mut Rng, ());
+            }
+
+            #[test]
+            fn test_cmt4_aead_aes256_gcm() {
+                AeadTest::<Cmt4Aes256Gcm>::test(&mut Rng, ());
+            }
+
+            #[test]
+            fn test_cmt4_aead_aes256_gcm_with_defaults() {
+                AeadTest::<AeadWithDefaults<Cmt4Aes256Gcm>>::test(&mut Rng, ());
+            }
         }
     }
 

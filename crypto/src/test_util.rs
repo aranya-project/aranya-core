@@ -325,8 +325,8 @@ pub trait Test<O = ()> {
 pub fn test_engine<E, F>(mut f: F)
 where
     E: Engine,
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+    <E::Aead as Aead>::Overhead: Add<U64>,
+    Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
     F: FnMut() -> E,
 {
     test_ciphersuite::<E, _>(&mut f());
@@ -343,8 +343,8 @@ pub struct EngineTest<E: Engine>(PhantomData<E>);
 impl<E, F> Test<F> for EngineTest<E>
 where
     E: Engine,
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+    <E::Aead as Aead>::Overhead: Add<U64>,
+    Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
     F: FnMut() -> E,
 {
     fn test<R: Csprng>(rng: &mut R, mut f: F) {
@@ -403,8 +403,8 @@ where
 impl<E: Engine> EngineTest<E>
 where
     E: Engine,
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+    <E::Aead as Aead>::Overhead: Add<U64>,
+    Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
 {
     /// Simple test for [`UserSigningKey`].
     fn test_simple_user_signing_key_sign<R: Csprng>(rng: &mut R) {
@@ -1296,14 +1296,12 @@ impl<A: Aead> Test for AeadTest<A> {
     fn test<R: Csprng>(rng: &mut R, _opts: ()) {
         // The minimum key size is 128 bits.
         assert_ge!(A::KEY_SIZE, 16);
-        // The minimum tag size is 128 bits.
-        assert_ge!(A::TAG_SIZE, 16);
         // Must be at least 2^32-1.
         assert_ge!(A::MAX_PLAINTEXT_SIZE, u64::from(u32::MAX));
-        // Must be `TAG_SIZE` bytes larger than the plaintext.
+        // Must be `OVERHEAD` bytes larger than the plaintext.
         assert_eq!(
             A::MAX_CIPHERTEXT_SIZE,
-            A::MAX_PLAINTEXT_SIZE + A::TAG_SIZE as u64
+            A::MAX_PLAINTEXT_SIZE + A::OVERHEAD as u64
         );
         // Must be at least 2^32-1.
         assert_ge!(A::MAX_ADDITIONAL_DATA_SIZE, u64::from(u32::MAX));
@@ -1350,7 +1348,7 @@ impl<A: Aead> AeadTest<A> {
         assert_all_zero!(nonce);
 
         let ciphertext = {
-            let mut dst = vec![0u8; Self::GOLDEN.len() + A::TAG_SIZE];
+            let mut dst = vec![0u8; Self::GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
                 .seal(&mut dst[..], nonce.borrow(), Self::GOLDEN, Self::AD)
                 .expect("unable to encrypt data");
@@ -1358,7 +1356,7 @@ impl<A: Aead> AeadTest<A> {
         };
 
         let plaintext = {
-            let mut dst = vec![0u8; ciphertext.len() - A::TAG_SIZE];
+            let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
             A::new(&key)
                 .open(&mut dst[..], nonce.borrow(), &ciphertext, Self::AD)
                 .expect("unable to decrypt data");
@@ -1374,7 +1372,7 @@ impl<A: Aead> AeadTest<A> {
         assert_all_zero!(nonce);
 
         let ciphertext = {
-            let mut data = vec![0u8; Self::GOLDEN.len() + A::TAG_SIZE];
+            let mut data = vec![0u8; Self::GOLDEN.len() + A::OVERHEAD];
             let (out, tag) = data.split_at_mut(Self::GOLDEN.len());
             out.clone_from_slice(Self::GOLDEN);
             A::new(&key)
@@ -1402,7 +1400,7 @@ impl<A: Aead> AeadTest<A> {
         let ciphertext = {
             let key = A::Key::new(rng);
 
-            let mut dst = vec![0u8; Self::GOLDEN.len() + A::TAG_SIZE];
+            let mut dst = vec![0u8; Self::GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
                 .seal(&mut dst[..], nonce.borrow(), Self::GOLDEN, Self::AD)
                 .expect("unable to encrypt data");
@@ -1410,7 +1408,7 @@ impl<A: Aead> AeadTest<A> {
         };
 
         let key = A::Key::new(rng);
-        let mut dst = vec![0u8; ciphertext.len() - A::TAG_SIZE];
+        let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, Self::AD)
             .expect_err("decryption should have failed due to a different key");
@@ -1426,7 +1424,7 @@ impl<A: Aead> AeadTest<A> {
             assert_all_zero!(nonce);
             nonce.borrow_mut().fill(b'A');
 
-            let mut dst = vec![0u8; Self::GOLDEN.len() + A::TAG_SIZE];
+            let mut dst = vec![0u8; Self::GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
                 .seal(&mut dst[..], nonce.borrow(), Self::GOLDEN, Self::AD)
                 .expect("unable to encrypt data");
@@ -1437,7 +1435,7 @@ impl<A: Aead> AeadTest<A> {
         assert_all_zero!(nonce);
         nonce.borrow_mut().fill(b'B');
 
-        let mut dst = vec![0u8; ciphertext.len() - A::TAG_SIZE];
+        let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, Self::AD)
             .expect_err("decryption should have failed due to a modified nonce");
@@ -1451,14 +1449,14 @@ impl<A: Aead> AeadTest<A> {
         assert_all_zero!(nonce);
 
         let ciphertext = {
-            let mut dst = vec![0u8; Self::GOLDEN.len() + A::TAG_SIZE];
+            let mut dst = vec![0u8; Self::GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
                 .seal(&mut dst[..], nonce.borrow(), Self::GOLDEN, Self::AD)
                 .expect("unable to encrypt data");
             dst
         };
 
-        let mut dst = vec![0u8; ciphertext.len() - A::TAG_SIZE];
+        let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, b"some bad AD")
             .expect_err("decryption should have failed due to a modified AD");
@@ -1472,7 +1470,7 @@ impl<A: Aead> AeadTest<A> {
         assert_all_zero!(nonce);
 
         let mut ciphertext = {
-            let mut dst = vec![0u8; Self::GOLDEN.len() + A::TAG_SIZE];
+            let mut dst = vec![0u8; Self::GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
                 .seal(&mut dst[..], nonce.borrow(), Self::GOLDEN, Self::AD)
                 .expect("unable to encrypt data");
@@ -1481,7 +1479,7 @@ impl<A: Aead> AeadTest<A> {
 
         ciphertext[0] = ciphertext[0].wrapping_add(1);
 
-        let mut dst = vec![0u8; ciphertext.len() - A::TAG_SIZE];
+        let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, Self::AD)
             .expect_err("decryption should have failed due to a modified ciphertext");
@@ -1496,7 +1494,7 @@ impl<A: Aead> AeadTest<A> {
         assert_all_zero!(nonce);
 
         let mut ciphertext = {
-            let mut dst = vec![0u8; Self::GOLDEN.len() + A::TAG_SIZE];
+            let mut dst = vec![0u8; Self::GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
                 .seal(&mut dst[..], nonce.borrow(), Self::GOLDEN, Self::AD)
                 .expect("unable to encrypt data");
@@ -1508,7 +1506,7 @@ impl<A: Aead> AeadTest<A> {
         let n = ciphertext.len() - 1;
         ciphertext[n] = ciphertext[n].wrapping_add(1);
 
-        let mut dst = vec![0u8; ciphertext.len() - A::TAG_SIZE];
+        let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, Self::AD)
             .expect_err("decryption should have failed due to a modified auth tag");
@@ -1914,7 +1912,7 @@ fn test_aead_inner<A: Aead>(name: aead::TestName) {
     for g in &set.test_groups {
         if g.nonce_size / 8 != A::NONCE_SIZE
             || g.key_size / 8 != A::KEY_SIZE
-            || g.tag_size / 8 != A::TAG_SIZE
+            || g.tag_size / 8 != A::OVERHEAD
         {
             continue;
         }
@@ -1941,7 +1939,7 @@ fn test_aead_inner<A: Aead>(name: aead::TestName) {
 
             let res = {
                 let ciphertext = [&tc.ct[..], &tc.tag[..]].concat();
-                let mut dst = vec![0u8; ciphertext.len() - A::TAG_SIZE];
+                let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
                 aead.open(&mut dst[..], nonce.borrow(), &ciphertext, &tc.aad[..])
                     .map(|_| dst)
             };
@@ -1961,10 +1959,10 @@ fn test_aead_inner<A: Aead>(name: aead::TestName) {
             }
 
             let (ct, tag) = {
-                let mut dst = vec![0u8; tc.pt.len() + A::TAG_SIZE];
+                let mut dst = vec![0u8; tc.pt.len() + A::OVERHEAD];
                 aead.seal(&mut dst[..], nonce.borrow(), &tc.pt[..], &tc.aad[..])
                     .unwrap_or_else(|_| panic!("{id}"));
-                let tag = dst.split_off(dst.len() - A::TAG_SIZE);
+                let tag = dst.split_off(dst.len() - A::OVERHEAD);
                 (dst, tag)
             };
             assert_eq!(ct, *tc.ct, "{id}");
@@ -1972,7 +1970,7 @@ fn test_aead_inner<A: Aead>(name: aead::TestName) {
 
             let (ct, tag) = {
                 let mut data = tc.pt.clone().to_vec();
-                let mut tag = vec![0u8; A::TAG_SIZE];
+                let mut tag = vec![0u8; A::OVERHEAD];
                 aead.seal_in_place(nonce.borrow(), &mut data, &mut tag[..], &tc.aad[..])
                     .unwrap_or_else(|_| panic!("{id}"));
                 (data, tag)
@@ -1997,8 +1995,8 @@ impl<T: Aead> Aead for AeadWithDefaults<T> {
     type NonceSize = T::NonceSize;
     const NONCE_SIZE: usize = T::NONCE_SIZE;
 
-    type TagSize = T::TagSize;
-    const TAG_SIZE: usize = T::TAG_SIZE;
+    type Overhead = T::Overhead;
+    const OVERHEAD: usize = T::OVERHEAD;
 
     const MAX_PLAINTEXT_SIZE: u64 = T::MAX_PLAINTEXT_SIZE;
     const MAX_ADDITIONAL_DATA_SIZE: u64 = T::MAX_ADDITIONAL_DATA_SIZE;

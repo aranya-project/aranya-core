@@ -140,8 +140,7 @@ mod default_engine {
 
     impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
         const NONCE_SIZE: usize = S::Aead::NONCE_SIZE;
-        const TAG_SIZE: usize = S::Aead::TAG_SIZE;
-        const OVERHEAD: usize = Self::NONCE_SIZE + Self::TAG_SIZE;
+        const OVERHEAD: usize = Self::NONCE_SIZE + S::Aead::OVERHEAD;
 
         /// Creates an [`Engine`] using `key`.
         pub fn new(key: &<S::Aead as Aead>::Key, rng: R) -> Self {

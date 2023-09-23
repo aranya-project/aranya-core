@@ -246,6 +246,14 @@ pub enum AeadId {
     Aes256Gcm,
     /// ChaCha20Poly1305.
     ChaCha20Poly1305,
+    /// CMT-1 AES-256-GCM.
+    ///
+    /// Not an official RFC ID.
+    Cmt1Aes256Gcm,
+    /// CMT-4 AES-256-GCM.
+    ///
+    /// Not an official RFC ID.
+    Cmt4Aes256Gcm,
     /// Some other AEAD.
     ///
     /// Non-zero since 0x0000 is marked as 'reserved'.
@@ -260,6 +268,8 @@ impl AeadId {
             Self::Aes128Gcm => 0x0001,
             Self::Aes256Gcm => 0x0002,
             Self::ChaCha20Poly1305 => 0x0003,
+            Self::Cmt1Aes256Gcm => 0xfffd,
+            Self::Cmt4Aes256Gcm => 0xfffe,
             Self::Other(id) => id.get(),
             Self::ExportOnly => 0xffff,
         }
@@ -276,6 +286,8 @@ impl Display for AeadId {
             Self::Aes128Gcm => write!(f, "Aes128Gcm"),
             Self::Aes256Gcm => write!(f, "Aes256Gcm"),
             Self::ChaCha20Poly1305 => write!(f, "ChaCha20Poly1305"),
+            Self::Cmt1Aes256Gcm => write!(f, "Cmt1Aes256Gcm"),
+            Self::Cmt4Aes256Gcm => write!(f, "Cmt4Aes256Gcm"),
             Self::Other(id) => write!(f, "Aead({:#02x})", id),
             Self::ExportOnly => write!(f, "ExportOnly"),
         }
@@ -578,7 +590,7 @@ pub struct SendCtx<K: Kem, F: Kdf, A: Aead>(Context<K, F, A>);
 
 impl<K: Kem, F: Kdf, A: Aead> SendCtx<K, F, A> {
     /// The size in bytes of the overhead added to the plaintext.
-    pub const OVERHEAD: usize = A::TAG_SIZE;
+    pub const OVERHEAD: usize = A::OVERHEAD;
 
     /// Encrypts and authenticates `plaintext`.
     ///
@@ -611,7 +623,7 @@ pub struct RecvCtx<K: Kem, F: Kdf, A: Aead>(Context<K, F, A>);
 
 impl<K: Kem, F: Kdf, A: Aead> RecvCtx<K, F, A> {
     /// The size in bytes of the overhead added to the plaintext.
-    pub const OVERHEAD: usize = A::TAG_SIZE;
+    pub const OVERHEAD: usize = A::OVERHEAD;
 
     /// Decrypts and authenticates `ciphertext`.
     ///

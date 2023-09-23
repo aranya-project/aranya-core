@@ -12,6 +12,7 @@
 
 use {
     crate::{
+        error::Unreachable,
         hybrid_array::{
             typenum::{
                 type_operators::{IsGreaterOrEqual, IsLess},
@@ -81,14 +82,16 @@ impl error::Error for BufferTooSmallError {}
 /// An error from an [`Aead`].
 #[derive(Debug, Eq, PartialEq)]
 pub enum AeadError {
+    /// An unreachable code path has been taken.
+    Unreachable(Unreachable),
     /// An unknown or internal error has occurred.
     Other(&'static str),
     /// The size of the key is incorrect.
     InvalidKeySize,
     /// The size of the nonce is incorrect.
     InvalidNonceSize,
-    /// The size of the tag is incorrect.
-    InvalidTagSize,
+    /// The size of the overhead is incorrect.
+    InvalidOverheadSize,
     /// The plaintext is too long.
     PlaintextTooLong,
     /// The ciphertext is too long.
@@ -107,10 +110,11 @@ impl AeadError {
     /// Returns a human-readable string describing the error.
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::Unreachable(err) => err.as_str(),
             Self::Other(msg) => msg,
             Self::InvalidKeySize => "invalid key size",
             Self::InvalidNonceSize => "invalid nonce size",
-            Self::InvalidTagSize => "invalid tag size",
+            Self::InvalidOverheadSize => "invalid overhead size",
             Self::PlaintextTooLong => "plaintext too long",
             Self::CiphertextTooLong => "ciphertext too long",
             Self::AdditionalDataTooLong => "additional data too long",
@@ -124,6 +128,7 @@ impl AeadError {
 impl fmt::Display for AeadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Unreachable(err) => write!(f, "{}", err),
             Self::BufferTooSmall(err) => write!(f, "{}", err),
             _ => write!(f, "{}", self.as_str()),
         }
@@ -135,6 +140,7 @@ impl fmt::Display for AeadError {
 impl error::Error for AeadError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
+            Self::Unreachable(err) => Some(err),
             Self::BufferTooSmall(err) => Some(err),
             _ => None,
         }
@@ -144,6 +150,12 @@ impl error::Error for AeadError {
 impl From<BufferTooSmallError> for AeadError {
     fn from(value: BufferTooSmallError) -> Self {
         AeadError::BufferTooSmall(value)
+    }
+}
+
+impl From<Unreachable> for AeadError {
+    fn from(value: Unreachable) -> Self {
+        AeadError::Unreachable(value)
     }
 }
 
@@ -228,8 +240,8 @@ impl PartialEq<u64> for Lifetime {
 /// * Have at least a 128-bit security level for confidentiality.
 /// * Have at least a 128-bit security level for authenticity.
 /// * Have a minimum key size of 16 octets (128 bits).
-/// * Accept plaintexts up to 2³² - 1 octets (2³⁵ - 8 bits) long.
-/// * Accept associated data up to 2³² - 1 (2³⁵ - 8 bits) octets
+/// * Accept plaintexts at least 2³² - 1 octets (2³⁵ - 8 bits) long.
+/// * Accept associated data at least 2³² - 1 (2³⁵ - 8 bits) octets
 ///   long.
 ///
 /// Examples of AEAD algorithms that fulfill these requirements
@@ -264,13 +276,17 @@ pub trait Aead {
     /// Shorthand for [`NonceSize`][Self::NonceSize].
     const NONCE_SIZE: usize = Self::NonceSize::USIZE;
 
-    /// The size in octets of an authentication tag used by this
-    /// [`Aead`].
+    /// The size in octets of authentication overhead added to
+    /// encrypted plaintexts.
     ///
-    /// Must be at least 16 bytes (128 bits).
-    type TagSize: ArraySize + IsGreaterOrEqual<U16> + 'static;
-    /// Shorthand for [`TagSize`][Self::TagSize].
-    const TAG_SIZE: usize = Self::TagSize::USIZE;
+    /// For regular AEADs, this is the size of the authentication
+    /// tag. For other AEADs, like [`CommittingAead`], this is
+    /// the size of the authentication tag and key committment.
+    ///
+    /// Must be at least 16 octets (128 bits).
+    type Overhead: ArraySize + 'static;
+    /// Shorthand for [`Overhead`][Self::Overhead].
+    const OVERHEAD: usize = Self::Overhead::USIZE;
 
     /// The maximum size in octets of a plaintext allowed by this
     /// [`Aead`] (i.e., `P_MAX`).
@@ -286,10 +302,10 @@ pub trait Aead {
     /// this [`Aead`] (i.e., `C_MAX`).
     ///
     /// Must be at least 2³² - 1 octets and
-    /// [`TAG_SIZE`][Self::TAG_SIZE] octets larger than
+    /// [`OVERHEAD`][Self::OVERHEAD] octets larger than
     /// [`MAX_PLAINTEXT_SIZE`][Self::MAX_PLAINTEXT_SIZE].
     const MAX_CIPHERTEXT_SIZE: u64 =
-        match Self::MAX_PLAINTEXT_SIZE.checked_add(Self::TAG_SIZE as u64) {
+        match Self::MAX_PLAINTEXT_SIZE.checked_add(Self::OVERHEAD as u64) {
             Some(n) => n,
             None => panic!("overflow"),
         };
@@ -303,6 +319,7 @@ pub trait Aead {
         + Clone
         + Default
         + Debug
+        + Sized
         + for<'a> TryFrom<&'a [u8], Error = AeadError>;
 
     /// Creates a new [`Aead`].
@@ -311,12 +328,12 @@ pub trait Aead {
     /// Encrypts and authenticates `plaintext`, writing the
     /// resulting ciphertext to `dst`.
     ///
-    /// Only `plaintext.len()` + [`Self::TAG_SIZE`] bytes of
+    /// Only `plaintext.len()` + [`Self::OVERHEAD`] bytes of
     /// `dst` will be written to.
     ///
     /// # Requirements
     ///
-    /// * `dst` must be at least [`Self::TAG_SIZE`] bytes longer
+    /// * `dst` must be at least [`Self::OVERHEAD`] bytes longer
     ///   than `plaintext`.
     /// * `nonce` must be exactly [`Self::NONCE_SIZE`] bytes
     ///   long.
@@ -326,7 +343,7 @@ pub trait Aead {
     ///   [`Self::MAX_ADDITIONAL_DATA_SIZE`] bytes long.
     ///
     /// It must not be used more than permitted by its
-    /// [`liftime`][`Aead::LIFETIME`].
+    /// [`lifetime`][`Aead::LIFETIME`].
     fn seal(
         &self,
         dst: &mut [u8],
@@ -336,10 +353,10 @@ pub trait Aead {
     ) -> Result<(), AeadError> {
         check_seal_params::<Self>(dst, nonce, plaintext, additional_data)?;
 
-        let out = &mut dst[..plaintext.len() + Self::TAG_SIZE];
+        let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
         out[..plaintext.len()].copy_from_slice(plaintext);
-        let (out, tag) = out.split_at_mut(out.len() - Self::TAG_SIZE);
-        self.seal_in_place(nonce, out, tag, additional_data)
+        let (out, overhead) = out.split_at_mut(out.len() - Self::OVERHEAD);
+        self.seal_in_place(nonce, out, overhead, additional_data)
             // Encryption failed, make sure that we do not
             // release any invalid plaintext to the caller.
             .inspect_err(|_| out.zeroize())
@@ -347,7 +364,7 @@ pub trait Aead {
 
     /// Encrypts and authenticates `data` in-place.
     ///
-    /// The authentication tag is written to `tag`.
+    /// The authentication overhead is written to `overhead`.
     ///
     /// # Requirements
     ///
@@ -355,30 +372,31 @@ pub trait Aead {
     ///   long.
     /// * `data` must be at most [`Self::MAX_PLAINTEXT_SIZE`]
     ///   bytes long.
-    /// * `tag` must be exactly [`Self::TAG_SIZE`] bytes long.
+    /// * `overhead` must be exactly [`Self::OVERHEAD`] bytes
+    ///   long.
     /// * `additional_data` must be at most
     ///   [`Self::MAX_ADDITIONAL_DATA_SIZE`] bytes long.
     ///
     /// It must not be used more than permitted by its
-    /// [`liftime`][`Aead::LIFETIME`].
+    /// [`lifetime`][`Aead::LIFETIME`].
     fn seal_in_place(
         &self,
         nonce: &[u8],
         data: &mut [u8],
-        tag: &mut [u8],
+        overhead: &mut [u8],
         additional_data: &[u8],
     ) -> Result<(), AeadError>;
 
     /// Decrypts and authenticates `ciphertext`, writing the
     /// resulting plaintext to `dst`.
     ///
-    /// Only `ciphertext.len()` - [`Self::TAG_SIZE`] bytes of
+    /// Only `ciphertext.len()` - [`Self::OVERHEAD`] bytes of
     /// `dst` will be written to.
     ///
     /// # Requirements
     ///
     /// * `dst` must be at least `ciphertext.len()` -
-    ///   [`Self::TAG_SIZE`] bytes long.
+    ///   [`Self::OVERHEAD`] bytes long.
     /// * `nonce` must be exactly [`Self::NONCE_SIZE`] bytes
     ///   long.
     /// * `ciphertext` must be at most
@@ -394,11 +412,11 @@ pub trait Aead {
     ) -> Result<(), AeadError> {
         check_open_params::<Self>(dst, nonce, ciphertext, additional_data)?;
 
-        let max = ciphertext.len() - Self::TAG_SIZE;
-        let (ciphertext, tag) = ciphertext.split_at(max);
+        let max = ciphertext.len() - Self::OVERHEAD;
+        let (ciphertext, overhead) = ciphertext.split_at(max);
         let out = &mut dst[..max];
         out.copy_from_slice(ciphertext);
-        self.open_in_place(nonce, out, tag, additional_data)
+        self.open_in_place(nonce, out, overhead, additional_data)
             // Decryption failed, ensure that we do not release
             // any invalid plaintext to the caller.
             .inspect_err(|_| out.zeroize())
@@ -411,15 +429,16 @@ pub trait Aead {
     /// * `nonce` must be exactly [`Self::NONCE_SIZE`] bytes
     ///   long.
     /// * `data` must be at most [`Self::MAX_CIPHERTEXT_SIZE`] -
-    ///   [`Self::TAG_SIZE`] bytes long.
-    /// * `tag` must be exactly [`Self::TAG_SIZE`] bytes long.
+    ///   [`Self::OVERHEAD`] bytes long.
+    /// * `overhead` must be exactly [`Self::OVERHEAD`] bytes
+    ///   long.
     /// * `additional_data` must be at most
     ///   [`Self::MAX_ADDITIONAL_DATA_SIZE`] bytes long.
     fn open_in_place(
         &self,
         nonce: &[u8],
         data: &mut [u8],
-        tag: &[u8],
+        overhead: &[u8],
         additional_data: &[u8],
     ) -> Result<(), AeadError>;
 }
@@ -430,9 +449,9 @@ pub(crate) type KeyData<A> = <<A as Aead>::Key as SecretKey>::Data;
 
 const fn check_aead_params<A: Aead + ?Sized>() {
     debug_assert!(A::KEY_SIZE >= 16);
-    debug_assert!(A::TAG_SIZE >= 16);
+    debug_assert!(A::OVERHEAD >= 16);
     debug_assert!(A::MAX_PLAINTEXT_SIZE >= u32::MAX as u64);
-    debug_assert!(A::MAX_CIPHERTEXT_SIZE == A::MAX_PLAINTEXT_SIZE + A::TAG_SIZE as u64);
+    debug_assert!(A::MAX_CIPHERTEXT_SIZE == A::MAX_PLAINTEXT_SIZE + A::OVERHEAD as u64);
     debug_assert!(A::MAX_ADDITIONAL_DATA_SIZE >= u32::MAX as u64);
 }
 
@@ -446,7 +465,7 @@ pub const fn check_seal_params<A: Aead + ?Sized>(
 ) -> Result<(), AeadError> {
     check_aead_params::<A>();
 
-    let need = match plaintext.len().checked_add(A::TAG_SIZE) {
+    let need = match plaintext.len().checked_add(A::OVERHEAD) {
         // Overflow.
         None => return Err(AeadError::PlaintextTooLong),
         Some(n) => n,
@@ -471,7 +490,7 @@ pub const fn check_seal_params<A: Aead + ?Sized>(
 pub const fn check_seal_in_place_params<A: Aead + ?Sized>(
     nonce: &[u8],
     data: &[u8],
-    tag: &[u8],
+    overhead: &[u8],
     additional_data: &[u8],
 ) -> Result<(), AeadError> {
     check_aead_params::<A>();
@@ -482,8 +501,8 @@ pub const fn check_seal_in_place_params<A: Aead + ?Sized>(
     if data.len() as u64 > A::MAX_PLAINTEXT_SIZE {
         return Err(AeadError::PlaintextTooLong);
     }
-    if tag.len() > A::TAG_SIZE {
-        return Err(AeadError::InvalidTagSize);
+    if overhead.len() > A::OVERHEAD {
+        return Err(AeadError::InvalidOverheadSize);
     }
     if additional_data.len() as u64 > A::MAX_ADDITIONAL_DATA_SIZE {
         return Err(AeadError::AdditionalDataTooLong);
@@ -501,9 +520,9 @@ pub const fn check_open_params<A: Aead + ?Sized>(
 ) -> Result<(), AeadError> {
     check_aead_params::<A>();
 
-    let need = match ciphertext.len().checked_sub(A::TAG_SIZE) {
-        // If the ciphertext does not have a full tag it cannot
-        // be authenticated.
+    let need = match ciphertext.len().checked_sub(A::OVERHEAD) {
+        // If the ciphertext does not have a full tag, etc. it
+        // cannot be authenticated.
         None => return Err(AeadError::Authentication),
         Some(n) => n,
     };
@@ -513,7 +532,7 @@ pub const fn check_open_params<A: Aead + ?Sized>(
     if nonce.len() != A::NONCE_SIZE {
         return Err(AeadError::InvalidNonceSize);
     }
-    // The case where the `ciphertext.len()` < `A::TAG_SIZE` is
+    // The case where the `ciphertext.len()` < `A::OVERHEAD` is
     // covered by the `match` expression above.
     if ciphertext.len() as u64 > A::MAX_CIPHERTEXT_SIZE {
         return Err(AeadError::CiphertextTooLong);
@@ -529,7 +548,7 @@ pub const fn check_open_params<A: Aead + ?Sized>(
 pub const fn check_open_in_place_params<A: Aead + ?Sized>(
     nonce: &[u8],
     data: &[u8],
-    tag: &[u8],
+    overhead: &[u8],
     additional_data: &[u8],
 ) -> Result<(), AeadError> {
     check_aead_params::<A>();
@@ -537,11 +556,11 @@ pub const fn check_open_in_place_params<A: Aead + ?Sized>(
     if nonce.len() != A::NONCE_SIZE {
         return Err(AeadError::InvalidNonceSize);
     }
-    if data.len() as u64 > A::MAX_PLAINTEXT_SIZE - A::TAG_SIZE as u64 {
+    if data.len() as u64 > A::MAX_PLAINTEXT_SIZE - A::OVERHEAD as u64 {
         return Err(AeadError::PlaintextTooLong);
     }
-    if tag.len() > A::TAG_SIZE {
-        return Err(AeadError::InvalidTagSize);
+    if overhead.len() > A::OVERHEAD {
+        return Err(AeadError::InvalidOverheadSize);
     }
     if additional_data.len() as u64 > A::MAX_ADDITIONAL_DATA_SIZE {
         return Err(AeadError::AdditionalDataTooLong);
@@ -584,3 +603,525 @@ impl<const N: usize> TryFrom<&[u8]> for Nonce<N> {
         Ok(Self(nonce))
     }
 }
+
+/// A marker trait signifying that the [`Aead`] is committing.
+pub trait CommittingAead: Aead {}
+
+/// A marker trait signifying that the [`Aead`] is CMT-1 secure.
+///
+/// It provides a commitment over the key and nothing else.
+pub trait Cmt1Aead: CommittingAead {}
+
+/// A marker trait signifying that the [`Aead`] is CMT-3 secure.
+///
+/// It provides a commitment over the key, nonce, and additional
+/// data, but not plaintext.
+pub trait Cmt3Aead: Cmt1Aead {}
+
+/// A marker trait signifying that the [`Aead`] is CMT-4 secure.
+///
+/// It provides a commitment over everything: the key, nonce,
+/// plaintext, and additional data.
+pub trait Cmt4Aead: Cmt3Aead {}
+
+#[cfg(feature = "committing-aead")]
+mod committing {
+    use {
+        super::{Aead, KeyData},
+        crate::{
+            error::{safe_unreachable, Unreachable},
+            hybrid_array::{
+                typenum::{
+                    type_operators::{IsGreaterOrEqual, IsLess},
+                    Unsigned, U16, U65536,
+                },
+                ArraySize,
+            },
+        },
+        core::{
+            borrow::{Borrow, BorrowMut},
+            cmp,
+            marker::PhantomData,
+            num::NonZeroU64,
+            result::Result,
+        },
+        generic_array::{ArrayLength, GenericArray},
+    };
+
+    /// A symmetric block cipher.
+    #[doc(hidden)]
+    pub trait BlockCipher {
+        /// The size in octets of a the cipher's block.
+        type BlockSize: ArrayLength<u8>
+            + ArraySize
+            + IsGreaterOrEqual<U16>
+            + IsLess<U65536>
+            + 'static;
+        /// Shorthand for [`BlockSize::USIZE`][Self::BlockSize];
+        const BLOCK_SIZE: usize = Self::BlockSize::USIZE;
+        /// The cipher's key.
+        type Key;
+
+        /// Creates a new instance of the block cipher.
+        fn new(key: &Self::Key) -> Self;
+        /// Encrypts `block` in place.
+        fn encrypt_block(&self, block: &mut GenericArray<u8, Self::BlockSize>);
+    }
+
+    /// An implementation of the Counter-then-Xor (CX) PRF per
+    /// [bellare].
+    ///
+    /// [bellare]: https://eprint.iacr.org/2022/268
+    pub(crate) struct CtrThenXorPrf<A, C> {
+        _aead: PhantomData<A>,
+        _cipher: PhantomData<C>,
+    }
+
+    impl<A, C> CtrThenXorPrf<A, C>
+    where
+        A: Aead,
+        C: BlockCipher<Key = A::Key>,
+        // The paper requires m < n where m is the nonce space
+        // and n is the block size.
+        A::NonceSize: IsLess<C::BlockSize>,
+        GenericArray<u8, C::BlockSize>: Clone,
+    {
+        /// Returns the key commitment and new key (P,L) for
+        /// (K,M).
+        #[inline]
+        #[allow(clippy::type_complexity)] // internal method
+        pub fn commit(
+            key: &A::Key,
+            nonce: &A::Nonce,
+        ) -> Result<(GenericArray<u8, C::BlockSize>, KeyData<A>), Unreachable> {
+            let mut cx = Default::default();
+            let key = Self::commit_into(&mut cx, key, nonce)?;
+            Ok((cx, key))
+        }
+
+        /// Same as [`commit`][Self::commit], but writes directly
+        /// to `cx`.
+        pub fn commit_into(
+            cx: &mut GenericArray<u8, C::BlockSize>,
+            key: &A::Key,
+            nonce: &A::Nonce,
+        ) -> Result<KeyData<A>, Unreachable> {
+            /// Pad is a one-to-one encoding that converts the
+            /// pair (M,i) in {0,1}^m x {1,...,2^(n-m)} into an
+            /// n-bit string.
+            ///
+            /// We let `i` be a `u64` since it's large enough to
+            /// never overflow.
+            #[inline(always)]
+            fn pad<C: BlockCipher>(m: &[u8], i: NonZeroU64) -> GenericArray<u8, C::BlockSize> {
+                // This is checked by `Self`'s generic bounds, but it
+                // doesn't hurt to double check.
+                debug_assert!(m.len() < C::BlockSize::USIZE);
+
+                let mut b = GenericArray::<u8, C::BlockSize>::default();
+                b[..m.len()].copy_from_slice(m);
+                let x = i.get().to_le_bytes();
+                let n = cmp::min(b.len() - m.len(), x.len());
+                b[m.len()..].copy_from_slice(&x[..n]);
+                b
+            }
+
+            let mut i = NonZeroU64::MIN;
+            let cipher = C::new(key);
+            let nonce = nonce.borrow();
+
+            let v_1 = {
+                // X_i <- pad(M, i)
+                let x_1 = pad::<C>(nonce, i);
+
+                // V_i <- E_k(X_i);
+                let mut v_1 = {
+                    // Make a copy since we need `x_1` for the
+                    // XOR.
+                    let mut tmp = x_1.clone();
+                    cipher.encrypt_block(&mut tmp);
+                    tmp
+                };
+
+                // V_1 = V_1 ^ X_1;
+                for (v, x) in v_1.iter_mut().zip(x_1.iter()) {
+                    *v ^= x;
+                }
+                v_1
+            };
+            cx.copy_from_slice(&v_1);
+
+            let mut key = KeyData::<A>::default();
+            for chunk in key.borrow_mut().chunks_mut(C::BLOCK_SIZE) {
+                i = i
+                    .checked_add(1)
+                    // It should be impossible to overflow. At
+                    // one nanosecond per op, this will take
+                    // upward of 500 years.
+                    .ok_or_else(|| safe_unreachable!("should be impossible to overflow"))?;
+
+                // V_i <- E_k(X_i);
+                let v_i = {
+                    // X_i <- pad(M, i)
+                    let mut x_i = pad::<C>(nonce, i);
+                    cipher.encrypt_block(&mut x_i);
+                    x_i
+                };
+                chunk.copy_from_slice(&v_i[..chunk.len()]);
+            }
+            Ok(key)
+        }
+    }
+
+    /// Implements the UNAE-Then-Commit (UtC) transform to turn
+    /// a standard AEAD (that implements [`CtrThenXorPrf`]) into
+    /// a CMT-1 AEAD.
+    macro_rules! utc_aead {
+        ($name:ident, $inner:ty, $cipher:ty, $doc:expr) => {
+            #[doc = $doc]
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            pub struct $name {
+                key: <$inner as $crate::aead::Aead>::Key,
+            }
+
+            impl $name {
+                const COMMITMENT_SIZE: usize =
+                    <$cipher as $crate::aead::BlockCipher>::BlockSize::USIZE;
+            }
+
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            impl $crate::aead::CommittingAead for $name {}
+
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            impl $crate::aead::Cmt1Aead for $name {}
+
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            impl $crate::aead::Aead for $name {
+                const ID: $crate::aead::AeadId = $crate::aead::AeadId::$name;
+                const LIFETIME: $crate::aead::Lifetime = <$inner as $crate::aead::Aead>::LIFETIME;
+
+                type KeySize = <$inner as $crate::aead::Aead>::KeySize;
+                type NonceSize = <$inner as $crate::aead::Aead>::NonceSize;
+                type Overhead = $crate::hybrid_array::typenum::Sum<
+                    <$inner as $crate::aead::Aead>::Overhead,
+                    // UtC has one block of overhead.
+                    <$cipher as $crate::aead::BlockCipher>::BlockSize,
+                >;
+
+                const MAX_PLAINTEXT_SIZE: u64 = <$inner as $crate::aead::Aead>::MAX_PLAINTEXT_SIZE;
+                const MAX_ADDITIONAL_DATA_SIZE: u64 =
+                    <$inner as $crate::aead::Aead>::MAX_ADDITIONAL_DATA_SIZE;
+
+                type Key = <$inner as $crate::aead::Aead>::Key;
+                type Nonce = <$inner as $crate::aead::Aead>::Nonce;
+
+                #[inline]
+                fn new(key: &Self::Key) -> Self {
+                    Self { key: key.clone() }
+                }
+
+                fn seal(
+                    &self,
+                    dst: &mut [u8],
+                    nonce: &[u8],
+                    plaintext: &[u8],
+                    additional_data: &[u8],
+                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                    $crate::aead::check_seal_params::<Self>(
+                        dst,
+                        nonce,
+                        plaintext,
+                        additional_data,
+                    )?;
+
+                    let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
+                    let (out, cx) = out.split_at_mut(out.len() - $name::COMMITMENT_SIZE);
+                    let key = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit_into(
+                        cx.try_into().map_err(|_| {
+                            $crate::error::safe_unreachable!("should be exactly `COMMITTMENT_SIZE`")
+                        })?,
+                        &self.key,
+                        &nonce.try_into()?,
+                    )?;
+                    <$inner as $crate::aead::Aead>::new(&key).seal(
+                        out,
+                        nonce,
+                        plaintext,
+                        additional_data,
+                    )
+                }
+
+                fn seal_in_place(
+                    &self,
+                    nonce: &[u8],
+                    data: &mut [u8],
+                    overhead: &mut [u8],
+                    additional_data: &[u8],
+                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                    $crate::aead::check_seal_in_place_params::<Self>(
+                        nonce,
+                        data,
+                        overhead,
+                        additional_data,
+                    )?;
+
+                    let (tag, cx) = overhead.split_at_mut(overhead.len() - $name::COMMITMENT_SIZE);
+                    let key = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit_into(
+                        cx.try_into().map_err(|_| {
+                            $crate::error::safe_unreachable!("should be exactly `COMMITTMENT_SIZE`")
+                        })?,
+                        &self.key,
+                        &nonce.try_into()?,
+                    )?;
+                    <$inner as $crate::aead::Aead>::new(&key).seal_in_place(
+                        nonce,
+                        data,
+                        tag,
+                        additional_data,
+                    )
+                }
+
+                fn open(
+                    &self,
+                    dst: &mut [u8],
+                    nonce: &[u8],
+                    ciphertext: &[u8],
+                    additional_data: &[u8],
+                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                    $crate::aead::check_open_params::<Self>(
+                        dst,
+                        nonce,
+                        ciphertext,
+                        additional_data,
+                    )?;
+
+                    let (ciphertext, got_cx) =
+                        ciphertext.split_at(ciphertext.len() - $name::COMMITMENT_SIZE);
+                    let (want_cx, key) = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit(
+                        &self.key,
+                        &nonce.try_into()?,
+                    )?;
+                    if !bool::from(::subtle::ConstantTimeEq::ct_eq(
+                        ::core::borrow::Borrow::borrow(&want_cx),
+                        got_cx,
+                    )) {
+                        Err($crate::aead::AeadError::Authentication)
+                    } else {
+                        <$inner as $crate::aead::Aead>::new(&key).open(
+                            dst,
+                            nonce,
+                            ciphertext,
+                            additional_data,
+                        )
+                    }
+                }
+
+                fn open_in_place(
+                    &self,
+                    nonce: &[u8],
+                    data: &mut [u8],
+                    overhead: &[u8],
+                    additional_data: &[u8],
+                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                    $crate::aead::check_open_in_place_params::<Self>(
+                        nonce,
+                        data,
+                        overhead,
+                        additional_data,
+                    )?;
+
+                    let (overhead, got_cx) =
+                        overhead.split_at(overhead.len() - $name::COMMITMENT_SIZE);
+                    let (want_cx, key) = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit(
+                        &self.key,
+                        &nonce.try_into()?,
+                    )?;
+                    if !bool::from(::subtle::ConstantTimeEq::ct_eq(
+                        ::core::borrow::Borrow::borrow(&want_cx),
+                        got_cx,
+                    )) {
+                        Err($crate::aead::AeadError::Authentication)
+                    } else {
+                        <$inner as $crate::aead::Aead>::new(&key).open_in_place(
+                            nonce,
+                            data,
+                            overhead,
+                            additional_data,
+                        )
+                    }
+                }
+            }
+        };
+    }
+    pub(crate) use utc_aead;
+
+    /// Implements the Hash-then-Encrypt (HtE) transform to turn
+    /// a CMT-1 AEAD into a CMT-4 AEAD.
+    macro_rules! hte_aead {
+        ($name:ident, $inner:ty, $hash:ty, $doc:expr) => {
+            #[doc = $doc]
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            pub struct $name {
+                key: <$inner as $crate::aead::Aead>::Key,
+            }
+
+            impl $name {
+                fn hash(&self, nonce: &[u8], ad: &[u8]) -> $crate::aead::KeyData<$inner> {
+                    // The nonce length is fixed, so use
+                    // HMAC(K || N || A)[1 : k] per Theorem 3.2.
+                    let tag = {
+                        let mut hmac = $crate::hmac::Hmac::<
+                            $hash,
+                            { <$inner as $crate::aead::Aead>::KeySize::USIZE },
+                        >::new(&self.key.as_bytes()[..]);
+                        hmac.update(nonce);
+                        hmac.update(ad);
+                        hmac.tag()
+                    };
+                    let mut key = $crate::aead::KeyData::<$inner>::default();
+                    let k = ::core::cmp::min(
+                        tag.len(),
+                        ::core::borrow::Borrow::<[u8]>::borrow(&key).len(),
+                    );
+                    ::core::borrow::BorrowMut::<[u8]>::borrow_mut(&mut key)
+                        .copy_from_slice(&tag.as_bytes()[..k]);
+                    key
+                }
+            }
+
+            // The `where` bound is important as it enforces the
+            // requirement that `$inner` be a CMT-1 AEAD.
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            impl $crate::aead::CommittingAead for $name where $inner: $crate::aead::Cmt1Aead {}
+
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            impl $crate::aead::Cmt1Aead for $name {}
+
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            impl $crate::aead::Cmt3Aead for $name {}
+
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            impl $crate::aead::Cmt4Aead for $name where $inner: $crate::aead::Cmt1Aead {}
+
+            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            impl $crate::aead::Aead for $name {
+                const ID: $crate::aead::AeadId = $crate::aead::AeadId::$name;
+                const LIFETIME: $crate::aead::Lifetime = <$inner as $crate::aead::Aead>::LIFETIME;
+
+                type KeySize = <$inner as $crate::aead::Aead>::KeySize;
+                type NonceSize = <$inner as $crate::aead::Aead>::NonceSize;
+                // HtE has no additional overhead.
+                type Overhead = <$inner as $crate::aead::Aead>::Overhead;
+
+                const MAX_PLAINTEXT_SIZE: u64 = <$inner as $crate::aead::Aead>::MAX_PLAINTEXT_SIZE;
+                const MAX_ADDITIONAL_DATA_SIZE: u64 =
+                    <$inner as $crate::aead::Aead>::MAX_ADDITIONAL_DATA_SIZE;
+
+                type Key = <$inner as $crate::aead::Aead>::Key;
+                type Nonce = <$inner as $crate::aead::Aead>::Nonce;
+
+                #[inline]
+                fn new(key: &Self::Key) -> Self {
+                    Self { key: key.clone() }
+                }
+
+                fn seal(
+                    &self,
+                    dst: &mut [u8],
+                    nonce: &[u8],
+                    plaintext: &[u8],
+                    additional_data: &[u8],
+                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                    $crate::aead::check_seal_params::<Self>(
+                        dst,
+                        nonce,
+                        plaintext,
+                        additional_data,
+                    )?;
+
+                    let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
+                    let key = self.hash(nonce, additional_data);
+                    <$inner as $crate::aead::Aead>::new(&key).seal(
+                        out,
+                        nonce,
+                        plaintext,
+                        additional_data,
+                    )
+                }
+
+                fn seal_in_place(
+                    &self,
+                    nonce: &[u8],
+                    data: &mut [u8],
+                    overhead: &mut [u8],
+                    additional_data: &[u8],
+                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                    $crate::aead::check_seal_in_place_params::<Self>(
+                        nonce,
+                        data,
+                        overhead,
+                        additional_data,
+                    )?;
+
+                    let key = self.hash(nonce, additional_data);
+                    <$inner as $crate::aead::Aead>::new(&key).seal_in_place(
+                        nonce,
+                        data,
+                        overhead,
+                        additional_data,
+                    )
+                }
+
+                fn open(
+                    &self,
+                    dst: &mut [u8],
+                    nonce: &[u8],
+                    ciphertext: &[u8],
+                    additional_data: &[u8],
+                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                    $crate::aead::check_open_params::<Self>(
+                        dst,
+                        nonce,
+                        ciphertext,
+                        additional_data,
+                    )?;
+
+                    let key = self.hash(nonce, additional_data);
+                    <$inner as $crate::aead::Aead>::new(&key).open(
+                        dst,
+                        nonce,
+                        ciphertext,
+                        additional_data,
+                    )
+                }
+
+                fn open_in_place(
+                    &self,
+                    nonce: &[u8],
+                    data: &mut [u8],
+                    overhead: &[u8],
+                    additional_data: &[u8],
+                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                    $crate::aead::check_open_in_place_params::<Self>(
+                        nonce,
+                        data,
+                        overhead,
+                        additional_data,
+                    )?;
+
+                    let key = self.hash(nonce, additional_data);
+                    <$inner as $crate::aead::Aead>::new(&key).open_in_place(
+                        nonce,
+                        data,
+                        overhead,
+                        additional_data,
+                    )
+                }
+            }
+        };
+    }
+    pub(crate) use hte_aead;
+}
+#[cfg(feature = "committing-aead")]
+#[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+pub use committing::*;

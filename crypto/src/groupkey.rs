@@ -72,7 +72,7 @@ impl<E: Engine + ?Sized> GroupKey<E> {
 
     /// The size in bytes of the overhead added to plaintexts
     /// encrypted with [`seal`][Self::seal].
-    pub const OVERHEAD: usize = E::Aead::NONCE_SIZE + E::Aead::TAG_SIZE;
+    pub const OVERHEAD: usize = E::Aead::NONCE_SIZE + E::Aead::OVERHEAD;
 
     /// Returns the size in bytes of the overhead added to
     /// plaintexts encrypted with [`seal`][Self::seal].
