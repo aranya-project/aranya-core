@@ -24,9 +24,7 @@ use {
         ec::{Curve, Curve25519, Scalar, Secp256r1, Secp384r1, Secp521r1, Uncompressed},
         hash::{Block, Hash, HashId},
         hex::ToHex,
-        hybrid_array::typenum::{Unsigned, U12, U16, U32},
         import::{try_import, ExportError, Import, ImportError},
-        kdf::Kdf,
         kem::{
             dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId,
             SharedSecret,
@@ -68,6 +66,7 @@ use {
     },
     more_asserts::assert_ge,
     subtle::{Choice, ConstantTimeEq},
+    typenum::{Unsigned, U12, U16, U32},
 };
 
 #[allow(clippy::wildcard_imports)]
@@ -594,12 +593,12 @@ mod committing {
         super::{Aes256Gcm, Sha256},
         crate::{
             aead::{AeadKey, BlockCipher},
-            hybrid_array::typenum::{Unsigned, U16},
             util::const_assert,
         },
         bssl_sys::{AES_encrypt, AES_set_encrypt_key, AES_BLOCK_SIZE, AES_KEY},
         core::ptr,
         generic_array::GenericArray,
+        typenum::{Unsigned, U16},
     };
 
     /// AES-256.
@@ -1447,20 +1446,6 @@ impl<'a> Import<&'a [u8]> for Ed25519Signature {
     }
 }
 
-#[cfg(test)]
-impl crate::test_util::UncheckedSignature<Ed25519> for Ed25519Signature {
-    fn from_bytes_unchecked(data: &[u8]) -> Self {
-        let mut sig = [0u8; 64];
-        // Cap the number of bytes we copy, otherwise
-        // we'll panic. The Wycheproof test vectors
-        // include invalid signatures that are larger
-        // than the largest valid signature.
-        let n = core::cmp::min(sig.len(), data.len());
-        sig[..n].clone_from_slice(&data[..n]);
-        Self(sig)
-    }
-}
-
 /// A CSPRNG.
 #[derive(Clone, Copy)]
 pub struct Rand;
@@ -2236,7 +2221,10 @@ mod fun_crypto {
         mod test_hpke {
             use {
                 super::*,
-                crate::hpke::{Hpke, Mode},
+                crate::{
+                    hpke::{Hpke, Mode},
+                    kdf::Kdf,
+                },
             };
 
             #[test]

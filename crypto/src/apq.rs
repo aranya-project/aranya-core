@@ -15,10 +15,6 @@ use {
         hash::tuple_hash,
         hex::ToHex,
         hpke::{Hpke, Mode},
-        hybrid_array::{
-            typenum::{operator_aliases::Sum, U64},
-            ArraySize, ByteArray,
-        },
         id::custom_id,
         import::{ExportError, Import, ImportError},
         kdf::{Kdf, KdfError},
@@ -35,9 +31,11 @@ use {
         ops::Add,
         result::Result,
     },
+    generic_array::{ArrayLength, GenericArray},
     postcard::experimental::max_size::MaxSize,
     serde::{Deserialize, Serialize},
     siphasher::sip128::SipHasher24,
+    typenum::{Sum, U64},
 };
 
 /// A sender's identity.
@@ -581,7 +579,7 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
     ) -> Result<TopicKey<E>, Error>
     where
         <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
         //     i2osp(version, 4),
@@ -710,7 +708,7 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
     ) -> Result<(Encap<E>, EncryptedTopicKey<E>), Error>
     where
         <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
         //     i2osp(version, 4),
@@ -734,7 +732,7 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
         // )
         let (enc, mut ctx) =
             Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, Mode::Auth(&sk.0), &self.0, &ad)?;
-        let mut dst = ByteArray::default();
+        let mut dst = GenericArray::default();
         ctx.seal(&mut dst, &key.seed, &ad)?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))
     }

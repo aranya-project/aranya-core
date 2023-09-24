@@ -107,15 +107,15 @@ macro_rules! hmac_impl {
     ($name:ident, $doc:expr, $hash:ident) => {
         #[doc = concat!($doc, ".")]
         #[derive(Clone)]
-        pub struct $name($crate::hmac::Hmac<$hash, { $hash::DIGEST_SIZE }>);
+        pub struct $name($crate::hmac::Hmac<$hash, { <$hash as $crate::hash::Hash>::DIGEST_SIZE }>);
 
         impl $crate::mac::Mac for $name {
             const ID: $crate::mac::MacId = $crate::mac::MacId::$name;
 
             // Setting len(K) = L ensures that we're always in
             // [L, B].
-            type Key = $crate::hmac::HmacKey<{ $hash::DIGEST_SIZE }>;
-            type Tag = $crate::mac::Tag<{ $hash::DIGEST_SIZE }>;
+            type Key = $crate::hmac::HmacKey<{ <$hash as $crate::hash::Hash>::DIGEST_SIZE }>;
+            type Tag = $crate::mac::Tag<{ <$hash as $crate::hash::Hash>::DIGEST_SIZE }>;
 
             fn new(key: &Self::Key) -> Self {
                 Self($crate::hmac::Hmac::new(key.as_ref()))
@@ -136,30 +136,45 @@ pub(crate) use hmac_impl;
 #[cfg(test)]
 #[allow(clippy::wildcard_imports)]
 mod tests {
-    use {
-        super::*,
-        crate::{
-            bearssl::{Sha256, Sha384, Sha512},
-            test_util::{mac, test_mac},
-        },
-    };
+    macro_rules! hmac_tests {
+        () => {
+            use crate::test_util::{mac, test_mac};
 
-    hmac_impl!(HmacSha256, "HMAC-SHA256", Sha256);
-    hmac_impl!(HmacSha384, "HMAC-SHA384", Sha384);
-    hmac_impl!(HmacSha512, "HMAC-SHA512", Sha512);
+            hmac_impl!(HmacSha256, "HMAC-SHA256", Sha256);
+            hmac_impl!(HmacSha384, "HMAC-SHA384", Sha384);
+            hmac_impl!(HmacSha512, "HMAC-SHA512", Sha512);
 
-    #[test]
-    fn test_hmac_sha256() {
-        test_mac::<HmacSha256>(mac::TestName::HmacSha256);
+            #[test]
+            fn test_hmac_sha256() {
+                test_mac::<HmacSha256>(mac::TestName::HmacSha256);
+            }
+
+            #[test]
+            fn test_hmac_sha384() {
+                test_mac::<HmacSha384>(mac::TestName::HmacSha384);
+            }
+
+            #[test]
+            fn test_hmac_sha512() {
+                test_mac::<HmacSha512>(mac::TestName::HmacSha512);
+            }
+        };
     }
 
-    #[test]
-    fn test_hmac_sha384() {
-        test_mac::<HmacSha384>(mac::TestName::HmacSha384);
+    #[cfg(feature = "boringssl")]
+    mod boringssl {
+        use crate::boring::{Sha256, Sha384, Sha512};
+        hmac_tests!();
     }
 
-    #[test]
-    fn test_hmac_sha512() {
-        test_mac::<HmacSha512>(mac::TestName::HmacSha512);
+    #[cfg(feature = "bearssl")]
+    mod bearssl {
+        use crate::bearssl::{Sha256, Sha384, Sha512};
+        hmac_tests!();
+    }
+
+    mod rust {
+        use crate::rust::{Sha256, Sha384, Sha512};
+        hmac_tests!();
     }
 }

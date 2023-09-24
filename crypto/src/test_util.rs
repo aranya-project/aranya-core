@@ -30,10 +30,6 @@ use {
         groupkey::{Context, GroupKey},
         hash::Hash,
         hpke::{Hpke, Mode, Psk, RecvCtx, SendCtx},
-        hybrid_array::{
-            typenum::{operator_aliases::Sum, U64},
-            ArraySize,
-        },
         id::Id,
         import::{ExportError, Import, ImportError},
         kdf::{Kdf, KdfError, KdfId},
@@ -50,8 +46,10 @@ use {
         marker::PhantomData,
         ops::{Add, FnMut},
     },
+    generic_array::ArrayLength,
     more_asserts::assert_ge,
     subtle::{Choice, ConstantTimeEq},
+    typenum::{Sum, U64},
 };
 
 pub use wycheproof::{aead, ecdh, ecdsa, eddsa, hkdf, mac, TestResult};
@@ -326,7 +324,7 @@ pub fn test_engine<E, F>(mut f: F)
 where
     E: Engine,
     <E::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
+    Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     F: FnMut() -> E,
 {
     test_ciphersuite::<E, _>(&mut f());
@@ -344,7 +342,7 @@ impl<E, F> Test<F> for EngineTest<E>
 where
     E: Engine,
     <E::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
+    Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     F: FnMut() -> E,
 {
     fn test<R: Csprng>(rng: &mut R, mut f: F) {
@@ -404,7 +402,7 @@ impl<E: Engine> EngineTest<E>
 where
     E: Engine,
     <E::Aead as Aead>::Overhead: Add<U64>,
-    Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
+    Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
 {
     /// Simple test for [`UserSigningKey`].
     fn test_simple_user_signing_key_sign<R: Csprng>(rng: &mut R) {
@@ -2187,40 +2185,18 @@ impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for SignatureWithDefaults<T> {
     }
 }
 
-impl<T: Signer + ?Sized> UncheckedSignature<SignerWithDefaults<T>> for SignatureWithDefaults<T>
-where
-    T::Signature: UncheckedSignature<T>,
-{
-    fn from_bytes_unchecked(data: &[u8]) -> Self {
-        Self(T::Signature::from_bytes_unchecked(data))
-    }
-}
-
-/// A digital signature that can be created without validation.
-pub trait UncheckedSignature<T: Signer + ?Sized> {
-    /// Creates a signature from its byte representation without
-    /// validating it.
-    fn from_bytes_unchecked(data: &[u8]) -> Self;
-}
-
 /// Tests a [`Signer`] that implements ECDSA against Project
 /// Wycheproof test vectors.
 ///
 /// It tests both `T` and [`SignerWithDefaults<T>`].
 ///
 /// It also performs [`SignerTest`].
-pub fn test_ecdsa<T: Signer>(name: ecdsa::TestName)
-where
-    <T as Signer>::Signature: UncheckedSignature<T>,
-{
+pub fn test_ecdsa<T: Signer>(name: ecdsa::TestName) {
     test_ecdsa_inner::<T>(name);
     test_ecdsa_inner::<SignerWithDefaults<T>>(name);
 }
 
-fn test_ecdsa_inner<T: Signer>(name: ecdsa::TestName)
-where
-    <T as Signer>::Signature: UncheckedSignature<T>,
-{
+fn test_ecdsa_inner<T: Signer>(name: ecdsa::TestName) {
     SignerTest::<T>::test(&mut Rng, ());
 
     let set = ecdsa::TestSet::load(name).expect("should be able to load tests");
@@ -2229,13 +2205,11 @@ where
             let id = tc.tc_id;
 
             let pk = T::VerifyingKey::import(&g.key.key[..]).unwrap_or_else(|_| panic!("{id}"));
-            let sig = {
-                // TODO(eric): reject syntactically invalid
-                // signatures. I tried doing this based on the
-                // test flags, but it had too many false
-                // positives. For example, some BER signatures
-                // are valid DER signatures.
-                T::Signature::from_bytes_unchecked(&tc.sig[..])
+            // TODO(eric): fail the test if we reject a valid
+            // signature.
+            let sig = match T::Signature::import(&tc.sig[..]) {
+                Ok(sig) => sig,
+                Err(_) => continue,
             };
 
             let res = pk.verify(&tc.msg[..], &sig);

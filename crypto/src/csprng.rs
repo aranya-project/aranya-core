@@ -72,8 +72,10 @@ pub(crate) mod moonshot {
     cfg_if! {
         if #[cfg(feature = "boringssl")] {
             use crate::boring::HkdfSha512;
-        } else {
+        } else if #[cfg(feature = "bearssl")] {
             use crate::bearssl::HkdfSha512;
+        } else {
+            use crate::rust::HkdfSha512;
         }
     }
 
@@ -282,6 +284,7 @@ pub(crate) mod moonshot {
 
         /// Test with BearSSL's HKDF.
         #[test]
+        #[cfg(feature = "bearssl")]
         fn test_aes_ctr_csprng_bearssl() {
             test_aes_ctr_csprng::<crate::bearssl::HkdfSha512>();
         }
@@ -296,7 +299,7 @@ pub(crate) mod moonshot {
         /// Test our own HKDF.
         #[test]
         fn test_aes_ctr_csprng_hkdf() {
-            use crate::{bearssl::Sha512, hkdf::hkdf_impl};
+            use crate::{hkdf::hkdf_impl, rust::Sha512};
 
             hkdf_impl!(HkdfSha512, "HKDF-SHA512", Sha512);
 

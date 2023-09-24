@@ -548,8 +548,8 @@ macro_rules! dhkem_impl {
 
             type DecapKey = $sk;
             type EncapKey = $pk;
-            type Secret = <$kdf as Kdf>::Prk;
-            type Encap = <$pk as PublicKey>::Data;
+            type Secret = <$kdf as $crate::kdf::Kdf>::Prk;
+            type Encap = <$pk as $crate::keys::PublicKey>::Data;
 
             fn encap<R: Csprng>(
                 rng: &mut R,

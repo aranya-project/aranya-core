@@ -13,13 +13,6 @@
 use {
     crate::{
         error::Unreachable,
-        hybrid_array::{
-            typenum::{
-                type_operators::{IsGreaterOrEqual, IsLess},
-                Unsigned, U16, U65536,
-            },
-            ArraySize,
-        },
         keys::{raw_key, SecretKey},
         zeroize::Zeroize,
     },
@@ -30,6 +23,11 @@ use {
         fmt::{self, Debug},
         mem,
         result::Result,
+    },
+    generic_array::ArrayLength,
+    typenum::{
+        type_operators::{IsGreaterOrEqual, IsLess},
+        Unsigned, U16, U65536,
     },
 };
 
@@ -265,14 +263,14 @@ pub trait Aead {
     /// The size in octets of a key used by this [`Aead`].
     ///
     /// Must be at least 16 octets and less than 2¹⁶ octets.
-    type KeySize: ArraySize + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static;
+    type KeySize: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static;
     /// Shorthand for [`KeySize`][Self::KeySize].
     const KEY_SIZE: usize = Self::KeySize::USIZE;
 
     /// The size in octets of a nonce used by this [`Aead`].
     ///
     /// Must be less than 2¹⁶ octets.
-    type NonceSize: ArraySize + IsLess<U65536> + 'static;
+    type NonceSize: ArrayLength + IsLess<U65536> + 'static;
     /// Shorthand for [`NonceSize`][Self::NonceSize].
     const NONCE_SIZE: usize = Self::NonceSize::USIZE;
 
@@ -284,7 +282,7 @@ pub trait Aead {
     /// the size of the authentication tag and key committment.
     ///
     /// Must be at least 16 octets (128 bits).
-    type Overhead: ArraySize + 'static;
+    type Overhead: ArrayLength + 'static;
     /// Shorthand for [`Overhead`][Self::Overhead].
     const OVERHEAD: usize = Self::Overhead::USIZE;
 
@@ -628,16 +626,7 @@ pub trait Cmt4Aead: Cmt3Aead {}
 mod committing {
     use {
         super::{Aead, KeyData},
-        crate::{
-            error::{safe_unreachable, Unreachable},
-            hybrid_array::{
-                typenum::{
-                    type_operators::{IsGreaterOrEqual, IsLess},
-                    Unsigned, U16, U65536,
-                },
-                ArraySize,
-            },
-        },
+        crate::error::{safe_unreachable, Unreachable},
         core::{
             borrow::{Borrow, BorrowMut},
             cmp,
@@ -646,17 +635,17 @@ mod committing {
             result::Result,
         },
         generic_array::{ArrayLength, GenericArray},
+        typenum::{
+            type_operators::{IsGreaterOrEqual, IsLess},
+            Unsigned, U16, U65536,
+        },
     };
 
     /// A symmetric block cipher.
     #[doc(hidden)]
     pub trait BlockCipher {
         /// The size in octets of a the cipher's block.
-        type BlockSize: ArrayLength<u8>
-            + ArraySize
-            + IsGreaterOrEqual<U16>
-            + IsLess<U65536>
-            + 'static;
+        type BlockSize: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static;
         /// Shorthand for [`BlockSize::USIZE`][Self::BlockSize];
         const BLOCK_SIZE: usize = Self::BlockSize::USIZE;
         /// The cipher's key.
@@ -785,8 +774,8 @@ mod committing {
             }
 
             impl $name {
-                const COMMITMENT_SIZE: usize =
-                    <$cipher as $crate::aead::BlockCipher>::BlockSize::USIZE;
+                const COMMITMENT_SIZE: usize = <<$cipher as $crate::aead::BlockCipher>::BlockSize as
+                                                                        ::typenum::Unsigned>::USIZE;
             }
 
             #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
@@ -802,7 +791,7 @@ mod committing {
 
                 type KeySize = <$inner as $crate::aead::Aead>::KeySize;
                 type NonceSize = <$inner as $crate::aead::Aead>::NonceSize;
-                type Overhead = $crate::hybrid_array::typenum::Sum<
+                type Overhead = ::typenum::Sum<
                     <$inner as $crate::aead::Aead>::Overhead,
                     // UtC has one block of overhead.
                     <$cipher as $crate::aead::BlockCipher>::BlockSize,
@@ -972,7 +961,10 @@ mod committing {
                     let tag = {
                         let mut hmac = $crate::hmac::Hmac::<
                             $hash,
-                            { <$inner as $crate::aead::Aead>::KeySize::USIZE },
+                            {
+                                <<$inner as $crate::aead::Aead>::KeySize as
+                                                                    ::typenum::Unsigned>::USIZE
+                            },
                         >::new(&self.key.as_bytes()[..]);
                         hmac.update(nonce);
                         hmac.update(ad);

@@ -27,34 +27,26 @@ macro_rules! ciphertext {
     ($name:ident, $size:ty, $doc:expr) => {
         #[doc = $doc]
         pub struct $name<E>(
-            $crate::hybrid_array::ByteArray<
-                $crate::hybrid_array::typenum::operator_aliases::Sum<
-                    <E::Aead as $crate::aead::Aead>::Overhead,
-                    $size,
-                >,
+            pub(crate)  ::generic_array::GenericArray<
+                u8,
+                ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
             >,
         )
         where
             E: $crate::engine::Engine + ?Sized,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::Overhead,
-                $size,
-            >: $crate::hybrid_array::ArraySize;
+            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+                ::generic_array::ArrayLength;
 
         impl<E> $name<E>
         where
             E: $crate::engine::Engine + ?Sized,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::Overhead,
-                $size,
-            >: $crate::hybrid_array::ArraySize,
+            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+                ::generic_array::ArrayLength,
         {
             /// The size in bytes of the ciphertext.
-            pub const SIZE: usize =
-                <$size as $crate::hybrid_array::typenum::marker_traits::Unsigned>::USIZE
-                    + E::Aead::OVERHEAD;
+            pub const SIZE: usize = <$size as ::typenum::Unsigned>::USIZE + E::Aead::OVERHEAD;
 
             /// Encodes itself as bytes.
             pub fn as_bytes(&self) -> &[u8] {
@@ -65,13 +57,27 @@ macro_rules! ciphertext {
             pub fn from_bytes(
                 data: &[u8],
             ) -> ::core::result::Result<Self, $crate::import::InvalidSizeError> {
-                let v = data
-                    .try_into()
-                    .map_err(|_| $crate::import::InvalidSizeError {
-                        got: data.len(),
-                        want: Self::SIZE..Self::SIZE,
-                    })?;
-                Ok(Self(v))
+                let v: &::generic_array::GenericArray<u8, _> =
+                    data.try_into()
+                        .map_err(|_| $crate::import::InvalidSizeError {
+                            got: data.len(),
+                            want: Self::SIZE..Self::SIZE,
+                        })?;
+                Ok(Self(v.clone()))
+            }
+        }
+
+        impl<E> TryFrom<&[u8]> for $name<E>
+        where
+            E: $crate::engine::Engine + ?Sized,
+            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+                ::generic_array::ArrayLength,
+        {
+            type Error = $crate::import::InvalidSizeError;
+
+            fn try_from(data: &[u8]) -> ::core::result::Result<Self, Self::Error> {
+                $name::<E>::from_bytes(data)
             }
         }
 
@@ -79,10 +85,8 @@ macro_rules! ciphertext {
         where
             E: $crate::engine::Engine + ?Sized,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::Overhead,
-                $size,
-            >: $crate::hybrid_array::ArraySize,
+            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+                ::generic_array::ArrayLength,
         {
             fn clone(&self) -> Self {
                 Self(self.0.clone())
@@ -93,44 +97,36 @@ macro_rules! ciphertext {
         where
             E: $crate::engine::Engine + ?Sized,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::Overhead,
-                $size,
-            >: $crate::hybrid_array::ArraySize,
-            $crate::hybrid_array::ByteArray<
-                $crate::hybrid_array::typenum::operator_aliases::Sum<
-                    <E::Aead as $crate::aead::Aead>::Overhead,
-                    $size,
-                >,
+            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+                ::generic_array::ArrayLength,
+            ::generic_array::GenericArray<
+                u8,
+                ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
             >: ::postcard::experimental::max_size::MaxSize,
         {
-            const POSTCARD_MAX_SIZE: usize =
-                <ByteArray<Sum<<E::Aead as Aead>::Overhead, $size>> as MaxSize>::POSTCARD_MAX_SIZE;
+            const POSTCARD_MAX_SIZE: usize = <::generic_array::GenericArray<
+                u8,
+                ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
+            > as ::postcard::experimental::max_size::MaxSize>::POSTCARD_MAX_SIZE;
         }
 
         impl<E>
             From<
-                $crate::hybrid_array::ByteArray<
-                    $crate::hybrid_array::typenum::operator_aliases::Sum<
-                        <E::Aead as $crate::aead::Aead>::Overhead,
-                        $size,
-                    >,
+                ::generic_array::GenericArray<
+                    u8,
+                    ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
                 >,
             > for $name<E>
         where
             E: $crate::engine::Engine + ?Sized,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::Overhead,
-                $size,
-            >: $crate::hybrid_array::ArraySize,
+            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+                ::generic_array::ArrayLength,
         {
             fn from(
-                buf: $crate::hybrid_array::ByteArray<
-                    $crate::hybrid_array::typenum::operator_aliases::Sum<
-                        <E::Aead as $crate::aead::Aead>::Overhead,
-                        $size,
-                    >,
+                buf: ::generic_array::GenericArray<
+                    u8,
+                    ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
                 >,
             ) -> Self {
                 Self(buf)
@@ -141,10 +137,8 @@ macro_rules! ciphertext {
         where
             E: $crate::engine::Engine + ?Sized,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::Overhead,
-                $size,
-            >: $crate::hybrid_array::ArraySize,
+            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+                ::generic_array::ArrayLength,
         {
             fn serialize<S>(&self, s: S) -> ::core::result::Result<S::Ok, S::Error>
             where
@@ -158,10 +152,8 @@ macro_rules! ciphertext {
         where
             E: $crate::engine::Engine + ?Sized,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::hybrid_array::typenum::operator_aliases::Sum<
-                <E::Aead as $crate::aead::Aead>::Overhead,
-                $size,
-            >: $crate::hybrid_array::ArraySize,
+            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+                ::generic_array::ArrayLength,
         {
             fn deserialize<D>(d: D) -> ::core::result::Result<Self, D::Error>
             where
@@ -172,10 +164,8 @@ macro_rules! ciphertext {
                 where
                     G: $crate::engine::Engine + ?Sized,
                     <G::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-                    $crate::hybrid_array::typenum::operator_aliases::Sum<
-                        <G::Aead as $crate::aead::Aead>::Overhead,
-                        $size,
-                    >: $crate::hybrid_array::ArraySize,
+                    ::typenum::Sum<<G::Aead as $crate::aead::Aead>::Overhead, $size>:
+                        ::generic_array::ArrayLength,
                 {
                     type Value = $name<G>;
 

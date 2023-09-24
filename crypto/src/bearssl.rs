@@ -7,6 +7,8 @@
 //!
 //! [BearSSL]: https://bearssl.org/
 
+#![cfg_attr(docs, doc(cfg(feature = "bearssl")))]
+#![cfg(feature = "bearssl")]
 #![cfg(not(fips))]
 #![cfg_attr(docs, doc(cfg(not(fips))))]
 
@@ -23,9 +25,7 @@ use {
         hex::ToHex,
         hkdf::hkdf_impl,
         hmac::hmac_impl,
-        hybrid_array::typenum::{Unsigned, U12, U16, U32},
-        import::{try_import, ExportError, Import, ImportError},
-        kdf::Kdf,
+        import::{ExportError, Import, ImportError},
         kem::{
             dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId,
             SharedSecret,
@@ -48,6 +48,7 @@ use {
         slice,
     },
     subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeLess},
+    typenum::{Unsigned, U12, U16, U32},
 };
 
 #[allow(clippy::wildcard_imports)]
@@ -226,33 +227,8 @@ impl Aead for Aes256Gcm {
 mod committing {
     use {
         super::{Aes256Gcm, Sha256},
-        crate::{
-            aead::{AeadKey, BlockCipher},
-            hybrid_array::typenum::Unsigned,
-        },
-        aes::cipher::{BlockEncrypt, BlockSizeUser, KeyInit},
-        generic_array::GenericArray,
+        crate::rust::Aes256,
     };
-
-    /// AES-256.
-    #[doc(hidden)]
-    pub struct Aes256(aes::Aes256);
-
-    impl BlockCipher for Aes256 {
-        type BlockSize = <aes::Aes256 as BlockSizeUser>::BlockSize;
-        const BLOCK_SIZE: usize = Self::BlockSize::USIZE;
-        type Key = AeadKey<32>;
-
-        fn new(key: &Self::Key) -> Self {
-            let key: &[u8; 32] = key.into();
-            let cipher = <aes::Aes256 as KeyInit>::new(key.into());
-            Self(cipher)
-        }
-
-        fn encrypt_block(&self, block: &mut GenericArray<u8, Self::BlockSize>) {
-            self.0.encrypt_block(block)
-        }
-    }
 
     crate::aead::utc_aead!(Cmt1Aes256Gcm, Aes256Gcm, Aes256, "CMT-1 AES-256-GCM.");
     crate::aead::hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
@@ -492,7 +468,7 @@ macro_rules! ecdh_impl {
                 // We only create keys that are exactly
                 // `$curve::SCALAR_SIZE` bytes long, so `data`
                 // should be exactly that length.
-                let kbuf: Scalar<$curve> = try_import(data)?;
+                let kbuf = Scalar::import(data)?;
 
                 // The key must be in [1, N). I.e., non-zero and
                 // less than the (subgroup) order.
@@ -566,7 +542,7 @@ macro_rules! ecdh_impl {
         impl<'a> Import<&'a [u8]> for $pk {
             #[inline]
             fn import(data: &'a [u8]) -> Result<Self, ImportError> {
-                let kbuf = try_import(data)?;
+                let kbuf = Uncompressed::import(data)?;
                 Ok(Self { kbuf })
             }
         }
@@ -798,7 +774,7 @@ macro_rules! ecdsa_impl {
                 // We only create keys that are exactly
                 // `$curve::SCALAR_SIZE` bytes long, so `data`
                 // should be exactly that length.
-                let kbuf: Scalar<$curve> = try_import(data)?;
+                let kbuf = Scalar::import(data)?;
 
                 // The key must be in [1, N). I.e., non-zero and
                 // less than the (subgroup) order.
@@ -903,7 +879,7 @@ macro_rules! ecdsa_impl {
         impl<'a> Import<&'a [u8]> for $pk {
             #[inline]
             fn import(data: &'a [u8]) -> Result<Self, ImportError> {
-                let kbuf = try_import(data)?;
+                let kbuf = Uncompressed::import(data)?;
                 Ok(Self { kbuf })
             }
         }

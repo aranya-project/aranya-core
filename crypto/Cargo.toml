@@ -12,8 +12,16 @@ default = []
 
 # Enable allocations.
 alloc = [
+	"aes-gcm/alloc",
+	"der/alloc",
+	"ecdsa/alloc",
 	"postcard/alloc",
 	"zeroize/alloc",
+]
+
+# Enable BearSSL.
+bearssl = [
+	"dep:bearssl-sys",
 ]
 
 # Enable BoringSSL.
@@ -25,7 +33,6 @@ boringssl = [
 # Enable committing AEAD implementations.
 committing-aead = [
 	"dep:aes",
-	"dep:generic-array",
 ]
 
 # Enable Ed25519 batch signature verification.
@@ -57,7 +64,7 @@ moonshot = [
 
 # Makes `OsRng` implement `Csprng`.
 rand_core = [
-	"dep:rand_core",
+	"rand_core/getrandom",
 ]
 
 # Use std.
@@ -70,6 +77,12 @@ std = [
 	# We only pull in `rand` when `std` is enabled since we only
 	# use it for `ThreadRng`.
 	"dep:rand",
+
+	"aes-gcm/std",
+	"der/std",
+	"ecdsa/std",
+	"subtle/std",
+	"zeroize/std",
 ]
 
 # Include testing utilities.
@@ -90,30 +103,37 @@ error_in_core = []
 result_option_inspect = []
 
 [dependencies]
+aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 base58 = { path = "../base58" }
 bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branch = "main", optional = true }
-bearssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bearssl.git", tag = "v0.2.0" }
+bearssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bearssl.git", tag = "v0.2.0", optional = true }
 byteorder = { workspace = true, default-features = false }
-cfg-if = { workspace = true }
-const_format = { workspace = true }
-der = { version = "0.7" }
+cfg-if = { workspace = true, default-features = false }
+crypto-common = { version = "0.1", default-features = false }
+const_format = { workspace = true, default-features = false }
+der = { version = "0.7", default-features = false }
+ecdsa = { version = "0.16", default-features = false, features = ["signing", "verifying", "der"] }
+elliptic-curve = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic", "sec1"] }
 ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
-generic-array = { version = "0.14", optional = true }
-heapless = { workspace = true }
+generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
+heapless = { workspace = true, default-features = false }
 postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
-lazy_static = { version = "1.4", features = ["spin_no_std"] }
-more-asserts = { version = "0.3" }
+lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"] }
+more-asserts = { version = "0.3", default-features = false }
 # `rand` is only pulled in when `std` is enabled. It's only used
 # to add trait impls for `ThreadRng`.
 rand = { workspace = true, features = ["std", "std_rng"], optional = true }
+p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
+p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, optional = true }
 serde_repr = { version = "0.1", default-features = false, optional = true }
+sha2 = { version = "0.10", default-features = false }
 siphasher = { version = "1", default-features = false }
-spin = { workspace = true, features = ["mutex", "once", "spin_mutex"] }
+spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"] }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
-typenum = { version = "1" }
+typenum = { version = "1", default-features = false }
 # Only pulled into non-dev builds if `test_util` is enabled. It
 # won't bloat release builds, though, since users of this crate
 # should only use this feature inside [dev-dependencies].
@@ -135,15 +155,11 @@ serde_json = { version = "1", default-features = false }
 # We currently do not need to support VxWorks 7, so just disable
 # `getrandom` for VxWorks.
 [target.'cfg(target_os = "vxworks")'.dependencies]
-# `rand_core` is only pulled in when `rand_core` is enabled. It's
-# only used to add trait impls for `OsRng`.
-rand_core = { workspace = true, default-features = false, optional = true }
+rand_core = { workspace = true, default-features = false }
 
 [target.'cfg(not(target_os = "vxworks"))'.dependencies]
 getrandom = { version = "0.2", features = ["custom"] }
-# `rand_core` is only pulled in when `rand_core` is enabled. It's
-# only used to add trait impls for `OsRng`.
-rand_core = { workspace = true, default-features = false, features = ["getrandom"], optional = true }
+rand_core = { workspace = true, default-features = false }
 
 [dev-dependencies]
 postcard = { workspace = true, features = ["alloc", "heapless"] }

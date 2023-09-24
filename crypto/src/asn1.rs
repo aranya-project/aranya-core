@@ -197,22 +197,6 @@ impl<'a, S: Signer + ?Sized, const N: usize> Import<&'a [u8]> for Sig<S, N> {
     }
 }
 
-#[cfg(test)]
-impl<S: Signer + ?Sized, const N: usize> crate::test_util::UncheckedSignature<S> for Sig<S, N> {
-    fn from_bytes_unchecked(data: &[u8]) -> Self {
-        let mut sig = [0u8; N];
-        // We might not copy everything, but that's okay. The
-        // Wycheproof test vectors include invalid signatures
-        // that are larger than the largest valid signature.
-        let len = copy(&mut sig, data);
-        Self {
-            sig,
-            len,
-            _s: PhantomData,
-        }
-    }
-}
-
 /// A 'raw' ECDSA signature.
 ///
 /// `N` should be the maximum number of bytes required by the
@@ -251,18 +235,21 @@ impl<const N: usize> RawSig<N> {
         Self::VALID_N;
     }
 
+    #[cfg(any(feature = "bearssl", feature = "boringssl"))]
     pub(crate) fn as_mut_ptr(&mut self) -> *mut u8 {
         Self::check();
 
         self.0.as_mut_ptr()
     }
 
+    #[cfg(any(feature = "bearssl", feature = "boringssl"))]
     pub(crate) fn as_ptr(&self) -> *const u8 {
         Self::check();
 
         self.0.as_ptr()
     }
 
+    #[cfg(any(feature = "bearssl", feature = "boringssl"))]
     pub(crate) fn len(&self) -> usize {
         Self::check();
 

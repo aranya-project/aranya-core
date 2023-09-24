@@ -187,20 +187,50 @@ fn right_encode<H: Hash>(h: &mut H, v: u64) {
 mod test {
     use super::*;
 
-    #[test]
-    fn test_tuple_hash() {
-        type H = crate::bearssl::Sha256;
+    macro_rules! test_tuple_hash {
+        ($name:ident, $hash:ty) => {
+            #[test]
+            fn $name() {
+                assert_eq!(
+                    tuple_hash::<$hash, _>(["abc"].iter()),
+                    tuple_hash::<$hash, _>(["abc"])
+                );
+                assert_eq!(tuple_hash::<$hash, _>([""]), tuple_hash::<$hash, _>([""]));
 
-        assert_eq!(
-            tuple_hash::<H, _>(["abc"].iter()),
-            tuple_hash::<H, _>(["abc"])
-        );
-        assert_eq!(tuple_hash::<H, _>([""]), tuple_hash::<H, _>([""]));
+                assert_ne!(
+                    tuple_hash::<$hash, _>(["a", "b", "c"]),
+                    tuple_hash::<$hash, _>(["abc"])
+                );
+                assert_ne!(
+                    tuple_hash::<$hash, _>(["a", ""]),
+                    tuple_hash::<$hash, _>(["a"])
+                );
+            }
+        };
+    }
+    macro_rules! tuple_hash_tests {
+        () => {
+            use super::*;
+            test_tuple_hash!(test_sha256, Sha256);
+            test_tuple_hash!(test_sha384, Sha384);
+            test_tuple_hash!(test_sha512, Sha512);
+        };
+    }
 
-        assert_ne!(
-            tuple_hash::<H, _>(["a", "b", "c"]),
-            tuple_hash::<H, _>(["abc"])
-        );
-        assert_ne!(tuple_hash::<H, _>(["a", ""]), tuple_hash::<H, _>(["a"]));
+    #[cfg(feature = "boringssl")]
+    mod boringssl {
+        use crate::boring::{Sha256, Sha384, Sha512};
+        tuple_hash_tests!();
+    }
+
+    #[cfg(feature = "bearssl")]
+    mod bearssl {
+        use crate::bearssl::{Sha256, Sha384, Sha512};
+        tuple_hash_tests!();
+    }
+
+    mod rust {
+        use crate::rust::{Sha256, Sha384, Sha512};
+        tuple_hash_tests!();
     }
 }

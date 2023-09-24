@@ -14,9 +14,11 @@ use {
         mem,
         result::Result,
     },
+    generic_array::GenericArray,
     postcard::experimental::max_size::MaxSize,
     serde::{Deserialize, Serialize},
     subtle::{Choice, ConstantTimeEq},
+    typenum::{U32, U48, U64},
 };
 
 cfg_if! {
@@ -180,6 +182,27 @@ impl<const N: usize> From<[u8; N]> for Tag<N> {
     #[inline]
     fn from(tag: [u8; N]) -> Self {
         Self(tag)
+    }
+}
+
+impl From<GenericArray<u8, U32>> for Tag<32> {
+    #[inline]
+    fn from(tag: GenericArray<u8, U32>) -> Self {
+        Self(tag.into())
+    }
+}
+
+impl From<GenericArray<u8, U48>> for Tag<48> {
+    #[inline]
+    fn from(tag: GenericArray<u8, U48>) -> Self {
+        Self(tag.into())
+    }
+}
+
+impl From<GenericArray<u8, U64>> for Tag<64> {
+    #[inline]
+    fn from(tag: GenericArray<u8, U64>) -> Self {
+        Self(tag.into())
     }
 }
 

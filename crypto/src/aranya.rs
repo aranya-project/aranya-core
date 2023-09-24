@@ -13,10 +13,6 @@ use {
         groupkey::GroupKey,
         hash::tuple_hash,
         hpke::{Hpke, Mode},
-        hybrid_array::{
-            typenum::{operator_aliases::Sum, U64},
-            ArraySize, ByteArray,
-        },
         id::Id,
         import::{ExportError, Import, ImportError},
         kem::{DecapKey, Kem},
@@ -26,8 +22,9 @@ use {
         zeroize::ZeroizeOnDrop,
     },
     core::{borrow::Borrow, fmt, marker::PhantomData, ops::Add, result::Result},
-    postcard::experimental::max_size::MaxSize,
+    generic_array::{ArrayLength, GenericArray},
     serde::{de, Deserialize, Deserializer, Serialize, Serializer},
+    typenum::{operator_aliases::Sum, U64},
 };
 
 /// A signature created by a signing key.
@@ -340,7 +337,7 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
     ) -> Result<GroupKey<E>, Error>
     where
         <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // info = H(
         //     "GroupKey",
@@ -370,8 +367,8 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
         label: u32,
     ) -> Result<ChannelSeed<E>, Error>
     where
-        <E::Aead as Aead>::TagSize: Add<U64>,
-        Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+        <E::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // info = H(
         //     "ChannelSeed",
@@ -419,7 +416,7 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
     ) -> Result<(Encap<E>, EncryptedGroupKey<E>), Error>
     where
         <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArraySize,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // info = H(
         //     "GroupKey",
@@ -435,7 +432,7 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
         ]);
         let (enc, mut ctx) =
             Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
-        let mut dst = ByteArray::default();
+        let mut dst = GenericArray::default();
         ctx.seal(&mut dst, key.raw_seed(), &info)?;
         Ok((Encap(enc), EncryptedGroupKey(dst)))
     }
@@ -450,8 +447,8 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
         label: u32,
     ) -> Result<(Encap<E>, EncryptedChannelSeed<E>), Error>
     where
-        <E::Aead as Aead>::TagSize: Add<U64>,
-        Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
+        <E::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // info = H(
         //     "ChannelSeed",
@@ -468,7 +465,7 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
         // TODO(eric): mode auth?
         let (enc, mut ctx) =
             Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(eng, Mode::Base, &self.0, &info)?;
-        let mut dst = ByteArray::default();
+        let mut dst = GenericArray::default();
         ctx.seal(&mut dst, key.raw_seed(), &info)?;
         Ok((Encap(enc), EncryptedChannelSeed(dst)))
     }

@@ -1,13 +1,6 @@
 //! Constant time hexadecimal encoding and decoding.
 
 use {
-    crate::hybrid_array::{
-        typenum::{
-            consts::{U128, U133, U16, U2, U32, U33, U48, U49, U64, U65, U66, U67, U97},
-            Double, Integer, PartialQuot, Unsigned, B1, Z0,
-        },
-        ArrayOps, ArraySize, ByteArray,
-    },
     cfg_if::cfg_if,
     core::{
         borrow::Borrow,
@@ -16,7 +9,12 @@ use {
         result::Result,
         str,
     },
+    generic_array::{functional::FunctionalSequence, ArrayLength, GenericArray},
     subtle::{Choice, ConditionallySelectable},
+    typenum::{
+        consts::{U128, U133, U16, U2, U32, U33, U48, U49, U64, U65, U66, U67, U97},
+        Double, Integer, PartialQuot, Unsigned, B1, Z0,
+    },
 };
 
 cfg_if! {
@@ -43,7 +41,7 @@ macro_rules! hex_impl {
                 type Output = HexString<$len>;
 
                 fn to_hex(&self) -> Self::Output {
-                    HexString::from(ByteArray::from_core_array(*self))
+                    HexString::from(GenericArray::from(*self))
                 }
             }
         )+
@@ -66,10 +64,10 @@ hex_impl! {
     U133, // X9.62 uncompressed P-521
 }
 
-impl<N: ArraySize> ToHex for ByteArray<N>
+impl<N: ArrayLength> ToHex for GenericArray<u8, N>
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
 {
     type Output = HexString<N>;
 
@@ -78,26 +76,37 @@ where
     }
 }
 
-impl<N: ArraySize> From<ByteArray<N>> for HexString<N>
+impl<N: ArrayLength> From<GenericArray<u8, N>> for HexString<N>
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
 {
-    fn from(v: ByteArray<N>) -> HexString<N> {
+    fn from(v: GenericArray<u8, N>) -> HexString<N> {
         HexString::from_bytes(&v)
     }
 }
 
-/// A hexadecimal string.
-pub struct HexString<N: ArraySize>(ByteArray<Double<N>>)
+impl<N: ArrayLength> From<&GenericArray<u8, N>> for HexString<N>
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize;
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
+{
+    fn from(v: &GenericArray<u8, N>) -> HexString<N> {
+        HexString::from_bytes(v)
+    }
+}
 
-impl<N: ArraySize> HexString<N>
+/// A hexadecimal string.
+#[derive(Clone)]
+pub struct HexString<N: ArrayLength>(GenericArray<u8, Double<N>>)
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength;
+
+impl<N: ArrayLength> HexString<N>
+where
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
 {
     /// Returns a string slice containing the entire
     /// [`HexString`].
@@ -109,23 +118,23 @@ where
     /// Creates a hexadecimal string from `data`.
     pub fn from_bytes<T>(data: T) -> Self
     where
-        T: Borrow<ByteArray<N>>,
-        N: ArraySize + Shl<B1>,
-        Double<N>: ArraySize,
+        T: Borrow<GenericArray<u8, N>>,
+        N: ArrayLength + Shl<B1>,
+        Double<N>: ArrayLength,
     {
-        let mut out = ByteArray::default();
+        let mut out = GenericArray::default();
         let n = ct_encode(&mut out, data.borrow()).expect("sizes should be correct");
         assert_eq!(n, out.len(), "sizes should be exact");
         Self(out)
     }
 
     /// Converts the hexadecimal string to raw bytes.
-    pub fn to_bytes(&self) -> ByteArray<PartialQuot<N, U2>>
+    pub fn to_bytes(&self) -> GenericArray<u8, PartialQuot<N, U2>>
     where
-        N: ArraySize + Div<U2> + Rem<U2, Output = Z0> + Integer,
-        PartialQuot<N, U2>: ArraySize,
+        N: ArrayLength + Div<U2> + Rem<U2, Output = Z0> + Integer,
+        PartialQuot<N, U2>: ArrayLength,
     {
-        let mut out = ByteArray::default();
+        let mut out = GenericArray::default();
         let n = ct_decode(&mut out, self.0.borrow())
             .expect("should be valid hexadecimal and sizes correct");
         assert_eq!(n, out.len(), "sizes should be exact");
@@ -135,27 +144,16 @@ where
 
 impl<N> Copy for HexString<N>
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
-    <Double<N> as ArraySize>::ArrayType<u8>: Copy,
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
+    <Double<N> as ArrayLength>::ArrayType<u8>: Copy,
 {
 }
 
-impl<N> Clone for HexString<N>
+impl<N: ArrayLength> Borrow<str> for HexString<N>
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
-    <Double<N> as ArraySize>::ArrayType<u8>: Clone,
-{
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<N: ArraySize> Borrow<str> for HexString<N>
-where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
 {
     #[inline]
     fn borrow(&self) -> &str {
@@ -163,34 +161,34 @@ where
     }
 }
 
-impl<N: ArraySize> fmt::Display for HexString<N>
+impl<N: ArrayLength> fmt::Display for HexString<N>
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
-impl<N: ArraySize> fmt::LowerHex for HexString<N>
+impl<N: ArrayLength> fmt::LowerHex for HexString<N>
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
 }
 
-impl<N: ArraySize> fmt::UpperHex for HexString<N>
+impl<N: ArrayLength> fmt::UpperHex for HexString<N>
 where
-    N: ArraySize + Shl<B1>,
-    Double<N>: ArraySize,
+    N: ArrayLength + Shl<B1>,
+    Double<N>: ArrayLength,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Convert ASCII lowercase to uppercase.
-        let s = Self(ByteArray::from_fn(|i| self.0[i] - 32));
+        let s = Self(self.0.clone().map(|c| c - 32));
         fmt::Display::fmt(&s, f)
     }
 }
@@ -234,6 +232,24 @@ pub fn ct_encode(dst: &mut [u8], src: &[u8]) -> Result<usize, Error> {
         chunk[1] = enc_nibble(v & 0x0f);
     }
     Ok(src.len() * 2)
+}
+
+/// Encodes `src` to `dst` as hexadecimal in constant time and
+/// returns the number of bytes written.
+///
+/// `dst` must be at least twice as long as `src`.
+pub fn ct_write<W>(dst: &mut W, src: &[u8]) -> Result<(), fmt::Error>
+where
+    W: fmt::Write,
+{
+    // The implementation is taken from
+    // https://github.com/ericlagergren/subtle/blob/890d697da01053c79157a7fdfbed548317eeb0a6/hex/constant_time.go
+
+    for v in src {
+        dst.write_char(enc_nibble(v >> 4) as char)?;
+        dst.write_char(enc_nibble(v & 0x0f) as char)?;
+    }
+    Ok(())
 }
 
 #[inline(always)]

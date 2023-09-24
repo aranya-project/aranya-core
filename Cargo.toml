@@ -15,9 +15,9 @@ edition = "2021"
 
 [workspace.dependencies]
 byteorder = { version = "1", default-features = false }
-cfg-if = { version = "1" }
-const_format = { version = "0.2" }
-heapless = { version = "0.7" }
+cfg-if = { version = "1", default-features = false }
+const_format = { version = "0.2", default-features = false }
+heapless = { version = "0.7", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }

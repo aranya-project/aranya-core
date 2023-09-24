@@ -9,23 +9,20 @@ use {
         ciphersuite::SuiteIds,
         engine::Engine,
         error::Error,
-        hybrid_array::{
-            typenum::{Sum, U64},
-            ArraySize, ByteArray,
-        },
         id::{custom_id, Id},
-        import::{try_import, ImportError, InvalidSizeError},
+        import::{try_import, ImportError},
         kdf::{Kdf, KdfError},
         mac::Mac,
+        misc::ciphertext,
         zeroize::ZeroizeOnDrop,
     },
     core::{
         borrow::{Borrow, BorrowMut},
         iter::zip,
         marker::PhantomData,
-        ops::Add,
     },
     subtle::{Choice, ConstantTimeEq},
+    typenum::U64,
 };
 
 // This is different from the rest of the `crypto` API in that it
@@ -248,32 +245,4 @@ impl<E> ConstantTimeEq for ChannelSeed<E> {
     }
 }
 
-/// An encrypted [`ChannelSeed`].
-pub struct EncryptedChannelSeed<E: Engine + ?Sized>(
-    pub(crate) ByteArray<Sum<<E::Aead as Aead>::TagSize, U64>>,
-)
-where
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize;
-
-impl<E: Engine + ?Sized> EncryptedChannelSeed<E>
-where
-    <E::Aead as Aead>::TagSize: Add<U64>,
-    Sum<<E::Aead as Aead>::TagSize, U64>: ArraySize,
-{
-    const SIZE: usize = 64 + E::Aead::TAG_SIZE;
-
-    /// Encodes itself as bytes.
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-
-    /// Returns itself from its byte encoding.
-    pub fn from_bytes(data: &[u8]) -> Result<Self, InvalidSizeError> {
-        let v = data.try_into().map_err(|_| InvalidSizeError {
-            got: data.len(),
-            want: Self::SIZE..Self::SIZE,
-        })?;
-        Ok(Self(v))
-    }
-}
+ciphertext!(EncryptedChannelSeed, U64, "An encrypted [`ChannelSeed`].");

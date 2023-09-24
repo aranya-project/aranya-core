@@ -44,7 +44,7 @@ pub trait SecretKey: Clone + ConstantTimeEq + for<'a> Import<&'a [u8]> + Zeroize
 /// A fixed-length asymmetric public key.
 pub trait PublicKey: Clone + Debug + Eq + for<'a> Import<&'a [u8]> {
     /// The fixed-length byte encoding of the key.
-    type Data: Borrow<[u8]> + Clone + Copy + Sized;
+    type Data: Borrow<[u8]> + Clone + Sized;
 
     /// Returns the byte representation of the public key.
     fn export(&self) -> Self::Data;

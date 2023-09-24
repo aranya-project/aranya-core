@@ -74,11 +74,11 @@ impl Csprng for Rng {
 pub struct DefaultCipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
-    type Aead = crate::bearssl::Aes256Gcm;
-    type Hash = crate::bearssl::Sha512;
-    type Kdf = crate::bearssl::HkdfSha512;
-    type Kem = crate::bearssl::DhKemP256HkdfSha256;
-    type Mac = crate::bearssl::HmacSha512;
+    type Aead = crate::rust::Aes256Gcm;
+    type Hash = crate::rust::Sha512;
+    type Kdf = crate::rust::HkdfSha512;
+    type Kem = crate::rust::DhKemP256HkdfSha256;
+    type Mac = crate::rust::HmacSha512;
     type Signer = crate::ed25519::Ed25519;
 }
 
