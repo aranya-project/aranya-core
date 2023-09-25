@@ -819,3 +819,22 @@ action foo() {
     assert!(policy.facts.len() == 1);
     assert!(policy.actions.len() == 1);
 }
+
+#[test]
+fn parse_bytes() {
+    let text = r#"
+        function foo(x bytes) bytes {
+            return x
+        }
+    "#
+    .trim();
+
+    match parse_policy_str(text, Version::V3) {
+        Ok(p) => p,
+        Err(e) => {
+            // we do this rather than .expect() so we can see the nice error formatting
+            println!("{}", e);
+            panic!();
+        }
+    };
+}

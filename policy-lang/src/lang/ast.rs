@@ -5,8 +5,10 @@ use crate::lang::Version;
 /// It is not called `Type` because that conflicts with reserved keywords.
 #[derive(Debug, Clone, PartialEq)]
 pub enum VType {
-    /// a string
+    /// a character (UTF-8) string
     String,
+    /// A byte string
+    Bytes,
     /// a signed 64-bit integer
     Int,
     /// a boolean

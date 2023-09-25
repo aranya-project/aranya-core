@@ -23,15 +23,16 @@ identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 // ## Types
 // Core types.
 string_t = { "string" }
+bytes_t = { "bytes" }
 int_t = { "int" }
 bool_t = { "bool" }
 id_t = { "ID" }
 // An optional type is any of the core types preceded by "optional"
 // (so no "optional optional" allowed).
-optional_t = { "optional" ~ (string_t | int_t | bool_t | id_t) }
+optional_t = { "optional" ~ (string_t | bytes_t | int_t | bool_t | id_t) }
 // A vtype is any of the core types or an optional. (I can't call it
 // "type" because that's a reserved keyword in Rust)
-vtype = _{ string_t | int_t | bool_t | id_t | optional_t }
+vtype = _{ string_t | bytes_t | int_t | bool_t | id_t | optional_t }
 
 // ## Fields
 // A field definition is an identifier followed by a type. Used in

@@ -17,6 +17,8 @@ pub enum Value {
     Bool(bool),
     /// String (UTF-8)
     String(String),
+    /// Bytes
+    Bytes(Vec<u8>),
     /// Struct
     Struct(Struct),
     /// Fact
@@ -37,6 +39,7 @@ impl Value {
             Value::Int(_) => Some(VType::Int),
             Value::Bool(_) => Some(VType::Bool),
             Value::String(_) => Some(VType::String),
+            Value::Bytes(_) => Some(VType::Bytes),
             _ => None,
         }
     }
@@ -57,6 +60,18 @@ impl From<bool> for Value {
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
         Value::String(value.to_owned())
+    }
+}
+
+impl From<&[u8]> for Value {
+    fn from(value: &[u8]) -> Self {
+        Value::Bytes(value.to_owned())
+    }
+}
+
+impl From<Vec<u8>> for Value {
+    fn from(value: Vec<u8>) -> Self {
+        Value::Bytes(value)
     }
 }
 
@@ -100,6 +115,17 @@ impl TryFrom<Value> for String {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         if let Value::String(s) = value {
             return Ok(s);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryFrom<Value> for Vec<u8> {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Bytes(v) = value {
+            return Ok(v);
         }
         Err(MachineErrorType::InvalidType)
     }
@@ -157,6 +183,16 @@ impl TryAsMut<str> for Value {
     }
 }
 
+impl TryAsMut<[u8]> for Value {
+    type Error = MachineErrorType;
+    fn try_as_mut(&mut self) -> Result<&mut [u8], Self::Error> {
+        if let Self::Bytes(v) = self {
+            return Ok(v);
+        }
+        Err(MachineErrorType::InvalidType)
+    }
+}
+
 impl TryAsMut<Struct> for Value {
     type Error = MachineErrorType;
     fn try_as_mut(&mut self) -> Result<&mut Struct, Self::Error> {
@@ -183,6 +219,13 @@ impl fmt::Display for Value {
             Value::Int(i) => write!(f, "{}", i),
             Value::Bool(b) => write!(f, "{}", b),
             Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Bytes(v) => {
+                write!(f, "b:")?;
+                for b in v {
+                    write!(f, "{:02X}", b)?;
+                }
+                Ok(())
+            }
             Value::Struct(s) => s.fmt(f),
             Value::Fact(fa) => fa.fmt(f),
             Value::None => write!(f, "None"),

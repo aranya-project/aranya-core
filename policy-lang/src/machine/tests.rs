@@ -481,3 +481,47 @@ fn test_stack() -> anyhow::Result<()> {
     assert_eq!(v, 3);
     Ok(())
 }
+
+#[test]
+fn test_bytes() -> anyhow::Result<()> {
+    let text = r#"
+        command Foo {
+            fields {
+                id ID,
+                x bytes,
+            }
+        }
+
+        action foo(id ID, x bytes) {
+            emit Foo{id: id, x: x}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    {
+        let mut rs = machine.create_run_state(&mut io);
+
+        rs.push(vec![0xa, 0xb, 0xc]).map_err(anyhow::Error::msg)?;
+        rs.push(vec![0, 255, 42]).map_err(anyhow::Error::msg)?;
+        rs.run().map_err(anyhow::Error::msg)?;
+    }
+
+    assert_eq!(
+        io.emit_stack[0],
+        (
+            "Foo".to_string(),
+            vec![
+                KVPair::new("id", Value::Bytes(vec![0xa, 0xb, 0xc])),
+                KVPair::new("x", Value::Bytes(vec![0, 255, 42]))
+            ]
+        )
+    );
+    assert_eq!(
+        format!("{}", io.emit_stack[0].1[0]),
+        "id: b:0A0B0C".to_string()
+    );
+
+    Ok(())
+}

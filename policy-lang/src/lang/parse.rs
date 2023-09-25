@@ -217,6 +217,7 @@ fn descend(p: Pair<Rule>) -> ParserContext {
 fn parse_type(token: Pair<Rule>) -> Result<ast::VType, ParseError> {
     match token.as_rule() {
         Rule::string_t => Ok(ast::VType::String),
+        Rule::bytes_t => Ok(ast::VType::Bytes),
         Rule::int_t => Ok(ast::VType::Int),
         Rule::bool_t => Ok(ast::VType::Bool),
         Rule::id_t => Ok(ast::VType::ID),
