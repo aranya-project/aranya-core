@@ -1161,13 +1161,7 @@ impl<'a> RngWrapper<'a> {
 
 #[cfg(test)]
 mod tests {
-    use {
-        super::*,
-        crate::test_util::{
-            aead, ecdh, ecdsa, hkdf, hpke, mac, test_aead, test_ciphersuite, test_ecdh, test_ecdsa,
-            test_hkdf, test_hpke, test_mac, TestCs,
-        },
-    };
+    use super::*;
 
     mod ct_test {
         use super::*;
@@ -1193,189 +1187,123 @@ mod tests {
     }
 
     // Test some [`CipherSuite`] configurations.
-    mod ciphersuite_test {
-        use {super::*, crate::default::Rng};
+    mod ciphersuite_tests {
+        use {
+            super::*,
+            crate::test_util::{test_ciphersuite, TestCs},
+        };
 
-        macro_rules! do_test {
-            ($aead:ty, $hash:ty, $kdf:ty, $kem:ty, $mac:ty, $signer:ty $(,)?) => {
-                test_ciphersuite::<TestCs<$aead, $hash, $kdf, $kem, $mac, $signer>, _>(&mut Rng);
-            };
-        }
-
-        #[test]
-        fn test_ciphersuites() {
-            do_test!(
-                Aes256Gcm,
-                Sha512,
-                HkdfSha256,
-                DhKemP256HkdfSha256,
-                HmacSha512,
-                P256,
-            );
-            do_test!(
-                Aes256Gcm,
-                Sha512,
-                HkdfSha384,
-                DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
-                HmacSha512,
-                P384,
-            );
-            do_test!(
-                Aes256Gcm,
-                Sha512,
-                HkdfSha512,
-                DhKemP521HkdfSha512,
-                HmacSha512,
-                P521,
-            );
-        }
+        test_ciphersuite!(p256, TestCs<
+            Aes256Gcm,
+            Sha512,
+            HkdfSha256,
+            DhKemP256HkdfSha256,
+            HmacSha512,
+            P256,
+        >);
+        test_ciphersuite!(p384, TestCs<
+            Aes256Gcm,
+            Sha512,
+            HkdfSha384,
+            DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
+            HmacSha512,
+            P384,
+        >);
+        test_ciphersuite!(p521, TestCs<
+            Aes256Gcm,
+            Sha512,
+            HkdfSha512,
+            DhKemP521HkdfSha512, 
+            HmacSha512,
+            P521,
+        >);
     }
 
-    mod aead_test {
-        use super::*;
+    mod aead_tests {
+        use {super::*, crate::test_util::test_aead};
 
-        #[test]
-        fn test_aead_aes256_gcm() {
-            test_aead::<Aes256Gcm>(aead::TestName::AesGcm);
-        }
+        test_aead!(aes256gcm, Aes256Gcm, AeadTest::AesGcm);
 
         #[cfg(feature = "committing-aead")]
         mod committing {
-            use {
-                super::*,
-                crate::{
-                    default::Rng,
-                    test_util::{AeadTest, AeadWithDefaults, Test},
-                },
-            };
+            use super::*;
 
-            #[test]
-            fn test_cmt1_aead_aes256_gcm() {
-                AeadTest::<Cmt1Aes256Gcm>::test(&mut Rng, ());
-            }
-
-            #[test]
-            fn test_cmt1_aead_aes256_gcm_with_defaults() {
-                AeadTest::<AeadWithDefaults<Cmt1Aes256Gcm>>::test(&mut Rng, ());
-            }
-
-            #[test]
-            fn test_cmt4_aead_aes256_gcm() {
-                AeadTest::<Cmt4Aes256Gcm>::test(&mut Rng, ());
-            }
-
-            #[test]
-            fn test_cmt4_aead_aes256_gcm_with_defaults() {
-                AeadTest::<AeadWithDefaults<Cmt4Aes256Gcm>>::test(&mut Rng, ());
-            }
+            test_aead!(cmd1_aead_aes256_gcm, Cmt1Aes256Gcm);
+            test_aead!(cmd4_aead_aes256_gcm, Cmt4Aes256Gcm);
         }
     }
 
-    mod ecdh_test {
-        use super::*;
+    mod ecdh_tests {
+        use {
+            super::*,
+            crate::test_util::vectors::{test_ecdh, EcdhTest},
+        };
 
         #[test]
         fn test_ecdh_p256() {
-            test_ecdh::<P256>(ecdh::TestName::EcdhSecp256r1Ecpoint);
+            test_ecdh::<P256>(EcdhTest::EcdhSecp256r1Ecpoint);
         }
 
         #[test]
         fn test_ecdh_p384() {
-            test_ecdh::<P384>(ecdh::TestName::EcdhSecp384r1Ecpoint);
-        }
-
-        #[test]
-        fn test_ecdh_p521() {
-            test_ecdh::<P521>(ecdh::TestName::EcdhSecp521r1Ecpoint);
+            test_ecdh::<P384>(EcdhTest::EcdhSecp384r1Ecpoint);
         }
     }
 
-    mod ecdsa_test {
-        use super::*;
+    mod ecdsa_tests {
+        use {super::*, crate::test_util::test_signer};
 
-        #[test]
-        fn test_ecdsa_p256() {
-            test_ecdsa::<P256>(ecdsa::TestName::EcdsaSecp256r1Sha256);
-        }
-
-        #[test]
-        fn test_ecdsa_p384() {
-            test_ecdsa::<P384>(ecdsa::TestName::EcdsaSecp384r1Sha384);
-        }
-
-        #[test]
-        fn test_ecdsa_p521() {
-            test_ecdsa::<P521>(ecdsa::TestName::EcdsaSecp521r1Sha512);
-        }
+        test_signer!(p256, P256, EcdsaTest::EcdsaSecp256r1Sha256);
+        test_signer!(p384, P384, EcdsaTest::EcdsaSecp384r1Sha384);
+        test_signer!(p521, P521, EcdsaTest::EcdsaSecp521r1Sha512);
     }
 
-    mod hkdf_test {
-        use super::*;
+    mod hkdf_tests {
+        use {super::*, crate::test_util::test_kdf};
 
-        #[test]
-        fn test_hkdf_sha256() {
-            test_hkdf::<HkdfSha256>(hkdf::TestName::HkdfSha256);
-        }
-
-        #[test]
-        fn test_hkdf_sha384() {
-            test_hkdf::<HkdfSha384>(hkdf::TestName::HkdfSha384);
-        }
-
-        #[test]
-        fn test_hkdf_sha512() {
-            test_hkdf::<HkdfSha512>(hkdf::TestName::HkdfSha512);
-        }
+        test_kdf!(test_hkdf_sha256, HkdfSha256, HkdfTest::HkdfSha256);
+        test_kdf!(test_hkdf_sha384, HkdfSha384, HkdfTest::HkdfSha384);
+        test_kdf!(test_hkdf_sha512, HkdfSha512, HkdfTest::HkdfSha512);
     }
 
-    mod hmac_test {
-        use super::*;
+    mod hmac_tests {
+        use {super::*, crate::test_util::test_mac};
 
-        #[test]
-        fn test_hmac_sha256() {
-            test_mac::<HmacSha256>(mac::TestName::HmacSha256);
-        }
-
-        #[test]
-        fn test_hmac_sha384() {
-            test_mac::<HmacSha384>(mac::TestName::HmacSha384);
-        }
-
-        #[test]
-        fn test_hmac_sha512() {
-            test_mac::<HmacSha512>(mac::TestName::HmacSha512);
-        }
+        test_mac!(test_hmac_sha256, HmacSha256, MacTest::HmacSha256);
+        test_mac!(test_hmac_sha384, HmacSha384, MacTest::HmacSha384);
+        test_mac!(test_hmac_sha512, HmacSha512, MacTest::HmacSha512);
     }
 
-    mod hpke_test {
-        use super::*;
+    mod hpke_tests {
+        use {super::*, crate::test_util::test_hpke};
 
-        #[test]
-        fn test_hpke_dhkem_p256_hkdfsha256_hkdfsha256_aes256gcm() {
-            test_hpke::<DhKemP256HkdfSha256, HkdfSha256, Aes256Gcm>(
-                hpke::TestName::HpkeDhKemP256HkdfSha256HkdfSha256Aes256Gcm,
-            );
-        }
-
-        #[test]
-        fn test_hpke_dhkem_p256_hkdfsha256_hkdfsha512_aes256gcm() {
-            test_hpke::<DhKemP256HkdfSha256, HkdfSha512, Aes256Gcm>(
-                hpke::TestName::HpkeDhKemP256HkdfSha256HkdfSha512Aes256Gcm,
-            );
-        }
-
-        #[test]
-        fn test_hpke_dhkem_p521_hkdfsha512_hkdfsha256_aes256gcm() {
-            test_hpke::<DhKemP521HkdfSha512, HkdfSha256, Aes256Gcm>(
-                hpke::TestName::HpkeDhKemP521HkdfSha512HkdfSha256Aes256Gcm,
-            );
-        }
-
-        #[test]
-        fn test_hpke_dhkem_p521_hkdfsha512_hkdfsha512_aes256gcm() {
-            test_hpke::<DhKemP521HkdfSha512, HkdfSha512, Aes256Gcm>(
-                hpke::TestName::HpkeDhKemP521HkdfSha512HkdfSha512Aes256Gcm,
-            );
-        }
+        test_hpke!(
+            p256_hkdf_sha256,
+            DhKemP256HkdfSha256,
+            HkdfSha256,
+            Aes256Gcm,
+            HpkeTest::HpkeDhKemP256HkdfSha256HkdfSha256Aes256Gcm,
+        );
+        test_hpke!(
+            p256_hkdf_sha512,
+            DhKemP256HkdfSha256,
+            HkdfSha512,
+            Aes256Gcm,
+            HpkeTest::HpkeDhKemP256HkdfSha256HkdfSha512Aes256Gcm,
+        );
+        test_hpke!(
+            p521_hkdf_sha256,
+            DhKemP521HkdfSha512,
+            HkdfSha256,
+            Aes256Gcm,
+            HpkeTest::HpkeDhKemP521HkdfSha512HkdfSha256Aes256Gcm,
+        );
+        test_hpke!(
+            p521_hkdf_sha512,
+            DhKemP521HkdfSha512,
+            HkdfSha512,
+            Aes256Gcm,
+            HpkeTest::HpkeDhKemP521HkdfSha512HkdfSha512Aes256Gcm,
+        );
     }
 }

@@ -250,18 +250,15 @@ mod default_engine {
 
     #[cfg(test)]
     mod test {
-        use {
-            super::*,
-            crate::{test_util::test_engine, Rng},
-        };
+        use crate::{test_engine, DefaultCipherSuite, DefaultEngine, Rng};
 
-        #[test]
-        fn test_default_engine() {
-            test_engine::<DefaultEngine<_>, _>(|| {
-                let (eng, _) = DefaultEngine::from_entropy(Rng);
+        test_engine!(
+            default_engine,
+            || -> DefaultEngine<Rng, DefaultCipherSuite> {
+                let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
                 eng
-            })
-        }
+            }
+        );
     }
 }
 #[cfg(any(test, feature = "alloc"))]
@@ -270,10 +267,7 @@ pub use default_engine::*;
 #[cfg(test)]
 #[allow(clippy::wildcard_imports)]
 mod test {
-    use {super::*, crate::test_util::*};
+    use {super::*, crate::test_util::test_ciphersuite};
 
-    #[test]
-    fn test_default_ciphersuite() {
-        test_ciphersuite::<DefaultCipherSuite, _>(&mut Rng);
-    }
+    test_ciphersuite!(default_ciphersuite, DefaultCipherSuite);
 }

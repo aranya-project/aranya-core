@@ -199,21 +199,7 @@ impl Import<&[u8]> for Signature {
 
 #[cfg(test)]
 mod tests {
-    use {
-        super::*,
-        crate::{
-            default::Rng,
-            test_util::{eddsa, test_eddsa, SignerTest, Test},
-        },
-    };
+    use {super::*, crate::test_util::test_signer};
 
-    #[test]
-    fn test_signer() {
-        SignerTest::<Ed25519>::test(&mut Rng, ());
-    }
-
-    #[test]
-    fn test_wycheproof() {
-        test_eddsa::<Ed25519>(eddsa::TestName::Ed25519);
-    }
+    test_signer!(ed25519, Ed25519, EddsaTest::Ed25519);
 }

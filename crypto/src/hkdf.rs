@@ -159,26 +159,15 @@ pub(crate) use hkdf_impl;
 mod tests {
     macro_rules! hkdf_tests {
         () => {
-            use crate::test_util::{hkdf, test_hkdf};
+            use crate::test_util::test_kdf;
 
             hkdf_impl!(HkdfSha256, "HKDF-SHA256", Sha256);
             hkdf_impl!(HkdfSha384, "HKDF-SHA384", Sha384);
             hkdf_impl!(HkdfSha512, "HKDF-SHA512", Sha512);
 
-            #[test]
-            fn test_hkdf_sha256() {
-                test_hkdf::<HkdfSha256>(hkdf::TestName::HkdfSha256);
-            }
-
-            #[test]
-            fn test_hkdf_sha384() {
-                test_hkdf::<HkdfSha384>(hkdf::TestName::HkdfSha384);
-            }
-
-            #[test]
-            fn test_hkdf_sha512() {
-                test_hkdf::<HkdfSha512>(hkdf::TestName::HkdfSha512);
-            }
+            test_kdf!(hkdf_sha256, HkdfSha256, HkdfTest::HkdfSha256);
+            test_kdf!(hkdf_sha384, HkdfSha384, HkdfTest::HkdfSha384);
+            test_kdf!(hkdf_sha512, HkdfSha512, HkdfTest::HkdfSha512);
         };
     }
 

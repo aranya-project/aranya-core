@@ -138,26 +138,15 @@ pub(crate) use hmac_impl;
 mod tests {
     macro_rules! hmac_tests {
         () => {
-            use crate::test_util::{mac, test_mac};
+            use crate::test_util::test_mac;
 
             hmac_impl!(HmacSha256, "HMAC-SHA256", Sha256);
             hmac_impl!(HmacSha384, "HMAC-SHA384", Sha384);
             hmac_impl!(HmacSha512, "HMAC-SHA512", Sha512);
 
-            #[test]
-            fn test_hmac_sha256() {
-                test_mac::<HmacSha256>(mac::TestName::HmacSha256);
-            }
-
-            #[test]
-            fn test_hmac_sha384() {
-                test_mac::<HmacSha384>(mac::TestName::HmacSha384);
-            }
-
-            #[test]
-            fn test_hmac_sha512() {
-                test_mac::<HmacSha512>(mac::TestName::HmacSha512);
-            }
+            test_mac!(hmac_sha256, HmacSha256, MacTest::HmacSha256);
+            test_mac!(hmac_sha384, HmacSha384, MacTest::HmacSha384);
+            test_mac!(hmac_sha512, HmacSha512, MacTest::HmacSha512);
         };
     }
 

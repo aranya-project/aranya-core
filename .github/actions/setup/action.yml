@@ -98,7 +98,7 @@ runs:
       run: ldd --version
       if: ${{ inputs.os == 'self-hosted-linux-arm' }}
     - name: Intall cargo-all-features
-      run: cargo install --force cargo-all-features
+      run: cargo install --version '^1.10' --force cargo-all-features
       shell: bash
       if: ${{ inputs.target != 'vxworks-ppc' }}
 

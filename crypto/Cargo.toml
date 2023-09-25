@@ -173,14 +173,18 @@ wycheproof = { version = "0.5" }
 all-features = true
 
 [package.metadata.cargo-all-features]
-always_include_features = []
-
-skip_feature_sets = [
-	["std", "alloc"],
-	["std", "rand_core"],
-	["boringssl", "alloc"],
-	["test_util", "alloc"],
+always_include_features = [
+	"alloc",
+	"bearssl",
+	"boringssl",
+	"committing-aead",
+	"ed25519_batch",
+	"rand_core",
+	"std",
+	"test_util",
 ]
+
+skip_feature_sets = []
 
 denylist = [
 	"error_in_core",
