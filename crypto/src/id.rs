@@ -30,14 +30,14 @@ pub struct Id([u8; 64]);
 
 impl Id {
     /// Derives an [`Id`] from the hash of some data.
-    pub fn new<E: Engine + ?Sized>(data: &[u8], tag: &'static str) -> Id {
+    pub fn new<E: Engine + ?Sized>(data: &[u8], tag: &[u8]) -> Id {
         // id = H("ID-v1" || eng_id || suites || data || tag)
         tuple_hash::<E::Hash, _>([
             "ID-v1".as_bytes(),
             E::ID.as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             data,
-            tag.as_bytes(),
+            tag,
         ])
         .into()
     }

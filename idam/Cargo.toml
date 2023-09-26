@@ -1,0 +1,26 @@
+[package]
+name = "idam"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+alloc = ["crypto/alloc"]
+default = ["alloc"]
+
+
+[dependencies]
+crypto = { path = "../crypto" }
+generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
+postcard = { workspace = true, default-features = false, features = ["heapless"] }
+typenum = { version = "1", default-features = false }
+
+[dev-dependencies]
+anyhow = "1.0"
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+always_include_features = [
+	"alloc",
+]

@@ -254,7 +254,10 @@ macro_rules! pk_misc {
             #[doc = concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             pub fn id(&self) -> $id {
-                $id($crate::id::Id::new::<E>(self.0.export().borrow(), $sk))
+                $id($crate::id::Id::new::<E>(
+                    self.0.export().borrow(),
+                    $sk.as_bytes(),
+                ))
             }
         }
 
