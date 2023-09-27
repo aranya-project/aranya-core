@@ -221,6 +221,11 @@ fn parse_type(token: Pair<Rule>) -> Result<ast::VType, ParseError> {
         Rule::int_t => Ok(ast::VType::Int),
         Rule::bool_t => Ok(ast::VType::Bool),
         Rule::id_t => Ok(ast::VType::ID),
+        Rule::struct_t => {
+            let mut pc = descend(token);
+            let name = pc.consume_string(Rule::identifier)?;
+            Ok(ast::VType::Struct(name))
+        }
         Rule::optional_t => {
             let mut pairs = token.clone().into_inner();
             let token = pairs.next().ok_or(ParseError::new(
@@ -1043,6 +1048,22 @@ fn parse_effect_definition(item: Pair<Rule>) -> Result<ast::EffectDefinition, Pa
     Ok(ast::EffectDefinition { identifier, fields })
 }
 
+/// Parse a `Rule::struct_definition` into an [StructDefinition](ast::StructDefinition).
+fn parse_struct_definition(item: Pair<Rule>) -> Result<ast::StructDefinition, ParseError> {
+    assert_eq!(item.as_rule(), Rule::struct_definition);
+
+    let mut pc = descend(item);
+    let identifier = pc.consume_string(Rule::identifier)?;
+
+    // All remaining tokens are fields
+    let mut fields = vec![];
+    for field in pc.unwrap() {
+        fields.push(parse_field_definition(field)?);
+    }
+
+    Ok(ast::StructDefinition { identifier, fields })
+}
+
 /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
 fn parse_command_definition(
     item: Pair<Rule>,
@@ -1153,6 +1174,7 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
     let mut facts = vec![];
     let mut actions = vec![];
     let mut effects = vec![];
+    let mut structs = vec![];
     let mut commands = vec![];
     let mut functions = vec![];
     let mut finish_functions = vec![];
@@ -1162,6 +1184,7 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
             Rule::fact_definition => facts.push(parse_fact_definition(item)?),
             Rule::action_definition => actions.push(parse_action_definition(item, &pratt)?),
             Rule::effect_definition => effects.push(parse_effect_definition(item)?),
+            Rule::struct_definition => structs.push(parse_struct_definition(item)?),
             Rule::command_definition => commands.push(parse_command_definition(item, &pratt)?),
             Rule::function_definition => functions.push(parse_function_definition(item, &pratt)?),
             Rule::finish_function_definition => {
@@ -1182,6 +1205,7 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
         facts,
         actions,
         effects,
+        structs,
         commands,
         functions,
         finish_functions,

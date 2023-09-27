@@ -15,6 +15,8 @@ pub enum VType {
     Bool,
     /// a Flow3 identifier
     ID,
+    /// A named struct
+    Struct(String),
     /// an optional type of some other type
     Optional(Box<VType>),
 }
@@ -309,6 +311,15 @@ pub struct EffectDefinition {
     pub fields: Vec<EffectFieldDefinition>,
 }
 
+/// A struct definition
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructDefinition {
+    /// The name of the struct
+    pub identifier: String,
+    /// The fields of the struct and their types
+    pub fields: Vec<FieldDefinition>,
+}
+
 /// A command definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandDefinition {
@@ -357,6 +368,7 @@ pub struct Policy {
     pub facts: Vec<FactDefinition>,
     pub actions: Vec<ActionDefinition>,
     pub effects: Vec<EffectDefinition>,
+    pub structs: Vec<StructDefinition>,
     pub commands: Vec<CommandDefinition>,
     pub functions: Vec<FunctionDefinition>,
     pub finish_functions: Vec<FinishFunctionDefinition>,

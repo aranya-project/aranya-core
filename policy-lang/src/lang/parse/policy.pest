@@ -30,9 +30,10 @@ id_t = { "ID" }
 // An optional type is any of the core types preceded by "optional"
 // (so no "optional optional" allowed).
 optional_t = { "optional" ~ (string_t | bytes_t | int_t | bool_t | id_t) }
+struct_t = { "struct" ~ identifier }
 // A vtype is any of the core types or an optional. (I can't call it
 // "type" because that's a reserved keyword in Rust)
-vtype = _{ string_t | bytes_t | int_t | bool_t | id_t | optional_t }
+vtype = _{ string_t | bytes_t | int_t | bool_t | id_t | struct_t | optional_t }
 
 // ## Fields
 // A field definition is an identifier followed by a type. Used in
@@ -232,6 +233,8 @@ action_statements = _{ let_statement | match_statement | when_statement | emit_s
 action_definition = { "action" ~ identifier ~ function_arguments ~ "{" ~ action_statements* ~ "}" }
 // effect Foo { bar ID }
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
+// struct Foo { bar ID }
+struct_definition = { "struct" ~ identifier ~ struct_def }
 // command Foo { ... }
 command_statements = _{ fields_statement | policy_statement | recall_statement }
 command_definition = { "command" ~ identifier ~ "{" ~ command_statements+ ~ "}" }
@@ -243,7 +246,7 @@ function_definition = { "function" ~ identifier ~ function_arguments ~ vtype ~ f
 finish_function_block = { "{" ~ finish_statements ~ "}" }
 finish_function_definition = { "finish" ~ "function" ~ identifier ~ function_arguments ~ finish_function_block }
 
-top_level_statement = _{ fact_definition | action_definition | effect_definition | command_definition | function_definition | finish_function_definition }
+top_level_statement = _{ fact_definition | action_definition | effect_definition | struct_definition | command_definition | function_definition | finish_function_definition }
 
 // The file is a series of top level statements. SOI and EOI are start/
 // end of input markers. Without the end of input marker, the input

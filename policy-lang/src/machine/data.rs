@@ -334,6 +334,14 @@ impl KVPair {
     pub fn new_int(key: &str, value: i64) -> KVPair {
         KVPair(key.to_owned(), Value::Int(value))
     }
+
+    pub fn key(&self) -> &str {
+        &self.0
+    }
+
+    pub fn value(&self) -> &Value {
+        &self.1
+    }
 }
 
 impl fmt::Display for KVPair {

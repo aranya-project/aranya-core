@@ -397,10 +397,21 @@ where
                 self.stack.push(Value::Struct(Struct { name, fields }));
             }
             Instruction::StructSet => {
-                let varname = self.ipop()?;
+                let field_name = self.ipop()?;
                 let value = self.ipop_value()?;
-                let s: &mut Struct = self.ipeek()?;
-                s.fields.insert(varname, value);
+                let mut s: Struct = self.ipop()?;
+                // Validate that the field is part of this structure
+                // schema.
+                let struct_def_fields = self
+                    .machine
+                    .struct_defs
+                    .get(&s.name)
+                    .ok_or_else(|| self.err(MachineErrorType::InvalidStruct))?;
+                if !struct_def_fields.iter().any(|f| f.identifier == field_name) {
+                    return Err(self.err(MachineErrorType::InvalidStruct));
+                }
+                s.fields.insert(field_name, value);
+                self.ipush(s)?;
             }
             Instruction::StructGet => {
                 let varname: String = self.ipop()?;

@@ -16,7 +16,7 @@ cfg_if! {
 }
 
 /// Errors that can occur during compilation.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CompileError {
     /// Invalid - the AST element does not make sense in this context
     InvalidElement,
@@ -126,6 +126,12 @@ impl CompileState {
 
     /// Compile instructions to construct a struct literal
     fn compile_struct_literal(&mut self, s: &ast::NamedStruct) -> Result<(), CompileError> {
+        if !self.m.struct_defs.contains_key(&s.identifier) {
+            // Because structs are dynamically created, this is all we
+            // can check at this point. Field validation has to happen
+            // at runtime.
+            return Err(CompileError::BadArgument);
+        }
         self.append_instruction(Instruction::Const(Value::String(s.identifier.clone())));
         self.append_instruction(Instruction::StructNew);
         for field in &s.fields {
@@ -419,18 +425,22 @@ impl CompileState {
 
     /// Compile a policy into instructions inside the given Machine.
     pub fn compile(&mut self, policy: &ast::Policy) -> Result<(), CompileError> {
-        for action in &policy.actions {
-            self.compile_action(action)?;
+        for effect in &policy.effects {
+            let fields: Vec<ast::FieldDefinition> =
+                effect.fields.iter().map(|f| f.into()).collect();
+            self.define_struct(&effect.identifier, &fields);
+        }
+
+        for struct_def in &policy.structs {
+            self.define_struct(&struct_def.identifier, &struct_def.fields);
         }
 
         for command in &policy.commands {
             self.compile_command(command)?;
         }
 
-        for effect in &policy.effects {
-            let fields: Vec<ast::FieldDefinition> =
-                effect.fields.iter().map(|f| f.into()).collect();
-            self.define_struct(&effect.identifier, &fields);
+        for action in &policy.actions {
+            self.compile_action(action)?;
         }
 
         self.resolve_targets()?;

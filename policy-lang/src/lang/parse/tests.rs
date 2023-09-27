@@ -478,6 +478,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 },
             ],
         }],
+        structs: vec![],
         commands: vec![ast::CommandDefinition {
             identifier: String::from("Add"),
             fields: vec![ast::FieldDefinition {
@@ -837,4 +838,60 @@ fn parse_bytes() {
             panic!();
         }
     };
+}
+
+#[test]
+fn parse_struct() {
+    let text = r#"
+        struct Foo {
+            x int
+        }
+
+        function convert(foo struct Foo) struct Bar {
+            return Bar {y: foo.x}
+        }
+    "#
+    .trim();
+
+    let policy = match parse_policy_str(text, Version::V3) {
+        Ok(p) => p,
+        Err(e) => {
+            // we do this rather than .expect() so we can see the nice error formatting
+            println!("{}", e);
+            panic!();
+        }
+    };
+    assert_eq!(
+        policy.structs,
+        vec![ast::StructDefinition {
+            identifier: String::from("Foo"),
+            fields: vec![ast::FieldDefinition {
+                identifier: String::from("x"),
+                field_type: ast::VType::Int,
+            }]
+        }]
+    );
+    assert_eq!(
+        policy.functions,
+        vec![ast::FunctionDefinition {
+            identifier: String::from("convert"),
+            arguments: vec![ast::FieldDefinition {
+                identifier: String::from("foo"),
+                field_type: ast::VType::Struct(String::from("Foo")),
+            }],
+            return_type: ast::VType::Struct(String::from("Bar")),
+            statements: vec![ast::Statement::Return(ast::ReturnStatement {
+                expression: ast::Expression::NamedStruct(ast::NamedStruct {
+                    identifier: String::from("Bar"),
+                    fields: vec![(
+                        String::from("y"),
+                        ast::Expression::Dot(
+                            Box::new(ast::Expression::Identifier(String::from("foo"))),
+                            String::from("x")
+                        )
+                    )],
+                })
+            })]
+        }]
+    );
 }

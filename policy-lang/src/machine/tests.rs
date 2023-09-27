@@ -3,10 +3,11 @@ use alloc::collections::{btree_map, BTreeMap};
 
 use anyhow;
 
-use crate::lang::{parse_policy_str, Version};
+use crate::lang::{ast, parse_policy_str, Version};
 use crate::machine::{
-    Fact, FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair, Machine,
-    MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState, Stack, Struct, Value,
+    CompileError, Fact, FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair,
+    Machine, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState,
+    Stack, Struct, Value,
 };
 
 #[derive(Debug)]
@@ -105,13 +106,15 @@ impl MachineIO for TestIO {
     }
 
     fn emit(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
-        let fields: Vec<_> = fields.into_iter().collect();
+        let mut fields: Vec<_> = fields.into_iter().collect();
+        fields.sort_by(|a, b| a.key().cmp(b.key()));
         println!("emit {} {{{:?}}}", name, fields);
         self.emit_stack.push((name, fields));
     }
 
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
-        let fields: Vec<_> = fields.into_iter().collect();
+        let mut fields: Vec<_> = fields.into_iter().collect();
+        fields.sort_by(|a, b| a.key().cmp(b.key()));
         println!("effect {} {{{:?}}}", name, fields);
         self.effect_stack.push((name, fields));
     }
@@ -121,6 +124,9 @@ impl MachineIO for TestIO {
 fn test_compile() -> anyhow::Result<()> {
     let policy = parse_policy_str(
         r#"
+        command Foo {
+            fields {}
+        }
         action foo(b int) {
             let x = if b == 0 then 4+i else 3
             let y = Foo{
@@ -503,9 +509,14 @@ fn test_bytes() -> anyhow::Result<()> {
     {
         let mut rs = machine.create_run_state(&mut io);
 
-        rs.push(vec![0xa, 0xb, 0xc]).map_err(anyhow::Error::msg)?;
-        rs.push(vec![0, 255, 42]).map_err(anyhow::Error::msg)?;
-        rs.run().map_err(anyhow::Error::msg)?;
+        rs.call_action(
+            "foo",
+            &[
+                Value::Bytes(vec![0xa, 0xb, 0xc]),
+                Value::Bytes(vec![0, 255, 42]),
+            ],
+        )
+        .map_err(anyhow::Error::msg)?;
     }
 
     assert_eq!(
@@ -521,6 +532,114 @@ fn test_bytes() -> anyhow::Result<()> {
     assert_eq!(
         format!("{}", io.emit_stack[0].1[0]),
         "id: b:0A0B0C".to_string()
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_structs() -> anyhow::Result<()> {
+    let text = r#"
+        struct Bar {
+            x int
+        }
+
+        command Foo {
+            fields {
+                id ID,
+                bar struct Bar,
+            }
+        }
+
+        action foo(id ID, x int) {
+            emit Foo{
+                id: id,
+                bar: Bar {
+                    x: x
+                },
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+
+    assert_eq!(
+        machine.struct_defs.get("Bar"),
+        Some(&vec![ast::FieldDefinition {
+            identifier: String::from("x"),
+            field_type: ast::VType::Int
+        }])
+    );
+
+    let mut io = TestIO::new();
+    {
+        let mut rs = machine.create_run_state(&mut io);
+        rs.call_action("foo", &[Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
+            .map_err(anyhow::Error::msg)?;
+    }
+
+    assert_eq!(
+        io.emit_stack[0],
+        (
+            "Foo".to_string(),
+            vec![
+                KVPair::new(
+                    "bar",
+                    Value::Struct(Struct::new("Bar", &[KVPair::new("x", Value::Int(3))]))
+                ),
+                KVPair::new("id", Value::Bytes(vec![0xa, 0xb, 0xc])),
+            ]
+        )
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_undefined_struct() -> anyhow::Result<()> {
+    let text = r#"
+        action foo() {
+            let v = Bar {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    assert_eq!(
+        Machine::compile_from_policy(&policy).unwrap_err(),
+        CompileError::BadArgument
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_invalid_struct_field() -> anyhow::Result<()> {
+    let text = r#"
+        struct Bar {
+            x int
+        }
+
+        action foo(id ID, x int) {
+            let v = Bar {
+                y: x
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+
+    let mut io = TestIO::new();
+    let err = {
+        let mut rs = machine.create_run_state(&mut io);
+        rs.call_action("foo", &[Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
+            .unwrap_err()
+    };
+
+    assert_eq!(
+        err,
+        MachineError::new_with_position(MachineErrorType::InvalidStruct, 9)
     );
 
     Ok(())
