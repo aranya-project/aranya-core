@@ -11,7 +11,6 @@ use {
     crate::{
         aead::{Aead, AeadError, AeadId},
         apq::{ReceiverSecretKey, SenderSecretKey, SenderSigningKey},
-        aps::ChannelSeed,
         aranya::{EncryptionKey, IdentityKey, SigningKey},
         ciphersuite::CipherSuite,
         csprng::Csprng,
@@ -136,8 +135,6 @@ impl From<ImportError> for UnwrapError {
 pub enum KeyType {
     /// See [`UnwrappedKey::Aead`].
     Aead(AeadId),
-    /// See [`UnwrappedKey::Channel`].
-    Channel,
     /// See [`UnwrappedKey::Encryption`].
     Encryption(KemId),
     /// See [`UnwrappedKey::Group`].
@@ -185,8 +182,6 @@ pub trait WrappedKey: Sized {
 pub enum UnwrappedKey<E: Engine + ?Sized> {
     /// An [`Aead::Key`].
     Aead(<E::Aead as Aead>::Key),
-    /// A [`ChannelSeed`].
-    Channel(ChannelSeed<E>),
     /// A [`EncryptionKey`].
     Encryption(EncryptionKey<E>),
     /// A [`GroupKey`].
@@ -210,7 +205,6 @@ impl<E: Engine + ?Sized> UnwrappedKey<E> {
     pub fn id(&self) -> KeyType {
         match self {
             Self::Aead(_) => KeyType::Aead(E::Aead::ID),
-            Self::Channel(_) => KeyType::Channel,
             Self::Encryption(_) => KeyType::Encryption(E::Kem::ID),
             Self::Group(_) => KeyType::Group,
             Self::Identity(_) => KeyType::Identity(E::Signer::ID),
@@ -228,7 +222,6 @@ impl<E: Engine> Import<(KeyType, &[u8])> for UnwrappedKey<E> {
         let (kt, secret) = data;
         let v = match kt {
             KeyType::Aead(_) => Self::Aead(<E::Aead as Aead>::Key::import(secret)?),
-            KeyType::Channel => Self::Channel(ChannelSeed::try_from(secret)?),
             KeyType::Encryption(_) => Self::Encryption(EncryptionKey::import(secret)?),
             KeyType::Group => Self::Group(GroupKey::try_from(secret)?),
             KeyType::Identity(_) => Self::Identity(IdentityKey::import(secret)?),
@@ -283,7 +276,6 @@ macro_rules! conv_key {
         }
     };
 }
-conv_key!(ChannelSeed, Channel);
 conv_key!(EncryptionKey, Encryption);
 conv_key!(GroupKey, Group);
 conv_key!(IdentityKey, Identity);
@@ -296,8 +288,6 @@ conv_key!(SigningKey, Signing);
 pub enum SecretData<'a, E: Engine + ?Sized> {
     /// See [`UnwrappedKey::Aead`].
     Aead(<<E::Aead as Aead>::Key as SecretKey>::Data),
-    /// See [`UnwrappedKey::Channel`].
-    Channel(&'a [u8; 64]),
     /// See [`UnwrappedKey::Encryption`].
     Encryption(<<E::Kem as Kem>::DecapKey as SecretKey>::Data),
     /// See [`UnwrappedKey::Group`].
@@ -330,7 +320,6 @@ impl<'a, E: Engine + ?Sized> SecretData<'a, E> {
         // that API.
         let data = match key {
             UnwrappedKey::Aead(key) => Self::Aead(key.try_export_secret()?),
-            UnwrappedKey::Channel(key) => Self::Channel(key.raw_seed()),
             UnwrappedKey::Encryption(key) => Self::Encryption(key.try_export_secret()?),
             UnwrappedKey::Group(key) => Self::Group(key.raw_seed()),
             UnwrappedKey::Identity(key) => Self::Identity(key.try_export_secret()?),
@@ -348,7 +337,6 @@ impl<E: Engine + ?Sized> AsRef<[u8]> for SecretData<'_, E> {
     fn as_ref(&self) -> &[u8] {
         match self {
             Self::Aead(key) => key.borrow(),
-            Self::Channel(seed) => seed.as_ref(),
             Self::Encryption(sk) => sk.borrow(),
             Self::Group(seed) => seed.as_ref(),
             Self::Identity(sk) => sk.borrow(),

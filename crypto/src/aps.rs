@@ -4,25 +4,16 @@
 
 use {
     crate::{
-        aead::{Aead, KeyData},
-        aranya::UserId,
+        aead::KeyData,
+        aranya::{Encap, EncryptionKey, EncryptionPublicKey, UserId},
         ciphersuite::SuiteIds,
         engine::Engine,
         error::Error,
-        id::{custom_id, Id},
-        import::{try_import, ImportError},
-        kdf::{Kdf, KdfError},
-        mac::Mac,
-        misc::ciphertext,
-        zeroize::ZeroizeOnDrop,
+        hash::tuple_hash,
+        hpke::{Hpke, Mode},
+        id::Id,
     },
-    core::{
-        borrow::{Borrow, BorrowMut},
-        iter::zip,
-        marker::PhantomData,
-    },
-    subtle::{Choice, ConstantTimeEq},
-    typenum::U64,
+    core::borrow::{Borrow, BorrowMut},
 };
 
 // This is different from the rest of the `crypto` API in that it
@@ -30,15 +21,127 @@ use {
 // Unfortunately, we have to allow this since APS needs to store
 // the raw key material.
 
-custom_id!(ChannelSeedId, "Uniquely identifies a [`ChannelSeed`].");
-
-/// Per-channel encryption keys.
-pub struct ChannelKeys<T> {
-    seal_key: T,
-    open_key: T,
+/// Contextual information for an APS channel.
+pub struct Channel<'a, E>
+where
+    E: Engine + ?Sized,
+{
+    /// The ID of the command that created the channel.
+    pub cmd_id: Id,
+    /// Our secret encryption key.
+    pub our_sk: &'a EncryptionKey<E>,
+    /// Our UserID.
+    pub our_id: UserId,
+    /// The peer's public encryption key.
+    pub peer_pk: &'a EncryptionPublicKey<E>,
+    /// The peer's UserID.
+    pub peer_id: UserId,
+    /// The policy label applied to the channel.
+    pub label: u32,
 }
 
-impl<T: Borrow<[u8]>> ChannelKeys<T> {
+/// Per-channel encryption keys.
+pub struct ChannelKeys<E: Engine + ?Sized> {
+    seal_key: KeyData<E::Aead>,
+    open_key: KeyData<E::Aead>,
+}
+
+impl<E: Engine + ?Sized> ChannelKeys<E> {
+    /// Creates a new set of [`ChannelKeys`] for the channel and
+    /// an encapsulation that the peer can use to decrypt them.
+    pub fn new(eng: &mut E, ch: &Channel<'_, E>) -> Result<(Encap<E>, Self), Error> {
+        if ch.our_id == ch.peer_id {
+            return Err(Error::InvalidArgument("same `UserId`"));
+        }
+
+        // info = H(
+        //     "ChannelKeys",
+        //     suite_id,
+        //     engine_id,
+        //     cmd_id,
+        //     our_id,
+        //     peer_id,
+        //     i2osp(label, 4),
+        // )
+        let info = tuple_hash::<E::Hash, _>([
+            "ChannelKeys".as_bytes(),
+            &SuiteIds::from_suite::<E>().into_bytes(),
+            E::ID.as_bytes(),
+            ch.cmd_id.as_bytes(),
+            ch.our_id.as_bytes(),
+            ch.peer_id.as_bytes(),
+            &ch.label.to_be_bytes(),
+        ]);
+        let (enc, ctx) = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(
+            eng,
+            Mode::Auth(&ch.our_sk.0),
+            &ch.peer_pk.0,
+            &info,
+        )?;
+
+        let seal_key = {
+            let mut key = KeyData::<E::Aead>::default();
+            ctx.export(key.borrow_mut(), ch.peer_id.as_bytes())?;
+            key
+        };
+        let open_key = {
+            let mut key = KeyData::<E::Aead>::default();
+            ctx.export(key.borrow_mut(), ch.our_id.as_bytes())?;
+            key
+        };
+        Ok((Encap(enc), ChannelKeys { seal_key, open_key }))
+    }
+
+    /// Decrypts and authenticates [`ChannelKeys`] received from
+    /// a peer.
+    pub fn from_encap(ch: &Channel<'_, E>, enc: &Encap<E>) -> Result<Self, Error> {
+        if ch.our_id == ch.peer_id {
+            return Err(Error::InvalidArgument("same `UserId`"));
+        }
+
+        // info = H(
+        //     "ChannelKeys",
+        //     suite_id,
+        //     engine_id,
+        //     cmd_id,
+        //     our_id,
+        //     peer_id,
+        //     i2osp(label, 4),
+        // )
+        //
+        // Except that we need to compute `info` from the other
+        // peer's perspective, so `our_id` and `peer_id` are
+        // reversed.
+        let info = tuple_hash::<E::Hash, _>([
+            "ChannelKeys".as_bytes(),
+            &SuiteIds::from_suite::<E>().into_bytes(),
+            E::ID.as_bytes(),
+            ch.cmd_id.as_bytes(),
+            ch.peer_id.as_bytes(),
+            ch.our_id.as_bytes(),
+            &ch.label.to_be_bytes(),
+        ]);
+        let ctx = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(
+            Mode::Auth(&ch.peer_pk.0),
+            &enc.0,
+            &ch.our_sk.0,
+            &info,
+        )?;
+
+        // Note how this is the reverse of `new_keys`.
+        let open_key = {
+            let mut key = KeyData::<E::Aead>::default();
+            ctx.export(key.borrow_mut(), ch.our_id.as_bytes())?;
+            key
+        };
+        let seal_key = {
+            let mut key = KeyData::<E::Aead>::default();
+            ctx.export(key.borrow_mut(), ch.peer_id.as_bytes())?;
+            key
+        };
+        Ok(ChannelKeys { seal_key, open_key })
+    }
+
     /// The key used to encrypt data for a peer.
     pub fn seal_key(&self) -> &[u8] {
         self.seal_key.borrow()
@@ -49,200 +152,3 @@ impl<T: Borrow<[u8]>> ChannelKeys<T> {
         self.open_key.borrow()
     }
 }
-
-/// The seed used to derive the encryption keys for an APS
-/// channel.
-#[derive(ZeroizeOnDrop)]
-pub struct ChannelSeed<E> {
-    seed: [u8; 64],
-    _e: PhantomData<E>,
-}
-
-impl<E> Clone for ChannelSeed<E> {
-    fn clone(&self) -> Self {
-        Self {
-            seed: self.seed,
-            _e: PhantomData,
-        }
-    }
-}
-
-impl<E: Engine + ?Sized> ChannelSeed<E> {
-    /// Creates a new, random `ChannelSeed`.
-    pub fn new(eng: &mut E) -> Self {
-        let mut seed = [0u8; 64];
-        eng.fill_bytes(&mut seed);
-        Self::from_seed(seed)
-    }
-
-    /// Uniquely identifies the `ChannelSeed`.
-    ///
-    /// Two seeds with the same ID are the same seed.
-    #[inline]
-    pub fn id(&self) -> ChannelSeedId {
-        // ID = MAC(
-        //     key=ChannelSeed,
-        //     message="ChannelSeed-v1" || suite_id,
-        //     outputBytes=64,
-        // )
-        let mut h = E::Mac::new(&self.seed.into());
-        h.update(b"ChannelSeed-v1");
-        h.update(&SuiteIds::from_suite::<E>().into_bytes());
-        ChannelSeedId(h.tag().into())
-    }
-
-    /// Derives the keys for a particular channel.
-    ///
-    /// `cmd_id` is the ID of the command that created the seed.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
-    /// # {
-    /// use crypto::{
-    ///     aps::{ChannelKeys, ChannelSeed},
-    ///     Csprng,
-    ///     DefaultCipherSuite,
-    ///     DefaultEngine,
-    ///     Id,
-    ///     IdentityKey,
-    ///     Rng,
-    /// };
-    ///
-    /// # type E = DefaultEngine<Rng, DefaultCipherSuite>;
-    /// let (mut eng, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
-    /// let user1 = IdentityKey::<E>::new(&mut eng).id();
-    /// let user2 = IdentityKey::<E>::new(&mut eng).id();
-    /// let cmd_id = Id::random(&mut eng);
-    ///
-    /// let label = 123;
-    /// let seed = ChannelSeed::new(&mut eng);
-    /// let ck1 = seed
-    ///     .derive_keys(label, &user1, &user2, &cmd_id)
-    ///     .expect("unable to derive `ChannelKeys`");
-    /// let ck2 = seed
-    ///     .derive_keys(label, &user2, &user1, &cmd_id)
-    ///     .expect("unable to derive `ChannelKeys`");
-    ///
-    /// // `ck1` and `ck2` should be the reverse of each other.
-    /// assert_eq!(ck1.seal_key(), ck2.open_key());
-    /// assert_eq!(ck1.open_key(), ck2.seal_key());
-    /// # }
-    /// ```
-    pub fn derive_keys(
-        &self,
-        label: u32,
-        our_id: &UserId,
-        peer_id: &UserId,
-        cmd_id: &Id,
-    ) -> Result<ChannelKeys<KeyData<E::Aead>>, Error> {
-        if our_id == peer_id {
-            return Err(Error::InvalidArgument("same `UserId`"));
-        }
-
-        let mut salt = [0u8; 64];
-        for (dst, (x, y)) in zip(&mut salt, zip(our_id.as_array(), peer_id.as_array())) {
-            *dst = x ^ y;
-        }
-
-        // seal_key is the key we use to encrypt for the peer, so
-        // configure it with the peer's UserID for that reason.
-        let seal_key = self.derive_key(&salt, label, peer_id, our_id, cmd_id)?;
-
-        // open_key is the key we use to decrypt from the peer,
-        // so configure it with our UserID for that reason.
-        let open_key = self.derive_key(&salt, label, our_id, peer_id, cmd_id)?;
-
-        Ok(ChannelKeys { seal_key, open_key })
-    }
-
-    /// Derive either the `SealKey` or `OpenKey`.
-    fn derive_key(
-        &self,
-        salt: &[u8; 64],
-        label: u32,
-        id1: &UserId,
-        id2: &UserId,
-        cmd_id: &Id,
-    ) -> Result<KeyData<E::Aead>, KdfError> {
-        debug_assert_ne!(id1, id2);
-
-        let prk = Self::labeled_extract(salt, "APSv1_prk", &self.seed);
-        Self::labeled_expand(&prk, "APSv1_key", label, id1, id2, cmd_id)
-    }
-
-    fn labeled_extract(
-        salt: &[u8; 64],
-        label: &'static str,
-        ikm: &[u8; 64],
-    ) -> <E::Kdf as Kdf>::Prk {
-        let labeled_ikm = [
-            "kdf-ext-v1".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            label.as_bytes(),
-            ikm,
-        ];
-        E::Kdf::extract_multi(&labeled_ikm, salt)
-    }
-
-    fn labeled_expand(
-        prk: &<E::Kdf as Kdf>::Prk,
-        label: &'static str,
-        aps_label: u32,
-        id1: &UserId,
-        id2: &UserId,
-        cmd_id: &Id,
-    ) -> Result<KeyData<E::Aead>, KdfError> {
-        debug_assert_ne!(id1, id2);
-
-        let mut out = KeyData::<E::Aead>::default();
-        // We know all possible enumerations of `T` and they all
-        // must have a length <= 2^16 - 1.
-        assert!(out.borrow().len() <= (u16::MAX as usize));
-        let labeled_info = [
-            &(out.borrow().len() as u16).to_be_bytes(),
-            "kdf-exp-v1".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            label.as_bytes(),
-            &aps_label.to_be_bytes(),
-            id1.as_bytes(),
-            id2.as_bytes(),
-            cmd_id.as_bytes(),
-        ];
-        E::Kdf::expand_multi(out.borrow_mut(), prk, &labeled_info)?;
-        Ok(out)
-    }
-
-    // Utility routines for other modules.
-
-    /// Returns the underlying seed.
-    pub(crate) const fn raw_seed(&self) -> &[u8; 64] {
-        &self.seed
-    }
-
-    pub(crate) fn from_seed(seed: [u8; 64]) -> Self {
-        Self {
-            seed,
-            _e: PhantomData,
-        }
-    }
-
-    /// Tries to create itself from bytes.
-    ///
-    /// NB: `ChannelSeed` does not implement `Import<[u8]>` or
-    /// `TryFrom` or `Try` because we do not want to expose this
-    /// functionality to users.
-    pub(crate) fn try_from(data: &[u8]) -> Result<Self, ImportError> {
-        Ok(Self::from_seed(try_import(data)?))
-    }
-}
-
-impl<E> ConstantTimeEq for ChannelSeed<E> {
-    #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
-        self.seed.ct_eq(&other.seed)
-    }
-}
-
-ciphertext!(EncryptedChannelSeed, U64, "An encrypted [`ChannelSeed`].");

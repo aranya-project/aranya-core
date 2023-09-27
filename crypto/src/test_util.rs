@@ -409,11 +409,8 @@ macro_rules! test_engine {
                 test!(test_derive_channel_keys_different_labels);
                 test!(test_derive_channel_keys_different_user_ids);
                 test!(test_derive_channel_keys_different_cmd_ids);
-                test!(test_derive_channel_keys_different_seeds);
+                test!(test_derive_channel_keys_different_keys);
                 test!(test_derive_channel_keys_same_user_id);
-                test!(test_simple_seal_channel_seed);
-                test!(test_simple_wrap_channel_seed);
-                test!(test_encrypted_channel_seed_encode);
             }
             pub use aps::*;
         }
@@ -432,9 +429,10 @@ pub mod engine {
                 EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey,
                 Topic, TopicKey, Version,
             },
-            aps::{ChannelSeed, EncryptedChannelSeed},
+            aps::{Channel, ChannelKeys},
             aranya::{
                 Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
+                UserId,
             },
             engine::{Engine, WrappedKey},
             error::Error,
@@ -1097,21 +1095,30 @@ pub mod engine {
         assert_eq!(err, Error::Aead(AeadError::Authentication));
     }
 
-    /// A simple positive test for deriving
-    /// [`ChannelKeys`][crate::aps::ChannelKeys].
+    /// A simple positive test for deriving [`ChannelKeys`].
     pub fn test_derive_channel_keys<E: Engine + ?Sized>(eng: &mut E) {
-        let user1 = IdentityKey::<E>::new(eng).id();
-        let user2 = IdentityKey::<E>::new(eng).id();
-        let cmd_id = Id::random(eng);
-
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
         let label = 123;
-        let seed = ChannelSeed::new(eng);
-        let ck1 = seed
-            .derive_keys(label, &user1, &user2, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
-        let ck2 = seed
-            .derive_keys(label, &user2, &user1, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
+        let ch1 = Channel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            our_id: IdentityKey::<E>::new(eng).id(),
+            peer_pk: &sk2.public(),
+            peer_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let ch2 = Channel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            our_id: ch1.peer_id,
+            peer_pk: &sk1.public(),
+            peer_id: ch1.our_id,
+            label,
+        };
+
+        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
+        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
 
         // `ck1` and `ck2` should be the reverse of each other.
         assert_eq!(ck1.seal_key(), ck2.open_key());
@@ -1122,23 +1129,29 @@ pub mod engine {
         assert_ne!(ck1.open_key(), ck2.open_key());
     }
 
-    /// Different labels should create different
-    /// [`ChannelKeys`][crate::aps::ChannelKeys].
+    /// Different labels should create different [`ChannelKeys`].
     pub fn test_derive_channel_keys_different_labels<E: Engine + ?Sized>(eng: &mut E) {
-        let user1 = IdentityKey::<E>::new(eng).id();
-        let user2 = IdentityKey::<E>::new(eng).id();
-        let cmd_id = Id::random(eng);
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let ch1 = Channel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            our_id: IdentityKey::<E>::new(eng).id(),
+            peer_pk: &sk2.public(),
+            peer_id: IdentityKey::<E>::new(eng).id(),
+            label: 123,
+        };
+        let ch2 = Channel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            our_id: ch1.peer_id,
+            peer_pk: &sk1.public(),
+            peer_id: ch1.our_id,
+            label: 456,
+        };
 
-        let label1 = 123;
-        let label2 = 456;
-
-        let seed = ChannelSeed::new(eng);
-        let ck1 = seed
-            .derive_keys(label1, &user1, &user2, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
-        let ck2 = seed
-            .derive_keys(label2, &user1, &user2, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
+        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
+        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
 
         // The labels are different, so the keys should also be
         // different.
@@ -1146,48 +1159,35 @@ pub mod engine {
         assert_ne!(ck1.open_key(), ck2.seal_key());
         assert_ne!(ck1.seal_key(), ck2.seal_key());
         assert_ne!(ck1.open_key(), ck2.open_key());
-
-        // Also check the case where user2 derives the keys.
-        let ck2 = seed
-            .derive_keys(label2, &user2, &user1, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
-
-        assert_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ne!(ck1.open_key(), ck2.open_key());
     }
 
     /// Different UserIDs should create different
-    /// [`ChannelKeys`][crate::aps::ChannelKeys].
+    /// [`ChannelKeys`].
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
     pub fn test_derive_channel_keys_different_user_ids<E: Engine + ?Sized>(eng: &mut E) {
-        let user1 = IdentityKey::<E>::new(eng).id();
-        let user2 = IdentityKey::<E>::new(eng).id();
-        let user3 = IdentityKey::<E>::new(eng).id();
-        let cmd_id = Id::random(eng);
-
         let label = 123;
-        let seed = ChannelSeed::new(eng);
-        let ck1 = seed
-            .derive_keys(label, &user1, &user2, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
-        let ck2 = seed
-            .derive_keys(label, &user2, &user3, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let ch1 = Channel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            our_id: IdentityKey::<E>::new(eng).id(),
+            peer_pk: &sk2.public(),
+            peer_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let ch2 = Channel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            our_id: ch1.peer_id,
+            peer_pk: &sk1.public(),
+            peer_id: UserId::random(eng),
+            label,
+        };
 
-        // User2 used a different peer ID, so the keys should be
-        // different.
-        assert_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ne!(ck1.open_key(), ck2.open_key());
-
-        // Check both (u2, u3) and (u3, u2).
-        let ck2 = seed
-            .derive_keys(label, &user3, &user2, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
+        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
+        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
 
         assert_ne!(ck1.seal_key(), ck2.open_key());
         assert_ne!(ck1.open_key(), ck2.seal_key());
@@ -1196,55 +1196,67 @@ pub mod engine {
     }
 
     /// Different command IDs should create different
-    /// [`ChannelKeys`][crate::aps::ChannelKeys].
+    /// [`ChannelKeys`].
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
     pub fn test_derive_channel_keys_different_cmd_ids<E: Engine + ?Sized>(eng: &mut E) {
-        let user1 = IdentityKey::<E>::new(eng).id();
-        let user2 = IdentityKey::<E>::new(eng).id();
-        let cmd_id1 = Id::random(eng);
-        let cmd_id2 = Id::random(eng);
-
         let label = 123;
-        let seed = ChannelSeed::new(eng);
-        let ck1 = seed
-            .derive_keys(label, &user1, &user2, &cmd_id1)
-            .expect("unable to derive `ChannelKeys`");
-        let ck2 = seed
-            .derive_keys(label, &user2, &user1, &cmd_id2)
-            .expect("unable to derive `ChannelKeys`");
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let ch1 = Channel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            our_id: IdentityKey::<E>::new(eng).id(),
+            peer_pk: &sk2.public(),
+            peer_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let ch2 = Channel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk2,
+            our_id: ch1.peer_id,
+            peer_pk: &sk1.public(),
+            peer_id: ch1.our_id,
+            label,
+        };
 
-        // The command IDs are different, so the keys should also
-        // be different.
+        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
+        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
+
         assert_ne!(ck1.seal_key(), ck2.open_key());
         assert_ne!(ck1.open_key(), ck2.seal_key());
         assert_ne!(ck1.seal_key(), ck2.seal_key());
         assert_ne!(ck1.open_key(), ck2.open_key());
     }
 
-    /// Different seeds should create different
-    /// [`ChannelKeys`][crate::aps::ChannelKeys].
+    /// Different encryption keys should create different
+    /// [`ChannelKeys`].
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-    pub fn test_derive_channel_keys_different_seeds<E: Engine + ?Sized>(eng: &mut E) {
-        let user1 = IdentityKey::<E>::new(eng).id();
-        let user2 = IdentityKey::<E>::new(eng).id();
-        let cmd_id = Id::random(eng);
-
+    pub fn test_derive_channel_keys_different_keys<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
-        let seed1 = ChannelSeed::new(eng);
-        let seed2 = ChannelSeed::new(eng);
-        assert_ct_ne!(seed1, seed2);
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let ch1 = Channel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            our_id: IdentityKey::<E>::new(eng).id(),
+            peer_pk: &sk2.public(),
+            peer_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let ch2 = Channel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            our_id: ch1.peer_id,
+            peer_pk: &EncryptionKey::<E>::new(eng).public(),
+            peer_id: ch1.our_id,
+            label,
+        };
 
-        let ck1 = seed1
-            .derive_keys(label, &user1, &user2, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
-        let ck2 = seed2
-            .derive_keys(label, &user2, &user1, &cmd_id)
-            .expect("unable to derive `ChannelKeys`");
+        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
+        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
 
-        // The seeds are different, so the keys should also
-        // be different.
         assert_ne!(ck1.seal_key(), ck2.open_key());
         assert_ne!(ck1.open_key(), ck2.seal_key());
         assert_ne!(ck1.seal_key(), ck2.seal_key());
@@ -1252,77 +1264,47 @@ pub mod engine {
     }
 
     /// It is an error to use the same `UserId` when deriving
-    /// [`ChannelKeys`][crate::aps::ChannelKeys].
+    /// [`ChannelKeys`].
     pub fn test_derive_channel_keys_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
-        let user = IdentityKey::<E>::new(eng).id();
-        let cmd_id = Id::random(eng);
-        let err = ChannelSeed::new(eng)
-            .derive_keys(123, &user, &user, &cmd_id)
+        let label = 123;
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let mut ch1 = Channel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            our_id: IdentityKey::<E>::new(eng).id(),
+            peer_pk: &sk2.public(),
+            peer_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let mut ch2 = Channel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            our_id: ch1.peer_id,
+            peer_pk: &EncryptionKey::<E>::new(eng).public(),
+            peer_id: ch1.our_id,
+            label,
+        };
+
+        let enc = {
+            let prev = ch1.our_id;
+            ch1.our_id = ch1.peer_id;
+
+            let err = ChannelKeys::new(eng, &ch1)
+                .err()
+                .expect("should not be able to create `ChannelKeys`");
+            assert_eq!(err, Error::InvalidArgument("same `UserId`"));
+
+            ch1.our_id = prev;
+            let (enc, _) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
+            enc
+        };
+
+        ch2.peer_id = ch2.our_id;
+        let err = ChannelKeys::from_encap(&ch2, &enc)
             .err()
-            .expect("unable to derive `ChannelKeys`");
-        assert_eq!(err, Error::InvalidArgument("same `UserId`"))
-    }
-
-    /// Simple positive test for encrypting/decrypting
-    /// [`ChannelSeed`]s.
-    pub fn test_simple_seal_channel_seed<E: Engine + ?Sized>(eng: &mut E)
-    where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
-    {
-        let enc_key = EncryptionKey::<E>::new(eng);
-
-        let label = 33;
-        let want = ChannelSeed::new(eng);
-        let (enc, ciphertext) = enc_key
-            .public()
-            .seal_channel_seed(eng, &want, label)
-            .expect("unable to encrypt `ChannelSeed`");
-        let got = enc_key
-            .open_channel_seed(&enc, &ciphertext, label)
-            .expect("unable to decrypt `ChannelSeed`");
-        assert_eq!(want.id(), got.id());
-    }
-
-    /// Simple positive test for wrapping [`ChannelSeed`]s.
-    pub fn test_simple_wrap_channel_seed<E: Engine + ?Sized>(eng: &mut E) {
-        let want = ChannelSeed::new(eng);
-        let bytes = eng
-            .wrap(&want)
-            .expect("should be able to wrap `ChannelSeed`")
-            .encode()
-            .expect("should be able to encode wrapped `ChannelSeed`");
-        let wrapped = E::WrappedKey::decode(bytes.borrow())
-            .expect("should be able to decode encoded wrapped `ChannelSeed`");
-        let got: ChannelSeed<E> = eng
-            .unwrap(&wrapped)
-            .expect("should be able to unwrap `ChannelSeed`")
-            .try_into()
-            .expect("should be a `ChannelSeed`");
-        assert_eq!(want.id(), got.id());
-    }
-
-    /// Test encoding/decoding [`EncryptedChannelSeed`].
-    pub fn test_encrypted_channel_seed_encode<E: Engine + ?Sized>(eng: &mut E)
-    where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
-    {
-        let enc_key = EncryptionKey::<E>::new(eng);
-
-        let label = 42;
-        let want = ChannelSeed::new(eng);
-        let (enc, ciphertext) = enc_key
-            .public()
-            .seal_channel_seed(eng, &want, label)
-            .expect("unable to encrypt `ChannelSeed`");
-        let enc = Encap::<E>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
-        let ciphertext = EncryptedChannelSeed::<E>::from_bytes(ciphertext.as_bytes())
-            .expect("should be able to decode `EncryptedChannelSeed`");
-        let got = enc_key
-            .open_channel_seed(&enc, &ciphertext, label)
-            .expect("unable to decrypt `ChannelSeed`");
-        assert_eq!(want.id(), got.id());
+            .expect("should not be able to decrypt `ChannelKeys`");
+        assert_eq!(err, Error::InvalidArgument("same `UserId`"));
     }
 }
 

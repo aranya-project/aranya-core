@@ -5,7 +5,6 @@
 use {
     crate::{
         aead::Aead,
-        aps::{ChannelSeed, EncryptedChannelSeed},
         ciphersuite::SuiteIds,
         csprng::Csprng,
         engine::Engine,
@@ -316,7 +315,7 @@ impl<E: Engine + ?Sized> VerifyingKey<E> {
 
 /// The private half of [`EncryptionKey`].
 #[derive(ZeroizeOnDrop)]
-pub struct EncryptionKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
+pub struct EncryptionKey<E: Engine + ?Sized>(pub(crate) <E::Kem as Kem>::DecapKey);
 
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
@@ -358,38 +357,6 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
         Ok(GroupKey::from_seed(seed))
     }
 
-    /// Decrypts and authenticates a [`ChannelSeed`] received from
-    /// a peer.
-    pub fn open_channel_seed(
-        &self,
-        enc: &Encap<E>,
-        ciphertext: &EncryptedChannelSeed<E>,
-        label: u32,
-    ) -> Result<ChannelSeed<E>, Error>
-    where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
-    {
-        // info = H(
-        //     "ChannelSeed",
-        //     suite_id,
-        //     engine_id,
-        //     i2osp(label, 4),
-        // )
-        let info = tuple_hash::<E::Hash, _>([
-            "ChannelSeed".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            E::ID.as_bytes(),
-            &label.to_be_bytes(),
-        ]);
-        // TODO(eric): mode auth?
-        let mut ctx =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
-        let mut seed = [0u8; 64];
-        ctx.open(&mut seed, ciphertext.as_bytes(), &info)?;
-        Ok(ChannelSeed::from_seed(seed))
-    }
-
     // Utility routines for other modules.
 
     pub(crate) fn import(data: &[u8]) -> Result<Self, ImportError> {
@@ -402,7 +369,7 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
 }
 
 /// The public half of [`EncryptionKey`].
-pub struct EncryptionPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
+pub struct EncryptionPublicKey<E: Engine + ?Sized>(pub(crate) <E::Kem as Kem>::EncapKey);
 
 impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
     /// Encrypts and authenticates the [`GroupKey`] such that it
@@ -435,39 +402,6 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
         let mut dst = GenericArray::default();
         ctx.seal(&mut dst, key.raw_seed(), &info)?;
         Ok((Encap(enc), EncryptedGroupKey(dst)))
-    }
-
-    /// Encrypts and authenticates the [`ChannelSeed`] such that
-    /// it can only be decrypted by the holder of the private
-    /// half of the [`EncryptionPublicKey`].
-    pub fn seal_channel_seed(
-        &self,
-        eng: &mut E,
-        key: &ChannelSeed<E>,
-        label: u32,
-    ) -> Result<(Encap<E>, EncryptedChannelSeed<E>), Error>
-    where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
-    {
-        // info = H(
-        //     "ChannelSeed",
-        //     suite_id,
-        //     engine_id,
-        //     i2osp(label, 4),
-        // )
-        let info = tuple_hash::<E::Hash, _>([
-            "ChannelSeed".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            E::ID.as_bytes(),
-            &label.to_be_bytes(),
-        ]);
-        // TODO(eric): mode auth?
-        let (enc, mut ctx) =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(eng, Mode::Base, &self.0, &info)?;
-        let mut dst = GenericArray::default();
-        ctx.seal(&mut dst, key.raw_seed(), &info)?;
-        Ok((Encap(enc), EncryptedChannelSeed(dst)))
     }
 }
 

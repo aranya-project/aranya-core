@@ -40,7 +40,7 @@ jobs:
     steps:
       # Our runners don't get wiped between runs :/
       - name: nuke old .gitconfig
-        run: rm ~/.gitconfig
+        run: rm ~/.gitconfig || true
       - uses: actions/checkout@v3
       - name: Clean temp files
         run: rm -rf ${{ github.workspace }}/_temp
