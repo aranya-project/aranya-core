@@ -5,6 +5,7 @@ use std::io::{stdin, Read};
 use clap::{ArgGroup, Parser, ValueEnum};
 
 use flow3_policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
+use flow3_policy_lang::machine::ffi::ProcedureIdentifier;
 use flow3_policy_lang::machine::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -51,7 +52,7 @@ struct Args {
 
 fn debug_loop<M>(rs: &mut RunState<'_, M>) -> anyhow::Result<()>
 where
-    M: MachineIO,
+    M: MachineIO<MachineStack>,
 {
     let mut buf = String::new();
     let mut status = MachineStatus::Executing;
@@ -120,7 +121,10 @@ impl Iterator for MachExpQueryIterator {
     }
 }
 
-impl MachineIO for MachExpIO {
+impl<S> MachineIO<S> for MachExpIO
+where
+    S: Stack,
+{
     type QueryIterator = MachExpQueryIterator;
 
     fn fact_insert(
@@ -176,6 +180,10 @@ impl MachineIO for MachExpIO {
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
         let fields = fields.into_iter().collect();
         self.effects.push((name, fields))
+    }
+
+    fn call(&self, _procedure_id: ProcedureIdentifier, _stack: &mut S) -> Result<(), MachineError> {
+        todo!();
     }
 }
 

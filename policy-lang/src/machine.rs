@@ -26,6 +26,8 @@ use self::data::TryAsMut;
 mod stack;
 pub use stack::Stack;
 
+pub mod ffi;
+
 /// Returns true if all of the k/v pairs in a exist in b, or false
 /// otherwise.
 fn fact_value_subset_match(a: &[FactValue], b: &[FactValue]) -> bool {
@@ -125,7 +127,7 @@ impl Machine {
     /// Create a RunState associated with this Machine.
     pub fn create_run_state<'a, M>(&'a self, io: &'a mut M) -> RunState<M>
     where
-        M: MachineIO,
+        M: MachineIO<MachineStack>,
     {
         RunState::new(self, io)
     }
@@ -158,14 +160,14 @@ impl Display for Machine {
 /// multiple simultaneous instances.
 pub struct RunState<'a, M>
 where
-    M: MachineIO,
+    M: MachineIO<MachineStack>,
 {
     /// Reference to the underlying static machine data
     machine: &'a Machine,
     /// Named value definitions ("variables")
     defs: BTreeMap<String, Value>,
     /// The stack
-    stack: Vec<Value>,
+    stack: MachineStack,
     /// The program counter
     pc: usize,
     /// I/O callbacks
@@ -174,7 +176,7 @@ where
 
 impl<'a, M> RunState<'a, M>
 where
-    M: MachineIO,
+    M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
     pub fn new<'b>(machine: &'b Machine, io: &'b mut M) -> RunState<'a, M>
@@ -184,7 +186,7 @@ where
         RunState {
             machine,
             defs: BTreeMap::new(),
-            stack: vec![],
+            stack: MachineStack(vec![]),
             pc: 0,
             io,
         }
@@ -200,7 +202,7 @@ where
     /// stack, and set the program counter to zero.
     pub fn reset(&mut self) {
         self.defs = BTreeMap::new();
-        self.stack = vec![];
+        self.stack = MachineStack(vec![]);
         self.pc = 0;
     }
 
@@ -215,7 +217,7 @@ where
     where
         V: Into<Value>,
     {
-        self.push(value).map_err(|e| self.err(e))
+        self.stack.push(value).map_err(|e| self.err(e))
     }
 
     /// Internal wrapper around [Stack::pop] that translates
@@ -224,13 +226,13 @@ where
     where
         V: TryFrom<Value, Error = MachineErrorType>,
     {
-        self.pop().map_err(|e| self.err(e))
+        self.stack.pop().map_err(|e| self.err(e))
     }
 
     /// Internal wrapper around [Stack::pop_value] that translates
     /// [StackError] into [MachineError] with location information.
     fn ipop_value(&mut self) -> Result<Value, MachineError> {
-        self.pop_value().map_err(|e| self.err(e))
+        self.stack.pop_value().map_err(|e| self.err(e))
     }
 
     /// Internal wrapper around [Stack::peek] that translates
@@ -245,7 +247,8 @@ where
         // does). We can't do that inside the closure because peek()
         // takes a mutable reference to self.
         let pc = self.pc;
-        self.peek()
+        self.stack
+            .peek()
             .map_err(|e| MachineError::new_with_position(e, pc))
     }
 
@@ -259,7 +262,9 @@ where
         // reference to self while we manipulate the stack later.
         let instruction = self.machine.progmem[self.pc()].clone();
         match instruction {
-            Instruction::Const(v) => self.stack.push(v),
+            Instruction::Const(v) => {
+                self.stack.push(v).map_err(|e| self.err(e))?;
+            }
             Instruction::Def => {
                 let key = self.ipop()?;
                 let value = self.ipop_value()?;
@@ -285,17 +290,17 @@ where
                 }
                 let i1 = self.stack.len() - 1;
                 let i2 = i1 - d;
-                self.stack.swap(i1, i2);
+                self.stack.0.swap(i1, i2);
             }
             Instruction::Dup(d) => {
                 if d > self.stack.len() {
                     return Err(self.err(MachineErrorType::StackUnderflow));
                 }
-                let v = self.stack[self.stack.len() - d - 1].clone();
+                let v = self.stack.0[self.stack.len() - d - 1].clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {
-                let _ = self.pop_value();
+                let _ = self.stack.pop_value();
             }
             Instruction::Block => todo!(),
             Instruction::End => todo!(),
@@ -394,7 +399,9 @@ where
             Instruction::StructNew => {
                 let name = self.ipop()?;
                 let fields = BTreeMap::new();
-                self.stack.push(Value::Struct(Struct { name, fields }));
+                self.stack
+                    .push(Value::Struct(Struct { name, fields }))
+                    .map_err(|e| self.err(e))?;
             }
             Instruction::StructSet => {
                 let field_name = self.ipop()?;
@@ -572,29 +579,37 @@ where
     }
 }
 
-impl<M> Stack for RunState<'_, M>
-where
-    M: MachineIO,
-{
+pub struct MachineStack(Vec<Value>);
+
+impl MachineStack {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[allow(dead_code)]
+    fn is_empty(&self) -> bool {
+        self.0.len() == 0
+    }
+}
+
+impl Stack for MachineStack {
     fn push_value(&mut self, value: Value) -> Result<(), MachineErrorType> {
-        self.stack.push(value);
+        self.0.push(value);
         Ok(())
     }
 
     fn pop_value(&mut self) -> Result<Value, MachineErrorType> {
-        self.stack.pop().ok_or(MachineErrorType::StackUnderflow)
+        self.0.pop().ok_or(MachineErrorType::StackUnderflow)
     }
 
     fn peek_value(&mut self) -> Result<&mut Value, MachineErrorType> {
-        self.stack
-            .last_mut()
-            .ok_or(MachineErrorType::StackUnderflow)
+        self.0.last_mut().ok_or(MachineErrorType::StackUnderflow)
     }
 }
 
 impl<'a, M> Display for RunState<'a, M>
 where
-    M: MachineIO,
+    M: MachineIO<MachineStack>,
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         writeln!(f, "# Name table:")?;
@@ -606,7 +621,7 @@ where
             writeln!(f, "  {}: {}", k, v)?;
         }
         writeln!(f, "# Stack:")?;
-        for v in &self.stack {
+        for v in &self.stack.0 {
             write!(f, "{} ", v)?;
         }
         writeln!(f)?;

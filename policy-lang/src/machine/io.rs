@@ -2,8 +2,10 @@ use core::fmt;
 
 use cfg_if::cfg_if;
 
+use super::Stack;
 use crate::machine::data::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 use crate::machine::error::{MachineError, MachineErrorType};
+use crate::machine::ffi::ProcedureIdentifier;
 
 cfg_if! {
     if #[cfg(feature = "std")] {
@@ -43,7 +45,10 @@ impl From<MachineIOError> for MachineError {
     }
 }
 
-pub trait MachineIO {
+pub trait MachineIO<S>
+where
+    S: Stack,
+{
     type QueryIterator: Iterator<Item = (FactKeyList, FactValueList)>;
 
     // Insert a fact
@@ -73,4 +78,7 @@ pub trait MachineIO {
 
     /// Create an effect
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
+
+    /// Call external function, i.e. one defined in a FFIModule
+    fn call(&self, procedure_id: ProcedureIdentifier, stack: &mut S) -> Result<(), MachineError>;
 }

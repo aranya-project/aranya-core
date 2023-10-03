@@ -373,3 +373,9 @@ pub struct Policy {
     pub functions: Vec<FunctionDefinition>,
     pub finish_functions: Vec<FinishFunctionDefinition>,
 }
+
+/// Describes a foreign function, with its name and arguments.
+pub struct FfiFunctionDefinition {
+    pub name: String,
+    pub args: Vec<FieldDefinition>,
+}

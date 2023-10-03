@@ -3,26 +3,35 @@ use alloc::collections::{btree_map, BTreeMap};
 
 use anyhow;
 
-use crate::lang::{ast, parse_policy_str, Version};
+use super::ffi::{FfiModule, ProcedureIdentifier};
+use crate::lang::ast::{self, FfiFunctionDefinition, FieldDefinition, VType};
+use crate::lang::{parse_policy_str, Version};
 use crate::machine::{
     CompileError, Fact, FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair,
     Machine, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState,
     Stack, Struct, Value,
 };
 
-#[derive(Debug)]
-struct TestIO {
+struct TestIO<S>
+where
+    S: Stack,
+{
     facts: BTreeMap<(String, FactKeyList), FactValueList>,
     emit_stack: Vec<(String, Vec<KVPair>)>,
     effect_stack: Vec<(String, Vec<KVPair>)>,
+    modules: Vec<Box<dyn FfiModule<S, Error = MachineError>>>,
 }
 
-impl TestIO {
+impl<S> TestIO<S>
+where
+    S: Stack,
+{
     pub fn new() -> Self {
         TestIO {
             facts: BTreeMap::new(),
             emit_stack: vec![],
             effect_stack: vec![],
+            modules: Vec::new(),
         }
     }
 }
@@ -54,7 +63,10 @@ impl Iterator for TestQueryIterator {
     }
 }
 
-impl MachineIO for TestIO {
+impl<S> MachineIO<S> for TestIO<S>
+where
+    S: Stack,
+{
     type QueryIterator = TestQueryIterator;
 
     fn fact_insert(
@@ -117,6 +129,18 @@ impl MachineIO for TestIO {
         fields.sort_by(|a, b| a.key().cmp(b.key()));
         println!("effect {} {{{:?}}}", name, fields);
         self.effect_stack.push((name, fields));
+    }
+
+    fn call(
+        &self,
+        procedure_id: ProcedureIdentifier,
+        stack: &mut S,
+    ) -> Result<(), super::MachineError> {
+        let module = self
+            .modules
+            .get(procedure_id.module)
+            .expect("Module not found");
+        module.call(procedure_id.procedure, stack)
     }
 }
 
@@ -319,7 +343,7 @@ fn test_pop() {
     let mut rs = machine.create_run_state(&mut io);
 
     // Add something to the stack
-    rs.push_value(Value::Int(5)).unwrap();
+    rs.stack.push(5).unwrap();
 
     // Pop value
     assert!(
@@ -352,7 +376,7 @@ fn test_swap_top() {
     let mut io = TestIO::new();
     let mut rs = machine.create_run_state(&mut io);
 
-    rs.push_value(Value::Int(5)).unwrap();
+    rs.stack.push(5).unwrap();
     assert!(rs
         .step()
         .is_err_and(|result| result.err_type == MachineErrorType::BadState));
@@ -365,13 +389,13 @@ fn test_swap_middle() {
     let mut rs = machine.create_run_state(&mut io);
 
     // Swap with second - should succeed
-    rs.push_value(Value::Int(3)).unwrap();
-    rs.push_value(Value::Int(5)).unwrap();
-    rs.push_value(Value::Int(8)).unwrap();
+    rs.stack.push(3).unwrap();
+    rs.stack.push(5).unwrap();
+    rs.stack.push(8).unwrap();
     assert!(rs.step().unwrap() == MachineStatus::Executing);
-    assert!(rs.stack[0] == Value::Int(3));
-    assert!(rs.stack[1] == Value::Int(8));
-    assert!(rs.stack[2] == Value::Int(5));
+    assert!(rs.stack.0[0] == Value::Int(3));
+    assert!(rs.stack.0[1] == Value::Int(8));
+    assert!(rs.stack.0[2] == Value::Int(5));
 }
 
 #[test]
@@ -381,7 +405,7 @@ fn test_dup_underflow() {
     let mut rs = machine.create_run_state(&mut io);
 
     // Try to dup with invalid stack index - should fail
-    rs.push_value(Value::Int(3)).unwrap();
+    rs.stack.push(3).unwrap();
     assert!(rs
         .step()
         .is_err_and(|result| result.err_type == MachineErrorType::StackUnderflow));
@@ -394,13 +418,13 @@ fn test_dup() {
     let mut rs = machine.create_run_state(&mut io);
 
     // Dup second value in stack - should succeed.
-    rs.push_value(Value::Int(3)).unwrap();
-    rs.push_value(Value::Int(5)).unwrap();
+    rs.stack.push(3).unwrap();
+    rs.stack.push(5).unwrap();
     assert!(rs.step().unwrap() == MachineStatus::Executing);
     assert!(rs.stack.len() == 3);
-    assert!(rs.stack[0] == Value::Int(3));
-    assert!(rs.stack[1] == Value::Int(5));
-    assert!(rs.stack[2] == Value::Int(3));
+    assert!(rs.stack.0[0] == Value::Int(3));
+    assert!(rs.stack.0[1] == Value::Int(5));
+    assert!(rs.stack.0[2] == Value::Int(3));
 }
 
 struct TestStack {
@@ -643,4 +667,67 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
     );
 
     Ok(())
+}
+
+// --- FFI ---
+
+struct PrintFFI {}
+
+impl<S> FfiModule<S> for PrintFFI
+where
+    S: Stack,
+{
+    type Error = MachineError;
+
+    fn function_table(&self) -> Vec<FfiFunctionDefinition> {
+        vec![FfiFunctionDefinition {
+            name: "print".to_string(),
+            args: vec![FieldDefinition {
+                identifier: "a".to_string(),
+                field_type: VType::String,
+            }],
+        }]
+    }
+
+    fn call(&self, procedure: usize, stack: &mut S) -> Result<(), Self::Error> {
+        match procedure {
+            0 => {
+                // pop args off the stack
+                let a: String = stack.pop().unwrap_or_else(|_| panic!("Stack underflow"));
+                println!("a: {}", a);
+
+                // Push something (the uppercased value) back onto the stack so the caller can verify this function was called.
+                stack
+                    .push(Value::String(a.to_uppercase()))
+                    .expect("can't push");
+
+                Ok(())
+            }
+            _ => panic!("Invalid procedure."),
+        }
+    }
+}
+
+#[test]
+fn test_ffi() {
+    // Add FFI module to TestIO
+    let mut io = TestIO::new();
+    io.modules.push(Box::new(PrintFFI {}));
+
+    // Push value onto stack, and call FFI function
+    let mut stack = TestStack::new();
+    stack
+        .push(Value::String("hello".to_string()))
+        .expect("can't push");
+    let result = io.call(
+        ProcedureIdentifier {
+            module: 0,
+            procedure: 0,
+        },
+        &mut stack,
+    );
+
+    // Verify function was called
+    assert!(result.is_ok());
+    assert!(stack.pop::<String>().expect("should have return value") == "HELLO");
 }
