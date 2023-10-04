@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::collections::BTreeMap;
+use alloc::collections::{btree_map, BTreeMap};
 
 use crate::lang::ast;
 use crate::machine::{Instruction, Label, LabelType, Machine, Target, Value};
@@ -25,6 +25,12 @@ pub enum CompileError {
     /// An argument to a function or an item in an expression did not
     /// make sense
     BadArgument,
+    /// A thing referenced is not defined
+    NotDefined,
+    /// A thing by that name has already been defined
+    AlreadyDefined,
+    /// A pure function has no return statement
+    NoReturn,
     /// All other errors
     Unknown(String),
 }
@@ -35,6 +41,9 @@ impl core::fmt::Display for CompileError {
             Self::InvalidElement => write!(f, "Invalid element"),
             Self::BadTarget => write!(f, "Bad branch target"),
             Self::BadArgument => write!(f, "Bad argument"),
+            Self::NotDefined => write!(f, "Not defined"),
+            Self::AlreadyDefined => write!(f, "Already defined"),
+            Self::NoReturn => write!(f, "Function has no return statement"),
             Self::Unknown(s) => write!(f, "Unknown error: {}", s),
         }
     }
@@ -42,6 +51,21 @@ impl core::fmt::Display for CompileError {
 
 // Default Error implementation via Debug and Display
 impl error::Error for CompileError {}
+
+enum FunctionColor {
+    /// Function has no side-effects and returns a value
+    Pure(ast::VType),
+    /// Function has side-effects and returns no value
+    Finish,
+}
+
+/// This is like [FunctionDefinition](ast::FunctionDefinition), but
+/// stripped down to only include positional argument types and return
+/// type. Covers both regular (pure) functions and finish functions.
+struct FunctionSignature {
+    args: Vec<ast::VType>,
+    color: FunctionColor,
+}
 
 /// The "compile state" of the machine.
 pub struct CompileState {
@@ -51,12 +75,20 @@ pub struct CompileState {
     wp: usize,
     /// A counter used to generate temporary labels
     c: usize,
+    /// A map between function names and signatures, so that they can
+    /// be easily looked up for verification when called.
+    function_signatures: BTreeMap<String, FunctionSignature>,
 }
 
 impl CompileState {
     // Create a new CompileState which compiles into the owned machine.
     pub fn new(m: Machine) -> CompileState {
-        CompileState { m, wp: 0, c: 0 }
+        CompileState {
+            m,
+            wp: 0,
+            c: 0,
+            function_signatures: BTreeMap::new(),
+        }
     }
 
     /// Append an instruction to the program memory, and increment the
@@ -73,6 +105,42 @@ impl CompileState {
         self.m
             .struct_defs
             .insert(name.to_owned(), fields.to_owned());
+    }
+
+    /// Turn a [FunctionDefinition](ast::FunctionDefinition) into a
+    /// [FunctionSignature].
+    fn define_function_signature(
+        &mut self,
+        def: &ast::FunctionDefinition,
+    ) -> Result<&FunctionSignature, CompileError> {
+        match self.function_signatures.entry(def.identifier.clone()) {
+            btree_map::Entry::Vacant(e) => {
+                let signature = FunctionSignature {
+                    args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
+                    color: FunctionColor::Pure(def.return_type.clone()),
+                };
+                Ok(e.insert(signature))
+            }
+            btree_map::Entry::Occupied(_) => Err(CompileError::AlreadyDefined),
+        }
+    }
+
+    /// Turn a [FinishFunctionDefinition](ast::FinishFunctionDefinition)
+    /// into a [FunctionSignature].
+    fn define_finish_function_signature(
+        &mut self,
+        def: &ast::FinishFunctionDefinition,
+    ) -> Result<&FunctionSignature, CompileError> {
+        match self.function_signatures.entry(def.identifier.clone()) {
+            btree_map::Entry::Vacant(e) => {
+                let signature = FunctionSignature {
+                    args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
+                    color: FunctionColor::Finish,
+                };
+                Ok(e.insert(signature))
+            }
+            btree_map::Entry::Occupied(_) => Err(CompileError::AlreadyDefined),
+        }
     }
 
     /// Define a named Label.
@@ -215,6 +283,25 @@ impl CompileState {
                 ast::InternalFunction::AuthorId(_) => todo!(),
             },
             ast::Expression::FunctionCall(f) => {
+                let signature = self
+                    .function_signatures
+                    .get(&f.identifier)
+                    .ok_or(CompileError::NotDefined)?;
+                // Check that this function is the right color - only
+                // pure functions are allowed in expressions.
+                if let FunctionColor::Finish = signature.color {
+                    return Err(CompileError::InvalidElement);
+                }
+                // For now all we can do is check that the argument
+                // list has the same length.
+                // TODO(chip): Do more deep type analysis to check
+                // arguments and return types.
+                if signature.args.len() != f.arguments.len() {
+                    return Err(CompileError::BadArgument);
+                }
+                for a in &f.arguments {
+                    self.compile_expression(a)?;
+                }
                 self.append_instruction(Instruction::Call(Target::Unresolved(
                     f.identifier.clone(),
                 )));
@@ -388,9 +475,73 @@ impl CompileState {
                     self.compile_expression(s)?;
                     self.append_instruction(Instruction::Effect);
                 }
-                ast::FinishStatement::FunctionCall(_) => todo!(),
+                ast::FinishStatement::FunctionCall(f) => {
+                    let signature = self
+                        .function_signatures
+                        .get(&f.identifier)
+                        .ok_or(CompileError::NotDefined)?;
+                    // Check that this function is the right color -
+                    // only finish functions are allowed in finish
+                    // blocks.
+                    if let FunctionColor::Pure(_) = signature.color {
+                        return Err(CompileError::InvalidElement);
+                    }
+                    // For now all we can do is check that the argument
+                    // list has the same length.
+                    // TODO(chip): Do more deep type analysis to check
+                    // arguments and return types.
+                    if signature.args.len() != f.arguments.len() {
+                        return Err(CompileError::BadArgument);
+                    }
+                    for a in &f.arguments {
+                        self.compile_expression(a)?;
+                    }
+                    self.append_instruction(Instruction::Call(Target::Unresolved(
+                        f.identifier.clone(),
+                    )));
+                }
             }
         }
+        Ok(())
+    }
+
+    /// Compile a function
+    fn compile_function(&mut self, function: &ast::FunctionDefinition) -> Result<(), CompileError> {
+        self.define_label(&function.identifier, self.wp, LabelType::Temporary);
+        self.define_function_signature(function)?;
+        for arg in function.arguments.iter().rev() {
+            self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
+            self.append_instruction(Instruction::Def);
+        }
+        let from = self.wp;
+        self.compile_statements(&function.statements)?;
+        // Check that there is a return statement somewhere in the compiled instructions.
+        if !self.m.progmem[from..self.wp]
+            .iter()
+            .any(|i| matches!(i, Instruction::Return))
+        {
+            return Err(CompileError::NoReturn);
+        }
+        // If execution does not hit a return statement, it will panic here.
+        self.append_instruction(Instruction::Panic);
+        Ok(())
+    }
+
+    /// Compile a finish function
+    fn compile_finish_function(
+        &mut self,
+        function: &ast::FinishFunctionDefinition,
+    ) -> Result<(), CompileError> {
+        self.define_label(&function.identifier, self.wp, LabelType::Temporary);
+        self.define_finish_function_signature(function)?;
+        for arg in function.arguments.iter().rev() {
+            self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
+            self.append_instruction(Instruction::Def);
+        }
+        self.compile_finish_statements(&function.statements)?;
+        // Finish functions cannot have return statements, so we add a return instruction
+        // manually.
+        self.append_instruction(Instruction::Return);
         Ok(())
     }
 
@@ -433,6 +584,14 @@ impl CompileState {
 
         for struct_def in &policy.structs {
             self.define_struct(&struct_def.identifier, &struct_def.fields);
+        }
+
+        for function_def in &policy.functions {
+            self.compile_function(function_def)?;
+        }
+
+        for function_def in &policy.finish_functions {
+            self.compile_finish_function(function_def)?;
         }
 
         for command in &policy.commands {

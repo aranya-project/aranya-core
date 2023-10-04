@@ -731,3 +731,196 @@ fn test_ffi() {
     assert!(result.is_ok());
     assert!(stack.pop::<String>().expect("should have return value") == "HELLO");
 }
+
+#[test]
+fn test_pure_function() -> anyhow::Result<()> {
+    let text = r#"
+        command Result {
+            fields {
+                x int
+            }
+        }
+
+        function f(x int) int {
+            return x + 1
+        }
+
+        action foo(x int) {
+            emit Result { x: f(x) }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+
+    let mut io = TestIO::new();
+    {
+        let mut rs = machine.create_run_state(&mut io);
+        rs.call_action("foo", &[Value::Int(3)])
+            .map_err(anyhow::Error::msg)?;
+    }
+
+    assert_eq!(
+        io.emit_stack[0],
+        ("Result".to_string(), vec![KVPair::new("x", Value::Int(4)),])
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_function_no_return() -> anyhow::Result<()> {
+    let text = r#"
+        function f(x int) int {
+            let y = x + 1
+            // no return value
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = Machine::compile_from_policy(&policy).unwrap_err();
+
+    assert_eq!(err, CompileError::NoReturn);
+
+    Ok(())
+}
+
+#[test]
+fn test_function_not_defined() -> anyhow::Result<()> {
+    let text = r#"
+        function f(x int) int {
+            return g()
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = Machine::compile_from_policy(&policy).unwrap_err();
+
+    assert_eq!(err, CompileError::NotDefined);
+
+    Ok(())
+}
+
+#[test]
+fn test_function_already_defined() -> anyhow::Result<()> {
+    let text = r#"
+        function f(x int) int {
+            return 1
+        }
+
+        function f() int {}
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = Machine::compile_from_policy(&policy).unwrap_err();
+
+    assert_eq!(err, CompileError::AlreadyDefined);
+
+    Ok(())
+}
+
+#[test]
+fn test_function_wrong_number_arguments() -> anyhow::Result<()> {
+    let text = r#"
+        function f(x int) int {
+            return 1
+        }
+
+        function g() int {
+            return f()
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = Machine::compile_from_policy(&policy).unwrap_err();
+
+    assert_eq!(err, CompileError::BadArgument);
+
+    Ok(())
+}
+
+#[test]
+fn test_function_wrong_color_pure() -> anyhow::Result<()> {
+    let text = r#"
+        function f(x int) int {
+            return x
+        }
+
+        finish function g() {
+            f()
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = Machine::compile_from_policy(&policy).unwrap_err();
+
+    assert_eq!(err, CompileError::InvalidElement);
+
+    Ok(())
+}
+
+#[test]
+fn test_function_wrong_color_finish() -> anyhow::Result<()> {
+    let text = r#"
+        finish function f(x int) {
+            effect Foo {}
+        }
+
+        function g() int {
+            return f()
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = Machine::compile_from_policy(&policy).unwrap_err();
+
+    // Quirk: this gives us NotDefined because the compiler compiles all of the regular
+    // functions _before_ the finish functions. So the finish function isn't yet defined.
+    // Fixing this will require a two-pass compilation.
+    assert_eq!(err, CompileError::NotDefined);
+
+    Ok(())
+}
+
+#[test]
+fn test_finish_function() -> anyhow::Result<()> {
+    let text = r#"
+        effect Result {
+            x int
+        }
+
+        finish function f(x int) {
+            effect Result { x: x + 1 }
+        }
+
+        command Foo {
+            fields {
+                x int,
+            }
+
+            policy {
+                finish {
+                    f(self.x)
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+
+    let mut io = TestIO::new();
+    {
+        let mut rs = machine.create_run_state(&mut io);
+        let self_struct = Struct::new("Foo", &[KVPair::new("x", Value::Int(3))]);
+        rs.call_command_policy("Foo", &self_struct)
+            .map_err(anyhow::Error::msg)?;
+    }
+
+    assert_eq!(
+        io.effect_stack[0],
+        ("Result".to_string(), vec![KVPair::new("x", Value::Int(4)),])
+    );
+
+    Ok(())
+}

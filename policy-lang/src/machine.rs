@@ -155,6 +155,12 @@ impl Display for Machine {
     }
 }
 
+/// State stored when a call is made, and restored when it returns.
+struct CallState {
+    return_address: usize,
+    defs: BTreeMap<String, Value>,
+}
+
 /// The "run state" of the machine. It's separated from the rest of
 /// the VM so that it can be managed independently and potentially in
 /// multiple simultaneous instances.
@@ -168,6 +174,9 @@ where
     defs: BTreeMap<String, Value>,
     /// The stack
     stack: MachineStack,
+    /// The call state stack - stores return addresses and previous
+    /// definitions when a function is called
+    call_state: Vec<CallState>,
     /// The program counter
     pc: usize,
     /// I/O callbacks
@@ -187,6 +196,7 @@ where
             machine,
             defs: BTreeMap::new(),
             stack: MachineStack(vec![]),
+            call_state: vec![],
             pc: 0,
             io,
         }
@@ -201,8 +211,8 @@ where
     /// Reset the machine state - undefine all named values, empty the
     /// stack, and set the program counter to zero.
     pub fn reset(&mut self) {
-        self.defs = BTreeMap::new();
-        self.stack = MachineStack(vec![]);
+        self.defs.clear();
+        self.stack.clear();
         self.pc = 0;
     }
 
@@ -304,17 +314,17 @@ where
             }
             Instruction::Block => todo!(),
             Instruction::End => todo!(),
-            Instruction::Jump(t) => {
-                match t {
-                    Target::Unresolved(_) => {
-                        return Err(self.err(MachineErrorType::UnresolvedTarget))
-                    }
-                    Target::Resolved(n) => {
-                        // subtract one to account for the PC increment below.
-                        self.pc = n - 1;
-                    }
+            Instruction::Jump(t) => match t {
+                Target::Unresolved(_) => return Err(self.err(MachineErrorType::UnresolvedTarget)),
+                Target::Resolved(n) => {
+                    // We set the PC and return here to skip the
+                    // increment below. We could subtract 1 here to
+                    // compensate, but that doesn't work when we jump
+                    // to address 0.
+                    self.pc = n;
+                    return Ok(MachineStatus::Executing);
                 }
-            }
+            },
             Instruction::Branch(t) => {
                 let conditional = self.ipop()?;
                 if conditional {
@@ -323,16 +333,38 @@ where
                             return Err(self.err(MachineErrorType::UnresolvedTarget))
                         }
                         Target::Resolved(n) => {
-                            // subtract one to account for the PC increment below.
-                            self.pc = n - 1;
+                            self.pc = n;
+                            return Ok(MachineStatus::Executing);
                         }
                     }
                 }
             }
             Instruction::Next => todo!(),
             Instruction::Last => todo!(),
-            Instruction::Call(_t) => todo!(),
-            Instruction::Return => todo!(),
+            Instruction::Call(t) => match t {
+                Target::Unresolved(_) => return Err(self.err(MachineErrorType::UnresolvedTarget)),
+                Target::Resolved(n) => {
+                    // Take the old defs, emptying defs
+                    let old_defs = core::mem::take(&mut self.defs);
+                    // Store the current PC and name definitions. The
+                    // PC will be incremented after return, so there's
+                    // no need to increment here.
+                    self.call_state.push(CallState {
+                        return_address: self.pc,
+                        defs: old_defs,
+                    });
+                    self.pc = n;
+                    return Ok(MachineStatus::Executing);
+                }
+            },
+            Instruction::Return => {
+                let s = self
+                    .call_state
+                    .pop()
+                    .ok_or_else(|| self.err(MachineErrorType::BadState))?;
+                self.defs = s.defs;
+                self.pc = s.return_address;
+            }
             Instruction::Exit => return Ok(MachineStatus::Exited),
             Instruction::Panic => return Ok(MachineStatus::Panicked),
             Instruction::Add | Instruction::Sub => {
@@ -533,6 +565,7 @@ where
     ) -> Result<(), MachineError> {
         self.set_pc_by_name(name, LabelType::Command)?;
         self.defs.clear();
+        self.call_state.clear();
         self.defs
             .insert(String::from("self"), Value::Struct(self_data.to_owned()));
         Ok(())
@@ -560,6 +593,7 @@ where
             self.ipush(a.clone())?;
         }
         self.defs.clear();
+        self.call_state.clear();
 
         Ok(())
     }
@@ -590,6 +624,10 @@ impl MachineStack {
     fn is_empty(&self) -> bool {
         self.0.len() == 0
     }
+
+    fn clear(&mut self) {
+        self.0.clear();
+    }
 }
 
 impl Stack for MachineStack {
@@ -616,7 +654,11 @@ where
         for (k, v) in &self.machine.labels {
             writeln!(f, "  {}: {:?}", k, v)?;
         }
-        writeln!(f, "# Defs:")?;
+        write!(f, "# Current defs")?;
+        if !self.call_state.is_empty() {
+            write!(f, " ({} stacked)", self.call_state.len())?;
+        }
+        writeln!(f, ":")?;
         for (k, v) in &self.defs {
             writeln!(f, "  {}: {}", k, v)?;
         }
