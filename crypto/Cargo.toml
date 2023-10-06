@@ -138,7 +138,7 @@ typenum = { version = "1", default-features = false }
 # won't bloat release builds, though, since users of this crate
 # should only use this feature inside [dev-dependencies].
 wycheproof = { version = "0.5", optional = true }
-zeroize = { version = "1", features = ["zeroize_derive"] }
+zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
 
 # Used by `test_util`. Needed in order to generate docs
 # correctly.
