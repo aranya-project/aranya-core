@@ -567,7 +567,7 @@ where
         self.defs.clear();
         self.call_state.clear();
         self.defs
-            .insert(String::from("self"), Value::Struct(self_data.to_owned()));
+            .insert(String::from("this"), Value::Struct(self_data.to_owned()));
         Ok(())
     }
 

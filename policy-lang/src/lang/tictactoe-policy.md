@@ -43,7 +43,7 @@ command Start {
         check ProfileX != ProfileO
         // id() is a function that calculates the ID of this command from its
         // content.
-        let gameID = id(self)
+        let gameID = id(this)
 
         finish {
             create PlayerProfile[gameID: gameID]=>{x: ProfileX, o: ProfileO}
@@ -98,7 +98,7 @@ command Move {
         // expressions.
         // `author` is a built-in function which returns an ID for the author
         // of a command.
-        let player = author_id(self)
+        let player = author_id(this)
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
         // values marked with ?, or None. The unwrap expression returns the
@@ -167,7 +167,7 @@ command Move2 {
     }
 
     policy {
-        let player = author(self)
+        let player = author(this)
         let players = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
         let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
         let nextp = if p == "X" then "O" else "X"

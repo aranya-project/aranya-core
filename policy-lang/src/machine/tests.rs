@@ -180,7 +180,7 @@ command Foo {
         b int,
     }
     policy {
-        let sum = self.a + self.b
+        let sum = this.a + this.b
         finish {
             effect Bar{x: sum}
         }
@@ -249,7 +249,7 @@ command Set {
         a int,
     }
     policy {
-        let x = self.a
+        let x = this.a
         finish {
             create Foo[]=>{x: x}
             effect Update{value: x}
@@ -900,7 +900,7 @@ fn test_finish_function() -> anyhow::Result<()> {
 
             policy {
                 finish {
-                    f(self.x)
+                    f(this.x)
                 }
             }
         }

@@ -14,11 +14,11 @@ command Foo {
         b int,
     }
     policy {
-        check self.a > 0
+        check this.a > 0
         finish {
-            create Foo[v: self.b]=>{}
+            create Foo[v: this.b]=>{}
             effect Bar{
-                x: self.a
+                x: this.a
             }
         }
     }

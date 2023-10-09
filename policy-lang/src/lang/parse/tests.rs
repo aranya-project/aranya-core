@@ -362,8 +362,8 @@ fn parse_policy_test() -> Result<(), ParseError> {
             }
 
             policy {
-                let id = id(self)
-                let author = author_id(self)
+                let id = id(this)
+                let author = author_id(this)
                 let new_x = x + count
                 check exists TestFact[v: "test"]=>{}
                 match x {
@@ -390,8 +390,8 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 }
             }
             recall {
-                let id = id(self)
-                let author = author_id(self)
+                let id = id(this)
+                let author = author_id(this)
                 let new_x = x + count
                 finish {
                     create F[v: "hello"]=>{x: x, y: -x}
@@ -489,13 +489,13 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 ast::Statement::Let(ast::LetStatement {
                     identifier: String::from("id"),
                     expression: ast::Expression::InternalFunction(ast::InternalFunction::Id(
-                        Box::new(ast::Expression::Identifier(String::from("self"))),
+                        Box::new(ast::Expression::Identifier(String::from("this"))),
                     )),
                 }),
                 ast::Statement::Let(ast::LetStatement {
                     identifier: String::from("author"),
                     expression: ast::Expression::InternalFunction(ast::InternalFunction::AuthorId(
-                        Box::new(ast::Expression::Identifier(String::from("self"))),
+                        Box::new(ast::Expression::Identifier(String::from("this"))),
                     )),
                 }),
                 ast::Statement::Let(ast::LetStatement {
@@ -623,13 +623,13 @@ fn parse_policy_test() -> Result<(), ParseError> {
                 ast::Statement::Let(ast::LetStatement {
                     identifier: String::from("id"),
                     expression: ast::Expression::InternalFunction(ast::InternalFunction::Id(
-                        Box::new(ast::Expression::Identifier(String::from("self"))),
+                        Box::new(ast::Expression::Identifier(String::from("this"))),
                     )),
                 }),
                 ast::Statement::Let(ast::LetStatement {
                     identifier: String::from("author"),
                     expression: ast::Expression::InternalFunction(ast::InternalFunction::AuthorId(
-                        Box::new(ast::Expression::Identifier(String::from("self"))),
+                        Box::new(ast::Expression::Identifier(String::from("this"))),
                     )),
                 }),
                 ast::Statement::Let(ast::LetStatement {
