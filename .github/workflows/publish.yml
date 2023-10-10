@@ -16,7 +16,7 @@ jobs:
           allowUpdates: true
           prerelease: false
           makeLatest: legacy
-          token: ${{ secrets.GH_DOTCOM_TOKEN }}
+          token: ${{ secrets.CC_BUILD_TOKEN }}
     outputs:
       upload-url: ${{ steps.release.outputs.upload_url }}
 
@@ -44,7 +44,7 @@ jobs:
       - name: Upload docs to tagged release
         uses: actions/upload-release-asset@v1.0.2
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_DOTCOM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.CC_BUILD_TOKEN }}
         with:
           upload_url: ${{ needs.release.outputs.upload-url }}
           asset_path: docs/docs.zip
