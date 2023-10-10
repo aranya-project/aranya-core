@@ -1,0 +1,24 @@
+- !Init {id: 0, policy: 0}
+- !Command {id: 1, parent: 0, priority: 0, payload: [0,1]}
+
+- !Command {id: 2, parent: 1, priority: 0, payload: [0,2]}
+- !Command {id: 3, parent: 2, priority: 0, payload: [0,3]}
+
+- !Command {id: 4, parent: 1, priority: 0, payload: [0,4]}
+- !Command {id: 5, parent: 4, priority: 0, payload: [0,5]}
+
+- !Command {id: 6, parent: 4, priority: 0, payload: [0,6]}
+- !Command {id: 7, parent: 6, priority: 0, payload: [0,7]}
+
+- !Heads 3
+- !Segments 5
+- !Orphans 0
+
+- !AutoMerge
+
+- !Heads 1
+- !Segments 7
+- !Orphans 0
+
+
+    

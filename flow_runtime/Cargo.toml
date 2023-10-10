@@ -1,0 +1,18 @@
+[package]
+name = "flow3_runtime"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crypto = { path = "../crypto" }
+heapless = { workspace = true, features = ["serde"] }
+postcard = { workspace = true }
+rand = { workspace = true, default-features = false}
+serde = { workspace = true, default-features = false }
+vec1 = { version = "1.10.1", default-features = false }
+
+[dev-dependencies]
+serde_yaml = "0.9"
+dot-writer = "0.1.3"

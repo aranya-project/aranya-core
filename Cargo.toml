@@ -6,7 +6,7 @@ members = [
 	"crypto",
 	"idam",
 	"policy-lang",
-	"runtime",
+	"flow_runtime",
 	"service"
 ]
 

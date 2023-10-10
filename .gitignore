@@ -12,3 +12,5 @@ Cargo.lock
 # will have compiled files and executables
 /target
 /Cargo.lock
+
+.ignore/

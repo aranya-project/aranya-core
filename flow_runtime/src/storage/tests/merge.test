@@ -1,0 +1,10 @@
+- !Init {id: 0, policy: 0}
+- !Command {id: 1, parent: 0, priority: 0, payload: [0,1]}
+- !Command {id: 2, parent: 0, priority: 0, payload: [0,2]}
+- !Merge {id: 3, left: 1, right: 2}
+- !Command {id: 4, parent: 3, priority: 0, payload: [0,4]}
+
+- !Heads 1
+- !Segments 4
+- !Orphans 0
+    

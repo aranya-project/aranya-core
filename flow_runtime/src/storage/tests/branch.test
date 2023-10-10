@@ -1,0 +1,6 @@
+- !Init {id: 0, policy: 0}
+- !Command {id: 1, parent: 0, priority: 0, payload: [0,1]}
+- !Command {id: 2, parent: 0, priority: 0, payload: [0,2]}
+
+- !Heads 2
+- !Segments 3    
