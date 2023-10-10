@@ -363,6 +363,17 @@ macro_rules! aead_impl {
         #[repr(align(16))]
         pub struct $type(EVP_AEAD_CTX);
 
+        // SAFETY: nothing precludes it from being sent across
+        // threads.
+        unsafe impl Send for $type {}
+
+        // SAFETY: the BoringSSL docs state that
+        // `EVP_AEAD_CTX_seal`, `EVP_AEAD_CTX_open`,
+        // `EVP_AEAD_CTX_seal_scatter`, and
+        // `EVP_AEAD_CTX_open_gather` may be used concurrently
+        // concurrently.
+        unsafe impl Sync for $type {}
+
         impl ZeroizeOnDrop for $type {}
         impl Drop for $type {
             fn drop(&mut self) {

@@ -36,7 +36,6 @@ use {
     },
     core::{
         borrow::Borrow,
-        cell::RefCell,
         cmp,
         ffi::c_void,
         fmt::{self, Debug},
@@ -86,7 +85,15 @@ fn ct_be_lt(x: &[u8], y: &[u8]) -> Choice {
 }
 
 /// AES-256-GCM.
-pub struct Aes256Gcm(RefCell<br_aes_ct_ctr_keys>);
+pub struct Aes256Gcm(br_aes_ct_ctr_keys);
+
+// SAFETY: nothing precludes `Aes256Gcm` from being sent across
+// threads.
+unsafe impl Send for Aes256Gcm {}
+
+// SAFETY: its internal state is never modified, so `&Aes256Gcm`
+// is allowed to be shared across threads.
+unsafe impl Sync for Aes256Gcm {}
 
 impl ZeroizeOnDrop for Aes256Gcm {}
 impl Drop for Aes256Gcm {
@@ -94,7 +101,7 @@ impl Drop for Aes256Gcm {
         // Per the BearSSL docs we're not really supposed to
         // fiddle with these fields, but since we're about to
         // drop the memory it's probably fine.
-        self.0.get_mut().skey.zeroize();
+        self.0.skey.zeroize();
     }
 }
 
@@ -125,7 +132,7 @@ impl Aead for Aes256Gcm {
                 key.len(),
             );
         }
-        Self(RefCell::new(bc))
+        Self(bc)
     }
 
     fn seal_in_place(
@@ -148,7 +155,10 @@ impl Aead for Aes256Gcm {
             let mut gc = br_gcm_context::default();
             br_gcm_init(
                 ptr::addr_of_mut!(gc),
-                ptr::addr_of_mut!(self.0.borrow_mut().vtable),
+                // NB: the vtable isn't modified, but the API
+                // does not use `const T*`, so we have to cast to
+                // `*mut`.
+                ptr::addr_of!(self.0.vtable).cast_mut(),
                 Some(br_ghash_ctmul),
             );
             br_gcm_reset(
@@ -193,7 +203,10 @@ impl Aead for Aes256Gcm {
             let mut gc = br_gcm_context::default();
             br_gcm_init(
                 ptr::addr_of_mut!(gc),
-                ptr::addr_of_mut!(self.0.borrow_mut().vtable),
+                // NB: the vtable isn't modified, but the API
+                // does not use `const T*`, so we have to cast to
+                // `*mut`.
+                ptr::addr_of!(self.0.vtable).cast_mut(),
                 Some(br_ghash_ctmul),
             );
             br_gcm_reset(
