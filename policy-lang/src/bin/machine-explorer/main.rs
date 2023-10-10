@@ -5,7 +5,7 @@ use std::io::{stdin, Read};
 use clap::{ArgGroup, Parser, ValueEnum};
 
 use flow3_policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
-use flow3_policy_lang::machine::ffi::ProcedureIdentifier;
+use flow3_policy_lang::machine::ffi::FfiModule;
 use flow3_policy_lang::machine::*;
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -88,18 +88,26 @@ fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
     true
 }
 
-struct MachExpIO {
+struct MachExpIO<S>
+where
+    S: Stack,
+{
     facts: HashMap<(String, FactKeyList), FactValueList>,
     emits: Vec<(String, Vec<KVPair>)>,
     effects: Vec<(String, Vec<KVPair>)>,
+    modules: Vec<Box<dyn FfiModule<S, Error = MachineError>>>,
 }
 
-impl MachExpIO {
-    fn new() -> MachExpIO {
+impl<S> MachExpIO<S>
+where
+    S: Stack,
+{
+    fn new() -> Self {
         MachExpIO {
             facts: HashMap::new(),
             emits: vec![],
             effects: vec![],
+            modules: vec![],
         }
     }
 }
@@ -121,7 +129,7 @@ impl Iterator for MachExpQueryIterator {
     }
 }
 
-impl<S> MachineIO<S> for MachExpIO
+impl<S> MachineIO<S> for MachExpIO<S>
 where
     S: Stack,
 {
@@ -182,8 +190,11 @@ where
         self.effects.push((name, fields))
     }
 
-    fn call(&self, _procedure_id: ProcedureIdentifier, _stack: &mut S) -> Result<(), MachineError> {
-        todo!();
+    fn call(&self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError> {
+        self.modules
+            .get(module)
+            .ok_or(MachineError::new(MachineErrorType::NotDefined))?
+            .call(procedure, stack)
     }
 }
 

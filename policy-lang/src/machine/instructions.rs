@@ -42,6 +42,8 @@ pub enum Instruction {
     Last,
     /// Call regular function at target
     Call(Target),
+    /// Call external function (FFI), specified by module, procedure indices. The FFI modules should be added to the MachineIO.
+    ExtCall(usize, usize),
     /// Return to the last address on the control flow stack
     Return,
     /// End execution non-fatally
@@ -119,6 +121,7 @@ impl Display for Instruction {
             Instruction::Last => write!(f, "last"),
             Instruction::Call(Target::Resolved(t)) => write!(f, "call {}", t),
             Instruction::Call(Target::Unresolved(s)) => write!(f, "call <{}>", s),
+            Instruction::ExtCall(module, proc) => write!(f, "extcall {} {}", module, proc),
             Instruction::Return => write!(f, "return"),
             Instruction::Exit => write!(f, "exit"),
             Instruction::Panic => write!(f, "panic"),

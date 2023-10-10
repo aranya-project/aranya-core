@@ -273,7 +273,7 @@ where
         let instruction = self.machine.progmem[self.pc()].clone();
         match instruction {
             Instruction::Const(v) => {
-                self.stack.push(v).map_err(|e| self.err(e))?;
+                self.ipush(v)?;
             }
             Instruction::Def => {
                 let key = self.ipop()?;
@@ -365,6 +365,7 @@ where
                 self.defs = s.defs;
                 self.pc = s.return_address;
             }
+            Instruction::ExtCall(module, proc) => self.io.call(module, proc, &mut self.stack)?,
             Instruction::Exit => return Ok(MachineStatus::Exited),
             Instruction::Panic => return Ok(MachineStatus::Panicked),
             Instruction::Add | Instruction::Sub => {
@@ -431,9 +432,7 @@ where
             Instruction::StructNew => {
                 let name = self.ipop()?;
                 let fields = BTreeMap::new();
-                self.stack
-                    .push(Value::Struct(Struct { name, fields }))
-                    .map_err(|e| self.err(e))?;
+                self.ipush(Struct { name, fields })?;
             }
             Instruction::StructSet => {
                 let field_name = self.ipop()?;

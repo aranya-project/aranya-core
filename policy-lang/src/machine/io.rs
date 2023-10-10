@@ -5,7 +5,6 @@ use cfg_if::cfg_if;
 use super::Stack;
 use crate::machine::data::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 use crate::machine::error::{MachineError, MachineErrorType};
-use crate::machine::ffi::ProcedureIdentifier;
 
 cfg_if! {
     if #[cfg(feature = "std")] {
@@ -80,5 +79,5 @@ where
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
 
     /// Call external function, i.e. one defined in a FFIModule
-    fn call(&self, procedure_id: ProcedureIdentifier, stack: &mut S) -> Result<(), MachineError>;
+    fn call(&self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError>;
 }

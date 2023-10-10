@@ -83,7 +83,7 @@ pub struct MachineError {
 }
 
 impl MachineError {
-    pub(crate) fn new(err_type: MachineErrorType) -> MachineError {
+    pub fn new(err_type: MachineErrorType) -> MachineError {
         MachineError {
             err_type,
             instruction: None,
@@ -113,3 +113,9 @@ impl fmt::Display for MachineError {
 #[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
 #[cfg(any(feature = "error_in_core", feature = "std"))]
 impl error::Error for MachineError {}
+
+impl From<MachineErrorType> for MachineError {
+    fn from(value: MachineErrorType) -> Self {
+        MachineError::new(value)
+    }
+}

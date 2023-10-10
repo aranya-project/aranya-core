@@ -3,13 +3,14 @@ use alloc::collections::{btree_map, BTreeMap};
 
 use anyhow;
 
-use super::ffi::{FfiModule, ProcedureIdentifier};
-use crate::lang::ast::{self, FfiFunctionDefinition, FieldDefinition, VType};
+use super::ffi::FfiModule;
+use super::MachineError;
+use crate::lang::ast::{self, FfiFunctionColor, FfiFunctionDefinition, FieldDefinition, VType};
 use crate::lang::{parse_policy_str, Version};
 use crate::machine::{
     CompileError, Fact, FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair,
-    Machine, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState,
-    Stack, Struct, Value,
+    Machine, MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState, Stack, Struct,
+    Value,
 };
 
 struct TestIO<S>
@@ -133,14 +134,15 @@ where
 
     fn call(
         &self,
-        procedure_id: ProcedureIdentifier,
+        module: usize,
+        procedure: usize,
         stack: &mut S,
     ) -> Result<(), super::MachineError> {
-        let module = self
-            .modules
-            .get(procedure_id.module)
-            .expect("Module not found");
-        module.call(procedure_id.procedure, stack)
+        let module = self.modules.get(module);
+        match module {
+            Some(module) => module.call(procedure, stack),
+            None => Err(MachineError::new(MachineErrorType::NotDefined)),
+        }
     }
 }
 
@@ -671,9 +673,9 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
 
 // --- FFI ---
 
-struct PrintFFI {}
+struct PrintFfi {}
 
-impl<S> FfiModule<S> for PrintFFI
+impl<S> FfiModule<S> for PrintFfi
 where
     S: Stack,
 {
@@ -683,9 +685,10 @@ where
         vec![FfiFunctionDefinition {
             name: "print".to_string(),
             args: vec![FieldDefinition {
-                identifier: "a".to_string(),
+                identifier: "s".to_string(),
                 field_type: VType::String,
             }],
+            color: FfiFunctionColor::Pure(VType::String),
         }]
     }
 
@@ -693,17 +696,16 @@ where
         match procedure {
             0 => {
                 // pop args off the stack
-                let a: String = stack.pop().unwrap_or_else(|_| panic!("Stack underflow"));
-                println!("a: {}", a);
+                let s: String = stack.pop()?;
 
                 // Push something (the uppercased value) back onto the stack so the caller can verify this function was called.
                 stack
-                    .push(Value::String(a.to_uppercase()))
+                    .push(Value::String(s.to_uppercase()))
                     .expect("can't push");
 
                 Ok(())
             }
-            _ => panic!("Invalid procedure."),
+            _ => Err(MachineError::new(MachineErrorType::NotDefined)),
         }
     }
 }
@@ -712,24 +714,90 @@ where
 fn test_ffi() {
     // Add FFI module to TestIO
     let mut io = TestIO::new();
-    io.modules.push(Box::new(PrintFFI {}));
+    io.modules.push(Box::new(PrintFfi {}));
 
     // Push value onto stack, and call FFI function
     let mut stack = TestStack::new();
     stack
         .push(Value::String("hello".to_string()))
         .expect("can't push");
-    let result = io.call(
-        ProcedureIdentifier {
-            module: 0,
-            procedure: 0,
-        },
-        &mut stack,
-    );
+    io.call(0, 0, &mut stack).expect("Should succeed");
 
     // Verify function was called
-    assert!(result.is_ok());
     assert!(stack.pop::<String>().expect("should have return value") == "HELLO");
+}
+
+#[test]
+fn test_extcall() {
+    let machine = Machine::new([
+        Instruction::Const(Value::String("hi".to_string())),
+        Instruction::ExtCall(0, 0),
+        Instruction::Exit,
+    ]);
+    let mut io = TestIO::new();
+    io.modules.push(Box::new(PrintFfi {}));
+    let mut rs = machine.create_run_state(&mut io);
+
+    rs.run().expect("Should succeed");
+
+    // Verify we got expected return value
+    let ret_val = rs
+        .stack
+        .peek_value()
+        .expect("Should have return value on the stack");
+    assert!(*ret_val == Value::String("HI".to_string()));
+}
+
+#[test]
+fn test_extcall_invalid_module() {
+    let machine = Machine::new([
+        Instruction::Const(Value::String("hi".to_string())),
+        Instruction::ExtCall(1, 0), // invalid module id
+        Instruction::Exit,
+    ]);
+    let mut io = TestIO::new();
+    io.modules.push(Box::new(PrintFfi {}));
+    let mut rs = machine.create_run_state(&mut io);
+
+    assert_eq!(
+        rs.run().unwrap_err(),
+        MachineError::new(MachineErrorType::NotDefined)
+    );
+}
+
+#[test]
+fn test_extcall_invalid_proc() {
+    let machine = Machine::new([
+        Instruction::Const(Value::String("hi".to_string())),
+        Instruction::ExtCall(0, 1), // invalid proc id
+        Instruction::Exit,
+    ]);
+    let mut io = TestIO::new();
+    io.modules.push(Box::new(PrintFfi {}));
+    let mut rs = machine.create_run_state(&mut io);
+
+    assert_eq!(
+        rs.run().unwrap_err(),
+        MachineError::new(MachineErrorType::NotDefined)
+    );
+}
+
+#[test]
+fn test_extcall_invalid_arg() {
+    let machine = Machine::new([
+        Instruction::Const(Value::Int(0)), // function expects string
+        Instruction::ExtCall(0, 0),
+        Instruction::Exit,
+    ]);
+    let mut io = TestIO::new();
+    io.modules.push(Box::new(PrintFfi {}));
+    let mut rs = machine.create_run_state(&mut io);
+
+    // Empty stack - should fail
+    assert_eq!(
+        rs.run().unwrap_err(),
+        MachineError::new(MachineErrorType::InvalidType)
+    );
 }
 
 #[test]
