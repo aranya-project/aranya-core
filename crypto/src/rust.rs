@@ -14,7 +14,7 @@ use {
     crate::{
         aead::{
             check_open_in_place_params, check_seal_in_place_params, Aead, AeadError, AeadId,
-            AeadKey, Lifetime, Nonce,
+            AeadKey, IndCca2, Lifetime, Nonce,
         },
         csprng::Csprng,
         ec::{Curve, Secp256r1, Secp384r1},
@@ -117,6 +117,8 @@ impl Aead for Aes256Gcm {
             .map_err(|_| AeadError::Authentication)
     }
 }
+
+impl IndCca2 for Aes256Gcm {}
 
 #[cfg(feature = "committing-aead")]
 mod committing {

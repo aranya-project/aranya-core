@@ -16,7 +16,7 @@ use {
     crate::{
         aead::{
             check_open_in_place_params, check_seal_in_place_params, Aead, AeadError, AeadId,
-            AeadKey, Lifetime, Nonce,
+            AeadKey, IndCca2, Lifetime, Nonce,
         },
         asn1::{max_sig_len, raw_sig_len, RawSig, Sig},
         csprng::Csprng,
@@ -104,6 +104,8 @@ impl Drop for Aes256Gcm {
         self.0.skey.zeroize();
     }
 }
+
+impl IndCca2 for Aes256Gcm {}
 
 impl Aead for Aes256Gcm {
     const ID: AeadId = AeadId::Aes256Gcm;

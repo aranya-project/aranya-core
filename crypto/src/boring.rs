@@ -16,8 +16,8 @@ use {
     crate::{
         aead::{
             check_open_in_place_params, check_open_params, check_seal_in_place_params,
-            check_seal_params, Aead, AeadError, AeadId, AeadKey, BufferTooSmallError, Lifetime,
-            Nonce,
+            check_seal_params, Aead, AeadError, AeadId, AeadKey, BufferTooSmallError, IndCca2,
+            Lifetime, Nonce,
         },
         asn1::{max_sig_len, EncodingError, Sig},
         csprng::Csprng,
@@ -349,7 +349,7 @@ fn ec_import_error() -> ImportError {
     }
 }
 
-macro_rules! aead_impl {
+macro_rules! indcca2_aead_impl {
     (
         $type:ident,
         $doc:expr,
@@ -381,6 +381,8 @@ macro_rules! aead_impl {
                 unsafe { EVP_AEAD_CTX_cleanup(ptr::addr_of_mut!(self.0)) }
             }
         }
+
+        impl IndCca2 for $type {}
 
         impl Aead for $type {
             const ID: AeadId = $id;
@@ -588,7 +590,7 @@ macro_rules! aead_impl {
         }
     };
 }
-aead_impl!(
+indcca2_aead_impl!(
     Aes256Gcm,
     "AES-256-GCM",
     EVP_aead_aes_256_gcm,
@@ -1932,7 +1934,7 @@ mod fun_crypto {
     // currently support EVP_AEAD_CTX_open_gather.
 
     #[cfg(any(docs, not(target_arch = "x86_64")))]
-    aead_impl!(
+    indcca2_aead_impl!(
         Aes256GcmSiv,
         "AES-256-GCM-SIV",
         bssl_sys::EVP_aead_aes_256_gcm_siv,
@@ -1947,7 +1949,7 @@ mod fun_crypto {
         AeadId::Other(unsafe { core::num::NonZeroU16::new_unchecked(0xfffe) }),
     );
 
-    aead_impl!(
+    indcca2_aead_impl!(
         ChaCha20Poly1305,
         "ChaCha20-Poly1305",
         EVP_aead_chacha20_poly1305,
@@ -2253,7 +2255,7 @@ mod fun_crypto {
             where
                 K: Kem<Encap = [u8; 32], DecapKey = X25519PrivateKey, EncapKey = X25519PublicKey>,
                 F: Kdf,
-                A: Aead,
+                A: Aead + IndCca2,
             {
                 let small_order = K::EncapKey::import([
                     0xe0, 0xeb, 0x7a, 0x7c, 0x3b, 0x41, 0xb8, 0xae, 0x16, 0x56, 0xe3, 0xfa, 0xf1,

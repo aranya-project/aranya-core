@@ -11,7 +11,7 @@
 
 use {
     crate::{
-        aead::{Aead, AeadError, AeadId, Lifetime},
+        aead::{Aead, AeadError, AeadId, IndCca2, Lifetime},
         ciphersuite::CipherSuite,
         csprng::Csprng,
         hash::Hash,
@@ -298,7 +298,7 @@ impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for SignatureWithDefaults<T> {
 
 /// A test [`CipherSuite`].
 pub struct TestCs<
-    A: Aead,
+    A: Aead + IndCca2,
     H: Hash<Digest = [u8; 64]>,
     F: Kdf,
     K: Kem,
@@ -308,7 +308,7 @@ pub struct TestCs<
 
 impl<A, H, F, K, M, S> CipherSuite for TestCs<A, H, F, K, M, S>
 where
-    A: Aead,
+    A: Aead + IndCca2,
     H: Hash<Digest = [u8; 64]>,
     F: Kdf,
     K: Kem,
@@ -1800,7 +1800,7 @@ pub mod hpke {
 
     use {
         crate::{
-            aead::Aead,
+            aead::{Aead, IndCca2},
             csprng::Csprng,
             hpke::{Hpke, Mode, RecvCtx, SendCtx},
             kdf::Kdf,
@@ -1812,7 +1812,7 @@ pub mod hpke {
 
     /// Tests the full encryption-decryption cycle.
     #[allow(non_snake_case)]
-    pub fn test_round_trip<K: Kem, F: Kdf, A: Aead, R: Csprng>(rng: &mut R) {
+    pub fn test_round_trip<K: Kem, F: Kdf, A: Aead + IndCca2, R: Csprng>(rng: &mut R) {
         const GOLDEN: &[u8] = b"some plaintext";
         const AD: &[u8] = b"some additional data";
         const INFO: &[u8] = b"some contextual binding";
@@ -2294,7 +2294,7 @@ pub mod vectors {
     use {
         super::{AeadWithDefaults, KdfWithDefaults, MacWithDefaults, SignerWithDefaults},
         crate::{
-            aead::Aead,
+            aead::{Aead, IndCca2},
             hpke::Hpke,
             hpke::SendCtx,
             import::Import,
@@ -2740,7 +2740,7 @@ pub mod vectors {
     where
         K: Kem,
         F: Kdf,
-        A: Aead,
+        A: Aead + IndCca2,
     {
         let set = hpke::TestSet::load(name).expect("should be able to load tests");
         for (i, g) in set.test_groups.iter().enumerate() {

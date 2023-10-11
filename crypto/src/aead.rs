@@ -602,6 +602,10 @@ impl<const N: usize> TryFrom<&[u8]> for Nonce<N> {
     }
 }
 
+/// A marker trait signifying that the [`Aead`] is IND-CCA2
+/// secure.
+pub trait IndCca2: Aead {}
+
 /// A marker trait signifying that the [`Aead`] is committing.
 pub trait CommittingAead: Aead {}
 

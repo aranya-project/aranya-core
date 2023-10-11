@@ -22,7 +22,7 @@
 
 use {
     crate::{
-        aead::{Aead, AeadError, KeyData},
+        aead::{Aead, AeadError, IndCca2, KeyData},
         csprng::Csprng,
         import::{ExportError, Import, ImportError},
         kdf::{Kdf, KdfError},
@@ -377,13 +377,13 @@ impl From<ExportError> for HpkeError {
 /// Hybrid Public Key Encryption (HPKE) per [RFC 9180].
 ///
 /// [RFC 9180]: <https://www.rfc-editor.org/rfc/rfc9180.html>
-pub struct Hpke<K: Kem, F: Kdf, A: Aead> {
+pub struct Hpke<K, F, A> {
     _kem: PhantomData<K>,
     _kdf: PhantomData<F>,
     _aead: PhantomData<A>,
 }
 
-impl<K: Kem, F: Kdf, A: Aead> Hpke<K, F, A> {
+impl<K: Kem, F: Kdf, A: Aead + IndCca2> Hpke<K, F, A> {
     /// Creates a randomized encryption context for encrypting
     /// messages for the receiver, `pkR`.
     ///
@@ -586,9 +586,9 @@ impl<F: Kdf> Info<'_, F> {
 
 /// An encryption context that encrypts messages for a particular
 /// recipient.
-pub struct SendCtx<K: Kem, F: Kdf, A: Aead>(Context<K, F, A>);
+pub struct SendCtx<K: Kem, F: Kdf, A: Aead + IndCca2>(Context<K, F, A>);
 
-impl<K: Kem, F: Kdf, A: Aead> SendCtx<K, F, A> {
+impl<K: Kem, F: Kdf, A: Aead + IndCca2> SendCtx<K, F, A> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = A::OVERHEAD;
 
@@ -619,9 +619,9 @@ impl<K: Kem, F: Kdf, A: Aead> SendCtx<K, F, A> {
 
 /// An encryption context that decrypts messages from
 /// a particular sender.
-pub struct RecvCtx<K: Kem, F: Kdf, A: Aead>(Context<K, F, A>);
+pub struct RecvCtx<K: Kem, F: Kdf, A: Aead + IndCca2>(Context<K, F, A>);
 
-impl<K: Kem, F: Kdf, A: Aead> RecvCtx<K, F, A> {
+impl<K: Kem, F: Kdf, A: Aead + IndCca2> RecvCtx<K, F, A> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = A::OVERHEAD;
 
@@ -651,7 +651,7 @@ impl<K: Kem, F: Kdf, A: Aead> RecvCtx<K, F, A> {
 }
 
 /// Encryption/decryption context.
-struct Context<K: Kem, F: Kdf, A: Aead> {
+struct Context<K: Kem, F: Kdf, A: Aead + IndCca2> {
     aead: A,
     base_nonce: A::Nonce,
     exporter_secret: F::Prk,
@@ -667,7 +667,7 @@ struct Context<K: Kem, F: Kdf, A: Aead> {
     _kem: PhantomData<K>,
 }
 
-impl<K: Kem, F: Kdf, A: Aead> Context<K, F, A> {
+impl<K: Kem, F: Kdf, A: Aead + IndCca2> Context<K, F, A> {
     fn new(key: &A::Key, base_nonce: A::Nonce, exporter_secret: F::Prk) -> Self {
         Context {
             aead: A::new(key),

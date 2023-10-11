@@ -20,7 +20,7 @@
 
 use {
     crate::{
-        aead::{Aead, AeadId},
+        aead::{Aead, AeadId, IndCca2},
         hash::{Hash, HashId},
         kdf::{Kdf, KdfId},
         kem::{Kem, KemId},
@@ -52,7 +52,7 @@ use {
 /// `test_util` module.
 pub trait CipherSuite {
     /// See [`Aead`] for more information.
-    type Aead: Aead;
+    type Aead: Aead + IndCca2;
     /// See [`Hash`] for more information.
     type Hash: Hash<Digest = [u8; 64]>;
     /// See [`Kdf`] for more information.
