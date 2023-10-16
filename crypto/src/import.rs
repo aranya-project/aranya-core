@@ -5,14 +5,13 @@
 //! This is a low-level module. You should not be using it
 //! directly unless you are implementing an engine.
 
-use {
-    cfg_if::cfg_if,
-    core::{
-        fmt::{self, Display},
-        ops::Range,
-        result::Result,
-    },
+use core::{
+    fmt::{self, Display},
+    ops::Range,
+    result::Result,
 };
+
+use cfg_if::cfg_if;
 
 cfg_if! {
     if #[cfg(feature = "error_in_core")] {

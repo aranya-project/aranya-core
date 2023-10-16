@@ -14,18 +14,18 @@
 //! [ed25519-dalek]: https://github.com/dalek-cryptography/ed25519-dalek
 //! [weak-key]: https://github.com/dalek-cryptography/ed25519-dalek/tree/58a967f6fb28806a21180c880bbec4fdeb907aef#weak-key-forgery-and-verify_strict
 
-use {
-    crate::{
-        csprng::Csprng,
-        hex::ToHex,
-        import::{try_import, ExportError, Import, ImportError},
-        keys::{PublicKey, RawKey, SecretKey},
-        signer::{self, Signer, SignerError, SignerId},
-        zeroize::{ZeroizeOnDrop, Zeroizing},
-    },
-    core::fmt::{self, Debug},
-    ed25519_dalek as dalek,
-    subtle::{Choice, ConstantTimeEq},
+use core::fmt::{self, Debug};
+
+use ed25519_dalek as dalek;
+use subtle::{Choice, ConstantTimeEq};
+
+use crate::{
+    csprng::Csprng,
+    hex::ToHex,
+    import::{try_import, ExportError, Import, ImportError},
+    keys::{PublicKey, RawKey, SecretKey},
+    signer::{self, Signer, SignerError, SignerId},
+    zeroize::{ZeroizeOnDrop, Zeroizing},
 };
 
 /// EdDSA using Ed25519.
@@ -199,7 +199,8 @@ impl Import<&[u8]> for Signature {
 
 #[cfg(test)]
 mod tests {
-    use {super::*, crate::test_util::test_signer};
+    use super::*;
+    use crate::test_util::test_signer;
 
     test_signer!(ed25519, Ed25519, EddsaTest::Ed25519);
 }

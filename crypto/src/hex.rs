@@ -1,20 +1,19 @@
 //! Constant time hexadecimal encoding and decoding.
 
-use {
-    cfg_if::cfg_if,
-    core::{
-        borrow::Borrow,
-        fmt,
-        ops::{Div, Rem, Shl},
-        result::Result,
-        str,
-    },
-    generic_array::{functional::FunctionalSequence, ArrayLength, GenericArray},
-    subtle::{Choice, ConditionallySelectable},
-    typenum::{
-        consts::{U128, U133, U16, U2, U32, U33, U48, U49, U64, U65, U66, U67, U97},
-        Double, Integer, PartialQuot, Unsigned, B1, Z0,
-    },
+use core::{
+    borrow::Borrow,
+    fmt,
+    ops::{Div, Rem, Shl},
+    result::Result,
+    str,
+};
+
+use cfg_if::cfg_if;
+use generic_array::{functional::FunctionalSequence, ArrayLength, GenericArray};
+use subtle::{Choice, ConditionallySelectable};
+use typenum::{
+    consts::{U128, U133, U16, U2, U32, U33, U48, U49, U64, U65, U66, U67, U97},
+    Double, Integer, PartialQuot, Unsigned, B1, Z0,
 };
 
 cfg_if! {

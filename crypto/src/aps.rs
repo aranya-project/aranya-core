@@ -2,18 +2,17 @@
 //!
 //! [APS]: https://github.com/spideroak-inc/aps
 
-use {
-    crate::{
-        aead::KeyData,
-        aranya::{Encap, EncryptionKey, EncryptionPublicKey, UserId},
-        ciphersuite::SuiteIds,
-        engine::Engine,
-        error::Error,
-        hash::tuple_hash,
-        hpke::{Hpke, Mode},
-        id::Id,
-    },
-    core::borrow::{Borrow, BorrowMut},
+use core::borrow::{Borrow, BorrowMut};
+
+use crate::{
+    aead::KeyData,
+    aranya::{Encap, EncryptionKey, EncryptionPublicKey, UserId},
+    ciphersuite::SuiteIds,
+    engine::Engine,
+    error::Error,
+    hash::tuple_hash,
+    hpke::{Hpke, Mode},
+    id::Id,
 };
 
 // This is different from the rest of the `crypto` API in that it

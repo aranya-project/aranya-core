@@ -5,20 +5,20 @@
 //! This is a low-level module. You should not be using it
 //! directly unless you are implementing an engine.
 
-use {
-    crate::{
-        hex::{HexString, ToHex},
-        import::{Import, ImportError, InvalidSizeError},
-        zeroize::{Zeroize, ZeroizeOnDrop},
-    },
-    core::{
-        borrow::{Borrow, BorrowMut},
-        fmt::Debug,
-        ops::Shl,
-    },
-    generic_array::{ArrayLength, GenericArray, IntoArrayLength},
-    subtle::{Choice, ConstantTimeEq},
-    typenum::{Const, Double, Unsigned, B1, U133, U32, U33, U48, U49, U65, U66, U67, U97},
+use core::{
+    borrow::{Borrow, BorrowMut},
+    fmt::Debug,
+    ops::Shl,
+};
+
+use generic_array::{ArrayLength, GenericArray, IntoArrayLength};
+use subtle::{Choice, ConstantTimeEq};
+use typenum::{Const, Double, Unsigned, B1, U133, U32, U33, U48, U49, U65, U66, U67, U97};
+
+use crate::{
+    hex::{HexString, ToHex},
+    import::{Import, ImportError, InvalidSizeError},
+    zeroize::{Zeroize, ZeroizeOnDrop},
 };
 
 // TODO(eric): validate the input for `Uncompressed`,

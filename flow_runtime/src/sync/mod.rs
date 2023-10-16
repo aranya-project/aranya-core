@@ -1,16 +1,17 @@
 //! Interface for syncing state between clients.
 
+use alloc::vec;
+use core::mem;
+
+use heapless::Vec;
+use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
+use serde::{Deserialize, Serialize};
+
 use crate::{
     command::{Command, Id, Parent, Priority},
     engine::EngineError,
     storage::{Location, Segment, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH},
 };
-
-use {alloc::vec, core::mem};
-
-use heapless::Vec;
-use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
-use serde::{Deserialize, Serialize};
 
 // TODO: These should all be compile time parameters
 

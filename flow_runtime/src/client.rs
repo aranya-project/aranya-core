@@ -1,8 +1,10 @@
-use super::*;
-
-use alloc::collections::{BTreeSet, BinaryHeap, VecDeque};
-use alloc::vec::Vec;
+use alloc::{
+    collections::{BTreeSet, BinaryHeap, VecDeque},
+    vec::Vec,
+};
 use core::marker::PhantomData;
+
+use super::*;
 
 #[derive(Debug)]
 pub enum ClientError {

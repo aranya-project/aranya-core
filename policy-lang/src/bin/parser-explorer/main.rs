@@ -1,11 +1,12 @@
-use std::fs::OpenOptions;
-use std::io::{stdin, BufRead, BufReader, Read};
-use std::process::ExitCode;
+use std::{
+    fs::OpenOptions,
+    io::{stdin, BufRead, BufReader, Read},
+    process::ExitCode,
+};
 
 use clap::{Parser, ValueEnum};
-use pest::Parser as PestParser;
-
 use flow3_policy_lang::lang::*;
+use pest::Parser as PestParser;
 
 #[derive(Parser, Debug)]
 #[command(name = "parser explorer", version)]

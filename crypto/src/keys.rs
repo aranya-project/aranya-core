@@ -7,18 +7,18 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        csprng::Csprng,
-        import::{ExportError, Import},
-        zeroize::ZeroizeOnDrop,
-    },
-    core::{
-        borrow::{Borrow, BorrowMut},
-        fmt::Debug,
-        result::Result,
-    },
-    subtle::ConstantTimeEq,
+use core::{
+    borrow::{Borrow, BorrowMut},
+    fmt::Debug,
+    result::Result,
+};
+
+use subtle::ConstantTimeEq;
+
+use crate::{
+    csprng::Csprng,
+    import::{ExportError, Import},
+    zeroize::ZeroizeOnDrop,
 };
 
 /// A fixed-length secret key.

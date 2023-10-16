@@ -1,11 +1,9 @@
-use super::*;
-
-use alloc::boxed::Box;
-use alloc::collections::BTreeMap;
-use alloc::rc::Rc;
-use alloc::{vec, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, rc::Rc, vec, vec::Vec};
 use core::ops::Deref;
+
 use vec1::Vec1;
+
+use super::*;
 
 #[derive(Debug)]
 pub struct MemCommand {
@@ -664,11 +662,11 @@ impl Perspective for MemPerspective {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     use std::{fs::File, io::BufWriter};
 
     use dot_writer::{Attributes, DotWriter, Style};
+
+    use super::*;
 
     struct TestCommand {
         id: Id,

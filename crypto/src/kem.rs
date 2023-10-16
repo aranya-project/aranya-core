@@ -7,23 +7,23 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        csprng::Csprng,
-        import::{Import, ImportError},
-        kdf::{Kdf, KdfError},
-        keys::{PublicKey, SecretKey},
-        zeroize::ZeroizeOnDrop,
-    },
-    cfg_if::cfg_if,
-    core::{
-        array::TryFromSliceError,
-        borrow::{Borrow, BorrowMut},
-        fmt::{self, Debug, Display},
-        marker::PhantomData,
-        result::Result,
-    },
-    subtle::ConstantTimeEq,
+use core::{
+    array::TryFromSliceError,
+    borrow::{Borrow, BorrowMut},
+    fmt::{self, Debug, Display},
+    marker::PhantomData,
+    result::Result,
+};
+
+use cfg_if::cfg_if;
+use subtle::ConstantTimeEq;
+
+use crate::{
+    csprng::Csprng,
+    import::{Import, ImportError},
+    kdf::{Kdf, KdfError},
+    keys::{PublicKey, SecretKey},
+    zeroize::ZeroizeOnDrop,
 };
 
 cfg_if! {

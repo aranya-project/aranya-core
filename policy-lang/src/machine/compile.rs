@@ -2,10 +2,12 @@ extern crate alloc;
 
 use alloc::collections::{btree_map, BTreeMap};
 
-use crate::lang::ast;
-use crate::machine::{Instruction, Label, LabelType, Machine, Target, Value};
-
 use cfg_if::cfg_if;
+
+use crate::{
+    lang::ast,
+    machine::{Instruction, Label, LabelType, Machine, Target, Value},
+};
 
 cfg_if! {
     if #[cfg(feature = "error_in_core")] {

@@ -3,8 +3,10 @@
 //! An [`Engine`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
-use crate::command::{Command, Id};
-use crate::storage::Perspective;
+use crate::{
+    command::{Command, Id},
+    storage::Perspective,
+};
 
 #[derive(Debug)]
 pub enum EngineError {

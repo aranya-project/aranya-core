@@ -1,9 +1,11 @@
 use std::fmt::Display;
 
-use pest::error::{Error as PestError, LineColLocation};
-use pest::iterators::{Pair, Pairs};
-use pest::pratt_parser::{Assoc, Op, PrattParser};
-use pest::{Parser, Span};
+use pest::{
+    error::{Error as PestError, LineColLocation},
+    iterators::{Pair, Pairs},
+    pratt_parser::{Assoc, Op, PrattParser},
+    Parser, Span,
+};
 
 mod markdown;
 
@@ -19,9 +21,8 @@ mod internal {
 }
 
 // Each of the rules in policy.pest becomes an enumerable value here
-pub use internal::Rule;
 // The core parser for policy documents
-pub use internal::PolicyParser;
+pub use internal::{PolicyParser, Rule};
 
 /// The kinds of errors a parse operation can produce
 ///

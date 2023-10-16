@@ -7,20 +7,20 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        import::{Import, ImportError},
-        signer::{Signature, Signer},
-        util::copy,
-    },
-    cfg_if::cfg_if,
-    core::{
-        borrow::Borrow,
-        fmt::{self, Debug},
-        marker::PhantomData,
-        result::Result,
-    },
-    der::{asn1::UintRef, Decode, Encode, Header, Reader, SliceReader, SliceWriter, Tag},
+use core::{
+    borrow::Borrow,
+    fmt::{self, Debug},
+    marker::PhantomData,
+    result::Result,
+};
+
+use cfg_if::cfg_if;
+use der::{asn1::UintRef, Decode, Encode, Header, Reader, SliceReader, SliceWriter, Tag};
+
+use crate::{
+    import::{Import, ImportError},
+    signer::{Signature, Signer},
+    util::copy,
 };
 
 cfg_if! {

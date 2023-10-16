@@ -5,10 +5,9 @@
 //! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
 //! [`Perspective`]s, which represent a slice of state.
 
-use super::*;
+use alloc::{boxed::Box, vec::Vec};
 
-use alloc::boxed::Box;
-use alloc::vec::Vec;
+use super::*;
 
 // TODO: Enable
 // pub mod linear;

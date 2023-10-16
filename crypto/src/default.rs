@@ -1,9 +1,8 @@
 #![forbid(unsafe_code)]
 
-use {
-    crate::{ciphersuite::CipherSuite, csprng::Csprng},
-    cfg_if::cfg_if,
-};
+use cfg_if::cfg_if;
+
+use crate::{ciphersuite::CipherSuite, csprng::Csprng};
 
 /// The default CSPRNG.
 ///
@@ -267,7 +266,8 @@ pub use default_engine::*;
 #[cfg(test)]
 #[allow(clippy::wildcard_imports)]
 mod test {
-    use {super::*, crate::test_util::test_ciphersuite};
+    use super::*;
+    use crate::test_util::test_ciphersuite;
 
     test_ciphersuite!(default_ciphersuite, DefaultCipherSuite);
 }

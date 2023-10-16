@@ -1,17 +1,17 @@
 //! Utility routines for `userkeys` and `apq`.
 
-use {
-    crate::{
-        ciphersuite::{CipherSuite, SuiteIds},
-        engine::Engine,
-        id::Id,
-        kem::Kem,
-        keys::{PublicKey, SecretKey},
-        signer::{Signature, Signer},
-    },
-    core::{borrow::Borrow, fmt, marker::PhantomData, result::Result},
-    postcard::experimental::max_size::MaxSize,
-    serde::{de, Deserialize, Deserializer, Serialize, Serializer},
+use core::{borrow::Borrow, fmt, marker::PhantomData, result::Result};
+
+use postcard::experimental::max_size::MaxSize;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+
+use crate::{
+    ciphersuite::{CipherSuite, SuiteIds},
+    engine::Engine,
+    id::Id,
+    kem::Kem,
+    keys::{PublicKey, SecretKey},
+    signer::{Signature, Signer},
 };
 
 // These are shorthand for lots::of::turbo::fish.

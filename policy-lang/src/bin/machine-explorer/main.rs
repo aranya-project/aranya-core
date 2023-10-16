@@ -1,12 +1,14 @@
-use std::collections::{hash_map, BTreeMap, HashMap};
-use std::fs::OpenOptions;
-use std::io::{stdin, Read};
+use std::{
+    collections::{hash_map, BTreeMap, HashMap},
+    fs::OpenOptions,
+    io::{stdin, Read},
+};
 
 use clap::{ArgGroup, Parser, ValueEnum};
-
-use flow3_policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
-use flow3_policy_lang::machine::ffi::FfiModule;
-use flow3_policy_lang::machine::*;
+use flow3_policy_lang::{
+    lang::{parse_policy_document, parse_policy_str, Version},
+    machine::{ffi::FfiModule, *},
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
 enum Mode {

@@ -2,28 +2,28 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        aead::Aead,
-        ciphersuite::SuiteIds,
-        csprng::Csprng,
-        engine::Engine,
-        error::Error,
-        groupkey::GroupKey,
-        hash::tuple_hash,
-        hpke::{Hpke, Mode},
-        id::Id,
-        import::{ExportError, Import, ImportError},
-        kem::{DecapKey, Kem},
-        keys::{PublicKey, SecretKey},
-        misc::{ciphertext, key_misc, DecapKeyData, SigData, SigningKeyData},
-        signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
-        zeroize::ZeroizeOnDrop,
-    },
-    core::{borrow::Borrow, fmt, marker::PhantomData, ops::Add, result::Result},
-    generic_array::{ArrayLength, GenericArray},
-    serde::{de, Deserialize, Deserializer, Serialize, Serializer},
-    typenum::{operator_aliases::Sum, U64},
+use core::{borrow::Borrow, fmt, marker::PhantomData, ops::Add, result::Result};
+
+use generic_array::{ArrayLength, GenericArray};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use typenum::{operator_aliases::Sum, U64};
+
+use crate::{
+    aead::Aead,
+    ciphersuite::SuiteIds,
+    csprng::Csprng,
+    engine::Engine,
+    error::Error,
+    groupkey::GroupKey,
+    hash::tuple_hash,
+    hpke::{Hpke, Mode},
+    id::Id,
+    import::{ExportError, Import, ImportError},
+    kem::{DecapKey, Kem},
+    keys::{PublicKey, SecretKey},
+    misc::{ciphertext, key_misc, DecapKeyData, SigData, SigningKeyData},
+    signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+    zeroize::ZeroizeOnDrop,
 };
 
 /// A signature created by a signing key.

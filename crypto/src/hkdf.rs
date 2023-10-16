@@ -11,14 +11,13 @@
 #![cfg_attr(docs, doc(cfg(not(fips))))]
 #![cfg(not(fips))]
 
-use {
-    crate::{
-        hash::Hash,
-        hmac::Hmac,
-        kdf::{KdfError, Prk},
-        mac::Tag,
-    },
-    core::marker::PhantomData,
+use core::marker::PhantomData;
+
+use crate::{
+    hash::Hash,
+    hmac::Hmac,
+    kdf::{KdfError, Prk},
+    mac::Tag,
 };
 
 /// HKDF for some hash `H` with a `D`-byte digest size.

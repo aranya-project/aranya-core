@@ -59,15 +59,15 @@ impl Csprng for rand::rngs::ThreadRng {
 
 #[cfg(feature = "moonshot")]
 pub(crate) mod moonshot {
-    use {
-        crate::{csprng::Csprng, kdf::Kdf, zeroize::ZeroizeOnDrop},
-        aes::{
-            cipher::{BlockEncrypt, KeyInit},
-            Aes256,
-        },
-        cfg_if::cfg_if,
-        core::iter::{IntoIterator, Iterator},
+    use core::iter::{IntoIterator, Iterator};
+
+    use aes::{
+        cipher::{BlockEncrypt, KeyInit},
+        Aes256,
     };
+    use cfg_if::cfg_if;
+
+    use crate::{csprng::Csprng, kdf::Kdf, zeroize::ZeroizeOnDrop};
 
     cfg_if! {
         if #[cfg(feature = "boringssl")] {
@@ -82,10 +82,9 @@ pub(crate) mod moonshot {
     // If `std` is enabled, use a thread-local CSPRNG.
     #[cfg(feature = "std")]
     mod inner {
-        use {
-            super::{random_key, AesCtrCsprng, Csprng, HkdfSha512, OsTrng},
-            std::{cell::UnsafeCell, rc::Rc},
-        };
+        use std::{cell::UnsafeCell, rc::Rc};
+
+        use super::{random_key, AesCtrCsprng, Csprng, HkdfSha512, OsTrng};
 
         thread_local! {
             static THREAD_RNG: Rc<UnsafeCell<[u8; 32]>> =
@@ -125,11 +124,10 @@ pub(crate) mod moonshot {
     // mutability.
     #[cfg(not(feature = "std"))]
     mod inner {
-        use {
-            super::{random_key, AesCtrCsprng, Csprng, HkdfSha512, OsTrng},
-            lazy_static::lazy_static,
-            spin::mutex::SpinMutex,
-        };
+        use lazy_static::lazy_static;
+        use spin::mutex::SpinMutex;
+
+        use super::{random_key, AesCtrCsprng, Csprng, HkdfSha512, OsTrng};
 
         lazy_static! {
             static ref THREAD_RNG: SpinMutex<[u8; 32]> =
@@ -164,7 +162,6 @@ pub(crate) mod moonshot {
     }
 
     pub(crate) use inner::thread_rng;
-
     #[cfg(test)]
     pub(crate) use inner::ThreadRng;
 
@@ -271,11 +268,10 @@ pub(crate) mod moonshot {
 
     #[cfg(test)]
     mod tests {
-        use {
-            super::{random_key, thread_rng, AesCtrCsprng, ThreadRng},
-            crate::{csprng::Csprng, kdf::Kdf},
-            rand::{rngs::OsRng, RngCore},
-        };
+        use rand::{rngs::OsRng, RngCore};
+
+        use super::{random_key, thread_rng, AesCtrCsprng, ThreadRng};
+        use crate::{csprng::Csprng, kdf::Kdf};
 
         #[no_mangle]
         unsafe extern "C" fn OS_hardware_rand() -> u32 {

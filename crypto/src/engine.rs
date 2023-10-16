@@ -7,28 +7,28 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        aead::{Aead, AeadError, AeadId},
-        apq::{ReceiverSecretKey, SenderSecretKey, SenderSigningKey},
-        aranya::{EncryptionKey, IdentityKey, SigningKey},
-        ciphersuite::CipherSuite,
-        csprng::Csprng,
-        groupkey::GroupKey,
-        id::Id,
-        import::{ExportError, Import, ImportError},
-        kem::{Kem, KemId},
-        keys::SecretKey,
-        mac::{Mac, MacId},
-        signer::{Signer, SignerId},
-    },
-    cfg_if::cfg_if,
-    core::{
-        borrow::Borrow,
-        fmt::{self, Debug, Display},
-        result::Result,
-    },
-    serde::{Deserialize, Serialize},
+use core::{
+    borrow::Borrow,
+    fmt::{self, Debug, Display},
+    result::Result,
+};
+
+use cfg_if::cfg_if;
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    aead::{Aead, AeadError, AeadId},
+    apq::{ReceiverSecretKey, SenderSecretKey, SenderSigningKey},
+    aranya::{EncryptionKey, IdentityKey, SigningKey},
+    ciphersuite::CipherSuite,
+    csprng::Csprng,
+    groupkey::GroupKey,
+    id::Id,
+    import::{ExportError, Import, ImportError},
+    kem::{Kem, KemId},
+    keys::SecretKey,
+    mac::{Mac, MacId},
+    signer::{Signer, SignerId},
 };
 
 cfg_if! {

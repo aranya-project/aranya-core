@@ -3,14 +3,17 @@ use alloc::collections::{btree_map, BTreeMap};
 
 use anyhow;
 
-use super::ffi::FfiModule;
-use super::MachineError;
-use crate::lang::ast::{self, FfiFunctionColor, FfiFunctionDefinition, FieldDefinition, VType};
-use crate::lang::{parse_policy_str, Version};
-use crate::machine::{
-    CompileError, Fact, FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair,
-    Machine, MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState, Stack, Struct,
-    Value,
+use super::{ffi::FfiModule, MachineError};
+use crate::{
+    lang::{
+        ast::{self, FfiFunctionColor, FfiFunctionDefinition, FieldDefinition, VType},
+        parse_policy_str, Version,
+    },
+    machine::{
+        CompileError, Fact, FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair,
+        Machine, MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState, Stack,
+        Struct, Value,
+    },
 };
 
 struct TestIO<S>

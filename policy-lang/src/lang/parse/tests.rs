@@ -1,5 +1,4 @@
-use std::fs::OpenOptions;
-use std::io::Read;
+use std::{fs::OpenOptions, io::Read};
 
 use pest::{error::Error as PestError, iterators::Pair, Parser};
 

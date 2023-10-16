@@ -10,29 +10,28 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        error::Unreachable,
-        keys::{raw_key, SecretKey},
-        zeroize::Zeroize,
-    },
-    cfg_if::cfg_if,
-    core::{
-        borrow::{Borrow, BorrowMut},
-        cmp::{Eq, PartialEq},
-        fmt::{self, Debug},
-        mem,
-        result::Result,
-    },
-    generic_array::ArrayLength,
-    typenum::{
-        type_operators::{IsGreaterOrEqual, IsLess},
-        Unsigned, U16, U65536,
-    },
+use core::{
+    borrow::{Borrow, BorrowMut},
+    cmp::{Eq, PartialEq},
+    fmt::{self, Debug},
+    mem,
+    result::Result,
+};
+
+use cfg_if::cfg_if;
+use generic_array::ArrayLength;
+use typenum::{
+    type_operators::{IsGreaterOrEqual, IsLess},
+    Unsigned, U16, U65536,
 };
 
 #[allow(clippy::wildcard_imports)]
 use crate::features::*;
+use crate::{
+    error::Unreachable,
+    keys::{raw_key, SecretKey},
+    zeroize::Zeroize,
+};
 
 cfg_if! {
     if #[cfg(feature = "error_in_core")] {
@@ -628,22 +627,22 @@ pub trait Cmt4Aead: Cmt3Aead {}
 
 #[cfg(feature = "committing-aead")]
 mod committing {
-    use {
-        super::{Aead, KeyData},
-        crate::error::{safe_unreachable, Unreachable},
-        core::{
-            borrow::{Borrow, BorrowMut},
-            cmp,
-            marker::PhantomData,
-            num::NonZeroU64,
-            result::Result,
-        },
-        generic_array::{ArrayLength, GenericArray},
-        typenum::{
-            type_operators::{IsGreaterOrEqual, IsLess},
-            Unsigned, U16, U65536,
-        },
+    use core::{
+        borrow::{Borrow, BorrowMut},
+        cmp,
+        marker::PhantomData,
+        num::NonZeroU64,
+        result::Result,
     };
+
+    use generic_array::{ArrayLength, GenericArray};
+    use typenum::{
+        type_operators::{IsGreaterOrEqual, IsLess},
+        Unsigned, U16, U65536,
+    };
+
+    use super::{Aead, KeyData};
+    use crate::error::{safe_unreachable, Unreachable};
 
     /// A symmetric block cipher.
     #[doc(hidden)]

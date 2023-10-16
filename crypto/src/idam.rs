@@ -7,29 +7,29 @@
 #![cfg(feature = "alloc")]
 extern crate alloc;
 
-use {
-    crate::{
-        aead::Aead,
-        aranya::{
-            Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, IdentityKey, SigningKey,
-            VerifyingKey,
-        },
-        engine::{Engine, UnwrappedKey, WrappedKey, WrongKeyTypeError},
-        error::Error,
-        groupkey::{Context, GroupKey},
-        id::Id,
-        import::InvalidSizeError,
+use alloc::{vec, vec::Vec};
+use core::{
+    borrow::Borrow,
+    fmt::{self, Display},
+    ops::Add,
+};
+
+use cfg_if::cfg_if;
+use generic_array::ArrayLength;
+use postcard::from_bytes;
+use typenum::{operator_aliases::Sum, U64};
+
+use crate::{
+    aead::Aead,
+    aranya::{
+        Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, IdentityKey, SigningKey,
+        VerifyingKey,
     },
-    alloc::{vec, vec::Vec},
-    cfg_if::cfg_if,
-    core::{
-        borrow::Borrow,
-        fmt::{self, Display},
-        ops::Add,
-    },
-    generic_array::ArrayLength,
-    postcard::from_bytes,
-    typenum::{operator_aliases::Sum, U64},
+    engine::{Engine, UnwrappedKey, WrappedKey, WrongKeyTypeError},
+    error::Error,
+    groupkey::{Context, GroupKey},
+    id::Id,
+    import::InvalidSizeError,
 };
 
 cfg_if! {

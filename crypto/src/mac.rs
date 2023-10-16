@@ -5,21 +5,21 @@
 //! This is a low-level module. You should not be using it
 //! directly unless you are implementing an engine.
 
-use {
-    crate::keys::{raw_key, SecretKey},
-    cfg_if::cfg_if,
-    core::{
-        array::TryFromSliceError,
-        fmt::{self, Debug},
-        mem,
-        result::Result,
-    },
-    generic_array::GenericArray,
-    postcard::experimental::max_size::MaxSize,
-    serde::{Deserialize, Serialize},
-    subtle::{Choice, ConstantTimeEq},
-    typenum::{U32, U48, U64},
+use core::{
+    array::TryFromSliceError,
+    fmt::{self, Debug},
+    mem,
+    result::Result,
 };
+
+use cfg_if::cfg_if;
+use generic_array::GenericArray;
+use postcard::experimental::max_size::MaxSize;
+use serde::{Deserialize, Serialize};
+use subtle::{Choice, ConstantTimeEq};
+use typenum::{U32, U48, U64};
+
+use crate::keys::{raw_key, SecretKey};
 
 cfg_if! {
     if #[cfg(feature = "error_in_core")] {

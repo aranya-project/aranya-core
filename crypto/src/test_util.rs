@@ -9,25 +9,25 @@
 #![cfg_attr(docs, doc(cfg(feature = "test_util")))]
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        aead::{Aead, AeadError, AeadId, IndCca2, Lifetime},
-        ciphersuite::CipherSuite,
-        csprng::Csprng,
-        hash::Hash,
-        import::{ExportError, Import, ImportError},
-        kdf::{Kdf, KdfError, KdfId},
-        kem::Kem,
-        keys::{PublicKey, SecretKey},
-        mac::{Mac, MacId, MacKey, Tag},
-        signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
-    },
-    core::{
-        fmt::{self, Debug},
-        marker::PhantomData,
-    },
-    subtle::{Choice, ConstantTimeEq},
-    zeroize::ZeroizeOnDrop,
+use core::{
+    fmt::{self, Debug},
+    marker::PhantomData,
+};
+
+use subtle::{Choice, ConstantTimeEq};
+use zeroize::ZeroizeOnDrop;
+
+use crate::{
+    aead::{Aead, AeadError, AeadId, IndCca2, Lifetime},
+    ciphersuite::CipherSuite,
+    csprng::Csprng,
+    hash::Hash,
+    import::{ExportError, Import, ImportError},
+    kdf::{Kdf, KdfError, KdfId},
+    kem::Kem,
+    keys::{PublicKey, SecretKey},
+    mac::{Mac, MacId, MacKey, Tag},
+    signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
 };
 
 macro_rules! msg {
@@ -422,27 +422,27 @@ pub use test_engine;
 pub mod engine {
     extern crate alloc;
 
-    use {
-        crate::{
-            aead::{Aead, AeadError},
-            apq::{
-                EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey,
-                Topic, TopicKey, Version,
-            },
-            aps::{Channel, ChannelKeys},
-            aranya::{
-                Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
-                UserId,
-            },
-            engine::{Engine, WrappedKey},
-            error::Error,
-            groupkey::{Context, GroupKey},
-            id::Id,
+    use alloc::vec;
+    use core::{borrow::Borrow, ops::Add};
+
+    use generic_array::ArrayLength;
+    use typenum::{Sum, U64};
+
+    use crate::{
+        aead::{Aead, AeadError},
+        apq::{
+            EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
+            TopicKey, Version,
         },
-        alloc::vec,
-        core::{borrow::Borrow, ops::Add},
-        generic_array::ArrayLength,
-        typenum::{Sum, U64},
+        aps::{Channel, ChannelKeys},
+        aranya::{
+            Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
+            UserId,
+        },
+        engine::{Engine, WrappedKey},
+        error::Error,
+        groupkey::{Context, GroupKey},
+        id::Id,
     };
 
     /// Simple test for [`UserSigningKey`].
@@ -1431,15 +1431,15 @@ pub use test_aead;
 pub mod aead {
     extern crate alloc;
 
-    use {
-        crate::{
-            aead::{Aead, AeadError},
-            csprng::Csprng,
-            keys::SecretKey,
-        },
-        alloc::vec,
-        core::borrow::{Borrow, BorrowMut},
-        more_asserts::assert_ge,
+    use alloc::vec;
+    use core::borrow::{Borrow, BorrowMut};
+
+    use more_asserts::assert_ge;
+
+    use crate::{
+        aead::{Aead, AeadError},
+        csprng::Csprng,
+        keys::SecretKey,
     };
 
     const GOLDEN: &[u8] = b"hello, world!";
@@ -1798,16 +1798,15 @@ pub use test_hpke;
 pub mod hpke {
     extern crate alloc;
 
-    use {
-        crate::{
-            aead::{Aead, IndCca2},
-            csprng::Csprng,
-            hpke::{Hpke, Mode, RecvCtx, SendCtx},
-            kdf::Kdf,
-            kem::{DecapKey, Kem},
-            keys::SecretKey,
-        },
-        alloc::vec,
+    use alloc::vec;
+
+    use crate::{
+        aead::{Aead, IndCca2},
+        csprng::Csprng,
+        hpke::{Hpke, Mode, RecvCtx, SendCtx},
+        kdf::Kdf,
+        kem::{DecapKey, Kem},
+        keys::SecretKey,
     };
 
     /// Tests the full encryption-decryption cycle.
@@ -1895,12 +1894,12 @@ pub use test_kdf;
 pub mod kdf {
     extern crate alloc;
 
-    use {
-        crate::kdf::{Kdf, KdfError},
-        alloc::vec,
-        core::borrow::Borrow,
-        more_asserts::assert_ge,
-    };
+    use alloc::vec;
+    use core::borrow::Borrow;
+
+    use more_asserts::assert_ge;
+
+    use crate::kdf::{Kdf, KdfError};
 
     /// Asserts the following:
     ///
@@ -2164,14 +2163,13 @@ pub use test_signer;
 pub mod signer {
     extern crate alloc;
 
-    use {
-        crate::{
-            csprng::Csprng,
-            keys::SecretKey,
-            signer::{Signer, SigningKey, VerifyingKey},
-        },
-        alloc::vec::Vec,
-        core::borrow::Borrow,
+    use alloc::vec::Vec;
+    use core::borrow::Borrow;
+
+    use crate::{
+        csprng::Csprng,
+        keys::SecretKey,
+        signer::{Signer, SigningKey, VerifyingKey},
     };
 
     /// The base positive test.
@@ -2291,29 +2289,27 @@ pub mod signer {
 pub mod vectors {
     extern crate alloc;
 
-    use {
-        super::{AeadWithDefaults, KdfWithDefaults, MacWithDefaults, SignerWithDefaults},
-        crate::{
-            aead::{Aead, IndCca2},
-            hpke::Hpke,
-            hpke::SendCtx,
-            import::Import,
-            kdf::Kdf,
-            kem::{Ecdh, Kem},
-            mac::Mac,
-            signer::{Signer, VerifyingKey},
-        },
-        alloc::{string::ToString, vec},
-        core::borrow::Borrow,
-        subtle::ConstantTimeEq,
-        wycheproof::{aead, ecdh, ecdsa, eddsa, hkdf, mac},
-    };
+    use alloc::{string::ToString, vec};
+    use core::borrow::Borrow;
 
     pub use hpke::TestName as HpkeTest;
+    use subtle::ConstantTimeEq;
     pub use wycheproof::{
         self, aead::TestName as AeadTest, ecdh::TestName as EcdhTest, ecdsa::TestName as EcdsaTest,
         eddsa::TestName as EddsaTest, hkdf::TestName as HkdfTest, mac::TestName as MacTest,
         TestResult,
+    };
+    use wycheproof::{aead, ecdh, ecdsa, eddsa, hkdf, mac};
+
+    use super::{AeadWithDefaults, KdfWithDefaults, MacWithDefaults, SignerWithDefaults};
+    use crate::{
+        aead::{Aead, IndCca2},
+        hpke::{Hpke, SendCtx},
+        import::Import,
+        kdf::Kdf,
+        kem::{Ecdh, Kem},
+        mac::Mac,
+        signer::{Signer, VerifyingKey},
     };
 
     /// HPKE tests.
@@ -2321,16 +2317,16 @@ pub mod vectors {
     pub mod hpke {
         extern crate alloc;
 
-        use {
-            crate::{
-                hpke::{Mode, Psk},
-                import::Import,
-            },
-            alloc::{boxed::Box, vec::Vec},
-            core::{result::Result, str::FromStr},
-            serde::{self, Deserialize},
-            serde_json,
-            wycheproof::{ByteString, WycheproofError},
+        use alloc::{boxed::Box, vec::Vec};
+        use core::{result::Result, str::FromStr};
+
+        use serde::{self, Deserialize};
+        use serde_json;
+        use wycheproof::{ByteString, WycheproofError};
+
+        use crate::{
+            hpke::{Mode, Psk},
+            import::Import,
         };
 
         macro_rules! test_names {

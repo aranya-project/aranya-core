@@ -12,67 +12,64 @@
 
 extern crate alloc;
 
-use {
-    crate::{
-        aead::{
-            check_open_in_place_params, check_open_params, check_seal_in_place_params,
-            check_seal_params, Aead, AeadError, AeadId, AeadKey, BufferTooSmallError, IndCca2,
-            Lifetime, Nonce,
-        },
-        asn1::{max_sig_len, EncodingError, Sig},
-        csprng::Csprng,
-        ec::{Curve, Curve25519, Scalar, Secp256r1, Secp384r1, Secp521r1, Uncompressed},
-        hash::{Block, Hash, HashId},
-        hex::ToHex,
-        import::{try_import, ExportError, Import, ImportError},
-        kem::{
-            dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId,
-            SharedSecret,
-        },
-        keys::{PublicKey, RawKey, SecretKey},
-        signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
-        zeroize::{Zeroize, ZeroizeOnDrop},
-    },
-    alloc::alloc::handle_alloc_error,
-    bssl_sys::{
-        point_conversion_form_t, BN_equal_consttime, ECDH_compute_key, ECDSA_sign, ECDSA_verify,
-        EC_KEY_dup, EC_KEY_free, EC_KEY_generate_key, EC_KEY_generate_key_fips, EC_KEY_get0_group,
-        EC_KEY_get0_private_key, EC_KEY_get0_public_key, EC_KEY_is_opaque,
-        EC_KEY_new_by_curve_name, EC_KEY_oct2key, EC_KEY_oct2priv, EC_KEY_priv2oct,
-        EC_KEY_set_public_key, EC_POINT_cmp, EC_POINT_free, EC_POINT_mul, EC_POINT_new,
-        EC_POINT_point2oct, ED25519_keypair_from_seed, ED25519_sign, ED25519_verify,
-        ERR_get_error_line, ERR_lib_error_string, ERR_reason_error_string, EVP_AEAD_CTX_cleanup,
-        EVP_AEAD_CTX_init, EVP_AEAD_CTX_open, EVP_AEAD_CTX_open_gather, EVP_AEAD_CTX_seal,
-        EVP_AEAD_CTX_seal_scatter, EVP_AEAD_CTX_zero, EVP_AEAD_key_length, EVP_AEAD_nonce_length,
-        EVP_aead_aes_256_gcm, NID_X9_62_prime256v1 as NID_secp256r1, NID_secp384r1, NID_secp521r1,
-        RAND_bytes, SHA256_Final, SHA256_Init, SHA256_Update, SHA384_Final, SHA384_Init,
-        SHA384_Update, SHA512_256_Final, SHA512_256_Init, SHA512_256_Update, SHA512_Final,
-        SHA512_Init, SHA512_Update, CIPHER_R_BAD_DECRYPT, CIPHER_R_BAD_KEY_LENGTH,
-        CIPHER_R_BUFFER_TOO_SMALL, CIPHER_R_INVALID_AD_SIZE, CIPHER_R_INVALID_KEY_LENGTH,
-        CIPHER_R_INVALID_NONCE_SIZE, CIPHER_R_TAG_TOO_LARGE, CIPHER_R_TOO_LARGE,
-        ECDSA_R_BAD_SIGNATURE, EC_KEY, EC_R_INVALID_ENCODING, EC_R_INVALID_PRIVATE_KEY,
-        ERR_GET_REASON, EVP_AEAD_CTX, NID_ED25519, SHA256, SHA256_CBLOCK, SHA256_CTX,
-        SHA256_DIGEST_LENGTH, SHA384, SHA384_CBLOCK, SHA384_DIGEST_LENGTH, SHA512, SHA512_256,
-        SHA512_256_DIGEST_LENGTH, SHA512_CBLOCK, SHA512_CTX, SHA512_DIGEST_LENGTH,
-    },
-    cfg_if::cfg_if,
-    core::{
-        alloc::Layout,
-        borrow::{Borrow, BorrowMut},
-        ffi::{c_char, c_int, c_void, CStr},
-        fmt::{self, Debug},
-        ptr,
-        result::Result,
-    },
-    more_asserts::assert_ge,
-    subtle::{Choice, ConstantTimeEq},
-    typenum::{Unsigned, U12, U16, U32},
+use alloc::alloc::handle_alloc_error;
+use core::{
+    alloc::Layout,
+    borrow::{Borrow, BorrowMut},
+    ffi::{c_char, c_int, c_void, CStr},
+    fmt::{self, Debug},
+    ptr,
+    result::Result,
 };
+
+pub use bssl_sys;
+use bssl_sys::{
+    point_conversion_form_t, BN_equal_consttime, ECDH_compute_key, ECDSA_sign, ECDSA_verify,
+    EC_KEY_dup, EC_KEY_free, EC_KEY_generate_key, EC_KEY_generate_key_fips, EC_KEY_get0_group,
+    EC_KEY_get0_private_key, EC_KEY_get0_public_key, EC_KEY_is_opaque, EC_KEY_new_by_curve_name,
+    EC_KEY_oct2key, EC_KEY_oct2priv, EC_KEY_priv2oct, EC_KEY_set_public_key, EC_POINT_cmp,
+    EC_POINT_free, EC_POINT_mul, EC_POINT_new, EC_POINT_point2oct, ED25519_keypair_from_seed,
+    ED25519_sign, ED25519_verify, ERR_get_error_line, ERR_lib_error_string,
+    ERR_reason_error_string, EVP_AEAD_CTX_cleanup, EVP_AEAD_CTX_init, EVP_AEAD_CTX_open,
+    EVP_AEAD_CTX_open_gather, EVP_AEAD_CTX_seal, EVP_AEAD_CTX_seal_scatter, EVP_AEAD_CTX_zero,
+    EVP_AEAD_key_length, EVP_AEAD_nonce_length, EVP_aead_aes_256_gcm,
+    NID_X9_62_prime256v1 as NID_secp256r1, NID_secp384r1, NID_secp521r1, RAND_bytes, SHA256_Final,
+    SHA256_Init, SHA256_Update, SHA384_Final, SHA384_Init, SHA384_Update, SHA512_256_Final,
+    SHA512_256_Init, SHA512_256_Update, SHA512_Final, SHA512_Init, SHA512_Update,
+    CIPHER_R_BAD_DECRYPT, CIPHER_R_BAD_KEY_LENGTH, CIPHER_R_BUFFER_TOO_SMALL,
+    CIPHER_R_INVALID_AD_SIZE, CIPHER_R_INVALID_KEY_LENGTH, CIPHER_R_INVALID_NONCE_SIZE,
+    CIPHER_R_TAG_TOO_LARGE, CIPHER_R_TOO_LARGE, ECDSA_R_BAD_SIGNATURE, EC_KEY,
+    EC_R_INVALID_ENCODING, EC_R_INVALID_PRIVATE_KEY, ERR_GET_REASON, EVP_AEAD_CTX, NID_ED25519,
+    SHA256, SHA256_CBLOCK, SHA256_CTX, SHA256_DIGEST_LENGTH, SHA384, SHA384_CBLOCK,
+    SHA384_DIGEST_LENGTH, SHA512, SHA512_256, SHA512_256_DIGEST_LENGTH, SHA512_CBLOCK, SHA512_CTX,
+    SHA512_DIGEST_LENGTH,
+};
+use cfg_if::cfg_if;
+use more_asserts::assert_ge;
+use subtle::{Choice, ConstantTimeEq};
+use typenum::{Unsigned, U12, U16, U32};
 
 #[allow(clippy::wildcard_imports)]
 use crate::features::*;
-
-pub use bssl_sys;
+use crate::{
+    aead::{
+        check_open_in_place_params, check_open_params, check_seal_in_place_params,
+        check_seal_params, Aead, AeadError, AeadId, AeadKey, BufferTooSmallError, IndCca2,
+        Lifetime, Nonce,
+    },
+    asn1::{max_sig_len, EncodingError, Sig},
+    csprng::Csprng,
+    ec::{Curve, Curve25519, Scalar, Secp256r1, Secp384r1, Secp521r1, Uncompressed},
+    hash::{Block, Hash, HashId},
+    hex::ToHex,
+    import::{try_import, ExportError, Import, ImportError},
+    kem::{
+        dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId, SharedSecret,
+    },
+    keys::{PublicKey, RawKey, SecretKey},
+    signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
+    zeroize::{Zeroize, ZeroizeOnDrop},
+};
 
 cfg_if::cfg_if! {
     if #[cfg(any(fips, test_fips))] {
@@ -602,16 +599,16 @@ indcca2_aead_impl!(
 
 #[cfg(feature = "committing-aead")]
 mod committing {
-    use {
-        super::{Aes256Gcm, Sha256},
-        crate::{
-            aead::{AeadKey, BlockCipher},
-            util::const_assert,
-        },
-        bssl_sys::{AES_encrypt, AES_set_encrypt_key, AES_BLOCK_SIZE, AES_KEY},
-        core::ptr,
-        generic_array::GenericArray,
-        typenum::{Unsigned, U16},
+    use core::ptr;
+
+    use bssl_sys::{AES_encrypt, AES_set_encrypt_key, AES_BLOCK_SIZE, AES_KEY};
+    use generic_array::GenericArray;
+    use typenum::{Unsigned, U16};
+
+    use super::{Aes256Gcm, Sha256};
+    use crate::{
+        aead::{AeadKey, BlockCipher},
+        util::const_assert,
     };
 
     /// AES-256.
@@ -2129,10 +2126,8 @@ mod fun_crypto {
 
         // Test some [`CipherSuite`] configurations.
         mod ciphersuite_tests {
-            use {
-                super::*,
-                crate::test_util::{test_ciphersuite, TestCs},
-            };
+            use super::*;
+            use crate::test_util::{test_ciphersuite, TestCs};
 
             test_ciphersuite!(chacha20poly1305, TestCs<
                 ChaCha20Poly1305,
@@ -2164,7 +2159,8 @@ mod fun_crypto {
         }
 
         mod aead_tests {
-            use {super::*, crate::test_util::test_aead};
+            use super::*;
+            use crate::test_util::test_aead;
 
             #[cfg(not(target_arch = "x86_64"))]
             test_aead!(aes256gcmsiv, Aes256GcmSiv, AeadTest::AesGcmSiv);
@@ -2177,7 +2173,8 @@ mod fun_crypto {
         }
 
         mod hkdf_tests {
-            use {super::*, crate::test_util::test_kdf};
+            use super::*;
+            use crate::test_util::test_kdf;
 
             test_kdf!(test_hkdf_sha256, HkdfSha256, HkdfTest::HkdfSha256);
             test_kdf!(test_hkdf_sha384, HkdfSha384, HkdfTest::HkdfSha384);
@@ -2185,7 +2182,8 @@ mod fun_crypto {
         }
 
         mod hmac_tests {
-            use {super::*, crate::test_util::test_mac};
+            use super::*;
+            use crate::test_util::test_mac;
 
             test_mac!(test_hmac_sha256, HmacSha256, MacTest::HmacSha256);
             test_mac!(test_hmac_sha384, HmacSha384, MacTest::HmacSha384);
@@ -2193,13 +2191,11 @@ mod fun_crypto {
         }
 
         mod hpke_tests {
-            use {
-                super::*,
-                crate::{
-                    hpke::{Hpke, Mode},
-                    kdf::Kdf,
-                    test_util::test_hpke,
-                },
+            use super::*;
+            use crate::{
+                hpke::{Hpke, Mode},
+                kdf::Kdf,
+                test_util::test_hpke,
             };
 
             test_hpke!(
@@ -2342,10 +2338,8 @@ mod tests {
 
     // Test some [`CipherSuite`] configurations.
     mod ciphersuite_tests {
-        use {
-            super::*,
-            crate::test_util::{test_ciphersuite, TestCs},
-        };
+        use super::*;
+        use crate::test_util::{test_ciphersuite, TestCs};
 
         test_ciphersuite!(ed25519, TestCs<
             Aes256Gcm,
@@ -2382,12 +2376,12 @@ mod tests {
     }
 
     mod alloc_tests {
-        use {
-            super::*,
-            bssl_sys::{OPENSSL_free, OPENSSL_malloc},
-            core::sync::atomic::Ordering,
-            rust_alloc::mem_size,
-        };
+        use core::sync::atomic::Ordering;
+
+        use bssl_sys::{OPENSSL_free, OPENSSL_malloc};
+        use rust_alloc::mem_size;
+
+        use super::*;
 
         /// Test that [`mem_size`] reports accurate sizes.
         #[test]
@@ -2433,7 +2427,8 @@ mod tests {
     }
 
     mod aead_tests {
-        use {super::*, crate::test_util::test_aead};
+        use super::*;
+        use crate::test_util::test_aead;
 
         test_aead!(aes256gcm, Aes256Gcm, AeadTest::AesGcm);
 
@@ -2447,10 +2442,8 @@ mod tests {
     }
 
     mod ecdh_tests {
-        use {
-            super::*,
-            crate::test_util::vectors::{test_ecdh, EcdhTest},
-        };
+        use super::*;
+        use crate::test_util::vectors::{test_ecdh, EcdhTest};
 
         #[test]
         fn test_ecdh_p256() {
@@ -2469,7 +2462,8 @@ mod tests {
     }
 
     mod ecdsa_tests {
-        use {super::*, crate::test_util::test_signer};
+        use super::*;
+        use crate::test_util::test_signer;
 
         test_signer!(p256, P256, EcdsaTest::EcdsaSecp256r1Sha256);
         test_signer!(p384, P384, EcdsaTest::EcdsaSecp384r1Sha384);
@@ -2477,13 +2471,15 @@ mod tests {
     }
 
     mod eddsa_tests {
-        use {super::*, crate::test_util::test_signer};
+        use super::*;
+        use crate::test_util::test_signer;
 
         test_signer!(ed25519, Ed25519, EddsaTest::Ed25519);
     }
 
     mod hkdf_tests {
-        use {super::*, crate::test_util::test_kdf};
+        use super::*;
+        use crate::test_util::test_kdf;
 
         test_kdf!(test_hkdf_sha256, HkdfSha256, HkdfTest::HkdfSha256);
         test_kdf!(test_hkdf_sha384, HkdfSha384, HkdfTest::HkdfSha384);
@@ -2491,13 +2487,15 @@ mod tests {
     }
 
     mod hmac_tests {
-        use {super::*, crate::test_util::test_mac};
+        use super::*;
+        use crate::test_util::test_mac;
 
         test_mac!(test_hmac_sha512, HmacSha512, MacTest::HmacSha512);
     }
 
     mod hpke_tests {
-        use {super::*, crate::test_util::test_hpke};
+        use super::*;
+        use crate::test_util::test_hpke;
 
         test_hpke!(
             p256_hkdf_sha256,

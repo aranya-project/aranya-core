@@ -1,27 +1,27 @@
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        aead::{Aead, AeadError, BufferTooSmallError, KeyData},
-        aranya::VerifyingKey,
-        ciphersuite::SuiteIds,
-        csprng::Csprng,
-        engine::Engine,
-        error::Error,
-        hash::{tuple_hash, Hash},
-        id::Id,
-        import::{try_import, Import, ImportError},
-        kdf::{Kdf, KdfError},
-        mac::Mac,
-        zeroize::{Zeroize, ZeroizeOnDrop},
-    },
-    core::{
-        borrow::{Borrow, BorrowMut},
-        fmt,
-        marker::PhantomData,
-        result::Result,
-    },
-    subtle::{Choice, ConstantTimeEq},
+use core::{
+    borrow::{Borrow, BorrowMut},
+    fmt,
+    marker::PhantomData,
+    result::Result,
+};
+
+use subtle::{Choice, ConstantTimeEq};
+
+use crate::{
+    aead::{Aead, AeadError, BufferTooSmallError, KeyData},
+    aranya::VerifyingKey,
+    ciphersuite::SuiteIds,
+    csprng::Csprng,
+    engine::Engine,
+    error::Error,
+    hash::{tuple_hash, Hash},
+    id::Id,
+    import::{try_import, Import, ImportError},
+    kdf::{Kdf, KdfError},
+    mac::Mac,
+    zeroize::{Zeroize, ZeroizeOnDrop},
 };
 
 /// Key material used to derive per-event encryption keys.

@@ -10,44 +10,44 @@
 #![cfg(not(fips))]
 #![cfg_attr(docs, doc(cfg(not(fips))))]
 
-use {
-    crate::{
-        aead::{
-            check_open_in_place_params, check_seal_in_place_params, Aead, AeadError, AeadId,
-            AeadKey, IndCca2, Lifetime, Nonce,
-        },
-        csprng::Csprng,
-        ec::{Curve, Secp256r1, Secp384r1},
-        hash::{Block, Hash, HashId},
-        hex,
-        hkdf::hkdf_impl,
-        hmac::hmac_impl,
-        import::{try_from_slice, ExportError, Import, ImportError},
-        kem::{dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId},
-        keys::{PublicKey, SecretKey},
-        signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
-        zeroize::{ZeroizeOnDrop, Zeroizing},
+use core::{borrow::Borrow, fmt, result::Result};
+
+use aes_gcm::{
+    aead::{AeadInPlace, KeyInit, KeySizeUser},
+    A_MAX, C_MAX, P_MAX,
+};
+use crypto_common::BlockSizeUser;
+use ecdsa::{
+    der,
+    signature::{Signer as Signer_, Verifier},
+};
+use elliptic_curve::{
+    ecdh,
+    scalar::NonZeroScalar,
+    sec1::{EncodedPoint, FromEncodedPoint, ToEncodedPoint},
+    CurveArithmetic, FieldBytes,
+};
+use rand_core::{impls, CryptoRng, RngCore};
+use sha2::{digest::OutputSizeUser, Digest};
+use subtle::{Choice, ConstantTimeEq};
+use typenum::{Unsigned, U12, U16};
+
+use crate::{
+    aead::{
+        check_open_in_place_params, check_seal_in_place_params, Aead, AeadError, AeadId, AeadKey,
+        IndCca2, Lifetime, Nonce,
     },
-    aes_gcm::{
-        aead::{AeadInPlace, KeyInit, KeySizeUser},
-        A_MAX, C_MAX, P_MAX,
-    },
-    core::{borrow::Borrow, fmt, result::Result},
-    crypto_common::BlockSizeUser,
-    ecdsa::{
-        der,
-        signature::{Signer as Signer_, Verifier},
-    },
-    elliptic_curve::{
-        ecdh,
-        scalar::NonZeroScalar,
-        sec1::{EncodedPoint, FromEncodedPoint, ToEncodedPoint},
-        CurveArithmetic, FieldBytes,
-    },
-    rand_core::{impls, CryptoRng, RngCore},
-    sha2::{digest::OutputSizeUser, Digest},
-    subtle::{Choice, ConstantTimeEq},
-    typenum::{Unsigned, U12, U16},
+    csprng::Csprng,
+    ec::{Curve, Secp256r1, Secp384r1},
+    hash::{Block, Hash, HashId},
+    hex,
+    hkdf::hkdf_impl,
+    hmac::hmac_impl,
+    import::{try_from_slice, ExportError, Import, ImportError},
+    kem::{dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId},
+    keys::{PublicKey, SecretKey},
+    signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
+    zeroize::{ZeroizeOnDrop, Zeroizing},
 };
 
 /// AES-256-GCM.
@@ -122,13 +122,12 @@ impl IndCca2 for Aes256Gcm {}
 
 #[cfg(feature = "committing-aead")]
 mod committing {
-    use {
-        super::{Aes256Gcm, Sha256},
-        crate::aead::{AeadKey, BlockCipher},
-        aes::cipher::{BlockEncrypt, BlockSizeUser, KeyInit},
-        generic_array::GenericArray,
-        typenum::Unsigned,
-    };
+    use aes::cipher::{BlockEncrypt, BlockSizeUser, KeyInit};
+    use generic_array::GenericArray;
+    use typenum::Unsigned;
+
+    use super::{Aes256Gcm, Sha256};
+    use crate::aead::{AeadKey, BlockCipher};
 
     /// AES-256.
     #[doc(hidden)]
@@ -563,10 +562,8 @@ mod tests {
 
     // Test some [`CipherSuite`] configurations.
     mod ciphersuite_tests {
-        use {
-            super::*,
-            crate::test_util::{test_ciphersuite, TestCs},
-        };
+        use super::*;
+        use crate::test_util::{test_ciphersuite, TestCs};
 
         test_ciphersuite!(p256, TestCs<
             Aes256Gcm,
@@ -587,7 +584,8 @@ mod tests {
     }
 
     mod aead_tests {
-        use {super::*, crate::test_util::test_aead};
+        use super::*;
+        use crate::test_util::test_aead;
 
         test_aead!(aes256gcm, Aes256Gcm, AeadTest::AesGcm);
 
@@ -601,10 +599,8 @@ mod tests {
     }
 
     mod ecdh_tests {
-        use {
-            super::*,
-            crate::test_util::vectors::{test_ecdh, EcdhTest},
-        };
+        use super::*;
+        use crate::test_util::vectors::{test_ecdh, EcdhTest};
 
         #[test]
         fn test_ecdh_p256() {
@@ -618,14 +614,16 @@ mod tests {
     }
 
     mod ecdsa_tests {
-        use {super::*, crate::test_util::test_signer};
+        use super::*;
+        use crate::test_util::test_signer;
 
         test_signer!(p256, P256, EcdsaTest::EcdsaSecp256r1Sha256);
         test_signer!(p384, P384, EcdsaTest::EcdsaSecp384r1Sha384);
     }
 
     mod hkdf_tests {
-        use {super::*, crate::test_util::test_kdf};
+        use super::*;
+        use crate::test_util::test_kdf;
 
         test_kdf!(test_hkdf_sha256, HkdfSha256, HkdfTest::HkdfSha256);
         test_kdf!(test_hkdf_sha384, HkdfSha384, HkdfTest::HkdfSha384);
@@ -633,7 +631,8 @@ mod tests {
     }
 
     mod hmac_tests {
-        use {super::*, crate::test_util::test_mac};
+        use super::*;
+        use crate::test_util::test_mac;
 
         test_mac!(test_hmac_sha256, HmacSha256, MacTest::HmacSha256);
         test_mac!(test_hmac_sha384, HmacSha384, MacTest::HmacSha384);
@@ -641,7 +640,8 @@ mod tests {
     }
 
     mod hpke_tests {
-        use {super::*, crate::test_util::test_hpke};
+        use super::*;
+        use crate::test_util::test_hpke;
 
         test_hpke!(
             sha256,

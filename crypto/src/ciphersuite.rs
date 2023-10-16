@@ -18,17 +18,16 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        aead::{Aead, AeadId, IndCca2},
-        hash::{Hash, HashId},
-        kdf::{Kdf, KdfId},
-        kem::{Kem, KemId},
-        mac::{Mac, MacId, MacKey, Tag},
-        signer::{Signer, SignerId},
-    },
-    postcard::experimental::max_size::MaxSize,
-    serde::{Deserialize, Serialize},
+use postcard::experimental::max_size::MaxSize;
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    aead::{Aead, AeadId, IndCca2},
+    hash::{Hash, HashId},
+    kdf::{Kdf, KdfId},
+    kem::{Kem, KemId},
+    mac::{Mac, MacId, MacKey, Tag},
+    signer::{Signer, SignerId},
 };
 
 /// The cryptographic primitives used by the cryptography engine.

@@ -1,9 +1,8 @@
-use {
-    base58::*,
-    criterion::*,
-    rand::{rngs::StdRng, RngCore, SeedableRng},
-    std::{env, time::Duration},
-};
+use std::{env, time::Duration};
+
+use base58::*;
+use criterion::*;
+use rand::{rngs::StdRng, RngCore, SeedableRng};
 
 fn get_rng() -> StdRng {
     let s = match env::var("BASE58_SEED") {

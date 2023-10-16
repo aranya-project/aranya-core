@@ -5,8 +5,7 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::lang::ast::VType;
-use crate::machine::MachineErrorType;
+use crate::{lang::ast::VType, machine::MachineErrorType};
 
 /// All of the value types allowed in the VM
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,11 +1,11 @@
-use {
-    crate::{Command, IdamCrypto, KeyStore, KeyStoreError},
-    crypto::{
-        idam::KeyStoreSecret, DefaultCipherSuite, DefaultEngine, DefaultWrappedKey, EncryptionKey,
-        Engine, Error, Id, Rng, SigningKey,
-    },
-    std::collections::HashMap,
+use std::collections::HashMap;
+
+use crypto::{
+    idam::KeyStoreSecret, DefaultCipherSuite, DefaultEngine, DefaultWrappedKey, EncryptionKey,
+    Engine, Error, Id, Rng, SigningKey,
 };
+
+use crate::{Command, IdamCrypto, KeyStore, KeyStoreError};
 
 pub struct DefaultKeyStore<'a> {
     identity: HashMap<Vec<u8>, &'a DefaultWrappedKey>,

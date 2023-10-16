@@ -7,15 +7,15 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{keys::raw_key, mac::Tag},
-    cfg_if::cfg_if,
-    core::{
-        borrow::{Borrow, BorrowMut},
-        fmt,
-        result::Result,
-    },
+use core::{
+    borrow::{Borrow, BorrowMut},
+    fmt,
+    result::Result,
 };
+
+use cfg_if::cfg_if;
+
+use crate::{keys::raw_key, mac::Tag};
 
 cfg_if! {
     if #[cfg(feature = "error_in_core")] {

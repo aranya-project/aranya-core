@@ -7,20 +7,20 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    crate::{
-        asn1::EncodingError,
-        import::Import,
-        keys::{PublicKey, SecretKey},
-    },
-    cfg_if::cfg_if,
-    core::{
-        borrow::Borrow,
-        fmt::{self, Debug},
-        result::Result,
-    },
-    postcard::experimental::max_size::MaxSize,
-    serde::{Deserialize, Serialize},
+use core::{
+    borrow::Borrow,
+    fmt::{self, Debug},
+    result::Result,
+};
+
+use cfg_if::cfg_if;
+use postcard::experimental::max_size::MaxSize;
+use serde::{Deserialize, Serialize};
+
+use crate::{
+    asn1::EncodingError,
+    import::Import,
+    keys::{PublicKey, SecretKey},
 };
 
 cfg_if! {

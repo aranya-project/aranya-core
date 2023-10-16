@@ -1,13 +1,8 @@
-use crate::tests::protocol::*;
-use crate::*;
-
-use std::{cell::RefCell, fs::File};
-
-use std::collections::BTreeMap;
+use std::{cell::RefCell, collections::BTreeMap, fs::File};
 
 use serde::{Deserialize, Serialize};
 
-use crate::storage::memory::*;
+use crate::{storage::memory::*, tests::protocol::*, *};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 enum TestRule {

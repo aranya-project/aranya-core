@@ -20,20 +20,19 @@ form first.
 #![cfg_attr(docs, doc(cfg(feature = "alloc")))]
 #![cfg(feature = "alloc")]
 
-use {
-    core::{
-        fmt::{self, Display},
-        ops::Add,
-    },
-    crypto::{
-        aead::Aead,
-        engine::Engine,
-        idam::{self, KeyStoreSecret, SealedGroupKey, WrappedGroupKey},
-        Error, Id,
-    },
-    generic_array::ArrayLength,
-    typenum::{operator_aliases::Sum, U64},
+use core::{
+    fmt::{self, Display},
+    ops::Add,
 };
+
+use crypto::{
+    aead::Aead,
+    engine::Engine,
+    idam::{self, KeyStoreSecret, SealedGroupKey, WrappedGroupKey},
+    Error, Id,
+};
+use generic_array::ArrayLength;
+use typenum::{operator_aliases::Sum, U64};
 
 /// Error resulting from a bad query to KeyStore
 #[derive(Clone, Debug, Eq, PartialEq)]

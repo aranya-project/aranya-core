@@ -3,8 +3,10 @@ use core::fmt;
 use cfg_if::cfg_if;
 
 use super::Stack;
-use crate::machine::data::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
-use crate::machine::error::{MachineError, MachineErrorType};
+use crate::machine::{
+    data::{FactKey, FactKeyList, FactValue, FactValueList, KVPair},
+    error::{MachineError, MachineErrorType},
+};
 
 cfg_if! {
     if #[cfg(feature = "std")] {

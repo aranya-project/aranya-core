@@ -7,14 +7,13 @@
 
 #![forbid(unsafe_code)]
 
-use {
-    core::{
-        borrow::{Borrow, BorrowMut},
-        fmt::Debug,
-    },
-    postcard::experimental::max_size::MaxSize,
-    serde::{Deserialize, Serialize},
+use core::{
+    borrow::{Borrow, BorrowMut},
+    fmt::Debug,
 };
+
+use postcard::experimental::max_size::MaxSize;
+use serde::{Deserialize, Serialize};
 
 /// Hash algorithm identifiers.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]

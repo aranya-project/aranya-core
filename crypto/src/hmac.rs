@@ -11,15 +11,14 @@
 #![cfg_attr(docs, doc(cfg(not(fips))))]
 #![cfg(not(fips))]
 
-use {
-    crate::{
-        hash::Hash,
-        mac::{MacKey, Tag},
-    },
-    core::{
-        borrow::{Borrow, BorrowMut},
-        cmp,
-    },
+use core::{
+    borrow::{Borrow, BorrowMut},
+    cmp,
+};
+
+use crate::{
+    hash::Hash,
+    mac::{MacKey, Tag},
 };
 
 /// HMAC per [FIPS PUB 198-1] for some hash `H` with a `D`-byte

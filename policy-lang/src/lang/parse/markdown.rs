@@ -1,5 +1,7 @@
-use ::markdown::mdast::{Node, Yaml};
-use ::markdown::{to_mdast, ParseOptions};
+use ::markdown::{
+    mdast::{Node, Yaml},
+    to_mdast, ParseOptions,
+};
 use serde::Deserialize;
 
 use crate::lang::{ast, parse_policy_str, ParseError, ParseErrorKind, Version};

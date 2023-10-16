@@ -1,19 +1,19 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-use {
-    crate::arith::*,
-    byteorder::{BigEndian, ByteOrder},
-    core::{
-        borrow::Borrow,
-        cmp::{Ord, Ordering, PartialEq, PartialOrd},
-        fmt,
-        hash::{Hash, Hasher},
-        ops::Deref,
-        result::Result,
-        str::{self, FromStr},
-    },
+use core::{
+    borrow::Borrow,
+    cmp::{Ord, Ordering, PartialEq, PartialOrd},
+    fmt,
+    hash::{Hash, Hasher},
+    ops::Deref,
+    result::Result,
+    str::{self, FromStr},
 };
+
+use byteorder::{BigEndian, ByteOrder};
+
+use crate::arith::*;
 
 const ALPHABET: [u8; 58] = [
     b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', b'A', b'B', b'C', b'D', b'E', b'F', b'G',
@@ -407,12 +407,12 @@ impl<const W: usize, const B: usize> PartialOrd for Uint<W, B> {
 
 #[cfg(test)]
 mod test {
-    use {
-        super::*,
-        flate2::bufread::GzDecoder,
-        serde::{Deserialize, Serialize},
-        std::io::Read,
-    };
+    use std::io::Read;
+
+    use flate2::bufread::GzDecoder;
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
 
     #[derive(Serialize, Deserialize, Debug)]
     struct TestCase {

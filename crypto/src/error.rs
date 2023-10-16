@@ -1,10 +1,11 @@
 #![forbid(unsafe_code)]
 
-use {cfg_if::cfg_if, core::fmt};
+use core::fmt;
+
+use cfg_if::cfg_if;
 
 #[cfg(feature = "alloc")]
 use crate::idam::KeyConversionError;
-
 use crate::{
     aead::AeadError,
     engine::{UnwrapError, WrapError},
