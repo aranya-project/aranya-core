@@ -138,7 +138,7 @@ where
 
         // Get the perspective
         let Some(mut perspective) = storage.get_linear_perspective(&parent)? else {
-            return Err(ClientError::NoSuchParent(parent))
+            return Err(ClientError::NoSuchParent(parent));
         };
 
         let policy_id = perspective.policy();

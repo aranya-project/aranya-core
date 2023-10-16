@@ -1,17 +1,15 @@
 use super::*;
 
+use core::convert::Infallible;
+
+use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
+use serde::{Deserialize, Serialize};
+
 impl From<StorageError> for EngineError {
     fn from(_: StorageError) -> Self {
         EngineError::InternalError
     }
 }
-
-use core::convert::Infallible;
-use core::ops::Deref;
-
-use serde::{Deserialize, Serialize};
-
-use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
 
 impl From<postcard::Error> for EngineError {
     fn from(_error: postcard::Error) -> Self {
@@ -246,7 +244,7 @@ impl Policy for TestPolicy {
 
     fn read_command<'a>(&self, data: &'a [u8]) -> Result<TestProtocol<'a>, EngineError> {
         let id = Id::hash(data);
-        let command = from_bytes(data.deref())?;
+        let command = from_bytes(data)?;
 
         Ok(TestProtocol::<'a> { id, command, data })
     }

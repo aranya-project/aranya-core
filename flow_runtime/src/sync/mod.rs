@@ -6,7 +6,7 @@ use crate::{
     storage::{Location, Segment, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH},
 };
 
-use alloc::vec;
+use {alloc::vec, core::mem};
 
 use heapless::Vec;
 use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
@@ -569,8 +569,8 @@ impl SyncResponder {
         let mut result = Vec::new();
 
         while !heads.is_empty() {
-            let currnet: alloc::vec::Vec<Location> = heads.drain(..).collect();
-            'heads: for head in currnet {
+            let current = mem::take(&mut heads);
+            'heads: for head in current {
                 let Some(segment) = storage.get_segment(&head)? else {
                     return Err(SyncError::StorageError);
                 };
@@ -602,7 +602,7 @@ impl SyncResponder {
     ) -> Result<usize, SyncError> {
         let Some(storage_id) = self.storage_id.as_ref() else {
             self.state = SyncResponderState::Reset;
-            return Err(SyncError::InternalError)
+            return Err(SyncError::InternalError);
         };
 
         let storage = match provider.get_storage(storage_id) {
@@ -741,7 +741,7 @@ impl SyncState for SyncResponder {
             S::Start => {
                 let Some(storage_id) = self.storage_id.as_ref() else {
                     self.state = S::Reset;
-                    return Err(SyncError::InternalError)
+                    return Err(SyncError::InternalError);
                 };
 
                 let storage = match provider.get_storage(storage_id) {

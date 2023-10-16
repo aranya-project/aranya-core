@@ -198,7 +198,7 @@ impl Storage for MemStorage {
 
     fn get_location(&self, id: &Id) -> Result<Option<Location>, StorageError> {
         let Some(location) = self.commands.get(id) else {
-            return Ok(None)
+            return Ok(None);
         };
 
         Ok(Some(location.clone()))
@@ -246,12 +246,10 @@ impl Storage for MemStorage {
 
         let Some(left_location) = self.commands.get(&left) else {
             return Err(StorageError::NoSuchId(left));
-
         };
 
         let Some(right_location) = self.commands.get(&right) else {
             return Err(StorageError::NoSuchId(right));
-
         };
 
         let left_policy_id = self.get_policy_id(&left)?;
