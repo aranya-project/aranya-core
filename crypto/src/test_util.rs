@@ -5,7 +5,7 @@
 //! highly** recommended that you use these tests.
 
 #![allow(clippy::panic)]
-#![cfg(any(test, docs, feature = "test_util"))]
+#![cfg(any(test, feature = "test_util"))]
 #![cfg_attr(docs, doc(cfg(feature = "test_util")))]
 #![forbid(unsafe_code)]
 
@@ -411,6 +411,13 @@ macro_rules! test_engine {
                 test!(test_derive_channel_keys_different_cmd_ids);
                 test!(test_derive_channel_keys_different_keys);
                 test!(test_derive_channel_keys_same_user_id);
+
+                test!(test_derive_unidirectional_key);
+                test!(test_derive_unidirectional_key_different_labels);
+                test!(test_derive_unidirectional_key_different_user_ids);
+                test!(test_derive_unidirectional_key_different_cmd_ids);
+                test!(test_derive_unidirectional_key_different_keys);
+                test!(test_derive_unidirectional_key_same_user_id);
             }
             pub use aps::*;
         }
@@ -434,7 +441,7 @@ pub mod engine {
             EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
             TopicKey, Version,
         },
-        aps::{Channel, ChannelKeys},
+        aps::{BidirectionalChannel, ChannelKeys, OpenOnlyKey, SealOnlyKey, UnidirectionalChannel},
         aranya::{
             Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
             UserId,
@@ -1100,7 +1107,7 @@ pub mod engine {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let label = 123;
-        let ch1 = Channel {
+        let ch1 = BidirectionalChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1108,7 +1115,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = Channel {
+        let ch2 = BidirectionalChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1133,7 +1140,7 @@ pub mod engine {
     pub fn test_derive_channel_keys_different_labels<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = Channel {
+        let ch1 = BidirectionalChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1141,7 +1148,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label: 123,
         };
-        let ch2 = Channel {
+        let ch2 = BidirectionalChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1169,7 +1176,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = Channel {
+        let ch1 = BidirectionalChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1177,7 +1184,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = Channel {
+        let ch2 = BidirectionalChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1203,7 +1210,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = Channel {
+        let ch1 = BidirectionalChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1211,7 +1218,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = Channel {
+        let ch2 = BidirectionalChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1237,7 +1244,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = Channel {
+        let ch1 = BidirectionalChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1245,7 +1252,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = Channel {
+        let ch2 = BidirectionalChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1269,7 +1276,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let mut ch1 = Channel {
+        let mut ch1 = BidirectionalChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1277,7 +1284,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let mut ch2 = Channel {
+        let mut ch2 = BidirectionalChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1304,6 +1311,202 @@ pub mod engine {
         let err = ChannelKeys::from_encap(&ch2, &enc)
             .err()
             .expect("should not be able to decrypt `ChannelKeys`");
+        assert_eq!(err, Error::InvalidArgument("same `UserId`"));
+    }
+
+    /// A simple positive test for deriving [`SealOnlyKey`] and
+    /// [`OpenOnlyKey`].
+    pub fn test_derive_unidirectional_key<E: Engine + ?Sized>(eng: &mut E) {
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let label = 123;
+        let ch1 = UnidirectionalChannel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            peer_pk: &sk2.public(),
+            seal_id: IdentityKey::<E>::new(eng).id(),
+            open_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let ch2 = UnidirectionalChannel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            peer_pk: &sk1.public(),
+            seal_id: ch1.seal_id,
+            open_id: ch1.open_id,
+            label,
+        };
+
+        let (enc, sk1) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
+        let ok1 = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+
+        assert_eq!(sk1.as_bytes(), ok1.as_bytes());
+    }
+
+    /// Different labels should create different [`SealOnlyKey`]s
+    /// and [`OpenOnlyKey`]s.
+    pub fn test_derive_unidirectional_key_different_labels<E: Engine + ?Sized>(eng: &mut E) {
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let ch1 = UnidirectionalChannel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            peer_pk: &sk2.public(),
+            seal_id: IdentityKey::<E>::new(eng).id(),
+            open_id: IdentityKey::<E>::new(eng).id(),
+            label: 123,
+        };
+        let ch2 = UnidirectionalChannel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            peer_pk: &sk1.public(),
+            seal_id: ch1.seal_id,
+            open_id: ch1.open_id,
+            label: 456,
+        };
+
+        let (enc, sk) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
+        let ok = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+
+        // The labels are different, so the keys should also be
+        // different.
+        assert_ne!(sk.as_bytes(), ok.as_bytes());
+    }
+
+    /// Different UserIDs should create different
+    /// [`SealOnlyKey`]s and [`OpenOnlyKey`]s.
+    ///
+    /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
+    pub fn test_derive_unidirectional_key_different_user_ids<E: Engine + ?Sized>(eng: &mut E) {
+        let label = 123;
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let ch1 = UnidirectionalChannel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            peer_pk: &sk2.public(),
+            seal_id: IdentityKey::<E>::new(eng).id(),
+            open_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let ch2 = UnidirectionalChannel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            peer_pk: &sk1.public(),
+            seal_id: ch1.seal_id,
+            open_id: UserId::random(eng),
+            label,
+        };
+
+        let (enc, sk) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
+        let ok = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+
+        assert_ne!(sk.as_bytes(), ok.as_bytes());
+    }
+
+    /// Different command IDs should create different
+    /// [`SealOnlyKey`]s and [`OpenOnlyKey`]s.
+    ///
+    /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
+    pub fn test_derive_unidirectional_key_different_cmd_ids<E: Engine + ?Sized>(eng: &mut E) {
+        let label = 123;
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let ch1 = UnidirectionalChannel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            peer_pk: &sk2.public(),
+            seal_id: IdentityKey::<E>::new(eng).id(),
+            open_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let ch2 = UnidirectionalChannel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk2,
+            peer_pk: &sk1.public(),
+            seal_id: ch1.seal_id,
+            open_id: ch1.open_id,
+            label,
+        };
+
+        let (enc, sk) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
+        let ok = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+
+        assert_ne!(sk.as_bytes(), ok.as_bytes());
+    }
+
+    /// Different encryption keys should create different
+    /// [`SealOnlyKey`]s and [`OpenOnlyKey`]s.
+    ///
+    /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
+    pub fn test_derive_unidirectional_key_different_keys<E: Engine + ?Sized>(eng: &mut E) {
+        let label = 123;
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let ch1 = UnidirectionalChannel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            peer_pk: &sk2.public(),
+            seal_id: IdentityKey::<E>::new(eng).id(),
+            open_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let ch2 = UnidirectionalChannel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            peer_pk: &EncryptionKey::<E>::new(eng).public(),
+            seal_id: ch1.seal_id,
+            open_id: ch1.open_id,
+            label,
+        };
+
+        let (enc, sk) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
+        let ok = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+
+        assert_ne!(sk.as_bytes(), ok.as_bytes());
+    }
+
+    /// It is an error to use the same `UserId` when deriving
+    /// [`SealOnlyKey`]s and [`OpenOnlyKey`]s.
+    pub fn test_derive_unidirectional_key_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
+        let label = 123;
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let mut ch1 = UnidirectionalChannel {
+            cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            peer_pk: &sk2.public(),
+            seal_id: IdentityKey::<E>::new(eng).id(),
+            open_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let mut ch2 = UnidirectionalChannel {
+            cmd_id: ch1.cmd_id,
+            our_sk: &sk2,
+            peer_pk: &EncryptionKey::<E>::new(eng).public(),
+            seal_id: ch1.seal_id,
+            open_id: ch1.open_id,
+            label,
+        };
+
+        let enc = {
+            let prev = ch1.seal_id;
+            ch1.seal_id = ch1.open_id;
+
+            let err = SealOnlyKey::new(eng, &ch1)
+                .err()
+                .expect("should not be able to create `OpenOnlyKey`");
+            assert_eq!(err, Error::InvalidArgument("same `UserId`"));
+
+            ch1.seal_id = prev;
+            let (enc, _) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
+            enc
+        };
+
+        ch2.seal_id = ch2.open_id;
+        let err = OpenOnlyKey::from_encap(&ch2, &enc)
+            .err()
+            .expect("should not be able to decrypt `OpenOnlyKey`");
         assert_eq!(err, Error::InvalidArgument("same `UserId`"));
     }
 }
