@@ -4,10 +4,12 @@ resolver = "2"
 members = [
 	"base58",
 	"crypto",
+	"flow_runtime",
 	"idam",
 	"policy-lang",
-	"flow_runtime",
-	"service"
+	"rtrack",
+	"rtrack_derive",
+	"service",
 ]
 
 [workspace.package]
