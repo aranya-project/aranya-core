@@ -5,7 +5,7 @@ use crypto::{
     Engine, Error, Id, Rng, SigningKey,
 };
 
-use crate::{Command, IdamCrypto, KeyStore, KeyStoreError};
+use crate::{ffi::CommandContext, IdamCrypto, KeyStore, KeyStoreError};
 
 pub struct DefaultKeyStore<'a> {
     identity: HashMap<Vec<u8>, &'a DefaultWrappedKey>,
@@ -173,18 +173,23 @@ fn test_idam_crypto() -> anyhow::Result<()> {
     // Test message encryption
     let plaintext = "hello";
     let parent_id = group_id;
-    let cmd = Command { name: "Message" };
+    let ctx = CommandContext {
+        name: "Message",
+        id: Id::default(),
+        author: Id::default().into(),
+        version: Id::default(),
+    };
     let ciphertext = test_ffi
         .encrypt_message(
             plaintext.as_bytes(),
             &group_key_wrap,
             parent_id,
             &pub_sign_key,
-            &cmd,
+            &ctx,
         )
         .expect("should be able to encrypt message");
     let message = test_ffi
-        .decrypt_message(&ciphertext, &group_key_wrap, parent_id, &pub_sign_key, &cmd)
+        .decrypt_message(&ciphertext, &group_key_wrap, parent_id, &pub_sign_key, &ctx)
         .expect("should be able to decrypt message");
     assert_eq!(plaintext.as_bytes(), message);
 

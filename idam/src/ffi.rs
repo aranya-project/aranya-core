@@ -31,6 +31,7 @@ use crypto::{
     idam::{self, KeyStoreSecret, SealedGroupKey, WrappedGroupKey},
     Error, Id,
 };
+use flow3_policy_lang::machine::CommandContext;
 use generic_array::ArrayLength;
 use typenum::{operator_aliases::Sum, U64};
 
@@ -123,14 +124,14 @@ impl<E: Engine, K: KeyStore<E>> IdamCrypto<E, K> {
         group_key_wrap: &[u8],
         parent_id: Id,
         pub_sign_key: &[u8],
-        command: &Command,
+        ctx: &CommandContext,
     ) -> Result<Vec<u8>, Error> {
         idam::encrypt_message(
             group_key_wrap,
             plaintext,
             parent_id,
             pub_sign_key,
-            command.name,
+            ctx.name,
             &mut self.engine,
         )
     }
@@ -142,15 +143,14 @@ impl<E: Engine, K: KeyStore<E>> IdamCrypto<E, K> {
         group_key_wrap: &[u8],
         parent_id: Id,
         peer_sign_key: &[u8],
-        command: &Command,
+        ctx: &CommandContext,
     ) -> Result<Vec<u8>, Error> {
-        // TODO(yael): expose command properties and convert them for use by crypto
         idam::decrypt_message(
             group_key_wrap,
             ciphertext,
             parent_id,
             peer_sign_key,
-            command.name,
+            ctx.name,
             &mut self.engine,
         )
     }
@@ -159,11 +159,6 @@ impl<E: Engine, K: KeyStore<E>> IdamCrypto<E, K> {
     pub fn compute_change_id(new_event: Id, current_change_id: Id) -> Id {
         idam::compute_change_id::<E>(new_event, current_change_id)
     }
-}
-
-/// Properties of Policy commands made available to the crypto engine.
-pub struct Command {
-    name: &'static str,
 }
 
 #[cfg(test)]

@@ -9,6 +9,7 @@ std = []
 
 [dependencies]
 cfg-if = { version = "1" }
+crypto = { path = "../crypto" }
 serde_yaml = "0.9"
 pest = "2"
 pest_derive = "2"

@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::collections::BTreeMap;
 use core::fmt;
 
+use crypto::{Id, UserId};
 use serde::{Deserialize, Serialize};
 
 use crate::{lang::ast::VType, machine::MachineErrorType};
@@ -474,5 +475,36 @@ impl fmt::Display for Struct {
             write!(f, "{}: {}", k, v)?;
         }
         write!(f, "}}")
+    }
+}
+
+/// Properties of policy commands available through FFI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommandContext {
+    /// The name of the command
+    pub name: &'static str,
+    /// The ID of the command
+    pub id: Id,
+    /// The ID of the author of the command
+    pub author: UserId,
+    /// The ID of the version of policy and FFI module set
+    pub version: Id,
+}
+
+// TODO: get these values at runtime
+impl CommandContext {
+    pub fn new(name: &'static str, id: Id, author: UserId, version: Id) -> Self {
+        Self {
+            name,
+            id,
+            author,
+            version,
+        }
+    }
+}
+
+impl fmt::Display for CommandContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}, {:?}, {:?}", self.name, self.id, self.author)
     }
 }

@@ -5,6 +5,7 @@ use std::{
 };
 
 use clap::{ArgGroup, Parser, ValueEnum};
+use crypto::Id;
 use flow3_policy_lang::{
     lang::{parse_policy_document, parse_policy_str, Version},
     machine::{ffi::FfiModule, *},
@@ -193,10 +194,11 @@ where
     }
 
     fn call(&self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError> {
+        let ctx = CommandContext::new("", Id::default(), Id::default().into(), Id::default());
         self.modules
             .get(module)
             .ok_or(MachineError::new(MachineErrorType::NotDefined))?
-            .call(procedure, stack)
+            .call(procedure, stack, Some(ctx))
     }
 }
 

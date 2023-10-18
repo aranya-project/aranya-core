@@ -10,6 +10,7 @@ default = ["alloc"]
 
 [dependencies]
 crypto = { path = "../crypto" }
+flow3-policy-lang = { path = "../policy-lang" }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 typenum = { version = "1", default-features = false }

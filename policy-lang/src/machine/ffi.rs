@@ -1,4 +1,4 @@
-use super::{MachineError, Stack};
+use super::{data::CommandContext, MachineError, Stack};
 use crate::lang::ast::FfiFunctionDefinition;
 
 /// Foreign Function Interface to allow the policy VM to call external functions.
@@ -13,5 +13,10 @@ where
 
     /// Invokes a function in the module.
     /// `procedure` is the index in [`function_table`][Self::function_table].
-    fn call(&self, procedure: usize, stack: &mut S) -> Result<(), Self::Error>;
+    fn call(
+        &self,
+        procedure: usize,
+        stack: &mut S,
+        ctx: Option<CommandContext>,
+    ) -> Result<(), Self::Error>;
 }

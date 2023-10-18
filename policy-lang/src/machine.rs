@@ -7,7 +7,8 @@ use crate::lang::ast;
 
 mod data;
 pub use data::{
-    Fact, FactKey, FactKeyList, FactValue, FactValueList, HashableValue, KVPair, Struct, Value,
+    CommandContext, Fact, FactKey, FactKeyList, FactValue, FactValueList, HashableValue, KVPair,
+    Struct, Value,
 };
 
 mod error;

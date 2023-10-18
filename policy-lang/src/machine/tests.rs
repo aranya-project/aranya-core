@@ -2,6 +2,7 @@ extern crate alloc;
 use alloc::collections::{btree_map, BTreeMap};
 
 use anyhow;
+use crypto::Id;
 
 use super::{ffi::FfiModule, MachineError};
 use crate::{
@@ -10,9 +11,9 @@ use crate::{
         parse_policy_str, Version,
     },
     machine::{
-        CompileError, Fact, FactKey, FactKeyList, FactValue, FactValueList, Instruction, KVPair,
-        Machine, MachineErrorType, MachineIO, MachineIOError, MachineStatus, RunState, Stack,
-        Struct, Value,
+        CommandContext, CompileError, Fact, FactKey, FactKeyList, FactValue, FactValueList,
+        Instruction, KVPair, Machine, MachineErrorType, MachineIO, MachineIOError, MachineStatus,
+        RunState, Stack, Struct, Value,
     },
 };
 
@@ -141,9 +142,10 @@ where
         procedure: usize,
         stack: &mut S,
     ) -> Result<(), super::MachineError> {
+        let ctx = CommandContext::new("", Id::default(), Id::default().into(), Id::default());
         let module = self.modules.get(module);
         match module {
-            Some(module) => module.call(procedure, stack),
+            Some(module) => module.call(procedure, stack, Some(ctx)),
             None => Err(MachineError::new(MachineErrorType::NotDefined)),
         }
     }
@@ -695,7 +697,12 @@ where
         }]
     }
 
-    fn call(&self, procedure: usize, stack: &mut S) -> Result<(), Self::Error> {
+    fn call(
+        self: &PrintFfi,
+        procedure: usize,
+        stack: &mut S,
+        _ctx: Option<CommandContext>,
+    ) -> Result<(), Self::Error> {
         match procedure {
             0 => {
                 // pop args off the stack
