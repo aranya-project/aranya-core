@@ -1,6 +1,8 @@
 #![forbid(unsafe_code)]
 
 use cfg_if::cfg_if;
+#[cfg(feature = "rand_core")]
+use rand_core::{impls, CryptoRng, RngCore};
 
 use crate::{ciphersuite::CipherSuite, csprng::Csprng};
 
@@ -50,13 +52,36 @@ impl Csprng for Rng {
                 crate::csprng::moonshot::thread_rng().fill_bytes(dst)
             } else if #[cfg(feature = "std")] {
                 // Try to use `ThreadRng` if possible.
-                rand::thread_rng().fill_bytes(dst)
+                RngCore::fill_bytes(&mut rand::thread_rng(), dst)
             } else if #[cfg(feature = "boringssl")] {
                 crate::boring::Rand.fill_bytes(dst)
             } else {
                 getrandom::getrandom(dst).expect("should not fail")
             }
         }
+    }
+}
+
+#[cfg(feature = "rand_core")]
+impl CryptoRng for Rng {}
+
+#[cfg(feature = "rand_core")]
+impl RngCore for Rng {
+    fn next_u32(&mut self) -> u32 {
+        impls::next_u32_via_fill(self)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        impls::next_u64_via_fill(self)
+    }
+
+    fn fill_bytes(&mut self, dst: &mut [u8]) {
+        Csprng::fill_bytes(self, dst)
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), rand_core::Error> {
+        Csprng::fill_bytes(self, dst);
+        Ok(())
     }
 }
 
