@@ -370,11 +370,15 @@ where
             Instruction::Exit => return Ok(MachineStatus::Exited),
             Instruction::Panic => return Ok(MachineStatus::Panicked),
             Instruction::Add | Instruction::Sub => {
-                let a: i64 = self.ipop()?;
                 let b: i64 = self.ipop()?;
+                let a: i64 = self.ipop()?;
                 let r = match instruction {
-                    Instruction::Add => a + b,
-                    Instruction::Sub => a - b,
+                    Instruction::Add => a
+                        .checked_add(b)
+                        .ok_or(self.err(MachineErrorType::IntegerOverflow))?,
+                    Instruction::Sub => a
+                        .checked_sub(b)
+                        .ok_or(self.err(MachineErrorType::IntegerOverflow))?,
                     _ => unreachable!(),
                 };
                 self.ipush(r)?;

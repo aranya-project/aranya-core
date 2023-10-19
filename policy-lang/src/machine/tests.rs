@@ -434,6 +434,104 @@ fn test_dup() {
     assert!(rs.stack.0[2] == Value::Int(3));
 }
 
+#[test]
+fn test_add() {
+    // expect t.0+t.1==t.2
+    let tups: [(i64, i64, i64); 5] = [
+        (5, 3, 8),
+        (5, 8, 13),
+        (-10, 8, -2),
+        (-10, -5, -15),
+        (-10, 20, 10),
+    ];
+
+    for t in tups.iter() {
+        let machine = Machine::new([Instruction::Add]);
+        let mut io = TestIO::new();
+        let mut rs = machine.create_run_state(&mut io);
+
+        // adds t.0+t.1
+        rs.stack.push(t.0).unwrap();
+        rs.stack.push(t.1).unwrap();
+        assert!(rs.step().unwrap() == MachineStatus::Executing);
+        assert!(rs.stack.len() == 1);
+        assert_eq!(rs.stack.0[0], Value::Int(t.2));
+    }
+}
+
+#[test]
+fn test_add_overflow() {
+    // add p.0+p.1
+    // we expect all these pairs to overflow
+    let pairs: [(i64, i64); 3] = [
+        (i64::MAX, 2),
+        (1, i64::MAX),
+        (i64::MAX / 2, (i64::MAX / 2) + 2),
+    ];
+
+    for p in pairs.iter() {
+        let machine = Machine::new([Instruction::Add]);
+        let mut io = TestIO::new();
+        let mut rs = machine.create_run_state(&mut io);
+
+        rs.stack.push(p.0).unwrap();
+        rs.stack.push(p.1).unwrap();
+        let step = rs.step();
+        assert!(step.is_err());
+        assert_eq!(
+            step.unwrap_err().err_type,
+            MachineErrorType::IntegerOverflow
+        );
+    }
+}
+
+#[test]
+fn test_sub() {
+    // expect t.0-t.1==t.2
+    let tups: [(i64, i64, i64); 4] = [(5, 3, 2), (5, 8, -3), (-10, 8, -18), (-10, -5, -5)];
+
+    for t in tups.iter() {
+        let machine = Machine::new([Instruction::Sub]);
+        let mut io = TestIO::new();
+        let mut rs = machine.create_run_state(&mut io);
+
+        // sub t.0-t.1
+        rs.stack.push(t.0).unwrap();
+        rs.stack.push(t.1).unwrap();
+        assert!(rs.step().unwrap() == MachineStatus::Executing);
+        assert!(rs.stack.len() == 1);
+        assert_eq!(rs.stack.0[0], Value::Int(t.2));
+    }
+}
+
+#[test]
+fn test_sub_overflow() {
+    // pairs to check, in the format p.0-p.1
+    // we expect all these pairs to overflow
+    let pairs: [(i64, i64); 5] = [
+        (i64::MIN, 1),
+        (i64::MIN, 2),
+        (i64::MIN / 2, (i64::MAX / 2) + 2),
+        ((i64::MAX / 2) + 2, i64::MIN / 2),
+        (i64::MAX, -1),
+    ];
+
+    for p in pairs.iter() {
+        let machine = Machine::new([Instruction::Sub]);
+        let mut io = TestIO::new();
+        let mut rs = machine.create_run_state(&mut io);
+
+        rs.stack.push(p.0).unwrap();
+        rs.stack.push(p.1).unwrap();
+        let step = rs.step();
+        assert!(step.is_err());
+        assert_eq!(
+            step.unwrap_err().err_type,
+            MachineErrorType::IntegerOverflow
+        );
+    }
+}
+
 struct TestStack {
     stack: Vec<Value>,
 }

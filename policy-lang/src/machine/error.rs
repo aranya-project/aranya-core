@@ -50,6 +50,9 @@ pub enum MachineErrorType {
     /// Bad state - Some internal state is invalid and execution cannot
     /// continue.
     BadState,
+    /// IntegerOverflow occurs when an instruction wraps an integer above
+    /// the max value or below the min value.
+    IntegerOverflow,
     /// IO Error - Some machine I/O operation caused an error
     IO(MachineIOError),
     /// Unknown - every other possible problem
@@ -69,6 +72,7 @@ impl fmt::Display for MachineErrorType {
             MachineErrorType::UnresolvedTarget => write!(f, "unresolved branch/jump target"),
             MachineErrorType::InvalidAddress => write!(f, "invalid address"),
             MachineErrorType::BadState => write!(f, "Bad state"),
+            MachineErrorType::IntegerOverflow => write!(f, "integer wrap"),
             MachineErrorType::IO(e) => write!(f, "IO: {}", e),
             MachineErrorType::Unknown => write!(f, "unknown error"),
         }
