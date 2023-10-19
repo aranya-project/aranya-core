@@ -373,19 +373,3 @@ pub struct Policy {
     pub functions: Vec<FunctionDefinition>,
     pub finish_functions: Vec<FinishFunctionDefinition>,
 }
-
-/// Describes a foreign function, with its name and arguments.
-pub struct FfiFunctionDefinition {
-    pub name: String,
-    pub args: Vec<FieldDefinition>,
-    pub color: FfiFunctionColor,
-}
-
-/// Describes the context in which the function can be called.
-pub enum FfiFunctionColor {
-    /// Function is valid outside of finish blocks, and returns a value.
-    Pure(VType),
-
-    /// Function is valid inside finish blocks, and does not return a value.
-    Finish,
-}

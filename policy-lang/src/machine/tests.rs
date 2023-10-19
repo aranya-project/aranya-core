@@ -4,10 +4,13 @@ use alloc::collections::{btree_map, BTreeMap};
 use anyhow;
 use crypto::Id;
 
-use super::{ffi::FfiModule, MachineError};
+use super::{
+    ffi::{self, FfiModule},
+    MachineError,
+};
 use crate::{
     lang::{
-        ast::{self, FfiFunctionColor, FfiFunctionDefinition, FieldDefinition, VType},
+        ast::{self, VType},
         parse_policy_str, Version,
     },
     machine::{
@@ -784,14 +787,14 @@ where
 {
     type Error = MachineError;
 
-    fn function_table(&self) -> Vec<FfiFunctionDefinition> {
-        vec![FfiFunctionDefinition {
-            name: "print".to_string(),
-            args: vec![FieldDefinition {
-                identifier: "s".to_string(),
-                field_type: VType::String,
+    fn function_table(&self) -> &'static [ffi::Func<'static>] {
+        &[ffi::Func {
+            name: "print",
+            args: &[ffi::Arg {
+                name: "s",
+                vtype: VType::String,
             }],
-            color: FfiFunctionColor::Pure(VType::String),
+            color: ffi::Color::Pure(VType::String),
         }]
     }
 
