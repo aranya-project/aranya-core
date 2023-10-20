@@ -1,3 +1,4 @@
+use crypto::{Engine, Signature};
 use serde::{Deserialize, Serialize};
 
 crypto::custom_id!(
@@ -6,7 +7,16 @@ crypto::custom_id!(
 );
 
 impl Id {
-    pub fn hash(data: &[u8]) -> Self {
+    /// Derives an [`Id`] from `cmd` and a signature over `cmd`.
+    pub fn new<E: Engine + ?Sized>(cmd: &[u8], sig: &Signature<E>) -> Self {
+        Self(crypto::Id::from_sig(cmd, sig))
+    }
+
+    /// Derives an [`Id`] from some data.
+    ///
+    /// This is for testing only. It's not `#[cfg(test)]` because
+    /// (unfortunately) some code already depends on it.
+    pub fn hash_for_testing_only(data: &[u8]) -> Self {
         use crypto::{hash::Hash, rust::Sha512};
         Sha512::hash(data).into()
     }

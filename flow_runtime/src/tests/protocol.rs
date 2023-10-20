@@ -243,7 +243,7 @@ impl Policy for TestPolicy {
     }
 
     fn read_command<'a>(&self, data: &'a [u8]) -> Result<TestProtocol<'a>, EngineError> {
-        let id = Id::hash(data);
+        let id = Id::hash_for_testing_only(data);
         let command = from_bytes(data)?;
 
         Ok(TestProtocol::<'a> { id, command, data })
@@ -277,7 +277,7 @@ impl Policy for TestPolicy {
             policy_num: policy,
         });
         let data = write(target, &command)?;
-        let id = Id::hash(data);
+        let id = Id::hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -290,7 +290,7 @@ impl Policy for TestPolicy {
     ) -> Result<TestProtocol<'a>, EngineError> {
         let command = WireProtocol::Merge(WireMerge { left, right });
         let data = write(target, &command)?;
-        let id = Id::hash(data);
+        let id = Id::hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -334,7 +334,7 @@ impl Policy for TestPolicy {
 
         let command = WireProtocol::Basic(message);
         let data = write(target, &command)?;
-        let id = Id::hash(data);
+        let id = Id::hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }

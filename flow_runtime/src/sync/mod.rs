@@ -425,7 +425,8 @@ impl SyncState for SyncRequester<'_> {
                     let payload = &remaining[start..(start + len)];
                     start += len;
 
-                    let id = Id::hash(payload);
+                    // TODO(eric): fix this
+                    let id = Id::hash_for_testing_only(payload);
 
                     let command = SyncCommand {
                         id,
