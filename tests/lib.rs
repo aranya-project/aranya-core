@@ -1,4 +1,4 @@
-use flow3_rs::version;
+use service::version;
 
 #[test]
 fn test_version() {

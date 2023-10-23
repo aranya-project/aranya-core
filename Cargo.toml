@@ -2,14 +2,7 @@
 resolver = "2"
 
 members = [
-	"base58",
-	"crypto",
-	"flow_runtime",
-	"idam",
-	"policy-lang",
-	"rtrack",
-	"rtrack_derive",
-	"service",
+	"crates/*"
 ]
 
 [workspace.package]

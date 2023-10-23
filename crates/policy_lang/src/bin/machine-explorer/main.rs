@@ -6,7 +6,7 @@ use std::{
 
 use clap::{ArgGroup, Parser, ValueEnum};
 use crypto::Id;
-use flow3_policy_lang::{
+use policy_lang::{
     lang::{parse_policy_document, parse_policy_str, Version},
     machine::{ffi::FfiModule, *},
 };

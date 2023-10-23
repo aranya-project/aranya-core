@@ -19,6 +19,8 @@ form first.
 
 #![cfg_attr(docs, doc(cfg(feature = "alloc")))]
 #![cfg(feature = "alloc")]
+// TODO: Remove when fields and methods are used.
+#![allow(unused)]
 
 use core::{
     fmt::{self, Display},
@@ -31,8 +33,8 @@ use crypto::{
     idam::{self, KeyStoreSecret, SealedGroupKey, WrappedGroupKey},
     Error, Id,
 };
-use flow3_policy_lang::machine::CommandContext;
 use generic_array::ArrayLength;
+use policy_lang::machine::CommandContext;
 use typenum::{operator_aliases::Sum, U64};
 
 /// Error resulting from a bad query to KeyStore

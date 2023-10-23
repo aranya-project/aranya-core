@@ -5,8 +5,8 @@ use std::{
 };
 
 use clap::{Parser, ValueEnum};
-use flow3_policy_lang::lang::*;
 use pest::Parser as PestParser;
+use policy_lang::lang::*;
 
 #[derive(Parser, Debug)]
 #[command(name = "parser explorer", version)]
