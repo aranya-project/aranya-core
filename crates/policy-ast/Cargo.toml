@@ -1,0 +1,32 @@
+[package]
+name = "policy-ast"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+
+[lib]
+
+[features]
+default = []
+
+# Enable `std`.
+std = []
+
+#
+# Nightly features
+#
+
+# Makes the various "error" types implement `core::error::Error`.
+# If `std` is enabled, this is a no-op.
+error_in_core = []
+
+[dependencies]
+cfg-if = { workspace = true, default-features = false }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+denylist = [
+	"error_in_core",
+]

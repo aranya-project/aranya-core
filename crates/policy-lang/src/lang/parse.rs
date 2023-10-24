@@ -6,11 +6,12 @@ use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
     Parser, Span,
 };
+use policy_ast as ast;
 
 mod markdown;
 
 pub use self::markdown::{extract_policy, parse_policy_document};
-use crate::lang::{ast, Version};
+use crate::lang::Version;
 
 mod internal {
     // This is a hack to work around ambiguity between pest_derive::Parser and pest::Parser.

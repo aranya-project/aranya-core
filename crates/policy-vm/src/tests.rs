@@ -1,23 +1,25 @@
+#![cfg(test)]
+#![allow(clippy::unwrap_used)]
+
 extern crate alloc;
 use alloc::collections::{btree_map, BTreeMap};
 
-use anyhow;
 use crypto::Id;
+use policy_ast::{self as ast, VType, Version};
+use policy_lang::lang::parse_policy_str;
 
-use super::{
-    ffi::{self, FfiModule},
-    MachineError,
-};
 use crate::{
-    lang::{
-        ast::{self, VType},
-        parse_policy_str, Version,
+    compile::CompileError,
+    data::{
+        CommandContext, Fact, FactKey, FactKeyList, FactValue, FactValueList, KVPair, Struct, Value,
     },
-    machine::{
-        CommandContext, CompileError, Fact, FactKey, FactKeyList, FactValue, FactValueList,
-        Instruction, KVPair, Machine, MachineErrorType, MachineIO, MachineIOError, MachineStatus,
-        RunState, Stack, Struct, Value,
-    },
+    error::MachineErrorType,
+    ffi::{self, FfiModule},
+    instructions::Instruction,
+    io::{MachineIO, MachineIOError},
+    machine::{Machine, MachineStatus, RunState},
+    stack::Stack,
+    MachineError,
 };
 
 struct TestIO<S>
@@ -139,12 +141,7 @@ where
         self.effect_stack.push((name, fields));
     }
 
-    fn call(
-        &self,
-        module: usize,
-        procedure: usize,
-        stack: &mut S,
-    ) -> Result<(), super::MachineError> {
+    fn call(&self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError> {
         let ctx = CommandContext::new("", Id::default(), Id::default().into(), Id::default());
         let module = self.modules.get(module);
         match module {

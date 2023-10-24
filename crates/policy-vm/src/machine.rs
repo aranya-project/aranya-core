@@ -1,33 +1,18 @@
 extern crate alloc;
 
-use alloc::collections::BTreeMap;
+use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt::Display;
 
-use crate::lang::ast;
+use policy_ast as ast;
 
-mod data;
-pub use data::{
-    CommandContext, Fact, FactKey, FactKeyList, FactValue, FactValueList, HashableValue, KVPair,
-    Struct, Value,
+use crate::{
+    compile::{CompileError, CompileState},
+    data::{Fact, FactValue, HashableValue, KVPair, Struct, TryAsMut, Value},
+    error::{MachineError, MachineErrorType},
+    instructions::{Instruction, Target},
+    io::MachineIO,
+    stack::Stack,
 };
-
-mod error;
-pub use error::{MachineError, MachineErrorType};
-
-mod instructions;
-pub use instructions::{Instruction, Target};
-
-mod io;
-pub use io::{MachineIO, MachineIOError};
-
-mod compile;
-pub use self::compile::{CompileError, CompileState};
-use self::data::TryAsMut;
-
-mod stack;
-pub use stack::Stack;
-
-pub mod ffi;
 
 /// Returns true if all of the k/v pairs in a exist in b, or false
 /// otherwise.
@@ -78,11 +63,11 @@ pub enum LabelType {
 
 /// Labels are branch targets and execution entry points.
 #[derive(Debug, Clone)]
-struct Label {
+pub(crate) struct Label {
     /// The address of the label
-    addr: usize,
+    pub(crate) addr: usize,
     /// The type of the label
-    ltype: LabelType,
+    pub(crate) ltype: LabelType,
 }
 
 /// This is the core policy machine type, which contains all of the state
@@ -91,16 +76,17 @@ struct Label {
 pub struct Machine {
     // static state (things which do not change after compilation)
     /// The program memory
-    progmem: Vec<Instruction>,
+    pub(crate) progmem: Vec<Instruction>,
     /// Mapping of Label names to addresses
-    labels: BTreeMap<String, Label>,
+    pub(crate) labels: BTreeMap<String, Label>,
     /// Fact schemas
     fact_defs: BTreeMap<String, ast::FactDefinition>,
     /// Struct schemas
-    struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    pub(crate) struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
 }
 
 impl Machine {
+    /// Creates a `Machine` from a list of instructions.
     pub fn new<I>(instructions: I) -> Self
     where
         I: IntoIterator<Item = Instruction>,
@@ -126,7 +112,7 @@ impl Machine {
     }
 
     /// Create a RunState associated with this Machine.
-    pub fn create_run_state<'a, M>(&'a self, io: &'a mut M) -> RunState<M>
+    pub fn create_run_state<'a, M>(&'a self, io: &'a mut M) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
     {
@@ -174,7 +160,7 @@ where
     /// Named value definitions ("variables")
     defs: BTreeMap<String, Value>,
     /// The stack
-    stack: MachineStack,
+    pub(crate) stack: MachineStack,
     /// The call state stack - stores return addresses and previous
     /// definitions when a function is called
     call_state: Vec<CallState>,
@@ -617,15 +603,16 @@ where
     }
 }
 
-pub struct MachineStack(Vec<Value>);
+/// An implementation of [`Stack`].
+pub struct MachineStack(pub(crate) Vec<Value>);
 
 impl MachineStack {
-    fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.0.len()
     }
 
-    #[allow(dead_code)]
-    fn is_empty(&self) -> bool {
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub(crate) fn is_empty(&self) -> bool {
         self.0.len() == 0
     }
 
@@ -688,6 +675,3 @@ where
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests;

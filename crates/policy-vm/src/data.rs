@@ -1,12 +1,13 @@
 extern crate alloc;
 
-use alloc::collections::BTreeMap;
+use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt;
 
 use crypto::{Id, UserId};
+use policy_ast::VType;
 use serde::{Deserialize, Serialize};
 
-use crate::{lang::ast::VType, machine::MachineErrorType};
+use crate::error::MachineErrorType;
 
 /// All of the value types allowed in the VM
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,8 +28,13 @@ pub enum Value {
     None,
 }
 
+/// Like `AsMut`, but fallible.
 pub trait TryAsMut<T: ?Sized> {
+    /// The error result.
     type Error;
+
+    /// Converts this type into a mutable reference of the
+    /// (usually inferred) input type.
     fn try_as_mut(&mut self) -> Result<&mut T, Self::Error>;
 }
 
@@ -237,8 +243,11 @@ impl fmt::Display for Value {
 /// can be used in the key portion of a Fact.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum HashableValue {
+    /// An integer.
     Int(i64),
+    /// A bool.
     Bool(bool),
+    /// A string.
     String(String),
 }
 
@@ -290,6 +299,7 @@ impl fmt::Display for HashableValue {
 pub struct FactKey(String, HashableValue);
 
 impl FactKey {
+    /// Creates a fact key.
     pub fn new(key: &str, value: HashableValue) -> FactKey {
         FactKey(key.to_owned(), value)
     }
@@ -306,6 +316,7 @@ impl fmt::Display for FactKey {
 pub struct FactValue(String, Value);
 
 impl FactValue {
+    /// Creates a fact value.
     pub fn new(key: &str, value: Value) -> FactValue {
         FactValue(key.to_owned(), value)
     }
@@ -317,7 +328,10 @@ impl fmt::Display for FactValue {
     }
 }
 
+/// A list of fact keys.
 pub type FactKeyList = Vec<FactKey>;
+
+/// A list of fact values.
 pub type FactValueList = Vec<FactValue>;
 
 /// A generic key/value pair. Used for Effects and Command fields.
@@ -327,18 +341,22 @@ pub type FactValueList = Vec<FactValue>;
 pub struct KVPair(String, Value);
 
 impl KVPair {
+    /// Creates a key-value pair.
     pub fn new(key: &str, value: Value) -> KVPair {
         KVPair(key.to_owned(), value)
     }
 
+    /// Creates a key-value pair with an integer value.
     pub fn new_int(key: &str, value: i64) -> KVPair {
         KVPair(key.to_owned(), Value::Int(value))
     }
 
+    /// Returns the key half of the key-value pair.
     pub fn key(&self) -> &str {
         &self.0
     }
 
+    /// Returns the value half of the key-value pair.
     pub fn value(&self) -> &Value {
         &self.1
     }
@@ -380,6 +398,7 @@ pub struct Fact {
 }
 
 impl Fact {
+    /// Creates a fact.
     pub fn new(name: String) -> Fact {
         Fact {
             name,
@@ -387,6 +406,8 @@ impl Fact {
             values: vec![],
         }
     }
+
+    /// Sets the fact's key.
     pub fn set_key<V>(&mut self, name: String, value: V)
     where
         V: Into<HashableValue>,
@@ -397,6 +418,7 @@ impl Fact {
         }
     }
 
+    /// Sets the fact's value.
     pub fn set_value<V>(&mut self, name: String, value: V)
     where
         V: Into<Value>,
@@ -442,6 +464,7 @@ pub struct Struct {
 }
 
 impl Struct {
+    /// Creates a struct.
     pub fn new(name: &str, fields: &[KVPair]) -> Struct {
         Struct {
             name: name.to_owned(),
@@ -493,6 +516,7 @@ pub struct CommandContext {
 
 // TODO: get these values at runtime
 impl CommandContext {
+    /// Creates a `CommandContext`.
     pub fn new(name: &'static str, id: Id, author: UserId, version: Id) -> Self {
         Self {
             name,

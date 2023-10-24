@@ -1,6 +1,9 @@
+extern crate alloc;
+
+use alloc::string::String;
 use core::fmt::Display;
 
-use crate::machine::Value;
+use crate::data::Value;
 
 /// The target of a branch
 #[derive(Debug, Clone)]

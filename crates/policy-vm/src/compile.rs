@@ -1,18 +1,26 @@
 extern crate alloc;
 
-use alloc::collections::{btree_map, BTreeMap};
+use alloc::{
+    borrow::ToOwned,
+    collections::{btree_map, BTreeMap},
+    format,
+    string::String,
+    vec::Vec,
+};
 
 use cfg_if::cfg_if;
+use policy_ast as ast;
 
 use crate::{
-    lang::ast,
-    machine::{Instruction, Label, LabelType, Machine, Target, Value},
+    data::Value,
+    instructions::{Instruction, Target},
+    machine::{Label, LabelType, Machine},
 };
 
 cfg_if! {
     if #[cfg(feature = "error_in_core")] {
         use core::error;
-    } else {
+    } else if #[cfg(feature = "std")] {
         use std::error;
     }
 }
@@ -51,7 +59,8 @@ impl core::fmt::Display for CompileError {
     }
 }
 
-// Default Error implementation via Debug and Display
+#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
+#[cfg(any(feature = "error_in_core", feature = "std"))]
 impl error::Error for CompileError {}
 
 enum FunctionColor {
@@ -83,7 +92,8 @@ pub struct CompileState {
 }
 
 impl CompileState {
-    // Create a new CompileState which compiles into the owned machine.
+    /// Create a new CompileState which compiles into the owned
+    /// machine.
     pub fn new(m: Machine) -> CompileState {
         CompileState {
             m,

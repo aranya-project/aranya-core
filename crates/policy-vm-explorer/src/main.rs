@@ -4,11 +4,13 @@ use std::{
     io::{stdin, Read},
 };
 
-use clap::{ArgGroup, Parser, ValueEnum};
+use clap::{arg, ArgGroup, Parser, ValueEnum};
 use crypto::Id;
-use policy_lang::{
-    lang::{parse_policy_document, parse_policy_str, Version},
-    machine::{ffi::FfiModule, *},
+use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
+use policy_vm::{
+    CommandContext, FactKey, FactKeyList, FactValue, FactValueList, FfiModule, KVPair, Machine,
+    MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack, MachineStatus,
+    RunState, Stack, Struct, Value,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]

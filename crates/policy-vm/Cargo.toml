@@ -1,0 +1,45 @@
+[package]
+name = "policy-vm"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+
+[lib]
+
+[features]
+default = []
+
+# Enable `std`.
+std = [
+	"crypto/std",
+	"policy-ast/std",
+]
+
+#
+# Nightly features
+#
+
+# Makes the various "error" types implement `core::error::Error`.
+# If `std` is enabled, this is a no-op.
+error_in_core = [
+	"crypto/error_in_core",
+	"policy-ast/error_in_core",
+]
+
+[dependencies]
+cfg-if = { workspace = true, default-features = false }
+crypto = { path = "../crypto", default-features = false }
+policy-ast = { path = "../policy-ast" }
+serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
+
+[dev-dependencies]
+anyhow = { version = "1" }
+policy-lang = { path = "../policy-lang" }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+denylist = [
+	"error_in_core",
+]

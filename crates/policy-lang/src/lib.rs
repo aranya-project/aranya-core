@@ -2,4 +2,3 @@
 #![cfg_attr(docs, feature(doc_cfg))]
 
 pub mod lang;
-pub mod machine;

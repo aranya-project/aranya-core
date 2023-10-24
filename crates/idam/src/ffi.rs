@@ -34,7 +34,7 @@ use crypto::{
     Error, Id,
 };
 use generic_array::ArrayLength;
-use policy_lang::machine::CommandContext;
+use policy_vm::CommandContext;
 use typenum::{operator_aliases::Sum, U64};
 
 /// Error resulting from a bad query to KeyStore

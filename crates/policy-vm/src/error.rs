@@ -2,7 +2,7 @@ use core::fmt;
 
 use cfg_if::cfg_if;
 
-use crate::machine::io::MachineIOError;
+use crate::io::MachineIOError;
 
 cfg_if! {
     if #[cfg(feature = "std")] {
@@ -78,6 +78,8 @@ impl fmt::Display for MachineErrorType {
         }
     }
 }
+
+/// An error returned by [`Machine`][crate::machine::Machine].
 #[derive(Debug, PartialEq)]
 pub struct MachineError {
     /// The type of the error
@@ -87,6 +89,7 @@ pub struct MachineError {
 }
 
 impl MachineError {
+    /// Creates a `MachineError`.
     pub fn new(err_type: MachineErrorType) -> MachineError {
         MachineError {
             err_type,

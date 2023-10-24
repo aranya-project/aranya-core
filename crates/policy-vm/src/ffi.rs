@@ -1,7 +1,6 @@
-use crate::{
-    lang::ast::VType,
-    machine::{data::CommandContext, error::MachineError, stack::Stack},
-};
+use policy_ast::VType;
+
+use crate::{data::CommandContext, error::MachineError, stack::Stack};
 
 /// A foreign function.
 #[derive(Clone, Debug)]
@@ -39,6 +38,7 @@ pub trait FfiModule<S>
 where
     S: Stack,
 {
+    /// The error result from [`FfiModule::call`].
     type Error: Into<MachineError>;
 
     /// Returns a list of function definitions. Used by the
@@ -59,7 +59,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::machine::error::MachineErrorType;
+    use crate::error::MachineErrorType;
 
     /// Tests that static function tables can be used. See
     /// issue/290.

@@ -1,5 +1,9 @@
-use crate::machine::{MachineErrorType, TryAsMut, Value};
+use crate::{
+    data::{TryAsMut, Value},
+    error::MachineErrorType,
+};
 
+/// A stack data structure.
 pub trait Stack {
     /// Push a value (as a [Value]) onto the stack.
     fn push_value(&mut self, value: Value) -> Result<(), MachineErrorType>;

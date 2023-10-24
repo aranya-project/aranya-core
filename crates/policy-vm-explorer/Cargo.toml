@@ -1,0 +1,19 @@
+[package]
+name = "policy-vm-explorer"
+version = "0.1.0"
+publish.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+anyhow = { version = "1" }
+clap = { version = "4.4", features = ["derive"] }
+crypto = { path = "../crypto" }
+policy-lang = { path = "../policy-lang" }
+policy-vm = { path = "../policy-vm", features = ["std"] }
+
+[[bin]]
+name = "policy-vm-explorer"
+path = "src/main.rs"

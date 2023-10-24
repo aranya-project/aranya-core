@@ -1,21 +1,25 @@
+extern crate alloc;
+
+use alloc::string::String;
 use core::fmt;
 
 use cfg_if::cfg_if;
 
 use super::Stack;
-use crate::machine::{
+use crate::{
     data::{FactKey, FactKeyList, FactValue, FactValueList, KVPair},
     error::{MachineError, MachineErrorType},
 };
 
 cfg_if! {
-    if #[cfg(feature = "std")] {
-        use std::error;
-    } else if #[cfg(feature = "error_in_core")] {
+    if #[cfg(feature = "error_in_core")] {
         use core::error;
+    } else if #[cfg(feature = "std")] {
+        use std::error;
     }
 }
 
+/// An I/O error.
 #[derive(Debug, Eq, PartialEq)]
 pub enum MachineIOError {
     /// Attempted to create a fact that already exists
@@ -46,13 +50,15 @@ impl From<MachineIOError> for MachineError {
     }
 }
 
+/// The part of a `Machine` that performs I/O.
 pub trait MachineIO<S>
 where
     S: Stack,
 {
+    /// Iterates over the results of a fact query.
     type QueryIterator: Iterator<Item = (FactKeyList, FactValueList)>;
 
-    // Insert a fact
+    /// Insert a fact
     fn fact_insert(
         &mut self,
         name: String,

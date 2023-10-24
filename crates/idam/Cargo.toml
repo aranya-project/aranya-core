@@ -10,8 +10,8 @@ default = ["alloc"]
 
 [dependencies]
 crypto = { path = "../crypto" }
-policy_lang = { path = "../policy_lang" }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
+policy-vm = { path = "../policy-vm" }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 typenum = { version = "1", default-features = false }
 

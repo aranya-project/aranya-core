@@ -1,10 +1,11 @@
-use ::markdown::{
+use markdown::{
     mdast::{Node, Yaml},
     to_mdast, ParseOptions,
 };
+use policy_ast as ast;
 use serde::Deserialize;
 
-use crate::lang::{ast, parse_policy_str, ParseError, ParseErrorKind, Version};
+use crate::lang::{parse_policy_str, ParseError, ParseErrorKind, Version};
 
 #[derive(Deserialize)]
 struct FrontMatter {
