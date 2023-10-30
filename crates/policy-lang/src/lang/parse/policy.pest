@@ -26,7 +26,7 @@ string_t = { "string" }
 bytes_t = { "bytes" }
 int_t = { "int" }
 bool_t = { "bool" }
-id_t = { "ID" }
+id_t = { "id" }
 // An optional type is any of the core types preceded by "optional"
 // (so no "optional optional" allowed).
 optional_t = { "optional" ~ (string_t | bytes_t | int_t | bool_t | id_t) }
@@ -231,9 +231,9 @@ fact_definition = { "fact" ~ fact_signature }
 // action foo(a int) { ... }
 action_statements = _{ let_statement | match_statement | when_statement | emit_statement }
 action_definition = { "action" ~ identifier ~ function_arguments ~ "{" ~ action_statements* ~ "}" }
-// effect Foo { bar ID }
+// effect Foo { bar id }
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
-// struct Foo { bar ID }
+// struct Foo { bar id }
 struct_definition = { "struct" ~ identifier ~ struct_def }
 // command Foo { ... }
 command_statements = _{ fields_statement | policy_statement | recall_statement }

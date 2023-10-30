@@ -249,7 +249,7 @@ fn parse_field() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_fact() -> Result<(), PestError<Rule>> {
     let src = r#"
-        fact Foo[a int] => {b ID, c string}
+        fact Foo[a int] => {b id, c string}
     "#
     .trim();
 
@@ -264,7 +264,7 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 #[allow(clippy::result_large_err)]
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
-        action init(owner ID) {
+        action init(owner id) {
             emit Init{
                 Owner: owner
             }
@@ -283,7 +283,7 @@ fn parse_action() -> Result<(), PestError<Rule>> {
 fn parse_effect() -> Result<(), PestError<Rule>> {
     let src = r#"
         effect Foo {
-            owner ID dynamic,
+            owner id dynamic,
         }
     "#
     .trim();
@@ -300,7 +300,7 @@ fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
         command Foo {
             fields {
-                owner ID,
+                owner id,
             }
 
             policy {
@@ -749,13 +749,13 @@ fn parse_tictactoe() {
         let mut buf = vec![];
         let mut f = OpenOptions::new()
             .read(true)
-            .open("src/lang/tictactoe.policy")
+            .open("src/lang/tictactoe-policy.md")
             .expect("could not open policy");
         f.read_to_end(&mut buf).expect("could not read policy file");
         String::from_utf8(buf).expect("File is not valid UTF-8")
     };
 
-    let policy = match parse_policy_str(&text, Version::V3) {
+    let policy = match parse_policy_document(&text) {
         Ok(p) => p,
         Err(e) => {
             // we do this rather than .expect() so we can see the nice error formatting

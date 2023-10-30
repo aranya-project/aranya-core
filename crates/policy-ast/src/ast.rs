@@ -63,7 +63,7 @@ pub enum VType {
     /// a boolean
     Bool,
     /// a Flow3 identifier
-    ID,
+    Id,
     /// A named struct
     Struct(String),
     /// an optional type of some other type

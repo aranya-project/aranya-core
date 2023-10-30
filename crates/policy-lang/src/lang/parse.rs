@@ -222,7 +222,7 @@ fn parse_type(token: Pair<Rule>) -> Result<ast::VType, ParseError> {
         Rule::bytes_t => Ok(ast::VType::Bytes),
         Rule::int_t => Ok(ast::VType::Int),
         Rule::bool_t => Ok(ast::VType::Bool),
-        Rule::id_t => Ok(ast::VType::ID),
+        Rule::id_t => Ok(ast::VType::Id),
         Rule::struct_t => {
             let mut pc = descend(token);
             let name = pc.consume_string(Rule::identifier)?;

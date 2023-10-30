@@ -3,10 +3,10 @@ policy-version: 3
 ---
 
 ```policy
-fact Players[gameID ID]=>{x ID, o ID}
-fact NextPlayer[gameID ID]=>{p string}
-fact Field[gameID ID, x int, y int]=>{p string}
-fact GameOver[gameID ID]=>{}
+fact Players[gameID id]=>{x id, o id}
+fact NextPlayer[gameID id]=>{p string}
+fact Field[gameID id, x int, y int]=>{p string}
+fact GameOver[gameID id]=>{}
 
 // Regular functions can only contain data processing statements, must
 // have a return type, and must return a value
@@ -15,11 +15,11 @@ function bounds(v int) bool {
 }
 // finish functions can only be used in finish blocks and can only contain
 // statements valid in finish blocks
-finish function set_next_player(gameID ID, to string) {
+finish function set_next_player(gameID id, to string) {
     update NextPlayer[gameID: gameID] to {p: to}
 }
 
-action StartGame(profileX ID, profileO ID) {
+action StartGame(profileX id, profileO id) {
     let command = Start{
         ProfileX: profileX,
         ProfileO: profileO,
@@ -28,15 +28,15 @@ action StartGame(profileX ID, profileO ID) {
 }
 
 effect GameStart {
-    gameID ID,
-    x ID,
-    o ID,
+    gameID id,
+    x id,
+    o id,
 }
 
 command Start {
     fields {
-        ProfileX ID,
-        ProfileO ID,
+        ProfileX id,
+        ProfileO id,
     }
 
     policy {
@@ -58,7 +58,7 @@ command Start {
     }
 }
 
-action MakeMove(gameID ID, x int, y int) {
+action MakeMove(gameID id, x int, y int) {
     let command = Move {
         gameID: gameID,
         X: x,
@@ -68,8 +68,8 @@ action MakeMove(gameID ID, x int, y int) {
 }
 
 effect GameUpdate {
-    gameID ID,
-    player ID,
+    gameID id,
+    player id,
     // the "dynamic" keyword is an annotation used to indicate to the consumer
     // that this value is not based on static event data and may change.
     p      string dynamic,
@@ -78,15 +78,15 @@ effect GameUpdate {
 }
 
 effect GameOver {
-    gameID ID,
-    winner ID,
+    gameID id,
+    winner id,
     p string,
 }
 
 command Move {
     // phase 0: command field definition
     fields {
-        gameID ID,
+        gameID id,
         X int,
         Y int,
     }
@@ -139,7 +139,7 @@ command Move {
     }
 }
 
-function game_over(gameID ID, x int, y int, p string) bool {
+function game_over(gameID id, x int, y int, p string) bool {
     let f00 = if x == 0 && y == 0 then Some p else query Field[gameID: gameID, x: 0, y: 0]=>{p: ?}
     let f10 = if x == 1 && y == 0 then Some p else query Field[gameID: gameID, x: 1, y: 0]=>{p: ?}
     let f20 = if x == 2 && y == 0 then Some p else query Field[gameID: gameID, x: 2, y: 0]=>{p: ?}
@@ -161,7 +161,7 @@ function game_over(gameID ID, x int, y int, p string) bool {
 
 command Move2 {
     fields {
-        gameID ID,
+        gameID id,
         X int,
         Y int,
     }

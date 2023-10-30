@@ -622,12 +622,12 @@ fn test_bytes() -> anyhow::Result<()> {
     let text = r#"
         command Foo {
             fields {
-                id ID,
+                id id,
                 x bytes,
             }
         }
 
-        action foo(id ID, x bytes) {
+        action foo(id id, x bytes) {
             emit Foo{id: id, x: x}
         }
     "#;
@@ -675,12 +675,12 @@ fn test_structs() -> anyhow::Result<()> {
 
         command Foo {
             fields {
-                id ID,
+                id id,
                 bar struct Bar,
             }
         }
 
-        action foo(id ID, x int) {
+        action foo(id id, x int) {
             emit Foo{
                 id: id,
                 bar: Bar {
@@ -749,7 +749,7 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
             x int
         }
 
-        action foo(id ID, x int) {
+        action foo(id id, x int) {
             let v = Bar {
                 y: x
             }

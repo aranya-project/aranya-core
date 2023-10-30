@@ -89,7 +89,7 @@ mod tests {
                         },
                         Arg {
                             name: "two",
-                            vtype: VType::ID,
+                            vtype: VType::Id,
                         },
                     ],
                     color: Color::Finish,
