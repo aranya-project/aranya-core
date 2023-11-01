@@ -6,12 +6,12 @@ use core::fmt::Display;
 use policy_ast as ast;
 
 use crate::{
-    compile::{CompileError, CompileState},
     data::{Fact, FactValue, HashableValue, KVPair, Struct, TryAsMut, Value},
     error::{MachineError, MachineErrorType},
     instructions::{Instruction, Target},
     io::MachineIO,
     stack::Stack,
+    CodeMap, Span,
 };
 
 /// Returns true if all of the k/v pairs in a exist in b, or false
@@ -83,6 +83,8 @@ pub struct Machine {
     fact_defs: BTreeMap<String, ast::FactDefinition>,
     /// Struct schemas
     pub(crate) struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Mapping between program instructions and original code
+    pub(crate) codemap: Option<CodeMap>,
 }
 
 impl Machine {
@@ -96,19 +98,19 @@ impl Machine {
             labels: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
+            codemap: None,
         }
     }
 
-    /// Create a new Machine by compiling a policy AST.
-    pub fn compile_from_policy(policy: &ast::Policy) -> Result<Machine, CompileError> {
-        let mut cs = CompileState::new(Machine {
+    /// Creates an empty `Machine` with a given codemap. Used by the compiler.
+    pub(crate) fn from_codemap(codemap: CodeMap) -> Self {
+        Machine {
             progmem: vec![],
             labels: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
-        });
-        cs.compile(policy)?;
-        Ok(cs.into_machine())
+            codemap: Some(codemap),
+        }
     }
 
     /// Create a RunState associated with this Machine.
@@ -189,10 +191,20 @@ where
         }
     }
 
+    /// Get the source line associated with the current PC, if source
+    /// is available.
+    pub fn source_text(&self) -> Option<Span<'_>> {
+        self.machine
+            .codemap
+            .as_ref()?
+            .span_from_instruction(self.pc)
+            .ok()
+    }
+
     /// Internal function to produce a MachineError with location
     /// information.
     fn err(&self, err_type: MachineErrorType) -> MachineError {
-        MachineError::new_with_position(err_type, self.pc)
+        MachineError::from_position(err_type, self.pc, self.machine.codemap.as_ref())
     }
 
     /// Reset the machine state - undefine all named values, empty the
@@ -246,7 +258,40 @@ where
         let pc = self.pc;
         self.stack
             .peek()
-            .map_err(|e| MachineError::new_with_position(e, pc))
+            .map_err(|e| MachineError::from_position(e, pc, self.machine.codemap.as_ref()))
+    }
+
+    /// Validate a struct against defined schema.
+    // TODO(chip): This does not distinguish between Commands and
+    // Effects and it should.
+    fn validate_struct_schema(&self, s: &Struct) -> Result<(), MachineError> {
+        let err = self.err(MachineErrorType::InvalidSchema);
+
+        match self.machine.struct_defs.get(&s.name) {
+            Some(fields) => {
+                // Check for struct fields that do not exist in the
+                // definition.
+                for f in &s.fields {
+                    if !fields.iter().any(|v| &v.identifier == f.0) {
+                        return Err(err);
+                    }
+                }
+                // Ensure all defined fields exist and have the same
+                // types.
+                for f in fields {
+                    match s.fields.get(&f.identifier) {
+                        Some(f) => {
+                            if f.vtype() != f.vtype() {
+                                return Err(err);
+                            }
+                        }
+                        None => return Err(err),
+                    }
+                }
+                Ok(())
+            }
+            None => Err(err),
+        }
     }
 
     /// Execute one machine instruction and return the status of the
@@ -266,7 +311,7 @@ where
                 let key = self.ipop()?;
                 let value = self.ipop_value()?;
                 if self.defs.contains_key(&key) {
-                    return Err(self.err(MachineErrorType::AlreadyDefined));
+                    return Err(self.err(MachineErrorType::AlreadyDefined(key)));
                 }
                 self.defs.insert(key, value);
             }
@@ -275,7 +320,7 @@ where
                 let v = self
                     .defs
                     .get(&key)
-                    .ok_or_else(|| self.err(MachineErrorType::NotDefined))?;
+                    .ok_or_else(|| self.err(MachineErrorType::NotDefined(key)))?;
                 self.ipush(v.to_owned())?;
             }
             Instruction::Swap(d) => {
@@ -283,7 +328,7 @@ where
                     return Err(self.err(MachineErrorType::StackUnderflow));
                 }
                 if d == 0 {
-                    return Err(self.err(MachineErrorType::BadState));
+                    return Err(self.err(MachineErrorType::InvalidInstruction));
                 }
                 let i1 = self.stack.len() - 1;
                 let i2 = i1 - d;
@@ -348,7 +393,7 @@ where
                 let s = self
                     .call_state
                     .pop()
-                    .ok_or_else(|| self.err(MachineErrorType::BadState))?;
+                    .ok_or_else(|| self.err(MachineErrorType::CallStack))?;
                 self.defs = s.defs;
                 self.pc = s.return_address;
             }
@@ -435,9 +480,9 @@ where
                     .machine
                     .struct_defs
                     .get(&s.name)
-                    .ok_or_else(|| self.err(MachineErrorType::InvalidStruct))?;
+                    .ok_or_else(|| self.err(MachineErrorType::InvalidSchema))?;
                 if !struct_def_fields.iter().any(|f| f.identifier == field_name) {
-                    return Err(self.err(MachineErrorType::InvalidStruct));
+                    return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                 }
                 s.fields.insert(field_name, value);
                 self.ipush(s)?;
@@ -448,21 +493,12 @@ where
                 let v = s
                     .fields
                     .remove(&varname)
-                    .ok_or_else(|| self.err(MachineErrorType::InvalidStruct))?;
+                    .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(varname)))?;
                 self.ipush(v)?;
             }
             Instruction::Emit => {
                 let s: Struct = self.ipop()?;
-                let def = self
-                    .machine
-                    .struct_defs
-                    .get(&s.name)
-                    .ok_or_else(|| self.err(MachineErrorType::InvalidStruct))?;
-                for field_def in def {
-                    if !s.fields.contains_key(&field_def.identifier) {
-                        return Err(self.err(MachineErrorType::InvalidStruct));
-                    }
-                }
+                self.validate_struct_schema(&s)?;
 
                 let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
 
@@ -490,6 +526,7 @@ where
             }
             Instruction::Effect => {
                 let s: Struct = self.ipop()?;
+                self.validate_struct_schema(&s)?;
                 let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
                 self.io.effect(s.name, fields);
             }

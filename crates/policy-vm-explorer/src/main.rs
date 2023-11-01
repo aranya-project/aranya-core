@@ -8,9 +8,9 @@ use clap::{arg, ArgGroup, Parser, ValueEnum};
 use crypto::Id;
 use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use policy_vm::{
-    CommandContext, FactKey, FactKeyList, FactValue, FactValueList, FfiModule, KVPair, Machine,
-    MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack, MachineStatus,
-    RunState, Stack, Struct, Value,
+    compile_from_policy, CommandContext, FactKey, FactKeyList, FactValue, FactValueList, FfiModule,
+    KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack,
+    MachineStatus, RunState, Stack, Struct, Value,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -66,8 +66,23 @@ where
         stdin().read_line(&mut buf)?;
         status = rs.step().map_err(anyhow::Error::msg)?;
     }
-    println!("Execution stopped: {}", status);
+    print_machine_status(status, rs);
+
     Ok(())
+}
+
+fn print_machine_status<M>(status: MachineStatus, rs: &RunState<'_, M>)
+where
+    M: MachineIO<MachineStack>,
+{
+    print!("{}", status);
+    if let Some(span) = rs.source_text() {
+        let (row, col) = span.start_linecol();
+        println!(" at row {} col {}:", row, col);
+        println!("\t{}", span.as_str());
+    } else {
+        println!();
+    }
 }
 
 /// Parse string arguments as Value types
@@ -199,7 +214,7 @@ where
         let ctx = CommandContext::new("", Id::default(), Id::default().into(), Id::default());
         self.modules
             .get(module)
-            .ok_or(MachineError::new(MachineErrorType::NotDefined))?
+            .ok_or(MachineError::new(MachineErrorType::FfiCall))?
             .call(procedure, stack, Some(ctx))
     }
 }
@@ -223,7 +238,7 @@ fn main() -> anyhow::Result<()> {
         parse_policy_document(&s)?
     };
 
-    let machine: Machine = Machine::compile_from_policy(&policy).expect("Could not compile");
+    let machine: Machine = compile_from_policy(&policy).expect("Could not compile");
     let mut io = MachExpIO::new();
     let mut rs = machine.create_run_state(&mut io);
 
@@ -265,7 +280,8 @@ fn main() -> anyhow::Result<()> {
             }
 
             if mode == Mode::Exec {
-                rs.run().map_err(anyhow::Error::msg)?;
+                let status = rs.run().map_err(anyhow::Error::msg)?;
+                print_machine_status(status, &rs);
             } else {
                 match debug_loop(&mut rs) {
                     Ok(()) => (),

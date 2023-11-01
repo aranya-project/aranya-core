@@ -19,6 +19,7 @@
     unused_qualifications
 )]
 
+mod codemap;
 mod compile;
 mod data;
 mod error;
@@ -29,6 +30,7 @@ mod machine;
 mod stack;
 mod tests;
 
+pub use codemap::*;
 pub use compile::*;
 pub use data::*;
 pub use error::*;

@@ -4,6 +4,7 @@ use std::{
     process::ExitCode,
 };
 
+use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use pest::Parser as PestParser;
 use policy_lang::lang::*;
@@ -36,45 +37,45 @@ enum Mode {
     Expression,
 }
 
-fn parse_text_and_version(s: &str, args: &Args) -> Result<(String, Version), String> {
+fn parse_text_and_version(s: &str, args: &Args) -> anyhow::Result<(String, Version)> {
     match args.raw_policy_version {
         Some(version) => Ok((s.to_owned(), version)),
         None => {
-            let (policy_text, version) = extract_policy(s).map_err(|e| e.to_string())?;
+            let (chunks, version) = extract_policy(s)?;
+            let mut s = String::new();
+            for c in chunks {
+                s.push_str(&c.text);
+            }
 
-            Ok((policy_text, version))
+            Ok((s, version))
         }
     }
 }
 
-fn parse_thing(s: &str, args: &Args) -> Result<String, String> {
-    let (policy_text, version) = parse_text_and_version(s, args)?;
+fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
     match args.mode {
-        Mode::Document => match args.check_mode {
-            true => {
-                PolicyParser::parse(Rule::file, &policy_text).map_err(|e| e.to_string())?;
-                Ok(String::from("policy is valid"))
+        Mode::Document => {
+            let (policy_text, version) = parse_text_and_version(s, args)?;
+            let policy = parse_policy_str(&policy_text, version)?;
+            match args.check_mode {
+                true => Ok(String::from("policy is valid")),
+                false => Ok(format!("{:#?}", policy)),
             }
-            false => {
-                let policy = parse_policy_str(&policy_text, version).map_err(|e| e.to_string())?;
-
-                Ok(format!("{:#?}", policy))
-            }
-        },
+        }
         Mode::Expression => {
-            let mut pairs = PolicyParser::parse(Rule::expression, s).map_err(|e| e.to_string())?;
+            let mut pairs = PolicyParser::parse(Rule::expression, s)?;
 
-            let token = pairs.next().ok_or_else(|| String::from("No tokens"))?;
+            let token = pairs.next().context("No tokens")?;
 
-            let ast = parse_expression(token, &get_pratt_parser()).map_err(|e| e.to_string())?;
+            let ast = parse_expression(token, &get_pratt_parser())?;
 
             Ok(format!("{:#?}", ast))
         }
     }
 }
 
-fn output(v: Result<String, String>) -> ExitCode {
-    match v {
+fn output(res: anyhow::Result<String>) -> ExitCode {
+    match res {
         Ok(s) => {
             println!("{}", s);
             ExitCode::SUCCESS
@@ -88,6 +89,15 @@ fn output(v: Result<String, String>) -> ExitCode {
 
 pub fn main() -> ExitCode {
     let args = Args::parse();
+
+    if args.line_mode && args.mode == Mode::Document {
+        println!("Line mode does not make sense for parsing documents");
+        return ExitCode::from(1);
+    }
+    if args.check_mode && args.mode == Mode::Expression {
+        println!("Check mode does not make sense for parsing expressions");
+        return ExitCode::from(1);
+    }
 
     println!("Parsing {:?}", args.mode);
     let mut file: Box<dyn Read> = if let Some(ref file_name) = args.file {
@@ -104,12 +114,16 @@ pub fn main() -> ExitCode {
         let mut bufread = BufReader::new(file);
         loop {
             let mut line = String::new();
-            bufread.read_line(&mut line).expect("Could not read line");
+            let n = bufread.read_line(&mut line).expect("Could not read line");
+            if n == 0 {
+                // End of file
+                break ExitCode::SUCCESS;
+            }
             output(parse_thing(&line, &args));
         }
     } else {
         let mut buf = vec![];
-        file.read_to_end(&mut buf).expect("Cannot read stdin");
+        file.read_to_end(&mut buf).expect("Cannot read input");
         let s = String::from_utf8(buf).expect("invalid UTF-8");
         output(parse_thing(&s, &args))
     }

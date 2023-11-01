@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
 use core::{fmt, str::FromStr};
 
 use cfg_if::cfg_if;
@@ -29,10 +29,11 @@ impl fmt::Display for InvalidVersion {
 impl error::Error for InvalidVersion {}
 
 /// Policy language version
-#[derive(Debug, Clone, PartialEq, Copy)]
+#[derive(Debug, Default, Clone, PartialEq, Copy)]
 pub enum Version {
     /// Version 3, the initial version of the "new" policy
     /// language.
+    #[default]
     V3,
 }
 
@@ -46,6 +47,22 @@ impl FromStr for Version {
             "v3" => Ok(Version::V3),
             _ => Err(InvalidVersion),
         }
+    }
+}
+
+/// An AST node with location information
+#[derive(Debug, Clone, PartialEq)]
+pub struct AstNode<T> {
+    /// The AST element contained within
+    pub inner: T,
+    /// The locator for where this AST element occurred in the source text
+    pub locator: usize,
+}
+
+impl<T> AstNode<T> {
+    /// Create a new `AstNode` from a node and locator
+    pub fn new(inner: T, locator: usize) -> AstNode<T> {
+        AstNode { inner, locator }
     }
 }
 
@@ -235,7 +252,7 @@ pub struct MatchArm {
     // exhaustive range checks.
     pub value: Option<Expression>,
     /// The statements to execute if the value matches
-    pub statements: Vec<Statement>,
+    pub statements: Vec<AstNode<Statement>>,
 }
 
 /// Match a value and execute one possibility out of many
@@ -255,7 +272,7 @@ pub struct WhenStatement {
     /// The value to match against
     pub expression: Expression,
     /// All of the potential match arms
-    pub statements: Vec<Statement>,
+    pub statements: Vec<AstNode<Statement>>,
 }
 
 /// Create a fact
@@ -304,7 +321,7 @@ pub enum Statement {
     When(WhenStatement),
     /// A `finish` block containing [FinishStatement]s
     /// Valid only in policy blocks
-    Finish(Vec<FinishStatement>),
+    Finish(Vec<AstNode<FinishStatement>>),
     /// A [ReturnStatement]
     /// Valid only in functions
     Return(ReturnStatement),
@@ -348,7 +365,7 @@ pub struct ActionDefinition {
     /// The arguments to the action
     pub arguments: Vec<FieldDefinition>,
     /// The statements executed when the action is called
-    pub statements: Vec<Statement>,
+    pub statements: Vec<AstNode<Statement>>,
 }
 
 /// An effect definition
@@ -377,9 +394,9 @@ pub struct CommandDefinition {
     /// The fields of the command and their types
     pub fields: Vec<FieldDefinition>,
     /// The policy rule statements for this command
-    pub policy: Vec<Statement>,
+    pub policy: Vec<AstNode<Statement>>,
     /// The recall rule statements for this command
-    pub recall: Vec<Statement>,
+    pub recall: Vec<AstNode<Statement>>,
 }
 
 /// A function definition
@@ -392,7 +409,7 @@ pub struct FunctionDefinition {
     /// The return type
     pub return_type: VType,
     /// The policy rule statements
-    pub statements: Vec<Statement>,
+    pub statements: Vec<AstNode<Statement>>,
 }
 
 /// A finish function definition. This is slightly different than a
@@ -405,28 +422,47 @@ pub struct FinishFunctionDefinition {
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The finish block statements
-    pub statements: Vec<FinishStatement>,
+    pub statements: Vec<AstNode<FinishStatement>>,
 }
+
+/// A list of (position, size) pairs for text ranges
+pub type TextRanges = Vec<(usize, usize)>;
 
 /// The policy AST root
 ///
 /// This contains all of the definitions that comprise a policy.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Policy {
     /// The policy version.
     pub version: Version,
     /// The policy's fact definitions.
-    pub facts: Vec<FactDefinition>,
+    pub facts: Vec<AstNode<FactDefinition>>,
     /// The policy's action definitions.
-    pub actions: Vec<ActionDefinition>,
+    pub actions: Vec<AstNode<ActionDefinition>>,
     /// The policy's effect definitions.
-    pub effects: Vec<EffectDefinition>,
+    pub effects: Vec<AstNode<EffectDefinition>>,
     /// The policy's struct definitions.
-    pub structs: Vec<StructDefinition>,
+    pub structs: Vec<AstNode<StructDefinition>>,
     /// The policy's command definitions.
-    pub commands: Vec<CommandDefinition>,
+    pub commands: Vec<AstNode<CommandDefinition>>,
     /// The policy's function definitions.
-    pub functions: Vec<FunctionDefinition>,
+    pub functions: Vec<AstNode<FunctionDefinition>>,
     /// The policy's finish function definitions.
-    pub finish_functions: Vec<FinishFunctionDefinition>,
+    pub finish_functions: Vec<AstNode<FinishFunctionDefinition>>,
+    /// The source text
+    pub text: String,
+    /// Text ranges for various nodes (start, end)
+    /// Start is also the locator
+    pub ranges: TextRanges,
+}
+
+impl Policy {
+    /// Create a new `Policy` with the given source text.
+    pub fn new(version: Version, text: &str) -> Policy {
+        Policy {
+            version,
+            text: text.to_owned(),
+            ..Default::default()
+        }
+    }
 }

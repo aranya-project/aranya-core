@@ -1,8 +1,11 @@
+extern crate alloc;
+
+use alloc::{borrow::ToOwned, string::String};
 use core::fmt;
 
 use cfg_if::cfg_if;
 
-use crate::io::MachineIOError;
+use crate::{codemap::CodeMap, io::MachineIOError};
 
 cfg_if! {
     if #[cfg(feature = "std")] {
@@ -25,21 +28,23 @@ pub enum MachineErrorType {
     /// stack, so this cannot be reached.
     StackOverflow,
     /// Name already defined - an attempt was made to define a name
-    /// that was already defined.
-    AlreadyDefined,
+    /// that was already defined. Parameter is the name.
+    AlreadyDefined(String),
     /// Name not defined - an attempt was made to access a name that
-    /// has not been defined.
-    NotDefined,
+    /// has not been defined. Parameter is the name.
+    NotDefined(String),
     /// Invalid type - An operation was given a value of the wrong
     /// type. E.g. addition with strings.
     InvalidType,
-    /// Invalid struct - An attempt to access a member not present in a
-    /// struct, or an attempt to emit a Command struct that does not
-    /// match its definition.
-    InvalidStruct,
-    /// Invalid fact - An attempt was made to access a fact in a way
+    /// Invalid struct member - An attempt to access a member not
+    /// present in a struct. Parameter is the key name.
+    InvalidStructMember(String),
+    /// Invalid fact - An attempt was made to use a fact in a way
     /// that does not match the Fact schema.
     InvalidFact,
+    /// Invalid schema - An attempt to emit a Command struct or produce
+    /// an effect that does not match its definition.
+    InvalidSchema,
     /// Unresolved target - A branching instruction attempted to jump
     /// to a target whose address has not yet been resolved.
     UnresolvedTarget,
@@ -53,8 +58,16 @@ pub enum MachineErrorType {
     /// IntegerOverflow occurs when an instruction wraps an integer above
     /// the max value or below the min value.
     IntegerOverflow,
+    /// Invalid instruction - Some information encoded into an
+    /// instruction is invalid. E.g. a Swap(0)
+    InvalidInstruction,
+    /// An instruction has done something wrong with the call stack, like
+    /// `Return`ed without a `Call`.
+    CallStack,
     /// IO Error - Some machine I/O operation caused an error
     IO(MachineIOError),
+    /// Invalid parameters were used to make an FFI call
+    FfiCall,
     /// Unknown - every other possible problem
     Unknown,
 }
@@ -64,19 +77,32 @@ impl fmt::Display for MachineErrorType {
         match self {
             MachineErrorType::StackUnderflow => write!(f, "stack underflow"),
             MachineErrorType::StackOverflow => write!(f, "stack overflow"),
-            MachineErrorType::AlreadyDefined => write!(f, "name already defined"),
-            MachineErrorType::NotDefined => write!(f, "name not defined"),
+            MachineErrorType::AlreadyDefined(s) => write!(f, "name `{}` already defined", s),
+            MachineErrorType::NotDefined(s) => write!(f, "name `{}` not defined", s),
             MachineErrorType::InvalidType => write!(f, "invalid type for operation"),
-            MachineErrorType::InvalidStruct => write!(f, "invalid struct"),
+            MachineErrorType::InvalidStructMember(k) => write!(f, "invalid struct member `{}`", k),
             MachineErrorType::InvalidFact => write!(f, "invalid fact"),
+            MachineErrorType::InvalidSchema => write!(f, "invalid schema"),
             MachineErrorType::UnresolvedTarget => write!(f, "unresolved branch/jump target"),
             MachineErrorType::InvalidAddress => write!(f, "invalid address"),
             MachineErrorType::BadState => write!(f, "Bad state"),
             MachineErrorType::IntegerOverflow => write!(f, "integer wrap"),
+            MachineErrorType::InvalidInstruction => write!(f, "bad state"),
+            MachineErrorType::CallStack => write!(f, "call stack"),
             MachineErrorType::IO(e) => write!(f, "IO: {}", e),
+            MachineErrorType::FfiCall => write!(f, "FFI call"),
             MachineErrorType::Unknown => write!(f, "unknown error"),
         }
     }
+}
+
+/// The source location and text of an error
+#[derive(Debug, PartialEq)]
+struct MachineErrorSource {
+    /// Line and column of where the error is
+    linecol: (usize, usize),
+    /// The text of the error
+    text: String,
 }
 
 /// An error returned by [`Machine`][crate::machine::Machine].
@@ -84,8 +110,8 @@ impl fmt::Display for MachineErrorType {
 pub struct MachineError {
     /// The type of the error
     pub err_type: MachineErrorType,
-    /// The line and column of the error, if it exists
-    instruction: Option<usize>,
+    /// The source code information, if it exists
+    source: Option<MachineErrorSource>,
 }
 
 impl MachineError {
@@ -93,22 +119,37 @@ impl MachineError {
     pub fn new(err_type: MachineErrorType) -> MachineError {
         MachineError {
             err_type,
-            instruction: None,
+            source: None,
         }
     }
 
-    pub(crate) fn new_with_position(err_type: MachineErrorType, pc: usize) -> MachineError {
-        MachineError {
-            err_type,
-            instruction: Some(pc),
-        }
+    pub(crate) fn from_position(
+        err_type: MachineErrorType,
+        pc: usize,
+        codemap: Option<&CodeMap>,
+    ) -> MachineError {
+        let source = codemap.and_then(|codemap| {
+            codemap
+                .span_from_instruction(pc)
+                .ok()
+                .map(|span| MachineErrorSource {
+                    linecol: span.start_linecol(),
+                    text: span.as_str().to_owned(),
+                })
+        });
+
+        MachineError { err_type, source }
     }
 }
 
 impl fmt::Display for MachineError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.instruction {
-            Some(pc) => write!(f, "{} at PC {}", self.err_type, pc),
+        match &self.source {
+            Some(source) => write!(
+                f,
+                "{} at line {} col {}:\n\t{}",
+                self.err_type, source.linecol.0, source.linecol.1, source.text
+            ),
             None => write!(f, "{}", self.err_type),
         }
     }

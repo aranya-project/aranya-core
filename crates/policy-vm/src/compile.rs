@@ -7,15 +7,12 @@ use alloc::{
     string::String,
     vec::Vec,
 };
+use core::fmt;
 
 use cfg_if::cfg_if;
-use policy_ast as ast;
+use policy_ast::{self as ast, AstNode};
 
-use crate::{
-    data::Value,
-    instructions::{Instruction, Target},
-    machine::{Label, LabelType, Machine},
-};
+use crate::{CodeMap, Instruction, Label, LabelType, Machine, Target, Value};
 
 cfg_if! {
     if #[cfg(feature = "error_in_core")] {
@@ -167,6 +164,23 @@ impl CompileState {
         let name = format!("anonymous{}", self.c);
         self.c += 1;
         name
+    }
+
+    /// Maps the current write pointer to a text range supplied by an AST node
+    fn map_range<N: fmt::Debug>(&mut self, node: &AstNode<N>) -> Result<(), CompileError> {
+        if let Some(codemap) = &mut self.m.codemap {
+            codemap
+                .map_instruction_range(self.wp, node.locator)
+                .map_err(|_| {
+                    CompileError::Unknown(format!(
+                        "could not map address {} to text range {}",
+                        self.wp, node.locator
+                    ))
+                })
+        } else {
+            // If there is no codemap, do nothing.
+            Ok(())
+        }
     }
 
     /// Resolve a target to an address from the Label mapping
@@ -416,9 +430,13 @@ impl CompileState {
     }
 
     /// Compile policy statements
-    fn compile_statements(&mut self, statements: &[ast::Statement]) -> Result<(), CompileError> {
+    fn compile_statements(
+        &mut self,
+        statements: &[AstNode<ast::Statement>],
+    ) -> Result<(), CompileError> {
         for statement in statements {
-            match statement {
+            self.map_range(statement)?;
+            match &statement.inner {
                 ast::Statement::Let(s) => {
                     self.compile_expression(&s.expression)?;
                     self.append_instruction(Instruction::Const(Value::String(
@@ -457,10 +475,11 @@ impl CompileState {
     /// Compile finish statements
     fn compile_finish_statements(
         &mut self,
-        statements: &[ast::FinishStatement],
+        statements: &[AstNode<ast::FinishStatement>],
     ) -> Result<(), CompileError> {
         for statement in statements {
-            match statement {
+            self.map_range(statement)?;
+            match &statement.inner {
                 ast::FinishStatement::Create(s) => {
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Create);
@@ -518,8 +537,13 @@ impl CompileState {
     }
 
     /// Compile a function
-    fn compile_function(&mut self, function: &ast::FunctionDefinition) -> Result<(), CompileError> {
+    fn compile_function(
+        &mut self,
+        function_node: &AstNode<ast::FunctionDefinition>,
+    ) -> Result<(), CompileError> {
+        let function = &function_node.inner;
         self.define_label(&function.identifier, self.wp, LabelType::Temporary);
+        self.map_range(function_node)?;
         self.define_function_signature(function)?;
         for arg in function.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
@@ -542,9 +566,11 @@ impl CompileState {
     /// Compile a finish function
     fn compile_finish_function(
         &mut self,
-        function: &ast::FinishFunctionDefinition,
+        function_node: &AstNode<ast::FinishFunctionDefinition>,
     ) -> Result<(), CompileError> {
+        let function = &function_node.inner;
         self.define_label(&function.identifier, self.wp, LabelType::Temporary);
+        self.map_range(function_node)?;
         self.define_finish_function_signature(function)?;
         for arg in function.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
@@ -558,8 +584,13 @@ impl CompileState {
     }
 
     /// Compile an action function
-    fn compile_action(&mut self, action: &ast::ActionDefinition) -> Result<(), CompileError> {
+    fn compile_action(
+        &mut self,
+        action_node: &AstNode<ast::ActionDefinition>,
+    ) -> Result<(), CompileError> {
+        let action = &action_node.inner;
         self.define_label(&action.identifier, self.wp, LabelType::Action);
+        self.map_range(action_node)?;
 
         for arg in action.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
@@ -574,8 +605,13 @@ impl CompileState {
     }
 
     /// Compile a command policy block
-    fn compile_command(&mut self, command: &ast::CommandDefinition) -> Result<(), CompileError> {
+    fn compile_command(
+        &mut self,
+        command_node: &AstNode<ast::CommandDefinition>,
+    ) -> Result<(), CompileError> {
+        let command = &command_node.inner;
         self.define_struct(&command.identifier, &command.fields);
+        self.map_range(command_node)?;
 
         self.define_label(&command.identifier, self.wp, LabelType::Command);
 
@@ -590,12 +626,12 @@ impl CompileState {
     pub fn compile(&mut self, policy: &ast::Policy) -> Result<(), CompileError> {
         for effect in &policy.effects {
             let fields: Vec<ast::FieldDefinition> =
-                effect.fields.iter().map(|f| f.into()).collect();
-            self.define_struct(&effect.identifier, &fields);
+                effect.inner.fields.iter().map(|f| f.into()).collect();
+            self.define_struct(&effect.inner.identifier, &fields);
         }
 
         for struct_def in &policy.structs {
-            self.define_struct(&struct_def.identifier, &struct_def.fields);
+            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields);
         }
 
         for function_def in &policy.functions {
@@ -614,6 +650,12 @@ impl CompileState {
             self.compile_action(action)?;
         }
 
+        for effect in &policy.effects {
+            let fields: Vec<ast::FieldDefinition> =
+                effect.inner.fields.iter().map(|f| f.into()).collect();
+            self.define_struct(&effect.inner.identifier, &fields);
+        }
+
         self.resolve_targets()?;
 
         Ok(())
@@ -623,4 +665,13 @@ impl CompileState {
     pub fn into_machine(self) -> Machine {
         self.m
     }
+}
+
+/// Create a new Machine by compiling a policy AST.
+pub fn compile_from_policy(policy: &ast::Policy) -> Result<Machine, CompileError> {
+    let codemap = CodeMap::new(&policy.text, policy.ranges.clone());
+    let machine = Machine::from_codemap(codemap);
+    let mut cs = CompileState::new(machine);
+    cs.compile(policy)?;
+    Ok(cs.into_machine())
 }

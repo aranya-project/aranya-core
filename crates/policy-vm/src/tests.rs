@@ -3,6 +3,7 @@
 
 extern crate alloc;
 use alloc::collections::{btree_map, BTreeMap};
+use core::fmt;
 
 use crypto::Id;
 use policy_ast::{self as ast, VType, Version};
@@ -10,6 +11,7 @@ use policy_lang::lang::parse_policy_str;
 
 use crate::{
     compile::CompileError,
+    compile_from_policy,
     data::{
         CommandContext, Fact, FactKey, FactKeyList, FactValue, FactValueList, KVPair, Struct, Value,
     },
@@ -19,7 +21,7 @@ use crate::{
     io::{MachineIO, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
-    MachineError,
+    CodeMap, Label, LabelType, MachineError, MachineStack, Target,
 };
 
 struct TestIO<S>
@@ -30,6 +32,28 @@ where
     emit_stack: Vec<(String, Vec<KVPair>)>,
     effect_stack: Vec<(String, Vec<KVPair>)>,
     modules: Vec<Box<dyn FfiModule<S, Error = MachineError>>>,
+}
+
+impl<S> fmt::Debug for TestIO<S>
+where
+    S: Stack,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // I don't want to dive deep into the modules, so let's just list the module names.
+        // But also the module names is in an unmerged PR, so punt and just enumerate them.
+        let module_names: Vec<String> = self
+            .modules
+            .iter()
+            .enumerate()
+            .map(|(i, _)| format!("module {}", i))
+            .collect();
+        f.debug_struct("TestIO")
+            .field("facts", &self.facts)
+            .field("emit_stack", &self.emit_stack)
+            .field("effect_stack", &self.effect_stack)
+            .field("modules", &module_names)
+            .finish()
+    }
 }
 
 impl<S> TestIO<S>
@@ -146,7 +170,7 @@ where
         let module = self.modules.get(module);
         match module {
             Some(module) => module.call(procedure, stack, Some(ctx)),
-            None => Err(MachineError::new(MachineErrorType::NotDefined)),
+            None => Err(MachineError::new(MachineErrorType::FfiCall)),
         }
     }
 }
@@ -171,7 +195,7 @@ fn test_compile() -> anyhow::Result<()> {
     )
     .map_err(anyhow::Error::msg)?;
 
-    Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
 
     Ok(())
 }
@@ -208,7 +232,7 @@ action foo(b int) {
 fn test_action() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
     let mut rs = RunState::new(&machine, &mut io);
 
@@ -224,7 +248,7 @@ fn test_action() -> anyhow::Result<()> {
 fn test_command_policy() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
     let mut rs = RunState::new(&machine, &mut io);
 
@@ -290,7 +314,7 @@ command Increment {
 fn test_fact_create_delete() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
 
     // We have to scope the RunState so that it and its mutable
@@ -322,7 +346,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
 fn test_fact_query() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     println!("{}", machine);
     let mut io = TestIO::new();
 
@@ -386,7 +410,7 @@ fn test_swap_top() {
     rs.stack.push(5).unwrap();
     assert!(rs
         .step()
-        .is_err_and(|result| result.err_type == MachineErrorType::BadState));
+        .is_err_and(|result| result.err_type == MachineErrorType::InvalidInstruction));
 }
 
 #[test]
@@ -633,7 +657,7 @@ fn test_bytes() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
     {
         let mut rs = machine.create_run_state(&mut io);
@@ -691,7 +715,7 @@ fn test_structs() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
 
     assert_eq!(
         machine.struct_defs.get("Bar"),
@@ -735,7 +759,7 @@ fn test_undefined_struct() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     assert_eq!(
-        Machine::compile_from_policy(&policy).unwrap_err(),
+        compile_from_policy(&policy).unwrap_err(),
         CompileError::BadArgument
     );
 
@@ -757,7 +781,7 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
 
     let mut io = TestIO::new();
     let err = {
@@ -767,8 +791,8 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
     };
 
     assert_eq!(
-        err,
-        MachineError::new_with_position(MachineErrorType::InvalidStruct, 9)
+        err.err_type,
+        MachineErrorType::InvalidStructMember(String::from("y")),
     );
 
     Ok(())
@@ -813,7 +837,10 @@ where
 
                 Ok(())
             }
-            _ => Err(MachineError::new(MachineErrorType::NotDefined)),
+            _ => Err(MachineError::new(MachineErrorType::NotDefined(format!(
+                "procedure {}",
+                procedure
+            )))),
         }
     }
 }
@@ -869,7 +896,7 @@ fn test_extcall_invalid_module() {
 
     assert_eq!(
         rs.run().unwrap_err(),
-        MachineError::new(MachineErrorType::NotDefined)
+        MachineError::new(MachineErrorType::FfiCall)
     );
 }
 
@@ -886,7 +913,7 @@ fn test_extcall_invalid_proc() {
 
     assert_eq!(
         rs.run().unwrap_err(),
-        MachineError::new(MachineErrorType::NotDefined)
+        MachineError::new(MachineErrorType::NotDefined(String::from("procedure 1")))
     );
 }
 
@@ -927,7 +954,7 @@ fn test_pure_function() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
 
     let mut io = TestIO::new();
     {
@@ -954,7 +981,7 @@ fn test_function_no_return() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = Machine::compile_from_policy(&policy).unwrap_err();
+    let err = compile_from_policy(&policy).unwrap_err();
 
     assert_eq!(err, CompileError::NoReturn);
 
@@ -970,7 +997,7 @@ fn test_function_not_defined() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = Machine::compile_from_policy(&policy).unwrap_err();
+    let err = compile_from_policy(&policy).unwrap_err();
 
     assert_eq!(err, CompileError::NotDefined);
 
@@ -988,7 +1015,7 @@ fn test_function_already_defined() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = Machine::compile_from_policy(&policy).unwrap_err();
+    let err = compile_from_policy(&policy).unwrap_err();
 
     assert_eq!(err, CompileError::AlreadyDefined);
 
@@ -1008,7 +1035,7 @@ fn test_function_wrong_number_arguments() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = Machine::compile_from_policy(&policy).unwrap_err();
+    let err = compile_from_policy(&policy).unwrap_err();
 
     assert_eq!(err, CompileError::BadArgument);
 
@@ -1028,7 +1055,7 @@ fn test_function_wrong_color_pure() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = Machine::compile_from_policy(&policy).unwrap_err();
+    let err = compile_from_policy(&policy).unwrap_err();
 
     assert_eq!(err, CompileError::InvalidElement);
 
@@ -1048,7 +1075,7 @@ fn test_function_wrong_color_finish() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = Machine::compile_from_policy(&policy).unwrap_err();
+    let err = compile_from_policy(&policy).unwrap_err();
 
     // Quirk: this gives us NotDefined because the compiler compiles all of the regular
     // functions _before_ the finish functions. So the finish function isn't yet defined.
@@ -1083,7 +1110,7 @@ fn test_finish_function() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = Machine::compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
 
     let mut io = TestIO::new();
     {
@@ -1099,4 +1126,311 @@ fn test_finish_function() -> anyhow::Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn test_span_lookup() -> anyhow::Result<()> {
+    let test_str = "I've got a lovely bunch of coconuts";
+    let ranges = vec![(0, 8), (9, 23), (24, 34)];
+    let mut cm = CodeMap::new(test_str, ranges);
+    // instruction ranges are inclusive of the instruction, up until
+    // the next instruction, and must be inserted in order. So the
+    // first range is 0-11, the second is 12-21, etc.
+    cm.map_instruction_range(0, 0).map_err(anyhow::Error::msg)?;
+    cm.map_instruction_range(12, 9)
+        .map_err(anyhow::Error::msg)?;
+    cm.map_instruction_range(22, 24)
+        .map_err(anyhow::Error::msg)?;
+
+    // An instruction at the boundary returns the range starting
+    // at that boundary.
+    let s = cm.span_from_instruction(0).map_err(anyhow::Error::msg)?;
+    assert_eq!(s.start(), 0);
+
+    // An instruction between boundaries returns the range starting
+    // at the last instruction boundary.
+    let s = cm.span_from_instruction(3).map_err(anyhow::Error::msg)?;
+    assert_eq!(s.start(), 0);
+
+    let s = cm.span_from_instruction(12).map_err(anyhow::Error::msg)?;
+    assert_eq!(s.start(), 9);
+
+    let s = cm.span_from_instruction(21).map_err(anyhow::Error::msg)?;
+    assert_eq!(s.start(), 9);
+
+    let s = cm.span_from_instruction(22).map_err(anyhow::Error::msg)?;
+    assert_eq!(s.start(), 24);
+
+    // An instruction beyond the last instruction boundary always
+    // returns the last range.
+    let s = cm.span_from_instruction(30).map_err(anyhow::Error::msg)?;
+    assert_eq!(s.start(), 24);
+
+    Ok(())
+}
+
+fn general_test_harness<F, G>(
+    instructions: &[Instruction],
+    mut machine_closure: F,
+    mut rs_closure: G,
+) where
+    F: FnMut(&mut Machine) -> anyhow::Result<()>,
+    G: FnMut(&mut RunState<'_, TestIO<MachineStack>>) -> anyhow::Result<()>,
+{
+    let mut m = Machine::new(instructions.to_owned());
+
+    machine_closure(&mut m).unwrap();
+
+    let mut io = TestIO::new();
+    let mut rs = m.create_run_state(&mut io);
+    rs_closure(&mut rs).unwrap();
+}
+
+fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType) {
+    let m = Machine::new(instructions.to_owned());
+
+    let mut io = TestIO::new();
+    let mut rs = m.create_run_state(&mut io);
+    assert_eq!(rs.run(), Err(MachineError::new(error_type)));
+}
+
+#[test]
+// There are a lot of clones in here. Technically the last one isn't
+// needed, but maintenance is easier when you don't need to worry about
+// it.
+#[allow(clippy::redundant_clone)]
+fn test_errors() {
+    let x = String::from("x");
+
+    // StackUnderflow: Pop an empty stack
+    error_test_harness(&[Instruction::Get], MachineErrorType::StackUnderflow);
+
+    // StackOverflow untested as the stack has no maximum size
+
+    // NotDefined: Get a name that isn't defined
+    error_test_harness(
+        &[
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::Get,
+        ],
+        MachineErrorType::NotDefined(x.clone()),
+    );
+
+    // AlreadyDefined: Define a name twice
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::Dup(1),
+            Instruction::Dup(1),
+            Instruction::Def,
+            Instruction::Def,
+        ],
+        MachineErrorType::AlreadyDefined(x.clone()),
+    );
+
+    // InvalidType: 3 > "x" (same case as 3 < "x")
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::Gt,
+        ],
+        MachineErrorType::InvalidType,
+    );
+
+    // InvalidType: 3 + "x" (same case as 3 - "x")
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::Add,
+        ],
+        MachineErrorType::InvalidType,
+    );
+
+    // InvalidType: 3 && "x"
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::And,
+        ],
+        MachineErrorType::InvalidType,
+    );
+
+    // InvalidType: !3
+    error_test_harness(
+        &[Instruction::Const(Value::Int(3)), Instruction::Not],
+        MachineErrorType::InvalidType,
+    );
+
+    // InvalidType: Set a struct value on a thing that isn't a struct
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::StructSet,
+        ],
+        MachineErrorType::InvalidType,
+    );
+
+    // InvalidType: Set a fact key on a thing that isn't a fact
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::FactKeySet,
+        ],
+        MachineErrorType::InvalidType,
+    );
+
+    // InvalidType: Set a fact value on a thing that isn't a fact
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::Int(3)),
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::FactValueSet,
+        ],
+        MachineErrorType::InvalidType,
+    );
+
+    // InvalidType: Branch on a non-bool value
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Int(3)),
+            Instruction::Branch(Target::Unresolved(x.clone())),
+        ],
+        MachineErrorType::InvalidType,
+    );
+
+    // InvalidStructGet: Access `foo.x` when `x` is not a member of `foo`
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Struct(Struct::new("foo", &[]))),
+            Instruction::Const(Value::String(x.clone())),
+            Instruction::StructGet,
+        ],
+        MachineErrorType::InvalidStructMember(x.clone()),
+    );
+
+    // InvalidFact: Update a fact that does not exist
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Fact(Fact {
+                name: x.clone(),
+                keys: vec![],
+                values: vec![],
+            })),
+            Instruction::Dup(0),
+            Instruction::Update,
+        ],
+        MachineErrorType::InvalidFact,
+    );
+
+    // InvalidSchema: Emit a command that was not defined
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Struct(Struct {
+                name: x.clone(),
+                fields: BTreeMap::new(),
+            })),
+            Instruction::Emit,
+        ],
+        MachineErrorType::InvalidSchema,
+    );
+
+    // InvalidSchema: Produce an effect that was not defined
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Struct(Struct {
+                name: x.clone(),
+                fields: BTreeMap::new(),
+            })),
+            Instruction::Effect,
+        ],
+        MachineErrorType::InvalidSchema,
+    );
+
+    // UnresolvedTarget: Jump to an unresolved target
+    error_test_harness(
+        &[Instruction::Jump(Target::Unresolved(x.clone()))],
+        MachineErrorType::UnresolvedTarget,
+    );
+
+    // InvalidAddress: Run empty program
+    error_test_harness(&[], MachineErrorType::InvalidAddress);
+
+    // InvalidAddress: Set PC to non-existent label
+    general_test_harness(
+        &[],
+        |_| Ok(()),
+        |rs| {
+            let r = rs.set_pc_by_name("x", LabelType::Action);
+            assert_eq!(r, Err(MachineError::new(MachineErrorType::InvalidAddress)));
+            Ok(())
+        },
+    );
+
+    // InvalidAddress: Set PC to a label of the wrong type
+    general_test_harness(
+        &[],
+        |m| {
+            m.labels.insert(
+                x.clone(),
+                Label {
+                    addr: 0,
+                    ltype: LabelType::Action,
+                },
+            );
+            Ok(())
+        },
+        |rs| {
+            let r = rs.set_pc_by_name("x", LabelType::Command);
+            assert_eq!(r, Err(MachineError::new(MachineErrorType::InvalidAddress)));
+            Ok(())
+        },
+    );
+
+    // InvalidInstruction: Swap of depth zero
+    error_test_harness(
+        &[Instruction::Swap(0)],
+        MachineErrorType::InvalidInstruction,
+    );
+
+    // IO: Delete a fact that does not exist
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Fact(Fact {
+                name: x.clone(),
+                keys: vec![],
+                values: vec![],
+            })),
+            Instruction::Delete,
+        ],
+        MachineErrorType::IO(MachineIOError::FactNotFound),
+    );
+
+    // IO: Create a fact that already exists
+    // This _should_ be failing because the fact has not been declared
+    // in schema, but TestIO does not care about fact schema and the
+    // machine does not check it.
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Fact(Fact {
+                name: x.clone(),
+                keys: vec![],
+                values: vec![],
+            })),
+            Instruction::Dup(0),
+            Instruction::Create,
+            Instruction::Create,
+        ],
+        MachineErrorType::IO(MachineIOError::FactExists),
+    );
+
+    // Unknown untested as it cannot be created
 }
