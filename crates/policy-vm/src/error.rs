@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use alloc::{borrow::ToOwned, string::String};
-use core::fmt;
+use core::{convert::Infallible, fmt};
 
 use cfg_if::cfg_if;
 
@@ -96,6 +96,12 @@ impl fmt::Display for MachineErrorType {
     }
 }
 
+impl From<Infallible> for MachineErrorType {
+    fn from(err: Infallible) -> Self {
+        match err {}
+    }
+}
+
 /// The source location and text of an error
 #[derive(Debug, PartialEq)]
 struct MachineErrorSource {
@@ -165,5 +171,11 @@ impl error::Error for MachineError {}
 impl From<MachineErrorType> for MachineError {
     fn from(value: MachineErrorType) -> Self {
         MachineError::new(value)
+    }
+}
+
+impl From<Infallible> for MachineError {
+    fn from(err: Infallible) -> Self {
+        match err {}
     }
 }

@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
-use core::{fmt, str::FromStr};
+use core::{fmt, ops::Deref, str::FromStr};
 
 use cfg_if::cfg_if;
 
@@ -29,7 +29,7 @@ impl fmt::Display for InvalidVersion {
 impl error::Error for InvalidVersion {}
 
 /// Policy language version
-#[derive(Debug, Default, Clone, PartialEq, Copy)]
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub enum Version {
     /// Version 3, the initial version of the "new" policy
     /// language.
@@ -50,6 +50,14 @@ impl FromStr for Version {
     }
 }
 
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::V3 => write!(f, "v3"),
+        }
+    }
+}
+
 /// An AST node with location information
 #[derive(Debug, Clone, PartialEq)]
 pub struct AstNode<T> {
@@ -63,6 +71,14 @@ impl<T> AstNode<T> {
     /// Create a new `AstNode` from a node and locator
     pub fn new(inner: T, locator: usize) -> AstNode<T> {
         AstNode { inner, locator }
+    }
+}
+
+impl<T> Deref for AstNode<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
@@ -85,6 +101,20 @@ pub enum VType {
     Struct(String),
     /// an optional type of some other type
     Optional(Box<VType>),
+}
+
+impl fmt::Display for VType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::String => write!(f, "string"),
+            Self::Bytes => write!(f, "bytes"),
+            Self::Int => write!(f, "int"),
+            Self::Bool => write!(f, "bool"),
+            Self::Id => write!(f, "id"),
+            Self::Struct(name) => write!(f, "struct {name}"),
+            Self::Optional(vtype) => write!(f, "optional {vtype}"),
+        }
+    }
 }
 
 /// An identifier and its type
@@ -224,6 +254,18 @@ pub enum Expression {
     Unwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
+}
+
+/// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
+/// of parsing FFI function declarations.
+#[derive(Debug, PartialEq)]
+pub struct FunctionDecl {
+    /// The identifier of the function
+    pub identifier: String,
+    /// A list of the arguments to the function, and their types
+    pub arguments: Vec<FieldDefinition>,
+    /// The return type of the function, if any
+    pub return_type: Option<VType>,
 }
 
 /// Define a variable with an expression

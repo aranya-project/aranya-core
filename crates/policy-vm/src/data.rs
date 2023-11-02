@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt;
 
-use crypto::{Id, UserId};
+use crypto::{EncryptionKeyId, Id, UserId};
 use policy_ast::VType;
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +24,8 @@ pub enum Value {
     Struct(Struct),
     /// Fact
     Fact(Fact),
+    /// A unique identifier.
+    Id(Id),
     /// Empty optional value
     None,
 }
@@ -39,13 +41,14 @@ pub trait TryAsMut<T: ?Sized> {
 }
 
 impl Value {
-    /// Get the ast:::Vtype if possible
+    /// Get the [`VType`], if possible.
     pub fn vtype(&self) -> Option<VType> {
         match self {
             Value::Int(_) => Some(VType::Int),
             Value::Bool(_) => Some(VType::Bool),
             Value::String(_) => Some(VType::String),
             Value::Bytes(_) => Some(VType::Bytes),
+            Value::Id(_) => Some(VType::Id),
             _ => None,
         }
     }
@@ -66,6 +69,12 @@ impl From<bool> for Value {
 impl From<&str> for Value {
     fn from(value: &str) -> Self {
         Value::String(value.to_owned())
+    }
+}
+
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Value::String(value)
     }
 }
 
@@ -90,6 +99,24 @@ impl From<Struct> for Value {
 impl From<Fact> for Value {
     fn from(value: Fact) -> Self {
         Value::Fact(value)
+    }
+}
+
+impl From<Id> for Value {
+    fn from(id: Id) -> Self {
+        Value::Id(id)
+    }
+}
+
+impl From<UserId> for Value {
+    fn from(id: UserId) -> Self {
+        Value::Id(id.into())
+    }
+}
+
+impl From<EncryptionKeyId> for Value {
+    fn from(id: EncryptionKeyId) -> Self {
+        Value::Id(id.into())
     }
 }
 
@@ -156,6 +183,42 @@ impl TryFrom<Value> for Fact {
             return Ok(f);
         }
         Err(MachineErrorType::InvalidType)
+    }
+}
+
+impl TryFrom<Value> for Id {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Id(id) = value {
+            Ok(id)
+        } else {
+            Err(MachineErrorType::InvalidType)
+        }
+    }
+}
+
+impl TryFrom<Value> for UserId {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Id(id) = value {
+            Ok(id.into())
+        } else {
+            Err(MachineErrorType::InvalidType)
+        }
+    }
+}
+
+impl TryFrom<Value> for EncryptionKeyId {
+    type Error = MachineErrorType;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::Id(id) = value {
+            Ok(id.into())
+        } else {
+            Err(MachineErrorType::InvalidType)
+        }
     }
 }
 
@@ -234,6 +297,7 @@ impl fmt::Display for Value {
             }
             Value::Struct(s) => s.fmt(f),
             Value::Fact(fa) => fa.fmt(f),
+            Value::Id(id) => id.fmt(f),
             Value::None => write!(f, "None"),
         }
     }
@@ -249,6 +313,8 @@ pub enum HashableValue {
     Bool(bool),
     /// A string.
     String(String),
+    /// A unique identifier.
+    Id(Id),
 }
 
 impl HashableValue {
@@ -259,6 +325,7 @@ impl HashableValue {
             HashableValue::Int(_) => VType::Int,
             HashableValue::Bool(_) => VType::Bool,
             HashableValue::String(_) => VType::String,
+            HashableValue::Id(_) => VType::Id,
         }
     }
 }
@@ -271,6 +338,7 @@ impl TryFrom<Value> for HashableValue {
             Value::Int(v) => Ok(HashableValue::Int(v)),
             Value::Bool(v) => Ok(HashableValue::Bool(v)),
             Value::String(v) => Ok(HashableValue::String(v)),
+            Value::Id(v) => Ok(HashableValue::Id(v)),
             _ => Err(MachineErrorType::InvalidType),
         }
     }
@@ -282,6 +350,7 @@ impl From<HashableValue> for Value {
             HashableValue::Int(v) => Value::Int(v),
             HashableValue::Bool(v) => Value::Bool(v),
             HashableValue::String(v) => Value::String(v),
+            HashableValue::Id(v) => Value::Id(v),
         }
     }
 }
@@ -502,8 +571,8 @@ impl fmt::Display for Struct {
 }
 
 /// Properties of policy commands available through FFI.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommandContext {
+#[derive(Debug, PartialEq, Eq)]
+pub struct CommandContext<'a, E> {
     /// The name of the command
     pub name: &'static str,
     /// The ID of the command
@@ -512,23 +581,6 @@ pub struct CommandContext {
     pub author: UserId,
     /// The ID of the version of policy and FFI module set
     pub version: Id,
-}
-
-// TODO: get these values at runtime
-impl CommandContext {
-    /// Creates a `CommandContext`.
-    pub fn new(name: &'static str, id: Id, author: UserId, version: Id) -> Self {
-        Self {
-            name,
-            id,
-            author,
-            version,
-        }
-    }
-}
-
-impl fmt::Display for CommandContext {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}, {:?}, {:?}", self.name, self.id, self.author)
-    }
+    /// The crypto engine used in this context.
+    pub engine: &'a mut E,
 }

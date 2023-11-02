@@ -1184,13 +1184,16 @@ fn parse_command_definition(
     ))
 }
 
-/// Parse a `Rule::function_definition` into an [FunctionDefinition](ast::FunctionDefinition).
-fn parse_function_definition(
-    item: Pair<Rule>,
-    pratt: &PrattParser<Rule>,
-    cc: &mut ChunkContext,
-) -> Result<AstNode<ast::FunctionDefinition>, ParseError> {
-    let locator = cc.add_range(&item);
+/// Parse only the declaration of a function. Works for both `Rule::function_decl` and
+/// `Rule::finish_function_decl`.
+fn parse_function_decl(item: Pair<Rule>) -> Result<ast::FunctionDecl, ParseError> {
+    let rule = item.as_rule();
+
+    assert!(matches!(
+        rule,
+        Rule::function_decl | Rule::finish_function_decl
+    ));
+
     let pc = descend(item);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -1200,15 +1203,38 @@ fn parse_function_definition(
         arguments.push(parse_field_definition(field)?);
     }
 
-    let return_type = pc.consume_type()?;
+    let return_type = if rule == Rule::function_decl {
+        Some(pc.consume_type()?)
+    } else {
+        None
+    };
+
+    Ok(ast::FunctionDecl {
+        identifier,
+        arguments,
+        return_type,
+    })
+}
+
+fn parse_function_definition(
+    item: Pair<Rule>,
+    pratt: &PrattParser<Rule>,
+    cc: &mut ChunkContext,
+) -> Result<AstNode<ast::FunctionDefinition>, ParseError> {
+    let locator = cc.add_range(&item);
+    let pc = descend(item);
+
+    let decl = pc.consume()?;
+    let decl = parse_function_decl(decl)?;
+    let return_type = decl.return_type.expect("impossible function definition");
 
     let token = pc.consume_of_type(Rule::function_block)?;
     let statements = parse_function_statement_list(token.into_inner(), pratt, cc)?;
 
     Ok(AstNode::new(
         ast::FunctionDefinition {
-            identifier,
-            arguments,
+            identifier: decl.identifier,
+            arguments: decl.arguments,
             return_type,
             statements,
         },
@@ -1224,21 +1250,17 @@ fn parse_finish_function_definition(
 ) -> Result<AstNode<ast::FinishFunctionDefinition>, ParseError> {
     let locator = cc.add_range(&item);
     let pc = descend(item);
-    let identifier = pc.consume_string(Rule::identifier)?;
 
-    let token = pc.consume_of_type(Rule::function_arguments)?;
-    let mut arguments = vec![];
-    for field in token.into_inner() {
-        arguments.push(parse_field_definition(field)?);
-    }
+    let decl = pc.consume()?;
+    let decl = parse_function_decl(decl)?;
 
     let token = pc.consume_of_type(Rule::finish_function_block)?;
     let statements = parse_finish_statement_list(token.into_inner(), pratt, cc)?;
 
     Ok(AstNode::new(
         ast::FinishFunctionDefinition {
-            identifier,
-            arguments,
+            identifier: decl.identifier,
+            arguments: decl.arguments,
             statements,
         },
         locator,
@@ -1300,6 +1322,35 @@ pub fn parse_policy_chunk(
     policy.ranges.append(&mut cc.ranges);
 
     Ok(())
+}
+
+/// Parse a function or finish function declaration for the FFI
+pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
+    let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
+    let decl = def.next().ok_or(ParseError::new(
+        ParseErrorKind::Unknown,
+        String::from("Not a function declaration"),
+        None,
+    ))?;
+
+    let fn_decl = parse_function_decl(decl)?;
+
+    Ok(fn_decl)
+}
+
+/// Parse a series of Struct definitions for the FFI
+pub fn parse_ffi_structs(data: &str) -> Result<Vec<AstNode<ast::StructDefinition>>, ParseError> {
+    let def = PolicyParser::parse(Rule::ffi_struct_def, data)?;
+    let mut structs = vec![];
+    for s in def {
+        if let Rule::EOI = s.as_rule() {
+            break;
+        }
+        let mut cc = ChunkContext::new(0);
+        structs.push(parse_struct_definition(s, &mut cc)?);
+    }
+
+    Ok(structs)
 }
 
 /// Creates the default pratt parser ruleset.

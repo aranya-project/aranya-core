@@ -5,12 +5,10 @@ use std::{
 };
 
 use clap::{arg, ArgGroup, Parser, ValueEnum};
-use crypto::Id;
 use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use policy_vm::{
-    compile_from_policy, CommandContext, FactKey, FactKeyList, FactValue, FactValueList, FfiModule,
-    KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack,
-    MachineStatus, RunState, Stack, Struct, Value,
+    compile_from_policy, FactKey, FactKeyList, FactValue, FactValueList, KVPair, Machine,
+    MachineIO, MachineIOError, MachineStack, MachineStatus, RunState, Stack, Struct, Value,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -108,26 +106,18 @@ fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
     true
 }
 
-struct MachExpIO<S>
-where
-    S: Stack,
-{
+struct MachExpIO {
     facts: HashMap<(String, FactKeyList), FactValueList>,
     emits: Vec<(String, Vec<KVPair>)>,
     effects: Vec<(String, Vec<KVPair>)>,
-    modules: Vec<Box<dyn FfiModule<S, Error = MachineError>>>,
 }
 
-impl<S> MachExpIO<S>
-where
-    S: Stack,
-{
+impl MachExpIO {
     fn new() -> Self {
         MachExpIO {
             facts: HashMap::new(),
             emits: vec![],
             effects: vec![],
-            modules: vec![],
         }
     }
 }
@@ -149,7 +139,7 @@ impl Iterator for MachExpQueryIterator {
     }
 }
 
-impl<S> MachineIO<S> for MachExpIO<S>
+impl<S> MachineIO<S> for MachExpIO
 where
     S: Stack,
 {
@@ -208,14 +198,6 @@ where
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
         let fields = fields.into_iter().collect();
         self.effects.push((name, fields))
-    }
-
-    fn call(&self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError> {
-        let ctx = CommandContext::new("", Id::default(), Id::default().into(), Id::default());
-        self.modules
-            .get(module)
-            .ok_or(MachineError::new(MachineErrorType::FfiCall))?
-            .call(procedure, stack, Some(ctx))
     }
 }
 

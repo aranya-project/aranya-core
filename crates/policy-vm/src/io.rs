@@ -86,6 +86,14 @@ where
     /// Create an effect
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
 
-    /// Call external function, i.e. one defined in a FFIModule
-    fn call(&self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError>;
+    /// Call external function, e.g., one defined in an
+    /// `FfiModule`.
+    fn call(
+        &mut self,
+        _module: usize,
+        _procedure: usize,
+        _stack: &mut S,
+    ) -> Result<(), MachineError> {
+        Err(MachineError::new(MachineErrorType::FfiCall))
+    }
 }

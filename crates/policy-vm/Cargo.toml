@@ -9,6 +9,9 @@ edition.workspace = true
 [features]
 default = []
 
+# Enable `FfiModule` derivation.
+derive = []
+
 # Enable `std`.
 std = [
 	"crypto/std",
@@ -30,11 +33,18 @@ error_in_core = [
 cfg-if = { workspace = true, default-features = false }
 crypto = { path = "../crypto", default-features = false }
 policy-ast = { path = "../policy-ast" }
+policy-derive = { path = "../policy-derive" }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 
 [dev-dependencies]
 anyhow = { version = "1" }
+crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-lang = { path = "../policy-lang" }
+policy-vm = { path = ".", features = ["derive"] }
+
+[[test]]
+name = "tests"
+path = "tests/lib.rs"
 
 [package.metadata.docs.rs]
 all-features = true

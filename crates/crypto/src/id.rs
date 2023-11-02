@@ -25,7 +25,7 @@ use crate::{
 
 /// A unique cryptographic ID.
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
 pub struct Id([u8; 64]);
 
 impl Id {
@@ -180,6 +180,7 @@ macro_rules! custom_id {
             Copy,
             Clone,
             Default,
+            Hash,
             Eq,
             PartialEq,
             Ord,

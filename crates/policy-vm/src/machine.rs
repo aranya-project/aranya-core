@@ -644,12 +644,18 @@ where
 pub struct MachineStack(pub(crate) Vec<Value>);
 
 impl MachineStack {
-    pub(crate) fn len(&self) -> usize {
+    /// Creates an empty stack.
+    pub const fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Returns the number of values in the stack.
+    pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub(crate) fn is_empty(&self) -> bool {
+    /// Reports whether the stack is empty.
+    pub fn is_empty(&self) -> bool {
         self.0.len() == 0
     }
 

@@ -241,10 +241,12 @@ command_definition = { "command" ~ identifier ~ "{" ~ command_statements+ ~ "}" 
 // function foo(a int) int { return a }
 function_statements = _{ let_statement | match_statement | when_statement | return_statement }
 function_block = { "{" ~ function_statements* ~ "}" }
-function_definition = { "function" ~ identifier ~ function_arguments ~ vtype ~ function_block }
+function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
+function_definition = { function_decl ~ function_block }
 /// finish function foo(a int) { create F[]=>{} }
-finish_function_block = { "{" ~ finish_statements ~ "}" }
-finish_function_definition = { "finish" ~ "function" ~ identifier ~ function_arguments ~ finish_function_block }
+finish_function_block = { "{" ~ finish_statements* ~ "}" }
+finish_function_decl = { "finish" ~ "function" ~ identifier ~ function_arguments }
+finish_function_definition = { finish_function_decl ~ finish_function_block }
 
 top_level_statement = _{ fact_definition | action_definition | effect_definition | struct_definition | command_definition | function_definition | finish_function_definition }
 
@@ -253,3 +255,8 @@ top_level_statement = _{ fact_definition | action_definition | effect_definition
 // would only be parsed until the first non-matching text and you would
 // get a partially parsed document instead of a parse error.
 file = _{ SOI ~ top_level_statement* ~ EOI }
+
+ffi_function_decl = _{ function_decl | finish_function_decl }
+ffi_def = _{ SOI ~ ffi_function_decl ~ EOI }
+
+ffi_struct_def = _{ SOI ~ struct_definition* ~ EOI }

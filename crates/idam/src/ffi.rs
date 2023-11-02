@@ -62,71 +62,81 @@ impl From<KeyStoreError> for Error {
 /// All data is assumed to be cryptographically wrapped and must
 /// never be exposed in its unwrapped form outside the crypto
 /// engine or other secure module.
-pub trait KeyStore<E: Engine + ?Sized> {
+pub trait KeyStore {
     /// Returns a WrappedKey from the KeyStore
-    fn get(&self, key_type: KeyStoreSecret, public_key: &[u8]) -> Result<&E::WrappedKey, Error>;
+    fn get<E: Engine + ?Sized>(
+        &self,
+        key_type: KeyStoreSecret,
+        public_key: &[u8],
+    ) -> Result<E::WrappedKey, Error>;
 }
 
 /// The cryptography foreign function interface for IDAM.
-pub struct IdamCrypto<E: Engine + ?Sized, K: KeyStore<E>> {
-    engine: E,
+pub struct IdamCrypto<K> {
     key_store: K,
 }
 
-impl<E: Engine, K: KeyStore<E>> IdamCrypto<E, K> {
+impl<K: KeyStore> IdamCrypto<K> {
     /// Derive keyId for a public EncryptionKey
-    fn encryption_key_id(&self, pub_key_cert: &[u8]) -> Result<Id, Error> {
+    fn encryption_key_id<E: Engine + ?Sized>(&self, pub_key_cert: &[u8]) -> Result<Id, Error> {
         idam::encryption_key_id::<E>(pub_key_cert)
     }
 
     /// Derive keyId for a public SigningKey
-    fn signing_key_id(&self, pub_key_cert: &[u8]) -> Result<Id, Error> {
+    fn signing_key_id<E: Engine + ?Sized>(&self, pub_key_cert: &[u8]) -> Result<Id, Error> {
         idam::signing_key_id::<E>(pub_key_cert)
     }
 
     /// Generate a new GroupKey
-    fn generate_group_key(&mut self) -> Result<WrappedGroupKey, Error> {
-        idam::generate_group_key(&mut self.engine)
+    fn generate_group_key<E: Engine + ?Sized>(
+        &self,
+        eng: &mut E,
+    ) -> Result<WrappedGroupKey, Error> {
+        idam::generate_group_key(eng)
     }
 
     /// Seal the GroupKey for a peer
-    fn seal_group_key(
+    fn seal_group_key<E: Engine + ?Sized>(
         &mut self,
         group_key_wrap: &[u8],
         peer_enc_key: &[u8],
         group_id: Id,
+        ctx: &mut CommandContext<'_, E>,
     ) -> Result<SealedGroupKey, Error>
     where
         <E::Aead as Aead>::Overhead: Add<U64>,
         Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
-        idam::seal_group_key(group_key_wrap, peer_enc_key, group_id, &mut self.engine)
+        idam::seal_group_key(group_key_wrap, peer_enc_key, group_id, ctx.engine)
     }
 
     /// Unseal a received GroupKey
-    fn unseal_group_key(
+    fn unseal_group_key<E: Engine + ?Sized>(
         &mut self,
         sealed_group_key: SealedGroupKey,
         pub_enc_key: &[u8],
         group_id: Id,
+        ctx: &mut CommandContext<'_, E>,
     ) -> Result<WrappedGroupKey, Error>
     where
         <E::Aead as Aead>::Overhead: Add<U64>,
         Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // get private EncryptionKey corresponding to the given public key cert
-        let priv_enc_key = self.key_store.get(KeyStoreSecret::Encrypt, pub_enc_key)?;
-        idam::unseal_group_key(sealed_group_key, priv_enc_key, group_id, &mut self.engine)
+        let priv_enc_key = self
+            .key_store
+            .get::<E>(KeyStoreSecret::Encrypt, pub_enc_key)?;
+        idam::unseal_group_key(sealed_group_key, &priv_enc_key, group_id, ctx.engine)
     }
 
     /// Encrypt a message using the GroupKey
-    pub fn encrypt_message(
+    pub fn encrypt_message<E: Engine + ?Sized>(
         &mut self,
         plaintext: &[u8],
         group_key_wrap: &[u8],
         parent_id: Id,
         pub_sign_key: &[u8],
-        ctx: &CommandContext,
+        ctx: &mut CommandContext<'_, E>,
     ) -> Result<Vec<u8>, Error> {
         idam::encrypt_message(
             group_key_wrap,
@@ -134,18 +144,18 @@ impl<E: Engine, K: KeyStore<E>> IdamCrypto<E, K> {
             parent_id,
             pub_sign_key,
             ctx.name,
-            &mut self.engine,
+            ctx.engine,
         )
     }
 
     /// Decrypt a received message using the GroupKey
-    pub fn decrypt_message(
+    pub fn decrypt_message<E: Engine + ?Sized>(
         &mut self,
         ciphertext: &[u8],
         group_key_wrap: &[u8],
         parent_id: Id,
         peer_sign_key: &[u8],
-        ctx: &CommandContext,
+        ctx: &mut CommandContext<'_, E>,
     ) -> Result<Vec<u8>, Error> {
         idam::decrypt_message(
             group_key_wrap,
@@ -153,12 +163,12 @@ impl<E: Engine, K: KeyStore<E>> IdamCrypto<E, K> {
             parent_id,
             peer_sign_key,
             ctx.name,
-            &mut self.engine,
+            ctx.engine,
         )
     }
 
     /// Calculate the updated hash chain of ChangeIDs with the added value
-    pub fn compute_change_id(new_event: Id, current_change_id: Id) -> Id {
+    pub fn compute_change_id<E: Engine + ?Sized>(new_event: Id, current_change_id: Id) -> Id {
         idam::compute_change_id::<E>(new_event, current_change_id)
     }
 }

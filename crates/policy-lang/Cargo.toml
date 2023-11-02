@@ -17,7 +17,6 @@ pest_derive = { version = "2" }
 # `std` is required because bin/parser-explorer uses `clap` which
 # requires it for arg parsing.
 policy-ast = { path = "../policy-ast", features = ["std"] }
-policy-vm = { path = "../policy-vm" }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_yaml = { version = "0.9" }
 

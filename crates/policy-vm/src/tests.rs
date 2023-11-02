@@ -5,8 +5,8 @@ extern crate alloc;
 use alloc::collections::{btree_map, BTreeMap};
 use core::fmt;
 
-use crypto::Id;
-use policy_ast::{self as ast, VType, Version};
+use crypto::{DefaultCipherSuite, DefaultEngine, Engine, Id, Rng};
+use policy_ast::{self as ast, Version};
 use policy_lang::lang::parse_policy_str;
 
 use crate::{
@@ -21,23 +21,18 @@ use crate::{
     io::{MachineIO, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
-    CodeMap, Label, LabelType, MachineError, MachineStack, Target,
+    CodeMap, Label, LabelType, MachineError, Target,
 };
 
-struct TestIO<S>
-where
-    S: Stack,
-{
+struct TestIO {
     facts: BTreeMap<(String, FactKeyList), FactValueList>,
     emit_stack: Vec<(String, Vec<KVPair>)>,
     effect_stack: Vec<(String, Vec<KVPair>)>,
-    modules: Vec<Box<dyn FfiModule<S, Error = MachineError>>>,
+    modules: Vec<PrintFfi>,
+    engine: DefaultEngine<Rng, DefaultCipherSuite>,
 }
 
-impl<S> fmt::Debug for TestIO<S>
-where
-    S: Stack,
-{
+impl fmt::Debug for TestIO {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // I don't want to dive deep into the modules, so let's just list the module names.
         // But also the module names is in an unmerged PR, so punt and just enumerate them.
@@ -56,16 +51,15 @@ where
     }
 }
 
-impl<S> TestIO<S>
-where
-    S: Stack,
-{
+impl TestIO {
     pub fn new() -> Self {
+        let (engine, _) = DefaultEngine::from_entropy(Rng);
         TestIO {
             facts: BTreeMap::new(),
             emit_stack: vec![],
             effect_stack: vec![],
             modules: Vec::new(),
+            engine,
         }
     }
 }
@@ -97,7 +91,7 @@ impl Iterator for TestQueryIterator {
     }
 }
 
-impl<S> MachineIO<S> for TestIO<S>
+impl<S> MachineIO<S> for TestIO
 where
     S: Stack,
 {
@@ -165,11 +159,16 @@ where
         self.effect_stack.push((name, fields));
     }
 
-    fn call(&self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError> {
-        let ctx = CommandContext::new("", Id::default(), Id::default().into(), Id::default());
-        let module = self.modules.get(module);
-        match module {
-            Some(module) => module.call(procedure, stack, Some(ctx)),
+    fn call(&mut self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError> {
+        let mut ctx = CommandContext {
+            name: "SomeCommand",
+            id: Id::default(),
+            author: Id::default().into(),
+            version: Id::default(),
+            engine: &mut self.engine,
+        };
+        match self.modules.get_mut(module) {
+            Some(module) => module.call(procedure, stack, &mut ctx),
             None => Err(MachineError::new(MachineErrorType::FfiCall)),
         }
     }
@@ -802,28 +801,23 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
 
 struct PrintFfi {}
 
-impl<S> FfiModule<S> for PrintFfi
-where
-    S: Stack,
-{
+impl FfiModule for PrintFfi {
     type Error = MachineError;
 
-    fn function_table(&self) -> &'static [ffi::Func<'static>] {
-        &[ffi::Func {
-            name: "print",
-            args: &[ffi::Arg {
-                name: "s",
-                vtype: VType::String,
-            }],
-            color: ffi::Color::Pure(VType::String),
-        }]
-    }
+    const TABLE: &'static [ffi::Func<'static>] = &[ffi::Func {
+        name: "print",
+        args: &[ffi::Arg {
+            name: "s",
+            vtype: ffi::Type::String,
+        }],
+        color: ffi::Color::Pure(ffi::Type::String),
+    }];
 
-    fn call(
-        self: &PrintFfi,
+    fn call<E: Engine + ?Sized>(
+        &mut self,
         procedure: usize,
-        stack: &mut S,
-        _ctx: Option<CommandContext>,
+        stack: &mut impl Stack,
+        _ctx: &mut CommandContext<'_, E>,
     ) -> Result<(), Self::Error> {
         match procedure {
             0 => {
@@ -849,7 +843,7 @@ where
 fn test_ffi() {
     // Add FFI module to TestIO
     let mut io = TestIO::new();
-    io.modules.push(Box::new(PrintFfi {}));
+    io.modules.push(PrintFfi {});
 
     // Push value onto stack, and call FFI function
     let mut stack = TestStack::new();
@@ -870,7 +864,7 @@ fn test_extcall() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    io.modules.push(Box::new(PrintFfi {}));
+    io.modules.push(PrintFfi {});
     let mut rs = machine.create_run_state(&mut io);
 
     rs.run().expect("Should succeed");
@@ -891,7 +885,7 @@ fn test_extcall_invalid_module() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    io.modules.push(Box::new(PrintFfi {}));
+    io.modules.push(PrintFfi {});
     let mut rs = machine.create_run_state(&mut io);
 
     assert_eq!(
@@ -908,7 +902,7 @@ fn test_extcall_invalid_proc() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    io.modules.push(Box::new(PrintFfi {}));
+    io.modules.push(PrintFfi {});
     let mut rs = machine.create_run_state(&mut io);
 
     assert_eq!(
@@ -925,7 +919,7 @@ fn test_extcall_invalid_arg() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    io.modules.push(Box::new(PrintFfi {}));
+    io.modules.push(PrintFfi {});
     let mut rs = machine.create_run_state(&mut io);
 
     // Empty stack - should fail
@@ -1175,7 +1169,7 @@ fn general_test_harness<F, G>(
     mut rs_closure: G,
 ) where
     F: FnMut(&mut Machine) -> anyhow::Result<()>,
-    G: FnMut(&mut RunState<'_, TestIO<MachineStack>>) -> anyhow::Result<()>,
+    G: FnMut(&mut RunState<'_, TestIO>) -> anyhow::Result<()>,
 {
     let mut m = Machine::new(instructions.to_owned());
 

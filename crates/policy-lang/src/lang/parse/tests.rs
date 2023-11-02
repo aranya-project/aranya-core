@@ -1047,3 +1047,68 @@ fn parse_struct() {
         )]
     );
 }
+
+#[test]
+fn parse_ffi_decl() {
+    let text = "function foo(x int, y struct bar) bool";
+    let decl = super::parse_ffi_decl(text).expect("parse");
+    assert_eq!(
+        decl,
+        ast::FunctionDecl {
+            identifier: String::from("foo"),
+            arguments: vec![
+                ast::FieldDefinition {
+                    identifier: String::from("x"),
+                    field_type: ast::VType::Int,
+                },
+                ast::FieldDefinition {
+                    identifier: String::from("y"),
+                    field_type: ast::VType::Struct(String::from("bar")),
+                }
+            ],
+            return_type: Some(ast::VType::Bool)
+        }
+    )
+}
+
+#[test]
+fn parse_ffi_structs() {
+    let text = r#"
+        struct A {
+            x int,
+            y bool
+        }
+
+        struct B {}
+    "#
+    .trim();
+    let structs = super::parse_ffi_structs(text).expect("parse");
+    assert_eq!(
+        structs,
+        vec![
+            AstNode {
+                inner: ast::StructDefinition {
+                    identifier: String::from("A"),
+                    fields: vec![
+                        ast::FieldDefinition {
+                            identifier: String::from("x"),
+                            field_type: ast::VType::Int
+                        },
+                        ast::FieldDefinition {
+                            identifier: String::from("y"),
+                            field_type: ast::VType::Bool
+                        }
+                    ]
+                },
+                locator: 0,
+            },
+            AstNode {
+                inner: ast::StructDefinition {
+                    identifier: String::from("B"),
+                    fields: vec![],
+                },
+                locator: 68,
+            },
+        ],
+    )
+}
