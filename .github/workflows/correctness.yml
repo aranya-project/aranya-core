@@ -40,6 +40,8 @@ jobs:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: ${{ matrix.os }}
+      - name: Install nightly
+        run: rustup toolchain install nightly
       - name: Check formatting
         run: cargo +nightly fmt --all -- --check
 
