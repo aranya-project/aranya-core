@@ -13,7 +13,7 @@ debug = [
 	# `eprintln`.
 	"std",
 
-	"rtrack_derive/debug",
+	"rtrack-derive/debug",
 ]
 
 # Enable the Spira integration.
@@ -22,13 +22,13 @@ spira = [
 	# Spira integration `no_std` compatible.
 	"std",
 
-	"rtrack_derive/spira",
+	"rtrack-derive/spira",
 
 	"dep:anyhow",
 	"dep:chrono",
 	"dep:lazy_static",
 	"dep:reqwest",
-	"dep:rtrack_derive",
+	"dep:rtrack-derive",
 	"dep:serde_json",
 	"dep:serde_repr",
 ]
@@ -42,7 +42,7 @@ chrono = { version = "0.4", optional = true, default-features = false, features 
 lazy_static = { version = "1.4", optional = true }
 log = { workspace = true, default-features = false }
 reqwest = { version = "0.11", optional = true, features = ["blocking", "json"] }
-rtrack_derive = { path = "../rtrack_derive", optional = true }
+rtrack-derive = { path = "../rtrack-derive", optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", optional = true, default-features = false, features = ["alloc"] }
 serde_repr = { version = "0.1", optional = true, default-features = false }

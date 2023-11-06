@@ -104,7 +104,7 @@ mod sender;
 
 /// A particular unit test.
 ///
-/// This struct is created by the `rtrack_derive` crate.
+/// This struct is created by the `rtrack-derive` crate.
 #[doc(hidden)]
 pub struct Test {
     /// The test name.
@@ -119,7 +119,7 @@ pub struct Test {
 
 /// Runs and records a unit test that returns `()`.
 ///
-/// Used by the generated code in `rtrack_derive`.
+/// Used by the generated code in `rtrack-derive`.
 #[doc(hidden)]
 pub fn run_test_unit(t: &Test, f: fn()) {
     let start = Utc::now();
@@ -135,7 +135,7 @@ pub fn run_test_unit(t: &Test, f: fn()) {
 
 /// Runs and records unit test that returns `Result<T, E>`.
 ///
-/// Used by the generated code in `rtrack_derive`.
+/// Used by the generated code in `rtrack-derive`.
 #[doc(hidden)]
 pub fn run_test_result<T, E>(t: &Test, f: fn() -> Result<T, E>) -> Result<T, E>
 where
