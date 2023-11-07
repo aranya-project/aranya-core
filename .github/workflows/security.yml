@@ -1,0 +1,53 @@
+name: "Security Checks"
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+    secrets:
+      CC_BUILD_TOKEN:
+        required: true
+      GH_DOTCOM_TOKEN:
+        required: true
+
+env:
+  REV: ${{ github.run_id }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  security-checks:
+    strategy:
+      matrix:
+        include:
+          - target: { os: "self-hosted-linux-amd64", suffix: "linux-amd64" }
+    runs-on: ${{ matrix.target.os }}
+    steps:
+      # Our runners don't get wiped between runs :/
+      - name: nuke old .gitconfig
+        run: rm ~/.gitconfig || true
+      - uses: actions/checkout@v3
+      - name: Clean temp files
+        run: rm -rf ${{ github.workspace }}/_temp
+        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+      - uses: ./.github/actions/setup
+        with:
+          ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
+          gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
+          os: ${{ matrix.target.os }}
+          target: ${{ matrix.target.suffix }}
+
+      - name: Run cargo audit
+        run: |
+          cargo install --version 0.18.2 cargo-audit --force
+          cargo generate-lockfile
+          cargo audit
