@@ -33,8 +33,8 @@ use typenum::{Unsigned, U12, U16, U32};
 
 use crate::{
     aead::{
-        check_open_in_place_params, check_seal_in_place_params, Aead, AeadError, AeadId, AeadKey,
-        IndCca2, Lifetime, Nonce,
+        check_open_in_place_params, check_seal_in_place_params, Aead, AeadId, AeadKey, IndCca2,
+        Lifetime, Nonce, OpenError, SealError,
     },
     asn1::{max_sig_len, raw_sig_len, RawSig, Sig},
     csprng::Csprng,
@@ -140,7 +140,7 @@ impl Aead for Aes256Gcm {
         data: &mut [u8],
         tag: &mut [u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), SealError> {
         check_seal_in_place_params::<Self>(nonce, data, tag, additional_data)?;
 
         // SAFETY: FFI calls, no invariants
@@ -188,7 +188,7 @@ impl Aead for Aes256Gcm {
         data: &mut [u8],
         tag: &[u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), OpenError> {
         check_open_in_place_params::<Self>(nonce, data, tag, additional_data)?;
 
         // SAFETY: FFI calls, no invariants
@@ -230,7 +230,7 @@ impl Aead for Aes256Gcm {
         if ret == 1 {
             Ok(())
         } else {
-            Err(AeadError::Authentication)
+            Err(OpenError::Authentication)
         }
     }
 }

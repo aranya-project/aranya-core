@@ -94,7 +94,7 @@ pub mod signer;
 pub mod test_util;
 pub mod zeroize;
 
-pub use aead::{AeadError, BufferTooSmallError};
+pub use aead::{BufferTooSmallError, OpenError, SealError};
 pub use aranya::*;
 pub use ciphersuite::*;
 pub use csprng::Csprng;

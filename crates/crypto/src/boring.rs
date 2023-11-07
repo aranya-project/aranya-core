@@ -54,8 +54,8 @@ use crate::features::*;
 use crate::{
     aead::{
         check_open_in_place_params, check_open_params, check_seal_in_place_params,
-        check_seal_params, Aead, AeadError, AeadId, AeadKey, BufferTooSmallError, IndCca2,
-        Lifetime, Nonce,
+        check_seal_params, Aead, AeadId, AeadKey, BufferTooSmallError, IndCca2, InvalidNonceSize,
+        Lifetime, Nonce, OpenError, SealError,
     },
     asn1::{max_sig_len, EncodingError, Sig},
     csprng::Csprng,
@@ -303,21 +303,20 @@ impl fmt::Display for BoringError {
 #[cfg(any(feature = "error_in_core", feature = "std"))]
 impl error::Error for BoringError {}
 
-/// Returns the most recent BoringSSL error as an [`AeadError`].
-fn aead_error() -> AeadError {
+/// Returns the most recent BoringSSL error as an [`SealError`].
+fn seal_error() -> SealError {
     let err = BoringError::last();
     match err.reason() {
         CIPHER_R_BUFFER_TOO_SMALL => BufferTooSmallError(None).into(),
-        CIPHER_R_INVALID_NONCE_SIZE => AeadError::InvalidNonceSize,
-        CIPHER_R_BAD_DECRYPT => AeadError::Authentication,
-        CIPHER_R_INVALID_AD_SIZE => AeadError::AdditionalDataTooLong,
+        CIPHER_R_INVALID_NONCE_SIZE => InvalidNonceSize.into(),
+        CIPHER_R_INVALID_AD_SIZE => SealError::AdditionalDataTooLong,
         // NB: this also happens if the AD is too large, but it's
         // more likely that the PT is too large than the AD, so
         // we choose that error.
-        CIPHER_R_TOO_LARGE => AeadError::PlaintextTooLong,
-        CIPHER_R_TAG_TOO_LARGE => AeadError::InvalidOverheadSize,
-        CIPHER_R_BAD_KEY_LENGTH | CIPHER_R_INVALID_KEY_LENGTH => AeadError::InvalidKeySize,
-        _ => AeadError::Other(err.reason_str()),
+        CIPHER_R_TOO_LARGE => SealError::PlaintextTooLong,
+        CIPHER_R_TAG_TOO_LARGE => SealError::InvalidOverheadSize,
+        CIPHER_R_BAD_KEY_LENGTH | CIPHER_R_INVALID_KEY_LENGTH => SealError::InvalidKeySize,
+        _ => SealError::Other(err.reason_str()),
     }
 }
 
@@ -446,7 +445,7 @@ macro_rules! indcca2_aead_impl {
                 nonce: &[u8],
                 plaintext: &[u8],
                 additional_data: &[u8],
-            ) -> Result<(), AeadError> {
+            ) -> Result<(), SealError> {
                 check_seal_params::<Self>(dst, nonce, plaintext, additional_data)?;
 
                 // SAFETY: FFI, no invariants.
@@ -468,7 +467,7 @@ macro_rules! indcca2_aead_impl {
                 if ret == 1 {
                     Ok(())
                 } else {
-                    Err(aead_error())
+                    Err(seal_error())
                 }
             }
 
@@ -479,7 +478,7 @@ macro_rules! indcca2_aead_impl {
                 data: &mut [u8],
                 tag: &mut [u8],
                 additional_data: &[u8],
-            ) -> Result<(), AeadError> {
+            ) -> Result<(), SealError> {
                 check_seal_in_place_params::<Self>(nonce, data, tag, additional_data)?;
 
                 // SAFETY: We create *mut u8 and *const u8 from
@@ -510,7 +509,7 @@ macro_rules! indcca2_aead_impl {
                 if ret == 1 {
                     Ok(())
                 } else {
-                    Err(aead_error())
+                    Err(seal_error())
                 }
             }
 
@@ -521,7 +520,7 @@ macro_rules! indcca2_aead_impl {
                 nonce: &[u8],
                 ciphertext: &[u8],
                 additional_data: &[u8],
-            ) -> Result<(), AeadError> {
+            ) -> Result<(), OpenError> {
                 check_open_params::<Self>(dst, nonce, ciphertext, additional_data)?;
 
                 // SAFETY: FFI, no invariants.
@@ -543,7 +542,7 @@ macro_rules! indcca2_aead_impl {
                 if ret == 1 {
                     Ok(())
                 } else {
-                    Err(AeadError::Authentication)
+                    Err(OpenError::Authentication)
                 }
             }
 
@@ -554,7 +553,7 @@ macro_rules! indcca2_aead_impl {
                 data: &mut [u8],
                 tag: &[u8],
                 additional_data: &[u8],
-            ) -> Result<(), AeadError> {
+            ) -> Result<(), OpenError> {
                 check_open_in_place_params::<Self>(nonce, data, tag, additional_data)?;
 
                 // SAFETY: We create *mut u8 and *const u8 from
@@ -581,7 +580,7 @@ macro_rules! indcca2_aead_impl {
                 if ret == 1 {
                     Ok(())
                 } else {
-                    Err(AeadError::Authentication)
+                    Err(OpenError::Authentication)
                 }
             }
         }

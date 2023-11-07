@@ -7,7 +7,7 @@ use cfg_if::cfg_if;
 #[cfg(feature = "alloc")]
 use crate::idam::KeyConversionError;
 use crate::{
-    aead::AeadError,
+    aead::{OpenError, SealError},
     engine::{UnwrapError, WrapError},
     hpke::HpkeError,
     import::{ExportError, ImportError},
@@ -35,8 +35,10 @@ pub enum Error {
     /// It describes why the argument is invalid.
     InvalidArgument(&'static str),
 
-    /// An AEAD failure.
-    Aead(AeadError),
+    /// An AEAD seal failure.
+    Seal(SealError),
+    /// An AEAD open failure.
+    Open(OpenError),
     /// An ECDH failure.
     Ecdh(EcdhError),
     /// An HPKE failure.
@@ -67,7 +69,8 @@ impl fmt::Display for Error {
         match self {
             Self::InvalidArgument(msg) => write!(f, "invalid argument: {}", msg),
 
-            Self::Aead(err) => write!(f, "{}", err),
+            Self::Seal(err) => write!(f, "{}", err),
+            Self::Open(err) => write!(f, "{}", err),
             Self::Ecdh(err) => write!(f, "{}", err),
             Self::Hpke(err) => write!(f, "{}", err),
             Self::Kdf(err) => write!(f, "{}", err),
@@ -89,7 +92,8 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Self::Aead(err) => Some(err),
+            Self::Seal(err) => Some(err),
+            Self::Open(err) => Some(err),
             Self::Ecdh(err) => Some(err),
             Self::Hpke(err) => Some(err),
             Self::Kdf(err) => Some(err),
@@ -106,9 +110,15 @@ impl error::Error for Error {
     }
 }
 
-impl From<AeadError> for Error {
-    fn from(err: AeadError) -> Self {
-        Self::Aead(err)
+impl From<SealError> for Error {
+    fn from(err: SealError) -> Self {
+        Self::Seal(err)
+    }
+}
+
+impl From<OpenError> for Error {
+    fn from(err: OpenError) -> Self {
+        Self::Open(err)
     }
 }
 

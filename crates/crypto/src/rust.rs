@@ -34,8 +34,8 @@ use typenum::{Unsigned, U12, U16};
 
 use crate::{
     aead::{
-        check_open_in_place_params, check_seal_in_place_params, Aead, AeadError, AeadId, AeadKey,
-        IndCca2, Lifetime, Nonce,
+        check_open_in_place_params, check_seal_in_place_params, Aead, AeadId, AeadKey, IndCca2,
+        Lifetime, Nonce, OpenError, SealError,
     },
     csprng::Csprng,
     ec::{Curve, Secp256r1, Secp384r1},
@@ -82,17 +82,19 @@ impl Aead for Aes256Gcm {
         data: &mut [u8],
         tag: &mut [u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), SealError> {
         check_seal_in_place_params::<Self>(nonce, data, tag, additional_data)?;
 
         let got_tag = self
             .0
             .encrypt_in_place_detached(
-                nonce.try_into().map_err(|_| AeadError::InvalidNonceSize)?,
+                nonce
+                    .try_into()
+                    .map_err(|_| SealError::InvalidNonceSize(InvalidNonceSize))?,
                 additional_data,
                 data,
             )
-            .map_err(|_| AeadError::Encryption)?;
+            .map_err(|_| SealError::Encryption)?;
         tag.copy_from_slice(&got_tag[..]);
 
         Ok(())
@@ -104,17 +106,19 @@ impl Aead for Aes256Gcm {
         data: &mut [u8],
         tag: &[u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), OpenError> {
         check_open_in_place_params::<Self>(nonce, data, tag, additional_data)?;
 
         self.0
             .decrypt_in_place_detached(
-                nonce.try_into().map_err(|_| AeadError::InvalidNonceSize)?,
+                nonce
+                    .try_into()
+                    .map_err(|_| OpenError::InvalidNonceSize(InvalidNonceSize))?,
                 additional_data,
                 data,
-                tag.try_into().map_err(|_| AeadError::InvalidOverheadSize)?,
+                tag.try_into().map_err(|_| OpenError::InvalidOverheadSize)?,
             )
-            .map_err(|_| AeadError::Authentication)
+            .map_err(|_| OpenError::Authentication)
     }
 }
 
@@ -156,6 +160,8 @@ mod committing {
 }
 #[cfg(feature = "committing-aead")]
 pub use committing::*;
+
+use crate::aead::InvalidNonceSize;
 
 macro_rules! curve_impl {
     ($name:ident, $doc:expr, $inner:ty, $point:ident, $curve:ident) => {

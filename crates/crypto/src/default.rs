@@ -114,7 +114,7 @@ mod default_engine {
     #[allow(clippy::wildcard_imports)]
     use {
         crate::{
-            aead::{Aead, AeadError},
+            aead::{Aead, OpenError},
             ciphersuite::CipherSuite,
             csprng::Csprng,
             engine::{
@@ -228,7 +228,7 @@ mod default_engine {
             if ciphertext.len() < Self::OVERHEAD {
                 // Cannot authenticate the wrapped key if it clearly
                 // does not contain both the nonce and tag.
-                return Err(UnwrapError::Aead(AeadError::Authentication));
+                return Err(UnwrapError::Open(OpenError::Authentication));
             }
             let mut plaintext = Zeroizing::new(vec![0u8; ciphertext.len() - Self::OVERHEAD]);
             let (nonce, ciphertext) = ciphertext.split_at(Self::NONCE_SIZE);

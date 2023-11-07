@@ -17,7 +17,7 @@ use cfg_if::cfg_if;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    aead::{Aead, AeadError, AeadId},
+    aead::{Aead, AeadId, OpenError, SealError},
     apq::{ReceiverSecretKey, SenderSecretKey, SenderSigningKey},
     aranya::{EncryptionKey, IdentityKey, SigningKey},
     ciphersuite::CipherSuite,
@@ -47,7 +47,7 @@ pub enum WrapError {
     /// The secret key data cannot be exported.
     Export(ExportError),
     /// The encoded secret key cannot be encrypted.
-    Aead(AeadError),
+    Seal(SealError),
 }
 
 impl Display for WrapError {
@@ -56,7 +56,7 @@ impl Display for WrapError {
         match self {
             Self::Other(msg) => write!(f, "{}", msg),
             Self::Export(err) => write!(f, "{}", err),
-            Self::Aead(err) => write!(f, "{}", err),
+            Self::Seal(err) => write!(f, "{}", err),
         }
     }
 }
@@ -67,15 +67,15 @@ impl error::Error for WrapError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             Self::Export(err) => Some(err),
-            Self::Aead(err) => Some(err),
+            Self::Seal(err) => Some(err),
             _ => None,
         }
     }
 }
 
-impl From<AeadError> for WrapError {
-    fn from(err: AeadError) -> Self {
-        Self::Aead(err)
+impl From<SealError> for WrapError {
+    fn from(err: SealError) -> Self {
+        Self::Seal(err)
     }
 }
 
@@ -91,7 +91,7 @@ pub enum UnwrapError {
     /// An unknown or internal error has occurred.
     Other(&'static str),
     /// The wrapped key could not be decrypted.
-    Aead(AeadError),
+    Open(OpenError),
     /// The unwrapped secret key data cannot be imported.
     Import(ImportError),
 }
@@ -101,7 +101,7 @@ impl Display for UnwrapError {
         write!(f, "unable to unwrap key: ")?;
         match self {
             Self::Other(msg) => write!(f, "{}", msg),
-            Self::Aead(err) => write!(f, "{}", err),
+            Self::Open(err) => write!(f, "{}", err),
             Self::Import(err) => write!(f, "{}", err),
         }
     }
@@ -118,9 +118,9 @@ impl error::Error for UnwrapError {
     }
 }
 
-impl From<AeadError> for UnwrapError {
-    fn from(err: AeadError) -> Self {
-        Self::Aead(err)
+impl From<OpenError> for UnwrapError {
+    fn from(err: OpenError) -> Self {
+        Self::Open(err)
     }
 }
 

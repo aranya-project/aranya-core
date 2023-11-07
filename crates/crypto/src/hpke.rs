@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
 
 use crate::{
-    aead::{Aead, AeadError, IndCca2, KeyData},
+    aead::{Aead, IndCca2, KeyData, OpenError, SealError},
     csprng::Csprng,
     import::{ExportError, Import, ImportError},
     kdf::{Kdf, KdfError},
@@ -297,8 +297,10 @@ impl Display for AeadId {
 /// An error from an [`Hpke`].
 #[derive(Debug, Eq, PartialEq)]
 pub enum HpkeError {
-    /// An AEAD operation failed.
-    Aead(AeadError),
+    /// An AEAD seal operation failed.
+    Seal(SealError),
+    /// An AEAD open operation failed.
+    Open(OpenError),
     /// A KDF operation failed.
     Kdf(KdfError),
     /// A KEM operation failed.
@@ -317,7 +319,8 @@ pub enum HpkeError {
 impl Display for HpkeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Aead(err) => write!(f, "{}", err),
+            Self::Seal(err) => write!(f, "{}", err),
+            Self::Open(err) => write!(f, "{}", err),
             Self::Kdf(err) => write!(f, "{}", err),
             Self::Kem(err) => write!(f, "{}", err),
             Self::Import(err) => write!(f, "{}", err),
@@ -333,7 +336,8 @@ impl Display for HpkeError {
 impl error::Error for HpkeError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Self::Aead(err) => Some(err),
+            Self::Seal(err) => Some(err),
+            Self::Open(err) => Some(err),
             Self::Kdf(err) => Some(err),
             Self::Kem(err) => Some(err),
             Self::Import(err) => Some(err),
@@ -344,9 +348,15 @@ impl error::Error for HpkeError {
     }
 }
 
-impl From<AeadError> for HpkeError {
-    fn from(err: AeadError) -> Self {
-        Self::Aead(err)
+impl From<SealError> for HpkeError {
+    fn from(err: SealError) -> Self {
+        Self::Seal(err)
+    }
+}
+
+impl From<OpenError> for HpkeError {
+    fn from(err: OpenError) -> Self {
+        Self::Open(err)
     }
 }
 

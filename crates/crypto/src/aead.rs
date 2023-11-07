@@ -57,7 +57,7 @@ pub struct BufferTooSmallError(pub Option<usize>);
 
 impl BufferTooSmallError {
     /// Returns a human-readable string describing the error.
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         "dest buffer too small"
     }
 }
@@ -76,9 +76,30 @@ impl fmt::Display for BufferTooSmallError {
 #[cfg(any(feature = "error_in_core", feature = "std"))]
 impl error::Error for BufferTooSmallError {}
 
-/// An error from an [`Aead`].
+/// An error from a [`Nonce`].
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct InvalidNonceSize;
+
+impl InvalidNonceSize {
+    /// Returns a human-readable string describing the error.
+    pub const fn as_str(&self) -> &'static str {
+        "nonce size is invalid"
+    }
+}
+
+impl fmt::Display for InvalidNonceSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
+#[cfg(any(feature = "error_in_core", feature = "std"))]
+impl error::Error for InvalidNonceSize {}
+
+/// An error from an [`Aead`] seal.
 #[derive(Debug, Eq, PartialEq)]
-pub enum AeadError {
+pub enum SealError {
     /// An unreachable code path has been taken.
     Unreachable(Unreachable),
     /// An unknown or internal error has occurred.
@@ -86,7 +107,89 @@ pub enum AeadError {
     /// The size of the key is incorrect.
     InvalidKeySize,
     /// The size of the nonce is incorrect.
-    InvalidNonceSize,
+    InvalidNonceSize(InvalidNonceSize),
+    /// The size of the overhead is incorrect.
+    InvalidOverheadSize,
+    /// The plaintext is too long.
+    PlaintextTooLong,
+    /// The additional data is too long.
+    AdditionalDataTooLong,
+    /// The output buffer is too small.
+    BufferTooSmall(BufferTooSmallError),
+    /// The plaintext could not be encrypted.
+    Encryption,
+}
+
+impl SealError {
+    /// Returns a human-readable string describing the error.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Unreachable(err) => err.as_str(),
+            Self::Other(msg) => msg,
+            Self::InvalidKeySize => "invalid key size",
+            Self::InvalidNonceSize(err) => err.as_str(),
+            Self::InvalidOverheadSize => "invalid overhead size",
+            Self::PlaintextTooLong => "plaintext too long",
+            Self::AdditionalDataTooLong => "additional data too long",
+            Self::Encryption => "encryption error",
+            Self::BufferTooSmall(err) => err.as_str(),
+        }
+    }
+}
+
+impl fmt::Display for SealError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unreachable(err) => write!(f, "{}", err),
+            Self::BufferTooSmall(err) => write!(f, "{}", err),
+            Self::InvalidNonceSize(err) => write!(f, "{}", err),
+            _ => write!(f, "{}", self.as_str()),
+        }
+    }
+}
+
+#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
+#[cfg(any(feature = "error_in_core", feature = "std"))]
+impl error::Error for SealError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            Self::Unreachable(err) => Some(err),
+            Self::BufferTooSmall(err) => Some(err),
+            Self::InvalidNonceSize(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<BufferTooSmallError> for SealError {
+    fn from(value: BufferTooSmallError) -> Self {
+        SealError::BufferTooSmall(value)
+    }
+}
+
+impl From<Unreachable> for SealError {
+    fn from(value: Unreachable) -> Self {
+        SealError::Unreachable(value)
+    }
+}
+
+impl From<InvalidNonceSize> for SealError {
+    fn from(value: InvalidNonceSize) -> Self {
+        SealError::InvalidNonceSize(value)
+    }
+}
+
+/// An error from an [`Aead`] open.
+#[derive(Debug, Eq, PartialEq)]
+pub enum OpenError {
+    /// An unreachable code path has been taken.
+    Unreachable(Unreachable),
+    /// An unknown or internal error has occurred.
+    Other(&'static str),
+    /// The size of the key is incorrect.
+    InvalidKeySize,
+    /// The size of the nonce is incorrect.
+    InvalidNonceSize(InvalidNonceSize),
     /// The size of the overhead is incorrect.
     InvalidOverheadSize,
     /// The plaintext is too long.
@@ -99,34 +202,32 @@ pub enum AeadError {
     BufferTooSmall(BufferTooSmallError),
     /// The ciphertext could not be authenticated.
     Authentication,
-    /// The plaintext could not be encrypted.
-    Encryption,
 }
 
-impl AeadError {
+impl OpenError {
     /// Returns a human-readable string describing the error.
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Unreachable(err) => err.as_str(),
             Self::Other(msg) => msg,
             Self::InvalidKeySize => "invalid key size",
-            Self::InvalidNonceSize => "invalid nonce size",
+            Self::InvalidNonceSize(err) => err.as_str(),
             Self::InvalidOverheadSize => "invalid overhead size",
             Self::PlaintextTooLong => "plaintext too long",
             Self::CiphertextTooLong => "ciphertext too long",
             Self::AdditionalDataTooLong => "additional data too long",
             Self::Authentication => "authentication error",
-            Self::Encryption => "encryption error",
             Self::BufferTooSmall(err) => err.as_str(),
         }
     }
 }
 
-impl fmt::Display for AeadError {
+impl fmt::Display for OpenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Unreachable(err) => write!(f, "{}", err),
             Self::BufferTooSmall(err) => write!(f, "{}", err),
+            Self::InvalidNonceSize(err) => write!(f, "{}", err),
             _ => write!(f, "{}", self.as_str()),
         }
     }
@@ -134,25 +235,32 @@ impl fmt::Display for AeadError {
 
 #[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
 #[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for AeadError {
+impl error::Error for OpenError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             Self::Unreachable(err) => Some(err),
             Self::BufferTooSmall(err) => Some(err),
+            Self::InvalidNonceSize(err) => Some(err),
             _ => None,
         }
     }
 }
 
-impl From<BufferTooSmallError> for AeadError {
+impl From<BufferTooSmallError> for OpenError {
     fn from(value: BufferTooSmallError) -> Self {
-        AeadError::BufferTooSmall(value)
+        OpenError::BufferTooSmall(value)
     }
 }
 
-impl From<Unreachable> for AeadError {
+impl From<Unreachable> for OpenError {
     fn from(value: Unreachable) -> Self {
-        AeadError::Unreachable(value)
+        OpenError::Unreachable(value)
+    }
+}
+
+impl From<InvalidNonceSize> for OpenError {
+    fn from(value: InvalidNonceSize) -> Self {
+        OpenError::InvalidNonceSize(value)
     }
 }
 
@@ -317,7 +425,7 @@ pub trait Aead {
         + Default
         + Debug
         + Sized
-        + for<'a> TryFrom<&'a [u8], Error = AeadError>;
+        + for<'a> TryFrom<&'a [u8], Error = InvalidNonceSize>;
 
     /// Creates a new [`Aead`].
     fn new(key: &Self::Key) -> Self;
@@ -347,7 +455,7 @@ pub trait Aead {
         nonce: &[u8],
         plaintext: &[u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), SealError> {
         check_seal_params::<Self>(dst, nonce, plaintext, additional_data)?;
 
         let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
@@ -382,7 +490,7 @@ pub trait Aead {
         data: &mut [u8],
         overhead: &mut [u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError>;
+    ) -> Result<(), SealError>;
 
     /// Decrypts and authenticates `ciphertext`, writing the
     /// resulting plaintext to `dst`.
@@ -406,7 +514,7 @@ pub trait Aead {
         nonce: &[u8],
         ciphertext: &[u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), OpenError> {
         check_open_params::<Self>(dst, nonce, ciphertext, additional_data)?;
 
         let max = ciphertext.len() - Self::OVERHEAD;
@@ -437,7 +545,7 @@ pub trait Aead {
         data: &mut [u8],
         overhead: &[u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError>;
+    ) -> Result<(), OpenError>;
 }
 
 /// Shorthand for the `A::Key::Data`, which the compiler does not
@@ -459,25 +567,25 @@ pub const fn check_seal_params<A: Aead + ?Sized>(
     nonce: &[u8],
     plaintext: &[u8],
     additional_data: &[u8],
-) -> Result<(), AeadError> {
+) -> Result<(), SealError> {
     check_aead_params::<A>();
 
     let need = match plaintext.len().checked_add(A::OVERHEAD) {
         // Overflow.
-        None => return Err(AeadError::PlaintextTooLong),
+        None => return Err(SealError::PlaintextTooLong),
         Some(n) => n,
     };
     if need > dst.len() {
-        return Err(AeadError::BufferTooSmall(BufferTooSmallError(Some(need))));
+        return Err(SealError::BufferTooSmall(BufferTooSmallError(Some(need))));
     }
     if nonce.len() != A::NONCE_SIZE {
-        return Err(AeadError::InvalidNonceSize);
+        return Err(SealError::InvalidNonceSize(InvalidNonceSize));
     }
     if plaintext.len() as u64 > A::MAX_PLAINTEXT_SIZE {
-        return Err(AeadError::PlaintextTooLong);
+        return Err(SealError::PlaintextTooLong);
     }
     if additional_data.len() as u64 > A::MAX_ADDITIONAL_DATA_SIZE {
-        return Err(AeadError::AdditionalDataTooLong);
+        return Err(SealError::AdditionalDataTooLong);
     }
     Ok(())
 }
@@ -489,20 +597,20 @@ pub const fn check_seal_in_place_params<A: Aead + ?Sized>(
     data: &[u8],
     overhead: &[u8],
     additional_data: &[u8],
-) -> Result<(), AeadError> {
+) -> Result<(), SealError> {
     check_aead_params::<A>();
 
     if nonce.len() != A::NONCE_SIZE {
-        return Err(AeadError::InvalidNonceSize);
+        return Err(SealError::InvalidNonceSize(InvalidNonceSize));
     }
     if data.len() as u64 > A::MAX_PLAINTEXT_SIZE {
-        return Err(AeadError::PlaintextTooLong);
+        return Err(SealError::PlaintextTooLong);
     }
     if overhead.len() > A::OVERHEAD {
-        return Err(AeadError::InvalidOverheadSize);
+        return Err(SealError::InvalidOverheadSize);
     }
     if additional_data.len() as u64 > A::MAX_ADDITIONAL_DATA_SIZE {
-        return Err(AeadError::AdditionalDataTooLong);
+        return Err(SealError::AdditionalDataTooLong);
     }
     Ok(())
 }
@@ -514,28 +622,28 @@ pub const fn check_open_params<A: Aead + ?Sized>(
     nonce: &[u8],
     ciphertext: &[u8],
     additional_data: &[u8],
-) -> Result<(), AeadError> {
+) -> Result<(), OpenError> {
     check_aead_params::<A>();
 
     let need = match ciphertext.len().checked_sub(A::OVERHEAD) {
         // If the ciphertext does not have a full tag, etc. it
         // cannot be authenticated.
-        None => return Err(AeadError::Authentication),
+        None => return Err(OpenError::Authentication),
         Some(n) => n,
     };
     if need > dst.len() {
-        return Err(AeadError::BufferTooSmall(BufferTooSmallError(Some(need))));
+        return Err(OpenError::BufferTooSmall(BufferTooSmallError(Some(need))));
     }
     if nonce.len() != A::NONCE_SIZE {
-        return Err(AeadError::InvalidNonceSize);
+        return Err(OpenError::InvalidNonceSize(InvalidNonceSize));
     }
     // The case where the `ciphertext.len()` < `A::OVERHEAD` is
     // covered by the `match` expression above.
     if ciphertext.len() as u64 > A::MAX_CIPHERTEXT_SIZE {
-        return Err(AeadError::CiphertextTooLong);
+        return Err(OpenError::CiphertextTooLong);
     }
     if additional_data.len() as u64 > A::MAX_ADDITIONAL_DATA_SIZE {
-        return Err(AeadError::AdditionalDataTooLong);
+        return Err(OpenError::AdditionalDataTooLong);
     }
     Ok(())
 }
@@ -547,20 +655,20 @@ pub const fn check_open_in_place_params<A: Aead + ?Sized>(
     data: &[u8],
     overhead: &[u8],
     additional_data: &[u8],
-) -> Result<(), AeadError> {
+) -> Result<(), OpenError> {
     check_aead_params::<A>();
 
     if nonce.len() != A::NONCE_SIZE {
-        return Err(AeadError::InvalidNonceSize);
+        return Err(OpenError::InvalidNonceSize(InvalidNonceSize));
     }
     if data.len() as u64 > A::MAX_PLAINTEXT_SIZE - A::OVERHEAD as u64 {
-        return Err(AeadError::PlaintextTooLong);
+        return Err(OpenError::PlaintextTooLong);
     }
     if overhead.len() > A::OVERHEAD {
-        return Err(AeadError::InvalidOverheadSize);
+        return Err(OpenError::InvalidOverheadSize);
     }
     if additional_data.len() as u64 > A::MAX_ADDITIONAL_DATA_SIZE {
-        return Err(AeadError::AdditionalDataTooLong);
+        return Err(OpenError::AdditionalDataTooLong);
     }
     Ok(())
 }
@@ -593,10 +701,10 @@ impl<const N: usize> Default for Nonce<N> {
 }
 
 impl<const N: usize> TryFrom<&[u8]> for Nonce<N> {
-    type Error = AeadError;
+    type Error = InvalidNonceSize;
 
-    fn try_from(data: &[u8]) -> Result<Self, AeadError> {
-        let nonce = data.try_into().map_err(|_| AeadError::InvalidNonceSize)?;
+    fn try_from(data: &[u8]) -> Result<Self, InvalidNonceSize> {
+        let nonce = data.try_into().map_err(|_| InvalidNonceSize)?;
         Ok(Self(nonce))
     }
 }
@@ -818,7 +926,7 @@ mod committing {
                     nonce: &[u8],
                     plaintext: &[u8],
                     additional_data: &[u8],
-                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                ) -> ::core::result::Result<(), $crate::aead::SealError> {
                     $crate::aead::check_seal_params::<Self>(
                         dst,
                         nonce,
@@ -849,7 +957,7 @@ mod committing {
                     data: &mut [u8],
                     overhead: &mut [u8],
                     additional_data: &[u8],
-                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                ) -> ::core::result::Result<(), $crate::aead::SealError> {
                     $crate::aead::check_seal_in_place_params::<Self>(
                         nonce,
                         data,
@@ -879,7 +987,7 @@ mod committing {
                     nonce: &[u8],
                     ciphertext: &[u8],
                     additional_data: &[u8],
-                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                ) -> ::core::result::Result<(), $crate::aead::OpenError> {
                     $crate::aead::check_open_params::<Self>(
                         dst,
                         nonce,
@@ -897,7 +1005,7 @@ mod committing {
                         ::core::borrow::Borrow::borrow(&want_cx),
                         got_cx,
                     )) {
-                        Err($crate::aead::AeadError::Authentication)
+                        Err($crate::aead::OpenError::Authentication)
                     } else {
                         <$inner as $crate::aead::Aead>::new(&key).open(
                             dst,
@@ -914,7 +1022,7 @@ mod committing {
                     data: &mut [u8],
                     overhead: &[u8],
                     additional_data: &[u8],
-                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                ) -> ::core::result::Result<(), $crate::aead::OpenError> {
                     $crate::aead::check_open_in_place_params::<Self>(
                         nonce,
                         data,
@@ -932,7 +1040,7 @@ mod committing {
                         ::core::borrow::Borrow::borrow(&want_cx),
                         got_cx,
                     )) {
-                        Err($crate::aead::AeadError::Authentication)
+                        Err($crate::aead::OpenError::Authentication)
                     } else {
                         <$inner as $crate::aead::Aead>::new(&key).open_in_place(
                             nonce,
@@ -1026,7 +1134,7 @@ mod committing {
                     nonce: &[u8],
                     plaintext: &[u8],
                     additional_data: &[u8],
-                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                ) -> ::core::result::Result<(), $crate::aead::SealError> {
                     $crate::aead::check_seal_params::<Self>(
                         dst,
                         nonce,
@@ -1050,7 +1158,7 @@ mod committing {
                     data: &mut [u8],
                     overhead: &mut [u8],
                     additional_data: &[u8],
-                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                ) -> ::core::result::Result<(), $crate::aead::SealError> {
                     $crate::aead::check_seal_in_place_params::<Self>(
                         nonce,
                         data,
@@ -1073,7 +1181,7 @@ mod committing {
                     nonce: &[u8],
                     ciphertext: &[u8],
                     additional_data: &[u8],
-                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                ) -> ::core::result::Result<(), $crate::aead::OpenError> {
                     $crate::aead::check_open_params::<Self>(
                         dst,
                         nonce,
@@ -1096,7 +1204,7 @@ mod committing {
                     data: &mut [u8],
                     overhead: &[u8],
                     additional_data: &[u8],
-                ) -> ::core::result::Result<(), $crate::aead::AeadError> {
+                ) -> ::core::result::Result<(), $crate::aead::OpenError> {
                     $crate::aead::check_open_in_place_params::<Self>(
                         nonce,
                         data,

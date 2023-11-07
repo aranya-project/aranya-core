@@ -18,7 +18,7 @@ use siphasher::sip128::SipHasher24;
 use typenum::{Sum, U64};
 
 use crate::{
-    aead::{Aead, AeadError, BufferTooSmallError, KeyData},
+    aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
     aranya::{Encap, Signature},
     ciphersuite::SuiteIds,
     csprng::Csprng,
@@ -268,7 +268,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
-            return Err(Error::Aead(AeadError::BufferTooSmall(BufferTooSmallError(
+            return Err(Error::Seal(SealError::BufferTooSmall(BufferTooSmallError(
                 Some(self.overhead() + plaintext.len()),
             ))));
         }
@@ -308,7 +308,7 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
             // invalid.
-            return Err(AeadError::Authentication.into());
+            return Err(OpenError::Authentication.into());
         }
         let (nonce, ciphertext) = ciphertext.split_at(E::Aead::NONCE_SIZE);
         // ad = concat(

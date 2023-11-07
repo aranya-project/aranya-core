@@ -18,7 +18,7 @@ use subtle::{Choice, ConstantTimeEq};
 use zeroize::ZeroizeOnDrop;
 
 use crate::{
-    aead::{Aead, AeadError, AeadId, IndCca2, Lifetime},
+    aead::{Aead, AeadId, IndCca2, Lifetime, OpenError, SealError},
     ciphersuite::CipherSuite,
     csprng::Csprng,
     hash::Hash,
@@ -110,7 +110,7 @@ impl<T: Aead> Aead for AeadWithDefaults<T> {
         data: &mut [u8],
         tag: &mut [u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), SealError> {
         self.0.seal_in_place(nonce, data, tag, additional_data)
     }
 
@@ -120,7 +120,7 @@ impl<T: Aead> Aead for AeadWithDefaults<T> {
         data: &mut [u8],
         tag: &[u8],
         additional_data: &[u8],
-    ) -> Result<(), AeadError> {
+    ) -> Result<(), OpenError> {
         self.0.open_in_place(nonce, data, tag, additional_data)
     }
 }
@@ -436,7 +436,7 @@ pub mod engine {
     use typenum::{Sum, U64};
 
     use crate::{
-        aead::{Aead, AeadError},
+        aead::{Aead, OpenError},
         apq::{
             EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
             TopicKey, Version,
@@ -716,7 +716,7 @@ pub mod engine {
                 },
             )
             .expect_err("should have failed");
-        assert_eq!(err, Error::Aead(AeadError::Authentication));
+        assert_eq!(err, Error::Open(OpenError::Authentication));
     }
 
     /// Negative test for the wrong [`Context`].
@@ -749,7 +749,7 @@ pub mod engine {
                 let err = gk
                     .open(&mut dst, &ciphertext, $ctx)
                     .expect_err("should have failed");
-                assert_eq!(err, Error::Aead(AeadError::Authentication), $msg);
+                assert_eq!(err, Error::Open(OpenError::Authentication), $msg);
             };
         }
         should_fail!(
@@ -815,7 +815,7 @@ pub mod engine {
                 },
             )
             .expect_err("should have failed");
-        assert_eq!(err, Error::Aead(AeadError::Authentication));
+        assert_eq!(err, Error::Open(OpenError::Authentication));
     }
 
     /// Test encoding/decoding [`EncryptedGroupKey`].
@@ -1027,7 +1027,7 @@ pub mod engine {
         let err = tk2
             .open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
             .expect_err("should have failed");
-        assert_eq!(err, Error::Aead(AeadError::Authentication));
+        assert_eq!(err, Error::Open(OpenError::Authentication));
     }
 
     /// Negative test for the wrong [`Context`].
@@ -1060,7 +1060,7 @@ pub mod engine {
                 let err = tk
                     .open_message(&mut dst, &ciphertext, $version, $topic, $ident)
                     .expect_err("should have failed");
-                assert_eq!(err, Error::Aead(AeadError::Authentication), $msg);
+                assert_eq!(err, Error::Open(OpenError::Authentication), $msg);
             };
         }
         should_fail!(
@@ -1099,7 +1099,7 @@ pub mod engine {
         let err = tk
             .open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
             .expect_err("should have failed");
-        assert_eq!(err, Error::Aead(AeadError::Authentication));
+        assert_eq!(err, Error::Open(OpenError::Authentication));
     }
 
     /// A simple positive test for deriving [`ChannelKeys`].
@@ -1640,7 +1640,7 @@ pub mod aead {
     use more_asserts::assert_ge;
 
     use crate::{
-        aead::{Aead, AeadError},
+        aead::{Aead, OpenError},
         csprng::Csprng,
         keys::SecretKey,
     };
@@ -1751,7 +1751,7 @@ pub mod aead {
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
             .expect_err("decryption should have failed due to a different key");
-        assert_eq!(err, AeadError::Authentication);
+        assert_eq!(err, OpenError::Authentication);
     }
 
     /// Decryption should fail with an incorrect nonce.
@@ -1778,7 +1778,7 @@ pub mod aead {
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
             .expect_err("decryption should have failed due to a modified nonce");
-        assert_eq!(err, AeadError::Authentication);
+        assert_eq!(err, OpenError::Authentication);
     }
 
     /// Decryption should fail with a modified AD.
@@ -1799,7 +1799,7 @@ pub mod aead {
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, b"some bad AD")
             .expect_err("decryption should have failed due to a modified AD");
-        assert_eq!(err, AeadError::Authentication);
+        assert_eq!(err, OpenError::Authentication);
     }
 
     /// Decryption should fail with a modified ciphertext.
@@ -1822,7 +1822,7 @@ pub mod aead {
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
             .expect_err("decryption should have failed due to a modified ciphertext");
-        assert_eq!(err, AeadError::Authentication);
+        assert_eq!(err, OpenError::Authentication);
     }
 
     /// Decryption should fail with a modified authentication
@@ -1849,7 +1849,7 @@ pub mod aead {
         let err = A::new(&key)
             .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
             .expect_err("decryption should have failed due to a modified auth tag");
-        assert_eq!(err, AeadError::Authentication);
+        assert_eq!(err, OpenError::Authentication);
     }
 }
 
