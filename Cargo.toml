@@ -6,12 +6,11 @@ members = [
 ]
 
 [workspace.package]
-publish = false
-edition = "2021"
 authors = ["SpiderOak, Inc."]
-
-[workspace.licence]
-private = { ignore = true }
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+rust-version = "1.73"
 
 [workspace.dependencies]
 byteorder = { version = "1", default-features = false }
