@@ -555,6 +555,52 @@ fn test_sub_overflow() {
     }
 }
 
+#[test]
+fn test_when_true() -> anyhow::Result<()> {
+    let text = r#"
+        action foo(x bool) {
+            when x == true {
+                check true == false
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("foo", &[Value::Bool(true)])
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Panicked);
+
+    Ok(())
+}
+
+#[test]
+fn test_when_false() -> anyhow::Result<()> {
+    let text = r#"
+        action foo(x bool) {
+            when x == true {
+                check true == false
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("foo", &[Value::Bool(false)])
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Exited);
+
+    Ok(())
+}
+
 struct TestStack {
     stack: Vec<Value>,
 }

@@ -455,7 +455,16 @@ impl CompileState {
                     self.append_instruction(Instruction::Panic);
                 }
                 ast::Statement::Match(_) => todo!(),
-                ast::Statement::When(_) => todo!(),
+                ast::Statement::When(s) => {
+                    let end_name = self.anonymous_name();
+                    self.compile_expression(&s.expression)?;
+                    self.append_instruction(Instruction::Not);
+                    self.append_instruction(Instruction::Branch(Target::Unresolved(
+                        end_name.clone(),
+                    )));
+                    self.compile_statements(&s.statements)?;
+                    self.define_label(&end_name, self.wp, LabelType::Temporary);
+                }
                 ast::Statement::Emit(s) => {
                     self.compile_expression(s)?;
                     self.append_instruction(Instruction::Emit);
