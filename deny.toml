@@ -39,7 +39,7 @@ targets = [
 # If true, metadata will be collected with `--all-features`. Note that this can't
 # be toggled off if true, if you want to conditionally enable `--all-features` it
 # is recommended to pass `--all-features` on the cmd line instead
-all-features = false
+all-features = true
 # If true, metadata will be collected with `--no-default-features`. The same
 # caveat with `all-features` applies
 no-default-features = false
@@ -110,6 +110,7 @@ allow = [
 	"MIT",
 	"MPL-2.0",
 	"Unicode-DFS-2016",
+	"Zlib",
 ]
 # List of explicitly disallowed licenses
 # See https://spdx.org/licenses/ for list of possible licenses
@@ -240,6 +241,13 @@ deny = [
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
     #{ name = "ansi_term", version = "=0.11.0" },
+    { name = "bitflags" },
+    { name = "generic-array" },
+    { name = "hashbrown" },
+    { name = "indexmap" },
+    { name = "socket2"} ,
+    { name = "spin" },
+    { name = "syn"},
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
@@ -264,7 +272,10 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = []
+private = [
+    "https://git.spideroak-inc.com/spideroak-inc/",
+]
 
 [sources.allow-org]
 # 1 or more github.com organizations to allow git sources for
-github = ["spideroak-inc"]
+#github = ["spideroak-inc"]

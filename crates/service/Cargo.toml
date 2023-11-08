@@ -2,6 +2,11 @@
 name = "service"
 version = "0.1.0"
 edition = "2021"
+publish = false
+authors.workspace = true
+
+[license]
+private.workspace = true
 
 [lib]
 

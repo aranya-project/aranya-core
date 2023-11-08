@@ -8,6 +8,10 @@ members = [
 [workspace.package]
 publish = false
 edition = "2021"
+authors = ["SpiderOak, Inc."]
+
+[workspace.licence]
+private = { ignore = true }
 
 [workspace.dependencies]
 byteorder = { version = "1", default-features = false }
