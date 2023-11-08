@@ -148,7 +148,8 @@ impl CodeMap {
         Ok(())
     }
 
-    fn span_from_locator(&self, locator: usize) -> Result<Span<'_>, RangeError> {
+    /// Retrieve the [Span] from the given locator
+    pub fn span_from_locator(&self, locator: usize) -> Result<Span<'_>, RangeError> {
         match self.ranges.binary_search_by(|(s, _)| s.cmp(&locator)) {
             Ok(idx) => {
                 let (start, end) = self.ranges[idx];

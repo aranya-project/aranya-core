@@ -1,16 +1,18 @@
-use std::{cell::RefCell, fmt::Display};
+use std::cell::RefCell;
 
 use pest::{
-    error::{Error as PestError, LineColLocation},
+    error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
     Parser, Span,
 };
 use policy_ast::{self as ast, AstNode, Version};
 
+mod error;
 mod markdown;
 
-pub use self::markdown::{extract_policy, parse_policy_document};
+pub use error::{ParseError, ParseErrorKind};
+pub use markdown::{extract_policy, parse_policy_document};
 
 mod internal {
     // This is a hack to work around ambiguity between pest_derive::Parser and pest::Parser.
@@ -23,100 +25,6 @@ mod internal {
 // Each of the rules in policy.pest becomes an enumerable value here
 // The core parser for policy documents
 pub use internal::{PolicyParser, Rule};
-
-/// The kinds of errors a parse operation can produce
-///
-/// If the case contains a String, it is a message describing the item
-/// affected or a general error message.
-#[derive(Debug, Clone)]
-pub enum ParseErrorKind {
-    /// An invalid type specifier was found. The string describes the type.
-    InvalidType,
-    /// A statement is invalid for its scope.
-    InvalidStatement,
-    /// A number is out of range or otherwise unparseable. Also used for
-    /// invalid hex escapes in strings.
-    InvalidNumber,
-    /// A string has invalid escapes or other bad formatting.
-    InvalidString,
-    /// A function call is badly formed.
-    // TODO(chip): I'm not sure this is actually reachable.
-    InvalidFunctionCall,
-    /// The right side of a dot operator is not an identifier.
-    InvalidMember,
-    /// The policy version expressed in the front matter is not valid.
-    InvalidVersion,
-    /// Some part of an expression is badly formed.
-    Expression,
-    /// The Pest parser was unable to parse the document.
-    Syntax,
-    /// There was some error in the YAML front matter.
-    FrontMatter,
-    /// Every other possible error.
-    Unknown,
-}
-
-#[derive(Debug, Clone)]
-pub struct ParseError {
-    kind: ParseErrorKind,
-    message: String,
-}
-
-impl ParseError {
-    fn new(kind: ParseErrorKind, message: String, span: Option<Span>) -> ParseError {
-        let prefix = match span {
-            Some(s) => {
-                let text = s.as_str();
-                let (line, col) = s.start_pos().line_col();
-                format!("line {line} column {col}: {text}: ")
-            }
-            None => String::from(""),
-        };
-        ParseError {
-            kind,
-            message: format!("{prefix}{message}"),
-        }
-    }
-}
-
-impl Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix = match self.kind {
-            ParseErrorKind::InvalidType => "Invalid type",
-            ParseErrorKind::InvalidStatement => "Invalid statement",
-            ParseErrorKind::InvalidNumber => "Invalid number",
-            ParseErrorKind::InvalidString => "Invalid string",
-            ParseErrorKind::InvalidFunctionCall => "Invalid function call",
-            ParseErrorKind::InvalidMember => "Invalid member",
-            ParseErrorKind::InvalidVersion => "Invalid policy version",
-            ParseErrorKind::Expression => "Invalid expression",
-            ParseErrorKind::Syntax => "Syntax error",
-            ParseErrorKind::FrontMatter => "Front matter YAML parse error",
-            ParseErrorKind::Unknown => "Unknown error",
-        };
-        write!(f, "{prefix}: {}", self.message)
-    }
-}
-
-impl From<PestError<Rule>> for ParseError {
-    fn from(e: PestError<Rule>) -> Self {
-        let (line, column) = match e.line_col {
-            LineColLocation::Pos(p) => p,
-            LineColLocation::Span(p, _) => p,
-        };
-        let message = match e.path() {
-            Some(path) => format!(
-                "Syntax Error in {} line {} column {}: {}",
-                path, line, column, e
-            ),
-            None => format!("Syntax error line {} column {}: {}", line, column, e),
-        };
-        ParseError::new(ParseErrorKind::Syntax, message, None)
-    }
-}
-
-// Implement default Error via Display and Debug
-impl std::error::Error for ParseError {}
 
 /// Captures the iterator over a Pair's contents, and the span
 /// information for error reporting.
@@ -1281,13 +1189,50 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
     Ok(policy)
 }
 
+/// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset
+/// in the source text.
+fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ParseError {
+    let pos = match &mut e.location {
+        InputLocation::Pos(p) => {
+            *p += offset;
+            *p
+        }
+        InputLocation::Span((s, e)) => {
+            *s += offset;
+            *e += offset;
+            *s
+        }
+    };
+
+    let line_col = match Span::new(text, pos, pos) {
+        Some(s) => s.start_pos().line_col(),
+        None => {
+            return ParseError::new(
+                ParseErrorKind::Unknown,
+                "error location error".to_string(),
+                None,
+            )
+        }
+    };
+
+    match &mut e.line_col {
+        LineColLocation::Pos(p) => *p = line_col,
+        // FIXME(chip): I'm not sure if any possible pest error uses the Span case here, so
+        // I am not adjusting the endpoint.
+        LineColLocation::Span(p, _) => *p = line_col,
+    }
+
+    e.into()
+}
+
 /// Parse more data into an existing [ast::Policy] object.
 pub fn parse_policy_chunk(
     data: &str,
     policy: &mut ast::Policy,
     offset: usize,
 ) -> Result<(), ParseError> {
-    let chunk = PolicyParser::parse(Rule::file, data)?;
+    let chunk = PolicyParser::parse(Rule::file, data)
+        .map_err(|e| mangle_pest_error(offset, &policy.text, e))?;
     let pratt = get_pratt_parser();
     let mut cc = ChunkContext::new(offset);
 

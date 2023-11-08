@@ -1,5 +1,8 @@
 extern crate alloc;
 
+mod error;
+mod tests;
+
 use alloc::{
     borrow::ToOwned,
     collections::{btree_map, BTreeMap},
@@ -9,56 +12,10 @@ use alloc::{
 };
 use core::fmt;
 
-use cfg_if::cfg_if;
 use policy_ast::{self as ast, AstNode};
 
+pub use self::error::{CallColor, CompileError, CompileErrorType};
 use crate::{CodeMap, Instruction, Label, LabelType, Machine, Target, Value};
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
-
-/// Errors that can occur during compilation.
-#[derive(Debug, PartialEq)]
-pub enum CompileError {
-    /// Invalid - the AST element does not make sense in this context
-    InvalidElement,
-    /// Resolution of branch targets failed to find a valid target
-    BadTarget,
-    /// An argument to a function or an item in an expression did not
-    /// make sense
-    BadArgument,
-    /// A thing referenced is not defined
-    NotDefined,
-    /// A thing by that name has already been defined
-    AlreadyDefined,
-    /// A pure function has no return statement
-    NoReturn,
-    /// All other errors
-    Unknown(String),
-}
-
-impl core::fmt::Display for CompileError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::InvalidElement => write!(f, "Invalid element"),
-            Self::BadTarget => write!(f, "Bad branch target"),
-            Self::BadArgument => write!(f, "Bad argument"),
-            Self::NotDefined => write!(f, "Not defined"),
-            Self::AlreadyDefined => write!(f, "Already defined"),
-            Self::NoReturn => write!(f, "Function has no return statement"),
-            Self::Unknown(s) => write!(f, "Unknown error: {}", s),
-        }
-    }
-}
-
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for CompileError {}
 
 enum FunctionColor {
     /// Function has no side-effects and returns a value
@@ -86,6 +43,9 @@ pub struct CompileState {
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
     function_signatures: BTreeMap<String, FunctionSignature>,
+    /// The last locator seen, for imprecise source locating.
+    // TODO(chip): Push more precise source tracking further down into the AST.
+    last_locator: usize,
 }
 
 impl CompileState {
@@ -97,6 +57,7 @@ impl CompileState {
             wp: 0,
             c: 0,
             function_signatures: BTreeMap::new(),
+            last_locator: 0,
         }
     }
 
@@ -120,8 +81,9 @@ impl CompileState {
     /// [FunctionSignature].
     fn define_function_signature(
         &mut self,
-        def: &ast::FunctionDefinition,
+        function_node: &AstNode<ast::FunctionDefinition>,
     ) -> Result<&FunctionSignature, CompileError> {
+        let def = &function_node.inner;
         match self.function_signatures.entry(def.identifier.clone()) {
             btree_map::Entry::Vacant(e) => {
                 let signature = FunctionSignature {
@@ -130,7 +92,11 @@ impl CompileState {
                 };
                 Ok(e.insert(signature))
             }
-            btree_map::Entry::Occupied(_) => Err(CompileError::AlreadyDefined),
+            btree_map::Entry::Occupied(_) => Err(CompileError::from_locator(
+                CompileErrorType::AlreadyDefined(def.identifier.clone()),
+                function_node.locator,
+                self.m.codemap.as_ref(),
+            )),
         }
     }
 
@@ -138,8 +104,9 @@ impl CompileState {
     /// into a [FunctionSignature].
     fn define_finish_function_signature(
         &mut self,
-        def: &ast::FinishFunctionDefinition,
+        function_node: &AstNode<ast::FinishFunctionDefinition>,
     ) -> Result<&FunctionSignature, CompileError> {
+        let def = &function_node.inner;
         match self.function_signatures.entry(def.identifier.clone()) {
             btree_map::Entry::Vacant(e) => {
                 let signature = FunctionSignature {
@@ -148,7 +115,11 @@ impl CompileState {
                 };
                 Ok(e.insert(signature))
             }
-            btree_map::Entry::Occupied(_) => Err(CompileError::AlreadyDefined),
+            btree_map::Entry::Occupied(_) => Err(CompileError::from_locator(
+                CompileErrorType::AlreadyDefined(def.identifier.clone()),
+                function_node.locator,
+                self.m.codemap.as_ref(),
+            )),
         }
     }
 
@@ -168,14 +139,19 @@ impl CompileState {
 
     /// Maps the current write pointer to a text range supplied by an AST node
     fn map_range<N: fmt::Debug>(&mut self, node: &AstNode<N>) -> Result<(), CompileError> {
+        self.last_locator = node.locator;
         if let Some(codemap) = &mut self.m.codemap {
             codemap
                 .map_instruction_range(self.wp, node.locator)
                 .map_err(|_| {
-                    CompileError::Unknown(format!(
-                        "could not map address {} to text range {}",
-                        self.wp, node.locator
-                    ))
+                    CompileError::from_locator(
+                        CompileErrorType::Unknown(format!(
+                            "could not map address {} to text range {}",
+                            self.wp, node.locator
+                        )),
+                        node.locator,
+                        self.m.codemap.as_ref(),
+                    )
                 })
         } else {
             // If there is no codemap, do nothing.
@@ -192,7 +168,9 @@ impl CompileState {
     ) -> Result<(), CompileError> {
         match target.clone() {
             Target::Unresolved(s) => {
-                let name = labels.get(&s).ok_or(CompileError::BadTarget)?;
+                let name = labels
+                    .get(&s)
+                    .ok_or(CompileErrorType::BadTarget(s.clone()))?;
 
                 *target = Target::Resolved(name.addr);
                 if name.ltype == LabelType::Temporary {
@@ -224,7 +202,11 @@ impl CompileState {
             // Because structs are dynamically created, this is all we
             // can check at this point. Field validation has to happen
             // at runtime.
-            return Err(CompileError::BadArgument);
+            return Err(CompileError::from_locator(
+                CompileErrorType::BadArgument(s.identifier.clone()),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            ));
         }
         self.append_instruction(Instruction::Const(Value::String(s.identifier.clone())));
         self.append_instruction(Instruction::StructNew);
@@ -279,7 +261,11 @@ impl CompileState {
                 self.compile_struct_literal(s)?;
             }
             ast::Expression::Bind => {
-                return Err(CompileError::InvalidElement);
+                return Err(CompileError::from_locator(
+                    CompileErrorType::InvalidExpression(expression.clone()),
+                    self.last_locator,
+                    self.m.codemap.as_ref(),
+                ));
             }
             ast::Expression::InternalFunction(f) => match f {
                 ast::InternalFunction::Query(f) => {
@@ -309,21 +295,37 @@ impl CompileState {
                 ast::InternalFunction::AuthorId(_) => todo!(),
             },
             ast::Expression::FunctionCall(f) => {
-                let signature = self
-                    .function_signatures
-                    .get(&f.identifier)
-                    .ok_or(CompileError::NotDefined)?;
+                let signature = self.function_signatures.get(&f.identifier).ok_or(
+                    CompileError::from_locator(
+                        CompileErrorType::NotDefined(f.identifier.clone()),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    ),
+                )?;
                 // Check that this function is the right color - only
                 // pure functions are allowed in expressions.
                 if let FunctionColor::Finish = signature.color {
-                    return Err(CompileError::InvalidElement);
+                    return Err(CompileError::from_locator(
+                        CompileErrorType::InvalidCallColor(CallColor::Finish),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    ));
                 }
                 // For now all we can do is check that the argument
                 // list has the same length.
                 // TODO(chip): Do more deep type analysis to check
                 // arguments and return types.
                 if signature.args.len() != f.arguments.len() {
-                    return Err(CompileError::BadArgument);
+                    return Err(CompileError::from_locator(
+                        CompileErrorType::BadArgument(format!(
+                            "call to `{}` has {} arguments and it should have {}",
+                            f.identifier,
+                            f.arguments.len(),
+                            signature.args.len()
+                        )),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    ));
                 }
                 for a in &f.arguments {
                     self.compile_expression(a)?;
@@ -499,7 +501,13 @@ impl CompileState {
                     for (k, v) in &s.to {
                         if *v == ast::Expression::Bind {
                             // Cannot bind in the set statement
-                            return Err(CompileError::BadArgument);
+                            return Err(CompileError::from_locator(
+                                CompileErrorType::BadArgument(String::from(
+                                    "cannot bind in the set clause of an `update`",
+                                )),
+                                statement.locator,
+                                self.m.codemap.as_ref(),
+                            ));
                         }
                         self.compile_expression(v)?;
                         self.append_instruction(Instruction::Const(Value::String(k.clone())));
@@ -516,22 +524,38 @@ impl CompileState {
                     self.append_instruction(Instruction::Effect);
                 }
                 ast::FinishStatement::FunctionCall(f) => {
-                    let signature = self
-                        .function_signatures
-                        .get(&f.identifier)
-                        .ok_or(CompileError::NotDefined)?;
+                    let signature = self.function_signatures.get(&f.identifier).ok_or(
+                        CompileError::from_locator(
+                            CompileErrorType::NotDefined(f.identifier.clone()),
+                            statement.locator,
+                            self.m.codemap.as_ref(),
+                        ),
+                    )?;
                     // Check that this function is the right color -
                     // only finish functions are allowed in finish
                     // blocks.
                     if let FunctionColor::Pure(_) = signature.color {
-                        return Err(CompileError::InvalidElement);
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::InvalidCallColor(CallColor::Pure),
+                            statement.locator,
+                            self.m.codemap.as_ref(),
+                        ));
                     }
                     // For now all we can do is check that the argument
                     // list has the same length.
                     // TODO(chip): Do more deep type analysis to check
                     // arguments and return types.
                     if signature.args.len() != f.arguments.len() {
-                        return Err(CompileError::BadArgument);
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::BadArgument(format!(
+                                "call to `{}` has {} arguments but it should have {}",
+                                f.identifier,
+                                f.arguments.len(),
+                                signature.args.len()
+                            )),
+                            statement.locator,
+                            self.m.codemap.as_ref(),
+                        ));
                     }
                     for a in &f.arguments {
                         self.compile_expression(a)?;
@@ -553,7 +577,7 @@ impl CompileState {
         let function = &function_node.inner;
         self.define_label(&function.identifier, self.wp, LabelType::Temporary);
         self.map_range(function_node)?;
-        self.define_function_signature(function)?;
+        self.define_function_signature(function_node)?;
         for arg in function.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
             self.append_instruction(Instruction::Def);
@@ -565,7 +589,11 @@ impl CompileState {
             .iter()
             .any(|i| matches!(i, Instruction::Return))
         {
-            return Err(CompileError::NoReturn);
+            return Err(CompileError::from_locator(
+                CompileErrorType::NoReturn,
+                function_node.locator,
+                self.m.codemap.as_ref(),
+            ));
         }
         // If execution does not hit a return statement, it will panic here.
         self.append_instruction(Instruction::Panic);
@@ -580,7 +608,7 @@ impl CompileState {
         let function = &function_node.inner;
         self.define_label(&function.identifier, self.wp, LabelType::Temporary);
         self.map_range(function_node)?;
-        self.define_finish_function_signature(function)?;
+        self.define_finish_function_signature(function_node)?;
         for arg in function.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
             self.append_instruction(Instruction::Def);

@@ -220,7 +220,13 @@ fn main() -> anyhow::Result<()> {
         parse_policy_document(&s)?
     };
 
-    let machine: Machine = compile_from_policy(&policy).expect("Could not compile");
+    let machine: Machine = match compile_from_policy(&policy) {
+        Ok(m) => m,
+        Err(e) => {
+            println!("{}", e);
+            anyhow::bail!("Compilation failed: {e}");
+        }
+    };
     let mut io = MachExpIO::new();
     let mut rs = machine.create_run_state(&mut io);
 

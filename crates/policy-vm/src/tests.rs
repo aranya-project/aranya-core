@@ -10,7 +10,6 @@ use policy_ast::{self as ast, Version};
 use policy_lang::lang::parse_policy_str;
 
 use crate::{
-    compile::CompileError,
     compile_from_policy,
     data::{
         CommandContext, Fact, FactKey, FactKeyList, FactValue, FactValueList, KVPair, Struct, Value,
@@ -795,23 +794,6 @@ fn test_structs() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_undefined_struct() -> anyhow::Result<()> {
-    let text = r#"
-        action foo() {
-            let v = Bar {}
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    assert_eq!(
-        compile_from_policy(&policy).unwrap_err(),
-        CompileError::BadArgument
-    );
-
-    Ok(())
-}
-
-#[test]
 fn test_invalid_struct_field() -> anyhow::Result<()> {
     let text = r#"
         struct Bar {
@@ -1007,120 +989,6 @@ fn test_pure_function() -> anyhow::Result<()> {
         io.emit_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::Int(4)),])
     );
-
-    Ok(())
-}
-
-#[test]
-fn test_function_no_return() -> anyhow::Result<()> {
-    let text = r#"
-        function f(x int) int {
-            let y = x + 1
-            // no return value
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy).unwrap_err();
-
-    assert_eq!(err, CompileError::NoReturn);
-
-    Ok(())
-}
-
-#[test]
-fn test_function_not_defined() -> anyhow::Result<()> {
-    let text = r#"
-        function f(x int) int {
-            return g()
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy).unwrap_err();
-
-    assert_eq!(err, CompileError::NotDefined);
-
-    Ok(())
-}
-
-#[test]
-fn test_function_already_defined() -> anyhow::Result<()> {
-    let text = r#"
-        function f(x int) int {
-            return 1
-        }
-
-        function f() int {}
-    "#;
-
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy).unwrap_err();
-
-    assert_eq!(err, CompileError::AlreadyDefined);
-
-    Ok(())
-}
-
-#[test]
-fn test_function_wrong_number_arguments() -> anyhow::Result<()> {
-    let text = r#"
-        function f(x int) int {
-            return 1
-        }
-
-        function g() int {
-            return f()
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy).unwrap_err();
-
-    assert_eq!(err, CompileError::BadArgument);
-
-    Ok(())
-}
-
-#[test]
-fn test_function_wrong_color_pure() -> anyhow::Result<()> {
-    let text = r#"
-        function f(x int) int {
-            return x
-        }
-
-        finish function g() {
-            f()
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy).unwrap_err();
-
-    assert_eq!(err, CompileError::InvalidElement);
-
-    Ok(())
-}
-
-#[test]
-fn test_function_wrong_color_finish() -> anyhow::Result<()> {
-    let text = r#"
-        finish function f(x int) {
-            effect Foo {}
-        }
-
-        function g() int {
-            return f()
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy).unwrap_err();
-
-    // Quirk: this gives us NotDefined because the compiler compiles all of the regular
-    // functions _before_ the finish functions. So the finish function isn't yet defined.
-    // Fixing this will require a two-pass compilation.
-    assert_eq!(err, CompileError::NotDefined);
 
     Ok(())
 }
