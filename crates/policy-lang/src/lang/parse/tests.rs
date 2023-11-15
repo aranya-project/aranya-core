@@ -173,8 +173,10 @@ fn parse_errors() -> Result<(), ParseError> {
         input: r#"function foo(x int) bool { invalid }"#.to_string(),
         error_message: String::from(
             " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
-                |                            ^---\n  |\n  = expected let_statement, \
-                match_statement, when_statement, or return_statement",
+                |                            ^---\n  |\n  = expected function_call, \
+                emit_statement, let_statement, origin_modifier, match_statement, \
+                when_statement, finish_statement, create_statement, update_statement, \
+                delete_statement, effect_statement, or return_statement",
         ),
         rule: Rule::top_level_statement,
     }];
@@ -626,7 +628,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Finish(vec![
                             AstNode::new(
-                                ast::FinishStatement::Create(ast::CreateStatement {
+                                ast::Statement::Create(ast::CreateStatement {
                                     fact: ast::FactLiteral {
                                         identifier: String::from("F"),
                                         key_fields: vec![(
@@ -650,7 +652,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 1047
                             ),
                             AstNode::new(
-                                ast::FinishStatement::Update(ast::UpdateStatement {
+                                ast::Statement::Update(ast::UpdateStatement {
                                     fact: ast::FactLiteral {
                                         identifier: String::from("F"),
                                         key_fields: vec![],
@@ -667,7 +669,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 1103
                             ),
                             AstNode::new(
-                                ast::FinishStatement::Delete(ast::DeleteStatement {
+                                ast::Statement::Delete(ast::DeleteStatement {
                                     fact: ast::FactLiteral {
                                         identifier: String::from("F"),
                                         key_fields: vec![(
@@ -680,7 +682,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 1156
                             ),
                             AstNode::new(
-                                ast::FinishStatement::Effect(ast::Expression::NamedStruct(
+                                ast::Statement::Effect(ast::Expression::NamedStruct(
                                     ast::NamedStruct {
                                         identifier: String::from("Added"),
                                         fields: vec![
@@ -737,7 +739,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Finish(vec![
                             AstNode::new(
-                                ast::FinishStatement::Create(ast::CreateStatement {
+                                ast::Statement::Create(ast::CreateStatement {
                                     fact: ast::FactLiteral {
                                         identifier: String::from("F"),
                                         key_fields: vec![(
@@ -761,7 +763,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 1517
                             ),
                             AstNode::new(
-                                ast::FinishStatement::Update(ast::UpdateStatement {
+                                ast::Statement::Update(ast::UpdateStatement {
                                     fact: ast::FactLiteral {
                                         identifier: String::from("F"),
                                         key_fields: vec![],
@@ -778,7 +780,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 1573
                             ),
                             AstNode::new(
-                                ast::FinishStatement::Delete(ast::DeleteStatement {
+                                ast::Statement::Delete(ast::DeleteStatement {
                                     fact: ast::FactLiteral {
                                         identifier: String::from("F"),
                                         key_fields: vec![(
@@ -791,7 +793,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 1626
                             ),
                             AstNode::new(
-                                ast::FinishStatement::Effect(ast::Expression::NamedStruct(
+                                ast::Statement::Effect(ast::Expression::NamedStruct(
                                     ast::NamedStruct {
                                         identifier: String::from("Added"),
                                         fields: vec![
@@ -860,7 +862,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     field_type: ast::VType::Int,
                 }],
                 statements: vec![AstNode::new(
-                    ast::FinishStatement::Create(ast::CreateStatement {
+                    ast::Statement::Create(ast::CreateStatement {
                         fact: ast::FactLiteral {
                             identifier: String::from("Next"),
                             key_fields: vec![],

@@ -349,7 +349,7 @@ pub struct ReturnStatement {
     pub expression: Expression,
 }
 
-/// Statements alowed within an action, a policy block, or a function.
+/// Statements in the policy language.
 /// Not all statements are valid in all contexts.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -361,21 +361,14 @@ pub enum Statement {
     Match(MatchStatement),
     /// A [WhenStatement],
     When(WhenStatement),
-    /// A `finish` block containing [FinishStatement]s
+    /// A `finish` block containing [Statement]s
     /// Valid only in policy blocks
-    Finish(Vec<AstNode<FinishStatement>>),
-    /// A [ReturnStatement]
-    /// Valid only in functions
+    Finish(Vec<AstNode<Statement>>),
+    /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
     /// Creates a new command based on an expression describing a
-    /// command
-    /// Valid only in actions
+    /// command. Valid only in actions.
     Emit(Expression),
-}
-
-/// Statements allowed within a finish block
-#[derive(Debug, Clone, PartialEq)]
-pub enum FinishStatement {
     /// A [CreateStatement]
     Create(CreateStatement),
     /// An [UpdateStatement]
@@ -384,7 +377,7 @@ pub enum FinishStatement {
     Delete(DeleteStatement),
     /// An [Expression]
     Effect(Expression),
-    /// A function call (only for finish functions)
+    /// A function call (only valid as a statement for finish functions)
     FunctionCall(FunctionCall),
 }
 
@@ -464,7 +457,7 @@ pub struct FinishFunctionDefinition {
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The finish block statements
-    pub statements: Vec<AstNode<FinishStatement>>,
+    pub statements: Vec<AstNode<Statement>>,
 }
 
 /// A list of (position, size) pairs for text ranges

@@ -1,15 +1,12 @@
-extern crate alloc;
-
-use alloc::string::String;
 use core::fmt::Display;
 
-use crate::data::Value;
+use crate::{data::Value, Label};
 
 /// The target of a branch
 #[derive(Debug, Clone)]
 pub enum Target {
     /// An unresolved target with a symbolic name
-    Unresolved(String),
+    Unresolved(Label),
     /// A resolved target referring to an address
     Resolved(usize),
 }

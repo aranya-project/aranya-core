@@ -6,7 +6,7 @@ use core::fmt;
 use cfg_if::cfg_if;
 use policy_ast as ast;
 
-use crate::CodeMap;
+use crate::{compile::StatementContext, CodeMap};
 
 cfg_if! {
     if #[cfg(feature = "error_in_core")] {
@@ -28,6 +28,8 @@ pub enum CallColor {
 /// Errors that can occur during compilation.
 #[derive(Debug, PartialEq)]
 pub enum CompileErrorType {
+    /// Invalid statement - a statement was used in an invalid context.
+    InvalidStatement(StatementContext),
     /// Invalid expression - the expression does not make sense in context.
     InvalidExpression(ast::Expression),
     /// Invalid call color - Tried to make a function call to the wrong type of function.
@@ -50,6 +52,7 @@ pub enum CompileErrorType {
 impl core::fmt::Display for CompileErrorType {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::InvalidStatement(c) => write!(f, "Invalid statement in {} context", c),
             Self::InvalidExpression(e) => write!(f, "Invalid expression: {:?}", e),
             Self::InvalidCallColor(cc) => match cc {
                 CallColor::Pure => write!(f, "Pure function not allowed in finish context"),

@@ -30,6 +30,7 @@ id_t = { "id" }
 // An optional type is any of the core types preceded by "optional"
 // (so no "optional optional" allowed).
 optional_t = { "optional" ~ (string_t | bytes_t | int_t | bool_t | id_t) }
+// All structs have a name
 struct_t = { "struct" ~ identifier }
 // A vtype is any of the core types or an optional. (I can't call it
 // "type" because that's a reserved keyword in Rust)
@@ -179,21 +180,8 @@ postfix_op = _{ is }
 expression = { prefix_op* ~ atom ~ postfix_op* ~ (infix_op ~ prefix_op* ~ atom ~ postfix_op*)* }
 
 // # Statements
-// ## Action
 // The emit statement creates a command based on the given expression.
 emit_statement = { "emit" ~ expression }
-// ## Command
-// The fields statement defines the fields of a command with a struct
-// literal.
-fields_statement = { "fields" ~ struct_def }
-// The policy statement defines a block of statements comprising the
-// actual policy governing the command.
-policy_statement = { "policy" ~ "{" ~ policy_statements* ~ "}" }
-policy_statements = _{ let_statement | check_statement | match_statement | when_statement | finish_statement }
-// The recall statement defines a block of statements that will be
-// executed when a command of this type is recalled.
-recall_statement = { "recall" ~ "{" ~ recall_statements* ~ "}" }
-recall_statements = _{ let_statement | match_statement | when_statement | finish_statement }
 // A let statement assigns a value to an identifier. Identifiers can
 // only be assigned once.
 let_statement = { "let" ~ identifier ~ "=" ~ expression }
@@ -204,15 +192,14 @@ check_statement = { origin_modifier? ~ "check" ~ expression }
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).
 match_default = { "_" }
-match_arm = { (expression | match_default) ~ "=>" ~ "{" ~ policy_statements* ~ "}" }
+match_arm = { (expression | match_default) ~ "=>" ~ statement_block }
 match_statement = { "match" ~ expression ~ "{" ~ match_arm* ~ "}" }
 // The when statement is like an "if" with no "else"
-when_statement = { "when" ~ expression ~ "{" ~ policy_statements* ~ "}" }
+when_statement = { "when" ~ expression ~ statement_block }
 // The finish statement contains a block of statements which update
 // fact state and produce effects. The finish statement ends further
 // policy processing after executing its statements.
-finish_statement = { "finish" ~ "{" ~ finish_statements* ~ "}" }
-finish_statements = _{ create_statement | update_statement | delete_statement | effect_statement | function_call }
+finish_statement = { "finish" ~ statement_block }
 // The create statement creates a fact.
 create_statement = { "create" ~ fact_literal }
 // The update statement updates a matching fact to a new value.
@@ -221,32 +208,56 @@ update_statement = { "update" ~ fact_literal ~ "to" ~ fact_literal_value }
 delete_statement = { "delete" ~ fact_literal }
 // The effect statement outputs an effect with the given expression.
 effect_statement = { "effect" ~ expression }
-// ## Functions
 // The return statement returns from a function
 return_statement = { "return" ~ expression }
+
+// ## All statements
+statements = _{
+    emit_statement |
+    let_statement |
+    check_statement |
+    match_statement |
+    when_statement |
+    finish_statement |
+    create_statement |
+    update_statement |
+    delete_statement |
+    effect_statement |
+    return_statement |
+    function_call
+}
+statement_block = _{ "{" ~ statements* ~ "}" }
+
+// ## Command blocks
+// The fields statement defines the fields of a command with a struct
+// literal.
+fields_block = { "fields" ~ struct_def }
+// The policy statement defines a block of statements comprising the
+// actual policy governing the command.
+policy_block = { "policy" ~ statement_block }
+// The recall statement defines a block of statements that will be
+// executed when a command of this type is recalled.
+recall_block = { "recall" ~ statement_block }
+// Union of all command blocks
+command_blocks = _{ fields_block | policy_block | recall_block }
 
 // # Top-level Statements
 // fact Foo[]=>{}
 fact_definition = { "fact" ~ fact_signature }
 // action foo(a int) { ... }
-action_statements = _{ let_statement | match_statement | when_statement | emit_statement }
-action_definition = { "action" ~ identifier ~ function_arguments ~ "{" ~ action_statements* ~ "}" }
+action_definition = { "action" ~ identifier ~ function_arguments ~ statement_block }
 // effect Foo { bar id }
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 // struct Foo { bar id }
 struct_definition = { "struct" ~ identifier ~ struct_def }
 // command Foo { ... }
-command_statements = _{ fields_statement | policy_statement | recall_statement }
-command_definition = { "command" ~ identifier ~ "{" ~ command_statements+ ~ "}" }
+command_definition = { "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
 // function foo(a int) int { return a }
-function_statements = _{ let_statement | match_statement | when_statement | return_statement }
-function_block = { "{" ~ function_statements* ~ "}" }
 function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
-function_definition = { function_decl ~ function_block }
+function_definition = { function_decl ~ statement_block }
 /// finish function foo(a int) { create F[]=>{} }
-finish_function_block = { "{" ~ finish_statements* ~ "}" }
 finish_function_decl = { "finish" ~ "function" ~ identifier ~ function_arguments }
-finish_function_definition = { finish_function_decl ~ finish_function_block }
+finish_function_definition = { finish_function_decl ~ statement_block }
 
 top_level_statement = _{ fact_definition | action_definition | effect_definition | struct_definition | command_definition | function_definition | finish_function_definition }
 

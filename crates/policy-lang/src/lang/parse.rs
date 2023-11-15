@@ -654,7 +654,7 @@ fn parse_match_statement(
         };
 
         // Remaining tokens are policy statements
-        let statements = parse_policy_statement_list(pc.into_inner(), pratt, cc)?;
+        let statements = parse_statement_list(pc.into_inner(), pratt, cc)?;
 
         arms.push(ast::MatchArm { value, statements });
     }
@@ -670,7 +670,7 @@ fn parse_when_statement(
 ) -> Result<ast::WhenStatement, ParseError> {
     let pc = descend(item);
     let expression = pc.consume_expression(pratt)?;
-    let statements = parse_policy_statement_list(pc.into_inner(), pratt, cc)?;
+    let statements = parse_statement_list(pc.into_inner(), pratt, cc)?;
 
     Ok(ast::WhenStatement {
         expression,
@@ -745,51 +745,7 @@ fn parse_return_statement(
 /// - [UpdateStatement](ast::UpdateStatement)
 /// - [DeleteStatement](ast::DeleteStatement)
 /// - [EffectStatement](ast::EffectStatement)
-fn parse_finish_statement_list(
-    list: Pairs<Rule>,
-    pratt: &PrattParser<Rule>,
-    cc: &mut ChunkContext,
-) -> Result<Vec<AstNode<ast::FinishStatement>>, ParseError> {
-    let mut statements = vec![];
-    for statement in list {
-        let locator = cc.add_range(&statement);
-        let ps = match statement.as_rule() {
-            Rule::create_statement => {
-                ast::FinishStatement::Create(parse_create_statement(statement, pratt)?)
-            }
-            Rule::update_statement => {
-                ast::FinishStatement::Update(parse_update_statement(statement, pratt)?)
-            }
-            Rule::delete_statement => {
-                ast::FinishStatement::Delete(parse_delete_statement(statement, pratt)?)
-            }
-            Rule::effect_statement => {
-                ast::FinishStatement::Effect(parse_effect_statement(statement, pratt)?)
-            }
-            Rule::function_call => {
-                ast::FinishStatement::FunctionCall(parse_function_call(statement, pratt)?)
-            }
-            s => {
-                return Err(ParseError::new(
-                    ParseErrorKind::InvalidStatement,
-                    format!("found {:?} in finish block", s),
-                    Some(statement.as_span()),
-                ))
-            }
-        };
-        statements.push(AstNode::new(ps, locator));
-    }
-
-    Ok(statements)
-}
-/// Parse a list of statements inside a recall block.
-///
-/// Valid in this context:
-/// - [LetStatement](ast::LetStatement)
-/// - [MatchStatement](ast::MatchStatement)
-/// - [WhenStatement](ast::WhenStatement)
-/// - [FinishStatement](ast::FinishStatement)
-fn parse_recall_statement_list(
+fn parse_statement_list(
     list: Pairs<Rule>,
     pratt: &PrattParser<Rule>,
     cc: &mut ChunkContext,
@@ -799,48 +755,7 @@ fn parse_recall_statement_list(
         let locator = cc.add_range(&statement);
         let ps = match statement.as_rule() {
             Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
-            Rule::match_statement => {
-                ast::Statement::Match(parse_match_statement(statement, pratt, cc)?)
-            }
-            Rule::when_statement => {
-                ast::Statement::When(parse_when_statement(statement, pratt, cc)?)
-            }
-            Rule::finish_statement => {
-                let pairs = statement.into_inner();
-                ast::Statement::Finish(parse_finish_statement_list(pairs, pratt, cc)?)
-            }
-            s => {
-                return Err(ParseError::new(
-                    ParseErrorKind::Expression,
-                    format!("found {:?} in policy block", s),
-                    Some(statement.as_span()),
-                ))
-            }
-        };
-        statements.push(AstNode::new(ps, locator));
-    }
-
-    Ok(statements)
-}
-
-/// Parse a list of statements inside a policy block.
-///
-/// Valid in this context:
-/// - [LetStatement](ast::LetStatement)
-/// - [CheckStatement](ast::CheckStatement)
-/// - [MatchStatement](ast::MatchStatement)
-/// - [WhenStatement](ast::WhenStatement)
-/// - [FinishStatement](ast::FinishStatement)
-fn parse_policy_statement_list(
-    list: Pairs<Rule>,
-    pratt: &PrattParser<Rule>,
-    cc: &mut ChunkContext,
-) -> Result<Vec<AstNode<ast::Statement>>, ParseError> {
-    let mut statements = vec![];
-    for statement in list {
-        let locator = cc.add_range(&statement);
-        let ps = match statement.as_rule() {
-            Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
+            Rule::emit_statement => ast::Statement::Emit(parse_emit_statement(statement, pratt)?),
             Rule::check_statement => {
                 ast::Statement::Check(parse_check_statement(statement, pratt)?)
             }
@@ -850,54 +765,32 @@ fn parse_policy_statement_list(
             Rule::when_statement => {
                 ast::Statement::When(parse_when_statement(statement, pratt, cc)?)
             }
-            Rule::finish_statement => {
-                let pairs = statement.into_inner();
-                ast::Statement::Finish(parse_finish_statement_list(pairs, pratt, cc)?)
-            }
-            s => {
-                return Err(ParseError::new(
-                    ParseErrorKind::Expression,
-                    format!("found {:?} in policy block", s),
-                    Some(statement.as_span()),
-                ))
-            }
-        };
-        statements.push(AstNode::new(ps, locator));
-    }
-
-    Ok(statements)
-}
-
-/// Parse a list of statements inside a function.
-///
-/// Valid in this context:
-/// - [LetStatement](ast::LetStatement)
-/// - [MatchStatement](ast::MatchStatement)
-/// - [WhenStatement](ast::WhenStatement)
-/// - [ReturnStatement](ast::ReturnStatement)
-fn parse_function_statement_list(
-    list: Pairs<Rule>,
-    pratt: &PrattParser<Rule>,
-    cc: &mut ChunkContext,
-) -> Result<Vec<AstNode<ast::Statement>>, ParseError> {
-    let mut statements = vec![];
-    for statement in list {
-        let locator = cc.add_range(&statement);
-        let ps = match statement.as_rule() {
-            Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
-            Rule::match_statement => {
-                ast::Statement::Match(parse_match_statement(statement, pratt, cc)?)
-            }
-            Rule::when_statement => {
-                ast::Statement::When(parse_when_statement(statement, pratt, cc)?)
-            }
             Rule::return_statement => {
                 ast::Statement::Return(parse_return_statement(statement, pratt)?)
+            }
+            Rule::finish_statement => {
+                let pairs = statement.into_inner();
+                ast::Statement::Finish(parse_statement_list(pairs, pratt, cc)?)
+            }
+            Rule::create_statement => {
+                ast::Statement::Create(parse_create_statement(statement, pratt)?)
+            }
+            Rule::update_statement => {
+                ast::Statement::Update(parse_update_statement(statement, pratt)?)
+            }
+            Rule::delete_statement => {
+                ast::Statement::Delete(parse_delete_statement(statement, pratt)?)
+            }
+            Rule::effect_statement => {
+                ast::Statement::Effect(parse_effect_statement(statement, pratt)?)
+            }
+            Rule::function_call => {
+                ast::Statement::FunctionCall(parse_function_call(statement, pratt)?)
             }
             s => {
                 return Err(ParseError::new(
                     ParseErrorKind::InvalidStatement,
-                    format!("found {:?} in function block", s),
+                    format!("found invalid rule {:?}", s),
                     Some(statement.as_span()),
                 ))
             }
@@ -961,28 +854,8 @@ fn parse_action_definition(
     }
 
     // All remaining tokens are statements
-    let mut statements = vec![];
-    for statement in pc.into_inner() {
-        let locator = cc.add_range(&statement);
-        let ps = match statement.as_rule() {
-            Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
-            Rule::match_statement => {
-                ast::Statement::Match(parse_match_statement(statement, pratt, cc)?)
-            }
-            Rule::when_statement => {
-                ast::Statement::When(parse_when_statement(statement, pratt, cc)?)
-            }
-            Rule::emit_statement => ast::Statement::Emit(parse_emit_statement(statement, pratt)?),
-            s => {
-                return Err(ParseError::new(
-                    ParseErrorKind::InvalidStatement,
-                    format!("invalid statement in action: {:?}", s),
-                    Some(statement.as_span()),
-                ))
-            }
-        };
-        statements.push(AstNode::new(ps, locator));
-    }
+    let list = pc.into_inner();
+    let statements = parse_statement_list(list, pratt, cc)?;
 
     Ok(AstNode::new(
         ast::ActionDefinition {
@@ -1057,19 +930,19 @@ fn parse_command_definition(
     let mut recall = vec![];
     for token in pc.into_inner() {
         match token.as_rule() {
-            Rule::fields_statement => {
+            Rule::fields_block => {
                 let pairs = token.into_inner();
                 for field in pairs {
                     fields.push(parse_field_definition(field)?);
                 }
             }
-            Rule::policy_statement => {
+            Rule::policy_block => {
                 let pairs = token.into_inner();
-                policy = parse_policy_statement_list(pairs, pratt, cc)?;
+                policy = parse_statement_list(pairs, pratt, cc)?;
             }
-            Rule::recall_statement => {
+            Rule::recall_block => {
                 let pairs = token.into_inner();
-                recall = parse_recall_statement_list(pairs, pratt, cc)?;
+                recall = parse_statement_list(pairs, pratt, cc)?;
             }
             t => {
                 return Err(ParseError::new(
@@ -1136,8 +1009,8 @@ fn parse_function_definition(
     let decl = parse_function_decl(decl)?;
     let return_type = decl.return_type.expect("impossible function definition");
 
-    let token = pc.consume_of_type(Rule::function_block)?;
-    let statements = parse_function_statement_list(token.into_inner(), pratt, cc)?;
+    // All remaining tokens are function statements
+    let statements = parse_statement_list(pc.into_inner(), pratt, cc)?;
 
     Ok(AstNode::new(
         ast::FunctionDefinition {
@@ -1162,8 +1035,8 @@ fn parse_finish_function_definition(
     let decl = pc.consume()?;
     let decl = parse_function_decl(decl)?;
 
-    let token = pc.consume_of_type(Rule::finish_function_block)?;
-    let statements = parse_finish_statement_list(token.into_inner(), pratt, cc)?;
+    // All remaining tokens are function statements
+    let statements = parse_statement_list(pc.into_inner(), pratt, cc)?;
 
     Ok(AstNode::new(
         ast::FinishFunctionDefinition {

@@ -7,8 +7,9 @@ use std::{
 use clap::{arg, ArgGroup, Parser, ValueEnum};
 use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use policy_vm::{
-    compile_from_policy, FactKey, FactKeyList, FactValue, FactValueList, KVPair, Machine,
-    MachineIO, MachineIOError, MachineStack, MachineStatus, RunState, Stack, Struct, Value,
+    compile_from_policy, FactKey, FactKeyList, FactValue, FactValueList, KVPair, LabelType,
+    Machine, MachineIO, MachineIOError, MachineStack, MachineStatus, RunState, Stack, Struct,
+    Value,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -261,7 +262,7 @@ fn main() -> anyhow::Result<()> {
                     name: command.clone(),
                     fields,
                 };
-                rs.setup_command_policy(&command, &self_data)
+                rs.setup_command(&command, LabelType::CommandPolicy, &self_data)
                     .map_err(anyhow::Error::msg)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));

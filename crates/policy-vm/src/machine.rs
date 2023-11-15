@@ -1,7 +1,7 @@
 extern crate alloc;
 
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
-use core::fmt::Display;
+use core::fmt::{self, Display};
 
 use policy_ast as ast;
 
@@ -50,24 +50,59 @@ impl Display for MachineStatus {
 }
 
 /// Types of Labels
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, Ord, Eq, PartialEq)]
 pub enum LabelType {
     /// This label represents the entry point of an action
     Action,
     /// This label represents the entry point of a command policy block
-    Command,
+    CommandPolicy,
+    /// This label represents the entry point of a command recall block
+    CommandRecall,
     /// This label is a temporary destination for implementing
     /// branching constructs.
     Temporary,
 }
 
+impl Display for LabelType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LabelType::Action => write!(f, "action"),
+            LabelType::CommandPolicy => write!(f, "policy"),
+            LabelType::CommandRecall => write!(f, "recall"),
+            LabelType::Temporary => write!(f, "temp"),
+        }
+    }
+}
+
 /// Labels are branch targets and execution entry points.
-#[derive(Debug, Clone)]
-pub(crate) struct Label {
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
+pub struct Label {
     /// The address of the label
-    pub(crate) addr: usize,
+    pub(crate) name: String,
     /// The type of the label
     pub(crate) ltype: LabelType,
+}
+
+impl Label {
+    pub(crate) fn new(name: &str, ltype: LabelType) -> Label {
+        Label {
+            name: name.to_owned(),
+            ltype,
+        }
+    }
+
+    pub(crate) fn new_temp(name: &str) -> Label {
+        Label {
+            name: name.to_owned(),
+            ltype: LabelType::Temporary,
+        }
+    }
+}
+
+impl Display for Label {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.ltype, self.name)
+    }
 }
 
 /// This is the core policy machine type, which contains all of the state
@@ -78,7 +113,7 @@ pub struct Machine {
     /// The program memory
     pub(crate) progmem: Vec<Instruction>,
     /// Mapping of Label names to addresses
-    pub(crate) labels: BTreeMap<String, Label>,
+    pub(crate) labels: BTreeMap<Label, usize>,
     /// Fact schemas
     fact_defs: BTreeMap<String, ast::FactDefinition>,
     /// Struct schemas
@@ -570,31 +605,28 @@ where
     }
 
     /// Set the program counter to the given label.
-    pub fn set_pc_by_name(&mut self, name: &str, ltype: LabelType) -> Result<(), MachineError> {
-        let name = self
+    pub fn set_pc_by_label(&mut self, label: Label) -> Result<(), MachineError> {
+        let addr = self
             .machine
             .labels
-            .get(name)
+            .get(&label)
             .ok_or_else(|| self.err(MachineErrorType::InvalidAddress))?;
-        if name.ltype == ltype {
-            self.pc = name.addr;
-            Ok(())
-        } else {
-            Err(self.err(MachineErrorType::InvalidAddress))
-        }
+        self.pc = *addr;
+        Ok(())
     }
 
     /// Set up machine state for a command policy call
-    pub fn setup_command_policy(
+    pub fn setup_command(
         &mut self,
         name: &str,
-        self_data: &Struct,
+        label_type: LabelType,
+        this_data: &Struct,
     ) -> Result<(), MachineError> {
-        self.set_pc_by_name(name, LabelType::Command)?;
+        self.set_pc_by_label(Label::new(name, label_type))?;
         self.defs.clear();
         self.call_state.clear();
         self.defs
-            .insert(String::from("this"), Value::Struct(self_data.to_owned()));
+            .insert(String::from("this"), Value::Struct(this_data.to_owned()));
         Ok(())
     }
 
@@ -604,9 +636,21 @@ where
     pub fn call_command_policy(
         &mut self,
         name: &str,
-        self_data: &Struct,
+        this_data: &Struct,
     ) -> Result<MachineStatus, MachineError> {
-        self.setup_command_policy(name, self_data)?;
+        self.setup_command(name, LabelType::CommandPolicy, this_data)?;
+        self.run()
+    }
+
+    /// Call a command policy loaded into the VM by name. Accepts a
+    /// `Struct` containing the Command's data. Returns a Vec of effect
+    /// structs or a MachineError.
+    pub fn call_command_recall(
+        &mut self,
+        name: &str,
+        this_data: &Struct,
+    ) -> Result<MachineStatus, MachineError> {
+        self.setup_command(name, LabelType::CommandRecall, this_data)?;
         self.run()
     }
 
@@ -615,7 +659,7 @@ where
     where
         V: Into<Value> + Clone,
     {
-        self.set_pc_by_name(name, LabelType::Action)?;
+        self.set_pc_by_label(Label::new(name, LabelType::Action))?;
         for a in args {
             self.ipush(a.clone())?;
         }
@@ -704,7 +748,7 @@ where
         writeln!(f, "# Program:")?;
         for (addr, instr) in self.machine.progmem.iter().enumerate() {
             for (k, v) in &self.machine.labels {
-                if v.addr == addr {
+                if *v == addr {
                     writeln!(f, "{}:", k)?;
                 }
             }

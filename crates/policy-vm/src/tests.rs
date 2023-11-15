@@ -20,7 +20,7 @@ use crate::{
     io::{MachineIO, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
-    CodeMap, Label, LabelType, MachineError, Target,
+    CodeMap, CompileError, CompileErrorType, Label, LabelType, MachineError, Target,
 };
 
 struct TestIO {
@@ -1210,7 +1210,7 @@ fn test_errors() {
     error_test_harness(
         &[
             Instruction::Const(Value::Int(3)),
-            Instruction::Branch(Target::Unresolved(x.clone())),
+            Instruction::Branch(Target::Unresolved(Label::new_temp(&x))),
         ],
         MachineErrorType::InvalidType,
     );
@@ -1265,7 +1265,7 @@ fn test_errors() {
 
     // UnresolvedTarget: Jump to an unresolved target
     error_test_harness(
-        &[Instruction::Jump(Target::Unresolved(x.clone()))],
+        &[Instruction::Jump(Target::Unresolved(Label::new_temp(&x)))],
         MachineErrorType::UnresolvedTarget,
     );
 
@@ -1277,7 +1277,7 @@ fn test_errors() {
         &[],
         |_| Ok(()),
         |rs| {
-            let r = rs.set_pc_by_name("x", LabelType::Action);
+            let r = rs.set_pc_by_label(Label::new("x", LabelType::Action));
             assert_eq!(r, Err(MachineError::new(MachineErrorType::InvalidAddress)));
             Ok(())
         },
@@ -1287,17 +1287,11 @@ fn test_errors() {
     general_test_harness(
         &[],
         |m| {
-            m.labels.insert(
-                x.clone(),
-                Label {
-                    addr: 0,
-                    ltype: LabelType::Action,
-                },
-            );
+            m.labels.insert(Label::new(&x, LabelType::Action), 0);
             Ok(())
         },
         |rs| {
-            let r = rs.set_pc_by_name("x", LabelType::Command);
+            let r = rs.set_pc_by_label(Label::new("x", LabelType::CommandPolicy));
             assert_eq!(r, Err(MachineError::new(MachineErrorType::InvalidAddress)));
             Ok(())
         },
@@ -1341,4 +1335,40 @@ fn test_errors() {
     );
 
     // Unknown untested as it cannot be created
+}
+
+// Note: this test is not exhaustive
+#[test]
+fn test_bad_statements() -> anyhow::Result<()> {
+    let texts = &[
+        r#"
+            action foo() {
+                create Foo[]=>{}
+            }
+        "#,
+        r#"
+            finish function foo() {
+                let x = 3
+            }
+        "#,
+        r#"
+            function foo(x int) int {
+                emit Bar{}
+            }
+        "#,
+    ];
+
+    for text in texts {
+        let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+        let res = compile_from_policy(&policy);
+        assert!(matches!(
+            res,
+            Err(CompileError {
+                err_type: CompileErrorType::InvalidStatement(_),
+                ..
+            })
+        ));
+    }
+
+    Ok(())
 }

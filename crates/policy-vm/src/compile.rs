@@ -8,6 +8,7 @@ use alloc::{
     collections::{btree_map, BTreeMap},
     format,
     string::String,
+    vec,
     vec::Vec,
 };
 use core::fmt;
@@ -32,6 +33,34 @@ struct FunctionSignature {
     color: FunctionColor,
 }
 
+/// Enumerates all the possible contexts a statement can be in, to validate whether a
+/// statement is currently valid.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum StatementContext {
+    /// An action
+    Action,
+    /// A command policy block
+    CommandPolicy,
+    /// A command recall block
+    CommandRecall,
+    /// A pure function
+    PureFunction,
+    /// A finish function or finish block
+    Finish,
+}
+
+impl fmt::Display for StatementContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StatementContext::Action => write!(f, "action"),
+            StatementContext::CommandPolicy => write!(f, "command policy block"),
+            StatementContext::CommandRecall => write!(f, "command recall block"),
+            StatementContext::PureFunction => write!(f, "pure function"),
+            StatementContext::Finish => write!(f, "finish block/function"),
+        }
+    }
+}
+
 /// The "compile state" of the machine.
 pub struct CompileState {
     /// The underlying machine
@@ -46,6 +75,9 @@ pub struct CompileState {
     /// The last locator seen, for imprecise source locating.
     // TODO(chip): Push more precise source tracking further down into the AST.
     last_locator: usize,
+    /// The current statement context, implemented as a stack so that it can be
+    /// hierarchical.
+    statement_context: Vec<StatementContext>,
 }
 
 impl CompileState {
@@ -58,7 +90,34 @@ impl CompileState {
             c: 0,
             function_signatures: BTreeMap::new(),
             last_locator: 0,
+            statement_context: vec![],
         }
+    }
+
+    /// Begin parsing statements in this context
+    fn enter_statement_context(&mut self, c: StatementContext) {
+        self.statement_context.push(c);
+    }
+
+    /// End parsing statements in this context and return to the previous context
+    fn exit_statement_context(&mut self) {
+        self.statement_context.pop();
+    }
+
+    /// Get the statement context
+    fn get_statement_context(&self) -> Result<StatementContext, CompileError> {
+        let cs = self
+            .statement_context
+            .last()
+            .ok_or(CompileError::from_locator(
+                CompileErrorType::Unknown(String::from(
+                    "compiling statement without statement context",
+                )),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            ))?
+            .clone();
+        Ok(cs)
     }
 
     /// Append an instruction to the program memory, and increment the
@@ -124,17 +183,25 @@ impl CompileState {
     }
 
     /// Define a named Label.
-    pub fn define_label(&mut self, identifier: &str, addr: usize, ntype: LabelType) {
-        self.m
-            .labels
-            .insert(identifier.to_owned(), Label { addr, ltype: ntype });
+    pub fn define_label(&mut self, label: Label, addr: usize) -> Result<(), CompileError> {
+        match self.m.labels.entry(label.clone()) {
+            btree_map::Entry::Vacant(e) => {
+                e.insert(addr);
+                Ok(())
+            }
+            btree_map::Entry::Occupied(_) => Err(CompileError::from_locator(
+                CompileErrorType::AlreadyDefined(label.name),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            )),
+        }
     }
 
     /// Create an anonymous Label and return its identifier.
-    pub fn anonymous_name(&mut self) -> String {
+    pub fn anonymous_label(&mut self) -> Label {
         let name = format!("anonymous{}", self.c);
         self.c += 1;
-        name
+        Label::new_temp(&name)
     }
 
     /// Maps the current write pointer to a text range supplied by an AST node
@@ -164,16 +231,16 @@ impl CompileState {
     // been borrowed &mut in resolve_targets() below.
     fn resolve_target(
         target: &mut Target,
-        labels: &mut BTreeMap<String, Label>,
+        labels: &mut BTreeMap<Label, usize>,
     ) -> Result<(), CompileError> {
         match target.clone() {
             Target::Unresolved(s) => {
-                let name = labels
+                let addr = labels
                     .get(&s)
-                    .ok_or(CompileErrorType::BadTarget(s.clone()))?;
+                    .ok_or(CompileErrorType::BadTarget(s.name.clone()))?;
 
-                *target = Target::Resolved(name.addr);
-                if name.ltype == LabelType::Temporary {
+                *target = Target::Resolved(*addr);
+                if s.ltype == LabelType::Temporary {
                     labels.remove(&s);
                 }
                 Ok(())
@@ -277,8 +344,8 @@ impl CompileState {
                     self.append_instruction(Instruction::Exists);
                 }
                 ast::InternalFunction::If(e, t, f) => {
-                    let else_name = self.anonymous_name();
-                    let end_name = self.anonymous_name();
+                    let else_name = self.anonymous_label();
+                    let end_name = self.anonymous_label();
                     self.compile_expression(e)?;
                     self.append_instruction(Instruction::Branch(Target::Unresolved(
                         else_name.clone(),
@@ -287,9 +354,9 @@ impl CompileState {
                     self.append_instruction(Instruction::Jump(Target::Unresolved(
                         end_name.clone(),
                     )));
-                    self.define_label(&else_name, self.wp, LabelType::Temporary);
+                    self.define_label(else_name, self.wp)?;
                     self.compile_expression(t)?;
-                    self.define_label(&end_name, self.wp, LabelType::Temporary);
+                    self.define_label(end_name, self.wp)?;
                 }
                 ast::InternalFunction::Id(_) => todo!(),
                 ast::InternalFunction::AuthorId(_) => todo!(),
@@ -330,9 +397,9 @@ impl CompileState {
                 for a in &f.arguments {
                     self.compile_expression(a)?;
                 }
-                self.append_instruction(Instruction::Call(Target::Unresolved(
-                    f.identifier.clone(),
-                )));
+                self.append_instruction(Instruction::Call(Target::Unresolved(Label::new_temp(
+                    &f.identifier,
+                ))));
             }
             ast::Expression::Identifier(i) => {
                 self.append_instruction(Instruction::Const(Value::String(i.clone())));
@@ -408,7 +475,7 @@ impl CompileState {
             ast::Expression::Not(_) => todo!(),
             ast::Expression::Unwrap(e) => {
                 // create an anonymous name for the successful case
-                let not_none = self.anonymous_name();
+                let not_none = self.anonymous_label();
                 // evaluate the expression
                 self.compile_expression(e)?;
                 // Duplicate value for testing
@@ -423,7 +490,7 @@ impl CompileState {
                 // If the value is equal to None, panic
                 self.append_instruction(Instruction::Panic);
                 // Define the target of the branch as the instruction after the Panic
-                self.define_label(&not_none, self.wp, LabelType::Temporary);
+                self.define_label(not_none, self.wp)?;
             }
             ast::Expression::Is(_, _) => todo!(),
         }
@@ -436,17 +503,35 @@ impl CompileState {
         &mut self,
         statements: &[AstNode<ast::Statement>],
     ) -> Result<(), CompileError> {
+        let context = self.get_statement_context()?;
         for statement in statements {
             self.map_range(statement)?;
-            match &statement.inner {
-                ast::Statement::Let(s) => {
+            // This match statement matches on a pair of the statement and its allowable
+            // contexts, so that disallowed contexts will fall through to the default at the
+            // bottom. This only checks the context at the statement level. It cannot, for
+            // example, check whether an expression disallowed in finish context has been
+            // evaluated from deep within a call chain. Further static analysis will have to
+            // be done to ensure that.
+            match (&statement.inner, &context) {
+                (
+                    ast::Statement::Let(s),
+                    StatementContext::Action
+                    | StatementContext::PureFunction
+                    | StatementContext::CommandPolicy
+                    | StatementContext::CommandRecall,
+                ) => {
                     self.compile_expression(&s.expression)?;
                     self.append_instruction(Instruction::Const(Value::String(
                         s.identifier.clone(),
                     )));
                     self.append_instruction(Instruction::Def);
                 }
-                ast::Statement::Check(s) => {
+                (
+                    ast::Statement::Check(s),
+                    StatementContext::Action
+                    | StatementContext::CommandPolicy
+                    | StatementContext::CommandRecall,
+                ) => {
                     self.compile_expression(&s.expression)?;
                     // The current instruction is the branch. The next
                     // instruction is the following panic you arrive at
@@ -456,46 +541,50 @@ impl CompileState {
                     self.append_instruction(Instruction::Branch(Target::Resolved(self.wp + 2)));
                     self.append_instruction(Instruction::Panic);
                 }
-                ast::Statement::Match(_) => todo!(),
-                ast::Statement::When(s) => {
-                    let end_name = self.anonymous_name();
+                (
+                    ast::Statement::Match(_),
+                    StatementContext::Action
+                    | StatementContext::PureFunction
+                    | StatementContext::CommandPolicy
+                    | StatementContext::CommandRecall,
+                ) => todo!(),
+                (
+                    ast::Statement::When(s),
+                    StatementContext::Action
+                    | StatementContext::PureFunction
+                    | StatementContext::CommandPolicy
+                    | StatementContext::CommandRecall,
+                ) => {
+                    let end_label = self.anonymous_label();
                     self.compile_expression(&s.expression)?;
                     self.append_instruction(Instruction::Not);
                     self.append_instruction(Instruction::Branch(Target::Unresolved(
-                        end_name.clone(),
+                        end_label.clone(),
                     )));
                     self.compile_statements(&s.statements)?;
-                    self.define_label(&end_name, self.wp, LabelType::Temporary);
+                    self.define_label(end_label, self.wp)?;
                 }
-                ast::Statement::Emit(s) => {
+                (ast::Statement::Emit(s), StatementContext::Action) => {
                     self.compile_expression(s)?;
                     self.append_instruction(Instruction::Emit);
                 }
-                ast::Statement::Return(s) => {
+                (ast::Statement::Return(s), StatementContext::PureFunction) => {
                     self.compile_expression(&s.expression)?;
                     self.append_instruction(Instruction::Return);
                 }
-                ast::Statement::Finish(s) => {
-                    self.compile_finish_statements(s)?;
+                (
+                    ast::Statement::Finish(s),
+                    StatementContext::CommandPolicy | StatementContext::CommandRecall,
+                ) => {
+                    self.enter_statement_context(StatementContext::Finish);
+                    self.compile_statements(s)?;
+                    self.exit_statement_context();
                 }
-            }
-        }
-        Ok(())
-    }
-
-    /// Compile finish statements
-    fn compile_finish_statements(
-        &mut self,
-        statements: &[AstNode<ast::FinishStatement>],
-    ) -> Result<(), CompileError> {
-        for statement in statements {
-            self.map_range(statement)?;
-            match &statement.inner {
-                ast::FinishStatement::Create(s) => {
+                (ast::Statement::Create(s), StatementContext::Finish) => {
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Create);
                 }
-                ast::FinishStatement::Update(s) => {
+                (ast::Statement::Update(s), StatementContext::Finish) => {
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Dup(0));
                     for (k, v) in &s.to {
@@ -515,15 +604,15 @@ impl CompileState {
                     }
                     self.append_instruction(Instruction::Update);
                 }
-                ast::FinishStatement::Delete(s) => {
+                (ast::Statement::Delete(s), StatementContext::Finish) => {
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Delete);
                 }
-                ast::FinishStatement::Effect(s) => {
+                (ast::Statement::Effect(s), StatementContext::Finish) => {
                     self.compile_expression(s)?;
                     self.append_instruction(Instruction::Effect);
                 }
-                ast::FinishStatement::FunctionCall(f) => {
+                (ast::Statement::FunctionCall(f), StatementContext::Finish) => {
                     let signature = self.function_signatures.get(&f.identifier).ok_or(
                         CompileError::from_locator(
                             CompileErrorType::NotDefined(f.identifier.clone()),
@@ -561,8 +650,15 @@ impl CompileState {
                         self.compile_expression(a)?;
                     }
                     self.append_instruction(Instruction::Call(Target::Unresolved(
-                        f.identifier.clone(),
+                        Label::new_temp(&f.identifier),
                     )));
+                }
+                (_, _) => {
+                    return Err(CompileError::from_locator(
+                        CompileErrorType::InvalidStatement(context),
+                        statement.locator,
+                        self.m.codemap.as_ref(),
+                    ))
                 }
             }
         }
@@ -575,7 +671,7 @@ impl CompileState {
         function_node: &AstNode<ast::FunctionDefinition>,
     ) -> Result<(), CompileError> {
         let function = &function_node.inner;
-        self.define_label(&function.identifier, self.wp, LabelType::Temporary);
+        self.define_label(Label::new_temp(&function.identifier), self.wp)?;
         self.map_range(function_node)?;
         self.define_function_signature(function_node)?;
         for arg in function.arguments.iter().rev() {
@@ -606,14 +702,14 @@ impl CompileState {
         function_node: &AstNode<ast::FinishFunctionDefinition>,
     ) -> Result<(), CompileError> {
         let function = &function_node.inner;
-        self.define_label(&function.identifier, self.wp, LabelType::Temporary);
+        self.define_label(Label::new_temp(&function.identifier), self.wp)?;
         self.map_range(function_node)?;
         self.define_finish_function_signature(function_node)?;
         for arg in function.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
             self.append_instruction(Instruction::Def);
         }
-        self.compile_finish_statements(&function.statements)?;
+        self.compile_statements(&function.statements)?;
         // Finish functions cannot have return statements, so we add a return instruction
         // manually.
         self.append_instruction(Instruction::Return);
@@ -626,7 +722,7 @@ impl CompileState {
         action_node: &AstNode<ast::ActionDefinition>,
     ) -> Result<(), CompileError> {
         let action = &action_node.inner;
-        self.define_label(&action.identifier, self.wp, LabelType::Action);
+        self.define_label(Label::new(&action.identifier, LabelType::Action), self.wp)?;
         self.map_range(action_node)?;
 
         for arg in action.arguments.iter().rev() {
@@ -650,10 +746,22 @@ impl CompileState {
         self.define_struct(&command.identifier, &command.fields);
         self.map_range(command_node)?;
 
-        self.define_label(&command.identifier, self.wp, LabelType::Command);
-
+        self.define_label(
+            Label::new(&command.identifier, LabelType::CommandPolicy),
+            self.wp,
+        )?;
+        self.enter_statement_context(StatementContext::CommandPolicy);
         self.compile_statements(&command.policy)?;
+        self.exit_statement_context();
+        self.append_instruction(Instruction::Exit);
 
+        self.define_label(
+            Label::new(&command.identifier, LabelType::CommandRecall),
+            self.wp,
+        )?;
+        self.enter_statement_context(StatementContext::CommandRecall);
+        self.compile_statements(&command.recall)?;
+        self.exit_statement_context();
         self.append_instruction(Instruction::Exit);
 
         Ok(())
@@ -671,21 +779,28 @@ impl CompileState {
             self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields);
         }
 
+        self.enter_statement_context(StatementContext::PureFunction);
         for function_def in &policy.functions {
             self.compile_function(function_def)?;
         }
+        self.exit_statement_context();
 
+        self.enter_statement_context(StatementContext::Finish);
         for function_def in &policy.finish_functions {
             self.compile_finish_function(function_def)?;
         }
+        self.exit_statement_context();
 
+        // Commands have several sub-contexts, so `compile_command` handles those.
         for command in &policy.commands {
             self.compile_command(command)?;
         }
 
+        self.enter_statement_context(StatementContext::Action);
         for action in &policy.actions {
             self.compile_action(action)?;
         }
+        self.exit_statement_context();
 
         for effect in &policy.effects {
             let fields: Vec<ast::FieldDefinition> =
