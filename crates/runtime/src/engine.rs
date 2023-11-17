@@ -5,7 +5,7 @@
 
 use crate::{
     command::{Command, Id},
-    storage::Perspective,
+    storage::{FactPerspective, Perspective},
 };
 
 #[derive(Debug)]
@@ -64,14 +64,14 @@ pub trait Policy {
     /// This is used to support inband policy upgrades.
     fn serial(&self) -> u32;
 
-    /// Check if a command is accepted at the given perspective.
-    /// Any effects are returned via the sink. Returns true for accepted
-    /// commands false for rejected commands. If accepted command is
-    /// added to the perspective.
+    /// Evaluate a command at the given perspective. If the command is accepted,
+    /// effects may be emitted to the sink and facts may be written to the
+    /// perspective. Returns true for an accepted command and false for a
+    /// rejected command.
     fn call_rule<'a>(
         &self,
         command: &impl Command<'a>,
-        facts: &mut impl Perspective,
+        facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError>;
 

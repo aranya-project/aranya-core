@@ -104,7 +104,9 @@ pub trait StorageProvider {
 /// by an associated policy and committed to state.
 pub trait Storage {
     type Perspective: Perspective;
-    type Segment: Segment;
+    type FactPerspective: FactPerspective;
+    type Segment: Segment<FactIndex = Self::FactIndex>;
+    type FactIndex: FactIndex;
 
     /// Returns the location of Command with id if it has been stored by
     /// searching from the head.
@@ -117,9 +119,12 @@ pub trait Storage {
     /// can not be found.
     fn get_linear_perspective(&self, id: &Id) -> Result<Option<Self::Perspective>, StorageError>;
 
-    /// Returns a braid perspective at the command with id, or None if the id
-    /// can not be found.
-    fn get_braid_perspective(&self, id: &Id) -> Result<Option<Self::Perspective>, StorageError>;
+    /// Returns a fact perspective at the given location, intended for evaluating braids.
+    /// The fact perspective will include the facts of the command at the given location.
+    fn get_fact_perspective(
+        &self,
+        location: &Location,
+    ) -> Result<Self::FactPerspective, StorageError>;
 
     /// Returns a perspective at the command provided, or None if the id can not
     /// be found. If the provided command is not a merge command an error will be
@@ -129,7 +134,7 @@ pub trait Storage {
         &self,
         command: &impl Command<'a>,
         policy_id: PolicyId,
-        braid: Self::Segment,
+        braid: Self::FactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError>;
 
     /// Returns the segment at the given location, or None if it can't be found.
@@ -144,6 +149,12 @@ pub trait Storage {
 
     /// Writes the given perspective to a segment.
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError>;
+
+    /// Writes the given fact perspective to a fact index.
+    fn write_facts(
+        &mut self,
+        fact_perspective: Self::FactPerspective,
+    ) -> Result<Self::FactIndex, StorageError>;
 
     /// Determine whether the given location is an ancestor of the given segment.
     fn is_ancestor(
@@ -168,15 +179,15 @@ pub trait Storage {
 
 /// A segment is a nonempty sequence of commands persisted to storage.
 ///
-/// A segment can be one of four types. This might be encoded in a previous version of the API.
+/// A segment can be one of three types. This might be encoded in a future version of the API.
 /// * init   - This segment is the first segment of the graph and begins with an init command.
 /// * linear - This segment has a single prior command and is simply a sequence of linear commands.
 /// * merge  - This segment merges two other segments and thus begins with a merge command.
 ///            A merge segment has a braid as it's prior facts.
-/// * braid  - This segment provides an ordering of a concurrent section of the graph.
 ///
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
+    type FactIndex: FactIndex;
     type Command<'a>: Command<'a>
     where
         Self: 'a;
@@ -208,37 +219,34 @@ pub trait Segment {
     /// Returns an iterator of commands starting at the given location.
     fn get_from<'a>(&'a self, location: &Location) -> Vec<&'a Self::Command<'a>>;
 
+    /// Get the fact index associated with this segment.
+    fn facts(&self) -> Result<Self::FactIndex, StorageError>;
+}
+
+pub trait FactIndex {
     /// Look up a value associated to the given key.
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError>;
-
-    /// Return the prior segment on which this segment's facts are based.
-    fn prior_facts(&self) -> Result<Option<Self>, StorageError>
-    where
-        Self: Sized;
 }
 
 /// A perspective is essentially a mutable, in-memory version of a [`Segment`],
-/// with the same four types.
-pub trait Perspective {
+/// with the same three types.
+pub trait Perspective: FactPerspective {
+    /// Returns the id for the policy used for this perspective.
+    fn policy(&self) -> PolicyId;
+
     /// Create a checkpoint which can be used to revert the perspective.
     fn checkpoint(&self) -> Checkpoint;
 
     /// Revert the perspective to the state it was at when the checkpoint was created.
     fn revert(&mut self, checkpoint: Checkpoint);
 
-    /// Returns the prior locations on which this perspective is based.
-    fn prior(&self) -> HVec2<Location>;
-
-    /// Returns the id for the policy used for this perspective.
-    fn policy(&self) -> PolicyId;
-
     /// Adds the given command to the head of the perspective. The command's
     /// parent must be the head of the perspective.
     fn add_command<'a>(&mut self, command: &impl Command<'a>) -> Result<usize, StorageError>;
+}
 
-    /// UNUSED?
-    fn get_target(&mut self) -> Result<&mut [u8], StorageError>;
-
+/// A fact perspective is essentially a mutable, in-memory version of a [`FactIndex`].
+pub trait FactPerspective {
     /// Look up a value associated to the given key.
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError>;
 

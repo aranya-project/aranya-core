@@ -301,6 +301,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             sink.rollback();
             return Err(ClientError::NotAuthorized);
         }
+        perspective.add_command(command)?;
         sink.commit();
 
         self.phead = Some(command.id());
@@ -385,6 +386,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             sink.rollback();
             return Err(ClientError::InitError);
         }
+        perspective.add_command(command)?;
         provider.new_storage(&storage_id, perspective)?;
         sink.commit();
         Ok(provider.get_storage(&self.storage_id)?)
@@ -397,22 +399,21 @@ fn make_braid_segment<S: Storage, E: Engine>(
     right: Id,
     sink: &mut impl Sink<E::Effects>,
     policy: &E::Policy,
-) -> Result<S::Segment, ClientError> {
+) -> Result<S::FactIndex, ClientError> {
     let order = braid(storage, &left, &right)?;
 
-    let braid_root = storage.get_command_id(&order[0])?;
-    let mut braid_perspective = storage
-        .get_braid_perspective(&braid_root)?
-        .ok_or(ClientError::InternalError)?;
+    let (first, rest) = order.split_first().ok_or(ClientError::Unreachable)?;
+
+    let mut braid_perspective = storage.get_fact_perspective(first)?;
 
     sink.begin();
 
-    for location in order {
+    for location in rest {
         let segment = storage
-            .get_segment(&location)?
+            .get_segment(location)?
             .ok_or(ClientError::InternalError)?;
         let command = segment
-            .get_command(&location)
+            .get_command(location)
             .ok_or(ClientError::InternalError)?;
         if !policy.call_rule(command, &mut braid_perspective, sink)? {
             sink.rollback();
@@ -420,7 +421,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
         }
     }
 
-    let braid = storage.write(braid_perspective)?;
+    let braid = storage.write_facts(braid_perspective)?;
 
     sink.commit();
 

@@ -129,7 +129,7 @@ impl TestPolicy {
     fn origin_check_message(
         &self,
         command: &WireBasic,
-        facts: &mut impl Perspective,
+        facts: &mut impl FactPerspective,
     ) -> Result<bool, EngineError> {
         let (group, count) = command.payload;
 
@@ -157,7 +157,7 @@ impl TestPolicy {
     fn call_rule_internal(
         &self,
         policy_command: &WireProtocol,
-        facts: &mut impl Perspective,
+        facts: &mut impl FactPerspective,
         sink: &mut impl Sink<<TestPolicy as Policy>::Effects>,
     ) -> Result<bool, EngineError> {
         let passed = match &policy_command {
@@ -252,17 +252,11 @@ impl Policy for TestPolicy {
     fn call_rule<'a>(
         &self,
         command: &impl Command<'a>,
-        facts: &mut impl Perspective,
+        facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError> {
         let policy_command: WireProtocol = from_bytes(command.bytes())?;
-        let passed = self.call_rule_internal(&policy_command, facts, sink)?;
-
-        if passed {
-            let _ = facts.add_command(command);
-        }
-
-        Ok(passed)
+        self.call_rule_internal(&policy_command, facts, sink)
     }
 
     fn init<'a>(

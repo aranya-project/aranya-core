@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::BTreeMap, rc::Rc, vec, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, rc::Rc};
 use core::ops::Deref;
 
 use vec1::Vec1;
@@ -121,15 +121,15 @@ impl MemStorage {
 
     fn new_segment(
         &mut self,
-        kind: MemSegmentKind,
+        prior: HVec2<Location>,
         policy: PolicyId,
         commands: Vec1<CommandData>,
-        facts: FactMap,
+        facts: MemFactIndex,
     ) -> Result<MemSegment, StorageError> {
         let index = self.segments.len();
 
         let segment = MemSegmentInner {
-            kind,
+            prior,
             index,
             policy,
             commands,
@@ -152,47 +152,13 @@ impl MemStorage {
             Some(segment) => Ok(segment.policy()),
         }
     }
-
-    fn get_basic_perspective_inner(
-        &self,
-        id: &Id,
-        is_braid: bool,
-    ) -> Result<Option<MemPerspective>, StorageError> {
-        let Some(location) = self.commands.get(id) else {
-            return Ok(None);
-        };
-
-        let Some(segment) = self.segments.get(location.segment) else {
-            return Err(StorageError::InternalError);
-        };
-
-        let policy = segment.policy;
-        let prior_facts = if location == &segment.head_location() {
-            Some(segment.clone())
-        } else {
-            segment.prior_facts()?
-        };
-        let kind = if is_braid {
-            MemPerspectiveKind::Braid {
-                previous: (location.clone(), segment.clone()),
-                prior_facts,
-            }
-        } else {
-            MemPerspectiveKind::Linear {
-                previous: (location.clone(), segment.clone()),
-                prior_facts,
-            }
-        };
-
-        let perspective = MemPerspective::new(kind, policy);
-
-        Ok(Some(perspective))
-    }
 }
 
 impl Storage for MemStorage {
     type Perspective = MemPerspective;
     type Segment = MemSegment;
+    type FactIndex = MemFactIndex;
+    type FactPerspective = MemFactPerspective;
 
     fn get_location(&self, id: &Id) -> Result<Option<Location>, StorageError> {
         let Some(location) = self.commands.get(id) else {
@@ -216,25 +182,65 @@ impl Storage for MemStorage {
     }
 
     fn get_linear_perspective(&self, id: &Id) -> Result<Option<Self::Perspective>, StorageError> {
-        self.get_basic_perspective_inner(id, false)
+        let Some(location) = self.commands.get(id) else {
+            return Ok(None);
+        };
+
+        let segment = self
+            .segments
+            .get(location.segment)
+            .ok_or(StorageError::InternalError)?;
+
+        let policy = segment.policy;
+        let prior_facts: FactPerspectivePrior = if location == &segment.head_location() {
+            segment.facts.clone().into()
+        } else {
+            let mut facts = MemFactPerspective::new(segment.facts.prior.clone().into());
+            for data in &segment.commands[..=location.command] {
+                facts.apply_updates(&data.updates);
+            }
+            if facts.map.is_empty() {
+                facts.prior
+            } else {
+                facts.into()
+            }
+        };
+        let prior = hvec2![location.clone()];
+
+        let perspective = MemPerspective::new(prior, policy, prior_facts);
+
+        Ok(Some(perspective))
     }
 
-    fn get_braid_perspective(&self, id: &Id) -> Result<Option<Self::Perspective>, StorageError> {
-        self.get_basic_perspective_inner(id, true)
+    fn get_fact_perspective(
+        &self,
+        location: &Location,
+    ) -> Result<Self::FactPerspective, StorageError> {
+        let segment = self
+            .segments
+            .get(location.segment)
+            .ok_or(StorageError::InternalError)?;
+
+        if location == &segment.head_location() {
+            return Ok(MemFactPerspective::new(segment.facts.clone().into()));
+        }
+
+        let mut facts = MemFactPerspective::new(segment.facts.prior.clone().into());
+        for data in &segment.commands[..=location.command] {
+            facts.apply_updates(&data.updates);
+        }
+
+        Ok(facts)
     }
 
     fn new_merge_perspective<'a>(
         &self,
         command: &impl Command<'a>,
         policy_id: PolicyId,
-        braid: MemSegment,
+        braid: MemFactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError> {
         // TODO: ensure braid belongs to this storage.
         // TODO: ensure braid ends at given command?
-
-        if !matches!(&braid.kind, MemSegmentKind::Braid { .. }) {
-            return Err(StorageError::NotBraid);
-        }
 
         let parent = command.parent();
 
@@ -257,13 +263,9 @@ impl Storage for MemStorage {
             return Err(StorageError::PolicyMismatch);
         }
 
-        let kind = MemPerspectiveKind::Merge {
-            left: left_location.clone(),
-            right: right_location.clone(),
-            braid,
-        };
+        let prior = hvec2![left_location.clone(), right_location.clone()];
 
-        let mut perspective = MemPerspective::new(kind, policy_id);
+        let mut perspective = MemPerspective::new(prior, policy_id, braid.into());
         perspective.add_command(command)?;
 
         Ok(Some(perspective))
@@ -285,6 +287,8 @@ impl Storage for MemStorage {
     }
 
     fn write(&mut self, update: Self::Perspective) -> Result<Self::Segment, StorageError> {
+        let facts = self.write_facts(update.facts)?;
+
         let commands: Vec1<CommandData> = update
             .commands
             .try_into()
@@ -292,25 +296,39 @@ impl Storage for MemStorage {
 
         let segment_index = self.segments.len();
 
-        let kind = (&update.kind).into();
-        let is_braid = matches!(kind, MemSegmentKind::Braid { .. });
-
         // Add the commands to the segment
-        if !is_braid {
-            for (command_index, data) in commands.iter().enumerate() {
-                let new_location = Location::new(segment_index, command_index);
-                self.commands.insert(data.command.id(), new_location);
-            }
+        for (command_index, data) in commands.iter().enumerate() {
+            let new_location = Location::new(segment_index, command_index);
+            self.commands.insert(data.command.id(), new_location);
         }
 
-        let segment = self.new_segment(kind, update.policy, commands, update.temp)?;
+        let segment = self.new_segment(update.prior, update.policy, commands, facts)?;
 
         Ok(segment)
     }
 
+    fn write_facts(
+        &mut self,
+        facts: Self::FactPerspective,
+    ) -> Result<Self::FactIndex, StorageError> {
+        let prior = match facts.prior {
+            FactPerspectivePrior::None => None,
+            FactPerspectivePrior::FactPerspective(prior) => Some(self.write_facts(*prior)?),
+            FactPerspectivePrior::FactIndex(prior) => Some(prior),
+        };
+        if facts.map.is_empty() {
+            if let Some(prior) = prior {
+                return Ok(prior);
+            }
+        }
+        Ok(MemFactIndex(Rc::new(MemFactsInner {
+            map: facts.map,
+            prior,
+        })))
+    }
+
     fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
         // TODO: ensure segment belongs to self?
-        // TODO: Ensure not braid?
 
         if let Some(head) = &self.head {
             if !self.is_ancestor(head, &segment)? {
@@ -327,6 +345,42 @@ impl Storage for MemStorage {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct MemFactIndex(Rc<MemFactsInner>);
+
+impl Deref for MemFactIndex {
+    type Target = MemFactsInner;
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
+impl MemFactIndex {
+    #[cfg(test)]
+    fn name(&self) -> String {
+        format!("\"{:p}\"", Rc::as_ptr(&self.0))
+    }
+}
+
+#[derive(Debug)]
+pub struct MemFactsInner {
+    map: FactMap,
+    prior: Option<MemFactIndex>,
+}
+
+impl FactIndex for MemFactIndex {
+    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
+        let mut prior = Some(self.deref());
+        while let Some(facts) = prior {
+            if let Some(slot) = facts.map.get(key) {
+                return Ok(slot.as_ref().cloned());
+            }
+            prior = facts.prior.as_deref();
+        }
+        Ok(None)
+    }
+}
+
 #[derive(Debug)]
 struct CommandData {
     command: MemCommand,
@@ -334,58 +388,12 @@ struct CommandData {
 }
 
 #[derive(Debug)]
-enum MemSegmentKind {
-    Init,
-    Linear {
-        previous: Location,              // Graph
-        prior_facts: Option<MemSegment>, // Graph
-    },
-    Merge {
-        left: Location,    // Graph
-        right: Location,   // Graph
-        braid: MemSegment, // Braid
-    },
-    Braid {
-        previous: Location,              // Graph or Braid
-        prior_facts: Option<MemSegment>, // Graph or Braid
-    },
-}
-
-impl From<&MemPerspectiveKind> for MemSegmentKind {
-    fn from(value: &MemPerspectiveKind) -> Self {
-        match value {
-            MemPerspectiveKind::Init => MemSegmentKind::Init,
-            MemPerspectiveKind::Linear {
-                previous,
-                prior_facts,
-            } => MemSegmentKind::Linear {
-                previous: previous.0.clone(),
-                prior_facts: prior_facts.clone(),
-            },
-            MemPerspectiveKind::Merge { left, right, braid } => MemSegmentKind::Merge {
-                left: left.clone(),
-                right: right.clone(),
-                braid: braid.clone(),
-            },
-            MemPerspectiveKind::Braid {
-                previous,
-                prior_facts,
-            } => MemSegmentKind::Braid {
-                previous: previous.0.clone(),
-                prior_facts: prior_facts.clone(),
-            },
-        }
-    }
-}
-
-#[derive(Debug)]
 pub struct MemSegmentInner {
     index: usize,
-    kind: MemSegmentKind,
+    prior: HVec2<Location>,
     policy: PolicyId,
     commands: Vec1<CommandData>,
-    /// Fact delta from `kind.prior_facts.facts`
-    facts: FactMap,
+    facts: MemFactIndex,
 }
 
 #[derive(Clone, Debug)]
@@ -406,6 +414,7 @@ impl From<MemSegmentInner> for MemSegment {
 }
 
 impl Segment for MemSegment {
+    type FactIndex = MemFactIndex;
     type Command<'a> = MemCommand;
 
     fn head(&self) -> &MemCommand {
@@ -439,12 +448,7 @@ impl Segment for MemSegment {
     }
 
     fn prior(&self) -> HVec2<Location> {
-        match &self.kind {
-            MemSegmentKind::Init => hvec2![],
-            MemSegmentKind::Linear { previous, .. } => hvec2![previous.clone()],
-            MemSegmentKind::Merge { left, right, .. } => hvec2![left.clone(), right.clone()],
-            MemSegmentKind::Braid { previous, .. } => hvec2![previous.clone()],
-        }
+        self.prior.clone()
     }
 
     fn get_command<'a>(&'a self, location: &Location) -> Option<&'a MemCommand> {
@@ -466,33 +470,8 @@ impl Segment for MemSegment {
             .collect()
     }
 
-    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
-        if let Some(wrapped) = self.facts.get(key) {
-            return Ok(wrapped.clone());
-        }
-
-        let mut prior_option = self.prior_facts()?;
-
-        while let Some(prior_segment) = prior_option {
-            match prior_segment.query(key)? {
-                // BUG: How do I detect cycels in a croupped graph?
-                // Could I use max_cut and reqire that it goes down?
-                None => prior_option = prior_segment.prior_facts()?,
-                Some(wrapped) => {
-                    return Ok(Some(wrapped));
-                }
-            };
-        }
-        Ok(None)
-    }
-
-    fn prior_facts(&self) -> Result<Option<Self>, StorageError> {
-        Ok(match &self.kind {
-            MemSegmentKind::Init => None,
-            MemSegmentKind::Linear { prior_facts, .. } => prior_facts.clone(),
-            MemSegmentKind::Merge { braid, .. } => Some(braid.clone()),
-            MemSegmentKind::Braid { prior_facts, .. } => prior_facts.clone(),
-        })
+    fn facts(&self) -> Result<Self::FactIndex, StorageError> {
+        Ok(self.facts.clone())
     }
 }
 
@@ -502,118 +481,95 @@ pub enum Update {
     Insert(Box<[u8]>, Box<[u8]>),
 }
 
-enum MemPerspectiveKind {
-    Init,
-    Linear {
-        previous: (Location, MemSegment),
-        prior_facts: Option<MemSegment>,
-    },
-    Merge {
-        left: Location,
-        right: Location,
-        braid: MemSegment,
-    },
-    Braid {
-        previous: (Location, MemSegment),
-        prior_facts: Option<MemSegment>,
-    },
-}
-
+#[derive(Debug)]
 pub struct MemPerspective {
-    kind: MemPerspectiveKind,
+    prior: HVec2<Location>,
     policy: PolicyId,
-    temp: FactMap,
+    facts: MemFactPerspective,
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
-    target: Box<[u8]>,
+}
+
+#[derive(Debug)]
+enum FactPerspectivePrior {
+    None,
+    FactPerspective(Box<MemFactPerspective>),
+    FactIndex(MemFactIndex),
+}
+
+impl From<MemFactIndex> for FactPerspectivePrior {
+    fn from(value: MemFactIndex) -> Self {
+        Self::FactIndex(value)
+    }
+}
+
+impl From<Option<MemFactIndex>> for FactPerspectivePrior {
+    fn from(value: Option<MemFactIndex>) -> Self {
+        value.map_or(Self::None, Self::FactIndex)
+    }
+}
+
+impl From<MemFactPerspective> for FactPerspectivePrior {
+    fn from(value: MemFactPerspective) -> Self {
+        Self::FactPerspective(Box::new(value))
+    }
+}
+
+#[derive(Debug)]
+pub struct MemFactPerspective {
+    map: FactMap,
+    prior: FactPerspectivePrior,
+}
+
+impl MemFactPerspective {
+    fn new(prior_facts: FactPerspectivePrior) -> MemFactPerspective {
+        Self {
+            map: FactMap::new(),
+            prior: prior_facts,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.map.clear();
+    }
+
+    fn apply_updates(&mut self, updates: &[Update]) {
+        for update in updates {
+            match update {
+                Update::Delete(key) => {
+                    self.map.insert(key.clone(), None);
+                }
+                Update::Insert(key, value) => {
+                    self.map.insert(key.clone(), Some(value.clone()));
+                }
+            }
+        }
+    }
 }
 
 impl MemPerspective {
-    fn new(kind: MemPerspectiveKind, policy: PolicyId) -> Self {
-        let mut result = MemPerspective {
-            kind,
+    fn new(prior: HVec2<Location>, policy: PolicyId, prior_facts: FactPerspectivePrior) -> Self {
+        Self {
+            prior,
             policy,
-            temp: BTreeMap::new(),
+            facts: MemFactPerspective::new(prior_facts),
             commands: Vec::new(),
             current_updates: Vec::new(),
-            target: vec![0u8; 1048576].into_boxed_slice(),
-        };
-
-        result.apply_from();
-
-        result
+        }
     }
 
     fn new_unrooted(policy: &PolicyId) -> Self {
-        MemPerspective {
-            kind: MemPerspectiveKind::Init,
+        Self {
+            prior: hvec2![],
             policy: *policy,
-            temp: BTreeMap::new(),
+            facts: MemFactPerspective::new(FactPerspectivePrior::None),
             commands: Vec::new(),
             current_updates: Vec::new(),
-            target: vec![0u8; 1048576].into_boxed_slice(),
-        }
-    }
-
-    fn apply_from(&mut self) {
-        let (location, segment) = match &self.kind {
-            MemPerspectiveKind::Init => return,
-            MemPerspectiveKind::Linear { previous, .. } => previous,
-            MemPerspectiveKind::Braid { previous, .. } => previous,
-            // Merges always point to the end of a braid, so no partial updates to apply
-            MemPerspectiveKind::Merge { .. } => return,
-        };
-
-        for data in &segment.commands[0..(location.command + 1)] {
-            apply_updates(&data.updates, &mut self.temp);
-        }
-    }
-}
-
-fn apply_updates(updates: &[Update], map: &mut FactMap) {
-    for update in updates {
-        match update {
-            Update::Delete(key) => {
-                map.insert(key.clone(), None);
-            }
-            Update::Insert(key, value) => {
-                map.insert(key.clone(), Some(value.clone()));
-            }
-        }
-    }
-}
-
-impl MemPerspectiveKind {
-    fn prior_facts(&self) -> Option<&MemSegment> {
-        match self {
-            MemPerspectiveKind::Init => None,
-            MemPerspectiveKind::Linear { prior_facts, .. } => prior_facts.as_ref(),
-            MemPerspectiveKind::Merge { braid, .. } => Some(braid),
-            MemPerspectiveKind::Braid { prior_facts, .. } => prior_facts.as_ref(),
         }
     }
 }
 
 impl Perspective for MemPerspective {
-    fn prior(&self) -> HVec2<Location> {
-        match &self.kind {
-            MemPerspectiveKind::Init => hvec2![],
-            MemPerspectiveKind::Linear { previous, .. } => hvec2![previous.0.clone()],
-            MemPerspectiveKind::Merge { left, right, .. } => hvec2![left.clone(), right.clone()],
-            MemPerspectiveKind::Braid { previous, .. } => hvec2![previous.0.clone()],
-        }
-    }
-
-    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
-        if let Some(wrapped) = self.temp.get(key) {
-            return Ok(wrapped.as_deref().map(Box::from));
-        }
-        if let Some(prior) = self.kind.prior_facts() {
-            return prior.query(key);
-        }
-        Ok(None)
-    }
-
     fn add_command<'b>(&mut self, command: &impl Command<'b>) -> Result<usize, StorageError> {
         // TODO: Ensure command points to previous?
         let entry = CommandData {
@@ -624,17 +580,6 @@ impl Perspective for MemPerspective {
         Ok(self.commands.len()) // FIXME: Off by one?
     }
 
-    fn insert(&mut self, key: &[u8], value: &[u8]) {
-        self.temp.insert(key.into(), Some(value.into()));
-        self.current_updates
-            .push(Update::Insert(key.into(), value.into()));
-    }
-
-    fn delete(&mut self, key: &[u8]) {
-        self.temp.insert(key.into(), None);
-        self.current_updates.push(Update::Delete(key.into()));
-    }
-
     fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
             index: self.commands.len(),
@@ -643,20 +588,53 @@ impl Perspective for MemPerspective {
 
     fn revert(&mut self, checkpoint: Checkpoint) {
         self.commands.truncate(checkpoint.index);
-        self.temp.clear();
+        self.facts.clear();
         self.current_updates.clear();
-        self.apply_from();
         for data in &self.commands {
-            apply_updates(&data.updates, &mut self.temp);
+            self.facts.apply_updates(&data.updates);
         }
     }
 
     fn policy(&self) -> PolicyId {
         self.policy
     }
+}
 
-    fn get_target(&mut self) -> Result<&mut [u8], StorageError> {
-        Ok(&mut self.target)
+impl FactPerspective for MemPerspective {
+    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
+        self.facts.query(key)
+    }
+
+    fn insert(&mut self, key: &[u8], value: &[u8]) {
+        self.facts.insert(key, value);
+        self.current_updates
+            .push(Update::Insert(key.into(), value.into()));
+    }
+
+    fn delete(&mut self, key: &[u8]) {
+        self.facts.delete(key);
+        self.current_updates.push(Update::Delete(key.into()));
+    }
+}
+
+impl FactPerspective for MemFactPerspective {
+    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
+        if let Some(wrapped) = self.map.get(key) {
+            return Ok(wrapped.as_deref().map(Box::from));
+        }
+        match &self.prior {
+            FactPerspectivePrior::None => Ok(None),
+            FactPerspectivePrior::FactPerspective(prior) => prior.query(key),
+            FactPerspectivePrior::FactIndex(prior) => prior.query(key),
+        }
+    }
+
+    fn insert(&mut self, key: &[u8], value: &[u8]) {
+        self.map.insert(key.into(), Some(value.into()));
+    }
+
+    fn delete(&mut self, key: &[u8]) {
+        self.map.insert(key.into(), None);
     }
 }
 
@@ -714,6 +692,15 @@ mod test {
         pending: Option<S::Segment>,
     }
 
+    fn eval(p: &mut impl FactPerspective, id: impl Into<Id>) {
+        let id = id.into().shorthex();
+        let seq = match p.query(b"seq").unwrap() {
+            Some(seq) => format!("{}:{}", std::str::from_utf8(&seq).unwrap(), id),
+            None => id,
+        };
+        p.insert(b"seq", seq.as_bytes());
+    }
+
     impl<'a, S: Storage> GraphBuilder<'a, S> {
         pub fn init<SP>(sp: &'a mut SP, ids: &[u32]) -> Self
         where
@@ -722,6 +709,7 @@ mod test {
             let mut persp = sp.new_perspective(&PolicyId::new(0));
             let mut prev = Parent::None;
             for &id in ids {
+                eval(&mut persp, id);
                 persp.add_command(&mkcmd(id, prev, id)).unwrap();
                 prev = Parent::Id(id.into());
             }
@@ -735,6 +723,7 @@ mod test {
             let mut prev = Id::from(prev);
             let mut p = self.storage.get_linear_perspective(&prev).unwrap().unwrap();
             for &id in ids {
+                eval(&mut p, id);
                 p.add_command(&mkcmd(id, Parent::Id(prev), id)).unwrap();
                 prev = Id::from(id);
             }
@@ -750,23 +739,21 @@ mod test {
                 .unwrap()
                 .unwrap();
             for (&prev, &id) in core::iter::zip(ids, &ids[1..]) {
+                eval(&mut p, id);
                 p.add_command(&mkcmd(id, Parent::Id(Id::from(prev)), id))
                     .unwrap();
             }
             self.pending = Some(self.storage.write(p).unwrap());
         }
 
-        fn braid(&mut self, left: u32, right: u32) -> S::Segment {
+        fn braid(&mut self, left: u32, right: u32) -> S::FactIndex {
             let order = braid(self.storage, &left.into(), &right.into()).unwrap();
-            let first = self.storage.get_command_id(&order[0]).unwrap();
-            let mut p = self.storage.get_braid_perspective(&first).unwrap().unwrap();
-            let mut parent = Parent::Id(first);
+            let mut p = self.storage.get_fact_perspective(&order[0]).unwrap();
             for location in &order[1..] {
                 let id = self.storage.get_command_id(location).unwrap();
-                p.add_command(&mkcmd(id, parent, 0)).unwrap();
-                parent = Parent::Id(id);
+                eval(&mut p, id);
             }
-            self.storage.write(p).unwrap()
+            self.storage.write_facts(p).unwrap()
         }
 
         pub fn commit(&mut self) {
@@ -800,10 +787,16 @@ mod test {
         format!("\"{}:{}\"", location.segment, location.command)
     }
 
+    fn get_seq(p: &MemFactIndex) -> &str {
+        let seq = p.map.get(b"seq".as_slice()).unwrap().as_ref().unwrap();
+        std::str::from_utf8(seq).unwrap()
+    }
+
     fn dotwrite(storage: &MemStorage, out: &mut DotWriter<'_>) {
         let mut graph = out.digraph();
         graph
             .graph_attributes()
+            .set("compound", "true", false)
             .set("rankdir", "RL", false)
             .set_style(Style::Filled)
             .set("color", "grey", false);
@@ -812,25 +805,23 @@ mod test {
             .set("shape", "square", false)
             .set_style(Style::Filled)
             .set("color", "lightgrey", false);
+
+        let mut seen_facts = std::collections::HashMap::new();
+        let mut external_facts = Vec::new();
+
         for segment in &storage.segments {
             let mut cluster = graph.cluster();
-            // cluster
-            //     .graph_attributes()
-            //     .set_label(&format!("Segment {}", segment.index));
-            match segment.kind {
-                MemSegmentKind::Init => {
+            match segment.prior.len() {
+                0 => {
                     cluster.graph_attributes().set("color", "green", false);
                 }
-                MemSegmentKind::Linear { .. } => {
-                    //
-                }
-                MemSegmentKind::Merge { .. } => {
+                2 => {
                     cluster.graph_attributes().set("color", "crimson", false);
                 }
-                MemSegmentKind::Braid { .. } => {
-                    cluster.graph_attributes().set("color", "royalblue", false);
-                }
+                _ => {}
             }
+
+            // Draw commands and edges between commands within the segment.
             for (i, cmd) in segment.commands.iter().enumerate() {
                 {
                     let mut node = cluster.node_named(loc((segment.index, i)));
@@ -849,22 +840,70 @@ mod test {
                     cluster.edge(loc((segment.index, i)), loc((segment.index, i - 1)));
                 }
             }
+
+            // Draw edges to previous segments.
             let first = loc(segment.first_location());
             for p in segment.prior() {
                 cluster.edge(&first, loc(p));
             }
-            if let Some(facts) = segment.prior_facts().unwrap() {
-                cluster
-                    .edge(&first, loc(facts.head_location()))
-                    .attributes()
-                    .set("color", "orange", false);
+
+            // Draw fact index for this segment.
+            let curr = segment.facts.name();
+            cluster
+                .node_named(curr.clone())
+                .set_label(get_seq(&segment.facts))
+                .set("shape", "cylinder", false)
+                .set("color", "black", false)
+                .set("style", "solid", false);
+            cluster
+                .edge(loc(segment.head_location()), &curr)
+                .attributes()
+                .set("color", "red", false);
+
+            seen_facts.insert(curr, segment.facts.clone());
+            // Make sure prior facts of fact index will get processed later.
+            let mut node = &segment.facts;
+            while let Some(prior) = &node.prior {
+                node = prior;
+                let name = node.name();
+                if seen_facts.insert(name, node.clone()).is_some() {
+                    break;
+                }
+                external_facts.push(node.clone());
             }
         }
-        graph.node_named("HEAD").set("style", "invis", false);
+
         graph
-            .edge("HEAD", loc(storage.get_head().unwrap()))
-            .attributes()
-            .set_label("HEAD");
+            .node_attributes()
+            .set("shape", "cylinder", false)
+            .set("color", "black", false)
+            .set("style", "solid", false);
+
+        for fact in external_facts {
+            // Draw nodes for fact indices not directly associated with a segment.
+            graph.node_named(fact.name()).set_label(get_seq(&fact));
+            // Draw edge to prior facts.
+            if let Some(prior) = &fact.prior {
+                graph
+                    .edge(fact.name(), prior.name())
+                    .attributes()
+                    .set("color", "blue", false);
+            }
+        }
+
+        // Draw edges to prior facts for fact indices in segments.
+        for segment in &storage.segments {
+            if let Some(prior) = &segment.facts.prior {
+                graph
+                    .edge(segment.facts.name(), prior.name())
+                    .attributes()
+                    .set("color", "blue", false);
+            }
+        }
+
+        // Draw HEAD indicator.
+        graph.node_named("HEAD").set("shape", "none", false);
+        graph.edge("HEAD", loc(storage.get_head().unwrap()));
     }
 
     fn dot(storage: &MemStorage, name: &str) {
@@ -904,6 +943,9 @@ mod test {
             13 < 16 14;
             13 < 17 15;
             14 15 < 18; commit;
+            9 < 42 43;
+            42 < 45 46;
+            45 < 47 48;
         };
         dot(g, "complex");
         Ok(())
