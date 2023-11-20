@@ -441,7 +441,7 @@ pub mod engine {
             EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
             TopicKey, Version,
         },
-        aps::{BidirectionalChannel, ChannelKeys, OpenOnlyKey, SealOnlyKey, UnidirectionalChannel},
+        aps::{BidiChannel, ChannelKeys, OpenOnlyKey, SealOnlyKey, UniChannel},
         aranya::{
             Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
             UserId,
@@ -1107,7 +1107,7 @@ pub mod engine {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let label = 123;
-        let ch1 = BidirectionalChannel {
+        let ch1 = BidiChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1115,7 +1115,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = BidirectionalChannel {
+        let ch2 = BidiChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1140,7 +1140,7 @@ pub mod engine {
     pub fn test_derive_channel_keys_different_labels<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = BidirectionalChannel {
+        let ch1 = BidiChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1148,7 +1148,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label: 123,
         };
-        let ch2 = BidirectionalChannel {
+        let ch2 = BidiChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1176,7 +1176,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = BidirectionalChannel {
+        let ch1 = BidiChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1184,7 +1184,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = BidirectionalChannel {
+        let ch2 = BidiChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1210,7 +1210,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = BidirectionalChannel {
+        let ch1 = BidiChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1218,7 +1218,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = BidirectionalChannel {
+        let ch2 = BidiChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1244,7 +1244,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = BidirectionalChannel {
+        let ch1 = BidiChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1252,7 +1252,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = BidirectionalChannel {
+        let ch2 = BidiChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1276,7 +1276,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let mut ch1 = BidirectionalChannel {
+        let mut ch1 = BidiChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
@@ -1284,7 +1284,7 @@ pub mod engine {
             peer_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let mut ch2 = BidirectionalChannel {
+        let mut ch2 = BidiChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             our_id: ch1.peer_id,
@@ -1320,7 +1320,7 @@ pub mod engine {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let label = 123;
-        let ch1 = UnidirectionalChannel {
+        let ch1 = UniChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             peer_pk: &sk2.public(),
@@ -1328,7 +1328,7 @@ pub mod engine {
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = UnidirectionalChannel {
+        let ch2 = UniChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             peer_pk: &sk1.public(),
@@ -1348,7 +1348,7 @@ pub mod engine {
     pub fn test_derive_unidirectional_key_different_labels<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = UnidirectionalChannel {
+        let ch1 = UniChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             peer_pk: &sk2.public(),
@@ -1356,7 +1356,7 @@ pub mod engine {
             open_id: IdentityKey::<E>::new(eng).id(),
             label: 123,
         };
-        let ch2 = UnidirectionalChannel {
+        let ch2 = UniChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             peer_pk: &sk1.public(),
@@ -1381,7 +1381,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = UnidirectionalChannel {
+        let ch1 = UniChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             peer_pk: &sk2.public(),
@@ -1389,7 +1389,7 @@ pub mod engine {
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = UnidirectionalChannel {
+        let ch2 = UniChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             peer_pk: &sk1.public(),
@@ -1412,7 +1412,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = UnidirectionalChannel {
+        let ch1 = UniChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             peer_pk: &sk2.public(),
@@ -1420,7 +1420,7 @@ pub mod engine {
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = UnidirectionalChannel {
+        let ch2 = UniChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk2,
             peer_pk: &sk1.public(),
@@ -1443,7 +1443,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let ch1 = UnidirectionalChannel {
+        let ch1 = UniChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             peer_pk: &sk2.public(),
@@ -1451,7 +1451,7 @@ pub mod engine {
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let ch2 = UnidirectionalChannel {
+        let ch2 = UniChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             peer_pk: &EncryptionKey::<E>::new(eng).public(),
@@ -1472,7 +1472,7 @@ pub mod engine {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
-        let mut ch1 = UnidirectionalChannel {
+        let mut ch1 = UniChannel {
             cmd_id: Id::random(eng),
             our_sk: &sk1,
             peer_pk: &sk2.public(),
@@ -1480,7 +1480,7 @@ pub mod engine {
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
-        let mut ch2 = UnidirectionalChannel {
+        let mut ch2 = UniChannel {
             cmd_id: ch1.cmd_id,
             our_sk: &sk2,
             peer_pk: &EncryptionKey::<E>::new(eng).public(),

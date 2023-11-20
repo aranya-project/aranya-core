@@ -32,7 +32,7 @@ use crate::{
 ///     core::borrow::{Borrow, BorrowMut},
 ///     crypto::{
 ///         aead::Aead,
-///         aps::{ChannelKeys, BidirectionalChannel},
+///         aps::{ChannelKeys, BidiChannel},
 ///         CipherSuite,
 ///         Csprng,
 ///         DefaultCipherSuite,
@@ -81,7 +81,7 @@ use crate::{
 /// // user1 creates the channel keys and sends the encapsulation
 /// // to user2...
 /// let (enc, user1_ck) = {
-///     let ch = BidirectionalChannel {
+///     let ch = BidiChannel {
 ///         cmd_id,
 ///         our_sk: &user1_sk,
 ///         our_id: user1_id,
@@ -96,7 +96,7 @@ use crate::{
 /// // ...and user2 decrypts the encapsulation to discover the
 /// // channel keys.
 /// let user2_ck = {
-///     let ch = BidirectionalChannel {
+///     let ch = BidiChannel {
 ///         cmd_id,
 ///         our_sk: &user2_sk,
 ///         our_id: user2_id,
@@ -136,7 +136,7 @@ use crate::{
 /// test(&user2, &user1); // user2 -> user1
 /// # }
 /// ```
-pub struct BidirectionalChannel<'a, E>
+pub struct BidiChannel<'a, E>
 where
     E: Engine + ?Sized,
 {
@@ -167,7 +167,7 @@ impl<E: Engine + ?Sized> ChannelKeys<E> {
     /// Creates a new set of [`ChannelKeys`] for the
     /// channel and an encapsulation that the peer can use to
     /// decrypt them.
-    pub fn new(eng: &mut E, ch: &BidirectionalChannel<'_, E>) -> Result<(Encap<E>, Self), Error> {
+    pub fn new(eng: &mut E, ch: &BidiChannel<'_, E>) -> Result<(Encap<E>, Self), Error> {
         if ch.our_id == ch.peer_id {
             return Err(Error::InvalidArgument("same `UserId`"));
         }
@@ -212,7 +212,7 @@ impl<E: Engine + ?Sized> ChannelKeys<E> {
 
     /// Decrypts and authenticates [`ChannelKeys`] received from
     /// a peer.
-    pub fn from_encap(ch: &BidirectionalChannel<'_, E>, enc: &Encap<E>) -> Result<Self, Error> {
+    pub fn from_encap(ch: &BidiChannel<'_, E>, enc: &Encap<E>) -> Result<Self, Error> {
         if ch.our_id == ch.peer_id {
             return Err(Error::InvalidArgument("same `UserId`"));
         }
@@ -284,7 +284,7 @@ impl<E: Engine + ?Sized> ChannelKeys<E> {
 ///     core::borrow::{Borrow, BorrowMut},
 ///     crypto::{
 ///         aead::Aead,
-///         aps::{OpenOnlyKey, SealOnlyKey, UnidirectionalChannel},
+///         aps::{OpenOnlyKey, SealOnlyKey, UniChannel},
 ///         CipherSuite,
 ///         Csprng,
 ///         DefaultCipherSuite,
@@ -323,7 +323,7 @@ impl<E: Engine + ?Sized> ChannelKeys<E> {
 /// // user1 creates the channel key and sends the encapsulation
 /// // to user2...
 /// let (enc, user1_key) = {
-///     let ch = UnidirectionalChannel {
+///     let ch = UniChannel {
 ///         cmd_id,
 ///         our_sk: &user1_sk,
 ///         peer_pk: &user2_sk.public(),
@@ -338,7 +338,7 @@ impl<E: Engine + ?Sized> ChannelKeys<E> {
 /// // ...and user2 decrypts the encapsulation to discover the
 /// // channel key.
 /// let user2_key = {
-///     let ch = UnidirectionalChannel {
+///     let ch = UniChannel {
 ///         cmd_id,
 ///         our_sk: &user2_sk,
 ///         peer_pk: &user1_sk.public(),
@@ -375,7 +375,7 @@ impl<E: Engine + ?Sized> ChannelKeys<E> {
 ///
 /// assert_eq!(&plaintext, GOLDEN);
 /// # }
-pub struct UnidirectionalChannel<'a, E>
+pub struct UniChannel<'a, E>
 where
     E: Engine + ?Sized,
 {
@@ -402,7 +402,7 @@ pub struct SealOnlyKey<E: Engine + ?Sized>(KeyData<E::Aead>);
 impl<E: Engine + ?Sized> SealOnlyKey<E> {
     /// Creates a `SealOnlyKey` for the channel and an
     /// encapsulation that the peer can use to decrypt them.
-    pub fn new(eng: &mut E, ch: &UnidirectionalChannel<'_, E>) -> Result<(Encap<E>, Self), Error> {
+    pub fn new(eng: &mut E, ch: &UniChannel<'_, E>) -> Result<(Encap<E>, Self), Error> {
         if ch.seal_id == ch.open_id {
             return Err(Error::InvalidArgument("same `UserId`"));
         }
@@ -455,7 +455,7 @@ pub struct OpenOnlyKey<E: Engine + ?Sized>(KeyData<E::Aead>);
 impl<E: Engine + ?Sized> OpenOnlyKey<E> {
     /// Decrypts and authenticates a [`OpenOnlyKey`] received
     /// from a peer.
-    pub fn from_encap(ch: &UnidirectionalChannel<'_, E>, enc: &Encap<E>) -> Result<Self, Error> {
+    pub fn from_encap(ch: &UniChannel<'_, E>, enc: &Encap<E>) -> Result<Self, Error> {
         if ch.seal_id == ch.open_id {
             return Err(Error::InvalidArgument("same `UserId`"));
         }
