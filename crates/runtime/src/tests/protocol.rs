@@ -190,6 +190,7 @@ pub enum TestEffect {
     Got(u64),
 }
 
+#[derive(Debug)]
 pub struct TestSink {
     expect: Vec<TestEffect>,
 }

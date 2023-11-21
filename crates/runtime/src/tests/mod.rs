@@ -1,5 +1,6 @@
 use super::*;
 
-mod protocol;
+pub mod protocol;
+pub mod sync;
 
 mod tests_api;

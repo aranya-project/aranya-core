@@ -5,12 +5,15 @@ use core::mem;
 
 use heapless::Vec;
 use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
+#[cfg(any(feature = "quic_syncer", test))]
+use quinn::{ConnectionError, ReadToEndError, WriteError};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     command::{Command, Id, Parent, Priority},
     engine::EngineError,
     storage::{Location, Segment, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH},
+    ClientError,
 };
 
 // TODO: These should all be compile time parameters
@@ -158,6 +161,9 @@ pub enum SyncError {
     NotReady,
     SerilizeError,
     EngineError,
+    NetworkError,
+    ClientError,
+    CryptoError,
 }
 
 use core::convert::Infallible;
@@ -183,6 +189,40 @@ impl From<EngineError> for SyncError {
 impl From<PostcardError> for SyncError {
     fn from(_error: PostcardError) -> Self {
         SyncError::SerilizeError
+    }
+}
+
+impl From<ClientError> for SyncError {
+    fn from(_error: ClientError) -> Self {
+        SyncError::ClientError
+    }
+}
+
+#[cfg(any(feature = "quic_syncer", test))]
+impl From<WriteError> for SyncError {
+    fn from(_error: WriteError) -> Self {
+        SyncError::NetworkError
+    }
+}
+
+#[cfg(any(feature = "quic_syncer", test))]
+impl From<ReadToEndError> for SyncError {
+    fn from(_error: ReadToEndError) -> Self {
+        SyncError::NetworkError
+    }
+}
+
+#[cfg(any(feature = "quic_syncer", test))]
+impl From<ConnectionError> for SyncError {
+    fn from(_error: ConnectionError) -> Self {
+        SyncError::NetworkError
+    }
+}
+
+#[cfg(any(feature = "quic_syncer", test))]
+impl From<rustls::Error> for SyncError {
+    fn from(_error: rustls::Error) -> Self {
+        SyncError::CryptoError
     }
 }
 

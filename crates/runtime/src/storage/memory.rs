@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, collections::BTreeMap, rc::Rc};
+use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
 use core::ops::Deref;
 
 use vec1::Vec1;
@@ -321,7 +321,7 @@ impl Storage for MemStorage {
                 return Ok(prior);
             }
         }
-        Ok(MemFactIndex(Rc::new(MemFactsInner {
+        Ok(MemFactIndex(Arc::new(MemFactsInner {
             map: facts.map,
             prior,
         })))
@@ -346,7 +346,7 @@ impl Storage for MemStorage {
 }
 
 #[derive(Clone, Debug)]
-pub struct MemFactIndex(Rc<MemFactsInner>);
+pub struct MemFactIndex(Arc<MemFactsInner>);
 
 impl Deref for MemFactIndex {
     type Target = MemFactsInner;
@@ -358,7 +358,7 @@ impl Deref for MemFactIndex {
 impl MemFactIndex {
     #[cfg(test)]
     fn name(&self) -> String {
-        format!("\"{:p}\"", Rc::as_ptr(&self.0))
+        format!("\"{:p}\"", Arc::as_ptr(&self.0))
     }
 }
 
@@ -397,7 +397,7 @@ pub struct MemSegmentInner {
 }
 
 #[derive(Clone, Debug)]
-pub struct MemSegment(Rc<MemSegmentInner>);
+pub struct MemSegment(Arc<MemSegmentInner>);
 
 impl Deref for MemSegment {
     type Target = MemSegmentInner;
@@ -409,7 +409,7 @@ impl Deref for MemSegment {
 
 impl From<MemSegmentInner> for MemSegment {
     fn from(segment: MemSegmentInner) -> Self {
-        MemSegment(Rc::new(segment))
+        MemSegment(Arc::new(segment))
     }
 }
 
