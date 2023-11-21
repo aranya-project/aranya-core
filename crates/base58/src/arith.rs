@@ -4,13 +4,13 @@
 
 /// Returns the 128-bit result of `x*y + c` as (hi, lo).
 pub(crate) const fn mul_add_ww(x: u64, y: u64, c: u64) -> (u64, u64) {
-    let z = (x as u128) * (y as u128) + (c as u128);
+    let z = (x as u128).wrapping_mul(y as u128).wrapping_add(c as u128);
     ((z >> 64) as u64, z as u64)
 }
 
 /// Returns the 128-bit product of `x*y` as (hi, lo).
 pub(crate) const fn mul64(x: u64, y: u64) -> (u64, u64) {
-    let z = (x as u128) * (y as u128);
+    let z = (x as u128).wrapping_mul(y as u128);
     ((z >> 64) as u64, z as u64)
 }
 
@@ -30,7 +30,7 @@ pub(crate) const fn div_ww(mut x1: u64, mut x0: u64, mut y: u64, m: u64) -> (u64
 
     let s = y.leading_zeros();
     if s != 0 {
-        x1 = x1 << s | x0 >> (64 - s);
+        x1 = x1 << s | x0 >> 64_u32.wrapping_sub(s);
         x0 <<= s;
         y <<= s;
     }

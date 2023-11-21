@@ -255,11 +255,11 @@ macro_rules! encode_x {
                         let total = chunk
                             .iter()
                             .map(|c| B58[*c as usize])
-                            .try_fold(0, |acc, v| {
+                            .try_fold(0, |acc: u64, v| {
                                 if v == 255 {
                                     Err(DecodeError)
                                 } else {
-                                    Ok(acc * 58 + (v as u64))
+                                    Ok(acc.wrapping_mul(58).wrapping_add(v as u64))
                                 }
                             })?;
                         if !x.fma(RADII[chunk.len()], total) {
@@ -279,13 +279,13 @@ macro_rules! encode_x {
                         let mut r = x.quo_radix();
                         if x.is_zero() {
                             while r > 0 {
-                                i -= 1;
+                                i = i.wrapping_sub(1);
                                 dst[i] = ALPHABET[(r % 58) as usize];
                                 r /= 58;
                             }
                         } else {
                             for _ in 0..10 {
-                                i -= 1;
+                                i = i.wrapping_sub(1);
                                 dst[i] = ALPHABET[(r % 58) as usize];
                                 r /= 58;
                             }
@@ -296,7 +296,7 @@ macro_rules! encode_x {
                         if *c != 0 {
                             break;
                         }
-                        i -= 1;
+                        i = i.wrapping_sub(1);
                         dst[i] = b'1';
                     }
                     $name{ data: dst, n: i }
@@ -333,7 +333,7 @@ impl<const W: usize, const B: usize> Uint<W, B> {
         let mut z = [0u64; W];
         let mut j = B;
         for x in &mut z {
-            j -= 8;
+            j = j.wrapping_sub(8);
             *x = BigEndian::read_u64(&b[j..]);
         }
         Self { words: z }
@@ -344,7 +344,7 @@ impl<const W: usize, const B: usize> Uint<W, B> {
         let mut b = [0u8; B];
         let mut i = B;
         for x in self.words {
-            i -= 8;
+            i = i.wrapping_sub(8);
             BigEndian::write_u64(&mut b[i..], x);
         }
         b
