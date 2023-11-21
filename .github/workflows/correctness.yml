@@ -77,3 +77,9 @@ jobs:
         working-directory: crates
         # Run clippy with default features, no default features, and for tests
         run: bash ../.github/scripts/clippy.sh
+      - name: Check no_std compatibility
+        run: cargo check
+        working-directory: canaries/canary-std
+      - name: Check no_alloc compatibility
+        run: cargo check
+        working-directory: canaries/canary-alloc

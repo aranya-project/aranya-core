@@ -5,6 +5,10 @@ members = [
 	"crates/*"
 ]
 
+exclude = [
+	"canaries",
+]
+
 [workspace.package]
 authors = ["SpiderOak, Inc."]
 edition = "2021"

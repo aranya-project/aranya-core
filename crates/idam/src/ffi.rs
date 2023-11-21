@@ -22,6 +22,9 @@ form first.
 // TODO: Remove when fields and methods are used.
 #![allow(unused)]
 
+extern crate alloc;
+
+use alloc::vec::Vec;
 use core::{
     fmt::{self, Display},
     ops::Add,

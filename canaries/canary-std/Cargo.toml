@@ -1,0 +1,19 @@
+[package]
+name = "canary-std"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+base58 = { path = "../../crates/base58" }
+crypto = { path = "../../crates/crypto" }
+idam = { path = "../../crates/idam" }
+policy-ast = { path = "../../crates/policy-ast" }
+# policy-lang = { path = "../../crates/policy-lang" }
+# policy-vm = { path = "../../crates/policy-vm" }
+runtime = { path = "../../crates/runtime" }
+service = { path = "../../crates/service" }
+
+[profile.dev]
+panic = "abort"
