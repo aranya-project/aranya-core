@@ -5,6 +5,7 @@
 #![cfg_attr(feature = "error_in_core", feature(error_in_core))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![deny(
+    clippy::arithmetic_side_effects,
     clippy::cast_lossless,
     clippy::cast_possible_wrap,
     clippy::cast_precision_loss,

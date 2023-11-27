@@ -7,6 +7,7 @@
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docs, feature(doc_cfg))]
 #![deny(
+    clippy::arithmetic_side_effects,
     clippy::cast_lossless,
     clippy::cast_possible_wrap,
     clippy::cast_precision_loss,
