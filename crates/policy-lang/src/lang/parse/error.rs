@@ -46,7 +46,7 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span>) -> ParseError {
+    pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'_>>) -> ParseError {
         let prefix = match span {
             Some(s) => {
                 let text = s.as_str();

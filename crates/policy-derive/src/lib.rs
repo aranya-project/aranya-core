@@ -5,20 +5,7 @@
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docs, feature(doc_cfg))]
-#![deny(
-    clippy::cast_lossless,
-    clippy::cast_possible_wrap,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
-    clippy::implicit_saturating_sub,
-    clippy::panic,
-    clippy::unwrap_used,
-    clippy::wildcard_imports,
-    missing_docs,
-    rust_2018_idioms,
-    unused_lifetimes,
-    unused_qualifications
-)]
+#![deny(clippy::wildcard_imports, missing_docs)]
 
 mod attr;
 mod ffi;

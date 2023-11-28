@@ -553,7 +553,7 @@ pub fn braid<S: Storage>(
             }
             if strands.len() == 1 {
                 // No concurrency left, done.
-                braid.push(strands.pop().unwrap().next);
+                braid.push(strands.pop().expect("strands not empty").next);
                 break;
             }
         }

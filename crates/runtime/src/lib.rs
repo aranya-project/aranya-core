@@ -1,5 +1,4 @@
 #![cfg_attr(not(any(test, doctest)), no_std)]
-#![deny(rust_2018_idioms, unused_lifetimes, unused_qualifications)]
 
 extern crate alloc;
 

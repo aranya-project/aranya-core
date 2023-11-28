@@ -1,3 +1,5 @@
+#![allow(clippy::panic)]
+
 use std::{fs::OpenOptions, io::Read};
 
 use pest::{error::Error as PestError, iterators::Pair, Parser};
@@ -12,7 +14,7 @@ use super::{
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
 
-    let token: Pair<Rule> = pair.next().unwrap();
+    let token: Pair<'_, Rule> = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::int_literal);
     Ok(())
 }
@@ -22,12 +24,12 @@ fn parse_atom_number() -> Result<(), PestError<Rule>> {
 fn parse_atom_string() -> Result<(), PestError<Rule>> {
     // basic string
     let mut pair = PolicyParser::parse(Rule::atom, r#""foo bar""#)?;
-    let token: Pair<Rule> = pair.next().unwrap();
+    let token: Pair<'_, Rule> = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::string_literal);
 
     // empty string
     let mut pair = PolicyParser::parse(Rule::atom, r#""""#)?;
-    let token: Pair<Rule> = pair.next().unwrap();
+    let token: Pair<'_, Rule> = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::string_literal);
 
     // escapes
@@ -239,7 +241,7 @@ fn parse_expression_errors() -> Result<(), ParseError> {
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;
 
-    let tokens: Vec<Pair<Rule>> = pairs.next().unwrap().into_inner().collect();
+    let tokens: Vec<Pair<'_, Rule>> = pairs.next().unwrap().into_inner().collect();
     assert_eq!(tokens[0].as_rule(), Rule::identifier);
     assert_eq!(tokens[0].as_str(), "bar");
     assert_eq!(tokens[1].as_rule(), Rule::int_t);

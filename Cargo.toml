@@ -14,7 +14,22 @@ authors = ["SpiderOak, Inc."]
 edition = "2021"
 license = "UNLICENSED"
 publish = false
-rust-version = "1.73"
+rust-version = "1.74"
+
+[workspace.lints.rust]
+# missing_docs = "warn"
+rust_2018_idioms = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+cast_lossless = "warn"
+cast_possible_wrap = "warn"
+cast_precision_loss = "warn"
+cast_sign_loss = "warn"
+panic = "warn"
+unwrap_used = "warn"
+# wildcard_imports = "warn"
 
 [workspace.dependencies]
 byteorder = { version = "1", default-features = false }

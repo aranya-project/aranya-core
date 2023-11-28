@@ -4,6 +4,9 @@
 #![deny(unsafe_code)]
 #![deny(clippy::arithmetic_side_effects)]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 mod arith;
 mod base58;
 

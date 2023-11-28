@@ -1,6 +1,5 @@
 #[cfg(feature = "alloc")]
-extern crate alloc;
-
+use alloc::string::String;
 use core::{
     borrow::Borrow,
     cmp::{Ord, Ordering, PartialEq, PartialOrd},
@@ -202,7 +201,7 @@ macro_rules! encode_x {
             #[cfg(feature = "std")]
             impl_eq!(std::borrow::Cow<'a, str>, $name);
             #[cfg(feature = "alloc")]
-            impl_eq!($name, alloc::string::String);
+            impl_eq!($name, String);
 
             impl Ord for $name {
                 #[inline]

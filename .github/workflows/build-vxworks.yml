@@ -95,4 +95,6 @@ jobs:
             --release \
             --no-default-features \
             --target powerpc-wrs-vxworks \
-            --features ${{ matrix.variant.features }}
+            --features ${{ matrix.variant.features }} \
+            -- \
+            -Dwarnings

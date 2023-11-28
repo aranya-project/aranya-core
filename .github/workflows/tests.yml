@@ -52,3 +52,5 @@ jobs:
           os: ${{ matrix.os }}
       - name: Unit Tests
         run: cargo test-all-features
+        env:
+          RUSTFLAGS: -Dwarnings

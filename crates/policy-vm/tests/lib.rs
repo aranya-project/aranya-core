@@ -81,7 +81,7 @@ struct Label(u32);
 
 impl From<Label> for Value {
     fn from(label: Label) -> Self {
-        Value::Int(label.0 as i64)
+        Value::Int(label.0.into())
     }
 }
 

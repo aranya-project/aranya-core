@@ -25,7 +25,7 @@ use typenum::{
     Unsigned, U16, U65536,
 };
 
-#[allow(clippy::wildcard_imports)]
+#[allow(clippy::wildcard_imports, unused_imports)]
 use crate::features::*;
 use crate::{
     error::Unreachable,
