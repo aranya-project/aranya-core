@@ -14,7 +14,7 @@ use super::*;
 
 pub mod memory;
 
-/// The maximum size of a serlized message
+/// The maximum size of a serialized message
 pub const MAX_COMMAND_LENGTH: usize = 2048;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -77,7 +77,7 @@ pub trait StorageProvider {
     ///
     /// # Arguments
     ///
-    /// * `policy_id` - The policy to associated with the graph.
+    /// * `policy_id` - The policy to associate with the graph.
     fn new_perspective(&mut self, policy_id: &PolicyId) -> Self::Perspective;
 
     /// Create a new graph.
@@ -198,10 +198,10 @@ pub trait Segment {
     /// Returns the first Command in the segment.
     fn first(&self) -> &Self::Command<'_>;
 
-    /// Returns the locaton of the head of the segment.
+    /// Returns the location of the head of the segment.
     fn head_location(&self) -> Location;
 
-    /// Returns the locaton of the first command.
+    /// Returns the location of the first command.
     fn first_location(&self) -> Location;
 
     /// Returns true if the segment contains the location.

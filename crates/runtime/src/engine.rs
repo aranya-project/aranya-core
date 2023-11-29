@@ -75,9 +75,9 @@ pub trait Policy {
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError>;
 
-    /// Process an action checking each emmited command aginst the policy and producing
-    /// effects to the sink. All emmited commands are handled transactionally where if
-    /// any emmited command is rejected no commands are added to the storage.
+    /// Process an action checking each emitted command against the policy and producing
+    /// effects to the sink. All emitted commands are handled transactionally where if
+    /// any emitted command is rejected no commands are added to the storage.
     fn call_action(
         &self,
         id: &Id,
@@ -86,10 +86,10 @@ pub trait Policy {
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError>;
 
-    /// Deserilise a bytes in to a command of type T
+    /// Deserialize a bytes in to a command
     fn read_command<'a>(&self, data: &'a [u8]) -> Result<Self::Command<'a>, EngineError>;
 
-    /// Produces an init message serilized to target. The `struct` representing the
+    /// Produces an init message serialized to target. The `struct` representing the
     /// Command is returned.
     fn init<'a>(
         &self,
@@ -98,7 +98,7 @@ pub trait Policy {
         payload: &Self::Payload,
     ) -> Result<Self::Command<'a>, EngineError>;
 
-    /// Produces a merge message serilized to target. The `struct` representing the
+    /// Produces a merge message serialized to target. The `struct` representing the
     /// Command is returned.
     fn merge<'a>(
         &self,
@@ -107,7 +107,7 @@ pub trait Policy {
         right: Id,
     ) -> Result<Self::Command<'a>, EngineError>;
 
-    /// Produces a protocol message serilized to target. The `struct` representing the
+    /// Produces a protocol message serialized to target. The `struct` representing the
     /// Command is returned.
     fn message<'a>(
         &self,

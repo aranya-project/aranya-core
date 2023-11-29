@@ -53,9 +53,7 @@ impl From<SyncError> for ClientError {
 
 /// This implements the top level client. It takes several generic arguments
 /// The `E` parameter is the Policy engine to use. It will be specific to a
-/// specific set of actions `A`. `T` is the commands of the protocol, with `K`,
-///  and `V` being the types of the fact keys and values from the perspective of
-/// the Storage engine `S`.
+/// specific set of actions `A`.
 impl<E, SP, A> ClientState<E, SP>
 where
     E: Engine<Actions = A>,
@@ -67,9 +65,9 @@ where
     }
 
     /// Create a new graph (AKA Team). This graph will start with the initial policy
-    /// provided which must be compatible with the engine E. The `payload` is the inital
+    /// provided which must be compatible with the engine E. The `payload` is the initial
     /// init message that will bootstrap the graph facts. Effects produced when processing
-    /// the payload are emited to the sink.
+    /// the payload are emitted to the sink.
     pub fn new_graph(
         &mut self,
         policy_data: &[u8],
@@ -241,7 +239,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     }
 
     /// Attempt to store the `command` in the graph with `storage_id`. Effects will be
-    /// emmited to the `sink`. This interface is use when syncing with another device
+    /// emitted to the `sink`. This interface is used when syncing with another device
     /// and integrating the new commands.
     fn add_commands<'a>(
         &mut self,
