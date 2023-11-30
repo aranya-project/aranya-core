@@ -496,8 +496,18 @@ impl Func {
         // TODO(eric): we should issue a diagnostic when the
         // first non-self argument isn't `&CommandContext`.
         let num_skip = if is_method { 2 } else { 1 };
-        let num_args = item.sig.inputs.len() - num_skip;
-
+        let num_args = match item.sig.inputs.len().checked_sub(num_skip) {
+            Some(n) => n,
+            None => {
+                return Err(Error::new_spanned(
+                    &item.sig,
+                    format!(
+                        "too few function arguments: {} < {num_skip}",
+                        item.sig.inputs.len()
+                    ),
+                ))
+            }
+        };
         let num_def_args = attr.def.arguments.len();
         if num_args != num_def_args {
             return Err(Error::new_spanned(
