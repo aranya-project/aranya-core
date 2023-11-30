@@ -7,17 +7,16 @@
 
 use alloc::{boxed::Box, vec::Vec};
 
-use super::*;
+use serde::{Deserialize, Serialize};
 
-// TODO: Enable
-// pub mod linear;
+use super::*;
 
 pub mod memory;
 
 /// The maximum size of a serialized message
 pub const MAX_COMMAND_LENGTH: usize = 2048;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Location {
     segment: usize,
     command: usize,
@@ -56,7 +55,8 @@ impl Location {
 pub enum StorageError {
     StorageExists,
     NoSuchStorage,
-    // LocationOutOfBounds,
+    SegmentOutOfBounds(Location),
+    CommandOutOfBounds(Location),
     InternalError,
     IoError,
     NotMerge,
@@ -137,8 +137,8 @@ pub trait Storage {
         braid: Self::FactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError>;
 
-    /// Returns the segment at the given location, or None if it can't be found.
-    fn get_segment(&self, location: &Location) -> Result<Option<Self::Segment>, StorageError>;
+    /// Returns the segment at the given location.
+    fn get_segment(&self, location: &Location) -> Result<Self::Segment, StorageError>;
 
     /// Returns the head of the graph.
     fn get_head(&self) -> Result<Location, StorageError>;
@@ -168,9 +168,7 @@ pub trait Storage {
             if location.same_segment(search_location) {
                 return Ok(true);
             }
-            let segment = self
-                .get_segment(&location)?
-                .ok_or(StorageError::InternalError)?;
+            let segment = self.get_segment(&location)?;
             queue.extend(segment.prior());
         }
         Ok(false)
@@ -193,10 +191,10 @@ pub trait Segment {
         Self: 'a;
 
     /// Returns the head of the segment.
-    fn head(&self) -> &Self::Command<'_>;
+    fn head(&self) -> Self::Command<'_>;
 
     /// Returns the first Command in the segment.
-    fn first(&self) -> &Self::Command<'_>;
+    fn first(&self) -> Self::Command<'_>;
 
     /// Returns the location of the head of the segment.
     fn head_location(&self) -> Location;
@@ -211,13 +209,13 @@ pub trait Segment {
     fn policy(&self) -> PolicyId;
 
     /// Returns the prior segments for this segment.
-    fn prior(&self) -> HVec2<Location>;
+    fn prior(&self) -> Prior<Location>;
 
     /// Returns the command at the given location.
-    fn get_command<'a>(&'a self, location: &Location) -> Option<&Self::Command<'a>>;
+    fn get_command<'a>(&'a self, location: &Location) -> Option<Self::Command<'a>>;
 
     /// Returns an iterator of commands starting at the given location.
-    fn get_from<'a>(&'a self, location: &Location) -> Vec<&'a Self::Command<'a>>;
+    fn get_from<'a>(&'a self, location: &Location) -> Vec<Self::Command<'a>>;
 
     /// Get the fact index associated with this segment.
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;

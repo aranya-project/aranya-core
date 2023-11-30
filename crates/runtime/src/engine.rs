@@ -3,6 +3,8 @@
 //! An [`Engine`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     command::{Command, Id},
     storage::{FactPerspective, Perspective},
@@ -16,7 +18,7 @@ pub enum EngineError {
     InternalError,
 }
 
-#[derive(Ord, PartialOrd, Eq, PartialEq, Debug, Clone, Copy)]
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolicyId(usize);
 
 impl PolicyId {

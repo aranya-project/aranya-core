@@ -1,5 +1,5 @@
 use alloc::{
-    collections::{BTreeSet, BinaryHeap, VecDeque},
+    collections::{BTreeMap, BinaryHeap, VecDeque},
     vec::Vec,
 };
 use core::marker::PhantomData;
@@ -14,7 +14,7 @@ pub enum ClientError {
     InitStorageMismatch,
     InternalError,
     EngineError,
-    StorageError,
+    StorageError(StorageError),
     Unreachable,
     InitError,
     NotAuthorized,
@@ -40,8 +40,8 @@ impl From<EngineError> for ClientError {
 }
 
 impl From<StorageError> for ClientError {
-    fn from(_error: StorageError) -> Self {
-        ClientError::StorageError
+    fn from(error: StorageError) -> Self {
+        ClientError::StorageError(error)
     }
 }
 
@@ -58,7 +58,6 @@ impl<E, SP, A> ClientState<E, SP>
 where
     E: Engine<Actions = A>,
     SP: StorageProvider,
-    <SP as StorageProvider>::Segment: Clone,
 {
     pub fn new(engine: E, provider: SP) -> ClientState<E, SP> {
         ClientState { engine, provider }
@@ -173,7 +172,7 @@ pub struct Transaction<SP: StorageProvider, E> {
     /// Head of the current perspective
     phead: Option<Id>,
     /// Written but not committed heads
-    heads: BTreeSet<Id>,
+    heads: BTreeMap<Id, Location>,
     /// Tag for associated engine
     _engine: PhantomData<E>,
 }
@@ -184,7 +183,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             storage_id,
             perspective: None,
             phead: None,
-            heads: BTreeSet::new(),
+            heads: BTreeMap::new(),
             _engine: PhantomData,
         }
     }
@@ -201,20 +200,22 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         if let Some(p) = self.perspective.take() {
             self.phead = None;
             let segment = storage.write(p)?;
-            self.heads.insert(segment.head().id());
+            self.heads
+                .insert(segment.head().id(), segment.head_location());
         }
 
         // Merge heads pairwise until single head left, then commit.
-        // TODO: Better pairings?
+        // TODO(jdygert): Better pairings?
         let mut heads: VecDeque<_> = core::mem::take(&mut self.heads).into_iter().collect();
-        while let Some(left) = heads.pop_front() {
-            if let Some(right) = heads.pop_front() {
-                let (policy, policy_id) = choose_policy(storage, engine, &left, &right)?;
+        while let Some((left_id, left_loc)) = heads.pop_front() {
+            if let Some((right_id, right_loc)) = heads.pop_front() {
+                let (policy, policy_id) = choose_policy(storage, engine, &left_loc, &right_loc)?;
 
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
-                let command = policy.merge(&mut buffer, left, right)?;
+                let command = policy.merge(&mut buffer, left_id, right_id)?;
 
-                let braid = make_braid_segment::<_, E>(storage, left, right, sink, policy)?;
+                let braid =
+                    make_braid_segment::<_, E>(storage, &left_loc, &right_loc, sink, policy)?;
 
                 let perspective = storage
                     .new_merge_perspective(&command, policy_id, braid)?
@@ -222,15 +223,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
                 let segment = storage.write(perspective)?;
 
-                heads.push_back(segment.head().id())
+                heads.push_back((segment.head().id(), segment.head_location()));
             } else {
-                let location = storage
-                    .get_location(&left)?
-                    .ok_or(ClientError::InternalError)?;
-                let segment = storage
-                    .get_segment(&location)?
-                    .ok_or(ClientError::InternalError)?;
-
+                let segment = storage.get_segment(&left_loc)?;
                 storage.commit(segment)?;
             }
         }
@@ -265,13 +260,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 continue;
             }
             match command.parent() {
-                Parent::None => {
+                Prior::None => {
                     // This init command must have the wrong ID.
                 }
-                Parent::Id(parent) => {
+                Prior::Single(parent) => {
                     self.add_message(storage, engine, sink, command, parent)?;
                 }
-                Parent::Merge(left, right) => {
+                Prior::Merge(left, right) => {
                     self.add_merge(storage, engine, sink, command, left, right)?;
                 }
             };
@@ -318,14 +313,21 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     ) -> Result<bool, ClientError> {
         if let Some(p) = self.perspective.take() {
             let seg = storage.write(p)?;
-            self.heads.insert(seg.head().id());
+            self.heads.insert(seg.head().id(), seg.head_location());
         }
         self.heads.remove(&left);
         self.heads.remove(&right);
 
-        let (policy, policy_id) = choose_policy(storage, engine, &left, &right)?;
+        let left_loc = storage
+            .get_location(&left)?
+            .ok_or(ClientError::InternalError)?;
+        let right_loc = storage
+            .get_location(&right)?
+            .ok_or(ClientError::InternalError)?;
 
-        let braid = make_braid_segment::<_, E>(storage, left, right, sink, policy)?;
+        let (policy, policy_id) = choose_policy(storage, engine, &left_loc, &right_loc)?;
+
+        let braid = make_braid_segment::<_, E>(storage, &left_loc, &right_loc, sink, policy)?;
 
         let perspective = storage
             .new_merge_perspective(command, policy_id, braid)?
@@ -350,7 +352,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Write out the perspective and get a new one
         if let Some(p) = self.perspective.take() {
             let seg = storage.write(p)?;
-            self.heads.insert(seg.head().id());
+            self.heads.insert(seg.head().id(), seg.head_location());
         }
 
         self.phead = Some(parent);
@@ -393,12 +395,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
 fn make_braid_segment<S: Storage, E: Engine>(
     storage: &mut S,
-    left: Id,
-    right: Id,
+    left: &Location,
+    right: &Location,
     sink: &mut impl Sink<E::Effects>,
     policy: &E::Policy,
 ) -> Result<S::FactIndex, ClientError> {
-    let order = braid(storage, &left, &right)?;
+    let order = braid(storage, left, right)?;
 
     let (first, rest) = order.split_first().ok_or(ClientError::Unreachable)?;
 
@@ -407,13 +409,11 @@ fn make_braid_segment<S: Storage, E: Engine>(
     sink.begin();
 
     for location in rest {
-        let segment = storage
-            .get_segment(location)?
-            .ok_or(ClientError::InternalError)?;
+        let segment = storage.get_segment(location)?;
         let command = segment
             .get_command(location)
             .ok_or(ClientError::InternalError)?;
-        if !policy.call_rule(command, &mut braid_perspective, sink)? {
+        if !policy.call_rule(&command, &mut braid_perspective, sink)? {
             sink.rollback();
             return Err(ClientError::NotAuthorized);
         }
@@ -429,8 +429,8 @@ fn make_braid_segment<S: Storage, E: Engine>(
 fn choose_policy<'a, E: Engine>(
     storage: &impl Storage,
     engine: &'a E,
-    left: &Id,
-    right: &Id,
+    left: &Location,
+    right: &Location,
 ) -> Result<(&'a E::Policy, PolicyId), ClientError> {
     Ok(core::cmp::max_by_key(
         get_policy(storage, engine, left)?,
@@ -442,14 +442,9 @@ fn choose_policy<'a, E: Engine>(
 fn get_policy<'a, E: Engine>(
     storage: &impl Storage,
     engine: &'a E,
-    command: &Id,
+    location: &Location,
 ) -> Result<(&'a E::Policy, PolicyId), ClientError> {
-    let location = storage
-        .get_location(command)?
-        .ok_or(ClientError::InternalError)?;
-    let segment = storage
-        .get_segment(&location)?
-        .ok_or(ClientError::InternalError)?;
+    let segment = storage.get_segment(location)?;
     let policy_id = segment.policy();
     let policy = engine.get_policy(&policy_id)?;
     Ok((policy, policy_id))
@@ -457,8 +452,8 @@ fn get_policy<'a, E: Engine>(
 
 pub fn braid<S: Storage>(
     storage: &mut S,
-    left: &Id,
-    right: &Id,
+    left: &Location,
+    right: &Location,
 ) -> Result<Vec<Location>, ClientError> {
     struct Strand<S> {
         key: (Priority, Id),
@@ -471,16 +466,17 @@ pub fn braid<S: Storage>(
             storage: &mut impl Storage<Segment = S>,
             location: Location,
         ) -> Result<Self, ClientError> {
-            let segment = storage
-                .get_segment(&location)?
-                .ok_or(ClientError::InternalError)?;
+            let segment = storage.get_segment(&location)?;
 
-            let cmd = segment
-                .get_command(&location)
-                .ok_or(ClientError::InternalError)?;
+            let key = {
+                let cmd = segment
+                    .get_command(&location)
+                    .ok_or(ClientError::InternalError)?;
+                (cmd.priority(), cmd.id())
+            };
 
             Ok(Strand {
-                key: (cmd.priority(), cmd.id()),
+                key,
                 next: location,
                 segment,
             })
@@ -519,8 +515,7 @@ pub fn braid<S: Storage>(
     let mut strands = BinaryHeap::<Strand<S::Segment>>::new();
 
     for head in [left, right] {
-        let location = storage.get_location(head)?.ok_or(ClientError::InitError)?;
-        strands.push(Strand::new(storage, location)?);
+        strands.push(Strand::new(storage, head.clone())?);
     }
 
     let mut braid = Vec::new();
@@ -534,13 +529,14 @@ pub fn braid<S: Storage>(
             // Add modified strand back to heap
             strands.push(strand);
         } else {
-            if strand.segment.prior().len() == 2 {
+            let prior = strand.segment.prior();
+            if matches!(prior, Prior::Merge(..)) {
                 // Skip merge commands
                 braid.pop();
             }
 
             // Strand done, add parents if needed
-            'location: for location in strand.segment.prior() {
+            'location: for location in prior {
                 for other in &strands {
                     if storage.is_ancestor(&location, &other.segment)? {
                         continue 'location;

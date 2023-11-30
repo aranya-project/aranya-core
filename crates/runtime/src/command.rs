@@ -1,6 +1,8 @@
 use crypto::{Engine, Signature};
 use serde::{Deserialize, Serialize};
 
+use crate::Prior;
+
 crypto::custom_id!(
     Id,
     "An ID constructed as a cryptographic hash of a serialized [`Command`]."
@@ -74,14 +76,6 @@ pub enum Priority {
     Init,
 }
 
-/// Identify prior [`Command`]s.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Parent {
-    None,
-    Id(Id),
-    Merge(Id, Id),
-}
-
 /// An action message interpreted by its associated policy to affect state.
 ///
 /// A [`Command`] is opaque to the runtime engine. When the engine receives a
@@ -97,15 +91,37 @@ pub trait Command<'a> {
     /// Uniquely identifies the serialized command.
     fn id(&self) -> Id;
 
-    /// Return this command's [`Parent`], or command(s) that immediately
+    /// Return this command's parents, or command(s) that immediately
     /// precede(s) this.
-    fn parent(&self) -> Parent;
+    fn parent(&self) -> Prior<Id>;
 
     /// Return this command's associated policy.
     fn policy(&self) -> Option<&[u8]>;
 
     /// Return this command's serialized data.
     fn bytes(&self) -> &[u8];
+}
+
+impl<'a, C: Command<'a>> Command<'a> for &'a C {
+    fn priority(&self) -> Priority {
+        (*self).priority()
+    }
+
+    fn id(&self) -> Id {
+        (*self).id()
+    }
+
+    fn parent(&self) -> Prior<Id> {
+        (*self).parent()
+    }
+
+    fn policy(&self) -> Option<&[u8]> {
+        (*self).policy()
+    }
+
+    fn bytes(&self) -> &[u8] {
+        (*self).bytes()
+    }
 }
 
 #[cfg(test)]

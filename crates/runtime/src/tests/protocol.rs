@@ -69,11 +69,11 @@ impl<'a> Command<'a> for TestProtocol<'a> {
         self.id
     }
 
-    fn parent(&self) -> Parent {
+    fn parent(&self) -> Prior<Id> {
         match &self.command {
-            WireProtocol::Init(_) => Parent::None,
-            WireProtocol::Merge(m) => Parent::Merge(m.left, m.right),
-            WireProtocol::Basic(m) => Parent::Id(m.parent),
+            WireProtocol::Init(_) => Prior::None,
+            WireProtocol::Basic(m) => Prior::Single(m.parent),
+            WireProtocol::Merge(m) => Prior::Merge(m.left, m.right),
         }
     }
 

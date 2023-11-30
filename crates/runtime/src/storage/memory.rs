@@ -9,7 +9,7 @@ use super::*;
 pub struct MemCommand {
     priority: Priority,
     id: Id,
-    parent: Parent,
+    parent: Prior<Id>,
     policy: Option<Box<[u8]>>,
     data: Box<[u8]>,
 }
@@ -36,8 +36,8 @@ impl<'a> Command<'a> for MemCommand {
         self.id
     }
 
-    fn parent(&self) -> Parent {
-        self.parent.clone()
+    fn parent(&self) -> Prior<Id> {
+        self.parent
     }
 
     fn policy(&self) -> Option<&[u8]> {
@@ -121,7 +121,7 @@ impl MemStorage {
 
     fn new_segment(
         &mut self,
-        prior: HVec2<Location>,
+        prior: Prior<Location>,
         policy: PolicyId,
         commands: Vec1<CommandData>,
         facts: MemFactIndex,
@@ -141,17 +141,6 @@ impl MemStorage {
 
         Ok(cell)
     }
-
-    fn get_policy_id(&self, command_id: &Id) -> Result<PolicyId, StorageError> {
-        let Some(location) = self.commands.get(command_id) else {
-            return Err(StorageError::NoSuchId(*command_id));
-        };
-
-        match self.segments.get(location.segment) {
-            None => Err(StorageError::InternalError),
-            Some(segment) => Ok(segment.policy()),
-        }
-    }
 }
 
 impl Storage for MemStorage {
@@ -169,15 +158,10 @@ impl Storage for MemStorage {
     }
 
     fn get_command_id(&self, location: &Location) -> Result<Id, StorageError> {
-        let segment = self
-            .segments
-            .get(location.segment)
-            .ok_or(StorageError::InternalError)?;
-
+        let segment = self.get_segment(location)?;
         let command = segment
             .get_command(location)
-            .ok_or(StorageError::InternalError)?;
-
+            .ok_or_else(|| StorageError::CommandOutOfBounds(location.clone()))?;
         Ok(command.id())
     }
 
@@ -186,10 +170,7 @@ impl Storage for MemStorage {
             return Ok(None);
         };
 
-        let segment = self
-            .segments
-            .get(location.segment)
-            .ok_or(StorageError::InternalError)?;
+        let segment = self.get_segment(location)?;
 
         let policy = segment.policy;
         let prior_facts: FactPerspectivePrior = if location == &segment.head_location() {
@@ -205,7 +186,7 @@ impl Storage for MemStorage {
                 facts.into()
             }
         };
-        let prior = hvec2![location.clone()];
+        let prior = Prior::Single(location.clone());
 
         let perspective = MemPerspective::new(prior, policy, prior_facts);
 
@@ -216,10 +197,7 @@ impl Storage for MemStorage {
         &self,
         location: &Location,
     ) -> Result<Self::FactPerspective, StorageError> {
-        let segment = self
-            .segments
-            .get(location.segment)
-            .ok_or(StorageError::InternalError)?;
+        let segment = self.get_segment(location)?;
 
         if location == &segment.head_location() {
             return Ok(MemFactPerspective::new(segment.facts.clone().into()));
@@ -239,12 +217,12 @@ impl Storage for MemStorage {
         policy_id: PolicyId,
         braid: MemFactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError> {
-        // TODO: ensure braid belongs to this storage.
-        // TODO: ensure braid ends at given command?
+        // TODO(jdygert): ensure braid belongs to this storage.
+        // TODO(jdygert): ensure braid ends at given command?
 
         let parent = command.parent();
 
-        let Parent::Merge(left, right) = parent else {
+        let Prior::Merge(left, right) = parent else {
             return Err(StorageError::NotMerge);
         };
 
@@ -256,14 +234,14 @@ impl Storage for MemStorage {
             return Err(StorageError::NoSuchId(right));
         };
 
-        let left_policy_id = self.get_policy_id(&left)?;
-        let right_policy_id = self.get_policy_id(&right)?;
+        let left_policy_id = self.get_segment(left_location)?.policy;
+        let right_policy_id = self.get_segment(right_location)?.policy;
 
         if (policy_id != left_policy_id) && (policy_id != right_policy_id) {
             return Err(StorageError::PolicyMismatch);
         }
 
-        let prior = hvec2![left_location.clone(), right_location.clone()];
+        let prior = Prior::Merge(left_location.clone(), right_location.clone());
 
         let mut perspective = MemPerspective::new(prior, policy_id, braid.into());
         perspective.add_command(command)?;
@@ -271,12 +249,11 @@ impl Storage for MemStorage {
         Ok(Some(perspective))
     }
 
-    fn get_segment(&self, location: &Location) -> Result<Option<MemSegment>, StorageError> {
-        let Some(cell) = self.segments.get(location.segment) else {
-            return Err(StorageError::InternalError);
-        };
-
-        Ok(Some(cell.clone()))
+    fn get_segment(&self, location: &Location) -> Result<MemSegment, StorageError> {
+        self.segments
+            .get(location.segment)
+            .ok_or_else(|| StorageError::SegmentOutOfBounds(location.clone()))
+            .cloned()
     }
 
     fn get_head(&self) -> Result<Location, StorageError> {
@@ -328,7 +305,7 @@ impl Storage for MemStorage {
     }
 
     fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
-        // TODO: ensure segment belongs to self?
+        // TODO(jdygert): ensure segment belongs to self?
 
         if let Some(head) = &self.head {
             if !self.is_ancestor(head, &segment)? {
@@ -390,7 +367,7 @@ struct CommandData {
 #[derive(Debug)]
 pub struct MemSegmentInner {
     index: usize,
-    prior: HVec2<Location>,
+    prior: Prior<Location>,
     policy: PolicyId,
     commands: Vec1<CommandData>,
     facts: MemFactIndex,
@@ -415,7 +392,7 @@ impl From<MemSegmentInner> for MemSegment {
 
 impl Segment for MemSegment {
     type FactIndex = MemFactIndex;
-    type Command<'a> = MemCommand;
+    type Command<'a> = &'a MemCommand;
 
     fn head(&self) -> &MemCommand {
         &self.commands.last().command
@@ -447,7 +424,7 @@ impl Segment for MemSegment {
         self.policy
     }
 
-    fn prior(&self) -> HVec2<Location> {
+    fn prior(&self) -> Prior<Location> {
         self.prior.clone()
     }
 
@@ -483,7 +460,7 @@ pub enum Update {
 
 #[derive(Debug)]
 pub struct MemPerspective {
-    prior: HVec2<Location>,
+    prior: Prior<Location>,
     policy: PolicyId,
     facts: MemFactPerspective,
     commands: Vec<CommandData>,
@@ -548,7 +525,7 @@ impl MemFactPerspective {
 }
 
 impl MemPerspective {
-    fn new(prior: HVec2<Location>, policy: PolicyId, prior_facts: FactPerspectivePrior) -> Self {
+    fn new(prior: Prior<Location>, policy: PolicyId, prior_facts: FactPerspectivePrior) -> Self {
         Self {
             prior,
             policy,
@@ -560,7 +537,7 @@ impl MemPerspective {
 
     fn new_unrooted(policy: &PolicyId) -> Self {
         Self {
-            prior: hvec2![],
+            prior: Prior::None,
             policy: *policy,
             facts: MemFactPerspective::new(FactPerspectivePrior::None),
             commands: Vec::new(),
@@ -571,13 +548,13 @@ impl MemPerspective {
 
 impl Perspective for MemPerspective {
     fn add_command<'b>(&mut self, command: &impl Command<'b>) -> Result<usize, StorageError> {
-        // TODO: Ensure command points to previous?
+        // TODO(jdygert): Ensure command points to previous?
         let entry = CommandData {
             command: command.into(),
             updates: core::mem::take(&mut self.current_updates),
         };
         self.commands.push(entry);
-        Ok(self.commands.len()) // FIXME: Off by one?
+        Ok(self.commands.len()) // FIXME(jdygert): Off by one?
     }
 
     fn checkpoint(&self) -> Checkpoint {
@@ -648,7 +625,7 @@ mod test {
 
     struct TestCommand {
         id: Id,
-        parent: Parent,
+        parent: Prior<Id>,
         priority: Priority,
     }
 
@@ -661,8 +638,8 @@ mod test {
             self.id
         }
 
-        fn parent(&self) -> Parent {
-            self.parent.clone()
+        fn parent(&self) -> Prior<Id> {
+            self.parent
         }
 
         fn policy(&self) -> Option<&[u8]> {
@@ -674,11 +651,11 @@ mod test {
         }
     }
 
-    fn mkcmd(id: impl Into<Id>, parent: Parent, priority: u32) -> TestCommand {
+    fn mkcmd(id: impl Into<Id>, parent: Prior<Id>, priority: u32) -> TestCommand {
         let priority = match parent {
-            Parent::None => Priority::Init,
-            Parent::Id(_) => Priority::Basic(priority),
-            Parent::Merge(_, _) => Priority::Merge,
+            Prior::None => Priority::Init,
+            Prior::Single(..) => Priority::Basic(priority),
+            Prior::Merge(..) => Priority::Merge,
         };
         TestCommand {
             id: id.into(),
@@ -707,11 +684,11 @@ mod test {
             SP: StorageProvider<Storage = S>,
         {
             let mut persp = sp.new_perspective(&PolicyId::new(0));
-            let mut prev = Parent::None;
+            let mut prev = Prior::None;
             for &id in ids {
                 eval(&mut persp, id);
                 persp.add_command(&mkcmd(id, prev, id)).unwrap();
-                prev = Parent::Id(id.into());
+                prev = Prior::Single(id.into());
             }
             Self {
                 storage: sp.new_storage(&Id::from(0u32), persp).unwrap(),
@@ -724,14 +701,14 @@ mod test {
             let mut p = self.storage.get_linear_perspective(&prev).unwrap().unwrap();
             for &id in ids {
                 eval(&mut p, id);
-                p.add_command(&mkcmd(id, Parent::Id(prev), id)).unwrap();
+                p.add_command(&mkcmd(id, Prior::Single(prev), id)).unwrap();
                 prev = Id::from(id);
             }
             self.pending = Some(self.storage.write(p).unwrap());
         }
 
         pub fn merge(&mut self, (left, right): (u32, u32), ids: &[u32]) {
-            let command = mkcmd(ids[0], Parent::Merge(left.into(), right.into()), 0);
+            let command = mkcmd(ids[0], Prior::Merge(left.into(), right.into()), 0);
             let braid = self.braid(left, right);
             let mut p = self
                 .storage
@@ -740,14 +717,16 @@ mod test {
                 .unwrap();
             for (&prev, &id) in core::iter::zip(ids, &ids[1..]) {
                 eval(&mut p, id);
-                p.add_command(&mkcmd(id, Parent::Id(Id::from(prev)), id))
+                p.add_command(&mkcmd(id, Prior::Single(Id::from(prev)), id))
                     .unwrap();
             }
             self.pending = Some(self.storage.write(p).unwrap());
         }
 
         fn braid(&mut self, left: u32, right: u32) -> S::FactIndex {
-            let order = braid(self.storage, &left.into(), &right.into()).unwrap();
+            let left = self.storage.get_location(&left.into()).unwrap().unwrap();
+            let right = self.storage.get_location(&right.into()).unwrap().unwrap();
+            let order = braid(self.storage, &left, &right).unwrap();
             let mut p = self.storage.get_fact_perspective(&order[0]).unwrap();
             for location in &order[1..] {
                 let id = self.storage.get_command_id(location).unwrap();
@@ -811,14 +790,14 @@ mod test {
 
         for segment in &storage.segments {
             let mut cluster = graph.cluster();
-            match segment.prior.len() {
-                0 => {
+            match segment.prior {
+                Prior::None => {
                     cluster.graph_attributes().set("color", "green", false);
                 }
-                2 => {
+                Prior::Single(..) => {}
+                Prior::Merge(..) => {
                     cluster.graph_attributes().set("color", "crimson", false);
                 }
-                _ => {}
             }
 
             // Draw commands and edges between commands within the segment.
@@ -827,11 +806,11 @@ mod test {
                     let mut node = cluster.node_named(loc((segment.index, i)));
                     node.set_label(&cmd.command.id().shorthex());
                     match cmd.command.parent {
-                        Parent::None => {
+                        Prior::None => {
                             node.set("shape", "house", false);
                         }
-                        Parent::Id(_) => {}
-                        Parent::Merge(_, _) => {
+                        Prior::Single(..) => {}
+                        Prior::Merge(..) => {
                             node.set("shape", "hexagon", false);
                         }
                     };

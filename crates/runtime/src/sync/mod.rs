@@ -10,10 +10,10 @@ use quinn::{ConnectionError, ReadToEndError, WriteError};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{Command, Id, Parent, Priority},
+    command::{Command, Id, Priority},
     engine::EngineError,
     storage::{Location, Segment, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH},
-    ClientError,
+    ClientError, Prior,
 };
 
 // TODO: These should all be compile time parameters
@@ -40,7 +40,7 @@ pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RES
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommandMeta {
     priority: Priority,
-    parent: Parent,
+    parent: Prior<Id>,
     policy_length: u32,
     length: u32,
 }
@@ -230,7 +230,7 @@ impl From<rustls::Error> for SyncError {
 pub struct SyncCommand<'a> {
     priority: Priority,
     id: Id,
-    parent: Parent,
+    parent: Prior<Id>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
 }
@@ -244,8 +244,8 @@ impl<'a> Command<'a> for SyncCommand<'a> {
         self.id
     }
 
-    fn parent(&self) -> Parent {
-        self.parent.clone()
+    fn parent(&self) -> Prior<Id> {
+        self.parent
     }
 
     fn policy(&self) -> Option<&'a [u8]> {
@@ -300,7 +300,7 @@ pub struct SyncRequester<'a> {
     state: SyncRequesterState,
     max_bytes: u64,
     next_index: u64,
-    #[allow(unused)] // TODO: Figure out what this is for...
+    #[allow(unused)] // TODO(jdygert): Figure out what this is for...
     ooo_buffer: [Option<&'a [u8]>; OOO_LEN],
 }
 
@@ -381,16 +381,14 @@ impl SyncRequester<'_> {
                     let mut next = alloc::vec::Vec::new(); //BUG not constant memory
 
                     'current: for location in &current {
-                        let Some(segment) = storage.get_segment(location)? else {
-                            return Err(SyncError::StorageError);
-                        };
+                        let segment = storage.get_segment(location)?;
 
                         let head = segment.head();
                         if commands.push(head.id()).is_err() {
                             // This should be impossible
                             return Err(SyncError::InternalError);
                         }
-                        next.extend_from_slice(&segment.prior());
+                        next.extend(segment.prior());
                         if commands.len() >= COMMAND_SAMPLE_MAX {
                             break 'current;
                         }
@@ -613,9 +611,7 @@ impl SyncResponder {
         while !heads.is_empty() {
             let current = mem::take(&mut heads);
             'heads: for head in current {
-                let Some(segment) = storage.get_segment(&head)? else {
-                    return Err(SyncError::StorageError);
-                };
+                let segment = storage.get_segment(&head)?;
 
                 for location in &have_locations {
                     if segment.contains(location) {
@@ -667,7 +663,7 @@ impl SyncResponder {
             return Err(SyncError::InternalError);
         };
 
-        let Some(segment) = storage.get_segment(location)? else {
+        let Ok(segment) = storage.get_segment(location) else {
             self.state = SyncResponderState::Reset;
             return Err(SyncError::StorageError);
         };
@@ -689,6 +685,7 @@ impl SyncResponder {
                 length: command.bytes().len() as u32,
             };
 
+            // FIXME(jdygert): This will reasonably happen, should not just error.
             commands.push(meta).or(Err(SyncError::InternalError))?;
         }
 
