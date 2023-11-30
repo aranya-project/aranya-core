@@ -29,7 +29,7 @@ cast_precision_loss = "warn"
 cast_sign_loss = "warn"
 panic = "warn"
 unwrap_used = "warn"
-# wildcard_imports = "warn"
+wildcard_imports = "warn"
 
 [workspace.dependencies]
 byteorder = { version = "1", default-features = false }

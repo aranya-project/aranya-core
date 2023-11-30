@@ -3,7 +3,10 @@ use core::ops::Deref;
 
 use vec1::Vec1;
 
-use super::*;
+use crate::{
+    Checkpoint, Command, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId, Prior,
+    Priority, Segment, Storage, StorageError, StorageProvider,
+};
 
 #[derive(Debug)]
 pub struct MemCommand {
@@ -726,7 +729,7 @@ mod test {
         fn braid(&mut self, left: u32, right: u32) -> S::FactIndex {
             let left = self.storage.get_location(&left.into()).unwrap().unwrap();
             let right = self.storage.get_location(&right.into()).unwrap().unwrap();
-            let order = braid(self.storage, &left, &right).unwrap();
+            let order = crate::braid(self.storage, &left, &right).unwrap();
             let mut p = self.storage.get_fact_perspective(&order[0]).unwrap();
             for location in &order[1..] {
                 let id = self.storage.get_command_id(location).unwrap();

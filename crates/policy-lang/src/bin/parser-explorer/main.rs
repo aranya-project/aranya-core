@@ -7,7 +7,10 @@ use std::{
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use pest::Parser as PestParser;
-use policy_lang::lang::*;
+use policy_lang::lang::{
+    extract_policy, get_pratt_parser, parse_expression, parse_policy_str, PolicyParser, Rule,
+    Version,
+};
 
 #[derive(Parser, Debug)]
 #[command(name = "parser explorer", version)]

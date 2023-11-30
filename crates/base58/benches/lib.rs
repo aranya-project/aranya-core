@@ -1,7 +1,7 @@
 use std::{env, time::Duration};
 
-use base58::*;
-use criterion::*;
+use base58::{String16, String32, String64};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::{rngs::StdRng, RngCore, SeedableRng};
 
 fn get_rng() -> StdRng {
