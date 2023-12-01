@@ -46,6 +46,8 @@ spin = { version = "0.9", default-features = false }
 
 [profile.dev]
 panic = "abort"
+# TODO(#373): Remove when root cause is resolved.
+codegen-units = 1
 
 [profile.dev-std]
 inherits = "dev"
