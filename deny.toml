@@ -22,7 +22,11 @@
 targets = [
     # The triple can be any string, but only the target triples built in to
     # rustc (as of 1.40) can be checked against actual config expressions
-    #{ triple = "x86_64-unknown-linux-musl" },
+    { triple = "x86_64-unknown-linux-gnu" },
+    { triple = "aarch64-unknown-linux-gnu" },
+    { triple = "armv7-unknown-linux-gnueabihf" },
+    { triple = "aarch64-apple-darwin" },
+    { triple = "powerpc-wrs-vxworks" },
     # You can also specify which target_features you promise are enabled for a
     # particular target. target_features are currently not validated against
     # the actual valid features supported by the target architecture.
@@ -86,10 +90,10 @@ ignore = [
 # * Critical - CVSS Score 9.0 - 10.0
 #severity-threshold =
 
-# If this is true, then cargo deny will use the git executable to fetch advisory 
+# If this is true, then cargo deny will use the git executable to fetch advisory
 # database.
 # If this is false, then it uses a built-in git library.
-# Setting this to true can be helpful if you have special authentication 
+# Setting this to true can be helpful if you have special authentication
 # requirements that cargo-deny does not support.
 # See Git Authentication for more information about setting up git authentication.
 #git-fetch-with-cli = true
@@ -104,14 +108,14 @@ unlicensed = "deny"
 # See https://spdx.org/licenses/ for list of possible licenses
 # [possible values: any SPDX 3.11 short identifier (+ optional exception)].
 allow = [
-	"Apache-2.0",
-	"BSD-3-Clause",
-	"ISC",
-	"MIT",
-	"MPL-2.0",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "MIT",
+    # "MPL-2.0", # unused
     "OpenSSL",
-	"Unicode-DFS-2016",
-	"Zlib",
+    "Unicode-DFS-2016",
+    "Zlib",
 ]
 # List of explicitly disallowed licenses
 # See https://spdx.org/licenses/ for list of possible licenses
@@ -191,6 +195,7 @@ registries = [
 # Lint level for when multiple versions of the same crate are detected
 multiple-versions = "deny"
 # Lint level for when a crate version requirement is `*`
+# Can't use with path dependencies: https://github.com/EmbarkStudios/cargo-deny/issues/241
 wildcards = "allow"
 # The graph highlighting used when creating dotgraphs for crates
 # with multiple versions
@@ -246,16 +251,13 @@ deny = [
 
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
-    #{ name = "ansi_term", version = "=0.11.0" },
-    { name = "bitflags" },
-    { name = "generic-array" },
-    { name = "hashbrown" },
-    { name = "indexmap" },
-    { name = "ring" },
-    { name = "socket2" },
-    { name = "spin" },
-    { name = "syn" },
-    { name = "untrusted" },
+    { name = "bitflags", version = "=1.3.2" },
+    { name = "generic-array", version = "=0.14.7" },
+    { name = "ring", version = "=0.16.20" },
+    { name = "socket2", version = "=0.4.10" },
+    { name = "spin", version = "=0.5.2" },
+    { name = "syn", version = "=1.0.109" },
+    { name = "untrusted", version = "=0.7.1" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
