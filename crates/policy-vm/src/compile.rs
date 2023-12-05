@@ -240,9 +240,6 @@ impl CompileState {
                     .ok_or(CompileErrorType::BadTarget(s.name.clone()))?;
 
                 *target = Target::Resolved(*addr);
-                if s.ltype == LabelType::Temporary {
-                    labels.remove(&s);
-                }
                 Ok(())
             }
             Target::Resolved(_) => Ok(()), // already resolved; do nothing
@@ -259,6 +256,9 @@ impl CompileState {
                 _ => (),
             }
         }
+
+        // remove temporary labels
+        self.m.labels.retain(|k, _| k.ltype != LabelType::Temporary);
 
         Ok(())
     }
@@ -542,12 +542,77 @@ impl CompileState {
                     self.append_instruction(Instruction::Panic);
                 }
                 (
-                    ast::Statement::Match(_),
+                    ast::Statement::Match(s),
                     StatementContext::Action
                     | StatementContext::PureFunction
                     | StatementContext::CommandPolicy
                     | StatementContext::CommandRecall,
-                ) => todo!(),
+                ) => {
+                    // Ensure there are no duplicate arm values. Note that this is not completely reliable, because arm values are expressions, evaluated at runtime.
+                    // Note: we don't check for zero arms, because that's syntactically invalid.
+                    if s.arms.len() > 1 {
+                        for i in 0..s.arms.len() - 1 {
+                            for j in 1..s.arms.len() {
+                                if s.arms[i].value == s.arms[j].value {
+                                    return Err(CompileError::new(
+                                        CompileErrorType::AlreadyDefined(String::from(
+                                            "duplicate match value",
+                                        )),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+
+                    self.compile_expression(&s.expression)?;
+
+                    let end_label = self.anonymous_label();
+
+                    // 1. Generate branching instructions, and arm-start labels
+                    let mut arm_labels: Vec<Label> = vec![];
+
+                    for arm in s.arms.iter() {
+                        self.append_instruction(Instruction::Dup(0));
+
+                        // Push arm value
+                        let value =
+                            arm.value
+                                .as_ref()
+                                .ok_or(CompileErrorType::Unknown(String::from(
+                                    "Missing expression",
+                                )))?;
+
+                        self.compile_expression(value)?;
+
+                        // if value == target, jump to start-of-arm
+                        let arm_label = self.anonymous_label();
+                        self.append_instruction(Instruction::Eq);
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                        arm_labels.push(arm_label.clone());
+                    }
+                    // if no match, panic
+                    self.append_instruction(Instruction::Panic);
+
+                    // 2. Define arm labels, and compile instructions
+                    for (i, arm) in s.arms.iter().enumerate() {
+                        let arm_start = arm_labels[i].to_owned();
+                        self.define_label(arm_start, self.wp)?;
+
+                        self.compile_statements(&arm.statements)?;
+
+                        // break out of match
+                        self.append_instruction(Instruction::Jump(Target::Unresolved(
+                            end_label.clone(),
+                        )));
+                    }
+
+                    self.define_label(end_label, self.wp)?;
+
+                    // Drop expression value (It's still around because of the Dup)
+                    self.append_instruction(Instruction::Pop);
+                }
                 (
                     ast::Statement::When(s),
                     StatementContext::Action

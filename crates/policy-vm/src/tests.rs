@@ -600,6 +600,114 @@ fn test_when_false() -> anyhow::Result<()> {
     Ok(())
 }
 
+const POLICY_MATCH: &str = r#"
+        command Result {
+            fields {
+                x int
+            }
+        }
+
+        action foo(x int) {
+            match x {
+                5 => {
+                    emit Result { x: x }
+                }
+                6 => {
+                    emit Result { x: x }
+                }
+            }
+        }
+    "#;
+
+#[test]
+fn test_match_first() -> anyhow::Result<()> {
+    let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("foo", &[Value::Int(5)])
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(
+        io.emit_stack[0],
+        ("Result".to_string(), vec![KVPair::new("x", Value::Int(5)),])
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_match_second() -> anyhow::Result<()> {
+    let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("foo", &[Value::Int(6)])
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(
+        io.emit_stack[0],
+        ("Result".to_string(), vec![KVPair::new("x", Value::Int(6)),])
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_match_none() -> anyhow::Result<()> {
+    let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("foo", &[Value::Int(0)])
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Panicked);
+
+    Ok(())
+}
+
+#[test]
+fn test_match_duplicate() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Result {
+            fields {
+                x int
+            }
+        }
+
+        action foo(x int) {
+            match x {
+                5 => {
+                    emit Result { x: x }
+                }
+                5 => {
+                    emit Result { x: x }
+                }
+            }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V3).map_err(anyhow::Error::msg)?;
+    let _ = compile_from_policy(&policy).map_err(anyhow::Error::msg);
+    let res = compile_from_policy(&policy);
+    assert!(matches!(
+        res,
+        Err(CompileError {
+            err_type: CompileErrorType::AlreadyDefined(_),
+            ..
+        })
+    ));
+
+    Ok(())
+}
+
 struct TestStack {
     stack: Vec<Value>,
 }
