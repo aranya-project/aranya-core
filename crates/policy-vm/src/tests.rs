@@ -80,13 +80,13 @@ fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
 }
 
 impl Iterator for TestQueryIterator {
-    type Item = (FactKeyList, FactValueList);
+    type Item = Result<(FactKeyList, FactValueList), MachineIOError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter
             .next()
             .filter(|((n, k), _)| *n == self.name && subset_key_match(k, &self.key))
-            .map(|((_, k), v)| (k, v))
+            .map(|((_, k), v)| Ok((k, v)))
     }
 }
 
@@ -94,7 +94,7 @@ impl<S> MachineIO<S> for TestIO
 where
     S: Stack,
 {
-    type QueryIterator = TestQueryIterator;
+    type QueryIterator<'c> = TestQueryIterator where Self: 'c;
 
     fn fact_insert(
         &mut self,
@@ -134,7 +134,7 @@ where
         &self,
         name: String,
         key: impl IntoIterator<Item = FactKey>,
-    ) -> Result<Self::QueryIterator, MachineIOError> {
+    ) -> Result<Self::QueryIterator<'_>, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
         println!("query {}[{:?}]", name, key);
         Ok(TestQueryIterator {

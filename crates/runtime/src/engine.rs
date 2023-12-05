@@ -111,7 +111,7 @@ pub trait Policy {
 
     /// Produces a protocol message serialized to target. The `struct` representing the
     /// Command is returned.
-    fn message<'a>(
+    fn basic<'a>(
         &self,
         target: &'a mut [u8],
         parent: Id,

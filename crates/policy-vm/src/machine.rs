@@ -553,7 +553,7 @@ where
                 let replaced_fact = {
                     let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
                     iter.next()
-                        .ok_or_else(|| self.err(MachineErrorType::InvalidFact))?
+                        .ok_or_else(|| self.err(MachineErrorType::InvalidFact))??
                 };
                 self.io.fact_delete(fact_from.name, replaced_fact.0)?;
                 self.io
@@ -569,10 +569,21 @@ where
                 let qf: Fact = self.ipop()?;
                 let result = {
                     let mut iter = self.io.fact_query(qf.name.clone(), qf.keys)?;
-                    iter.find(|f| fact_value_subset_match(&qf.values, &f.1))
+                    // Find the first match, or the first error
+                    iter.find_map(|r| match r {
+                        Ok(f) => {
+                            if fact_value_subset_match(&qf.values, &f.1) {
+                                Some(Ok(f))
+                            } else {
+                                None
+                            }
+                        }
+                        Err(e) => Some(Err(e)),
+                    })
                 };
                 match result {
-                    Some(f) => {
+                    Some(r) => {
+                        let f = r?;
                         let mut fields: Vec<KVPair> = vec![];
                         fields.append(&mut f.0.into_iter().map(|e| e.into()).collect());
                         fields.append(&mut f.1.into_iter().map(|e| e.into()).collect());

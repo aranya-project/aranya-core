@@ -56,7 +56,9 @@ where
     S: Stack,
 {
     /// Iterates over the results of a fact query.
-    type QueryIterator: Iterator<Item = (FactKeyList, FactValueList)>;
+    type QueryIterator<'c>: Iterator<Item = Result<(FactKeyList, FactValueList), MachineIOError>>
+    where
+        Self: 'c;
 
     /// Insert a fact
     fn fact_insert(
@@ -78,7 +80,7 @@ where
         &self,
         name: String,
         key: impl IntoIterator<Item = FactKey>,
-    ) -> Result<Self::QueryIterator, MachineIOError>;
+    ) -> Result<Self::QueryIterator<'_>, MachineIOError>;
 
     /// Emit a command
     fn emit(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);

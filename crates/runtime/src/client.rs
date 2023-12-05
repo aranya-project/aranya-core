@@ -166,6 +166,12 @@ where
         }
         Ok(())
     }
+
+    /// Provide access to the storage provider (mostly for tests)
+    #[cfg(test)]
+    pub(crate) fn provider(&mut self) -> &mut SP {
+        &mut self.provider
+    }
 }
 
 pub struct Transaction<SP: StorageProvider, E> {

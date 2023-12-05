@@ -12,10 +12,11 @@ workspace = true
 
 [dependencies]
 crypto = { path = "../crypto" }
+policy-vm = { path = "../policy-vm" }
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true }
 rand = { workspace = true, default-features = false}
-serde = { workspace = true, default-features = false }
+serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 vec1 = { version = "1.10.1", default-features = false }
 
 # quic syncer
@@ -27,6 +28,7 @@ tokio-util = { version = "0.7.8", optional = true }
 quinn = { version = "0.10.1", optional = true }
 
 [dev-dependencies]
+policy-lang = { path = "../policy-lang" }
 serde_yaml = "0.9"
 dot-writer = "0.1.3"
 rcgen = "0.11.3"

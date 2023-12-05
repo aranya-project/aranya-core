@@ -9,7 +9,10 @@ mod prior;
 mod storage;
 mod sync;
 
-pub use crate::{client::*, command::*, engine::*, prior::Prior, storage::*, sync::*};
+pub use crate::{
+    client::*, command::*, engine::*, prior::Prior, storage::*, sync::*, vm_policy::*,
+};
 
 #[cfg(test)]
 mod tests;
+mod vm_policy;

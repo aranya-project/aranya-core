@@ -303,17 +303,22 @@ impl Policy for TestPolicy {
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let target = buffer.as_mut_slice();
                 let payload = (*key, *value);
-                let command = self.message(target, *parent, &payload)?;
-                facts.add_command(&command).or(Err(EngineError::Write))?;
+                let command = self.basic(target, *parent, &payload)?;
 
+                let checkpoint = facts.checkpoint();
                 let passed = self.call_rule_internal(&command.command, facts, sink)?;
 
+                if passed {
+                    facts.add_command(&command)?;
+                } else {
+                    facts.revert(checkpoint);
+                }
                 Ok(passed)
             }
         }
     }
 
-    fn message<'a>(
+    fn basic<'a>(
         &self,
         target: &'a mut [u8],
         parent: Id,
