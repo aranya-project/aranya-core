@@ -28,11 +28,7 @@ pub enum ClientError {
 }
 
 #[derive(Debug)]
-pub struct ClientState<E, SP>
-where
-    E: Engine,
-    SP: StorageProvider,
-{
+pub struct ClientState<E, SP> {
     engine: E,
     provider: SP,
 }

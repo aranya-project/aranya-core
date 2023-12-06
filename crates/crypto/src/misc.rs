@@ -369,14 +369,14 @@ impl<'a, K: PublicKey> ExportedData<SerdeBorrowedKey<'a, K>> {
 }
 
 /// An owned [`PublicKey`] for deserializing.
-pub(crate) struct SerdeOwnedKey<K: PublicKey>(pub(crate) K);
+pub(crate) struct SerdeOwnedKey<K>(pub(crate) K);
 
 impl<'de, K: PublicKey> Deserialize<'de> for SerdeOwnedKey<K> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct PkVisitor<K: PublicKey>(PhantomData<K>);
+        struct PkVisitor<K>(PhantomData<K>);
 
         impl<'de, K: PublicKey> de::Visitor<'de> for PkVisitor<K> {
             type Value = K;
@@ -405,7 +405,7 @@ impl<'de, K: PublicKey> Deserialize<'de> for SerdeOwnedKey<K> {
 }
 
 /// A borrowed [`PublicKey`] for serializing.
-pub(crate) struct SerdeBorrowedKey<'a, K: PublicKey>(&'a K);
+pub(crate) struct SerdeBorrowedKey<'a, K>(&'a K);
 
 impl<K: PublicKey> Serialize for SerdeBorrowedKey<'_, K> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

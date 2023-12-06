@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// HKDF for some hash `H` with a `D`-byte digest size.
-pub struct Hkdf<H: Hash, const N: usize>(PhantomData<H>);
+pub struct Hkdf<H, const N: usize>(PhantomData<H>);
 
 impl<H: Hash, const D: usize> Hkdf<H, D>
 where

@@ -76,7 +76,7 @@ impl From<EncodingError> for ImportError {
 /// `N` should be the maximum number of bytes required by the
 /// signature. This figure can be determined with
 /// [`max_sig_len`].
-pub struct Sig<S: Signer + ?Sized, const N: usize> {
+pub struct Sig<S: ?Sized, const N: usize> {
     /// The ASN.1 DER encoded signature.
     ///
     /// Do not use this field directly; use `Self::as_bytes`

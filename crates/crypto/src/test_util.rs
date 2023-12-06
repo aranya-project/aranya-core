@@ -77,7 +77,7 @@ macro_rules! assert_all_zero {
 }
 
 /// A [`Aead`] that that uses the default trait methods.
-pub struct AeadWithDefaults<T: Aead>(T);
+pub struct AeadWithDefaults<T>(T);
 
 impl<T: Aead> Aead for AeadWithDefaults<T> {
     const ID: AeadId = T::ID;
@@ -126,7 +126,7 @@ impl<T: Aead> Aead for AeadWithDefaults<T> {
 }
 
 /// A [`Kdf`] that that uses the default trait methods.
-pub struct KdfWithDefaults<T: Kdf>(PhantomData<T>);
+pub struct KdfWithDefaults<T>(PhantomData<T>);
 
 impl<T: Kdf> Kdf for KdfWithDefaults<T> {
     const ID: KdfId = T::ID;
@@ -148,7 +148,7 @@ impl<T: Kdf> Kdf for KdfWithDefaults<T> {
 
 /// A [`Mac`] that that uses the default trait methods.
 #[derive(Clone)]
-pub struct MacWithDefaults<T: Mac>(T);
+pub struct MacWithDefaults<T>(T);
 
 impl<T: Mac> Mac for MacWithDefaults<T> {
     const ID: MacId = T::ID;
@@ -170,7 +170,7 @@ impl<T: Mac> Mac for MacWithDefaults<T> {
 }
 
 /// A [`Signer`] that that uses the default trait methods.
-pub struct SignerWithDefaults<T: Signer + ?Sized>(T);
+pub struct SignerWithDefaults<T: ?Sized>(T);
 
 impl<T: Signer + ?Sized> Signer for SignerWithDefaults<T> {
     const ID: SignerId = T::ID;

@@ -188,10 +188,7 @@ struct CallState {
 /// The "run state" of the machine. It's separated from the rest of
 /// the VM so that it can be managed independently and potentially in
 /// multiple simultaneous instances.
-pub struct RunState<'a, M>
-where
-    M: MachineIO<MachineStack>,
-{
+pub struct RunState<'a, M> {
     /// Reference to the underlying static machine data
     machine: &'a Machine,
     /// Named value definitions ("variables")

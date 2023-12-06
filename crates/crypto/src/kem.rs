@@ -339,7 +339,7 @@ impl error::Error for DhKemError {
 }
 
 /// Implements [`Kem`] for an [`Ecdh`] and [`Kdf`].
-pub struct DhKem<E: Ecdh, F: Kdf> {
+pub struct DhKem<E, F> {
     id: KemId,
     _e: PhantomData<E>,
     _f: PhantomData<F>,

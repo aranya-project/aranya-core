@@ -25,13 +25,13 @@ use crate::{
 };
 
 /// Key material used to derive per-event encryption keys.
-pub struct GroupKey<E: Engine + ?Sized> {
+pub struct GroupKey<E: ?Sized> {
     seed: [u8; 64],
     _cs: PhantomData<E>,
 }
 
-impl<E: Engine + ?Sized> ZeroizeOnDrop for GroupKey<E> {}
-impl<E: Engine + ?Sized> Drop for GroupKey<E> {
+impl<E: ?Sized> ZeroizeOnDrop for GroupKey<E> {}
+impl<E: ?Sized> Drop for GroupKey<E> {
     fn drop(&mut self) {
         self.seed.zeroize()
     }

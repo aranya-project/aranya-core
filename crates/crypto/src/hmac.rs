@@ -26,10 +26,7 @@ use crate::{
 ///
 /// [FIPS PUB 198-1]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.198-1.pdf
 #[derive(Clone)]
-pub struct Hmac<H: Hash, const D: usize>
-where
-    H::Digest: Into<Tag<D>>,
-{
+pub struct Hmac<H, const D: usize> {
     /// H(ipad).
     ipad: H,
     /// H(opad).

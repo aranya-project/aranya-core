@@ -66,7 +66,7 @@ impl<'de, E: Engine + ?Sized> Deserialize<'de> for Signature<E> {
     where
         D: Deserializer<'de>,
     {
-        struct SigVisitor<E: Engine + ?Sized>(PhantomData<E>);
+        struct SigVisitor<E: ?Sized>(PhantomData<E>);
         impl<'de, G: Engine + ?Sized> de::Visitor<'de> for SigVisitor<G> {
             type Value = Signature<G>;
 
