@@ -201,6 +201,19 @@ pub enum InternalFunction {
     AuthorId(Box<Expression>),
 }
 
+/// A foreign function call with a list of arguments.
+///
+/// Can only be used in expressions, not on its own.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ForeignFunctionCall {
+    /// the function's module name
+    pub module: String,
+    /// the function's name
+    pub identifier: String,
+    /// values for the function's arguments
+    pub arguments: Vec<Expression>,
+}
+
 /// All of the things which can be in an expression.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
@@ -220,6 +233,8 @@ pub enum Expression {
     InternalFunction(InternalFunction),
     /// A function call
     FunctionCall(FunctionCall),
+    /// A foreign function call
+    ForeignFunctionCall(ForeignFunctionCall),
     /// A variable identifier
     Identifier(String),
     /// `(expr)`

@@ -117,6 +117,10 @@ bool_literal = { btrue | bfalse }
 // A function call is an identifier followed by zero or more arguments
 // in parentheses. Tailing commas allowed.
 function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)* ~ ","?)? ~ ")" }
+// A foreign function call is an identifier followed by double-colons
+// and a function call.
+foreign_function_call = { identifier ~ "::" ~ function_call }
+
 // Optional literals are "None" or "Some <x>", where <x> is any
 // expression. Note that the grammar allows the construction of
 // invalid types like `Some None`. This is checked in a later stage.
@@ -146,7 +150,7 @@ author_id = { "author_id(" ~ expression ~ ")" }
 internal_function = _{ query | exists | if_e | id_e | author_id }
 // An atom is any of the literals, a bind marker, an internal function,
 // a function call, an identifier, or a parenthetical sub-expression.
-atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | bind | internal_function | function_call | identifier | "(" ~ expression ~ ")" }
+atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | bind | internal_function | function_call | foreign_function_call | identifier | "(" ~ expression ~ ")" }
 
 // ## Infix operators
 add = { "+" }

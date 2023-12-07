@@ -13,14 +13,15 @@ use alloc::{
 };
 use core::{fmt, ops::Range};
 
+use ast::VType;
 use policy_ast::{self as ast, AstNode};
 
 pub use self::error::{CallColor, CompileError, CompileErrorType};
-use crate::{CodeMap, Instruction, Label, LabelType, Machine, Target, Value};
+use crate::{ffi::ModuleSchema, CodeMap, Instruction, Label, LabelType, Machine, Target, Value};
 
 enum FunctionColor {
     /// Function has no side-effects and returns a value
-    Pure(ast::VType),
+    Pure(VType),
     /// Function has side-effects and returns no value
     Finish,
 }
@@ -29,7 +30,7 @@ enum FunctionColor {
 /// stripped down to only include positional argument types and return
 /// type. Covers both regular (pure) functions and finish functions.
 struct FunctionSignature {
-    args: Vec<ast::VType>,
+    args: Vec<VType>,
     color: FunctionColor,
 }
 
@@ -62,7 +63,7 @@ impl fmt::Display for StatementContext {
 }
 
 /// The "compile state" of the machine.
-pub struct CompileState {
+pub struct CompileState<'a> {
     /// The underlying machine
     m: Machine,
     /// The write pointer used while compiling instructions into memory
@@ -78,12 +79,14 @@ pub struct CompileState {
     /// The current statement context, implemented as a stack so that it can be
     /// hierarchical.
     statement_context: Vec<StatementContext>,
+    /// FFI module schemas. Used to validate FFI calls.
+    ffi_modules: &'a [ModuleSchema<'a>],
 }
 
-impl CompileState {
+impl<'a> CompileState<'a> {
     /// Create a new CompileState which compiles into the owned
     /// machine.
-    pub fn new(m: Machine) -> CompileState {
+    pub fn new(m: Machine, ffi_modules: &'a [ModuleSchema<'a>]) -> Self {
         CompileState {
             m,
             wp: 0,
@@ -91,6 +94,7 @@ impl CompileState {
             function_signatures: BTreeMap::new(),
             last_locator: 0,
             statement_context: vec![],
+            ffi_modules,
         }
     }
 
@@ -400,6 +404,47 @@ impl CompileState {
                 self.append_instruction(Instruction::Call(Target::Unresolved(Label::new_temp(
                     &f.identifier,
                 ))));
+            }
+            ast::Expression::ForeignFunctionCall(f) => {
+                // find module by name
+                let (module_id, module) = self
+                    .ffi_modules
+                    .iter()
+                    .enumerate()
+                    .find(|(_, m)| m.name == f.module)
+                    .ok_or(CompileError::from_locator(
+                        CompileErrorType::NotDefined(f.module.clone()),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    ))?;
+
+                // find module function by name
+                let (procedure_id, procedure) = module
+                    .functions
+                    .iter()
+                    .enumerate()
+                    .find(|(_, proc)| proc.name == f.identifier)
+                    .ok_or(CompileError::from_locator(
+                        CompileErrorType::NotDefined(f.module.clone()),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    ))?;
+
+                // verify number of arguments matches the function signature
+                if f.arguments.len() != procedure.args.len() {
+                    return Err(CompileError::from_locator(
+                        CompileErrorType::BadArgument(f.identifier.clone()),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    ));
+                }
+
+                // push args
+                for a in &f.arguments {
+                    self.compile_expression(a)?;
+                }
+
+                self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
             }
             ast::Expression::Identifier(i) => {
                 self.append_instruction(Instruction::Const(Value::String(i.clone())));
@@ -939,10 +984,13 @@ impl CompileState {
 }
 
 /// Create a new Machine by compiling a policy AST.
-pub fn compile_from_policy(policy: &ast::Policy) -> Result<Machine, CompileError> {
+pub fn compile_from_policy(
+    policy: &ast::Policy,
+    ffi_modules: &[ModuleSchema<'_>],
+) -> Result<Machine, CompileError> {
     let codemap = CodeMap::new(&policy.text, policy.ranges.clone());
     let machine = Machine::from_codemap(codemap);
-    let mut cs = CompileState::new(machine);
+    let mut cs = CompileState::new(machine, ffi_modules);
     cs.compile(policy)?;
     Ok(cs.into_machine())
 }

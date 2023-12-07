@@ -294,6 +294,25 @@ fn parse_function_call(
     })
 }
 
+fn parse_foreign_function_call(
+    call: Pair<'_, Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::ForeignFunctionCall, ParseError> {
+    let pc = descend(call);
+    let module = pc.consume_string(Rule::identifier)?;
+    let function_call = pc.consume_of_type(Rule::function_call)?;
+
+    let function = parse_function_call(function_call, pratt)?;
+    let identifier = function.identifier;
+    let arguments = function.arguments;
+
+    Ok(ast::ForeignFunctionCall {
+        module,
+        identifier,
+        arguments,
+    })
+}
+
 /// Parses a Rule::expression into an Expression
 ///
 /// This uses the PrattParser to parse the syntax tree. As a part of
@@ -379,6 +398,9 @@ pub fn parse_expression(
             Rule::function_call => Ok(ast::Expression::FunctionCall(parse_function_call(
                 primary, pratt,
             )?)),
+            Rule::foreign_function_call => Ok(ast::Expression::ForeignFunctionCall(
+                parse_foreign_function_call(primary, pratt)?,
+            )),
             Rule::query => {
                 let mut pairs = primary.clone().into_inner();
                 let token = pairs.next().ok_or(ParseError::new(

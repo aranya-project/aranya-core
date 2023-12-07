@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::string::String;
+use alloc::string::{String, ToString};
 use core::fmt;
 
 use cfg_if::cfg_if;
@@ -92,10 +92,13 @@ where
     /// `FfiModule`.
     fn call(
         &mut self,
-        _module: usize,
-        _procedure: usize,
+        module: usize,
+        procedure: usize,
         _stack: &mut S,
     ) -> Result<(), MachineError> {
-        Err(MachineError::new(MachineErrorType::FfiCall))
+        Err(MachineError::new(MachineErrorType::FfiBadCall(
+            module.to_string(),
+            procedure.to_string(),
+        )))
     }
 }

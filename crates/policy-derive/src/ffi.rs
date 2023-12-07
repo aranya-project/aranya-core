@@ -245,9 +245,12 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             impl #impl_generics #vm::ffi::FfiModule for #ident #ty_generics #where_clause {
                 type Error = #vm::MachineError;
 
-                const TABLE: &'static [#vm::ffi::Func<'static>] = &[
-                    #(#funcs),*
-                ];
+                const SCHEMA: #vm::ffi::ModuleSchema<'static> = #vm::ffi::ModuleSchema {
+                    name: #module,
+                    functions: &[
+                        #(#funcs),*
+                    ],
+                };
 
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
@@ -268,7 +271,10 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                             #(#mappings),*,
                             _ => {
                                 return ::core::result::Result::Err(
-                                    #vm::MachineError::new(#vm::MachineErrorType::FfiCall));
+                                    #vm::MachineError::new(#vm::MachineErrorType::FfiBadCall(
+                                        Self::SCHEMA.name.to_owned(),
+                                        __proc.to_string(),
+                                )));
                             }
                         }
                     };
@@ -323,13 +329,14 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
     // Undocumented.
     if cfg!(policy_derive_debug) {
-        if let Ok(file) = syn::parse_file(&block.to_string()) {
-            let data = prettyplease::unparse(&file);
-            File::create("/tmp/expand.rs")
-                .expect("unable to create `/tmp/expand.rs`")
-                .write_all(data.as_bytes())
-                .expect("unable to write all data to `/tmp/expand.rs`");
+        let mut data = block.to_string();
+        if let Ok(file) = syn::parse_file(&data) {
+            data = prettyplease::unparse(&file);
         }
+        File::create("/tmp/expand.rs")
+            .expect("unable to create `/tmp/expand.rs`")
+            .write_all(data.as_bytes())
+            .expect("unable to write all data to `/tmp/expand.rs`");
     }
     Ok(block)
 }

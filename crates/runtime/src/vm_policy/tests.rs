@@ -113,7 +113,7 @@ pub struct TestEngine {
 impl TestEngine {
     pub fn new(policy_doc: &str) -> TestEngine {
         let ast = parse_policy_document(policy_doc).expect("parse policy document");
-        let machine = compile_from_policy(&ast).expect("compile policy");
+        let machine = compile_from_policy(&ast, &[]).expect("compile policy");
         let policy = VmPolicy::new(machine).expect("Could not load policy");
         TestEngine { policy }
     }

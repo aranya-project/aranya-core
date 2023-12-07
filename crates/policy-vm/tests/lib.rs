@@ -26,7 +26,8 @@ struct TestState<M, E> {
 impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
     fn new(module: M) -> Self {
         let (engine, _) = DefaultEngine::<Rng, DefaultCipherSuite>::from_entropy(Rng);
-        let procs = M::TABLE
+        let procs = M::SCHEMA
+            .functions
             .iter()
             .enumerate()
             .map(|(i, f)| (f.name.to_owned(), i))

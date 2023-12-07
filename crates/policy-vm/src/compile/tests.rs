@@ -15,7 +15,7 @@ fn test_undefined_struct() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     assert_eq!(
-        compile_from_policy(&policy)
+        compile_from_policy(&policy, &[])
             .expect_err("compilation succeeded where it should fail")
             .err_type,
         CompileErrorType::BadArgument(String::from("Bar")),
@@ -34,7 +34,7 @@ fn test_function_no_return() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -52,7 +52,7 @@ fn test_function_not_defined() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -72,7 +72,7 @@ fn test_function_already_defined() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -94,7 +94,7 @@ fn test_function_wrong_number_arguments() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -121,7 +121,7 @@ fn test_function_wrong_color_pure() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -143,7 +143,7 @@ fn test_function_wrong_color_finish() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -167,7 +167,7 @@ fn test_seal_open_command() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
 
     assert!(machine
         .labels
@@ -191,7 +191,7 @@ fn test_command_without_seal_block() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -214,7 +214,7 @@ fn test_command_without_open_block() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -238,7 +238,7 @@ fn test_command_with_no_return_in_seal_block() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
@@ -259,7 +259,7 @@ fn test_command_with_no_return_in_open_block() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let err = compile_from_policy(&policy)
+    let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 

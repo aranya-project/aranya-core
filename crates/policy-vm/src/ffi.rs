@@ -154,6 +154,14 @@ pub enum Color<'a> {
     Finish,
 }
 
+/// Foreign-function module declaration.
+pub struct ModuleSchema<'a> {
+    /// module name
+    pub name: &'a str,
+    /// list of functions provided by the module
+    pub functions: &'a [Func<'a>],
+}
+
 /// Foreign Function Interface to allow the policy VM to call external functions.
 pub trait FfiModule {
     /// The error result from [`FfiModule::call`].
@@ -162,11 +170,10 @@ pub trait FfiModule {
     /// A list of function definitions. Used by the
     /// compiler to emit the stack instructions needed for
     /// a call.
-    const TABLE: &'static [Func<'static>];
+    const SCHEMA: ModuleSchema<'static>;
 
     /// Invokes a function in the module.
-    ///
-    /// `procedure` is the index in [`TABLE`][Self::TABLE].
+    /// `procedure` is the index in [`functions`][Self::SCHEMA].
     fn call<E: Engine + ?Sized>(
         &mut self,
         procedure: usize,

@@ -10,8 +10,8 @@ use clap::{arg, ArgGroup, Parser, ValueEnum};
 use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use policy_vm::{
     compile_from_policy, FactKey, FactKeyList, FactValue, FactValueList, KVPair, LabelType,
-    Machine, MachineIO, MachineIOError, MachineStack, MachineStatus, RunState, Stack, Struct,
-    Value,
+    Machine, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack,
+    MachineStatus, RunState, Stack, Struct, Value,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -202,6 +202,18 @@ where
         let fields = fields.into_iter().collect();
         self.effects.push((name, fields))
     }
+
+    fn call(
+        &mut self,
+        module: usize,
+        procedure: usize,
+        _stack: &mut S,
+    ) -> Result<(), MachineError> {
+        Err(MachineError::new(MachineErrorType::FfiBadCall(
+            module.to_string(),
+            procedure.to_string(),
+        )))
+    }
 }
 
 fn main() -> anyhow::Result<()> {
@@ -223,7 +235,7 @@ fn main() -> anyhow::Result<()> {
         parse_policy_document(&s)?
     };
 
-    let machine: Machine = match compile_from_policy(&policy) {
+    let machine: Machine = match compile_from_policy(&policy, &[]) {
         Ok(m) => m,
         Err(e) => {
             println!("{}", e);

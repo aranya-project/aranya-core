@@ -15,7 +15,7 @@ use crate::{
         CommandContext, Fact, FactKey, FactKeyList, FactValue, FactValueList, KVPair, Struct, Value,
     },
     error::MachineErrorType,
-    ffi::{self, FfiModule},
+    ffi::{self, FfiModule, ModuleSchema},
     instructions::Instruction,
     io::{MachineIO, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
@@ -27,20 +27,13 @@ struct TestIO {
     facts: BTreeMap<(String, FactKeyList), FactValueList>,
     emit_stack: Vec<(String, Vec<KVPair>)>,
     effect_stack: Vec<(String, Vec<KVPair>)>,
-    modules: Vec<PrintFfi>,
     engine: DefaultEngine<Rng, DefaultCipherSuite>,
+    print_ffi: PrintFfi,
 }
 
 impl fmt::Debug for TestIO {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // I don't want to dive deep into the modules, so let's just list the module names.
-        // But also the module names is in an unmerged PR, so punt and just enumerate them.
-        let module_names: Vec<String> = self
-            .modules
-            .iter()
-            .enumerate()
-            .map(|(i, _)| format!("module {}", i))
-            .collect();
+        let module_names = ["print"];
         f.debug_struct("TestIO")
             .field("facts", &self.facts)
             .field("emit_stack", &self.emit_stack)
@@ -57,10 +50,13 @@ impl TestIO {
             facts: BTreeMap::new(),
             emit_stack: vec![],
             effect_stack: vec![],
-            modules: Vec::new(),
             engine,
+            print_ffi: PrintFfi {},
         }
     }
+
+    /// List of schemas for the FFI modules provided by this MachineIO implementation.
+    pub const FFI_SCHEMAS: &'static [ModuleSchema<'static>] = &[PrintFfi::SCHEMA];
 }
 
 struct TestQueryIterator {
@@ -166,9 +162,12 @@ where
             version: Id::default(),
             engine: &mut self.engine,
         };
-        match self.modules.get_mut(module) {
-            Some(module) => module.call(procedure, stack, &mut ctx),
-            None => Err(MachineError::new(MachineErrorType::FfiCall)),
+        match module {
+            0 => self.print_ffi.call(procedure, stack, &mut ctx),
+            _ => Err(MachineError::new(MachineErrorType::FfiBadCall(
+                module.to_string(),
+                procedure.to_string(),
+            ))),
         }
     }
 }
@@ -195,7 +194,7 @@ fn test_compile() -> anyhow::Result<()> {
     )
     .map_err(anyhow::Error::msg)?;
 
-    compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
 
     Ok(())
 }
@@ -234,8 +233,8 @@ action foo(b int) {
 fn test_action() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
     let mut rs = RunState::new(&machine, &mut io);
 
     rs.call_action("foo", &[Value::from(3), Value::from("foo")])
@@ -250,8 +249,8 @@ fn test_action() -> anyhow::Result<()> {
 fn test_command_policy() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
     let mut rs = RunState::new(&machine, &mut io);
 
     let self_data = Struct {
@@ -322,8 +321,8 @@ command Increment {
 fn test_fact_create_delete() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     // We have to scope the RunState so that it and its mutable
     // reference to IO is dropped before we inspect the IO struct.
@@ -354,9 +353,8 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
 fn test_fact_query() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
-    println!("{}", machine);
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     {
         let mut rs = RunState::new(&machine, &mut io);
@@ -575,8 +573,8 @@ fn test_when_true() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     let mut rs = machine.create_run_state(&mut io);
     let result = rs
@@ -598,8 +596,8 @@ fn test_when_false() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     let mut rs = machine.create_run_state(&mut io);
     let result = rs
@@ -634,7 +632,7 @@ const POLICY_MATCH: &str = r#"
 #[test]
 fn test_match_first() -> anyhow::Result<()> {
     let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
 
     let mut rs = machine.create_run_state(&mut io);
@@ -654,7 +652,7 @@ fn test_match_first() -> anyhow::Result<()> {
 #[test]
 fn test_match_second() -> anyhow::Result<()> {
     let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
 
     let mut rs = machine.create_run_state(&mut io);
@@ -674,7 +672,7 @@ fn test_match_second() -> anyhow::Result<()> {
 #[test]
 fn test_match_none() -> anyhow::Result<()> {
     let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
 
     let mut rs = machine.create_run_state(&mut io);
@@ -709,8 +707,8 @@ fn test_match_duplicate() -> anyhow::Result<()> {
         }
     "#;
     let policy = parse_policy_str(policy_str, Version::V3).map_err(anyhow::Error::msg)?;
-    let _ = compile_from_policy(&policy).map_err(anyhow::Error::msg);
-    let res = compile_from_policy(&policy);
+    let _ = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg);
+    let res = compile_from_policy(&policy, &[]);
     assert!(matches!(
         res,
         Err(CompileError {
@@ -825,8 +823,8 @@ fn test_bytes() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
     {
         let mut rs = machine.create_run_state(&mut io);
 
@@ -885,7 +883,8 @@ fn test_structs() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     assert_eq!(
         machine.struct_defs.get("Bar"),
@@ -895,7 +894,6 @@ fn test_structs() -> anyhow::Result<()> {
         }])
     );
 
-    let mut io = TestIO::new();
     {
         let mut rs = machine.create_run_state(&mut io);
         rs.call_action("foo", &[Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
@@ -934,9 +932,9 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
-
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
     let err = {
         let mut rs = machine.create_run_state(&mut io);
         rs.call_action("foo", &[Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
@@ -958,14 +956,17 @@ struct PrintFfi {}
 impl FfiModule for PrintFfi {
     type Error = MachineError;
 
-    const TABLE: &'static [ffi::Func<'static>] = &[ffi::Func {
+    const SCHEMA: ModuleSchema<'static> = ModuleSchema {
         name: "print",
-        args: &[ffi::Arg {
-            name: "s",
-            vtype: ffi::Type::String,
+        functions: &[ffi::Func {
+            name: "print",
+            args: &[ffi::Arg {
+                name: "s",
+                vtype: ffi::Type::String,
+            }],
+            color: ffi::Color::Pure(ffi::Type::String),
         }],
-        color: ffi::Color::Pure(ffi::Type::String),
-    }];
+    };
 
     fn call<E: Engine + ?Sized>(
         &mut self,
@@ -985,19 +986,17 @@ impl FfiModule for PrintFfi {
 
                 Ok(())
             }
-            _ => Err(MachineError::new(MachineErrorType::NotDefined(format!(
-                "procedure {}",
-                procedure
-            )))),
+            _ => Err(MachineError::new(MachineErrorType::FfiBadCall(
+                Self::SCHEMA.name.to_string(),
+                procedure.to_string(),
+            ))),
         }
     }
 }
 
 #[test]
 fn test_ffi() {
-    // Add FFI module to TestIO
     let mut io = TestIO::new();
-    io.modules.push(PrintFfi {});
 
     // Push value onto stack, and call FFI function
     let mut stack = TestStack::new();
@@ -1018,7 +1017,6 @@ fn test_extcall() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    io.modules.push(PrintFfi {});
     let mut rs = machine.create_run_state(&mut io);
 
     rs.run().expect("Should succeed");
@@ -1039,12 +1037,11 @@ fn test_extcall_invalid_module() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    io.modules.push(PrintFfi {});
     let mut rs = machine.create_run_state(&mut io);
 
     assert_eq!(
         rs.run().unwrap_err(),
-        MachineError::new(MachineErrorType::FfiCall)
+        MachineError::new(MachineErrorType::FfiBadCall(1.to_string(), 0.to_string()))
     );
 }
 
@@ -1056,12 +1053,14 @@ fn test_extcall_invalid_proc() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    io.modules.push(PrintFfi {});
     let mut rs = machine.create_run_state(&mut io);
 
     assert_eq!(
         rs.run().unwrap_err(),
-        MachineError::new(MachineErrorType::NotDefined(String::from("procedure 1")))
+        MachineError::new(MachineErrorType::FfiBadCall(
+            "print".to_string(),
+            1.to_string()
+        ))
     );
 }
 
@@ -1073,7 +1072,6 @@ fn test_extcall_invalid_arg() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    io.modules.push(PrintFfi {});
     let mut rs = machine.create_run_state(&mut io);
 
     // Empty stack - should fail
@@ -1104,9 +1102,9 @@ fn test_pure_function() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
-
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
     {
         let mut rs = machine.create_run_state(&mut io);
         rs.call_action("foo", &[Value::Int(3)])
@@ -1149,9 +1147,9 @@ fn test_finish_function() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
-
     let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
     {
         let mut rs = machine.create_run_state(&mut io);
         let self_struct = Struct::new("Foo", &[KVPair::new("x", Value::Int(3))]);
@@ -1491,7 +1489,7 @@ fn test_bad_statements() -> anyhow::Result<()> {
 
     for text in texts {
         let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-        let res = compile_from_policy(&policy);
+        let res = compile_from_policy(&policy, &[]);
         assert!(matches!(
             res,
             Err(CompileError {
