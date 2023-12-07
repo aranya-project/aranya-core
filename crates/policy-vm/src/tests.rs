@@ -179,6 +179,8 @@ fn test_compile() -> anyhow::Result<()> {
         r#"
         command Foo {
             fields {}
+            seal { return None }
+            open { return None }
         }
         action foo(b int) {
             let x = if b == 0 then 4+i else 3
@@ -208,6 +210,8 @@ command Foo {
         a int,
         b int,
     }
+    seal { return None }
+    open { return None }
     policy {
         let sum = this.a + this.b
         finish {
@@ -277,6 +281,8 @@ command Set {
     fields {
         a int,
     }
+    seal { return None }
+    open { return None }
     policy {
         let x = this.a
         finish {
@@ -288,6 +294,8 @@ command Set {
 
 command Clear {
     fields {}
+    seal { return None }
+    open { return None }
     policy {
         finish {
             delete Foo[]
@@ -297,6 +305,8 @@ command Clear {
 
 command Increment {
     fields {}
+    seal { return None }
+    open { return None }
     policy {
         let r = unwrap query Foo[]=>{x: ?}
         let new_x = r.x + 1
@@ -605,6 +615,8 @@ const POLICY_MATCH: &str = r#"
             fields {
                 x int
             }
+            seal { return None }
+            open { return None }
         }
 
         action foo(x int) {
@@ -681,6 +693,8 @@ fn test_match_duplicate() -> anyhow::Result<()> {
             fields {
                 x int
             }
+            seal { return None }
+            open { return None }
         }
 
         action foo(x int) {
@@ -801,6 +815,8 @@ fn test_bytes() -> anyhow::Result<()> {
                 id id,
                 x bytes,
             }
+            seal { return None }
+            open { return None }
         }
 
         action foo(id id, x bytes) {
@@ -854,6 +870,8 @@ fn test_structs() -> anyhow::Result<()> {
                 id id,
                 bar struct Bar,
             }
+            seal { return None }
+            open { return None }
         }
 
         action foo(id id, x int) {
@@ -1072,6 +1090,8 @@ fn test_pure_function() -> anyhow::Result<()> {
             fields {
                 x int
             }
+            seal { return None }
+            open { return None }
         }
 
         function f(x int) int {
@@ -1116,6 +1136,9 @@ fn test_finish_function() -> anyhow::Result<()> {
             fields {
                 x int,
             }
+
+            seal { return None }
+            open { return None }
 
             policy {
                 finish {

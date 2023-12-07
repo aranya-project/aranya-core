@@ -238,8 +238,14 @@ policy_block = { "policy" ~ statement_block }
 // The recall statement defines a block of statements that will be
 // executed when a command of this type is recalled.
 recall_block = { "recall" ~ statement_block }
+// The seal block is a pure function with an implicit `this` parameter
+// like the policy/recall blocks. It returns an envelope object.
+seal_block = { "seal" ~ statement_block }
+// The open block is a pure function with an implicit `envelope`
+// parameter. It returns a command struct for the command it is part of.
+open_block = { "open" ~ statement_block }
 // Union of all command blocks
-command_blocks = _{ fields_block | policy_block | recall_block }
+command_blocks = _{ fields_block | seal_block | open_block | policy_block | recall_block }
 
 // # Top-level Statements
 // fact Foo[]=>{}

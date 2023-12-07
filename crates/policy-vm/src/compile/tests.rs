@@ -3,7 +3,7 @@
 use policy_ast::Version;
 use policy_lang::lang::parse_policy_str;
 
-use crate::{compile::error::CallColor, compile_from_policy, CompileErrorType};
+use crate::{compile::error::CallColor, compile_from_policy, CompileErrorType, Label, LabelType};
 
 #[test]
 fn test_undefined_struct() -> anyhow::Result<()> {
@@ -151,6 +151,119 @@ fn test_function_wrong_color_finish() -> anyhow::Result<()> {
     // functions _before_ the finish functions. So the finish function isn't yet defined.
     // Fixing this will require a two-pass compilation.
     assert_eq!(err, CompileErrorType::NotDefined(String::from("f")));
+
+    Ok(())
+}
+
+#[test]
+fn test_seal_open_command() -> anyhow::Result<()> {
+    let text = r#"
+        command Foo {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy).map_err(anyhow::Error::msg)?;
+
+    assert!(machine
+        .labels
+        .iter()
+        .any(|l| *l.0 == Label::new("Foo", LabelType::CommandSeal)));
+    assert!(machine
+        .labels
+        .iter()
+        .any(|l| *l.0 == Label::new("Foo", LabelType::CommandOpen)));
+
+    Ok(())
+}
+
+#[test]
+fn test_command_without_seal_block() -> anyhow::Result<()> {
+    let text = r#"
+        command Foo {
+            fields {}
+            policy {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy)
+        .expect_err("compilation succeeded where it should fail")
+        .err_type;
+
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("Empty/missing seal block in command"))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_command_without_open_block() -> anyhow::Result<()> {
+    let text = r#"
+        command Foo {
+            fields {}
+            seal { return None }
+            policy {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy)
+        .expect_err("compilation succeeded where it should fail")
+        .err_type;
+
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("Empty/missing open block in command"))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_command_with_no_return_in_seal_block() -> anyhow::Result<()> {
+    let text = r#"
+        command Foo {
+            fields {}
+            seal { let x = 3 }
+            open { return None }
+            policy {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy)
+        .expect_err("compilation succeeded where it should fail")
+        .err_type;
+
+    assert_eq!(err, CompileErrorType::NoReturn);
+
+    Ok(())
+}
+
+#[test]
+fn test_command_with_no_return_in_open_block() -> anyhow::Result<()> {
+    let text = r#"
+        command Foo {
+            fields {}
+            seal { return None }
+            open { let x = 3 }
+            policy {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy)
+        .expect_err("compilation succeeded where it should fail")
+        .err_type;
+
+    assert_eq!(err, CompileErrorType::NoReturn);
 
     Ok(())
 }

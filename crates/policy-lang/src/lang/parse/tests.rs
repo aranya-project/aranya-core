@@ -511,6 +511,8 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     identifier: String::from("count"),
                     field_type: ast::VType::Int,
                 }],
+                seal: vec![],
+                open: vec![],
                 policy: vec![
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
@@ -903,14 +905,7 @@ fn parse_tictactoe() {
         String::from_utf8(buf).expect("File is not valid UTF-8")
     };
 
-    let policy = match parse_policy_document(&text) {
-        Ok(p) => p,
-        Err(e) => {
-            // we do this rather than .expect() so we can see the nice error formatting
-            println!("{}", e);
-            panic!();
-        }
-    };
+    let policy = parse_policy_document(&text).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(policy.facts.len(), 4);
     assert_eq!(policy.actions.len(), 2);
     assert_eq!(policy.actions.len(), 2);
@@ -954,14 +949,7 @@ action foo() {
 ```
 "#;
 
-    let policy = match parse_policy_document(md) {
-        Ok(p) => p,
-        Err(e) => {
-            // we do this rather than .expect() so we can see the nice error formatting
-            println!("{}", e);
-            panic!();
-        }
-    };
+    let policy = parse_policy_document(md).unwrap_or_else(|e| panic!("{e}"));
 
     assert!(policy.version == Version::V3);
     assert!(policy.facts.len() == 1);
@@ -977,14 +965,7 @@ fn parse_bytes() {
     "#
     .trim();
 
-    match parse_policy_str(text, Version::V3) {
-        Ok(p) => p,
-        Err(e) => {
-            // we do this rather than .expect() so we can see the nice error formatting
-            println!("{}", e);
-            panic!();
-        }
-    };
+    parse_policy_str(text, Version::V3).unwrap_or_else(|e| panic!("{e}"));
 }
 
 #[test]
@@ -1000,14 +981,7 @@ fn parse_struct() {
     "#
     .trim();
 
-    let policy = match parse_policy_str(text, Version::V3) {
-        Ok(p) => p,
-        Err(e) => {
-            // we do this rather than .expect() so we can see the nice error formatting
-            println!("{}", e);
-            panic!();
-        }
-    };
+    let policy = parse_policy_str(text, Version::V3).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         policy.structs,
         vec![AstNode::new(
@@ -1115,4 +1089,51 @@ fn parse_ffi_structs() {
             },
         ],
     )
+}
+
+#[test]
+fn parse_seal_open() {
+    let text = r#"
+        command Foo {
+            seal {
+                return bar(this)
+            }
+
+            open {
+                return baz(envelope)
+            }
+        }
+    "#
+    .trim();
+    let policy = parse_policy_str(text, Version::V3).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        policy.commands,
+        vec![AstNode::new(
+            ast::CommandDefinition {
+                identifier: String::from("Foo"),
+                fields: vec![],
+                policy: vec![],
+                recall: vec![],
+                seal: vec![AstNode::new(
+                    ast::Statement::Return(ast::ReturnStatement {
+                        expression: ast::Expression::FunctionCall(ast::FunctionCall {
+                            identifier: String::from("bar"),
+                            arguments: vec![ast::Expression::Identifier(String::from("this"))]
+                        })
+                    }),
+                    49
+                )],
+                open: vec![AstNode::new(
+                    ast::Statement::Return(ast::ReturnStatement {
+                        expression: ast::Expression::FunctionCall(ast::FunctionCall {
+                            identifier: String::from("baz"),
+                            arguments: vec![ast::Expression::Identifier(String::from("envelope"))]
+                        })
+                    }),
+                    116
+                )],
+            },
+            0
+        )]
+    );
 }

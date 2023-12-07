@@ -26,6 +26,8 @@ command Create {
         key int,
         value int,
     }
+    seal { return None }
+    open { return None }
     policy {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
@@ -45,6 +47,8 @@ command Increment {
     fields {
         key int,
     }
+    seal { return None }
+    open { return None }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         let new_y = stuff.y + 1

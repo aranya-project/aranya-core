@@ -928,6 +928,8 @@ fn parse_command_definition(
     let mut fields = vec![];
     let mut policy = vec![];
     let mut recall = vec![];
+    let mut seal = vec![];
+    let mut open = vec![];
     for token in pc.into_inner() {
         match token.as_rule() {
             Rule::fields_block => {
@@ -944,6 +946,14 @@ fn parse_command_definition(
                 let pairs = token.into_inner();
                 recall = parse_statement_list(pairs, pratt, cc)?;
             }
+            Rule::seal_block => {
+                let pairs = token.into_inner();
+                seal = parse_statement_list(pairs, pratt, cc)?;
+            }
+            Rule::open_block => {
+                let pairs = token.into_inner();
+                open = parse_statement_list(pairs, pratt, cc)?;
+            }
             t => {
                 return Err(ParseError::new(
                     ParseErrorKind::InvalidStatement,
@@ -958,6 +968,8 @@ fn parse_command_definition(
         ast::CommandDefinition {
             identifier,
             fields,
+            seal,
+            open,
             policy,
             recall,
         },

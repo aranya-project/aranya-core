@@ -428,6 +428,10 @@ pub struct CommandDefinition {
     pub identifier: String,
     /// The fields of the command and their types
     pub fields: Vec<FieldDefinition>,
+    /// Statements for sealing the command into an envelope
+    pub seal: Vec<AstNode<Statement>>,
+    /// Statements for opening the command envelope
+    pub open: Vec<AstNode<Statement>>,
     /// The policy rule statements for this command
     pub policy: Vec<AstNode<Statement>>,
     /// The recall rule statements for this command

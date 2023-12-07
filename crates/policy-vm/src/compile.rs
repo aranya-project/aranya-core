@@ -11,7 +11,7 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::fmt;
+use core::{fmt, ops::Range};
 
 use policy_ast::{self as ast, AstNode};
 
@@ -730,6 +730,13 @@ impl CompileState {
         Ok(())
     }
 
+    fn instruction_range_contains<F>(&self, r: Range<usize>, pred: F) -> bool
+    where
+        F: FnMut(&Instruction) -> bool,
+    {
+        self.m.progmem[r].iter().any(pred)
+    }
+
     /// Compile a function
     fn compile_function(
         &mut self,
@@ -746,10 +753,7 @@ impl CompileState {
         let from = self.wp;
         self.compile_statements(&function.statements)?;
         // Check that there is a return statement somewhere in the compiled instructions.
-        if !self.m.progmem[from..self.wp]
-            .iter()
-            .any(|i| matches!(i, Instruction::Return))
-        {
+        if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(CompileError::from_locator(
                 CompileErrorType::NoReturn,
                 function_node.locator,
@@ -828,6 +832,56 @@ impl CompileState {
         self.compile_statements(&command.recall)?;
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit);
+
+        if command.seal.is_empty() {
+            return Err(CompileError::from_locator(
+                CompileErrorType::Unknown(String::from("Empty/missing seal block in command")),
+                command_node.locator,
+                self.m.codemap.as_ref(),
+            ));
+        }
+        if command.open.is_empty() {
+            return Err(CompileError::from_locator(
+                CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
+                command_node.locator,
+                self.m.codemap.as_ref(),
+            ));
+        }
+
+        let from = self.wp;
+        self.define_label(
+            Label::new(&command.identifier, LabelType::CommandSeal),
+            self.wp,
+        )?;
+        self.enter_statement_context(StatementContext::PureFunction);
+        self.compile_statements(&command.seal)?;
+        if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
+            return Err(CompileError::from_locator(
+                CompileErrorType::NoReturn,
+                command_node.locator,
+                self.m.codemap.as_ref(),
+            ));
+        }
+        self.exit_statement_context();
+        // If there is no return, this is an error. Panic if we get here.
+        self.append_instruction(Instruction::Panic);
+
+        let from = self.wp;
+        self.define_label(
+            Label::new(&command.identifier, LabelType::CommandOpen),
+            self.wp,
+        )?;
+        self.enter_statement_context(StatementContext::PureFunction);
+        self.compile_statements(&command.open)?;
+        if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
+            return Err(CompileError::from_locator(
+                CompileErrorType::NoReturn,
+                command_node.locator,
+                self.m.codemap.as_ref(),
+            ));
+        }
+        self.exit_statement_context();
+        self.append_instruction(Instruction::Panic);
 
         Ok(())
     }
