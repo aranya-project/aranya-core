@@ -13,7 +13,6 @@ use core::{
     result::Result,
 };
 
-use cfg_if::cfg_if;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -30,14 +29,6 @@ use crate::{
     mac::{Mac, MacId},
     signer::{Signer, SignerId},
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
 
 /// An error from [`Engine::wrap`].
 #[derive(Debug, Eq, PartialEq)]
@@ -61,10 +52,8 @@ impl Display for WrapError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for WrapError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for WrapError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::Export(err) => Some(err),
             Self::Seal(err) => Some(err),
@@ -107,10 +96,8 @@ impl Display for UnwrapError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for UnwrapError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for UnwrapError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::Import(err) => Some(err),
             _ => None,
@@ -246,9 +233,7 @@ impl Display for WrongKeyTypeError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for WrongKeyTypeError {}
+impl trouble::Error for WrongKeyTypeError {}
 
 macro_rules! conv_key {
     ($name:ident, $enum:ident) => {

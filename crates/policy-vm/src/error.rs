@@ -3,17 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String};
 use core::{convert::Infallible, fmt};
 
-use cfg_if::cfg_if;
-
 use crate::{codemap::CodeMap, io::MachineIOError};
-
-cfg_if! {
-    if #[cfg(feature = "std")] {
-        use std::error;
-    } else if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    }
-}
 
 /// Possible machine errors.
 // TODO(chip): These should be elaborated with additional data, and/or
@@ -167,9 +157,7 @@ impl fmt::Display for MachineError {
 // Implementing Display and deriving Debug implements
 // error::Error with default behavior by declaring this empty
 // implementation.
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for MachineError {}
+impl trouble::Error for MachineError {}
 
 impl From<MachineErrorType> for MachineError {
     fn from(value: MachineErrorType) -> Self {

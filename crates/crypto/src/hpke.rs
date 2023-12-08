@@ -28,7 +28,6 @@ use core::{
     result::Result,
 };
 
-use cfg_if::cfg_if;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
@@ -40,14 +39,6 @@ use crate::{
     kdf::{Kdf, KdfError},
     kem::{Kem, KemError},
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
 
 macro_rules! i2osp {
     ($v:expr) => {
@@ -331,10 +322,8 @@ impl Display for HpkeError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for HpkeError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for HpkeError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::Seal(err) => Some(err),
             Self::Open(err) => Some(err),

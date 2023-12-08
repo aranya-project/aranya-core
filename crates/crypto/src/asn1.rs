@@ -14,7 +14,6 @@ use core::{
     result::Result,
 };
 
-use cfg_if::cfg_if;
 use der::{asn1::UintRef, Decode, Encode, Header, Reader, SliceReader, SliceWriter, Tag};
 
 use crate::{
@@ -22,14 +21,6 @@ use crate::{
     signer::{Signature, Signer},
     util::copy,
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
 
 /// An error returned when a signature's encoding is invalid.
 #[derive(Debug, Eq, PartialEq)]
@@ -55,9 +46,7 @@ impl fmt::Display for EncodingError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for EncodingError {}
+impl trouble::Error for EncodingError {}
 
 impl From<der::Error> for EncodingError {
     fn from(err: der::Error) -> Self {

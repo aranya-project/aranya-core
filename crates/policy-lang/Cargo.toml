@@ -26,8 +26,3 @@ pest_derive = { version = "2" }
 policy-ast = { path = "../policy-ast", features = ["std"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_yaml = { version = "0.9" }
-
-[package.metadata.cargo-all-features]
-denylist = [
-	"error_in_core",
-]

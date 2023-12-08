@@ -15,9 +15,9 @@ use core::{
     result::Result,
 };
 
-use cfg_if::cfg_if;
 use subtle::ConstantTimeEq;
 
+pub use crate::hpke::KemId;
 use crate::{
     csprng::Csprng,
     import::{Import, ImportError},
@@ -25,16 +25,6 @@ use crate::{
     keys::{PublicKey, SecretKey},
     zeroize::ZeroizeOnDrop,
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
-
-pub use crate::hpke::KemId;
 
 /// An error from a [`Kem`].
 #[derive(Debug, Eq, PartialEq)]
@@ -66,10 +56,8 @@ impl Display for KemError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for KemError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for KemError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::DhKem(err) => Some(err),
             Self::Import(err) => Some(err),
@@ -225,9 +213,7 @@ impl Display for EcdhError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for EcdhError {}
+impl trouble::Error for EcdhError {}
 
 /// Elliptic Curve Diffie Hellman key exchange.
 ///
@@ -326,10 +312,8 @@ impl Display for DhKemError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for DhKemError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for DhKemError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::Ecdh(err) => Some(err),
             Self::Kdf(err) => Some(err),

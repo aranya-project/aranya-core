@@ -13,7 +13,6 @@ use core::{
     result::Result,
 };
 
-use cfg_if::cfg_if;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 
@@ -22,14 +21,6 @@ use crate::{
     import::Import,
     keys::{PublicKey, SecretKey},
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
 
 /// An error from a [`Signer`].
 #[derive(Debug, Eq, PartialEq)]
@@ -56,10 +47,8 @@ impl fmt::Display for SignerError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for SignerError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for SignerError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::Other(_) => None,
             Self::Encoding(err) => Some(err),

@@ -11,15 +11,24 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-alloc = ["crypto/alloc"]
 default = ["alloc"]
 
+alloc = [
+	"crypto/alloc",
+]
+std = [
+	"alloc",
+	"crypto/std",
+	"policy-vm/std",
+	"trouble/std",
+]
 
 [dependencies]
 crypto = { path = "../crypto" }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
 policy-vm = { path = "../policy-vm" }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
+trouble = { path = "../trouble" }
 typenum = { version = "1", default-features = false }
 
 [dev-dependencies]

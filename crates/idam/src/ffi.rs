@@ -50,9 +50,7 @@ impl Display for KeyStoreError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for KeyStoreError {}
+impl trouble::Error for KeyStoreError {}
 
 impl From<KeyStoreError> for Error {
     fn from(_err: KeyStoreError) -> Self {

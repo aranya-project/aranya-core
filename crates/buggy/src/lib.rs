@@ -34,7 +34,6 @@
 //! }
 //! ```
 
-#![cfg_attr(all(feature = "error", not(feature = "std")), feature(error_in_core))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![deny(
     clippy::arithmetic_side_effects,
@@ -43,14 +42,6 @@
 )]
 
 use core::{fmt, panic::Location};
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
-        use std::error::Error as StdError;
-    } else if #[cfg(feature = "error")] {
-        use core::error::Error as StdError;
-    }
-}
 
 #[derive(Clone, Debug)]
 /// Error type for errors that should be unreachable, indicating a bug.
@@ -83,8 +74,7 @@ impl fmt::Display for Bug {
     }
 }
 
-#[cfg(feature = "error")]
-impl StdError for Bug {}
+impl trouble::Error for Bug {}
 
 /// Extension trait for assuming an option or result can be unwrapped.
 pub trait BugExt<T> {

@@ -1,5 +1,5 @@
 [package]
-name = "buggy"
+name = "trouble"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -11,8 +11,10 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-std = ["trouble/std"]
+std = []
 
 [dependencies]
 cfg-if = { workspace = true }
-trouble = { path = "../trouble" }
+
+[build-dependencies]
+rustc_version = "0.4.0"

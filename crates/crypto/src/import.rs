@@ -11,16 +11,6 @@ use core::{
     result::Result,
 };
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
-
 /// A slice could not be converted to a fixed-size buffer.
 #[derive(Debug, Eq, PartialEq)]
 pub struct InvalidSizeError {
@@ -40,9 +30,7 @@ impl Display for InvalidSizeError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for InvalidSizeError {}
+impl trouble::Error for InvalidSizeError {}
 
 /// An error that occured while importing data.
 #[derive(Debug, Eq, PartialEq)]
@@ -69,10 +57,8 @@ impl Display for ImportError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for ImportError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for ImportError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::InvalidSize(err) => Some(err),
             _ => None,
@@ -156,6 +142,4 @@ impl Display for ExportError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for ExportError {}
+impl trouble::Error for ExportError {}

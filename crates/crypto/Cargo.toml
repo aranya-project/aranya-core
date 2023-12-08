@@ -87,6 +87,7 @@ std = [
 	"der/std",
 	"ecdsa/std",
 	"subtle/std",
+	"trouble/std",
 	"zeroize/std",
 ]
 
@@ -102,9 +103,6 @@ test_util = [
 # Nightly features
 #
 
-# Makes the various "error" types implement `core::error::Error`.
-# If `std` is enabled, this is a no-op.
-error_in_core = []
 result_option_inspect = []
 
 [dependencies]
@@ -138,6 +136,7 @@ sha2 = { version = "0.10", default-features = false }
 siphasher = { version = "1", default-features = false }
 spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"] }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
+trouble = { path = "../trouble" }
 typenum = { version = "1", default-features = false }
 # Only pulled into non-dev builds if `test_util` is enabled. It
 # won't bloat release builds, though, since users of this crate
@@ -185,6 +184,5 @@ always_include_features = [
 skip_feature_sets = []
 
 denylist = [
-	"error_in_core",
 	"result_option_inspect",
 ]

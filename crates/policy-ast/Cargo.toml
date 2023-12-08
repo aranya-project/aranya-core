@@ -16,23 +16,13 @@ workspace = true
 default = []
 
 # Enable `std`.
-std = []
-
-#
-# Nightly features
-#
-
-# Makes the various "error" types implement `core::error::Error`.
-# If `std` is enabled, this is a no-op.
-error_in_core = []
+std = [
+	"trouble/std",
+]
 
 [dependencies]
 cfg-if = { workspace = true, default-features = false }
+trouble = { path = "../trouble" }
 
 [package.metadata.docs.rs]
 all-features = true
-
-[package.metadata.cargo-all-features]
-denylist = [
-	"error_in_core",
-]

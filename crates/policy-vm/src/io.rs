@@ -3,21 +3,11 @@ extern crate alloc;
 use alloc::string::{String, ToString};
 use core::fmt;
 
-use cfg_if::cfg_if;
-
 use super::Stack;
 use crate::{
     data::{FactKey, FactKeyList, FactValue, FactValueList, KVPair},
     error::{MachineError, MachineErrorType},
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
 
 /// An I/O error.
 #[derive(Debug, Eq, PartialEq)]
@@ -40,9 +30,7 @@ impl fmt::Display for MachineIOError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for MachineIOError {}
+impl trouble::Error for MachineIOError {}
 
 impl From<MachineIOError> for MachineError {
     fn from(value: MachineIOError) -> Self {

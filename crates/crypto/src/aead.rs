@@ -18,7 +18,6 @@ use core::{
     result::Result,
 };
 
-use cfg_if::cfg_if;
 use generic_array::ArrayLength;
 use typenum::{
     type_operators::{IsGreaterOrEqual, IsLess},
@@ -27,21 +26,12 @@ use typenum::{
 
 #[allow(clippy::wildcard_imports, unused_imports)]
 use crate::features::*;
+pub use crate::hpke::AeadId;
 use crate::{
     error::Unreachable,
     keys::{raw_key, SecretKey},
     zeroize::Zeroize,
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
-
-pub use crate::hpke::AeadId;
 
 // Some of the bounds for `Aead` are at least 32 bits, prevent
 // the crate from being built for, e.g., a 16-bit CPU. If we ever
@@ -72,9 +62,7 @@ impl fmt::Display for BufferTooSmallError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for BufferTooSmallError {}
+impl trouble::Error for BufferTooSmallError {}
 
 /// An error from a [`Nonce`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -93,9 +81,7 @@ impl fmt::Display for InvalidNonceSize {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for InvalidNonceSize {}
+impl trouble::Error for InvalidNonceSize {}
 
 /// An error from an [`Aead`] seal.
 #[derive(Debug, Eq, PartialEq)]
@@ -148,10 +134,8 @@ impl fmt::Display for SealError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for SealError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for SealError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::Unreachable(err) => Some(err),
             Self::BufferTooSmall(err) => Some(err),
@@ -233,10 +217,8 @@ impl fmt::Display for OpenError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for OpenError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for OpenError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::Unreachable(err) => Some(err),
             Self::BufferTooSmall(err) => Some(err),

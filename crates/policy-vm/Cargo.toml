@@ -22,17 +22,7 @@ derive = []
 std = [
 	"crypto/std",
 	"policy-ast/std",
-]
-
-#
-# Nightly features
-#
-
-# Makes the various "error" types implement `core::error::Error`.
-# If `std` is enabled, this is a no-op.
-error_in_core = [
-	"crypto/error_in_core",
-	"policy-ast/error_in_core",
+	"trouble/std",
 ]
 
 [dependencies]
@@ -41,6 +31,7 @@ crypto = { path = "../crypto", default-features = false }
 policy-ast = { path = "../policy-ast" }
 policy-derive = { path = "../policy-derive" }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
+trouble = { path = "../trouble" }
 
 [dev-dependencies]
 anyhow = { version = "1" }
@@ -54,8 +45,3 @@ path = "tests/lib.rs"
 
 [package.metadata.docs.rs]
 all-features = true
-
-[package.metadata.cargo-all-features]
-denylist = [
-	"error_in_core",
-]

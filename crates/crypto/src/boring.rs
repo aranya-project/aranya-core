@@ -70,19 +70,11 @@ use crate::{
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
 
-cfg_if::cfg_if! {
+cfg_if! {
     if #[cfg(any(fips, test_fips))] {
         pub use lame_crypto::*;
     } else {
         pub use fun_crypto::*;
-    }
-}
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
     }
 }
 
@@ -299,8 +291,7 @@ impl fmt::Display for BoringError {
     }
 }
 
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for BoringError {}
+impl trouble::Error for BoringError {}
 
 /// Returns the most recent BoringSSL error as an [`SealError`].
 fn seal_error() -> SealError {

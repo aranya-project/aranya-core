@@ -3,8 +3,6 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
 use core::fmt;
 
-use cfg_if::cfg_if;
-
 /// An error for a range that doesn't exist. Used in [CodeMap].
 #[derive(Debug)]
 pub struct RangeError;
@@ -15,17 +13,7 @@ impl fmt::Display for RangeError {
     }
 }
 
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
-
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for RangeError {}
+impl trouble::Error for RangeError {}
 
 /// This is a simplified version of Pest's `Span`. We can't use Pest's version because we
 /// need to work in `no_std` environments.

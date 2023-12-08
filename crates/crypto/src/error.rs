@@ -2,8 +2,6 @@
 
 use core::fmt;
 
-use cfg_if::cfg_if;
-
 #[cfg(feature = "alloc")]
 use crate::idam::KeyConversionError;
 use crate::{
@@ -16,14 +14,6 @@ use crate::{
     mac::MacError,
     signer::SignerError,
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
 
 /// Encompasses the different errors directly returned by this
 /// crate.
@@ -87,10 +77,8 @@ impl fmt::Display for Error {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for Error {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for Error {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::Seal(err) => Some(err),
             Self::Open(err) => Some(err),
@@ -104,6 +92,7 @@ impl error::Error for Error {
             Self::Export(err) => Some(err),
             Self::Wrap(err) => Some(err),
             Self::Unwrap(err) => Some(err),
+            #[cfg(feature = "alloc")]
             Self::KeyConversion(err) => Some(err),
             _ => None,
         }
@@ -219,6 +208,4 @@ impl fmt::Display for Unreachable {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for Unreachable {}
+impl trouble::Error for Unreachable {}

@@ -13,19 +13,8 @@ use core::{
     result::Result,
 };
 
-use cfg_if::cfg_if;
-
-use crate::{keys::raw_key, mac::Tag};
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
-
 pub use crate::hpke::KdfId;
+use crate::{keys::raw_key, mac::Tag};
 
 /// An error from a [`Kdf`].
 #[derive(Debug, Eq, PartialEq)]
@@ -43,9 +32,7 @@ impl fmt::Display for KdfError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for KdfError {}
+impl trouble::Error for KdfError {}
 
 /// An extract-then-expand Key Derivation Function (KDF) as
 /// formally defined in section 3 of [HKDF].

@@ -14,7 +14,6 @@ use core::{
     ops::Add,
 };
 
-use cfg_if::cfg_if;
 use generic_array::ArrayLength;
 use postcard::from_bytes;
 use typenum::{operator_aliases::Sum, U64};
@@ -32,14 +31,6 @@ use crate::{
     import::InvalidSizeError,
 };
 
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
-
 /// Error resulting from decoding a public key certificate
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DecodePublicKeyCertError(postcard::Error);
@@ -50,9 +41,7 @@ impl Display for DecodePublicKeyCertError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for DecodePublicKeyCertError {}
+impl trouble::Error for DecodePublicKeyCertError {}
 
 /// An error from wrapping a [`GroupKey`] for FactDB
 #[derive(Debug, Eq, PartialEq)]
@@ -84,10 +73,8 @@ impl Display for KeyConversionError {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for KeyConversionError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl trouble::Error for KeyConversionError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::WrongKeyType(err) => Some(err),
             Self::InvalidCiphertext(err) => Some(err),

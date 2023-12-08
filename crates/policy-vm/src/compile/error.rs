@@ -3,18 +3,9 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String};
 use core::fmt;
 
-use cfg_if::cfg_if;
 use policy_ast as ast;
 
 use crate::{compile::StatementContext, CodeMap};
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
 
 /// Describes the call color in an [CompileErrorType::InvalidCallColor].
 #[derive(Debug, PartialEq)]
@@ -68,9 +59,7 @@ impl core::fmt::Display for CompileErrorType {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for CompileErrorType {}
+impl trouble::Error for CompileErrorType {}
 
 // TODO(chip): this is identical to MachineErrorSource and could
 // probably be merged with it. I'm keeping it separate for now as I
@@ -138,9 +127,7 @@ impl fmt::Display for CompileError {
 // Implementing Display and deriving Debug implements
 // error::Error with default behavior by declaring this empty
 // implementation.
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for CompileError {}
+impl trouble::Error for CompileError {}
 
 impl From<CompileErrorType> for CompileError {
     fn from(value: CompileErrorType) -> Self {

@@ -8,21 +8,12 @@ use core::{
     str,
 };
 
-use cfg_if::cfg_if;
 use generic_array::{functional::FunctionalSequence, ArrayLength, GenericArray};
 use subtle::{Choice, ConditionallySelectable};
 use typenum::{
     consts::{U128, U133, U16, U2, U32, U33, U48, U49, U64, U65, U66, U67, U97},
     Double, Integer, PartialQuot, Unsigned, B1, Z0,
 };
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
 
 /// Implemented by types that can encode themselves as hex.
 pub trait ToHex {
@@ -211,9 +202,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for Error {}
+impl trouble::Error for Error {}
 
 /// Encodes `src` into `dst` as hexadecimal in constant time and
 /// returns the number of bytes written.

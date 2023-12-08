@@ -3,16 +3,6 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref, str::FromStr};
 
-use cfg_if::cfg_if;
-
-cfg_if! {
-    if #[cfg(feature = "error_in_core")] {
-        use core::error;
-    } else if #[cfg(feature = "std")] {
-        use std::error;
-    }
-}
-
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug)]
@@ -24,9 +14,7 @@ impl fmt::Display for InvalidVersion {
     }
 }
 
-#[cfg_attr(docs, doc(cfg(any(feature = "error_in_core", feature = "std"))))]
-#[cfg(any(feature = "error_in_core", feature = "std"))]
-impl error::Error for InvalidVersion {}
+impl trouble::Error for InvalidVersion {}
 
 /// Policy language version
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
