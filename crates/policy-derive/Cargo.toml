@@ -20,7 +20,7 @@ default = []
 debug = []
 
 [dependencies]
-anyhow = { version = "1" }
+anyhow = { workspace = true }
 log = { workspace = true }
 policy-lang = { path = "../policy-lang" }
 prettyplease = { version = "0.2" }

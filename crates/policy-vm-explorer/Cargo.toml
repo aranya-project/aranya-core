@@ -14,7 +14,7 @@ workspace = true
 default = []
 
 [dependencies]
-anyhow = { version = "1" }
+anyhow = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
 crypto = { path = "../crypto" }
 policy-lang = { path = "../policy-lang" }

@@ -32,7 +32,7 @@ trouble = { path = "../trouble" }
 typenum = { version = "1", default-features = false }
 
 [dev-dependencies]
-anyhow = "1.0"
+anyhow = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true

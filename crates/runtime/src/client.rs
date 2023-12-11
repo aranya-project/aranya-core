@@ -2,7 +2,7 @@ use alloc::{
     collections::{BTreeMap, BinaryHeap, VecDeque},
     vec::Vec,
 };
-use core::marker::PhantomData;
+use core::{fmt::Display, marker::PhantomData};
 
 use crate::{
     Command, Engine, EngineError, Id, Location, Perspective, Policy, PolicyId, Prior, Priority,
@@ -15,6 +15,8 @@ pub enum ClientError {
     NoSuchParent(Id),
     ExtraStart(Id),
     UnknownCommand(Id),
+    CommandExists(Id),
+    HeadCount(usize),
     InitStorageMismatch,
     InternalError,
     EngineError,
@@ -22,9 +24,27 @@ pub enum ClientError {
     Unreachable,
     InitError,
     NotAuthorized,
-    CommandExists(Id),
     SyncError,
-    HeadCount(usize),
+}
+
+impl Display for ClientError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ClientError::NoSuchParent(i) => write!(f, "NoSuchParent {}", i),
+            ClientError::ExtraStart(i) => write!(f, "ExtraStart {}", i),
+            ClientError::UnknownCommand(i) => write!(f, "Unknown Command {}", i),
+            ClientError::CommandExists(i) => write!(f, "CommandExists {}", i),
+            ClientError::HeadCount(i) => write!(f, "HeadCount {}", i),
+            ClientError::InitStorageMismatch => write!(f, "InitStorageMismatch"),
+            ClientError::InternalError => write!(f, "InternalError"),
+            ClientError::EngineError => write!(f, "EngineError"),
+            ClientError::StorageError(_) => write!(f, "StorageError"),
+            ClientError::Unreachable => write!(f, "Unreachable"),
+            ClientError::InitError => write!(f, "InitError"),
+            ClientError::NotAuthorized => write!(f, "NotAuthorized"),
+            ClientError::SyncError => write!(f, "SyncError"),
+        }
+    }
 }
 
 #[derive(Debug)]

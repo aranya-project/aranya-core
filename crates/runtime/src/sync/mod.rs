@@ -1,19 +1,19 @@
 //! Interface for syncing state between clients.
 
-use alloc::vec;
+// use std::sync::{Arc, Mutex};
+use alloc::{sync::Arc, vec};
 use core::mem;
 
 use heapless::Vec;
 use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
-#[cfg(any(feature = "quic_syncer", test))]
-use quinn::{ConnectionError, ReadToEndError, WriteError};
 use serde::{Deserialize, Serialize};
+use spin::Mutex;
 
 use crate::{
     command::{Command, Id, Priority},
     engine::EngineError,
     storage::{Location, Segment, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH},
-    ClientError, Prior,
+    ClientError, Prior, Sink,
 };
 
 // TODO: These should all be compile time parameters
@@ -195,34 +195,6 @@ impl From<PostcardError> for SyncError {
 impl From<ClientError> for SyncError {
     fn from(_error: ClientError) -> Self {
         SyncError::ClientError
-    }
-}
-
-#[cfg(any(feature = "quic_syncer", test))]
-impl From<WriteError> for SyncError {
-    fn from(_error: WriteError) -> Self {
-        SyncError::NetworkError
-    }
-}
-
-#[cfg(any(feature = "quic_syncer", test))]
-impl From<ReadToEndError> for SyncError {
-    fn from(_error: ReadToEndError) -> Self {
-        SyncError::NetworkError
-    }
-}
-
-#[cfg(any(feature = "quic_syncer", test))]
-impl From<ConnectionError> for SyncError {
-    fn from(_error: ConnectionError) -> Self {
-        SyncError::NetworkError
-    }
-}
-
-#[cfg(any(feature = "quic_syncer", test))]
-impl From<rustls::Error> for SyncError {
-    fn from(_error: rustls::Error) -> Self {
-        SyncError::CryptoError
     }
 }
 
@@ -814,4 +786,75 @@ fn write(target: &mut [u8], message: SyncMessage) -> Result<usize, SyncError> {
     let written = to_slice(&message, target)?;
 
     Ok(written.len())
+}
+
+/// Wraps a Sink in an Arc<Mutex<>>
+///
+/// Many of our APIs expect a sink. When using multithreaded code it's necessary to
+/// wrap the Sink in an Arc<Mutex<>>. WrappedSink functions as a sink while locking
+/// the Arc<Mutex<>> as necessary. This allows our APIs to work in single and
+/// multithreaded environments.
+#[derive(Debug)]
+pub struct LockedSink<T> {
+    sink: Arc<Mutex<T>>,
+}
+
+impl<T> Clone for LockedSink<T> {
+    fn clone(&self) -> Self {
+        LockedSink::new(self.sink.clone())
+    }
+}
+
+impl<T> LockedSink<T> {
+    pub fn new(sink: Arc<Mutex<T>>) -> LockedSink<T> {
+        LockedSink { sink }
+    }
+}
+
+/// Keeps track of the expectations needed for tests.
+pub trait Expectation<E> {
+    /// Adds a new expectation
+    fn add_expectation(&mut self, expect: E);
+    /// Returns the number of expections that have not been used.
+    fn count(&self) -> usize;
+}
+
+impl<T, E> Expectation<E> for LockedSink<T>
+where
+    T: Sink<E> + Expectation<E>,
+{
+    fn add_expectation(&mut self, expect: E) {
+        let mut s = self.sink.lock();
+        s.add_expectation(expect)
+    }
+
+    fn count(&self) -> usize {
+        let s = self.sink.lock();
+        s.count()
+    }
+}
+
+impl<T, E> Sink<E> for LockedSink<T>
+where
+    T: Sink<E>,
+{
+    fn begin(&mut self) {
+        let mut s = self.sink.lock();
+        s.begin()
+    }
+
+    fn consume(&mut self, effect: E) {
+        let mut s = self.sink.lock();
+        s.consume(effect);
+    }
+
+    fn rollback(&mut self) {
+        let mut s = self.sink.lock();
+        s.rollback()
+    }
+
+    fn commit(&mut self) {
+        let mut s = self.sink.lock();
+        s.commit()
+    }
 }

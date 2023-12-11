@@ -14,7 +14,7 @@ workspace = true
 default = []
 
 [dependencies]
-anyhow = { version = "1.0" }
+anyhow = { workspace = true }
 cfg-if = { version = "1" }
 clap = { version = "4.4", features = ["derive"] }
 crypto = { path = "../crypto" }

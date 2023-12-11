@@ -1,23 +1,18 @@
-use std::{
-    collections::BTreeMap,
-    fs::File,
-    net::SocketAddr,
-    sync::{Arc, Mutex},
-};
+use std::{collections::BTreeMap, fs::File, net::SocketAddr, sync::Arc};
 
 use once_cell::sync::Lazy;
-use quinn::{ClientConfig, ConnectionError, Endpoint, ReadToEndError, WriteError};
+use quinn::{ConnectionError, ReadToEndError, ServerConfig, WriteError};
 use serde::{Deserialize, Serialize};
+use spin::Mutex;
 use tokio::sync::Mutex as TMutex;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
+    protocol::{TestActions, TestEffect, TestEngine, TestSink},
+    quic_syncer::{run_syncer, sync},
     storage::memory::*,
-    tests::{
-        protocol::*,
-        sync::{run_syncer, WrappedSink},
-    },
-    *,
+    sync::LockedSink,
+    ClientError, ClientState, EngineError, Expectation, SyncError, SyncRequester, SyncState,
 };
 
 static NETWORK: Lazy<TMutex<()>> = Lazy::new(TMutex::default);
@@ -54,6 +49,7 @@ enum TestError {
     SerdeYaml(serde_yaml::Error),
     MissingClient,
     MissingGraph(u64),
+    Sync(SyncError),
     Crypto,
     Network,
 }
@@ -106,6 +102,12 @@ impl From<EngineError> for TestError {
     }
 }
 
+impl From<SyncError> for TestError {
+    fn from(err: SyncError) -> Self {
+        TestError::Sync(err)
+    }
+}
+
 fn read(file: &str) -> Result<Vec<TestRule>, TestError> {
     let file = File::open(file)?;
     let actions: Vec<TestRule> = serde_yaml::from_reader(file)?;
@@ -120,9 +122,7 @@ async fn run(file: &str) -> Result<(), TestError> {
 
     let mut clients = BTreeMap::new();
 
-    let mut sink = WrappedSink {
-        sink: Arc::new(Mutex::new(TestSink::new())),
-    };
+    let mut sink = LockedSink::new(Arc::new(Mutex::new(TestSink::new())));
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
     let cert_der = cert.serialize_der().unwrap();
     let priv_key = cert.serialize_private_key_der();
@@ -154,13 +154,19 @@ async fn run(file: &str) -> Result<(), TestError> {
                 }
 
                 for (id, client) in clients.iter() {
+                    let server_addr = format!("127.0.0.1:{}", 5000 + id).parse().unwrap();
+                    let mut server_config =
+                        ServerConfig::with_single_cert(cert_chain.clone(), priv_key.clone())?;
+                    let transport_config =
+                        Arc::get_mut(&mut server_config.transport).expect("test");
+                    transport_config.max_concurrent_uni_streams(0_u8.into());
+                    let endpoint = quinn::Endpoint::server(server_config, server_addr)
+                        .map_err(|_| SyncError::InternalError)?;
                     let fut = run_syncer(
                         cancel_token.clone(),
                         client.clone(),
                         storage_id,
-                        cert_chain.clone(),
-                        priv_key.clone(),
-                        *id,
+                        endpoint,
                         session_id,
                         sink.clone(),
                     );
@@ -191,13 +197,14 @@ async fn run(file: &str) -> Result<(), TestError> {
 
                 assert!(request_syncer.ready());
 
+                let server_addr: SocketAddr = format!("127.0.0.1:{}", 5000 + from).parse().unwrap();
                 sync(
                     request_client,
                     request_syncer,
                     cert_chain.clone(),
                     &mut sink,
                     storage_id,
-                    from,
+                    server_addr,
                 )
                 .await?;
 
@@ -231,46 +238,6 @@ async fn run(file: &str) -> Result<(), TestError> {
         };
     }
     cancel_token.cancel();
-    Ok(())
-}
-
-async fn sync(
-    mut client: tokio::sync::MutexGuard<'_, ClientState<TestEngine, MemStorageProvider>>,
-    mut syncer: SyncRequester<'_>,
-    cert_chain: Vec<rustls::Certificate>,
-    sink: &mut WrappedSink,
-    storage_id: &Id,
-    id: u64,
-) -> Result<(), TestError> {
-    let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let target: &mut [u8] = buffer.as_mut_slice();
-    let len = client.sync_poll(&mut syncer, target)?;
-    let server_addr: SocketAddr = format!("127.0.0.1:{}", 5000 + id).parse().unwrap();
-    let mut certs = rustls::RootCertStore::empty();
-    for cert in &cert_chain {
-        certs.add(cert)?;
-    }
-    let client_cfg = ClientConfig::with_root_certificates(certs);
-    let client_addr = "[::]:0".parse().unwrap();
-    let mut endpoint = Endpoint::client(client_addr)?;
-    endpoint.set_default_client_config(client_cfg);
-
-    let conn = endpoint
-        .connect(server_addr, "localhost")
-        .unwrap()
-        .await
-        .unwrap();
-    let (mut send, mut recv) = conn.open_bi().await?;
-
-    send.write_all(&target[0..len]).await?;
-    send.finish().await?;
-    let resp = recv.read_to_end(usize::max_value()).await?;
-    let mut trx = client.transaction(storage_id);
-    client.sync_receive(&mut trx, sink, &mut syncer, &resp)?;
-    client.commit(&mut trx, sink)?;
-    conn.close(0u32.into(), b"done");
-    endpoint.wait_idle().await;
-    endpoint.close(0u32.into(), b"done");
     Ok(())
 }
 

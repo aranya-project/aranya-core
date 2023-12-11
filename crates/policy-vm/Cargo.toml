@@ -34,7 +34,7 @@ serde = { workspace = true, default-features = false, features = ["derive", "all
 trouble = { path = "../trouble" }
 
 [dev-dependencies]
-anyhow = { version = "1" }
+anyhow = { workspace = true }
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-lang = { path = "../policy-lang" }
 policy-vm = { path = ".", features = ["derive"] }

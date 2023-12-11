@@ -1,13 +1,16 @@
-#![cfg_attr(not(any(test, doctest)), no_std)]
+#![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
+#![deny(rust_2018_idioms, unused_lifetimes, unused_qualifications)]
 
 extern crate alloc;
 
 mod client;
 mod command;
-mod engine;
+pub mod engine;
 mod prior;
-mod storage;
-mod sync;
+pub mod protocol;
+pub mod quic_syncer;
+pub mod storage;
+pub mod sync;
 
 pub use crate::{
     client::*, command::*, engine::*, prior::Prior, storage::*, sync::*, vm_policy::*,

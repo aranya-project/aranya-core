@@ -1,9 +1,13 @@
+use alloc::vec::Vec;
 use core::convert::Infallible;
 
 use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
 use serde::{Deserialize, Serialize};
 
-use super::*;
+use super::{
+    alloc, Command, Engine, EngineError, Expectation, FactPerspective, Id, Perspective, Policy,
+    PolicyId, Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
+};
 
 impl From<StorageError> for EngineError {
     fn from(_: StorageError) -> Self {
@@ -102,6 +106,12 @@ impl TestEngine {
     }
 }
 
+impl Default for TestEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Engine for TestEngine {
     type Policy = TestPolicy;
     type Payload = (u64, u64);
@@ -140,7 +150,8 @@ impl TestPolicy {
         value.extend_from_slice(&count.to_be_bytes());
 
         if let Some(current) = facts.query(&key)? {
-            let current_val = u64::from_be_bytes(current[0..8].try_into().unwrap());
+            let current_val =
+                u64::from_be_bytes(current[0..8].try_into().expect("unable to load fact"));
             match current_val <= count {
                 true => {
                     facts.insert(key.as_slice(), value.as_slice());
@@ -185,12 +196,12 @@ fn write<'a>(target: &'a mut [u8], message: &WireProtocol) -> Result<&'a mut [u8
     )?)
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum TestEffect {
     Got(u64),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TestSink {
     expect: Vec<TestEffect>,
 }
@@ -199,12 +210,20 @@ impl TestSink {
     pub fn new() -> Self {
         TestSink { expect: Vec::new() }
     }
+}
 
-    pub fn add_expectation(&mut self, expect: TestEffect) {
+impl Default for TestSink {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Expectation<TestEffect> for TestSink {
+    fn add_expectation(&mut self, expect: TestEffect) {
         self.expect.push(expect);
     }
 
-    pub fn count(&self) -> usize {
+    fn count(&self) -> usize {
         self.expect.len()
     }
 }
@@ -266,7 +285,7 @@ impl Policy for TestPolicy {
         policy_data: &[u8],
         _payload: &Self::Payload,
     ) -> Result<TestProtocol<'a>, EngineError> {
-        let policy: [u8; 8] = policy_data[0..8].try_into().unwrap();
+        let policy: [u8; 8] = policy_data[0..8].try_into().expect("unable to load policy");
         let command = WireProtocol::Init(WireInit {
             nonce: 0,
             policy_num: policy,
