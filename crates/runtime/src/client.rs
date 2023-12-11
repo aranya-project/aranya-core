@@ -230,6 +230,19 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 .insert(segment.head().id(), segment.head_location());
         }
 
+        let current_head = storage.get_head()?;
+        for (id, location) in &self.heads {
+            if id == &storage.get_command_id(&current_head)? {
+                continue;
+            }
+            let segment = storage.get_segment(location)?;
+            if !storage.is_ancestor(&current_head, &segment)? {
+                self.heads
+                    .insert(storage.get_command_id(&current_head)?, current_head);
+                break;
+            }
+        }
+
         // Merge heads pairwise until single head left, then commit.
         // TODO(jdygert): Better pairings?
         let mut heads: VecDeque<_> = core::mem::take(&mut self.heads).into_iter().collect();

@@ -149,20 +149,8 @@ impl TestPolicy {
         let mut value = Vec::<u8>::new();
         value.extend_from_slice(&count.to_be_bytes());
 
-        if let Some(current) = facts.query(&key)? {
-            let current_val =
-                u64::from_be_bytes(current[0..8].try_into().expect("unable to load fact"));
-            match current_val <= count {
-                true => {
-                    facts.insert(key.as_slice(), value.as_slice());
-                    Ok(true)
-                }
-                false => Ok(false),
-            }
-        } else {
-            facts.insert(key.as_slice(), value.as_slice());
-            Ok(true)
-        }
+        facts.insert(key.as_slice(), value.as_slice());
+        Ok(true)
     }
 
     fn call_rule_internal(

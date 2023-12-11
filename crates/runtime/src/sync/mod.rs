@@ -163,7 +163,7 @@ pub enum SyncError {
     SerilizeError,
     EngineError,
     NetworkError,
-    ClientError,
+    ClientError(ClientError),
     CryptoError,
     Bug(Bug),
 }
@@ -201,8 +201,8 @@ impl From<PostcardError> for SyncError {
 }
 
 impl From<ClientError> for SyncError {
-    fn from(_error: ClientError) -> Self {
-        SyncError::ClientError
+    fn from(error: ClientError) -> Self {
+        SyncError::ClientError(error)
     }
 }
 

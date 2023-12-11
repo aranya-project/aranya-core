@@ -259,4 +259,6 @@ yaml_test! {
     two_client_merge,
     two_client_sync,
     three_client_sync,
+    two_client_branch,
+    three_client_branch,
 }
