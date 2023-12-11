@@ -1,5 +1,10 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
-#![deny(rust_2018_idioms, unused_lifetimes, unused_qualifications)]
+#![deny(
+    clippy::arithmetic_side_effects,
+    rust_2018_idioms,
+    unused_lifetimes,
+    unused_qualifications
+)]
 
 extern crate alloc;
 

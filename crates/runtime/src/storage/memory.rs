@@ -316,11 +316,7 @@ impl Storage for MemStorage {
             }
         }
 
-        self.head = Some(Location {
-            segment: segment.index,
-            command: segment.commands.len() - 1,
-        });
-
+        self.head = Some(segment.head_location());
         Ok(())
     }
 }
@@ -408,7 +404,11 @@ impl Segment for MemSegment {
     fn head_location(&self) -> Location {
         Location {
             segment: self.index,
-            command: self.commands.len() - 1,
+            command: self
+                .commands
+                .len()
+                .checked_sub(1)
+                .expect("commands.len() must be > 0"),
         }
     }
 
@@ -819,7 +819,8 @@ mod test {
                     };
                 }
                 if i > 0 {
-                    cluster.edge(loc((segment.index, i)), loc((segment.index, i - 1)));
+                    let previous = i.checked_sub(1).expect("i must be > 0");
+                    cluster.edge(loc((segment.index, i)), loc((segment.index, previous)));
                 }
             }
 

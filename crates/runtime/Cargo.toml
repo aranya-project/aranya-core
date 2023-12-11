@@ -11,6 +11,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+buggy = { path = "../buggy" }
 crypto = { path = "../crypto" }
 policy-vm = { path = "../policy-vm" }
 heapless = { workspace = true, features = ["serde"] }
@@ -49,7 +50,7 @@ directories-next = "2"
 clap = { version = "4", features = ["derive"] }
 
 [features]
-std = []
+std = ["buggy/std"]
 default = []
 quic_syncer = [
     "std", 

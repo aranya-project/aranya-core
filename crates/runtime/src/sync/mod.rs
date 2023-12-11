@@ -4,6 +4,7 @@
 use alloc::{sync::Arc, vec};
 use core::mem;
 
+use buggy::{Bug, BugExt};
 use heapless::Vec;
 use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
 use serde::{Deserialize, Serialize};
@@ -164,9 +165,16 @@ pub enum SyncError {
     NetworkError,
     ClientError,
     CryptoError,
+    Bug(Bug),
 }
 
 use core::convert::Infallible;
+
+impl From<Bug> for SyncError {
+    fn from(error: Bug) -> Self {
+        SyncError::Bug(error)
+    }
+}
 
 impl From<Infallible> for SyncError {
     fn from(_error: Infallible) -> Self {
@@ -307,7 +315,10 @@ impl SyncRequester<'_> {
         self.state = SyncRequesterState::Waiting;
         let message = SyncMessage::SyncResume {
             session_id: self.session_id,
-            response_index: self.next_index - 1,
+            response_index: self
+                .next_index
+                .checked_sub(1)
+                .assume("next_index must be positive")?,
             max_bytes,
         };
 
@@ -414,26 +425,35 @@ impl SyncState for SyncRequester<'_> {
                     self.state = SyncRequesterState::Resync;
                     return Err(SyncError::MissingSyncResponse);
                 }
-                self.next_index += 1;
+                self.next_index = self
+                    .next_index
+                    .checked_add(1)
+                    .assume("next_index + 1 mustn't overflow")?;
                 self.state = SyncRequesterState::Waiting;
 
                 let mut result = Vec::new();
-                let mut start = 0;
+                let mut start: usize = 0;
                 for meta in commands {
                     let policy_len = meta.policy_length as usize;
 
                     let policy = match policy_len == 0 {
                         true => None,
                         false => {
-                            let policy = &remaining[start..(start + policy_len)];
-                            start += policy_len;
+                            let end = start
+                                .checked_add(policy_len)
+                                .assume("start + policy_len mustn't overflow")?;
+                            let policy = &remaining[start..end];
+                            start = end;
                             Some(policy)
                         }
                     };
 
                     let len = meta.length as usize;
-                    let payload = &remaining[start..(start + len)];
-                    start += len;
+                    let end = start
+                        .checked_add(len)
+                        .assume("start + len mustn't overflow")?;
+                    let payload = &remaining[start..end];
+                    start = end;
 
                     // TODO(eric): fix this
                     let id = Id::hash_for_testing_only(payload);
@@ -460,7 +480,12 @@ impl SyncState for SyncRequester<'_> {
                     return Err(SyncError::SessionState);
                 }
 
-                if max_index != self.next_index - 1 {
+                if max_index
+                    != self
+                        .next_index
+                        .checked_sub(1)
+                        .assume("next_index must be positive")?
+                {
                     self.state = SyncRequesterState::Resync;
                     return Err(SyncError::MissingSyncResponse);
                 }
@@ -624,7 +649,10 @@ impl SyncResponder {
         };
 
         let index = self.next_send;
-        self.next_send += 1;
+        self.next_send = self
+            .next_send
+            .checked_add(1)
+            .assume("next_send + 1 mustn't overflow")?;
 
         if self.next_send >= self.to_send.len() {
             self.state = SyncResponderState::Idle;
@@ -671,14 +699,20 @@ impl SyncResponder {
 
         for command in found {
             if let Some(policy) = command.policy() {
-                target[length..(length + policy.len())].clone_from_slice(policy);
-                length += policy.len();
+                let end = length
+                    .checked_add(policy.len())
+                    .assume("length + policy.len() mustn't overflow")?;
+                target[length..end].clone_from_slice(policy);
+                length = end;
             }
 
             let bytes = command.bytes();
 
-            target[length..(length + bytes.len())].clone_from_slice(bytes);
-            length += bytes.len();
+            let end = length
+                .checked_add(bytes.len())
+                .assume("length + bytes.len() mustn't overflow")?;
+            target[length..end].clone_from_slice(bytes);
+            length = end;
         }
 
         Ok(length)

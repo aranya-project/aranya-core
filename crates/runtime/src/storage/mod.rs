@@ -37,11 +37,11 @@ impl Location {
     /// point to the previous. Returns true on success or false if current
     /// location is the first.
     pub fn previous(&mut self) -> bool {
-        if self.command == 0 {
-            false
-        } else {
-            self.command -= 1;
+        if let Some(n) = usize::checked_sub(self.command, 1) {
+            self.command = n;
             true
+        } else {
+            false
         }
     }
 
