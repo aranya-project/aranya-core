@@ -38,8 +38,7 @@ jobs:
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: "self-hosted-linux-amd64"
       - name: Install nightly
-        # Pinned to avoid https://github.com/rust-lang/rust/issues/118670
-        run: rustup toolchain install nightly-2023-12-04
+        run: rustup toolchain install nightly
       - name: Generate docs
         env:
           RUSTDOCFLAGS: "--cfg docs -Dwarnings"
@@ -48,8 +47,7 @@ jobs:
             sudo apt-get install -y zip \
               --no-install-recommends
           fi
-          # Pinned to avoid https://github.com/rust-lang/rust/issues/118670
-          cargo +nightly-2023-12-04 doc --all-features --workspace
+          cargo +nightly doc --all-features --workspace
           zip -qr docs.zip target/doc
       - name: Publish docs
         if: ${{ always() }}
