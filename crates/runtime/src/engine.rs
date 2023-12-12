@@ -3,6 +3,8 @@
 //! An [`Engine`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
+use core::fmt;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -17,6 +19,19 @@ pub enum EngineError {
     Check,
     InternalError,
 }
+
+impl fmt::Display for EngineError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Read => write!(f, "read error"),
+            Self::Write => write!(f, "write error "),
+            Self::Check => write!(f, "check error"),
+            Self::InternalError => write!(f, "internal error"),
+        }
+    }
+}
+
+impl trouble::Error for EngineError {}
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolicyId(usize);

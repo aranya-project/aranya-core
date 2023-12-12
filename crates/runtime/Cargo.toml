@@ -13,13 +13,14 @@ workspace = true
 [dependencies]
 buggy = { path = "../buggy" }
 crypto = { path = "../crypto" }
-policy-vm = { path = "../policy-vm" }
 heapless = { workspace = true, features = ["serde"] }
+policy-vm = { path = "../policy-vm" }
 postcard = { workspace = true }
 rand = { workspace = true, default-features = false}
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
-vec1 = { version = "1.10.1", default-features = false }
 spin = { workspace = true }
+trouble = { path = "../trouble" }
+vec1 = { version = "1.10.1", default-features = false }
 
 # quic syncer
 serde_yaml = { version = "0.9", optional = true }
@@ -53,12 +54,12 @@ clap = { version = "4", features = ["derive"] }
 std = ["buggy/std"]
 default = []
 quic_syncer = [
-    "std", 
+    "std",
     "dep:serde_yaml",
     "dep:futures",
-    "dep:quinn", 
-    "dep:tokio", 
-    "dep:tokio-util", 
+    "dep:quinn",
+    "dep:tokio",
+    "dep:tokio-util",
     "dep:rustls"
 ]
 

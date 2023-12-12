@@ -1,6 +1,7 @@
 use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
 use core::ops::Deref;
 
+use buggy::BugExt;
 use vec1::Vec1;
 
 use crate::{
@@ -260,10 +261,8 @@ impl Storage for MemStorage {
     }
 
     fn get_head(&self) -> Result<Location, StorageError> {
-        self.head
-            .as_ref()
-            .cloned()
-            .ok_or(StorageError::InternalError)
+        let head = self.head.as_ref().assume("storage has head after init")?;
+        Ok(head.clone())
     }
 
     fn write(&mut self, update: Self::Perspective) -> Result<Self::Segment, StorageError> {

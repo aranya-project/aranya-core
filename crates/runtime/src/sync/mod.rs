@@ -2,7 +2,7 @@
 
 // use std::sync::{Arc, Mutex};
 use alloc::{sync::Arc, vec};
-use core::mem;
+use core::{convert::Infallible, fmt, mem};
 
 use buggy::{Bug, BugExt};
 use heapless::Vec;
@@ -168,7 +168,34 @@ pub enum SyncError {
     Bug(Bug),
 }
 
-use core::convert::Infallible;
+impl fmt::Display for SyncError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnexpectedMessage => write!(f, "unexpected message"),
+            Self::SessionMismatch => write!(f, "session mismatch"),
+            Self::MissingSyncResponse => write!(f, "missing sync response"),
+            Self::SessionState => write!(f, "session state error"),
+            Self::StorageError => write!(f, "storage error"),
+            Self::InternalError => write!(f, "internal error"),
+            Self::NotReady => write!(f, "not ready"),
+            Self::SerilizeError => write!(f, "serialize error"),
+            Self::EngineError => write!(f, "engine error"),
+            Self::NetworkError => write!(f, "network error"),
+            Self::ClientError(e) => write!(f, "client error: {e}"),
+            Self::CryptoError => write!(f, "crypto error"),
+            Self::Bug(bug) => write!(f, "{bug}"),
+        }
+    }
+}
+
+impl trouble::Error for SyncError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+        match self {
+            Self::ClientError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 impl From<Bug> for SyncError {
     fn from(error: Bug) -> Self {
@@ -177,8 +204,8 @@ impl From<Bug> for SyncError {
 }
 
 impl From<Infallible> for SyncError {
-    fn from(_error: Infallible) -> Self {
-        SyncError::InternalError
+    fn from(error: Infallible) -> Self {
+        match error {}
     }
 }
 

@@ -2,7 +2,9 @@ use alloc::{
     collections::{BTreeMap, BinaryHeap, VecDeque},
     vec::Vec,
 };
-use core::{fmt::Display, marker::PhantomData};
+use core::{fmt, marker::PhantomData};
+
+use buggy::{Bug, BugExt};
 
 use crate::{
     Command, Engine, EngineError, Id, Location, Perspective, Policy, PolicyId, Prior, Priority,
@@ -13,49 +15,42 @@ use crate::{
 #[derive(Debug)]
 pub enum ClientError {
     NoSuchParent(Id),
-    ExtraStart(Id),
-    UnknownCommand(Id),
-    CommandExists(Id),
-    HeadCount(usize),
-    InitStorageMismatch,
-    InternalError,
-    EngineError,
+    EngineError(EngineError),
     StorageError(StorageError),
-    Unreachable,
     InitError,
     NotAuthorized,
     SyncError,
+    Bug(Bug),
 }
 
-impl Display for ClientError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Display for ClientError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ClientError::NoSuchParent(i) => write!(f, "NoSuchParent {}", i),
-            ClientError::ExtraStart(i) => write!(f, "ExtraStart {}", i),
-            ClientError::UnknownCommand(i) => write!(f, "Unknown Command {}", i),
-            ClientError::CommandExists(i) => write!(f, "CommandExists {}", i),
-            ClientError::HeadCount(i) => write!(f, "HeadCount {}", i),
-            ClientError::InitStorageMismatch => write!(f, "InitStorageMismatch"),
-            ClientError::InternalError => write!(f, "InternalError"),
-            ClientError::EngineError => write!(f, "EngineError"),
-            ClientError::StorageError(_) => write!(f, "StorageError"),
-            ClientError::Unreachable => write!(f, "Unreachable"),
-            ClientError::InitError => write!(f, "InitError"),
-            ClientError::NotAuthorized => write!(f, "NotAuthorized"),
-            ClientError::SyncError => write!(f, "SyncError"),
+            Self::NoSuchParent(id) => write!(f, "no such parent: {id}"),
+            Self::EngineError(e) => write!(f, "engine error: {e}"),
+            Self::StorageError(e) => write!(f, "storage error: {e}"),
+            Self::InitError => write!(f, "init error"),
+            Self::NotAuthorized => write!(f, "not authorized"),
+            Self::SyncError => write!(f, "sync error"),
+            Self::Bug(bug) => write!(f, "{bug}"),
         }
     }
 }
 
-#[derive(Debug)]
-pub struct ClientState<E, SP> {
-    engine: E,
-    provider: SP,
+impl trouble::Error for ClientError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+        match self {
+            Self::EngineError(e) => Some(e),
+            Self::StorageError(e) => Some(e),
+            Self::Bug(e) => Some(e),
+            _ => None,
+        }
+    }
 }
 
 impl From<EngineError> for ClientError {
-    fn from(_error: EngineError) -> Self {
-        ClientError::EngineError
+    fn from(error: EngineError) -> Self {
+        ClientError::EngineError(error)
     }
 }
 
@@ -69,6 +64,18 @@ impl From<SyncError> for ClientError {
     fn from(_error: SyncError) -> Self {
         ClientError::SyncError
     }
+}
+
+impl From<Bug> for ClientError {
+    fn from(error: Bug) -> Self {
+        ClientError::Bug(error)
+    }
+}
+
+#[derive(Debug)]
+pub struct ClientState<E, SP> {
+    engine: E,
+    provider: SP,
 }
 
 /// This implements the top level client. It takes several generic arguments
@@ -156,9 +163,9 @@ where
         let parent = storage.get_command_id(&head)?;
 
         // Get the perspective
-        let Some(mut perspective) = storage.get_linear_perspective(&parent)? else {
-            return Err(ClientError::NoSuchParent(parent));
-        };
+        let mut perspective = storage
+            .get_linear_perspective(&parent)?
+            .assume("can always get perspective at head")?;
 
         let policy_id = perspective.policy();
         let policy = self.engine.get_policy(&policy_id)?;
@@ -258,7 +265,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
                 let perspective = storage
                     .new_merge_perspective(&command, policy_id, braid)?
-                    .ok_or(ClientError::InitError)?;
+                    .assume("trx heads should exist in storage")?;
 
                 let segment = storage.write(perspective)?;
 
@@ -354,15 +361,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             let seg = storage.write(p)?;
             self.heads.insert(seg.head().id(), seg.head_location());
         }
-        self.heads.remove(&left);
-        self.heads.remove(&right);
 
         let left_loc = storage
             .get_location(&left)?
-            .ok_or(ClientError::InternalError)?;
+            .ok_or(ClientError::NoSuchParent(left))?;
         let right_loc = storage
             .get_location(&right)?
-            .ok_or(ClientError::InternalError)?;
+            .ok_or(ClientError::NoSuchParent(right))?;
 
         let (policy, policy_id) = choose_policy(storage, engine, &left_loc, &right_loc)?;
 
@@ -370,7 +375,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
         let perspective = storage
             .new_merge_perspective(command, policy_id, braid)?
-            .ok_or(ClientError::InitError)?;
+            .assume(
+                "we already found left and right locations above and we only call this with merge command",
+            )?;
+
+        self.heads.remove(&left);
+        self.heads.remove(&right);
 
         self.perspective = Some(perspective);
         self.phead = Some(command.id());
@@ -385,22 +395,29 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     ) -> Result<&mut <SP as StorageProvider>::Perspective, ClientError> {
         if self.phead == Some(parent) {
             // Command will append to current perspective.
-            return self.perspective.as_mut().ok_or(ClientError::InternalError);
+            return Ok(self
+                .perspective
+                .as_mut()
+                .assume("trx has perspective when has phead")?);
         }
 
         // Write out the perspective and get a new one
         if let Some(p) = self.perspective.take() {
+            self.phead.take();
             let seg = storage.write(p)?;
             self.heads.insert(seg.head().id(), seg.head_location());
         }
 
+        let p = self.perspective.insert(
+            storage
+                .get_linear_perspective(&parent)?
+                .ok_or(ClientError::NoSuchParent(parent))?,
+        );
+
         self.phead = Some(parent);
         self.heads.remove(&parent);
 
-        let p = storage
-            .get_linear_perspective(&parent)?
-            .ok_or(ClientError::NoSuchParent(parent))?;
-        Ok(self.perspective.insert(p))
+        Ok(p)
     }
 
     fn init<'cmd, 'sp>(
@@ -411,7 +428,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         sink: &mut impl Sink<E::Effects>,
     ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
         if self.storage_id != command.id() {
-            return Err(ClientError::InitStorageMismatch);
+            return Err(ClientError::InitError);
         }
         let Some(policy_data) = command.policy() else {
             return Err(ClientError::InitError);
@@ -423,7 +440,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         sink.begin();
         if !policy.call_rule(command, &mut perspective, sink)? {
             sink.rollback();
-            return Err(ClientError::InitError);
+            return Err(ClientError::NotAuthorized);
         }
         perspective.add_command(command)?;
         provider.new_storage(&storage_id, perspective)?;
@@ -441,7 +458,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
 ) -> Result<S::FactIndex, ClientError> {
     let order = braid(storage, left, right)?;
 
-    let (first, rest) = order.split_first().ok_or(ClientError::Unreachable)?;
+    let (first, rest) = order.split_first().assume("braid is non-empty")?;
 
     let mut braid_perspective = storage.get_fact_perspective(first)?;
 
@@ -451,7 +468,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
         let segment = storage.get_segment(location)?;
         let command = segment
             .get_command(location)
-            .ok_or(ClientError::InternalError)?;
+            .assume("braid only contains existing commands")?;
         if !policy.call_rule(&command, &mut braid_perspective, sink)? {
             sink.rollback();
             return Err(ClientError::NotAuthorized);
@@ -510,7 +527,7 @@ pub fn braid<S: Storage>(
             let key = {
                 let cmd = segment
                     .get_command(&location)
-                    .ok_or(ClientError::InternalError)?;
+                    .ok_or_else(|| StorageError::CommandOutOfBounds(location.clone()))?;
                 (cmd.priority(), cmd.id())
             };
 
@@ -528,7 +545,7 @@ pub fn braid<S: Storage>(
             let cmd = self
                 .segment
                 .get_command(&self.next)
-                .ok_or(ClientError::InternalError)?;
+                .assume("can walk backward along segment")?;
             self.key = (cmd.priority(), cmd.id());
             Ok(true)
         }
@@ -586,7 +603,7 @@ pub fn braid<S: Storage>(
             }
             if strands.len() == 1 {
                 // No concurrency left, done.
-                braid.push(strands.pop().expect("strands not empty").next);
+                braid.push(strands.pop().assume("strands not empty")?.next);
                 break;
             }
         }

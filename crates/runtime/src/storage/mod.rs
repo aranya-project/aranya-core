@@ -6,7 +6,9 @@
 //! [`Perspective`]s, which represent a slice of state.
 
 use alloc::{boxed::Box, vec::Vec};
+use core::fmt;
 
+use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{Command, Id, PolicyId, Prior};
@@ -57,14 +59,47 @@ pub enum StorageError {
     NoSuchStorage,
     SegmentOutOfBounds(Location),
     CommandOutOfBounds(Location),
-    InternalError,
     IoError,
     NotMerge,
     NoSuchId(Id),
     PolicyMismatch,
     EmptyPerspective,
     HeadNotAncestor,
-    NotBraid,
+    Bug(Bug),
+}
+
+impl fmt::Display for StorageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::StorageExists => write!(f, "storage already exists"),
+            Self::NoSuchStorage => write!(f, "no such storage"),
+            Self::SegmentOutOfBounds(loc) => {
+                write!(f, "segment index {} is out of bounds", loc.segment)
+            }
+            Self::CommandOutOfBounds(loc) => write!(
+                f,
+                "command index {} is out of bounds in segment {}",
+                loc.command, loc.segment
+            ),
+            Self::IoError => write!(f, "IO error"),
+            Self::NotMerge => write!(f, "not a merge command"),
+            Self::NoSuchId(id) => write!(f, "command with id {id} not found"),
+            Self::PolicyMismatch => write!(f, "policy mismatch"),
+            Self::EmptyPerspective => write!(f, "cannot write an empty perspective"),
+            Self::HeadNotAncestor => {
+                write!(f, "segment must be a descendant of the head for commit")
+            }
+            Self::Bug(bug) => write!(f, "{bug}"),
+        }
+    }
+}
+
+impl trouble::Error for StorageError {}
+
+impl From<Bug> for StorageError {
+    fn from(bug: Bug) -> Self {
+        Self::Bug(bug)
+    }
 }
 
 /// Handle to storage implementations used by the runtime.
