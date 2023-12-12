@@ -11,8 +11,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     command::Id,
     engine::{Engine, Sink},
-    protocol::{TestEffect, TestEngine},
-    storage::memory::MemStorageProvider,
+    storage::StorageProvider,
     ClientState, LockedSink, SyncError, SyncRequester, SyncResponder, SyncState,
     MAX_SYNC_MESSAGE_SIZE,
 };
@@ -47,18 +46,18 @@ impl From<std::io::Error> for SyncError {
     }
 }
 
-pub async fn run_syncer<T, E, EN>(
+pub async fn run_syncer<T, EN, SP>(
     cancel_token: CancellationToken,
-    client: Arc<TMutex<ClientState<EN, MemStorageProvider>>>,
+    client: Arc<TMutex<ClientState<EN, SP>>>,
     storage_id: Id,
     endpoint: Endpoint,
     session_id: u128,
     sink: LockedSink<T>,
 ) -> Result<(), SyncError>
 where
-    T: Clone + Sink<E> + Send + 'static,
-    E: Send + Sync + 'static,
+    T: Send + 'static,
     EN: Engine + Send + 'static,
+    SP: StorageProvider + Send + 'static,
     LockedSink<T>: Sink<<EN as Engine>::Effects> + Clone,
 {
     let future = tokio::spawn(async move {
@@ -78,16 +77,16 @@ where
     Ok(())
 }
 
-async fn handle_connection<T, E, EN>(
+async fn handle_connection<T, EN, SP>(
     conn: quinn::Connecting,
-    client: Arc<TMutex<ClientState<EN, MemStorageProvider>>>,
+    client: Arc<TMutex<ClientState<EN, SP>>>,
     session_id: u128,
     storage_id: Id,
     sink: LockedSink<T>,
 ) -> Result<(), SyncError>
 where
-    T: Clone + Sink<E>,
     EN: Engine,
+    SP: StorageProvider,
     LockedSink<T>: Sink<<EN as Engine>::Effects>,
 {
     let connection = conn.await?;
@@ -105,16 +104,16 @@ where
     Ok(())
 }
 
-async fn handle_request<T, E, EN>(
+async fn handle_request<T, EN, SP>(
     (mut send, mut recv): (quinn::SendStream, quinn::RecvStream),
-    client: Arc<TMutex<ClientState<EN, MemStorageProvider>>>,
+    client: Arc<TMutex<ClientState<EN, SP>>>,
     session_id: u128,
     storage_id: Id,
     mut sink: LockedSink<T>,
 ) -> Result<(), SyncError>
 where
-    T: Clone + Sink<E>,
     EN: Engine,
+    SP: StorageProvider,
     LockedSink<T>: Sink<<EN as Engine>::Effects>,
 {
     let req = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
@@ -142,8 +141,8 @@ where
     Ok(())
 }
 
-pub async fn sync<T, E>(
-    mut client: tokio::sync::MutexGuard<'_, ClientState<TestEngine, MemStorageProvider>>,
+pub async fn sync<T, EN, SP>(
+    mut client: tokio::sync::MutexGuard<'_, ClientState<EN, SP>>,
     mut syncer: SyncRequester<'_>,
     cert_chain: Vec<rustls::Certificate>,
     sink: &mut LockedSink<T>,
@@ -151,8 +150,9 @@ pub async fn sync<T, E>(
     server_addr: SocketAddr,
 ) -> Result<(), SyncError>
 where
-    T: Clone + Sink<E>,
-    LockedSink<T>: Sink<TestEffect>,
+    EN: Engine,
+    SP: StorageProvider,
+    LockedSink<T>: Sink<<EN as Engine>::Effects>,
 {
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let len = client.sync_poll(&mut syncer, &mut buffer)?;
