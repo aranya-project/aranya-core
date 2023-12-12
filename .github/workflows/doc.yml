@@ -19,6 +19,7 @@ on:
 
 env:
   REV: ${{ github.run_id }}
+  RUSTFLAGS: -Dwarnings
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}

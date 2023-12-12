@@ -14,7 +14,7 @@ fi
 # `-type d` means we are only looking for directories.
 # `sed 's|^\./||g` replaces instances of './' with ''.
 for crate in $(find . -mindepth 1 -maxdepth 1 -type d | sed 's|^\./||g'); do
-    cargo clippy -p "$crate" -- -Dwarnings
-    cargo clippy -p "$crate" --tests --benches -- -Dwarnings
-    cargo clippy -p "$crate" --no-default-features -- -Dwarnings
+    cargo clippy -p "$crate"
+    cargo clippy -p "$crate" --tests --benches
+    cargo clippy -p "$crate" --no-default-features
 done

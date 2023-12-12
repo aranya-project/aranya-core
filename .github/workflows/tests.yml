@@ -19,6 +19,7 @@ on:
 
 env:
   REV: ${{ github.run_id }}
+  RUSTFLAGS: -Dwarnings
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
@@ -52,5 +53,3 @@ jobs:
           os: ${{ matrix.os }}
       - name: Unit Tests
         run: cargo test-all-features
-        env:
-          RUSTFLAGS: -Dwarnings

@@ -19,6 +19,7 @@ on:
 
 env:
   REV: ${{ github.run_id }}
+  RUSTFLAGS: -Dwarnings
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
@@ -52,5 +53,3 @@ jobs:
 
       - name: Build code
         run: cargo --verbose build-all-features --release
-        env:
-          RUSTFLAGS: -Dwarnings

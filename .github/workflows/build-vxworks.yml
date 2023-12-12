@@ -19,6 +19,7 @@ on:
 
 env:
   REV: ${{ github.run_id }}
+  RUSTFLAGS: -Dwarnings
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.workflow }}
@@ -95,6 +96,4 @@ jobs:
             --release \
             --no-default-features \
             --target powerpc-wrs-vxworks \
-            --features ${{ matrix.variant.features }} \
-            -- \
-            -Dwarnings
+            --features ${{ matrix.variant.features }}
