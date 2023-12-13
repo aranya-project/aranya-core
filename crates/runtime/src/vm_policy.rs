@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{borrow::Cow, string::String, vec, vec::Vec};
 
 use policy_vm::{
     FactKey, FactValue, KVPair, Machine, MachineError, MachineErrorType, MachineIO, MachineIOError,
@@ -274,7 +274,7 @@ impl VmPolicy {
 impl Policy for VmPolicy {
     type Payload = ();
 
-    type Actions = (String, Vec<Value>);
+    type Actions<'a> = (&'a str, Cow<'a, [Value]>);
 
     type Effects = (String, Vec<KVPair>);
 
@@ -310,16 +310,18 @@ impl Policy for VmPolicy {
     fn call_action(
         &self,
         parent: &Id,
-        action: &Self::Actions,
+        (name, args): Self::Actions<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError> {
         let emit_stack = {
             let mut io = VmPolicyIO::new(facts, sink);
             let mut rs = self.machine.create_run_state(&mut io);
-            let status = rs
-                .call_action(&action.0, &action.1)
-                .map_err(|_| EngineError::InternalError)?;
+            let status = match args {
+                Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
+                Cow::Owned(args) => rs.call_action(name, args),
+            }
+            .map_err(|_| EngineError::InternalError)?;
             match status {
                 MachineStatus::Exited => (),
                 MachineStatus::Panicked => return Ok(false),

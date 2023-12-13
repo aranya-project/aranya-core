@@ -237,7 +237,7 @@ fn test_action() -> anyhow::Result<()> {
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
     let mut rs = RunState::new(&machine, &mut io);
 
-    rs.call_action("foo", &[Value::from(3), Value::from("foo")])
+    rs.call_action("foo", [Value::from(3), Value::from("foo")])
         .map_err(anyhow::Error::msg)?;
 
     println!("emit stack: {:?}", io.emit_stack);
@@ -577,9 +577,7 @@ fn test_when_true() -> anyhow::Result<()> {
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     let mut rs = machine.create_run_state(&mut io);
-    let result = rs
-        .call_action("foo", &[Value::Bool(true)])
-        .map_err(anyhow::Error::msg)?;
+    let result = rs.call_action("foo", [true]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Panicked);
 
     Ok(())
@@ -600,9 +598,7 @@ fn test_when_false() -> anyhow::Result<()> {
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     let mut rs = machine.create_run_state(&mut io);
-    let result = rs
-        .call_action("foo", &[Value::Bool(false)])
-        .map_err(anyhow::Error::msg)?;
+    let result = rs.call_action("foo", [false]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
 
     Ok(())
@@ -636,9 +632,7 @@ fn test_match_first() -> anyhow::Result<()> {
     let mut io = TestIO::new();
 
     let mut rs = machine.create_run_state(&mut io);
-    let result = rs
-        .call_action("foo", &[Value::Int(5)])
-        .map_err(anyhow::Error::msg)?;
+    let result = rs.call_action("foo", [5]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
@@ -656,9 +650,7 @@ fn test_match_second() -> anyhow::Result<()> {
     let mut io = TestIO::new();
 
     let mut rs = machine.create_run_state(&mut io);
-    let result = rs
-        .call_action("foo", &[Value::Int(6)])
-        .map_err(anyhow::Error::msg)?;
+    let result = rs.call_action("foo", [6]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
@@ -677,7 +669,7 @@ fn test_match_none() -> anyhow::Result<()> {
 
     let mut rs = machine.create_run_state(&mut io);
     let result = rs
-        .call_action("foo", &[Value::Int(0)])
+        .call_action("foo", [Value::Int(0)])
         .map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Panicked);
 
@@ -828,14 +820,8 @@ fn test_bytes() -> anyhow::Result<()> {
     {
         let mut rs = machine.create_run_state(&mut io);
 
-        rs.call_action(
-            "foo",
-            &[
-                Value::Bytes(vec![0xa, 0xb, 0xc]),
-                Value::Bytes(vec![0, 255, 42]),
-            ],
-        )
-        .map_err(anyhow::Error::msg)?;
+        rs.call_action("foo", [vec![0xa, 0xb, 0xc], vec![0, 255, 42]])
+            .map_err(anyhow::Error::msg)?;
     }
 
     assert_eq!(
@@ -896,7 +882,7 @@ fn test_structs() -> anyhow::Result<()> {
 
     {
         let mut rs = machine.create_run_state(&mut io);
-        rs.call_action("foo", &[Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
+        rs.call_action("foo", [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -937,7 +923,7 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
 
     let err = {
         let mut rs = machine.create_run_state(&mut io);
-        rs.call_action("foo", &[Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
+        rs.call_action("foo", [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
             .unwrap_err()
     };
 
@@ -1107,8 +1093,7 @@ fn test_pure_function() -> anyhow::Result<()> {
 
     {
         let mut rs = machine.create_run_state(&mut io);
-        rs.call_action("foo", &[Value::Int(3)])
-            .map_err(anyhow::Error::msg)?;
+        rs.call_action("foo", [3]).map_err(anyhow::Error::msg)?;
     }
 
     assert_eq!(

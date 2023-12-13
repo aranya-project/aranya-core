@@ -81,9 +81,9 @@ pub struct ClientState<E, SP> {
 /// This implements the top level client. It takes several generic arguments
 /// The `E` parameter is the Policy engine to use. It will be specific to a
 /// specific set of actions `A`.
-impl<E, SP, A> ClientState<E, SP>
+impl<E, SP> ClientState<E, SP>
 where
-    E: Engine<Actions = A>,
+    E: Engine,
     SP: StorageProvider,
 {
     pub fn new(engine: E, provider: SP) -> ClientState<E, SP> {
@@ -153,7 +153,7 @@ where
         &mut self,
         storage_id: &Id,
         sink: &mut impl Sink<E::Effects>,
-        action: &A,
+        action: <E::Policy as Policy>::Actions<'_>,
     ) -> Result<(), ClientError> {
         // Get storage
         let storage = self.provider.get_storage(storage_id)?;

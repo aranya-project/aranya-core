@@ -260,8 +260,8 @@ fn main() -> anyhow::Result<()> {
     match mode {
         Mode::Exec | Mode::Debug => {
             if let Some(action) = &args.action {
-                let call_args: Vec<Value> = args.args.into_iter().map(convert_arg_value).collect();
-                rs.setup_action(action, &call_args)
+                let call_args = args.args.into_iter().map(convert_arg_value);
+                rs.setup_action(action, call_args)
                     .map_err(anyhow::Error::msg)?;
             } else if let Some(command) = args.command {
                 let fields: BTreeMap<String, Value> = args

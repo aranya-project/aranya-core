@@ -231,7 +231,7 @@ async fn run(file: &str) -> Result<(), TestError> {
                 };
 
                 let set = TestActions::SetValue(key, value);
-                state.action(storage_id, &mut sink, &set)?;
+                state.action(storage_id, &mut sink, set)?;
 
                 assert_eq!(0, sink.count());
             }

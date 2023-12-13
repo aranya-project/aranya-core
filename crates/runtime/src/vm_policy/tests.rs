@@ -123,7 +123,6 @@ impl Engine for TestEngine {
     type Policy = VmPolicy;
     type Payload = ();
     type Effects = TestEffect;
-    type Actions = (String, Vec<Value>);
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
         Ok(PolicyId::new(policy[0] as usize))
@@ -176,8 +175,8 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    let action = (String::from("create"), vec![Value::Int(3)]);
-    cs.action(&storage_id, &mut sink, &action)
+    let action = ("create", [Value::Int(3)].as_slice().into());
+    cs.action(&storage_id, &mut sink, action)
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
@@ -190,8 +189,8 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     ));
 
     // Call the increment action
-    let action = (String::from("increment"), vec![]);
-    cs.action(&storage_id, &mut sink, &action)
+    let action = ("increment", [].as_slice().into());
+    cs.action(&storage_id, &mut sink, action)
         .expect("could not call action");
 
     // Everything past this point is validation that the facts exist and were created

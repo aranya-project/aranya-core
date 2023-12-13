@@ -669,13 +669,14 @@ where
     }
 
     /// Set up machine state for an action call.
-    pub fn setup_action<V>(&mut self, name: &str, args: &[V]) -> Result<(), MachineError>
+    pub fn setup_action<Args>(&mut self, name: &str, args: Args) -> Result<(), MachineError>
     where
-        V: Into<Value> + Clone,
+        Args: IntoIterator,
+        Args::Item: Into<Value>,
     {
         self.set_pc_by_label(Label::new(name, LabelType::Action))?;
         for a in args {
-            self.ipush(a.clone())?;
+            self.ipush(a.into())?;
         }
         self.defs.clear();
         self.call_state.clear();
@@ -689,9 +690,14 @@ where
     // TODO(chip): I don't really like how V: Into<Value> works here
     // because it still means all of the args have to have the same
     // type.
-    pub fn call_action<V>(&mut self, name: &str, args: &[V]) -> Result<MachineStatus, MachineError>
+    pub fn call_action<Args>(
+        &mut self,
+        name: &str,
+        args: Args,
+    ) -> Result<MachineStatus, MachineError>
     where
-        V: Into<Value> + Clone,
+        Args: IntoIterator,
+        Args::Item: Into<Value>,
     {
         self.setup_action(name, args)?;
         self.run()

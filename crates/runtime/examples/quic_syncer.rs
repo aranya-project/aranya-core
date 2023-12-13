@@ -194,7 +194,7 @@ async fn run(options: Opt) -> Result<()> {
             client
                 .lock()
                 .await
-                .action(&storage_id, &mut sink, &action)
+                .action(&storage_id, &mut sink, action)
                 .map_err(|e| SyncError {
                     error_msg: e.to_string(),
                 })?;

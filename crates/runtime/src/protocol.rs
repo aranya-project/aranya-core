@@ -116,7 +116,6 @@ impl Engine for TestEngine {
     type Policy = TestPolicy;
     type Payload = (u64, u64);
     type Effects = TestEffect;
-    type Actions = TestActions;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
         Ok(PolicyId::new(policy[0] as usize))
@@ -243,7 +242,7 @@ pub enum TestActions {
 impl Policy for TestPolicy {
     type Payload = (u64, u64);
     type Effects = TestEffect;
-    type Actions = TestActions;
+    type Actions<'a> = TestActions;
     type Command<'a> = TestProtocol<'a>;
 
     fn serial(&self) -> u32 {
@@ -300,7 +299,7 @@ impl Policy for TestPolicy {
     fn call_action(
         &self,
         parent: &Id,
-        action: &Self::Actions,
+        action: Self::Actions<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError> {
@@ -309,7 +308,7 @@ impl Policy for TestPolicy {
                 //let target = facts.get_target()?;
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let target = buffer.as_mut_slice();
-                let payload = (*key, *value);
+                let payload = (key, value);
                 let command = self.basic(target, *parent, &payload)?;
 
                 let checkpoint = facts.checkpoint();

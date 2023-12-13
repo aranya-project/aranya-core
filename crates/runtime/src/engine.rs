@@ -43,10 +43,9 @@ impl PolicyId {
 }
 
 pub trait Engine {
-    type Policy: Policy<Payload = Self::Payload, Effects = Self::Effects, Actions = Self::Actions>;
+    type Policy: Policy<Payload = Self::Payload, Effects = Self::Effects>;
 
     type Payload;
-    type Actions;
     type Effects;
 
     /// Add a policy to this runtime.
@@ -73,7 +72,7 @@ pub trait Sink<E> {
 
 pub trait Policy {
     type Payload;
-    type Actions;
+    type Actions<'a>;
     type Effects;
     type Command<'a>: Command<'a>;
 
@@ -98,7 +97,7 @@ pub trait Policy {
     fn call_action(
         &self,
         id: &Id,
-        action: &Self::Actions,
+        action: Self::Actions<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError>;
