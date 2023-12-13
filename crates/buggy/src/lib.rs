@@ -43,8 +43,10 @@
 
 use core::{fmt, panic::Location};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 /// Error type for errors that should be unreachable, indicating a bug.
+///
+/// Use [`bug`] to return a `Result<T, Bug>`.
 ///
 /// If you need to keep your error type small, use `&'static str` instead of `Bug`,
 /// and use [`Bug::msg`] in your `From<Bug>` impl.
@@ -54,10 +56,35 @@ pub struct Bug {
 }
 
 impl Bug {
-    /// Create an [`Bug`] error. You should most likely use [`bug`].
     #[cold]
-    pub fn new(msg: &'static str, location: &'static Location<'static>) -> Self {
-        Self { msg, location }
+    #[track_caller]
+    #[doc(hidden)]
+    pub fn new(msg: &'static str) -> Self {
+        cfg_if::cfg_if! {
+            if #[cfg(any(test, doc, not(debug_assertions)))] {
+                Self {
+                    msg,
+                    location: Location::caller(),
+                }
+            } else {{
+                #![allow(clippy::disallowed_macros)]
+                unreachable!("{}", msg)
+            }}
+        }
+    }
+
+    #[cold]
+    #[track_caller]
+    #[doc(hidden)]
+    pub fn new_with_source(msg: &'static str, _cause: impl fmt::Display) -> Self {
+        cfg_if::cfg_if! {
+            if #[cfg(any(test, doc, not(debug_assertions)))] {
+                Self::new(msg)
+            } else {{
+                #![allow(clippy::disallowed_macros)]
+                unreachable!("{msg}, caused by: {_cause}")
+            }}
+        }
     }
 
     /// Get the message used when creating the [`Bug`].
@@ -95,51 +122,36 @@ impl<T> BugExt<T> for Option<T> {
 impl<T, E: fmt::Display> BugExt<T> for Result<T, E> {
     #[track_caller]
     fn assume(self, msg: &'static str) -> Result<T, Bug> {
-        #![allow(unused_variables)]
         match self {
             Ok(val) => Ok(val),
-            Err(err) => bug!(msg, err),
+            Err(_err) => bug!(msg, _err),
         }
     }
 }
 
-cfg_if::cfg_if! {
-    if #[cfg(any(test, doc, not(debug_assertions)))] {
-        /// Like [`core::unreachable`], but less panicky. See also [`crate`] docs.
-        ///
-        /// # Usage
-        /// ```
-        /// # use buggy::bug;
-        /// # fn main() -> Result<(), buggy::Bug> {
-        /// # let frobs = 1;
-        /// let inverse = match frobs {
-        ///     0 => 1,
-        ///     1 => 0,
-        ///     _ => bug!("frobs is always 0 or 1"),
-        /// };
-        /// # Ok(())
-        /// # }
-        /// ```
-        #[macro_export]
-        macro_rules! bug {
-            ($msg:expr $(, $cause:expr)?) => {
-                return Err(Bug::new($msg, Location::caller()).into())
-            }
-        }
-    } else {
-        /// This doc should be unreadable.
-        #[macro_export]
-        macro_rules! bug {
-            ($msg:expr) => {{{
-                #![allow(clippy::disallowed_macros)]
-                ::core::unreachable!("{}", $msg);
-            }}};
-            ($msg:expr, $cause:expr) => {{{
-                #![allow(clippy::disallowed_macros)]
-                ::core::unreachable!("{}, caused by: {}", $msg, $cause);
-            }}};
-        }
-    }
+/// Like [`core::unreachable`], but less panicky. See also [`crate`] docs.
+///
+/// # Usage
+/// ```
+/// # use buggy::bug;
+/// # fn main() -> Result<(), buggy::Bug> {
+/// # let frobs = 1;
+/// let inverse = match frobs {
+///     0 => 1,
+///     1 => 0,
+///     _ => bug!("frobs is always 0 or 1"),
+/// };
+/// # Ok(())
+/// # }
+/// ```
+#[macro_export]
+macro_rules! bug {
+    ($msg:expr) => {
+        return ::core::result::Result::Err($crate::Bug::new($msg).into())
+    };
+    ($msg:expr, $source:expr) => {
+        return ::core::result::Result::Err($crate::Bug::new_with_source($msg, $source).into())
+    };
 }
 
 #[cfg(test)]
