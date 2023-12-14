@@ -3,7 +3,8 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt;
 
-use crypto::{EncryptionKeyId, Id, UserId};
+pub use crypto::Id;
+use crypto::{EncryptionKeyId, UserId};
 use policy_ast::VType;
 use serde::{Deserialize, Serialize};
 
@@ -434,6 +435,12 @@ impl KVPair {
 impl fmt::Display for KVPair {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {}", self.0, self.1)
+    }
+}
+
+impl From<KVPair> for (String, Value) {
+    fn from(kv: KVPair) -> Self {
+        (kv.0, kv.1)
     }
 }
 

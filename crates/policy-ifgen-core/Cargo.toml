@@ -1,0 +1,31 @@
+[package]
+name = "policy-ifgen-core"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+policy-ast = { path = "../policy-ast" }
+proc-macro2 = "1.0.70"
+quote = "1.0.33"
+
+[dev-dependencies]
+goldenfile = "1.6.0"
+policy-lang = { path = "../policy-lang" }
+
+# For formatting generated code, easier to compare
+prettyplease = { workspace = true }
+syn = { version = "2.0", features = ["full"] }
+
+# We test the macro here to avoid duplication.
+policy-ifgen-macro = { path = "../policy-ifgen-macro" }
+
+# Dependencies of generated code. Needed to test proc macro
+policy-vm = { path = "../policy-vm" }
+runtime = { path = "../runtime" }

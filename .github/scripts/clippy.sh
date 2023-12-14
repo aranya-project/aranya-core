@@ -15,6 +15,6 @@ fi
 # `sed 's|^\./||g` replaces instances of './' with ''.
 for crate in $(find . -mindepth 1 -maxdepth 1 -type d | sed 's|^\./||g'); do
     cargo clippy -p "$crate"
-    cargo clippy -p "$crate" --tests --benches
+    cargo clippy -p "$crate" --tests --benches --examples
     cargo clippy -p "$crate" --no-default-features
 done
