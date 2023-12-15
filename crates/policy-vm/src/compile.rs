@@ -13,8 +13,8 @@ use alloc::{
 };
 use core::{fmt, ops::Range};
 
-use ast::VType;
-use policy_ast::{self as ast, AstNode};
+pub use ast::Policy as AstPolicy;
+use policy_ast::{self as ast, AstNode, VType};
 
 pub use self::error::{CallColor, CompileError, CompileErrorType};
 use crate::{ffi::ModuleSchema, CodeMap, Instruction, Label, LabelType, Machine, Target, Value};
@@ -932,7 +932,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile a policy into instructions inside the given Machine.
-    pub fn compile(&mut self, policy: &ast::Policy) -> Result<(), CompileError> {
+    pub fn compile(&mut self, policy: &AstPolicy) -> Result<(), CompileError> {
         for effect in &policy.effects {
             let fields: Vec<ast::FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
@@ -985,7 +985,7 @@ impl<'a> CompileState<'a> {
 
 /// Create a new Machine by compiling a policy AST.
 pub fn compile_from_policy(
-    policy: &ast::Policy,
+    policy: &AstPolicy,
     ffi_modules: &[ModuleSchema<'_>],
 ) -> Result<Machine, CompileError> {
     let codemap = CodeMap::new(&policy.text, policy.ranges.clone());

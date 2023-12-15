@@ -11,6 +11,7 @@ extern crate alloc;
 mod client;
 mod command;
 pub mod engine;
+pub mod model;
 mod prior;
 pub mod protocol;
 pub mod quic_syncer;
