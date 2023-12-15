@@ -148,7 +148,7 @@ async fn run(file: &str) -> Result<(), TestError> {
                     let mut state = cell.lock().await;
                     let policy_data = policy.to_be_bytes();
                     let payload = (0, 0);
-                    storage_id = state.new_graph(policy_data.as_slice(), &payload, &mut sink)?;
+                    storage_id = state.new_graph(policy_data.as_slice(), payload, &mut sink)?;
 
                     commands.insert(id, storage_id);
                 }

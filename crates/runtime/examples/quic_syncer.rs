@@ -138,7 +138,7 @@ async fn run(options: Opt) -> Result<()> {
         storage_id = client
             .lock()
             .await
-            .new_graph(policy_data.as_slice(), &payload, &mut sink)
+            .new_graph(policy_data.as_slice(), payload, &mut sink)
             .map_err(|e| SyncError {
                 error_msg: e.to_string(),
             })?;

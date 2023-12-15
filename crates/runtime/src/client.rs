@@ -97,7 +97,7 @@ where
     pub fn new_graph(
         &mut self,
         policy_data: &[u8],
-        payload: &E::Payload,
+        payload: <E::Policy as Policy>::Payload<'_>,
         sink: &mut impl Sink<E::Effects>,
     ) -> Result<Id, ClientError> {
         let policy_id = self.engine.add_policy(policy_data)?;

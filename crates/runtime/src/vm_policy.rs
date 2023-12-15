@@ -272,7 +272,7 @@ impl VmPolicy {
 }
 
 impl Policy for VmPolicy {
-    type Payload = ();
+    type Payload<'a> = (String, Vec<KVPair>);
 
     type Actions<'a> = (&'a str, Cow<'a, [Value]>);
 
@@ -331,7 +331,7 @@ impl Policy for VmPolicy {
         };
         for c in emit_stack {
             let mut buffer = [0u8; MAX_COMMAND_LENGTH];
-            let new_command = self.basic(&mut buffer, *parent, &())?;
+            let new_command = self.basic(&mut buffer, *parent, c.clone())?;
 
             let checkpoint = facts.checkpoint();
             let passed = self.evaluate_rule(&c.0, &c.1, facts, sink)?;
@@ -359,7 +359,7 @@ impl Policy for VmPolicy {
         &self,
         target: &'a mut [u8],
         _policy_data: &[u8],
-        _payload: &Self::Payload,
+        _payload: Self::Payload<'_>,
     ) -> Result<Self::Command<'a>, EngineError> {
         let c = VmCommandData::Init {
             // TODO(chip): this is a placeholder and needs to be updated to a real
@@ -396,12 +396,12 @@ impl Policy for VmPolicy {
         &self,
         target: &'a mut [u8],
         parent: Id,
-        _payload: &Self::Payload,
+        (kind, fields): Self::Payload<'_>,
     ) -> Result<Self::Command<'a>, EngineError> {
         let c = VmCommandData::Basic {
             parent,
-            kind: String::from("dummy"),
-            fields: vec![],
+            kind,
+            fields,
         };
         postcard::to_slice(&c, target).map_err(|_| EngineError::Write)?;
         let id = Id::hash_for_testing_only(target);

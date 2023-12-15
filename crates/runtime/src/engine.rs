@@ -43,9 +43,8 @@ impl PolicyId {
 }
 
 pub trait Engine {
-    type Policy: Policy<Payload = Self::Payload, Effects = Self::Effects>;
+    type Policy: Policy<Effects = Self::Effects>;
 
-    type Payload;
     type Effects;
 
     /// Add a policy to this runtime.
@@ -71,7 +70,7 @@ pub trait Sink<E> {
 }
 
 pub trait Policy {
-    type Payload;
+    type Payload<'a>;
     type Actions<'a>;
     type Effects;
     type Command<'a>: Command<'a>;
@@ -111,7 +110,7 @@ pub trait Policy {
         &self,
         target: &'a mut [u8],
         policy_data: &[u8],
-        payload: &Self::Payload,
+        payload: Self::Payload<'_>,
     ) -> Result<Self::Command<'a>, EngineError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
@@ -129,6 +128,6 @@ pub trait Policy {
         &self,
         target: &'a mut [u8],
         parent: Id,
-        payload: &Self::Payload,
+        payload: Self::Payload<'a>,
     ) -> Result<Self::Command<'a>, EngineError>;
 }

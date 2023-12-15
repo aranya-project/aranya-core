@@ -121,7 +121,6 @@ impl TestEngine {
 
 impl Engine for TestEngine {
     type Policy = VmPolicy;
-    type Payload = ();
     type Effects = TestEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
@@ -157,7 +156,7 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     // Create a new graph. This builds an Init event and returns an Id referencing the
     // storage for the graph.
     let storage_id = cs
-        .new_graph(&[0u8], &(), &mut sink)
+        .new_graph(&[0u8], Default::default(), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.

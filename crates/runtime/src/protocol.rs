@@ -114,7 +114,6 @@ impl Default for TestEngine {
 
 impl Engine for TestEngine {
     type Policy = TestPolicy;
-    type Payload = (u64, u64);
     type Effects = TestEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
@@ -240,7 +239,7 @@ pub enum TestActions {
 }
 
 impl Policy for TestPolicy {
-    type Payload = (u64, u64);
+    type Payload<'a> = (u64, u64);
     type Effects = TestEffect;
     type Actions<'a> = TestActions;
     type Command<'a> = TestProtocol<'a>;
@@ -270,7 +269,7 @@ impl Policy for TestPolicy {
         &self,
         target: &'a mut [u8],
         policy_data: &[u8],
-        _payload: &Self::Payload,
+        _payload: Self::Payload<'_>,
     ) -> Result<TestProtocol<'a>, EngineError> {
         let policy: [u8; 8] = policy_data[0..8].try_into().expect("unable to load policy");
         let command = WireProtocol::Init(WireInit {
@@ -309,7 +308,7 @@ impl Policy for TestPolicy {
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let target = buffer.as_mut_slice();
                 let payload = (key, value);
-                let command = self.basic(target, *parent, &payload)?;
+                let command = self.basic(target, *parent, payload)?;
 
                 let checkpoint = facts.checkpoint();
                 let passed = self.call_rule_internal(&command.command, facts, sink)?;
@@ -328,14 +327,14 @@ impl Policy for TestPolicy {
         &self,
         target: &'a mut [u8],
         parent: Id,
-        payload: &Self::Payload,
+        payload: Self::Payload<'_>,
     ) -> Result<TestProtocol<'a>, EngineError> {
         let prority = 0; //BUG
 
         let message = WireBasic {
             parent,
             prority,
-            payload: *payload,
+            payload,
         };
 
         let command = WireProtocol::Basic(message);
