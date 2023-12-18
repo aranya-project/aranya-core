@@ -14,18 +14,19 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
     let effects_parsing = quote! {
         #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
         pub enum EffectsParseError {
-            NoMoreFields,
-            FieldNameMismatch,
+            ExtraFields,
+            MissingField,
             FieldTypeMismatch,
             UnknownEffectName,
         }
 
-        fn parse_field<T: TryFrom<Value>>(name: &str, pair: Option<KVPair>) -> Result<T, EffectsParseError> {
-            let (key, value) = pair.ok_or(EffectsParseError::NoMoreFields)?.into();
-            if key != name {
-                return Err(EffectsParseError::FieldNameMismatch);
-            }
-            value.try_into()
+        fn parse_field<T: TryFrom<Value>>(
+            fields: &mut alloc::collections::BTreeMap<String, Value>,
+            name: &str,
+        ) -> Result<T, EffectsParseError> {
+            fields.remove(name)
+                .ok_or(EffectsParseError::MissingField)?
+                .try_into()
                 .map_err(|_| EffectsParseError::FieldTypeMismatch)
         }
     };
@@ -52,10 +53,17 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
             impl TryFrom<Vec<KVPair>> for #ident {
                 type Error = EffectsParseError;
                 fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-                    let mut iter = value.into_iter();
-                    Ok(Self { #(
-                        #field_idents: parse_field(#field_names, iter.next())?,
-                    )* })
+                    let mut fields = &mut value
+                        .into_iter()
+                        .map(|kv| kv.into())
+                        .collect::<alloc::collections::BTreeMap<String, Value>>();
+                    let parsed = Self { #(
+                        #field_idents: parse_field(fields, #field_names)?,
+                    )* };
+                    if !fields.is_empty() {
+                        return Err(EffectsParseError::ExtraFields);
+                    }
+                    Ok(parsed)
                 }
             }
         }

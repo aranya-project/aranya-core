@@ -66,11 +66,18 @@ pub struct TtcTeamCreated {
 impl TryFrom<Vec<KVPair>> for TtcTeamCreated {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            name: parse_field("name", iter.next())?,
-            owner_id: parse_field("owner_id", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            name: parse_field(fields, "name")?,
+            owner_id: parse_field(fields, "owner_id")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -84,14 +91,21 @@ pub struct OwnerAdded {
 impl TryFrom<Vec<KVPair>> for OwnerAdded {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-            name: parse_field("name", iter.next())?,
-            ident_pk: parse_field("ident_pk", iter.next())?,
-            sign_pk: parse_field("sign_pk", iter.next())?,
-            enc_pk: parse_field("enc_pk", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+            name: parse_field(fields, "name")?,
+            ident_pk: parse_field(fields, "ident_pk")?,
+            sign_pk: parse_field(fields, "sign_pk")?,
+            enc_pk: parse_field(fields, "enc_pk")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -105,14 +119,21 @@ pub struct AdminAdded {
 impl TryFrom<Vec<KVPair>> for AdminAdded {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-            name: parse_field("name", iter.next())?,
-            ident_pk: parse_field("ident_pk", iter.next())?,
-            sign_pk: parse_field("sign_pk", iter.next())?,
-            enc_pk: parse_field("enc_pk", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+            name: parse_field(fields, "name")?,
+            ident_pk: parse_field(fields, "ident_pk")?,
+            sign_pk: parse_field(fields, "sign_pk")?,
+            enc_pk: parse_field(fields, "enc_pk")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -126,14 +147,21 @@ pub struct OperatorAdded {
 impl TryFrom<Vec<KVPair>> for OperatorAdded {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-            name: parse_field("name", iter.next())?,
-            ident_pk: parse_field("ident_pk", iter.next())?,
-            sign_pk: parse_field("sign_pk", iter.next())?,
-            enc_pk: parse_field("enc_pk", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+            name: parse_field(fields, "name")?,
+            ident_pk: parse_field(fields, "ident_pk")?,
+            sign_pk: parse_field(fields, "sign_pk")?,
+            enc_pk: parse_field(fields, "enc_pk")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -147,14 +175,21 @@ pub struct SatelliteAdded {
 impl TryFrom<Vec<KVPair>> for SatelliteAdded {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-            name: parse_field("name", iter.next())?,
-            ident_pk: parse_field("ident_pk", iter.next())?,
-            sign_pk: parse_field("sign_pk", iter.next())?,
-            enc_pk: parse_field("enc_pk", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+            name: parse_field(fields, "name")?,
+            ident_pk: parse_field(fields, "ident_pk")?,
+            sign_pk: parse_field(fields, "sign_pk")?,
+            enc_pk: parse_field(fields, "enc_pk")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -164,10 +199,17 @@ pub struct OwnerRemoved {
 impl TryFrom<Vec<KVPair>> for OwnerRemoved {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -177,10 +219,17 @@ pub struct AdminRemoved {
 impl TryFrom<Vec<KVPair>> for AdminRemoved {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -190,10 +239,17 @@ pub struct OperatorRemoved {
 impl TryFrom<Vec<KVPair>> for OperatorRemoved {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -203,10 +259,17 @@ pub struct SatelliteRemoved {
 impl TryFrom<Vec<KVPair>> for SatelliteRemoved {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -217,11 +280,18 @@ pub struct ApsLabelCreated {
 impl TryFrom<Vec<KVPair>> for ApsLabelCreated {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            name: parse_field("name", iter.next())?,
-            label: parse_field("label", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            name: parse_field(fields, "name")?,
+            label: parse_field(fields, "label")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -234,13 +304,20 @@ pub struct ApsLabelAssigned {
 impl TryFrom<Vec<KVPair>> for ApsLabelAssigned {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-            name: parse_field("name", iter.next())?,
-            label: parse_field("label", iter.next())?,
-            op: parse_field("op", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+            name: parse_field(fields, "name")?,
+            label: parse_field(fields, "label")?,
+            op: parse_field(fields, "op")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -251,11 +328,18 @@ pub struct ApsLabelRevoked {
 impl TryFrom<Vec<KVPair>> for ApsLabelRevoked {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user_id: parse_field("user_id", iter.next())?,
-            label: parse_field("label", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user_id: parse_field(fields, "user_id")?,
+            label: parse_field(fields, "label")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -267,30 +351,37 @@ pub struct ApsBidiChannelCreated {
 impl TryFrom<Vec<KVPair>> for ApsBidiChannelCreated {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            user1: parse_field("user1", iter.next())?,
-            user2: parse_field("user2", iter.next())?,
-            label: parse_field("label", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            user1: parse_field(fields, "user1")?,
+            user2: parse_field(fields, "user2")?,
+            label: parse_field(fields, "label")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EffectsParseError {
-    NoMoreFields,
-    FieldNameMismatch,
+    ExtraFields,
+    MissingField,
     FieldTypeMismatch,
     UnknownEffectName,
 }
 fn parse_field<T: TryFrom<Value>>(
+    fields: &mut alloc::collections::BTreeMap<String, Value>,
     name: &str,
-    pair: Option<KVPair>,
 ) -> Result<T, EffectsParseError> {
-    let (key, value) = pair.ok_or(EffectsParseError::NoMoreFields)?.into();
-    if key != name {
-        return Err(EffectsParseError::FieldNameMismatch);
-    }
-    value.try_into().map_err(|_| EffectsParseError::FieldTypeMismatch)
+    fields
+        .remove(name)
+        .ok_or(EffectsParseError::MissingField)?
+        .try_into()
+        .map_err(|_| EffectsParseError::FieldTypeMismatch)
 }
 pub trait Actor {
     fn call_action(&mut self, action: VmActions<'_>) -> Result<(), ClientError>;

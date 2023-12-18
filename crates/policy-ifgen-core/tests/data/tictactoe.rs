@@ -31,12 +31,19 @@ pub struct GameStart {
 impl TryFrom<Vec<KVPair>> for GameStart {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            gameID: parse_field("gameID", iter.next())?,
-            x: parse_field("x", iter.next())?,
-            o: parse_field("o", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            gameID: parse_field(fields, "gameID")?,
+            x: parse_field(fields, "x")?,
+            o: parse_field(fields, "o")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -50,14 +57,21 @@ pub struct GameUpdate {
 impl TryFrom<Vec<KVPair>> for GameUpdate {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            gameID: parse_field("gameID", iter.next())?,
-            player: parse_field("player", iter.next())?,
-            p: parse_field("p", iter.next())?,
-            X: parse_field("X", iter.next())?,
-            Y: parse_field("Y", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            gameID: parse_field(fields, "gameID")?,
+            player: parse_field(fields, "player")?,
+            p: parse_field(fields, "p")?,
+            X: parse_field(fields, "X")?,
+            Y: parse_field(fields, "Y")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -69,30 +83,37 @@ pub struct GameOver {
 impl TryFrom<Vec<KVPair>> for GameOver {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut iter = value.into_iter();
-        Ok(Self {
-            gameID: parse_field("gameID", iter.next())?,
-            winner: parse_field("winner", iter.next())?,
-            p: parse_field("p", iter.next())?,
-        })
+        let mut fields = &mut value
+            .into_iter()
+            .map(|kv| kv.into())
+            .collect::<alloc::collections::BTreeMap<String, Value>>();
+        let parsed = Self {
+            gameID: parse_field(fields, "gameID")?,
+            winner: parse_field(fields, "winner")?,
+            p: parse_field(fields, "p")?,
+        };
+        if !fields.is_empty() {
+            return Err(EffectsParseError::ExtraFields);
+        }
+        Ok(parsed)
     }
 }
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EffectsParseError {
-    NoMoreFields,
-    FieldNameMismatch,
+    ExtraFields,
+    MissingField,
     FieldTypeMismatch,
     UnknownEffectName,
 }
 fn parse_field<T: TryFrom<Value>>(
+    fields: &mut alloc::collections::BTreeMap<String, Value>,
     name: &str,
-    pair: Option<KVPair>,
 ) -> Result<T, EffectsParseError> {
-    let (key, value) = pair.ok_or(EffectsParseError::NoMoreFields)?.into();
-    if key != name {
-        return Err(EffectsParseError::FieldNameMismatch);
-    }
-    value.try_into().map_err(|_| EffectsParseError::FieldTypeMismatch)
+    fields
+        .remove(name)
+        .ok_or(EffectsParseError::MissingField)?
+        .try_into()
+        .map_err(|_| EffectsParseError::FieldTypeMismatch)
 }
 pub trait Actor {
     fn call_action(&mut self, action: VmActions<'_>) -> Result<(), ClientError>;
