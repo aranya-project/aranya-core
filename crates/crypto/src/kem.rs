@@ -124,7 +124,7 @@ pub trait Kem {
     /// you do not ensure all of the following properties:
     ///
     /// - it must be cryptographically secure
-    /// - it must never be reused
+    /// - it must never be reused with the same `pkR`
     fn encap_deterministically(
         pkR: &Self::EncapKey,
         skE: Self::DecapKey,
@@ -165,7 +165,7 @@ pub trait Kem {
     /// you do not ensure all of the following properties:
     ///
     /// - it must be cryptographically secure
-    /// - it must never be reused
+    /// - it must never be reused with the same `pkR`
     fn auth_encap_deterministically(
         pkR: &Self::EncapKey,
         skS: &Self::DecapKey,
@@ -502,7 +502,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         //  labeled_info = concat(I2OSP(L, 2), "HPKE-v1", suite_id,
         //                 label, info)
         let labeled_info = [
-            &(out.borrow().len() as u16).to_be_bytes()[..],
+            &(F::PRK_SIZE as u16).to_be_bytes()[..],
             "HPKE-v1".as_bytes(),
             // suite_id = concat("KEM", I2OSP(kem_id, 2))
             "KEM".as_bytes(),

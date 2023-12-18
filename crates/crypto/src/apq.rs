@@ -4,13 +4,9 @@
 
 #![forbid(unsafe_code)]
 
-use core::{
-    borrow::{Borrow, BorrowMut},
-    fmt,
-    ops::Add,
-    result::Result,
-};
+use core::{borrow::Borrow, fmt, ops::Add, result::Result};
 
+use buggy::BugExt;
 use generic_array::{ArrayLength, GenericArray};
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
@@ -29,7 +25,7 @@ use crate::{
     hpke::{Hpke, Mode},
     id::custom_id,
     import::{ExportError, Import, ImportError},
-    kdf::{Kdf, KdfError},
+    kdf::{Derive, Kdf, KdfError},
     kem::{DecapKey, Kem},
     keys::{PublicKey, SecretKey},
     mac::Mac,
@@ -347,9 +343,10 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         //     topic,
         // )
         // key = LabeledExpand(prk, "topic_key_key", info, L)
-        let key =
-            Self::labeled_expand::<KeyData<E::Aead>, 13>(&prk, b"topic_key_key", version, topic)?;
-        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(key.borrow())?)
+        let key: KeyData<E::Aead> = Self::labeled_expand(&prk, b"topic_key_key", version, topic)?;
+        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(
+            key.as_bytes(),
+        )?)
     }
 
     fn labeled_extract<const N: usize>(
@@ -366,26 +363,29 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         E::Kdf::extract_multi(&labeled_ikm, salt)
     }
 
-    fn labeled_expand<T: Borrow<[u8]> + BorrowMut<[u8]> + Default, const N: usize>(
+    fn labeled_expand<T, const N: usize>(
         prk: &<E::Kdf as Kdf>::Prk,
         label: &[u8; N],
         version: Version,
         topic: &Topic,
-    ) -> Result<T, KdfError> {
-        let mut out = T::default();
+    ) -> Result<T, KdfError>
+    where
+        T: Derive,
+    {
         // We know all possible enumerations of `T` and they all
         // must have a length <= 2^16 - 1.
-        assert!(out.borrow().len() <= (u16::MAX as usize));
+        let size =
+            u16::try_from(KeyData::<E::Aead>::SIZE).assume("`Aead::Key` should be <= 2^16-1")?;
         let labeled_info = [
-            &(out.borrow().len() as u16).to_be_bytes(),
+            &size.to_be_bytes(),
             "APQ-v1".as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             label,
             &version.to_be_bytes(),
             &topic.as_bytes()[..],
         ];
-        E::Kdf::expand_multi(out.borrow_mut(), prk, &labeled_info)?;
-        Ok(out)
+        let key = T::expand_multi::<E::Kdf>(prk, &labeled_info).map_err(Into::into)?;
+        Ok(key)
     }
 }
 

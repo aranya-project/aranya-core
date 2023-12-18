@@ -106,29 +106,30 @@ test_util = [
 result_option_inspect = []
 
 [dependencies]
-aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
-base58 = { path = "../base58" }
-bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branch = "main", optional = true }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
+base58 = { path = "../base58", default-features = false }
 bearssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bearssl.git", tag = "v0.2.0", optional = true }
+bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branch = "main", optional = true }
 byteorder = { workspace = true, default-features = false }
+buggy = { path = "../buggy", default-features = false }
 cfg-if = { workspace = true, default-features = false }
-crypto-common = { version = "0.1", default-features = false }
 const_format = { workspace = true, default-features = false }
+crypto-common = { version = "0.1", default-features = false }
 der = { version = "0.7", default-features = false }
 ecdsa = { version = "0.16", default-features = false, features = ["signing", "verifying", "der"] }
-elliptic-curve = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic", "sec1"] }
 ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
+elliptic-curve = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic", "sec1"] }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
 heapless = { workspace = true, default-features = false }
-postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
 lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"] }
 more-asserts = { version = "0.3", default-features = false }
+p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
+p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
+postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
 # `rand` is only pulled in when `std` is enabled. It's only used
 # to add trait impls for `ThreadRng`.
 rand = { workspace = true, features = ["std", "std_rng"], optional = true }
-p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
-p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, optional = true }
 serde_repr = { version = "0.1", default-features = false, optional = true }
@@ -136,13 +137,19 @@ sha2 = { version = "0.10", default-features = false }
 siphasher = { version = "1", default-features = false }
 spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"] }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
-trouble = { path = "../trouble" }
-typenum = { version = "1", default-features = false }
+trouble = { path = "../trouble", default-features = false }
+typenum = { version = "1", default-features = false, features = ["const-generics"] }
 # Only pulled into non-dev builds if `test_util` is enabled. It
 # won't bloat release builds, though, since users of this crate
 # should only use this feature inside [dev-dependencies].
 wycheproof = { version = "0.5", optional = true }
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
+
+[dependencies.old-generic-array]
+package = "generic-array"
+version = "0.14.6"
+default-features = false
+features = ["more_lengths", "zeroize"]
 
 # While `getrandom` supports VxWorks, it only supports VxWorks 7.
 # Since it uses `target_os = "vxworks"`, it indiscriminately
@@ -159,6 +166,8 @@ getrandom = { version = "0.2", features = ["custom"] }
 rand_core = { workspace = true, default-features = false }
 
 [dev-dependencies]
+# A little bit of a hack: always enable allocations during tests.
+crypto = { path = ".", features = ["alloc"] }
 postcard = { workspace = true, features = ["alloc", "heapless"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }

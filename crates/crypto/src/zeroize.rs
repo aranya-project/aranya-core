@@ -14,6 +14,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
+use generic_array::{ArrayLength, GenericArray};
 pub use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Zeroizing is a a wrapper for any `Z: Zeroize` type which
@@ -70,6 +71,20 @@ where
     #[inline(always)]
     fn borrow_mut(&mut self) -> &mut [u8; N] {
         self.0.borrow_mut()
+    }
+}
+
+impl<N: ArrayLength> Borrow<GenericArray<u8, N>> for Zeroizing<GenericArray<u8, N>> {
+    #[inline]
+    fn borrow(&self) -> &GenericArray<u8, N> {
+        &self.0
+    }
+}
+
+impl<N: ArrayLength> BorrowMut<GenericArray<u8, N>> for Zeroizing<GenericArray<u8, N>> {
+    #[inline]
+    fn borrow_mut(&mut self) -> &mut GenericArray<u8, N> {
+        &mut self.0
     }
 }
 

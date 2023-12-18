@@ -25,7 +25,7 @@ use crate::{
     id::Id,
     import::{ExportError, Import, ImportError},
     kem::{Kem, KemId},
-    keys::SecretKey,
+    keys::{SecretKey, SecretKeyBytes},
     mac::{Mac, MacId},
     signer::{Signer, SignerId},
 };
@@ -272,23 +272,23 @@ conv_key!(SigningKey, Signing);
 /// The secret data from an [`UnwrappedKey`].
 pub enum SecretData<'a, E: Engine + ?Sized> {
     /// See [`UnwrappedKey::Aead`].
-    Aead(<<E::Aead as Aead>::Key as SecretKey>::Data),
+    Aead(SecretKeyBytes<<<E::Aead as Aead>::Key as SecretKey>::Size>),
     /// See [`UnwrappedKey::Encryption`].
-    Encryption(<<E::Kem as Kem>::DecapKey as SecretKey>::Data),
+    Encryption(SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
     /// See [`UnwrappedKey::Group`].
     Group(&'a [u8; 64]),
     /// See [`UnwrappedKey::Identity`].
-    Identity(<<E::Signer as Signer>::SigningKey as SecretKey>::Data),
+    Identity(SecretKeyBytes<<<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
     /// See [`UnwrappedKey::Mac`].
-    Mac(<<E::Mac as Mac>::Key as SecretKey>::Data),
+    Mac(SecretKeyBytes<<<E::Mac as Mac>::Key as SecretKey>::Size>),
     /// See [`UnwrappedKey::ReceiverSecret`].
-    ReceiverSecret(<<E::Kem as Kem>::DecapKey as SecretKey>::Data),
+    ReceiverSecret(SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
     /// See [`UnwrappedKey::SenderSecret`].
-    SenderSecret(<<E::Kem as Kem>::DecapKey as SecretKey>::Data),
+    SenderSecret(SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
     /// See [`UnwrappedKey::SenderSigning`].
-    SenderSigning(<<E::Signer as Signer>::SigningKey as SecretKey>::Data),
+    SenderSigning(SecretKeyBytes<<<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
     /// See [`UnwrappedKey::Signing`].
-    Signing(<<E::Signer as Signer>::SigningKey as SecretKey>::Data),
+    Signing(SecretKeyBytes<<<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
 }
 
 impl<'a, E: Engine + ?Sized> SecretData<'a, E> {
@@ -321,15 +321,15 @@ impl<'a, E: Engine + ?Sized> SecretData<'a, E> {
 impl<E: Engine + ?Sized> AsRef<[u8]> for SecretData<'_, E> {
     fn as_ref(&self) -> &[u8] {
         match self {
-            Self::Aead(key) => key.borrow(),
-            Self::Encryption(sk) => sk.borrow(),
+            Self::Aead(key) => key.as_bytes(),
+            Self::Encryption(sk) => sk.as_bytes(),
             Self::Group(seed) => seed.as_ref(),
-            Self::Identity(sk) => sk.borrow(),
-            Self::Mac(key) => key.borrow(),
-            Self::ReceiverSecret(sk) => sk.borrow(),
-            Self::SenderSecret(sk) => sk.borrow(),
-            Self::SenderSigning(sk) => sk.borrow(),
-            Self::Signing(sk) => sk.borrow(),
+            Self::Identity(sk) => sk.as_bytes(),
+            Self::Mac(key) => key.as_bytes(),
+            Self::ReceiverSecret(sk) => sk.as_bytes(),
+            Self::SenderSecret(sk) => sk.as_bytes(),
+            Self::SenderSigning(sk) => sk.as_bytes(),
+            Self::Signing(sk) => sk.as_bytes(),
         }
     }
 }

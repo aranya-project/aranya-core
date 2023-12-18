@@ -82,7 +82,7 @@ pub mod zeroize;
 pub use aead::{BufferTooSmallError, OpenError, SealError};
 pub use aranya::*;
 pub use ciphersuite::*;
-pub use csprng::Csprng;
+pub use csprng::{Csprng, Random};
 pub use default::*;
 pub use engine::{Engine, UnwrapError, UnwrappedKey, WrapError, WrongKeyTypeError};
 pub use error::*;

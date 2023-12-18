@@ -2,6 +2,8 @@
 
 use core::fmt;
 
+use buggy::Bug;
+
 #[cfg(feature = "alloc")]
 use crate::idam::KeyConversionError;
 use crate::{
@@ -24,6 +26,8 @@ pub enum Error {
     ///
     /// It describes why the argument is invalid.
     InvalidArgument(&'static str),
+    /// An internal bug was discovered.
+    Bug(Bug),
 
     /// An AEAD seal failure.
     Seal(SealError),
@@ -58,6 +62,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidArgument(msg) => write!(f, "invalid argument: {}", msg),
+            Self::Bug(err) => write!(f, "{}", err),
 
             Self::Seal(err) => write!(f, "{}", err),
             Self::Open(err) => write!(f, "{}", err),
@@ -80,6 +85,7 @@ impl fmt::Display for Error {
 impl trouble::Error for Error {
     fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
+            Self::Bug(err) => Some(err),
             Self::Seal(err) => Some(err),
             Self::Open(err) => Some(err),
             Self::Ecdh(err) => Some(err),
@@ -96,6 +102,12 @@ impl trouble::Error for Error {
             Self::KeyConversion(err) => Some(err),
             _ => None,
         }
+    }
+}
+
+impl From<Bug> for Error {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
     }
 }
 

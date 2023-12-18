@@ -13,6 +13,13 @@ use core::{
     result::Result,
 };
 
+use buggy::Bug;
+use generic_array::{ArrayLength, GenericArray};
+use typenum::{
+    type_operators::{IsGreaterOrEqual, IsLess},
+    Unsigned, U32, U64, U65536,
+};
+
 pub use crate::hpke::KdfId;
 use crate::{keys::raw_key, mac::Tag};
 
@@ -22,17 +29,33 @@ pub enum KdfError {
     /// The requested output from a KDF exceeded
     /// [`Kdf::MAX_OUTPUT`].
     OutputTooLong,
+    /// An internal bug was discovered.
+    Bug(Bug),
 }
 
 impl fmt::Display for KdfError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::OutputTooLong => write!(f, "requested KDF output too long"),
+            Self::Bug(err) => write!(f, "{err}"),
         }
     }
 }
 
-impl trouble::Error for KdfError {}
+impl trouble::Error for KdfError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+        match self {
+            Self::Bug(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<Bug> for KdfError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
+    }
+}
 
 /// An extract-then-expand Key Derivation Function (KDF) as
 /// formally defined in section 3 of [HKDF].
@@ -54,22 +77,36 @@ pub trait Kdf {
     /// Uniquely identifies the KDF.
     const ID: KdfId;
 
+    /// The size in octets of the largest key that can be created
+    /// with [`expand`][Self::expand] or
+    /// [`extract_and_expand`][Self::extract_and_expand].
+    ///
+    /// Must be at least 64 octets (512 bits).
+    type MaxOutput: ArrayLength + IsGreaterOrEqual<U64> + 'static;
     /// The size in bytes of the largest key that can be created
     /// with [`Self::expand`] (and [`Self::extract_and_expand`]).
     ///
     /// Must be at least 64 bytes (512 bits).
-    const MAX_OUTPUT: usize = 255 * Self::PRK_SIZE;
+    const MAX_OUTPUT: usize = Self::MaxOutput::USIZE;
 
-    /// The size in bytes of a [`Self::Prk`].
+    /// The size in octets of a pseudorandom key used by this
+    /// [`Kdf`].
     ///
-    /// Must be at least 16 bytes (128 bits).
-    const PRK_SIZE: usize;
+    /// Must be at least 32 octets and less than 2¹⁶ octets.
+    type PrkSize: ArrayLength + IsGreaterOrEqual<U32> + IsLess<U65536> + 'static;
+    /// Shorthand for [`PrkSize`][Self::PrkSize].
+    const PRK_SIZE: usize = Self::PrkSize::USIZE;
 
-    /// The PRK returned by [`Self::extract`] and
-    /// [`Self::extract_multi`].
+    /// The PRK returned by [`extract`][Self::extract] and
+    /// [`extract_multi`][Self::extract_multi].
     ///
-    /// Must be exactly [`Self::PRK_SIZE`] bytes long.
-    type Prk: Borrow<[u8]> + BorrowMut<[u8]> + Default;
+    /// Must be exactly [`PrkSize`][Self::PrkSize] octets long.
+    type Prk: Borrow<GenericArray<u8, Self::PrkSize>>
+        + BorrowMut<GenericArray<u8, Self::PrkSize>>
+        + From<GenericArray<u8, Self::PrkSize>>
+        + Into<GenericArray<u8, Self::PrkSize>>
+        + Default
+        + Derive;
 
     /// A randomness extractor that extracts a fixed-length
     /// pseudorandom key (PRK) from the Input Keying Material
@@ -160,4 +197,16 @@ impl<const N: usize> From<Tag<N>> for Prk<N> {
     fn from(tag: Tag<N>) -> Self {
         Prk(tag.into())
     }
+}
+
+/// Implemented by types that can derive themselves from a KDF.
+pub trait Derive: Sized {
+    /// The size in octets of the derived output.
+    type Size: ArrayLength + 'static;
+
+    /// The error from [`expand_multi`][Self::expand_multi].
+    type Error: Into<KdfError>;
+
+    /// Deterministically derives a key from a KDF.
+    fn expand_multi<K: Kdf>(prk: &K::Prk, info: &[&[u8]]) -> Result<Self, Self::Error>;
 }

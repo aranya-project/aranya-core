@@ -5,6 +5,7 @@
 //! This is a low-level module. You should not be using it
 //! directly unless you are implementing an engine.
 
+use generic_array::{ArrayLength, GenericArray};
 #[cfg(not(target_os = "vxworks"))]
 pub use getrandom;
 
@@ -54,6 +55,20 @@ impl Csprng for rand_core::OsRng {
 impl Csprng for rand::rngs::ThreadRng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         rand_core::RngCore::fill_bytes(self, dst)
+    }
+}
+
+/// Implemented by types that can generate random instances.
+pub trait Random {
+    /// Generates a random instance of itself.
+    fn random<R: Csprng>(rng: &mut R) -> Self;
+}
+
+impl<N: ArrayLength> Random for GenericArray<u8, N> {
+    fn random<R: Csprng>(rng: &mut R) -> Self {
+        let mut v = Self::default();
+        rng.fill_bytes(&mut v);
+        v
     }
 }
 

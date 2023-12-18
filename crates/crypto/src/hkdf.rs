@@ -13,12 +13,17 @@
 
 use core::marker::PhantomData;
 
+use typenum::{Prod, U255};
+
 use crate::{
     hash::Hash,
     hmac::Hmac,
     kdf::{KdfError, Prk},
     mac::Tag,
 };
+
+/// The size in octets of the maximum expanded output of HKDF.
+pub type MaxOutput<D> = Prod<U255, D>;
 
 /// HKDF for some hash `H` with a `D`-byte digest size.
 pub struct Hkdf<H, const N: usize>(PhantomData<H>);
@@ -130,10 +135,9 @@ macro_rules! hkdf_impl {
         impl $crate::kdf::Kdf for $name {
             const ID: $crate::kdf::KdfId = $crate::kdf::KdfId::$name;
 
-            const MAX_OUTPUT: usize =
-                $crate::hkdf::Hkdf::<$hash, { Self::DIGEST_SIZE }>::MAX_OUTPUT;
+            type MaxOutput = $crate::hkdf::MaxOutput<<$hash as $crate::hash::Hash>::DigestSize>;
 
-            const PRK_SIZE: usize = Self::DIGEST_SIZE;
+            type PrkSize = <$hash as $crate::hash::Hash>::DigestSize;
 
             type Prk = $crate::kdf::Prk<{ Self::DIGEST_SIZE }>;
 

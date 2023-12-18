@@ -12,8 +12,13 @@ use core::{
     fmt::Debug,
 };
 
+use generic_array::ArrayLength;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
+use typenum::{
+    type_operators::{IsGreaterOrEqual, IsLess},
+    Unsigned, U16, U65536,
+};
 
 /// Hash algorithm identifiers.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
@@ -61,8 +66,12 @@ pub trait Hash: Clone {
     /// Uniquely identifies the hash algorithm.
     const ID: HashId;
 
-    /// The size in bytes of a [`Self::Digest`].
-    const DIGEST_SIZE: usize;
+    /// The size in octets of a digest used by this [`Hash`].
+    ///
+    /// Must be at least 16 octets and less than 2¹⁶ octets.
+    type DigestSize: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static;
+    /// Shorthand for [`DigestSize`][Self::DigestSize].
+    const DIGEST_SIZE: usize = Self::DigestSize::USIZE;
 
     /// The output of the hash function.
     type Digest: Borrow<[u8]> + Debug + Eq;

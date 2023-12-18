@@ -46,7 +46,7 @@ use bssl_sys::{
 use cfg_if::cfg_if;
 use more_asserts::assert_ge;
 use subtle::{Choice, ConstantTimeEq};
-use typenum::{Unsigned, U12, U16, U32};
+use typenum::{Unsigned, U, U12, U16, U32};
 
 #[allow(clippy::wildcard_imports, unused_imports)]
 use crate::features::*;
@@ -54,7 +54,7 @@ use crate::{
     aead::{
         check_open_in_place_params, check_open_params, check_seal_in_place_params,
         check_seal_params, Aead, AeadId, AeadKey, BufferTooSmallError, IndCca2, InvalidNonceSize,
-        Lifetime, Nonce, OpenError, SealError,
+        Lifetime, OpenError, SealError,
     },
     asn1::{max_sig_len, EncodingError, Sig},
     csprng::Csprng,
@@ -65,7 +65,7 @@ use crate::{
     kem::{
         dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId, SharedSecret,
     },
-    keys::{PublicKey, RawKey, SecretKey},
+    keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
@@ -383,7 +383,6 @@ macro_rules! indcca2_aead_impl {
             const MAX_ADDITIONAL_DATA_SIZE: u64 = $max_ad_size;
 
             type Key = AeadKey<{ Self::KEY_SIZE }>;
-            type Nonce = Nonce<{ Self::NONCE_SIZE }>;
 
             #[inline]
             fn new(key: &Self::Key) -> Self {
@@ -789,21 +788,21 @@ macro_rules! ecdh_impl {
         }
 
         impl SecretKey for $sk {
-            type Data = Scalar<$curve>;
+            type Size = <$curve as Curve>::ScalarSize;
 
             #[inline]
-            fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
+            fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
                 if self.0.is_opaque() {
                     Err(ExportError::Opaque)
                 } else {
-                    let mut out = Scalar::default();
+                    let mut out = Scalar::<$curve>::default();
                     // SAFETY: FFI call, no invariants
                     let n =
                         unsafe { EC_KEY_priv2oct(self.0.as_ptr(), out.as_mut_ptr(), out.len()) };
                     // The zero-padded integer will always be
                     // exactly this many bytes.
                     assert_eq!(n, out.len());
-                    Ok(out)
+                    Ok(out.0.into())
                 }
             }
 
@@ -847,16 +846,18 @@ macro_rules! ecdh_impl {
         impl Debug for $sk {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 match self.try_export_secret() {
-                    Ok(key) => write!(f, "{}", key.0.to_hex()),
+                    Ok(key) => write!(f, "{}", key.into_bytes().to_hex()),
                     Err(_) => write!(f, "<opaque>"),
                 }
             }
         }
 
-        impl Import<<Self as SecretKey>::Data> for $sk {
+        impl Import<SecretKeyBytes<<Self as SecretKey>::Size>> for $sk {
             #[inline]
-            fn import(data: <Self as SecretKey>::Data) -> Result<Self, ImportError> {
-                Self::import(data.borrow())
+            fn import(
+                data: SecretKeyBytes<<Self as SecretKey>::Size>,
+            ) -> Result<Self, ImportError> {
+                Self::import(data.as_bytes())
             }
         }
 
@@ -1051,14 +1052,14 @@ macro_rules! ecdsa_impl {
                 Self(sk)
             }
 
-            type Data = Scalar<$curve>;
+            type Size = <$curve as Curve>::ScalarSize;
 
             #[inline]
-            fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
+            fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
                 if self.0.is_opaque() {
                     Err(ExportError::Opaque)
                 } else {
-                    let mut out = Self::Data::default();
+                    let mut out = Scalar::<$curve>::default();
                     // SAFETY: FFI call, no invariants
                     let n =
                         unsafe { EC_KEY_priv2oct(self.0.as_ptr(), out.as_mut_ptr(), out.len()) };
@@ -1066,7 +1067,7 @@ macro_rules! ecdsa_impl {
                     // is some sort of programmer error or bug in
                     // BoringSSL.
                     assert_eq!(n, out.len());
-                    Ok(out)
+                    Ok(out.0.into())
                 }
             }
         }
@@ -1075,7 +1076,7 @@ macro_rules! ecdsa_impl {
         impl Debug for $sk {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 match self.try_export_secret() {
-                    Ok(key) => write!(f, "{}", key.0.to_hex()),
+                    Ok(key) => write!(f, "{}", key.into_bytes().to_hex()),
                     Err(_) => write!(f, "<opaque>"),
                 }
             }
@@ -1096,10 +1097,12 @@ macro_rules! ecdsa_impl {
             }
         }
 
-        impl Import<<Self as SecretKey>::Data> for $sk {
+        impl Import<SecretKeyBytes<<Self as SecretKey>::Size>> for $sk {
             #[inline]
-            fn import(data: <Self as SecretKey>::Data) -> Result<Self, ImportError> {
-                Self::import(data.borrow())
+            fn import(
+                data: SecretKeyBytes<<Self as SecretKey>::Size>,
+            ) -> Result<Self, ImportError> {
+                Self::import(data.as_bytes())
             }
         }
 
@@ -1318,10 +1321,10 @@ impl SecretKey for Ed25519SigningKey {
         Self::from_seed(seed)
     }
 
-    type Data = RawKey<32>;
+    type Size = U32;
 
     #[inline]
-    fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
+    fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
         // sk is seed || public key
         let seed: [u8; 32] = self.sk[..32].try_into().expect("unreachable");
         Ok(seed.into())
@@ -1349,10 +1352,10 @@ impl Import<[u8; 32]> for Ed25519SigningKey {
     }
 }
 
-impl Import<<Self as SecretKey>::Data> for Ed25519SigningKey {
+impl Import<SecretKeyBytes<<Self as SecretKey>::Size>> for Ed25519SigningKey {
     #[inline]
-    fn import(seed: <Self as SecretKey>::Data) -> Result<Self, ImportError> {
-        Ok(Self::from_seed(seed.into()))
+    fn import(seed: SecretKeyBytes<<Self as SecretKey>::Size>) -> Result<Self, ImportError> {
+        Ok(Self::from_seed(seed.into_bytes().into_array()))
     }
 }
 
@@ -1478,6 +1481,7 @@ macro_rules! hash_impl {
         impl Hash for $type {
             const ID: HashId = HashId::$type;
 
+            type DigestSize = U<{ $digest_size as usize }>;
             const DIGEST_SIZE: usize = $digest_size as usize;
             type Digest = [u8; $digest_size as usize];
 
@@ -2011,11 +2015,11 @@ mod fun_crypto {
     }
 
     impl SecretKey for X25519PrivateKey {
-        type Data = Scalar<Curve25519>;
+        type Size = <Curve25519 as Curve>::ScalarSize;
 
         #[inline]
-        fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
-            Ok(Scalar(self.0.into()))
+        fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
+            Ok(self.0.into())
         }
 
         fn new<R: Csprng>(_rng: &mut R) -> Self {

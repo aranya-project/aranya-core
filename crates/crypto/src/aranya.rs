@@ -363,6 +363,7 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
         let sk = <E::Kem as Kem>::DecapKey::import(data)?;
         Ok(Self(sk))
     }
+
     pub(crate) fn try_export_secret(&self) -> Result<DecapKeyData<E>, ExportError> {
         self.0.try_export_secret()
     }
@@ -418,6 +419,10 @@ impl<E: Engine + ?Sized> Encap<E> {
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
         let enc = <E::Kem as Kem>::Encap::import(data)?;
         Ok(Self(enc))
+    }
+
+    pub(crate) fn as_inner(&self) -> &<E::Kem as Kem>::Encap {
+        &self.0
     }
 }
 

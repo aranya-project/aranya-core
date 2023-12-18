@@ -8,17 +8,16 @@
 //!
 //! [RFC 5116]: https://www.rfc-editor.org/rfc/rfc5116
 
-#![forbid(unsafe_code)]
-
 use core::{
-    borrow::{Borrow, BorrowMut},
     cmp::{Eq, PartialEq},
     fmt::{self, Debug},
     mem,
+    ops::BitXor,
     result::Result,
 };
 
-use generic_array::ArrayLength;
+use generic_array::{ArrayLength, GenericArray};
+use subtle::{Choice, ConstantTimeEq};
 use typenum::{
     type_operators::{IsGreaterOrEqual, IsLess},
     Unsigned, U16, U65536,
@@ -28,8 +27,10 @@ use typenum::{
 use crate::features::*;
 pub use crate::hpke::AeadId;
 use crate::{
+    csprng::{Csprng, Random},
     error::Unreachable,
-    keys::{raw_key, SecretKey},
+    kdf::{Derive, Kdf, KdfError},
+    keys::{raw_key, SecretKey, SecretKeyBytes},
     zeroize::Zeroize,
 };
 
@@ -268,6 +269,9 @@ impl From<InvalidNonceSize> for OpenError {
 /// ```
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Lifetime {
+    /// The key can handle an unlimited number of messages or
+    /// bytes.
+    Unlimited,
     /// The maximum number of messages that can be sealed.
     ///
     /// In other words, the maximum number of calls to
@@ -280,6 +284,7 @@ pub enum Lifetime {
 impl Lifetime {
     const fn as_u64(self) -> u64 {
         match self {
+            Self::Unlimited => u64::MAX,
             Self::Messages(x) => x,
             Self::Bytes(x) => x,
         }
@@ -291,9 +296,18 @@ impl Lifetime {
     #[must_use]
     pub fn consume(self, bytes: u64) -> Option<Self> {
         match self {
+            Self::Unlimited => Some(Self::Unlimited),
             Self::Messages(x) => x.checked_sub(1).map(Self::Messages),
             Self::Bytes(x) => x.checked_sub(bytes).map(Self::Bytes),
         }
+    }
+
+    /// Decrements the lifetime by the length of the plaintext,
+    /// `bytes`.
+    #[inline]
+    #[must_use]
+    pub fn consume_mut(&mut self, bytes: u64) -> bool {
+        self.consume(bytes).inspect(|v| *self = *v).is_some()
     }
 }
 
@@ -398,16 +412,7 @@ pub trait Aead {
         };
 
     /// The key used by the [`Aead`].
-    type Key: SecretKey;
-
-    /// The nonce used by the [`Aead`].
-    type Nonce: Borrow<[u8]>
-        + BorrowMut<[u8]>
-        + Clone
-        + Default
-        + Debug
-        + Sized
-        + for<'a> TryFrom<&'a [u8], Error = InvalidNonceSize>;
+    type Key: SecretKey<Size = Self::KeySize> + Derive;
 
     /// Creates a new [`Aead`].
     fn new(key: &Self::Key) -> Self;
@@ -530,9 +535,12 @@ pub trait Aead {
     ) -> Result<(), OpenError>;
 }
 
-/// Shorthand for the `A::Key::Data`, which the compiler does not
-/// understand without a good amount of hand holding.
-pub(crate) type KeyData<A> = <<A as Aead>::Key as SecretKey>::Data;
+/// Shorthand which the compiler does not understand without
+/// a good amount of hand holding.
+pub type KeyData<A> = SecretKeyBytes<<<A as Aead>::Key as SecretKey>::Size>;
+
+/// An authentication tag.
+pub type Tag<A> = GenericArray<u8, <A as Aead>::Overhead>;
 
 const fn check_aead_params<A: Aead + ?Sized>() {
     debug_assert!(A::KEY_SIZE >= 16);
@@ -661,33 +669,111 @@ raw_key! {
 }
 
 /// An [`Aead`] nonce.
-#[derive(Copy, Clone, Debug)]
-pub struct Nonce<const N: usize>([u8; N]);
+#[derive(Clone, Default, Debug)]
+#[repr(transparent)]
+pub struct Nonce<N: ArrayLength>(GenericArray<u8, N>);
 
-impl<const N: usize> Borrow<[u8]> for Nonce<N> {
-    fn borrow(&self) -> &[u8] {
-        self.0.as_ref()
+impl<N: ArrayLength> Nonce<N> {
+    /// The size in octets of the nonce.
+    pub const SIZE: usize = N::USIZE;
+
+    /// Returns the size in octets of the nonce.
+    #[allow(clippy::len_without_is_empty)]
+    pub const fn len(&self) -> usize {
+        Self::SIZE
     }
 }
 
-impl<const N: usize> BorrowMut<[u8]> for Nonce<N> {
-    fn borrow_mut(&mut self) -> &mut [u8] {
-        self.0.as_mut()
+impl<N: ArrayLength> Copy for Nonce<N> where N::ArrayType<u8>: Copy {}
+
+impl<N: ArrayLength> AsRef<[u8]> for Nonce<N> {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
     }
 }
 
-impl<const N: usize> Default for Nonce<N> {
-    fn default() -> Self {
-        Self([0u8; N])
+impl<N: ArrayLength> AsMut<[u8]> for Nonce<N> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        &mut self.0
     }
 }
 
-impl<const N: usize> TryFrom<&[u8]> for Nonce<N> {
+impl<N: ArrayLength> BitXor for Nonce<N> {
+    type Output = Self;
+
+    fn bitxor(mut self, rhs: Self) -> Self::Output {
+        for (x, y) in self.0.iter_mut().zip(&rhs.0) {
+            *x ^= y;
+        }
+        self
+    }
+}
+
+impl<N: ArrayLength> BitXor for &Nonce<N> {
+    type Output = Nonce<N>;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        let mut lhs = self.clone();
+        for (x, y) in lhs.0.iter_mut().zip(&rhs.0) {
+            *x ^= y;
+        }
+        lhs
+    }
+}
+
+impl<N: ArrayLength> ConstantTimeEq for Nonce<N> {
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.0.ct_eq(&other.0)
+    }
+}
+
+impl<N: ArrayLength> Derive for Nonce<N> {
+    type Size = N;
+    type Error = KdfError;
+
+    fn expand_multi<K: Kdf>(prk: &K::Prk, info: &[&[u8]]) -> Result<Self, Self::Error> {
+        let mut nonce = GenericArray::default();
+        K::expand_multi(&mut nonce, prk, info)?;
+        Ok(Self(nonce))
+    }
+}
+
+impl<N: ArrayLength> Random for Nonce<N> {
+    fn random<R: Csprng>(rng: &mut R) -> Self {
+        let mut nonce = Self::default();
+        rng.fill_bytes(nonce.as_mut());
+        nonce
+    }
+}
+
+impl<N: ArrayLength> From<Nonce<N>> for GenericArray<u8, N> {
+    #[inline]
+    fn from(key: Nonce<N>) -> Self {
+        key.0
+    }
+}
+
+impl<N: ArrayLength> From<GenericArray<u8, N>> for Nonce<N> {
+    #[inline]
+    fn from(key: GenericArray<u8, N>) -> Self {
+        Self(key)
+    }
+}
+
+impl<'a, N: ArrayLength> From<&'a GenericArray<u8, N>> for &'a Nonce<N> {
+    fn from(v: &'a GenericArray<u8, N>) -> Self {
+        // SAFETY: `Nonce` and `GenericArray` have the
+        // same memory layout.
+        unsafe { mem::transmute(v) }
+    }
+}
+
+impl<N: ArrayLength> TryFrom<&[u8]> for Nonce<N> {
     type Error = InvalidNonceSize;
 
     fn try_from(data: &[u8]) -> Result<Self, InvalidNonceSize> {
-        let nonce = data.try_into().map_err(|_| InvalidNonceSize)?;
-        Ok(Self(nonce))
+        let nonce = GenericArray::try_from_slice(data).map_err(|_| InvalidNonceSize)?;
+        Ok(Self(nonce.clone()))
     }
 }
 
@@ -717,13 +803,7 @@ pub trait Cmt4Aead: Cmt3Aead {}
 
 #[cfg(feature = "committing-aead")]
 mod committing {
-    use core::{
-        borrow::{Borrow, BorrowMut},
-        cmp,
-        marker::PhantomData,
-        num::NonZeroU64,
-        result::Result,
-    };
+    use core::{cmp, marker::PhantomData, num::NonZeroU64, result::Result};
 
     use generic_array::{ArrayLength, GenericArray};
     use typenum::{
@@ -731,7 +811,7 @@ mod committing {
         Unsigned, U16, U65536,
     };
 
-    use super::{Aead, KeyData};
+    use super::{Aead, KeyData, Nonce};
     use crate::error::{safe_unreachable, Unreachable};
 
     /// A symmetric block cipher.
@@ -774,7 +854,7 @@ mod committing {
         #[allow(clippy::type_complexity)] // internal method
         pub fn commit(
             key: &A::Key,
-            nonce: &A::Nonce,
+            nonce: &Nonce<A::NonceSize>,
         ) -> Result<(GenericArray<u8, C::BlockSize>, KeyData<A>), Unreachable> {
             let mut cx = Default::default();
             let key = Self::commit_into(&mut cx, key, nonce)?;
@@ -786,7 +866,7 @@ mod committing {
         pub fn commit_into(
             cx: &mut GenericArray<u8, C::BlockSize>,
             key: &A::Key,
-            nonce: &A::Nonce,
+            nonce: &Nonce<A::NonceSize>,
         ) -> Result<KeyData<A>, Unreachable> {
             /// Pad is a one-to-one encoding that converts the
             /// pair (M,i) in {0,1}^m x {1,...,2^(n-m)} into an
@@ -810,7 +890,7 @@ mod committing {
 
             let mut i = NonZeroU64::MIN;
             let cipher = C::new(key);
-            let nonce = nonce.borrow();
+            let nonce = nonce.as_ref();
 
             let v_1 = {
                 // X_i <- pad(M, i)
@@ -834,7 +914,7 @@ mod committing {
             cx.copy_from_slice(&v_1);
 
             let mut key = KeyData::<A>::default();
-            for chunk in key.borrow_mut().chunks_mut(C::BLOCK_SIZE) {
+            for chunk in key.as_bytes_mut().chunks_mut(C::BLOCK_SIZE) {
                 i = i
                     .checked_add(1)
                     // It should be impossible to overflow. At
@@ -895,7 +975,6 @@ mod committing {
                     <$inner as $crate::aead::Aead>::MAX_ADDITIONAL_DATA_SIZE;
 
                 type Key = <$inner as $crate::aead::Aead>::Key;
-                type Nonce = <$inner as $crate::aead::Aead>::Nonce;
 
                 #[inline]
                 fn new(key: &Self::Key) -> Self {
@@ -925,7 +1004,7 @@ mod committing {
                         &self.key,
                         &nonce.try_into()?,
                     )?;
-                    <$inner as $crate::aead::Aead>::new(&key).seal(
+                    <$inner as $crate::aead::Aead>::new(&key.into_bytes().into()).seal(
                         out,
                         nonce,
                         plaintext,
@@ -955,7 +1034,7 @@ mod committing {
                         &self.key,
                         &nonce.try_into()?,
                     )?;
-                    <$inner as $crate::aead::Aead>::new(&key).seal_in_place(
+                    <$inner as $crate::aead::Aead>::new(&key.into_bytes().into()).seal_in_place(
                         nonce,
                         data,
                         tag,
@@ -989,7 +1068,7 @@ mod committing {
                     )) {
                         Err($crate::aead::OpenError::Authentication)
                     } else {
-                        <$inner as $crate::aead::Aead>::new(&key).open(
+                        <$inner as $crate::aead::Aead>::new(&key.into_bytes().into()).open(
                             dst,
                             nonce,
                             ciphertext,
@@ -1024,7 +1103,7 @@ mod committing {
                     )) {
                         Err($crate::aead::OpenError::Authentication)
                     } else {
-                        <$inner as $crate::aead::Aead>::new(&key).open_in_place(
+                        <$inner as $crate::aead::Aead>::new(&key.into_bytes().into()).open_in_place(
                             nonce,
                             data,
                             overhead,
@@ -1048,7 +1127,7 @@ mod committing {
             }
 
             impl $name {
-                fn hash(&self, nonce: &[u8], ad: &[u8]) -> $crate::aead::KeyData<$inner> {
+                fn hash(&self, nonce: &[u8], ad: &[u8]) -> <$inner as $crate::aead::Aead>::Key {
                     // The nonce length is fixed, so use
                     // HMAC(K || N || A)[1 : k] per Theorem 3.2.
                     let tag = {
@@ -1063,7 +1142,7 @@ mod committing {
                         hmac.update(ad);
                         hmac.tag()
                     };
-                    let mut key = $crate::aead::KeyData::<$inner>::default();
+                    let mut key = <$inner as $crate::aead::Aead>::Key::default();
                     let k = ::core::cmp::min(
                         tag.len(),
                         ::core::borrow::Borrow::<[u8]>::borrow(&key).len(),
@@ -1103,7 +1182,6 @@ mod committing {
                     <$inner as $crate::aead::Aead>::MAX_ADDITIONAL_DATA_SIZE;
 
                 type Key = <$inner as $crate::aead::Aead>::Key;
-                type Nonce = <$inner as $crate::aead::Aead>::Nonce;
 
                 #[inline]
                 fn new(key: &Self::Key) -> Self {

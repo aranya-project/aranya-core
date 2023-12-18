@@ -25,7 +25,7 @@ use elliptic_curve::{
     ecdh,
     scalar::NonZeroScalar,
     sec1::{EncodedPoint, FromEncodedPoint, ToEncodedPoint},
-    CurveArithmetic, FieldBytes,
+    CurveArithmetic, FieldBytesSize,
 };
 use rand_core::{impls, CryptoRng, RngCore};
 use sha2::{digest::OutputSizeUser, Digest};
@@ -35,7 +35,7 @@ use typenum::{Unsigned, U12, U16};
 use crate::{
     aead::{
         check_open_in_place_params, check_seal_in_place_params, Aead, AeadId, AeadKey, IndCca2,
-        Lifetime, Nonce, OpenError, SealError,
+        Lifetime, OpenError, SealError,
     },
     csprng::Csprng,
     ec::{Curve, Secp256r1, Secp384r1},
@@ -45,9 +45,9 @@ use crate::{
     hmac::hmac_impl,
     import::{try_from_slice, ExportError, Import, ImportError},
     kem::{dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId},
-    keys::{PublicKey, SecretKey},
+    keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
-    zeroize::{ZeroizeOnDrop, Zeroizing},
+    zeroize::ZeroizeOnDrop,
 };
 
 /// AES-256-GCM.
@@ -68,7 +68,6 @@ impl Aead for Aes256Gcm {
     const MAX_CIPHERTEXT_SIZE: u64 = C_MAX;
 
     type Key = AeadKey<{ Self::KEY_SIZE }>;
-    type Nonce = Nonce<{ Self::NONCE_SIZE }>;
 
     #[inline]
     fn new(key: &Self::Key) -> Self {
@@ -233,17 +232,19 @@ macro_rules! ecdh_impl {
         }
 
         impl SecretKey for $sk {
+            type Size = FieldBytesSize<$curve>;
+
             #[inline]
             fn new<R: Csprng>(rng: &mut R) -> Self {
                 let sk = NonZeroScalar::random(&mut RngWrapper(rng));
                 Self(sk)
             }
 
-            type Data = Zeroizing<FieldBytes<$curve>>;
-
             #[inline]
-            fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
-                Ok(Zeroizing::new(self.0.to_bytes()))
+            fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
+                // Mismatched GenericArray versions, yay.
+                let secret: [u8; FieldBytesSize::<$curve>::USIZE] = self.0.to_bytes().into();
+                Ok(secret.into())
             }
         }
 
@@ -368,17 +369,19 @@ macro_rules! ecdsa_impl {
         }
 
         impl SecretKey for $sk {
+            type Size = FieldBytesSize<$curve>;
+
             #[inline]
             fn new<R: Csprng>(rng: &mut R) -> Self {
                 let sk = ecdsa::SigningKey::random(&mut RngWrapper(rng));
                 Self(sk)
             }
 
-            type Data = Zeroizing<FieldBytes<$curve>>;
-
             #[inline]
-            fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
-                Ok(Zeroizing::new(self.0.to_bytes()))
+            fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
+                // Mismatched GenericArray versions, yay.
+                let secret: [u8; FieldBytesSize::<$curve>::USIZE] = self.0.to_bytes().into();
+                Ok(secret.into())
             }
         }
 
@@ -497,6 +500,7 @@ macro_rules! hash_impl {
         impl Hash for $name {
             const ID: HashId = HashId::$name;
 
+            type DigestSize = <sha2::$name as OutputSizeUser>::OutputSize;
             const DIGEST_SIZE: usize =
                 <<sha2::$name as OutputSizeUser>::OutputSize as Unsigned>::USIZE;
             type Digest = [u8; { Self::DIGEST_SIZE }];

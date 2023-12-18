@@ -29,12 +29,12 @@ pub use bearssl_sys;
 #[allow(clippy::wildcard_imports)]
 use bearssl_sys::*;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeLess};
-use typenum::{Unsigned, U12, U16, U32};
+use typenum::{Unsigned, U, U12, U16, U32};
 
 use crate::{
     aead::{
         check_open_in_place_params, check_seal_in_place_params, Aead, AeadId, AeadKey, IndCca2,
-        Lifetime, Nonce, OpenError, SealError,
+        Lifetime, OpenError, SealError,
     },
     asn1::{max_sig_len, raw_sig_len, RawSig, Sig},
     csprng::Csprng,
@@ -47,7 +47,7 @@ use crate::{
     kem::{
         dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId, SharedSecret,
     },
-    keys::{PublicKey, SecretKey},
+    keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
 };
@@ -118,7 +118,6 @@ impl Aead for Aes256Gcm {
     const MAX_ADDITIONAL_DATA_SIZE: u64 = (1 << 61) - 1; // 2^61 - 1
 
     type Key = AeadKey<{ Self::KEY_SIZE }>;
-    type Nonce = Nonce<{ Self::NONCE_SIZE }>;
 
     #[inline]
     fn new(key: &Self::Key) -> Self {
@@ -445,11 +444,11 @@ macro_rules! ecdh_impl {
                 Self { kbuf }
             }
 
-            type Data = Scalar<$curve>;
+            type Size = <$curve as Curve>::ScalarSize;
 
             #[inline]
-            fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
-                Ok(self.kbuf.clone())
+            fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
+                Ok(self.kbuf.0.into())
             }
         }
 
@@ -466,10 +465,12 @@ macro_rules! ecdh_impl {
             }
         }
 
-        impl Import<<Self as SecretKey>::Data> for $sk {
+        impl Import<SecretKeyBytes<<Self as SecretKey>::Size>> for $sk {
             #[inline]
-            fn import(data: <Self as SecretKey>::Data) -> Result<Self, ImportError> {
-                Self::import(data.borrow())
+            fn import(
+                data: SecretKeyBytes<<Self as SecretKey>::Size>,
+            ) -> Result<Self, ImportError> {
+                Self::import(data.as_bytes())
             }
         }
 
@@ -751,11 +752,11 @@ macro_rules! ecdsa_impl {
                 Self { kbuf }
             }
 
-            type Data = Scalar<$curve>;
+            type Size = <$curve as Curve>::ScalarSize;
 
             #[inline]
-            fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
-                Ok(self.kbuf.clone())
+            fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
+                Ok(self.kbuf.0.into())
             }
         }
 
@@ -972,6 +973,7 @@ macro_rules! hash_impl {
         impl Hash for $name {
             const ID: HashId = HashId::$name;
 
+            type DigestSize = U<{ $digest_size as usize }>;
             const DIGEST_SIZE: usize = $digest_size as usize;
             type Digest = [u8; { Self::DIGEST_SIZE }];
 
@@ -1221,7 +1223,7 @@ mod tests {
             Aes256Gcm,
             Sha512,
             HkdfSha512,
-            DhKemP521HkdfSha512, 
+            DhKemP521HkdfSha512,
             HmacSha512,
             P521,
         >);

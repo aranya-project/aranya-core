@@ -25,7 +25,7 @@ use crate::{
     import::{ExportError, Import, ImportError},
     kdf::{Kdf, KdfError, KdfId},
     kem::Kem,
-    keys::{PublicKey, SecretKey},
+    keys::{PublicKey, SecretKey, SecretKeyBytes},
     mac::{Mac, MacId, MacKey, Tag},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
 };
@@ -70,7 +70,8 @@ macro_rules! assert_ct_ne {
 /// Checks that each byte in `data` is zero.
 macro_rules! assert_all_zero {
     ($data:expr) => {
-        for c in $data.borrow() {
+        let data: &[u8] = &$data.as_ref();
+        for c in data {
             assert_eq!(*c, 0, "Default must return all zeros");
         }
     };
@@ -98,7 +99,6 @@ impl<T: Aead> Aead for AeadWithDefaults<T> {
     const MAX_CIPHERTEXT_SIZE: u64 = T::MAX_CIPHERTEXT_SIZE;
 
     type Key = T::Key;
-    type Nonce = T::Nonce;
 
     fn new(key: &Self::Key) -> Self {
         Self(T::new(key))
@@ -131,9 +131,9 @@ pub struct KdfWithDefaults<T>(PhantomData<T>);
 impl<T: Kdf> Kdf for KdfWithDefaults<T> {
     const ID: KdfId = T::ID;
 
-    const MAX_OUTPUT: usize = T::MAX_OUTPUT;
+    type MaxOutput = T::MaxOutput;
 
-    const PRK_SIZE: usize = T::PRK_SIZE;
+    type PrkSize = T::PrkSize;
 
     type Prk = T::Prk;
 
@@ -194,13 +194,13 @@ impl<T: Signer + ?Sized> SigningKey<SignerWithDefaults<T>> for SigningKeyWithDef
 }
 
 impl<T: Signer + ?Sized> SecretKey for SigningKeyWithDefaults<T> {
+    type Size = <T::SigningKey as SecretKey>::Size;
+
     fn new<R: Csprng>(rng: &mut R) -> Self {
         Self(T::SigningKey::new(rng))
     }
 
-    type Data = <T::SigningKey as SecretKey>::Data;
-
-    fn try_export_secret(&self) -> Result<Self::Data, ExportError> {
+    fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
         self.0.try_export_secret()
     }
 }
@@ -405,19 +405,19 @@ macro_rules! test_engine {
                 #[allow(unused_imports)]
                 use super::*;
 
-                test!(test_derive_channel_keys);
-                test!(test_derive_channel_keys_different_labels);
-                test!(test_derive_channel_keys_different_user_ids);
-                test!(test_derive_channel_keys_different_cmd_ids);
-                test!(test_derive_channel_keys_different_keys);
-                test!(test_derive_channel_keys_same_user_id);
+                test!(test_derive_bidi_keys);
+                test!(test_derive_bidi_keys_different_labels);
+                test!(test_derive_bidi_keys_different_user_ids);
+                test!(test_derive_bidi_keys_different_cmd_ids);
+                test!(test_derive_bidi_keys_different_keys);
+                test!(test_derive_bidi_keys_same_user_id);
 
-                test!(test_derive_unidirectional_key);
-                test!(test_derive_unidirectional_key_different_labels);
-                test!(test_derive_unidirectional_key_different_user_ids);
-                test!(test_derive_unidirectional_key_different_cmd_ids);
-                test!(test_derive_unidirectional_key_different_keys);
-                test!(test_derive_unidirectional_key_same_user_id);
+                test!(test_derive_uni_key);
+                test!(test_derive_uni_key_different_labels);
+                test!(test_derive_uni_key_different_user_ids);
+                test!(test_derive_uni_key_different_cmd_ids);
+                test!(test_derive_uni_key_different_keys);
+                test!(test_derive_uni_key_same_user_id);
             }
             pub use aps::*;
         }
@@ -441,7 +441,7 @@ pub mod engine {
             EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
             TopicKey, Version,
         },
-        aps::{BidiChannel, ChannelKeys, OpenOnlyKey, SealOnlyKey, UniChannel},
+        aps::{BidiChannel, BidiEncaps, BidiKeys, UniChannel, UniEncaps, UniKey},
         aranya::{
             Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
             UserId,
@@ -1102,412 +1102,435 @@ pub mod engine {
         assert_eq!(err, Error::Open(OpenError::Authentication));
     }
 
-    /// A simple positive test for deriving [`ChannelKeys`].
-    pub fn test_derive_channel_keys<E: Engine + ?Sized>(eng: &mut E) {
+    /// A simple positive test for deriving [`BidiKeys`].
+    pub fn test_derive_bidi_keys<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let label = 123;
         let ch1 = BidiChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
-            peer_pk: &sk2.public(),
-            peer_id: IdentityKey::<E>::new(eng).id(),
+            their_pk: &sk2.public(),
+            their_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let ch2 = BidiChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            our_id: ch1.peer_id,
-            peer_pk: &sk1.public(),
-            peer_id: ch1.our_id,
+            our_id: ch1.their_id,
+            their_pk: &sk1.public(),
+            their_id: ch1.our_id,
             label,
         };
 
-        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
-        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
+        let BidiEncaps { author, peer } =
+            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
+        let ck1 =
+            BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt author `BidiKeys`");
+        let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `BidiKeys`");
 
         // `ck1` and `ck2` should be the reverse of each other.
-        assert_eq!(ck1.seal_key(), ck2.open_key());
-        assert_eq!(ck1.open_key(), ck2.seal_key());
+        assert_ct_eq!(ck1.seal_key(), ck2.open_key());
+        assert_ct_eq!(ck1.open_key(), ck2.seal_key());
 
         // We should not generate duplicate keys.
-        assert_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ne!(ck1.open_key(), ck2.open_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.open_key(), ck2.open_key());
     }
 
-    /// Different labels should create different [`ChannelKeys`].
-    pub fn test_derive_channel_keys_different_labels<E: Engine + ?Sized>(eng: &mut E) {
+    /// Different labels should create different [`BidiKeys`].
+    pub fn test_derive_bidi_keys_different_labels<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let ch1 = BidiChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
-            peer_pk: &sk2.public(),
-            peer_id: IdentityKey::<E>::new(eng).id(),
+            their_pk: &sk2.public(),
+            their_id: IdentityKey::<E>::new(eng).id(),
             label: 123,
         };
         let ch2 = BidiChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            our_id: ch1.peer_id,
-            peer_pk: &sk1.public(),
-            peer_id: ch1.our_id,
+            our_id: ch1.their_id,
+            their_pk: &sk1.public(),
+            their_id: ch1.our_id,
             label: 456,
         };
 
-        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
-        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
+        let BidiEncaps { author, peer } =
+            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
+        let ck1 = BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt `BidiKeys`");
+        let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt `BidiKeys`");
 
         // The labels are different, so the keys should also be
         // different.
-        assert_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ne!(ck1.open_key(), ck2.open_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.open_key());
+        assert_ct_ne!(ck1.open_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.open_key(), ck2.open_key());
     }
 
     /// Different UserIDs should create different
-    /// [`ChannelKeys`].
+    /// [`BidiKeys`].
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-    pub fn test_derive_channel_keys_different_user_ids<E: Engine + ?Sized>(eng: &mut E) {
+    pub fn test_derive_bidi_keys_different_user_ids<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let ch1 = BidiChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
-            peer_pk: &sk2.public(),
-            peer_id: IdentityKey::<E>::new(eng).id(),
+            their_pk: &sk2.public(),
+            their_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let ch2 = BidiChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            our_id: ch1.peer_id,
-            peer_pk: &sk1.public(),
-            peer_id: UserId::random(eng),
+            our_id: ch1.their_id,
+            their_pk: &sk1.public(),
+            their_id: UserId::random(eng),
             label,
         };
 
-        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
-        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
+        let BidiEncaps { author, peer } =
+            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
+        let ck1 =
+            BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt author `BidiKeys`");
+        let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `BidiKeys`");
 
-        assert_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ne!(ck1.open_key(), ck2.open_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.open_key());
+        assert_ct_ne!(ck1.open_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.open_key(), ck2.open_key());
     }
 
     /// Different command IDs should create different
-    /// [`ChannelKeys`].
+    /// [`BidiKeys`].
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-    pub fn test_derive_channel_keys_different_cmd_ids<E: Engine + ?Sized>(eng: &mut E) {
+    pub fn test_derive_bidi_keys_different_cmd_ids<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let ch1 = BidiChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
-            peer_pk: &sk2.public(),
-            peer_id: IdentityKey::<E>::new(eng).id(),
+            their_pk: &sk2.public(),
+            their_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let ch2 = BidiChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk2,
-            our_id: ch1.peer_id,
-            peer_pk: &sk1.public(),
-            peer_id: ch1.our_id,
+            our_id: ch1.their_id,
+            their_pk: &sk1.public(),
+            their_id: ch1.our_id,
             label,
         };
 
-        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
-        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
+        let BidiEncaps { author, peer } =
+            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
+        let ck1 =
+            BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt author `BidiKeys`");
+        let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `BidiKeys`");
 
-        assert_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ne!(ck1.open_key(), ck2.open_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.open_key());
+        assert_ct_ne!(ck1.open_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.open_key(), ck2.open_key());
     }
 
     /// Different encryption keys should create different
-    /// [`ChannelKeys`].
+    /// [`BidiKeys`].
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-    pub fn test_derive_channel_keys_different_keys<E: Engine + ?Sized>(eng: &mut E) {
+    pub fn test_derive_bidi_keys_different_keys<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let ch1 = BidiChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
-            peer_pk: &sk2.public(),
-            peer_id: IdentityKey::<E>::new(eng).id(),
+            their_pk: &sk2.public(),
+            their_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let ch2 = BidiChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            our_id: ch1.peer_id,
-            peer_pk: &EncryptionKey::<E>::new(eng).public(),
-            peer_id: ch1.our_id,
+            our_id: ch1.their_id,
+            their_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_id: ch1.our_id,
             label,
         };
 
-        let (enc, ck1) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
-        let ck2 = ChannelKeys::from_encap(&ch2, &enc).expect("unable to decrypt `ChannelKeys`");
+        let BidiEncaps { author, peer } =
+            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
+        let ck1 =
+            BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt author `BidiKeys`");
+        let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `BidiKeys`");
 
-        assert_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ne!(ck1.open_key(), ck2.open_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.open_key());
+        assert_ct_ne!(ck1.open_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
+        assert_ct_ne!(ck1.open_key(), ck2.open_key());
     }
 
     /// It is an error to use the same `UserId` when deriving
-    /// [`ChannelKeys`].
-    pub fn test_derive_channel_keys_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
+    /// [`BidiKeys`].
+    pub fn test_derive_bidi_keys_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let mut ch1 = BidiChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             our_id: IdentityKey::<E>::new(eng).id(),
-            peer_pk: &sk2.public(),
-            peer_id: IdentityKey::<E>::new(eng).id(),
+            their_pk: &sk2.public(),
+            their_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let mut ch2 = BidiChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            our_id: ch1.peer_id,
-            peer_pk: &EncryptionKey::<E>::new(eng).public(),
-            peer_id: ch1.our_id,
+            our_id: ch1.their_id,
+            their_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_id: ch1.our_id,
             label,
         };
 
-        let enc = {
+        let BidiEncaps { peer, .. } = {
             let prev = ch1.our_id;
-            ch1.our_id = ch1.peer_id;
+            ch1.our_id = ch1.their_id;
 
-            let err = ChannelKeys::new(eng, &ch1)
+            let err = BidiEncaps::new(eng, &ch1)
                 .err()
-                .expect("should not be able to create `ChannelKeys`");
-            assert_eq!(err, Error::InvalidArgument("same `UserId`"));
+                .expect("should not be able to create `BidiEncaps`");
+            assert_eq!(err, Error::same_user_id());
 
             ch1.our_id = prev;
-            let (enc, _) = ChannelKeys::new(eng, &ch1).expect("unable to create `ChannelKeys`");
-            enc
+            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`")
         };
 
-        ch2.peer_id = ch2.our_id;
-        let err = ChannelKeys::from_encap(&ch2, &enc)
+        ch2.their_id = ch2.our_id;
+        let err = BidiKeys::from_peer_encap(&ch2, peer)
             .err()
-            .expect("should not be able to decrypt `ChannelKeys`");
-        assert_eq!(err, Error::InvalidArgument("same `UserId`"));
+            .expect("should not be able to decrypt `BidiKeys`");
+        assert_eq!(err, Error::same_user_id());
     }
 
-    /// A simple positive test for deriving [`SealOnlyKey`] and
-    /// [`OpenOnlyKey`].
-    pub fn test_derive_unidirectional_key<E: Engine + ?Sized>(eng: &mut E) {
+    /// A simple positive test for deriving [`UniKey`].
+    pub fn test_derive_uni_key<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let label = 123;
         let ch1 = UniChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            peer_pk: &sk2.public(),
+            their_pk: &sk2.public(),
             seal_id: IdentityKey::<E>::new(eng).id(),
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let ch2 = UniChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            peer_pk: &sk1.public(),
+            their_pk: &sk1.public(),
             seal_id: ch1.seal_id,
             open_id: ch1.open_id,
             label,
         };
 
-        let (enc, sk1) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
-        let ok1 = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+        let UniEncaps { author, peer } =
+            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
+        let ck1 =
+            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
+        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
 
-        assert_eq!(sk1.as_bytes(), ok1.as_bytes());
+        assert_ct_eq!(ck1.raw_key(), ck2.raw_key());
     }
 
-    /// Different labels should create different [`SealOnlyKey`]s
-    /// and [`OpenOnlyKey`]s.
-    pub fn test_derive_unidirectional_key_different_labels<E: Engine + ?Sized>(eng: &mut E) {
+    /// Different labels should create different [`UniKey`]s.
+    pub fn test_derive_uni_key_different_labels<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let ch1 = UniChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            peer_pk: &sk2.public(),
+            their_pk: &sk2.public(),
             seal_id: IdentityKey::<E>::new(eng).id(),
             open_id: IdentityKey::<E>::new(eng).id(),
             label: 123,
         };
         let ch2 = UniChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            peer_pk: &sk1.public(),
+            their_pk: &sk1.public(),
             seal_id: ch1.seal_id,
             open_id: ch1.open_id,
             label: 456,
         };
 
-        let (enc, sk) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
-        let ok = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+        let UniEncaps { author, peer } =
+            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
+        let ck1 =
+            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
+        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
 
-        // The labels are different, so the keys should also be
-        // different.
-        assert_ne!(sk.as_bytes(), ok.as_bytes());
+        assert_ct_ne!(ck1.raw_key(), ck2.raw_key());
     }
 
     /// Different UserIDs should create different
-    /// [`SealOnlyKey`]s and [`OpenOnlyKey`]s.
+    /// [`UniKey`]s.
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-    pub fn test_derive_unidirectional_key_different_user_ids<E: Engine + ?Sized>(eng: &mut E) {
+    pub fn test_derive_uni_key_different_user_ids<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let ch1 = UniChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            peer_pk: &sk2.public(),
+            their_pk: &sk2.public(),
             seal_id: IdentityKey::<E>::new(eng).id(),
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let ch2 = UniChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            peer_pk: &sk1.public(),
+            their_pk: &sk1.public(),
             seal_id: ch1.seal_id,
             open_id: UserId::random(eng),
             label,
         };
 
-        let (enc, sk) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
-        let ok = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+        let UniEncaps { author, peer } =
+            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
+        let ck1 =
+            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
+        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
 
-        assert_ne!(sk.as_bytes(), ok.as_bytes());
+        assert_ct_ne!(ck1.raw_key(), ck2.raw_key());
     }
 
     /// Different command IDs should create different
-    /// [`SealOnlyKey`]s and [`OpenOnlyKey`]s.
+    /// [`UniKey`]s.
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-    pub fn test_derive_unidirectional_key_different_cmd_ids<E: Engine + ?Sized>(eng: &mut E) {
+    pub fn test_derive_uni_key_different_cmd_ids<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let ch1 = UniChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            peer_pk: &sk2.public(),
+            their_pk: &sk2.public(),
             seal_id: IdentityKey::<E>::new(eng).id(),
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let ch2 = UniChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk2,
-            peer_pk: &sk1.public(),
+            their_pk: &sk1.public(),
             seal_id: ch1.seal_id,
             open_id: ch1.open_id,
             label,
         };
 
-        let (enc, sk) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
-        let ok = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+        let UniEncaps { author, peer } =
+            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
+        let ck1 =
+            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
+        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
 
-        assert_ne!(sk.as_bytes(), ok.as_bytes());
+        assert_ct_ne!(ck1.raw_key(), ck2.raw_key());
     }
 
     /// Different encryption keys should create different
-    /// [`SealOnlyKey`]s and [`OpenOnlyKey`]s.
+    /// [`UniKey`]s.
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-    pub fn test_derive_unidirectional_key_different_keys<E: Engine + ?Sized>(eng: &mut E) {
+    pub fn test_derive_uni_key_different_keys<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let ch1 = UniChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            peer_pk: &sk2.public(),
+            their_pk: &sk2.public(),
             seal_id: IdentityKey::<E>::new(eng).id(),
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let ch2 = UniChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            peer_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_pk: &EncryptionKey::<E>::new(eng).public(),
             seal_id: ch1.seal_id,
             open_id: ch1.open_id,
             label,
         };
 
-        let (enc, sk) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
-        let ok = OpenOnlyKey::from_encap(&ch2, &enc).expect("unable to decrypt `OpenOnlyKey`");
+        let UniEncaps { author, peer } =
+            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
+        let ck1 =
+            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
+        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
 
-        assert_ne!(sk.as_bytes(), ok.as_bytes());
+        assert_ct_ne!(ck1.raw_key(), ck2.raw_key());
     }
 
     /// It is an error to use the same `UserId` when deriving
-    /// [`SealOnlyKey`]s and [`OpenOnlyKey`]s.
-    pub fn test_derive_unidirectional_key_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
+    /// [`UniKey`]s.
+    pub fn test_derive_uni_key_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
         let mut ch1 = UniChannel {
-            cmd_id: Id::random(eng),
+            parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            peer_pk: &sk2.public(),
+            their_pk: &sk2.public(),
             seal_id: IdentityKey::<E>::new(eng).id(),
             open_id: IdentityKey::<E>::new(eng).id(),
             label,
         };
         let mut ch2 = UniChannel {
-            cmd_id: ch1.cmd_id,
+            parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            peer_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_pk: &EncryptionKey::<E>::new(eng).public(),
             seal_id: ch1.seal_id,
             open_id: ch1.open_id,
             label,
         };
 
-        let enc = {
+        let UniEncaps { peer, .. } = {
             let prev = ch1.seal_id;
             ch1.seal_id = ch1.open_id;
 
-            let err = SealOnlyKey::new(eng, &ch1)
+            let err = UniEncaps::new(eng, &ch1)
                 .err()
-                .expect("should not be able to create `OpenOnlyKey`");
-            assert_eq!(err, Error::InvalidArgument("same `UserId`"));
+                .expect("should not be able to create `UniEncaps`");
+            assert_eq!(err, Error::same_user_id());
 
             ch1.seal_id = prev;
-            let (enc, _) = SealOnlyKey::new(eng, &ch1).expect("unable to create `SealOnlyKey`");
-            enc
+            UniEncaps::new(eng, &ch1).expect("unable to create `Unincaps`")
         };
 
         ch2.seal_id = ch2.open_id;
-        let err = OpenOnlyKey::from_encap(&ch2, &enc)
+        let err = UniKey::from_peer_encap(&ch2, peer)
             .err()
-            .expect("should not be able to decrypt `OpenOnlyKey`");
-        assert_eq!(err, Error::InvalidArgument("same `UserId`"));
+            .expect("should not be able to decrypt `UniKeys`");
+        assert_eq!(err, Error::same_user_id());
     }
 }
 
@@ -1635,12 +1658,11 @@ pub mod aead {
     extern crate alloc;
 
     use alloc::vec;
-    use core::borrow::{Borrow, BorrowMut};
 
     use more_asserts::assert_ge;
 
     use crate::{
-        aead::{Aead, OpenError},
+        aead::{Aead, Nonce, OpenError},
         csprng::Csprng,
         keys::SecretKey,
     };
@@ -1661,16 +1683,6 @@ pub mod aead {
         );
         // Must be at least 2^32-1.
         assert_ge!(A::MAX_ADDITIONAL_DATA_SIZE, u64::from(u32::MAX));
-
-        // The symmetric key data must be the same size as
-        // specified by the `Aead`.
-        let data = <A::Key as SecretKey>::Data::default();
-        assert_eq!(
-            A::KEY_SIZE,
-            data.borrow().len(),
-            "KEY_SIZE does not match Key::Data size"
-        );
-        assert_all_zero!(data);
     }
 
     /// Tests that `Aead::Key::new` returns unique keys.
@@ -1683,13 +1695,13 @@ pub mod aead {
     /// A round-trip positive test.
     pub fn test_round_trip<A: Aead, R: Csprng>(rng: &mut R) {
         let key = A::Key::new(rng);
-        let nonce = A::Nonce::default();
+        let nonce = Nonce::<A::NonceSize>::default();
         assert_all_zero!(nonce);
 
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
-                .seal(&mut dst[..], nonce.borrow(), GOLDEN, AD)
+                .seal(&mut dst[..], nonce.as_ref(), GOLDEN, AD)
                 .expect("unable to encrypt data");
             dst
         };
@@ -1697,7 +1709,7 @@ pub mod aead {
         let plaintext = {
             let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
             A::new(&key)
-                .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
+                .open(&mut dst[..], nonce.as_ref(), &ciphertext, AD)
                 .expect("unable to decrypt data");
             dst
         };
@@ -1707,7 +1719,7 @@ pub mod aead {
     /// An in-place round-trip positive test.
     pub fn test_in_place_round_trip<A: Aead, R: Csprng>(rng: &mut R) {
         let key = A::Key::new(rng);
-        let nonce = A::Nonce::default();
+        let nonce = Nonce::<A::NonceSize>::default();
         assert_all_zero!(nonce);
 
         let ciphertext = {
@@ -1715,7 +1727,7 @@ pub mod aead {
             let (out, tag) = data.split_at_mut(GOLDEN.len());
             out.clone_from_slice(GOLDEN);
             A::new(&key)
-                .seal_in_place(nonce.borrow(), out, tag, AD)
+                .seal_in_place(nonce.as_ref(), out, tag, AD)
                 .expect("unable to encrypt data in-place");
             data
         };
@@ -1724,7 +1736,7 @@ pub mod aead {
             let mut data = ciphertext.to_vec();
             let (out, tag) = data.split_at_mut(GOLDEN.len());
             A::new(&key)
-                .open_in_place(nonce.borrow(), out, tag, AD)
+                .open_in_place(nonce.as_ref(), out, tag, AD)
                 .expect("unable to decrypt data in-place");
             out.to_vec()
         };
@@ -1733,7 +1745,7 @@ pub mod aead {
 
     /// Decryption should fail with an incorrect key.
     pub fn test_bad_key<A: Aead, R: Csprng>(rng: &mut R) {
-        let nonce = A::Nonce::default();
+        let nonce = Nonce::<A::NonceSize>::default();
         assert_all_zero!(nonce);
 
         let ciphertext = {
@@ -1741,7 +1753,7 @@ pub mod aead {
 
             let mut dst = vec![0u8; GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
-                .seal(&mut dst[..], nonce.borrow(), GOLDEN, AD)
+                .seal(&mut dst[..], nonce.as_ref(), GOLDEN, AD)
                 .expect("unable to encrypt data");
             dst
         };
@@ -1749,7 +1761,7 @@ pub mod aead {
         let key = A::Key::new(rng);
         let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
-            .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
+            .open(&mut dst[..], nonce.as_ref(), &ciphertext, AD)
             .expect_err("decryption should have failed due to a different key");
         assert_eq!(err, OpenError::Authentication);
     }
@@ -1759,24 +1771,24 @@ pub mod aead {
         let key = A::Key::new(rng);
 
         let ciphertext = {
-            let mut nonce = A::Nonce::default();
+            let mut nonce = Nonce::<A::NonceSize>::default();
             assert_all_zero!(nonce);
-            nonce.borrow_mut().fill(b'A');
+            nonce.as_mut().fill(b'A');
 
             let mut dst = vec![0u8; GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
-                .seal(&mut dst[..], nonce.borrow(), GOLDEN, AD)
+                .seal(&mut dst[..], nonce.as_ref(), GOLDEN, AD)
                 .expect("unable to encrypt data");
             dst
         };
 
-        let mut nonce = A::Nonce::default();
+        let mut nonce = Nonce::<A::NonceSize>::default();
         assert_all_zero!(nonce);
-        nonce.borrow_mut().fill(b'B');
+        nonce.as_mut().fill(b'B');
 
         let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
-            .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
+            .open(&mut dst[..], nonce.as_ref(), &ciphertext, AD)
             .expect_err("decryption should have failed due to a modified nonce");
         assert_eq!(err, OpenError::Authentication);
     }
@@ -1784,20 +1796,20 @@ pub mod aead {
     /// Decryption should fail with a modified AD.
     pub fn test_bad_ad<A: Aead, R: Csprng>(rng: &mut R) {
         let key = A::Key::new(rng);
-        let nonce = A::Nonce::default();
+        let nonce = Nonce::<A::NonceSize>::default();
         assert_all_zero!(nonce);
 
         let ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
-                .seal(&mut dst[..], nonce.borrow(), GOLDEN, AD)
+                .seal(&mut dst[..], nonce.as_ref(), GOLDEN, AD)
                 .expect("unable to encrypt data");
             dst
         };
 
         let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
-            .open(&mut dst[..], nonce.borrow(), &ciphertext, b"some bad AD")
+            .open(&mut dst[..], nonce.as_ref(), &ciphertext, b"some bad AD")
             .expect_err("decryption should have failed due to a modified AD");
         assert_eq!(err, OpenError::Authentication);
     }
@@ -1805,13 +1817,13 @@ pub mod aead {
     /// Decryption should fail with a modified ciphertext.
     pub fn test_bad_ciphertext<A: Aead, R: Csprng>(rng: &mut R) {
         let key = A::Key::new(rng);
-        let nonce = A::Nonce::default();
+        let nonce = Nonce::<A::NonceSize>::default();
         assert_all_zero!(nonce);
 
         let mut ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
-                .seal(&mut dst[..], nonce.borrow(), GOLDEN, AD)
+                .seal(&mut dst[..], nonce.as_ref(), GOLDEN, AD)
                 .expect("unable to encrypt data");
             dst
         };
@@ -1820,7 +1832,7 @@ pub mod aead {
 
         let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
-            .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
+            .open(&mut dst[..], nonce.as_ref(), &ciphertext, AD)
             .expect_err("decryption should have failed due to a modified ciphertext");
         assert_eq!(err, OpenError::Authentication);
     }
@@ -1829,13 +1841,13 @@ pub mod aead {
     /// tag.
     pub fn test_bad_tag<A: Aead, R: Csprng>(rng: &mut R) {
         let key = A::Key::new(rng);
-        let nonce = A::Nonce::default();
+        let nonce = Nonce::<A::NonceSize>::default();
         assert_all_zero!(nonce);
 
         let mut ciphertext = {
             let mut dst = vec![0u8; GOLDEN.len() + A::OVERHEAD];
             A::new(&key)
-                .seal(&mut dst[..], nonce.borrow(), GOLDEN, AD)
+                .seal(&mut dst[..], nonce.as_ref(), GOLDEN, AD)
                 .expect("unable to encrypt data");
             dst
         };
@@ -1847,7 +1859,7 @@ pub mod aead {
 
         let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
         let err = A::new(&key)
-            .open(&mut dst[..], nonce.borrow(), &ciphertext, AD)
+            .open(&mut dst[..], nonce.as_ref(), &ciphertext, AD)
             .expect_err("decryption should have failed due to a modified auth tag");
         assert_eq!(err, OpenError::Authentication);
     }
@@ -1983,6 +1995,7 @@ macro_rules! test_hpke {
             use super::*;
 
             test!(test_round_trip);
+            test!(test_export);
 
             $(
                 #[test]
@@ -2003,11 +2016,14 @@ pub mod hpke {
 
     use alloc::vec;
 
+    use generic_array::GenericArray;
+    use typenum::U64;
+
     use crate::{
         aead::{Aead, IndCca2},
         csprng::Csprng,
-        hpke::{Hpke, Mode, RecvCtx, SendCtx},
-        kdf::Kdf,
+        hpke::{Hpke, Mode, OpenCtx, SealCtx},
+        kdf::{Derive, Kdf, KdfError},
         kem::{DecapKey, Kem},
         keys::SecretKey,
     };
@@ -2028,17 +2044,75 @@ pub mod hpke {
             .expect("unable to create recv context");
 
         let ciphertext = {
-            let mut dst = vec![0u8; GOLDEN.len() + SendCtx::<K, F, A>::OVERHEAD];
+            let mut dst = vec![0u8; GOLDEN.len() + SealCtx::<A>::OVERHEAD];
             send.seal(&mut dst, GOLDEN, AD).expect("encryption failed");
             dst
         };
         let plaintext = {
-            let mut dst = vec![0u8; ciphertext.len() - RecvCtx::<K, F, A>::OVERHEAD];
+            let mut dst = vec![0u8; ciphertext.len() - OpenCtx::<A>::OVERHEAD];
             recv.open(&mut dst, &ciphertext, AD)
                 .expect("decryption failed");
             dst
         };
         assert_eq!(plaintext, GOLDEN);
+    }
+
+    /// Tests that [`crate::hpke::SendCtx::export`] is the same as
+    /// [`crate::hpke::SendCtx::export_into`] is the same as
+    /// [`crate::hpke::RecvCtx::export`] is the same as
+    /// [`crate::hpke::RecvCtx::export_into`].
+    #[allow(non_snake_case)]
+    pub fn test_export<K: Kem, F: Kdf, A: Aead + IndCca2, R: Csprng>(rng: &mut R) {
+        const INFO: &[u8] = b"some contextual binding";
+
+        let skR = K::DecapKey::new(rng);
+        let pkR = skR.public();
+
+        let (enc, send) = Hpke::<K, F, A>::setup_send(rng, Mode::Base, &pkR, INFO)
+            .expect("unable to create send context");
+        let recv = Hpke::<K, F, A>::setup_recv(Mode::Base, &enc, &skR, INFO)
+            .expect("unable to create recv context");
+
+        #[derive(Debug, Default, Eq, PartialEq)]
+        struct Key(GenericArray<u8, U64>);
+        impl Derive for Key {
+            type Size = U64;
+            type Error = KdfError;
+            fn expand_multi<K: Kdf>(prk: &K::Prk, info: &[&[u8]]) -> Result<Self, Self::Error> {
+                let mut key = GenericArray::default();
+                K::expand_multi(&mut key, prk, info)?;
+                Ok(Self(key))
+            }
+        }
+
+        const CTX: &[u8] = b"test_export";
+        let got1 = send.export::<Key>(CTX).expect("`SendCtx::export` failed");
+        let got2 = {
+            let mut key = Key::default();
+            send.export_into(&mut key.0, CTX)
+                .expect("`SendCtx::export_into` failed");
+            key
+        };
+        let got3 = recv.export::<Key>(CTX).expect("`RecvCtx::export` failed");
+        let got4 = {
+            let mut key = Key::default();
+            recv.export_into(&mut key.0, CTX)
+                .expect("`RecvCtx::export_into` failed");
+            key
+        };
+
+        assert_eq!(
+            got1, got2,
+            "`SendCtx::export` and `SendCtx::export_into` mismatch"
+        );
+        assert_eq!(
+            got2, got3,
+            "`SendCtx::export_into` and `RecvCtx::export` mismatch"
+        );
+        assert_eq!(
+            got3, got4,
+            "`RecvCtx::export` and `RecvCtx::export_into` mismatch"
+        );
     }
 }
 
@@ -2400,8 +2474,8 @@ pub mod signer {
                     return;
                 }
             };
-            let sk1 = K::import(data.borrow()).expect("should be able to import key");
-            let sk2 = K::import(data.borrow()).expect("should be able to import key");
+            let sk1 = K::import(data.as_bytes()).expect("should be able to import key");
+            let sk2 = K::import(data.as_bytes()).expect("should be able to import key");
             assert_ct_eq!(sk1, sk2);
         }
 
@@ -2506,8 +2580,8 @@ pub mod vectors {
 
     use super::{AeadWithDefaults, KdfWithDefaults, MacWithDefaults, SignerWithDefaults};
     use crate::{
-        aead::{Aead, IndCca2},
-        hpke::{Hpke, SendCtx},
+        aead::{Aead, IndCca2, Nonce},
+        hpke::{Hpke, SealCtx},
         import::Import,
         kdf::Kdf,
         kem::{Ecdh, Kem},
@@ -2723,7 +2797,8 @@ pub mod vectors {
 
                 let key = A::Key::import(&tc.key[..]).unwrap_or_else(|_| panic!("{id}"));
                 let aead = A::new(&key);
-                let nonce = A::Nonce::try_from(&tc.nonce[..]).unwrap_or_else(|_| panic!("{id}"));
+                let nonce = Nonce::<A::NonceSize>::try_from(&tc.nonce[..])
+                    .unwrap_or_else(|_| panic!("{id}"));
 
                 macro_rules! check {
                     ($tc:ident, $res:ident) => {
@@ -2742,14 +2817,14 @@ pub mod vectors {
                 let res = {
                     let ciphertext = [&tc.ct[..], &tc.tag[..]].concat();
                     let mut dst = vec![0u8; ciphertext.len() - A::OVERHEAD];
-                    aead.open(&mut dst[..], nonce.borrow(), &ciphertext, &tc.aad[..])
+                    aead.open(&mut dst[..], nonce.as_ref(), &ciphertext, &tc.aad[..])
                         .map(|_| dst)
                 };
                 check!(tc, res);
 
                 let res = {
                     let mut data = tc.ct.to_vec();
-                    aead.open_in_place(nonce.borrow(), &mut data, &tc.tag[..], &tc.aad[..])
+                    aead.open_in_place(nonce.as_ref(), &mut data, &tc.tag[..], &tc.aad[..])
                         .map(|_| data)
                 };
                 check!(tc, res);
@@ -2762,7 +2837,7 @@ pub mod vectors {
 
                 let (ct, tag) = {
                     let mut dst = vec![0u8; tc.pt.len() + A::OVERHEAD];
-                    aead.seal(&mut dst[..], nonce.borrow(), &tc.pt[..], &tc.aad[..])
+                    aead.seal(&mut dst[..], nonce.as_ref(), &tc.pt[..], &tc.aad[..])
                         .unwrap_or_else(|_| panic!("{id}"));
                     let tag = dst.split_off(dst.len() - A::OVERHEAD);
                     (dst, tag)
@@ -2773,7 +2848,7 @@ pub mod vectors {
                 let (ct, tag) = {
                     let mut data = tc.pt.clone().to_vec();
                     let mut tag = vec![0u8; A::OVERHEAD];
-                    aead.seal_in_place(nonce.borrow(), &mut data, &mut tag[..], &tc.aad[..])
+                    aead.seal_in_place(nonce.as_ref(), &mut data, &mut tag[..], &tc.aad[..])
                         .unwrap_or_else(|_| panic!("{id}"));
                     (data, tag)
                 };
@@ -2959,7 +3034,7 @@ pub mod vectors {
 
             for (id, tc) in g.tests.iter().enumerate() {
                 let ct = {
-                    let mut dst = vec![0u8; tc.pt.len() + SendCtx::<K, F, A>::OVERHEAD];
+                    let mut dst = vec![0u8; tc.pt.len() + SealCtx::<A>::OVERHEAD];
                     send.seal(&mut dst, &tc.pt, &tc.aad).unwrap_or_else(|_| {
                         panic!("encryption failure: {id}/{} (g={i})", g.tests.len())
                     });
@@ -2991,7 +3066,7 @@ pub mod vectors {
                 let n = g.exports.len();
 
                 let mut got = vec![0u8; tc.len];
-                send.export(got.as_mut(), &tc.exporter_context)
+                send.export_into(got.as_mut(), &tc.exporter_context)
                     .expect("unable to export secret {id}/{n} (g={i})");
                 assert_eq!(
                     got,
@@ -3000,7 +3075,7 @@ pub mod vectors {
                 );
 
                 let mut got = vec![0u8; tc.len];
-                recv.export(got.as_mut(), &tc.exporter_context)
+                recv.export_into(got.as_mut(), &tc.exporter_context)
                     .expect("unable to export secret {id}/{n} (g={i})");
                 assert_eq!(
                     got,

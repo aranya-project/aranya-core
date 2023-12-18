@@ -1,7 +1,29 @@
 #![allow(unused)]
 #![forbid(unsafe_code)]
 
-use core::cmp;
+use core::{cmp, ops::Add};
+
+use generic_array::{sequence::Concat, typenum::Sum, ArrayLength, GenericArray};
+use serde::{Deserialize, Serialize};
+
+/// A ciphertext, overhead (e.g., tag) tuple.
+#[derive(Serialize, Deserialize)]
+pub struct Ciphertext<C, O> {
+    pub(crate) ciphertext: C,
+    pub(crate) overhead: O,
+}
+
+impl<N, M> Ciphertext<GenericArray<u8, N>, GenericArray<u8, M>>
+where
+    N: ArrayLength + Add<M>,
+    M: ArrayLength,
+    Sum<N, M>: ArrayLength,
+{
+    /// Converts the ciphertext into a contiguous array.
+    pub fn into_bytes(self) -> GenericArray<u8, Sum<N, M>> {
+        self.ciphertext.concat(self.overhead)
+    }
+}
 
 /// Returns `min(x, usize::MAX)`.
 pub const fn saturate(x: u64) -> usize {

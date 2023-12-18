@@ -106,7 +106,7 @@ impl CipherSuite for DefaultCipherSuite {
     type Signer = crate::ed25519::Ed25519;
 }
 
-#[cfg(feature = "alloc")]
+#[cfg(any(test, feature = "alloc"))]
 #[cfg_attr(docs, doc(cfg(feature = "alloc")))]
 mod default_engine {
     extern crate alloc;
@@ -285,7 +285,7 @@ mod default_engine {
         );
     }
 }
-#[cfg(feature = "alloc")]
+#[cfg(any(test, feature = "alloc"))]
 pub use default_engine::*;
 
 #[cfg(test)]

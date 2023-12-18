@@ -1,12 +1,8 @@
 #![forbid(unsafe_code)]
 
-use core::{
-    borrow::{Borrow, BorrowMut},
-    fmt,
-    marker::PhantomData,
-    result::Result,
-};
+use core::{fmt, marker::PhantomData, result::Result};
 
+use buggy::BugExt;
 use subtle::{Choice, ConstantTimeEq};
 
 use crate::{
@@ -19,7 +15,7 @@ use crate::{
     hash::{tuple_hash, Hash},
     id::Id,
     import::{try_import, Import, ImportError},
-    kdf::{Kdf, KdfError},
+    kdf::{Derive, Kdf, KdfError},
     mac::Mac,
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
@@ -191,8 +187,10 @@ impl<E: Engine + ?Sized> GroupKey<E> {
         //     outputBytes=64,
         // )
         let prk = Self::labeled_extract(&[], b"EventKey_prk", &self.seed);
-        let key = Self::labeled_expand::<KeyData<E::Aead>, 12>(&prk, b"EventKey_key", info)?;
-        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(key.borrow())?)
+        let key = Self::labeled_expand(&prk, b"EventKey_key", info)?;
+        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(
+            key.as_bytes(),
+        )?)
     }
 
     fn labeled_extract<const N: usize>(
@@ -209,24 +207,24 @@ impl<E: Engine + ?Sized> GroupKey<E> {
         E::Kdf::extract_multi(&labeled_ikm, salt)
     }
 
-    fn labeled_expand<T: Borrow<[u8]> + BorrowMut<[u8]> + Default, const N: usize>(
+    fn labeled_expand<const N: usize>(
         prk: &<E::Kdf as Kdf>::Prk,
         label: &[u8; N],
         info: &[u8],
-    ) -> Result<T, KdfError> {
-        let mut out = T::default();
+    ) -> Result<KeyData<E::Aead>, KdfError> {
         // We know all possible enumerations of `T` and they all
         // must have a length <= 2^16 - 1.
-        assert!(out.borrow().len() <= (u16::MAX as usize));
+        let size =
+            u16::try_from(KeyData::<E::Aead>::SIZE).assume("`Aead::Key` should be <= 2^16-1")?;
         let labeled_info = [
-            &(out.borrow().len() as u16).to_be_bytes(),
+            &size.to_be_bytes(),
             "kdf-exp-v1".as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             label,
             info,
         ];
-        E::Kdf::expand_multi(out.borrow_mut(), prk, &labeled_info)?;
-        Ok(out)
+        let key = KeyData::<E::Aead>::expand_multi::<E::Kdf>(prk, &labeled_info)?;
+        Ok(key)
     }
 
     // Utility routines for other modules.

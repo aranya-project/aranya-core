@@ -10,17 +10,18 @@ use crate::{
     engine::Engine,
     id::Id,
     kem::Kem,
-    keys::{PublicKey, SecretKey},
+    keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{Signature, Signer},
 };
 
 // These are shorthand for lots::of::turbo::fish.
 pub(crate) type SigningKeyData<E> =
-    <<<E as CipherSuite>::Signer as Signer>::SigningKey as SecretKey>::Data;
+    SecretKeyBytes<<<<E as CipherSuite>::Signer as Signer>::SigningKey as SecretKey>::Size>;
 pub(crate) type SigData<E> = <<<E as CipherSuite>::Signer as Signer>::Signature as Signature<
     <E as CipherSuite>::Signer,
 >>::Data;
-pub(crate) type DecapKeyData<E> = <<<E as CipherSuite>::Kem as Kem>::DecapKey as SecretKey>::Data;
+pub(crate) type DecapKeyData<E> =
+    SecretKeyBytes<<<<E as CipherSuite>::Kem as Kem>::DecapKey as SecretKey>::Size>;
 
 // A fixed-size ciphertext.
 macro_rules! ciphertext {

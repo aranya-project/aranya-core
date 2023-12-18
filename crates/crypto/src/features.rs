@@ -20,3 +20,18 @@ impl<T, E> ResultInspect<T, E> for Result<T, E> {
         self
     }
 }
+
+#[cfg(not(feature = "result_option_inspect"))]
+pub(crate) trait OptionInspect<T> {
+    fn inspect<F: FnOnce(&T)>(self, f: F) -> Self;
+}
+
+#[cfg(not(feature = "result_option_inspect"))]
+impl<T> OptionInspect<T> for Option<T> {
+    fn inspect<F: FnOnce(&T)>(self, f: F) -> Self {
+        if let Some(ref t) = self {
+            f(t);
+        }
+        self
+    }
+}
