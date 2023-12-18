@@ -63,7 +63,7 @@ jobs:
           workflow_conclusion: success
           check_artifacts:  true
           search_artifacts: true
-          branch: libtool
+          branch: master
           name: ${{ env.PPC }}.tar.gz
           repo: spideroak-inc/gccgo-vxworks
           github_token: ${{ secrets.CC_BUILD_TOKEN }}
