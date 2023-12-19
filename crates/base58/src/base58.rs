@@ -10,6 +10,7 @@ use core::{
     str::{self, FromStr},
 };
 
+use buggy::{Bug, BugExt};
 use byteorder::{BigEndian, ByteOrder};
 
 use crate::arith::{div_ww, mul_add_ww};
@@ -62,8 +63,17 @@ pub trait ToBase58 {
 }
 
 /// The Base58 could not be decoded.
-#[derive(Copy, Clone, Debug)]
-pub struct DecodeError;
+#[derive(Clone, Debug)]
+pub enum DecodeError {
+    BadInput,
+    Bug(Bug),
+}
+
+impl From<Bug> for DecodeError {
+    fn from(bug: Bug) -> Self {
+        DecodeError::Bug(bug)
+    }
+}
 
 // Generate PartialEq for $lhs and $rhs.
 macro_rules! impl_eq {
@@ -256,13 +266,13 @@ macro_rules! encode_x {
                             .map(|c| B58[*c as usize])
                             .try_fold(0, |acc: u64, v| {
                                 if v == 255 {
-                                    Err(DecodeError)
+                                    Err(DecodeError::BadInput)
                                 } else {
-                                    Ok(acc.wrapping_mul(58).wrapping_add(v as u64))
+                                    Ok(acc.checked_mul(58).assume("doesn't wrap")?.checked_add(v as u64).assume("doesn't wrap")?)
                                 }
                             })?;
                         if !x.fma(RADII[chunk.len()], total) {
-                            return Err(DecodeError);
+                            return Err(DecodeError::BadInput);
                         }
                     }
                     Ok(x.to_be_bytes())
@@ -278,13 +288,13 @@ macro_rules! encode_x {
                         let mut r = x.quo_radix();
                         if x.is_zero() {
                             while r > 0 {
-                                i = i.wrapping_sub(1);
+                                i = i.checked_sub(1).expect("i must be non-zero");
                                 dst[i] = ALPHABET[(r % 58) as usize];
                                 r /= 58;
                             }
                         } else {
                             for _ in 0..10 {
-                                i = i.wrapping_sub(1);
+                                i = i.checked_sub(1).expect("i must be non-zero");
                                 dst[i] = ALPHABET[(r % 58) as usize];
                                 r /= 58;
                             }
@@ -295,7 +305,7 @@ macro_rules! encode_x {
                         if *c != 0 {
                             break;
                         }
-                        i = i.wrapping_sub(1);
+                        i = i.checked_sub(1).expect("i must be non-zero");
                         dst[i] = b'1';
                     }
                     $name{ data: dst, n: i }
@@ -332,7 +342,7 @@ impl<const W: usize, const B: usize> Uint<W, B> {
         let mut z = [0u64; W];
         let mut j = B;
         for x in &mut z {
-            j = j.wrapping_sub(8);
+            j = j.checked_sub(8).expect("j must be >= 8");
             *x = BigEndian::read_u64(&b[j..]);
         }
         Self { words: z }
@@ -343,7 +353,7 @@ impl<const W: usize, const B: usize> Uint<W, B> {
         let mut b = [0u8; B];
         let mut i = B;
         for x in self.words {
-            i = i.wrapping_sub(8);
+            i = i.checked_sub(8).expect("i must be >= 8");
             BigEndian::write_u64(&mut b[i..], x);
         }
         b

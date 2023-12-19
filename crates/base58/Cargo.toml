@@ -20,6 +20,7 @@ alloc = []
 std = ["alloc"]
 
 [dependencies]
+buggy = { path = "../buggy" }
 byteorder = { workspace = true, default-features = false }
 
 [dev-dependencies]
