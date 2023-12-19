@@ -66,7 +66,7 @@ pub struct TtcTeamCreated {
 impl TryFrom<Vec<KVPair>> for TtcTeamCreated {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -91,7 +91,7 @@ pub struct OwnerAdded {
 impl TryFrom<Vec<KVPair>> for OwnerAdded {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -119,7 +119,7 @@ pub struct AdminAdded {
 impl TryFrom<Vec<KVPair>> for AdminAdded {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -147,7 +147,7 @@ pub struct OperatorAdded {
 impl TryFrom<Vec<KVPair>> for OperatorAdded {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -175,7 +175,7 @@ pub struct SatelliteAdded {
 impl TryFrom<Vec<KVPair>> for SatelliteAdded {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -199,7 +199,7 @@ pub struct OwnerRemoved {
 impl TryFrom<Vec<KVPair>> for OwnerRemoved {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -219,7 +219,7 @@ pub struct AdminRemoved {
 impl TryFrom<Vec<KVPair>> for AdminRemoved {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -239,7 +239,7 @@ pub struct OperatorRemoved {
 impl TryFrom<Vec<KVPair>> for OperatorRemoved {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -259,7 +259,7 @@ pub struct SatelliteRemoved {
 impl TryFrom<Vec<KVPair>> for SatelliteRemoved {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -280,7 +280,7 @@ pub struct ApsLabelCreated {
 impl TryFrom<Vec<KVPair>> for ApsLabelCreated {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -304,7 +304,7 @@ pub struct ApsLabelAssigned {
 impl TryFrom<Vec<KVPair>> for ApsLabelAssigned {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -328,7 +328,7 @@ pub struct ApsLabelRevoked {
 impl TryFrom<Vec<KVPair>> for ApsLabelRevoked {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -351,7 +351,7 @@ pub struct ApsBidiChannelCreated {
 impl TryFrom<Vec<KVPair>> for ApsBidiChannelCreated {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();

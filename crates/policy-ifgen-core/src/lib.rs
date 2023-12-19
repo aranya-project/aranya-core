@@ -53,7 +53,7 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
             impl TryFrom<Vec<KVPair>> for #ident {
                 type Error = EffectsParseError;
                 fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-                    let mut fields = &mut value
+                    let fields = &mut value
                         .into_iter()
                         .map(|kv| kv.into())
                         .collect::<alloc::collections::BTreeMap<String, Value>>();

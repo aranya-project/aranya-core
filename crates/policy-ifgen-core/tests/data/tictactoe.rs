@@ -31,7 +31,7 @@ pub struct GameStart {
 impl TryFrom<Vec<KVPair>> for GameStart {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -57,7 +57,7 @@ pub struct GameUpdate {
 impl TryFrom<Vec<KVPair>> for GameUpdate {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
@@ -83,7 +83,7 @@ pub struct GameOver {
 impl TryFrom<Vec<KVPair>> for GameOver {
     type Error = EffectsParseError;
     fn try_from(value: Vec<KVPair>) -> Result<Self, Self::Error> {
-        let mut fields = &mut value
+        let fields = &mut value
             .into_iter()
             .map(|kv| kv.into())
             .collect::<alloc::collections::BTreeMap<String, Value>>();
