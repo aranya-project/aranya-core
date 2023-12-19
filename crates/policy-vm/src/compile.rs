@@ -597,7 +597,7 @@ impl<'a> CompileState<'a> {
                     // Note: we don't check for zero arms, because that's syntactically invalid.
                     if s.arms.len() > 1 {
                         for i in 0..s.arms.len() - 1 {
-                            for j in 1..s.arms.len() {
+                            for j in i + 1..s.arms.len() {
                                 if s.arms[i].value == s.arms[j].value {
                                     return Err(CompileError::new(
                                         CompileErrorType::AlreadyDefined(String::from(
@@ -619,26 +619,38 @@ impl<'a> CompileState<'a> {
                     for arm in s.arms.iter() {
                         self.append_instruction(Instruction::Dup(0));
 
-                        // Push arm value
-                        let value =
-                            arm.value
-                                .as_ref()
-                                .ok_or(CompileErrorType::Unknown(String::from(
-                                    "Missing expression",
-                                )))?;
-
-                        self.compile_expression(value)?;
-
-                        // if value == target, jump to start-of-arm
                         let arm_label = self.anonymous_label();
-                        self.append_instruction(Instruction::Eq);
-                        self.append_instruction(Instruction::Branch(Target::Unresolved(
-                            arm_label.clone(),
-                        )));
                         arm_labels.push(arm_label.clone());
+
+                        // Normal arm value
+                        if let Some(value) = &arm.value {
+                            self.compile_expression(value)?;
+
+                            // if value == target, jump to start-of-arm
+                            self.append_instruction(Instruction::Eq);
+                            self.append_instruction(Instruction::Branch(Target::Unresolved(
+                                arm_label.clone(),
+                            )));
+                        }
+                        // Default case
+                        else {
+                            self.append_instruction(Instruction::Jump(Target::Unresolved(
+                                arm_label.clone(),
+                            )));
+
+                            // Ensure this is the last case, and also that it's not the only case.
+                            if arm != s.arms.last().expect("last arm") {
+                                return Err(CompileError::new(CompileErrorType::Unknown(
+                                    String::from("Default match case must be last."),
+                                )));
+                            }
+                        }
                     }
-                    // if no match, panic
-                    self.append_instruction(Instruction::Panic);
+
+                    // if no match, and no default case, panic
+                    if !s.arms.iter().any(|a| a.value.is_none()) {
+                        self.append_instruction(Instruction::Panic);
+                    }
 
                     // 2. Define arm labels, and compile instructions
                     for (i, arm) in s.arms.iter().enumerate() {

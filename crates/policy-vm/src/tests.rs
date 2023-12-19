@@ -692,6 +692,9 @@ fn test_match_duplicate() -> anyhow::Result<()> {
                 5 => {
                     emit Result { x: x }
                 }
+                6=> {
+                    emit Result { x: x }
+                }
                 5 => {
                     emit Result { x: x }
                 }
@@ -705,6 +708,84 @@ fn test_match_duplicate() -> anyhow::Result<()> {
         res,
         Err(CompileError {
             err_type: CompileErrorType::AlreadyDefined(_),
+            ..
+        })
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_match_default() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Result {
+            fields {
+                x int
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo(x int) {
+            match x {
+                5 => {
+                    emit Result { x: x }
+                }
+                _ => {
+                    emit Result { x: 0 }
+                }
+            }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("foo", [Value::Int(6)])
+        .map_err(anyhow::Error::msg)?;
+
+    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(
+        io.emit_stack[0],
+        ("Result".to_string(), vec![KVPair::new("x", Value::Int(0)),])
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_match_default_not_last() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Result {
+            fields {
+                x int
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo(x int) {
+            match x {
+                5 => {
+                    emit Result { x: x }
+                }
+                _ => {
+                    emit Result { x: 0 }
+                }
+                6 => {
+                    emit Result { x: x }
+                }
+            }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V3).map_err(anyhow::Error::msg)?;
+    let res = compile_from_policy(&policy, &[]);
+    assert!(matches!(
+        res,
+        Err(CompileError {
+            err_type: CompileErrorType::Unknown(_),
             ..
         })
     ));
