@@ -870,6 +870,10 @@ impl<T> LockedSink<T> {
     pub fn new(sink: Arc<Mutex<T>>) -> LockedSink<T> {
         LockedSink { sink }
     }
+
+    pub fn sink(&self) -> Arc<Mutex<T>> {
+        self.sink.clone()
+    }
 }
 
 /// Keeps track of the expectations needed for tests.

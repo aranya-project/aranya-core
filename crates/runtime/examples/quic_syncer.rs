@@ -155,7 +155,8 @@ async fn run(options: Opt) -> Result<()> {
     }
 
     let mut server_config = ServerConfig::with_single_cert(cert_chain.clone(), key.clone())?;
-    let transport_config = Arc::get_mut(&mut server_config.transport).expect("test");
+    let transport_config =
+        Arc::get_mut(&mut server_config.transport).expect("error creating transport config");
     transport_config.max_concurrent_uni_streams(0_u8.into());
     let endpoint =
         quinn::Endpoint::server(server_config, options.listen).map_err(|e| SyncError {
