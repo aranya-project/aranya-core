@@ -271,9 +271,9 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                             #(#mappings),*,
                             _ => {
                                 return ::core::result::Result::Err(
-                                    #vm::MachineError::new(#vm::MachineErrorType::FfiBadCall(
+                                    #vm::MachineError::new(#vm::MachineErrorType::FfiProcedureNotDefined(
                                         Self::SCHEMA.name.to_owned(),
-                                        __proc.to_string(),
+                                        __proc,
                                 )));
                             }
                         }

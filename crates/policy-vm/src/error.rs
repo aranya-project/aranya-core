@@ -56,9 +56,10 @@ pub enum MachineErrorType {
     CallStack,
     /// IO Error - Some machine I/O operation caused an error
     IO(MachineIOError),
-    /// Invalid FFI call.
-    /// Parameters are: module and procedures names or indices.
-    FfiBadCall(String, String),
+    /// FFI module name not found.
+    FfiModuleNotDefined(usize),
+    /// FFI module was found, but the procedure index is invalid.
+    FfiProcedureNotDefined(String, usize),
     /// Unknown - every other possible problem
     Unknown,
 }
@@ -81,8 +82,11 @@ impl fmt::Display for MachineErrorType {
             MachineErrorType::InvalidInstruction => write!(f, "bad state"),
             MachineErrorType::CallStack => write!(f, "call stack"),
             MachineErrorType::IO(e) => write!(f, "IO: {}", e),
-            MachineErrorType::FfiBadCall(module, procedure) => {
-                write!(f, "Bad FFI call: {}::{}", module, procedure)
+            MachineErrorType::FfiModuleNotDefined(module) => {
+                write!(f, "FFI module not defined: {}", module)
+            }
+            MachineErrorType::FfiProcedureNotDefined(module, proc) => {
+                write!(f, "FFI proc {} not defined in module {}", proc, module)
             }
             MachineErrorType::Unknown => write!(f, "unknown error"),
         }

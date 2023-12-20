@@ -206,12 +206,11 @@ where
     fn call(
         &mut self,
         module: usize,
-        procedure: usize,
+        _procedure: usize,
         _stack: &mut S,
     ) -> Result<(), MachineError> {
-        Err(MachineError::new(MachineErrorType::FfiBadCall(
-            module.to_string(),
-            procedure.to_string(),
+        Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
+            module,
         )))
     }
 }

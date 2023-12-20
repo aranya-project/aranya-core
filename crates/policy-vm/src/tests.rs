@@ -164,9 +164,8 @@ where
         };
         match module {
             0 => self.print_ffi.call(procedure, stack, &mut ctx),
-            _ => Err(MachineError::new(MachineErrorType::FfiBadCall(
-                module.to_string(),
-                procedure.to_string(),
+            _ => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
+                module,
             ))),
         }
     }
@@ -1053,9 +1052,9 @@ impl FfiModule for PrintFfi {
 
                 Ok(())
             }
-            _ => Err(MachineError::new(MachineErrorType::FfiBadCall(
+            _ => Err(MachineError::new(MachineErrorType::FfiProcedureNotDefined(
                 Self::SCHEMA.name.to_string(),
-                procedure.to_string(),
+                procedure,
             ))),
         }
     }
@@ -1108,7 +1107,7 @@ fn test_extcall_invalid_module() {
 
     assert_eq!(
         rs.run().unwrap_err(),
-        MachineError::new(MachineErrorType::FfiBadCall(1.to_string(), 0.to_string()))
+        MachineError::new(MachineErrorType::FfiModuleNotDefined(1))
     );
 }
 
@@ -1124,9 +1123,9 @@ fn test_extcall_invalid_proc() {
 
     assert_eq!(
         rs.run().unwrap_err(),
-        MachineError::new(MachineErrorType::FfiBadCall(
+        MachineError::new(MachineErrorType::FfiProcedureNotDefined(
             "print".to_string(),
-            1.to_string()
+            1
         ))
     );
 }
