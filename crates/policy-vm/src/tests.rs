@@ -314,6 +314,14 @@ command Increment {
         }
     }
 }
+
+action testExists() {
+    check exists Foo[]=>{x: ?}
+}
+
+action testNotExists() {
+    check !exists Bar[]=>{x: ?}
+}
 "#;
 
 #[test]
@@ -368,6 +376,57 @@ fn test_fact_query() -> anyhow::Result<()> {
     let fk = ("Foo".to_owned(), vec![]);
     let fv = vec![FactValue::new("x", Value::Int(4))];
     assert_eq!(io.facts[&fk], fv);
+
+    Ok(())
+}
+
+#[test]
+fn test_not_operator() -> anyhow::Result<()> {
+    let policy = parse_policy_str(
+        r#"
+        action test() {
+            check !false
+        }
+    "#,
+        Version::V3,
+    )?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, &[])?;
+    let mut rs = RunState::new(&machine, &mut io);
+    let result = rs.run()?;
+    assert_eq!(result, MachineStatus::Exited);
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_exists() -> anyhow::Result<()> {
+    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3).map_err(anyhow::Error::msg)?;
+
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
+    // Create fact
+    {
+        let mut rs = RunState::new(&machine, &mut io);
+        let self_struct = Struct::new("Set", &[KVPair::new_int("a", 3)]);
+        rs.call_command_policy("Set", &self_struct)
+            .map_err(anyhow::Error::msg)?;
+    }
+
+    // True for facts that exist
+    {
+        let mut rs = RunState::new(&machine, &mut io);
+        let status = rs.call_action("testExists", [Value::None])?;
+        assert_eq!(status, MachineStatus::Exited, "testExists");
+    }
+
+    // False for facts that don't exist
+    {
+        let mut rs = RunState::new(&machine, &mut io);
+        let status = rs.call_action("testNotExists", [Value::None])?;
+        assert_eq!(status, MachineStatus::Exited, "testNotExists");
+    }
 
     Ok(())
 }

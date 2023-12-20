@@ -517,7 +517,10 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Not);
             }
             ast::Expression::Negative(_) => todo!(),
-            ast::Expression::Not(_) => todo!(),
+            ast::Expression::Not(e) => {
+                self.compile_expression(e)?;
+                self.append_instruction(Instruction::Not);
+            }
             ast::Expression::Unwrap(e) => {
                 // create an anonymous name for the successful case
                 let not_none = self.anonymous_label();

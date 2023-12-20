@@ -596,7 +596,26 @@ where
                     None => self.ipush(Value::None)?,
                 }
             }
-            Instruction::Exists => todo!(),
+            Instruction::Exists => {
+                let qf: Fact = self.ipop()?;
+                let exists = {
+                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys)?;
+                    iter.find_map(|r| match r {
+                        Ok(f) => {
+                            if fact_value_subset_match(&qf.values, &f.1) {
+                                Some(Ok(true))
+                            } else {
+                                None
+                            }
+                        }
+                        Err(e) => Some(Err(e)),
+                    })
+                };
+                match exists {
+                    Some(res) => self.ipush(Value::Bool(res?))?,
+                    None => self.ipush(Value::Bool(false))?,
+                }
+            }
             Instruction::Id => todo!(),
             Instruction::AuthorId => todo!(),
         }
