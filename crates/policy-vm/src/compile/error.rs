@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String};
 use core::fmt;
 
+use buggy::Bug;
 use policy_ast as ast;
 
 use crate::{compile::StatementContext, CodeMap};
@@ -36,6 +37,8 @@ pub enum CompileErrorType {
     AlreadyDefined(String),
     /// A pure function has no return statement
     NoReturn,
+    /// An implementation bug
+    Bug(Bug),
     /// All other errors
     Unknown(String),
 }
@@ -54,6 +57,7 @@ impl core::fmt::Display for CompileErrorType {
             Self::NotDefined(s) => write!(f, "Not defined: {}", s),
             Self::AlreadyDefined(s) => write!(f, "Already defined: {}", s),
             Self::NoReturn => write!(f, "Function has no return statement"),
+            Self::Bug(bug) => write!(f, "Bug: {}", bug),
             Self::Unknown(s) => write!(f, "Unknown error: {}", s),
         }
     }
@@ -132,5 +136,11 @@ impl trouble::Error for CompileError {}
 impl From<CompileErrorType> for CompileError {
     fn from(value: CompileErrorType) -> Self {
         CompileError::new(value)
+    }
+}
+
+impl From<Bug> for CompileError {
+    fn from(bug: Bug) -> Self {
+        CompileError::new(CompileErrorType::Bug(bug))
     }
 }

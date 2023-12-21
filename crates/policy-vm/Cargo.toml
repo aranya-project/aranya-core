@@ -26,6 +26,7 @@ std = [
 ]
 
 [dependencies]
+buggy = { path = "../buggy" }
 cfg-if = { workspace = true, default-features = false }
 crypto = { path = "../crypto", default-features = false }
 policy-ast = { path = "../policy-ast" }

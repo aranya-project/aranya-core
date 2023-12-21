@@ -3,6 +3,8 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String};
 use core::{convert::Infallible, fmt};
 
+use buggy::Bug;
+
 use crate::{codemap::CodeMap, io::MachineIOError};
 
 /// Possible machine errors.
@@ -60,6 +62,8 @@ pub enum MachineErrorType {
     FfiModuleNotDefined(usize),
     /// FFI module was found, but the procedure index is invalid.
     FfiProcedureNotDefined(String, usize),
+    /// An implementation bug
+    Bug(Bug),
     /// Unknown - every other possible problem
     Unknown,
 }
@@ -88,6 +92,7 @@ impl fmt::Display for MachineErrorType {
             MachineErrorType::FfiProcedureNotDefined(module, proc) => {
                 write!(f, "FFI proc {} not defined in module {}", proc, module)
             }
+            MachineErrorType::Bug(bug) => write!(f, "Bug: {}", bug),
             MachineErrorType::Unknown => write!(f, "unknown error"),
         }
     }
@@ -172,5 +177,11 @@ impl From<MachineErrorType> for MachineError {
 impl From<Infallible> for MachineError {
     fn from(err: Infallible) -> Self {
         match err {}
+    }
+}
+
+impl From<Bug> for MachineError {
+    fn from(bug: Bug) -> Self {
+        MachineError::new(MachineErrorType::Bug(bug))
     }
 }

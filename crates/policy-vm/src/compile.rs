@@ -14,6 +14,7 @@ use alloc::{
 use core::{fmt, ops::Range};
 
 pub use ast::Policy as AstPolicy;
+use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
 
 pub use self::error::{CallColor, CompileError, CompileErrorType};
@@ -130,7 +131,7 @@ impl<'a> CompileState<'a> {
     /// instruction.
     pub fn append_instruction(&mut self, i: Instruction) {
         self.m.progmem.push(i);
-        self.wp += 1;
+        self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
     }
 
     /// Insert a struct definition.
@@ -204,7 +205,7 @@ impl<'a> CompileState<'a> {
     /// Create an anonymous Label and return its identifier.
     pub fn anonymous_label(&mut self) -> Label {
         let name = format!("anonymous{}", self.c);
-        self.c += 1;
+        self.c = self.c.checked_add(1).expect("self.c + 1 must not wrap");
         Label::new_temp(&name)
     }
 
@@ -586,7 +587,8 @@ impl<'a> CompileState<'a> {
                     // if the expression is false. The instruction you
                     // branch to if the check succeeds is the
                     // instruction after that - current instruction + 2.
-                    self.append_instruction(Instruction::Branch(Target::Resolved(self.wp + 2)));
+                    let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
+                    self.append_instruction(Instruction::Branch(Target::Resolved(next)));
                     self.append_instruction(Instruction::Panic);
                 }
                 (
@@ -598,9 +600,10 @@ impl<'a> CompileState<'a> {
                 ) => {
                     // Ensure there are no duplicate arm values. Note that this is not completely reliable, because arm values are expressions, evaluated at runtime.
                     // Note: we don't check for zero arms, because that's syntactically invalid.
-                    if s.arms.len() > 1 {
-                        for i in 0..s.arms.len() - 1 {
-                            for j in i + 1..s.arms.len() {
+                    if let Some(last_index) = s.arms.len().checked_sub(1) {
+                        for i in 0..last_index {
+                            let next = i.checked_add(1).assume("i + 1 must not wrap")?;
+                            for j in next..s.arms.len() {
                                 if s.arms[i].value == s.arms[j].value {
                                     return Err(CompileError::new(
                                         CompileErrorType::AlreadyDefined(String::from(

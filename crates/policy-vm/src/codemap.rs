@@ -54,14 +54,14 @@ impl<'a> Span<'a> {
     /// Calculate the line and column position, in characters.
     fn linecol(&self, pos: usize) -> (usize, usize) {
         assert!(pos < self.text.len());
-        let mut line = 1;
-        let mut col = 1;
+        let mut line: usize = 1;
+        let mut col: usize = 1;
         for c in self.text[0..pos].chars() {
             if c == '\n' {
-                line += 1;
+                line = line.checked_add(1).expect("line + 1 must not wrap");
                 col = 1;
             } else {
-                col += 1;
+                col = col.checked_add(1).expect("col + 1 must not wrap");
             }
         }
 
@@ -160,13 +160,7 @@ impl CodeMap {
             .binary_search_by(|(i, _)| i.cmp(&ip));
         let idx = match r {
             Ok(v) => Ok(v),
-            Err(v) => {
-                if v > 0 {
-                    Ok(v - 1)
-                } else {
-                    Err(RangeError)
-                }
-            }
+            Err(v) => v.checked_sub(1).ok_or(RangeError),
         }?;
         let (_, locator) = self.instruction_mapping[idx];
         self.span_from_locator(locator)

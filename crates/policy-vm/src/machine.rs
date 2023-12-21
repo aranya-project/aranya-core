@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
+use buggy::BugExt;
 use policy_ast as ast;
 
 use crate::{
@@ -362,21 +363,28 @@ where
                 self.ipush(v.to_owned())?;
             }
             Instruction::Swap(d) => {
-                if d > self.stack.len() {
-                    return Err(self.err(MachineErrorType::StackUnderflow));
-                }
                 if d == 0 {
                     return Err(self.err(MachineErrorType::InvalidInstruction));
                 }
-                let i1 = self.stack.len() - 1;
-                let i2 = i1 - d;
-                self.stack.0.swap(i1, i2);
+                let index1 = self
+                    .stack
+                    .len()
+                    .checked_sub(1)
+                    .ok_or(MachineErrorType::StackUnderflow)?;
+                let index2 = index1
+                    .checked_sub(d)
+                    .ok_or(MachineErrorType::StackUnderflow)?;
+                self.stack.0.swap(index1, index2);
             }
             Instruction::Dup(d) => {
-                if d > self.stack.len() {
-                    return Err(self.err(MachineErrorType::StackUnderflow));
-                }
-                let v = self.stack.0[self.stack.len() - d - 1].clone();
+                let index = self
+                    .stack
+                    .len()
+                    .checked_sub(d)
+                    .ok_or(MachineErrorType::StackUnderflow)?
+                    .checked_sub(1)
+                    .ok_or(MachineErrorType::StackUnderflow)?;
+                let v = self.stack.0[index].clone();
                 self.ipush(v)?;
             }
             Instruction::Pop => {
@@ -619,7 +627,7 @@ where
             Instruction::Id => todo!(),
             Instruction::AuthorId => todo!(),
         }
-        self.pc += 1;
+        self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;
 
         Ok(MachineStatus::Executing)
     }
