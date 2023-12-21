@@ -517,9 +517,35 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Eq);
                 self.append_instruction(Instruction::Not);
             }
-            ast::Expression::Negative(_) => todo!(),
-            ast::Expression::Not(e) => {
+            ast::Expression::Negative(e) => {
+                if let ast::Expression::Int(value) = **e {
+                    // Return negative of the int
+                    self.append_instruction(Instruction::Const(Value::Int(
+                        value
+                            .checked_neg()
+                            .assume("value is not `i64::MIN` because it is non-negative")?,
+                    )));
+                    return Ok(());
+                }
+
+                // Evaluate the expression
                 self.compile_expression(e)?;
+
+                // Push a 0 to subtract from
+                self.append_instruction(Instruction::Const(Value::Int(0)));
+
+                // Swap e and 0
+                // 0 e
+                self.append_instruction(Instruction::Swap(1));
+
+                // Subtract
+                self.append_instruction(Instruction::Sub);
+            }
+            ast::Expression::Not(e) => {
+                // Evaluate the expression
+                self.compile_expression(e)?;
+
+                // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
             }
             ast::Expression::Unwrap(e) => {

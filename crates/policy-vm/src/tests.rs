@@ -834,6 +834,72 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_negative_numeric_expression() -> anyhow::Result<()> {
+    let text = r#"
+    action foo(x int) {
+        let a = -2
+        let c = if x - a == 1 then true else false
+        check c
+    }
+    "#;
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs.call_action("foo", [-1]).map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Exited);
+
+    Ok(())
+}
+
+#[test]
+fn test_negative_logical_expression() -> anyhow::Result<()> {
+    let text = r#"
+    action foo(x bool, y bool) {
+        when x {
+            check x
+        }
+        when !y {
+            check !y
+        }
+    }
+    "#;
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("foo", [true, false])
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Exited);
+
+    Ok(())
+}
+
+#[test]
+fn test_negative_overflow_numeric_expression() -> anyhow::Result<()> {
+    let text = r#"
+    action check_overflow(x int) {
+        let a = -x
+    }
+    "#;
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("check_overflow", [i64::MIN])
+        .map_err(anyhow::Error::msg);
+
+    assert!(result.is_err());
+
+    Ok(())
+}
+
+#[test]
 fn test_match_default() -> anyhow::Result<()> {
     let policy_str = r#"
         command Result {
