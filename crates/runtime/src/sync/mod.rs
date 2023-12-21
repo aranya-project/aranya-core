@@ -4,7 +4,7 @@
 use alloc::{sync::Arc, vec};
 use core::{convert::Infallible, fmt, mem};
 
-use buggy::{Bug, BugExt};
+use buggy::{bug, Bug, BugExt};
 use heapless::Vec;
 use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
 use serde::{Deserialize, Serialize};
@@ -158,7 +158,6 @@ pub enum SyncError {
     MissingSyncResponse,
     SessionState,
     StorageError,
-    InternalError,
     NotReady,
     SerilizeError,
     EngineError,
@@ -176,7 +175,6 @@ impl fmt::Display for SyncError {
             Self::MissingSyncResponse => write!(f, "missing sync response"),
             Self::SessionState => write!(f, "session state error"),
             Self::StorageError => write!(f, "storage error"),
-            Self::InternalError => write!(f, "internal error"),
             Self::NotReady => write!(f, "not ready"),
             Self::SerilizeError => write!(f, "serialize error"),
             Self::EngineError => write!(f, "engine error"),
@@ -394,10 +392,7 @@ impl SyncRequester<'_> {
                         let segment = storage.get_segment(location)?;
 
                         let head = segment.head();
-                        if commands.push(head.id()).is_err() {
-                            // This should be impossible
-                            return Err(SyncError::InternalError);
-                        }
+                        commands.push(head.id()).assume("can push to commands")?;
                         next.extend(segment.prior());
                         if commands.len() >= COMMAND_SAMPLE_MAX {
                             break 'current;
@@ -493,7 +488,10 @@ impl SyncState for SyncRequester<'_> {
                         data: payload,
                     };
 
-                    result.push(command).or(Err(SyncError::InternalError))?;
+                    result
+                        .push(command)
+                        .ok()
+                        .assume("commands is not larger than result")?;
                 }
 
                 Some(result)
@@ -630,6 +628,7 @@ impl SyncResponder {
         let mut heads = alloc::vec::Vec::new();
         heads.push(storage.get_head()?);
 
+        // FIXME(jdygert): Handle more than SEGMENT_BUFFER_MAX segments.
         let mut result = Vec::new();
 
         while !heads.is_empty() {
@@ -642,7 +641,8 @@ impl SyncResponder {
                         if location != &segment.head_location() {
                             result
                                 .push(location.clone())
-                                .or(Err(SyncError::InternalError))?;
+                                .ok()
+                                .assume("too many segments")?;
                         }
                         continue 'heads;
                     }
@@ -650,7 +650,7 @@ impl SyncResponder {
                 heads.extend(segment.prior());
 
                 let location = segment.first_location();
-                result.push(location).or(Err(SyncError::InternalError))?;
+                result.push(location).ok().assume("too many segments")?;
             }
         }
         result.reverse();
@@ -664,7 +664,7 @@ impl SyncResponder {
     ) -> Result<usize, SyncError> {
         let Some(storage_id) = self.storage_id.as_ref() else {
             self.state = SyncResponderState::Reset;
-            return Err(SyncError::InternalError);
+            bug!("get_next called before storage_id was set");
         };
 
         let storage = match provider.get_storage(storage_id) {
@@ -687,7 +687,7 @@ impl SyncResponder {
 
         let Some(location) = self.to_send.get(index) else {
             self.state = SyncResponderState::Reset;
-            return Err(SyncError::InternalError);
+            bug!("send index OOB");
         };
 
         let Ok(segment) = storage.get_segment(location) else {
@@ -712,8 +712,11 @@ impl SyncResponder {
                 length: command.bytes().len() as u32,
             };
 
-            // FIXME(jdygert): This will reasonably happen, should not just error.
-            commands.push(meta).or(Err(SyncError::InternalError))?;
+            // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
+            commands
+                .push(meta)
+                .ok()
+                .assume("too many commands in segment")?;
         }
 
         let message = SyncMessage::SyncResponse {
@@ -813,7 +816,7 @@ impl SyncState for SyncResponder {
             S::Start => {
                 let Some(storage_id) = self.storage_id.as_ref() else {
                     self.state = S::Reset;
-                    return Err(SyncError::InternalError);
+                    bug!("poll called before storage_id was set");
                 };
 
                 let storage = match provider.get_storage(storage_id) {

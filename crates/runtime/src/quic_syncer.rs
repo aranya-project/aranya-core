@@ -2,9 +2,10 @@
 #![cfg(any(feature = "quic_syncer", test))]
 
 use alloc::sync::Arc;
-use std::net::SocketAddr;
+use std::net::{Ipv4Addr, SocketAddr};
 
-use quinn::{ClientConfig, ConnectionError, Endpoint, ReadToEndError, WriteError};
+use buggy::bug;
+use quinn::{ClientConfig, ConnectError, ConnectionError, Endpoint, ReadToEndError, WriteError};
 use tokio::{select, sync::Mutex as TMutex};
 use tokio_util::sync::CancellationToken;
 
@@ -23,25 +24,36 @@ impl From<rustls::Error> for SyncError {
 }
 
 impl From<WriteError> for SyncError {
-    fn from(_error: WriteError) -> Self {
+    fn from(error: WriteError) -> Self {
+        log::error!("write error: {error}");
         SyncError::NetworkError
     }
 }
 
 impl From<ReadToEndError> for SyncError {
-    fn from(_error: ReadToEndError) -> Self {
+    fn from(error: ReadToEndError) -> Self {
+        log::error!("read error: {error}");
         SyncError::NetworkError
     }
 }
 
 impl From<ConnectionError> for SyncError {
-    fn from(_error: ConnectionError) -> Self {
+    fn from(error: ConnectionError) -> Self {
+        log::error!("connection error: {error}");
+        SyncError::NetworkError
+    }
+}
+
+impl From<ConnectError> for SyncError {
+    fn from(error: ConnectError) -> Self {
+        log::error!("connect error: {error}");
         SyncError::NetworkError
     }
 }
 
 impl From<std::io::Error> for SyncError {
-    fn from(_err: std::io::Error) -> Self {
+    fn from(error: std::io::Error) -> Self {
+        log::error!("io error: {error}");
         SyncError::NetworkError
     }
 }
@@ -95,8 +107,8 @@ where
         Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
             return Ok(());
         }
-        Err(_e) => {
-            return Err(SyncError::NetworkError);
+        Err(e) => {
+            return Err(e.into());
         }
         Ok(s) => s,
     };
@@ -120,19 +132,18 @@ where
     let mut response_syncer = SyncResponder::new(session_id);
     let request_syncer = SyncRequester::new(session_id, storage_id);
     if !request_syncer.ready() {
-        return Err(SyncError::InternalError);
+        bug!("new syncer should always be ready");
     }
-    let mut buffer;
 
+    let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let target = {
         let mut client = client.lock().await;
         let mut trx = client.transaction(&storage_id);
         client.sync_receive(&mut trx, &mut sink, &mut response_syncer, &req)?;
         client.commit(&mut trx, &mut sink)?;
 
-        buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
         let len = client.sync_poll(&mut response_syncer, &mut buffer)?;
-        &buffer[0..len]
+        &buffer[..len]
     };
 
     send.write_all(target).await?;
@@ -164,15 +175,11 @@ where
         certs.add(cert)?;
     }
     let client_cfg = ClientConfig::with_root_certificates(certs);
-    let client_addr = "[::]:0".parse().map_err(|_| SyncError::InternalError)?;
+    let client_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0);
     let mut endpoint = Endpoint::client(client_addr)?;
     endpoint.set_default_client_config(client_cfg);
 
-    let conn = endpoint
-        .connect(server_addr, "localhost")
-        .map_err(|_| SyncError::NetworkError)?
-        .await
-        .map_err(|_| SyncError::NetworkError)?;
+    let conn = endpoint.connect(server_addr, "localhost")?.await?;
     let (mut send, mut recv) = conn.open_bi().await?;
 
     send.write_all(&buffer[0..len]).await?;

@@ -11,15 +11,16 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 buggy = { path = "../buggy" }
 crypto = { path = "../crypto" }
 heapless = { workspace = true, features = ["serde"] }
+log = { workspace = true }
 policy-vm = { path = "../policy-vm" }
 postcard = { workspace = true }
 rand = { workspace = true, default-features = false}
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 spin = { workspace = true }
-anyhow = { workspace = true }
 trouble = { path = "../trouble" }
 vec1 = { version = "1.10.1", default-features = false }
 

@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, fs::File, net::SocketAddr, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 
 use once_cell::sync::Lazy;
 use quinn::{ConnectionError, ReadToEndError, ServerConfig, WriteError};
@@ -121,6 +126,7 @@ async fn run(file: &str) -> Result<(), TestError> {
     let cancel_token = CancellationToken::new();
 
     let mut clients = BTreeMap::new();
+    let mut addrs = BTreeMap::new();
 
     let mut sink = LockedSink::new(Arc::new(Mutex::new(TestSink::new())));
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
@@ -153,15 +159,15 @@ async fn run(file: &str) -> Result<(), TestError> {
                     commands.insert(id, storage_id);
                 }
 
-                for (id, client) in clients.iter() {
-                    let server_addr = format!("127.0.0.1:{}", 5000 + id).parse().unwrap();
+                for (&id, client) in clients.iter() {
+                    let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
                     let mut server_config =
                         ServerConfig::with_single_cert(cert_chain.clone(), priv_key.clone())?;
                     let transport_config =
                         Arc::get_mut(&mut server_config.transport).expect("test");
                     transport_config.max_concurrent_uni_streams(0_u8.into());
-                    let endpoint = quinn::Endpoint::server(server_config, server_addr)
-                        .map_err(|_| SyncError::InternalError)?;
+                    let endpoint = quinn::Endpoint::server(server_config, server_addr).unwrap();
+                    addrs.insert(id, endpoint.local_addr()?);
                     let fut = run_syncer(
                         cancel_token.clone(),
                         client.clone(),
@@ -197,7 +203,7 @@ async fn run(file: &str) -> Result<(), TestError> {
 
                 assert!(request_syncer.ready());
 
-                let server_addr: SocketAddr = format!("127.0.0.1:{}", 5000 + from).parse().unwrap();
+                let server_addr = *addrs.get(&from).expect("client addr registered");
                 sync(
                     request_client,
                     request_syncer,
