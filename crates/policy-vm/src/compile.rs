@@ -541,7 +541,19 @@ impl<'a> CompileState<'a> {
                 // Define the target of the branch as the instruction after the Panic
                 self.define_label(not_none, self.wp)?;
             }
-            ast::Expression::Is(_, _) => todo!(),
+            ast::Expression::Is(e, expr_is_some) => {
+                // Evaluate the expression
+                self.compile_expression(e)?;
+                // Push a None to compare against
+                self.append_instruction(Instruction::Const(Value::None));
+                // Check if the value is equal to None
+                self.append_instruction(Instruction::Eq);
+                if *expr_is_some {
+                    // If we're checking for not Some, invert the result of the Eq to None
+                    self.append_instruction(Instruction::Not);
+                }
+                // The result true or false is on the stack
+            }
         }
 
         Ok(())

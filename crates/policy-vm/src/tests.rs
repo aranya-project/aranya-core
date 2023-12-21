@@ -773,6 +773,66 @@ fn test_match_duplicate() -> anyhow::Result<()> {
     Ok(())
 }
 
+const POLICY_IS: &str = r#"
+    command Result {
+        fields {
+            x int
+        }
+        seal { return None }
+        open { return None }
+    }
+    action check_none(x int) {
+        when x is None {
+            emit Result { x: None }
+        }
+        when x is Some {
+            emit Result { x: x }
+        }
+    }
+"#;
+
+#[test]
+fn test_is_some_statement() -> anyhow::Result<()> {
+    let policy = parse_policy_str(POLICY_IS, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+
+    // Test with a value that is not None
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("check_none", [Value::Int(10)])
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(
+        io.emit_stack[0],
+        ("Result".to_string(), vec![KVPair::new("x", Value::Int(10))])
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_is_none_statement() -> anyhow::Result<()> {
+    let policy = parse_policy_str(POLICY_IS, Version::V3).map_err(anyhow::Error::msg)?;
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+
+    // Test with a None value
+    let mut rs = machine.create_run_state(&mut io);
+    let result = rs
+        .call_action("check_none", [Value::None])
+        .map_err(anyhow::Error::msg)?;
+    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(
+        io.emit_stack[0],
+        ("Result".to_string(), vec![KVPair::new("x", Value::None)])
+    );
+
+    Ok(())
+}
+
 #[test]
 fn test_match_default() -> anyhow::Result<()> {
     let policy_str = r#"
@@ -802,7 +862,6 @@ fn test_match_default() -> anyhow::Result<()> {
     let result = rs
         .call_action("foo", [Value::Int(6)])
         .map_err(anyhow::Error::msg)?;
-
     assert_eq!(result, MachineStatus::Exited);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
