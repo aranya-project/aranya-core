@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use buggy::Bug;
 use pest::{
     error::{Error as PestError, LineColLocation},
     Span,
@@ -35,6 +36,8 @@ pub enum ParseErrorKind {
     Syntax,
     /// There was some error in the YAML front matter.
     FrontMatter,
+    /// An implementation bug
+    Bug,
     /// Every other possible error.
     Unknown,
 }
@@ -75,6 +78,7 @@ impl Display for ParseError {
             ParseErrorKind::Expression => "Invalid expression",
             ParseErrorKind::Syntax => "Syntax error",
             ParseErrorKind::FrontMatter => "Front matter YAML parse error",
+            ParseErrorKind::Bug => "Bug",
             ParseErrorKind::Unknown => "Unknown error",
         };
         write!(f, "{prefix}: {}", self.message)
@@ -92,6 +96,12 @@ impl From<PestError<Rule>> for ParseError {
             None => format!("line {} column {}: {}", line, column, e),
         };
         ParseError::new(ParseErrorKind::Syntax, message, None)
+    }
+}
+
+impl From<Bug> for ParseError {
+    fn from(bug: Bug) -> Self {
+        ParseError::new(ParseErrorKind::Bug, bug.msg().to_owned(), None)
     }
 }
 

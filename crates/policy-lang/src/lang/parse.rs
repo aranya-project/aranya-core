@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use buggy::BugExt;
 use pest::{
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
@@ -123,12 +124,18 @@ impl ChunkContext {
     }
 
     /// Add the text range represented by the pair to the list of ranges
-    fn add_range(&mut self, p: &Pair<'_, Rule>) -> usize {
+    fn add_range(&mut self, p: &Pair<'_, Rule>) -> Result<usize, ParseError> {
         let span = p.as_span();
-        let start = span.start() + self.offset;
-        let end = span.end() + self.offset;
+        let start = span
+            .start()
+            .checked_add(self.offset)
+            .assume("start + offset must not wrap")?;
+        let end = span
+            .end()
+            .checked_add(self.offset)
+            .assume("end + offset must not wrap")?;
         self.ranges.push((start, end));
-        start
+        Ok(start)
     }
 }
 
@@ -774,7 +781,7 @@ fn parse_statement_list(
 ) -> Result<Vec<AstNode<ast::Statement>>, ParseError> {
     let mut statements = vec![];
     for statement in list {
-        let locator = cc.add_range(&statement);
+        let locator = cc.add_range(&statement)?;
         let ps = match statement.as_rule() {
             Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
             Rule::emit_statement => ast::Statement::Emit(parse_emit_statement(statement, pratt)?),
@@ -828,7 +835,7 @@ fn parse_fact_definition(
     field: Pair<'_, Rule>,
     cc: &mut ChunkContext,
 ) -> Result<AstNode<ast::FactDefinition>, ParseError> {
-    let locator = cc.add_range(&field);
+    let locator = cc.add_range(&field)?;
     let pc = descend(field);
     let token = pc.consume_of_type(Rule::fact_signature)?;
 
@@ -865,7 +872,7 @@ fn parse_action_definition(
 ) -> Result<AstNode<ast::ActionDefinition>, ParseError> {
     assert_eq!(item.as_rule(), Rule::action_definition);
 
-    let locator = cc.add_range(&item);
+    let locator = cc.add_range(&item)?;
     let pc = descend(item);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -896,7 +903,7 @@ fn parse_effect_definition(
 ) -> Result<AstNode<ast::EffectDefinition>, ParseError> {
     assert_eq!(item.as_rule(), Rule::effect_definition);
 
-    let locator = cc.add_range(&item);
+    let locator = cc.add_range(&item)?;
     let pc = descend(item);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -919,7 +926,7 @@ fn parse_struct_definition(
 ) -> Result<AstNode<ast::StructDefinition>, ParseError> {
     assert_eq!(item.as_rule(), Rule::struct_definition);
 
-    let locator = cc.add_range(&item);
+    let locator = cc.add_range(&item)?;
     let pc = descend(item);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -943,7 +950,7 @@ fn parse_command_definition(
 ) -> Result<AstNode<ast::CommandDefinition>, ParseError> {
     assert_eq!(item.as_rule(), Rule::command_definition);
 
-    let locator = cc.add_range(&item);
+    let locator = cc.add_range(&item)?;
     let pc = descend(item);
     let identifier = pc.consume_string(Rule::identifier)?;
 
@@ -1036,7 +1043,7 @@ fn parse_function_definition(
     pratt: &PrattParser<Rule>,
     cc: &mut ChunkContext,
 ) -> Result<AstNode<ast::FunctionDefinition>, ParseError> {
-    let locator = cc.add_range(&item);
+    let locator = cc.add_range(&item)?;
     let pc = descend(item);
 
     let decl = pc.consume()?;
@@ -1063,7 +1070,7 @@ fn parse_finish_function_definition(
     pratt: &PrattParser<Rule>,
     cc: &mut ChunkContext,
 ) -> Result<AstNode<ast::FinishFunctionDefinition>, ParseError> {
-    let locator = cc.add_range(&item);
+    let locator = cc.add_range(&item)?;
     let pc = descend(item);
 
     let decl = pc.consume()?;
@@ -1101,12 +1108,21 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
 fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ParseError {
     let pos = match &mut e.location {
         InputLocation::Pos(p) => {
-            *p += offset;
+            *p = match p.checked_add(offset).assume("p + offset must not wrap") {
+                Ok(n) => n,
+                Err(bug) => return bug.into(),
+            };
             *p
         }
         InputLocation::Span((s, e)) => {
-            *s += offset;
-            *e += offset;
+            *s = match s.checked_add(offset).assume("s + offset must not wrap") {
+                Ok(n) => n,
+                Err(bug) => return bug.into(),
+            };
+            *e = match e.checked_add(offset).assume("e + offset must not wrap") {
+                Ok(n) => n,
+                Err(bug) => return bug.into(),
+            };
             *s
         }
     };

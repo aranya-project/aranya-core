@@ -1,3 +1,4 @@
+use buggy::BugExt;
 use markdown::{
     mdast::{Node, Yaml},
     to_mdast, ParseOptions,
@@ -63,7 +64,11 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
                         // the triple-backtick, so add three for the
                         // backticks, six for the language tag, and
                         // one newline.
-                        let offset = position.start.offset + 10;
+                        let offset = position
+                            .start
+                            .offset
+                            .checked_add(10)
+                            .assume("start.offset + 10 must not wrap")?;
                         chunks.push(PolicyChunk {
                             text: c.value.clone(),
                             offset,
