@@ -381,6 +381,7 @@ macro_rules! test_engine {
 
                 test!(test_encrypted_group_key_encode);
             }
+            #[allow(unused_imports)]
             pub use aranya::*;
 
             mod apq {
@@ -399,6 +400,7 @@ macro_rules! test_engine {
                 test!(test_topic_key_open_wrong_context);
                 test!(test_topic_key_open_bad_ciphertext);
             }
+            #[allow(unused_imports)]
             pub use apq::*;
 
             mod aps {
@@ -419,6 +421,7 @@ macro_rules! test_engine {
                 test!(test_derive_uni_key_different_keys);
                 test!(test_derive_uni_key_same_user_id);
             }
+            #[allow(unused_imports)]
             pub use aps::*;
         }
     };

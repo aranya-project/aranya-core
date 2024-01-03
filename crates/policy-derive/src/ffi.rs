@@ -424,21 +424,19 @@ impl FfiExportAttr {
     fn new(span: Span, attrs: &mut Vec<Attribute>) -> syn::Result<Option<Self>> {
         let mut def = Attr::none(DEF);
 
-        let found = attrs
+        let mut found = attrs
             .iter()
             .enumerate()
-            .filter(|(_, attr)| attr.path() == FFI_EXPORT)
-            .map(|(i, attr)| (i, attr))
-            .collect::<Vec<_>>();
-        if found.len() > 1 {
+            .filter(|(_, attr)| attr.path() == FFI_EXPORT);
+        let Some((idx, attr)) = found.next() else {
+            return Ok(None);
+        };
+        if found.next().is_some() {
             return Err(Error::new(
                 span,
                 format!("`{FFI_EXPORT}` attribute can only be used once"),
             ));
         }
-        let Some((idx, attr)) = found.get(0) else {
-            return Ok(None);
-        };
         match &attr.meta {
             // An empty attribute: `#[ffi_export]`.
             Meta::Path(_) => {}
@@ -454,7 +452,7 @@ impl FfiExportAttr {
                 }
             })?,
         };
-        attrs.remove(*idx);
+        attrs.remove(idx);
 
         let def = def
             .get()

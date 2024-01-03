@@ -87,6 +87,8 @@ impl Aead for Aes256Gcm {
         let got_tag = self
             .0
             .encrypt_in_place_detached(
+                // From<&[T]> for GenericArray<T, _> panics on incorrect length
+                #[allow(clippy::unnecessary_fallible_conversions)]
                 nonce
                     .try_into()
                     .map_err(|_| SealError::InvalidNonceSize(InvalidNonceSize))?,
@@ -110,11 +112,15 @@ impl Aead for Aes256Gcm {
 
         self.0
             .decrypt_in_place_detached(
+                // From<&[T]> for GenericArray<T, _> panics on incorrect length
+                #[allow(clippy::unnecessary_fallible_conversions)]
                 nonce
                     .try_into()
                     .map_err(|_| OpenError::InvalidNonceSize(InvalidNonceSize))?,
                 additional_data,
                 data,
+                // From<&[T]> for GenericArray<T, _> panics on incorrect length
+                #[allow(clippy::unnecessary_fallible_conversions)]
                 tag.try_into().map_err(|_| OpenError::InvalidOverheadSize)?,
             )
             .map_err(|_| OpenError::Authentication)
