@@ -52,8 +52,6 @@ anyhow = { version = "1.0" }
 
 [profile.dev]
 panic = "abort"
-# TODO(#373): Remove when root cause is resolved.
-codegen-units = 1
 
 [profile.dev-std]
 inherits = "dev"
