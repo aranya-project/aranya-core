@@ -889,7 +889,7 @@ pub trait Expectation<E> {
 
 impl<T, E> Expectation<E> for LockedSink<T>
 where
-    T: Sink<E> + Expectation<E>,
+    T: Expectation<E>,
 {
     fn add_expectation(&mut self, expect: E) {
         let mut s = self.sink.lock();
