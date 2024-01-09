@@ -22,7 +22,7 @@ use crate::{ffi::ModuleSchema, CodeMap, Instruction, Label, LabelType, Machine, 
 
 enum FunctionColor {
     /// Function has no side-effects and returns a value
-    Pure(VType),
+    Pure(#[allow(unused)] VType),
     /// Function has side-effects and returns no value
     Finish,
 }
