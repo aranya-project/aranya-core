@@ -72,7 +72,7 @@ jobs:
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: ${{ matrix.os }}
       - name: Check code
-        run: cargo check-all-features
+        run: cargo check-all-features --examples --benches
       - name: Clippy
         # Set the working directory to run the clippy script
         working-directory: crates

@@ -65,7 +65,7 @@ quic_syncer = [
     "dep:tokio-util",
     "dep:rustls"
 ]
-model=[]
+model = []
 
 [[example]]
 name = "quic_syncer"
@@ -75,3 +75,10 @@ required-features = ["quic_syncer"]
 name = "quic_syncer"
 harness = false
 required-features = ["quic_syncer"]
+
+[package.metadata.cargo-all-features]
+always_include_features = [
+    "std",
+    "model",
+    "quic_syncer",
+]

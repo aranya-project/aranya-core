@@ -1,5 +1,8 @@
 //! This is a benchmark for syncing using the quic syncer. It benchmarks the amounts of time
 //! to sync a command.
+
+#![allow(clippy::panic, clippy::unwrap_used)]
+
 use std::{
     net::{Ipv4Addr, SocketAddr},
     ops::DerefMut,
@@ -68,7 +71,7 @@ fn new_graph(
     let policy_data = 0_u64.to_be_bytes();
     let payload = (0, 0);
     Ok(client
-        .new_graph(policy_data.as_slice(), &payload, sink)
+        .new_graph(policy_data.as_slice(), payload, sink)
         .expect("unable to create graph"))
 }
 
@@ -80,11 +83,7 @@ fn add_commands(
 ) {
     for x in 0..n {
         client
-            .action(
-                storage_id,
-                sink,
-                TestActions::SetValue(0, x.try_into().unwrap()),
-            )
+            .action(storage_id, sink, TestActions::SetValue(0, x))
             .expect("unable to add command");
     }
 }
@@ -108,11 +107,9 @@ fn sync_bench(c: &mut Criterion) {
             let request_client = Arc::new(TMutex::new(create_client()));
             let response_client = Arc::new(TMutex::new(create_client()));
 
-            let storage_id = new_graph(
-                &mut response_client.lock().await.deref_mut(),
-                &mut response_sink,
-            )
-            .expect("creating graph failed");
+            let storage_id =
+                new_graph(response_client.lock().await.deref_mut(), &mut response_sink)
+                    .expect("creating graph failed");
 
             let mut server_config =
                 ServerConfig::with_single_cert(cert_chain.clone(), priv_key.clone())
@@ -142,7 +139,7 @@ fn sync_bench(c: &mut Criterion) {
                 }
             });
             add_commands(
-                &mut response_client.lock().await.deref_mut(),
+                response_client.lock().await.deref_mut(),
                 &storage_id,
                 &mut response_sink,
                 iters,
