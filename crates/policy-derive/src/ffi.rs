@@ -219,7 +219,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             let name = format!("{module}::{}", f.ext_name);
             let args = f.args.iter().map(|arg| {
                 let name = arg.def.identifier.clone();
-                let vtype = VTypeTokens::new(&arg.def.field_type);
+                let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             });
             let color = match &f.result {
@@ -227,7 +227,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     #vm::ffi::Color::Finish
                 },
                 (_, Color::Pure(vtype)) => {
-                    let vtype = VTypeTokens::new(vtype);
+                    let vtype = VTypeTokens::new(vtype, &vm);
                     quote!(#vm::ffi::Color::Pure(#vm::ffi::Type::#vtype))
                 }
             };
@@ -306,6 +306,9 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
             #(#structs)*
         }
+
+        #[cfg(test)]
+        pub(crate) use #module::*;
 
         #[doc(hidden)]
         #[allow(missing_docs, unused_extern_crates)]
@@ -590,16 +593,18 @@ enum Color {
 /// Implements [`ToTokens`] for `VType.`
 struct VTypeTokens<'a> {
     vtype: &'a VType,
+    vm: &'a Path,
 }
 
 impl<'a> VTypeTokens<'a> {
-    fn new(vtype: &'a VType) -> Self {
-        Self { vtype }
+    fn new(vtype: &'a VType, vm: &'a Path) -> Self {
+        Self { vtype, vm }
     }
 }
 
 impl ToTokens for VTypeTokens<'_> {
     fn to_tokens(&self, tokens: &mut TokenStream) {
+        let vm = self.vm;
         let item = match self.vtype {
             VType::String => quote!(String),
             VType::Bytes => quote!(Bytes),
@@ -608,8 +613,8 @@ impl ToTokens for VTypeTokens<'_> {
             VType::Id => quote!(Id),
             VType::Struct(name) => quote!(Struct(#name)),
             VType::Optional(vtype) => {
-                let vtype = VTypeTokens::new(vtype);
-                quote!(Optional(&#vtype))
+                let vtype = VTypeTokens::new(vtype, vm);
+                quote!(Optional(&#vm::ffi::Type::#vtype))
             }
         };
         tokens.extend(item)
