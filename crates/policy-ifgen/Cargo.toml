@@ -1,5 +1,5 @@
 [package]
-name = "policy-ifgen-cli"
+name = "policy-ifgen"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -11,12 +11,9 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+anyhow = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
 policy-ifgen-core = { path = "../policy-ifgen-core" }
 policy-lang = { path = "../policy-lang" }
 prettyplease = { workspace = true }
 syn = { version = "2.0", features = ["full"] }
-
-[[bin]]
-name = "policy-ifgen"
-path = "src/main.rs"
