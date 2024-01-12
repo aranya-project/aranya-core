@@ -183,10 +183,6 @@ pub enum InternalFunction {
     Exists(FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
-    /// Return the ID of the command
-    Id(Box<Expression>),
-    /// Return the ID of the author of a command
-    AuthorId(Box<Expression>),
 }
 
 /// A foreign function call with a list of arguments.

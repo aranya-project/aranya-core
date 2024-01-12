@@ -463,23 +463,6 @@ pub fn parse_expression(
                     ),
                 ))
             }
-            Rule::id_e | Rule::author_id => {
-                let rule = primary.as_rule();
-                let mut pairs = primary.clone().into_inner();
-                let token = pairs.next().ok_or(ParseError::new(
-                    ParseErrorKind::InvalidFunctionCall,
-                    String::from("id() requires one argument"),
-                    Some(primary.as_span()),
-                ))?;
-
-                let command = parse_expression(token, pratt)?;
-                let f = match rule {
-                    Rule::id_e => ast::InternalFunction::Id(Box::new(command)),
-                    Rule::author_id => ast::InternalFunction::AuthorId(Box::new(command)),
-                    _ => unreachable!(),
-                };
-                Ok(ast::Expression::InternalFunction(f))
-            }
             Rule::identifier => Ok(ast::Expression::Identifier(primary.as_str().to_owned())),
             Rule::expression => {
                 let subexpr = parse_expression(primary, pratt)?;

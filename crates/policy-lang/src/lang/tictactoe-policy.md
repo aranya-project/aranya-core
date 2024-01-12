@@ -41,10 +41,9 @@ command Start {
 
     policy {
         check ProfileX != ProfileO
-        // id() is a function that calculates the ID of this command from its
-        // content.
-        let gameID = id(this)
-
+        // `envelope::id` is an FFI-provided helper function that returns 
+        // the ID from the passed in `envelope`.
+        let gameID = envelope::id(envelope)
         finish {
             create PlayerProfile[gameID: gameID]=>{x: ProfileX, o: ProfileO}
             create NextPlayer[gameID: gameID]=>{p: "X"}
@@ -96,9 +95,10 @@ command Move {
         // These aren't "variables" in the procedural sense, they are
         // set-once constant definitions that can be used in later
         // expressions.
-        // `author` is a built-in function which returns an ID for the author
-        // of a command.
-        let player = author_id(this)
+        // `envelope::author_id` is an FFI-provided helper function which  
+        // returns the ID for the author of the command from the passed in 
+        // `envelope`.
+        let player = envelope::author_id(envelope)
         // the query expression searches the fact database for facts which
         // match the signature, returning an Optional containing either all
         // values marked with ?, or None. The unwrap expression returns the
@@ -167,7 +167,7 @@ command Move2 {
     }
 
     policy {
-        let player = author(this)
+        let player = envelope::author_id(envelope)
         let players = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
         let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
         let nextp = if p == "X" then "O" else "X"

@@ -363,8 +363,6 @@ impl<'a> CompileState<'a> {
                     self.compile_expression(t)?;
                     self.define_label(end_name, self.wp)?;
                 }
-                ast::InternalFunction::Id(_) => todo!(),
-                ast::InternalFunction::AuthorId(_) => todo!(),
             },
             ast::Expression::FunctionCall(f) => {
                 let signature = self.function_signatures.get(&f.identifier).ok_or(
