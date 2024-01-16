@@ -15,9 +15,9 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
     quic_syncer::{run_syncer, sync},
-    storage::memory::*,
     sync::LockedSink,
-    ClientError, ClientState, EngineError, Expectation, SyncError, SyncRequester, SyncState,
+    ClientError, ClientState, EngineError, Expectation, StorageProvider, SyncError, SyncRequester,
+    SyncState,
 };
 
 static NETWORK: Lazy<TMutex<()>> = Lazy::new(TMutex::default);
@@ -119,8 +119,24 @@ fn read(file: &str) -> Result<Vec<TestRule>, TestError> {
     Ok(actions)
 }
 
-async fn run(file: &str) -> Result<(), TestError> {
+/// Provides [`StorageProvider`] impls for testing.
+///
+/// This will probably end up replaced by the model work.
+trait StorageBackend {
+    type StorageProvider: StorageProvider;
+    fn new() -> Self;
+    fn provider(&mut self, client_id: u64) -> Self::StorageProvider;
+}
+
+async fn run<SB>(file: &str) -> Result<(), TestError>
+where
+    SB: StorageBackend,
+    SB::StorageProvider: Send + 'static,
+{
+    let mut backend = SB::new();
+
     let session_id = 7;
+
     let mut commands = BTreeMap::new();
     let actions: Vec<TestRule> = read(file)?;
     let cancel_token = CancellationToken::new();
@@ -140,7 +156,7 @@ async fn run(file: &str) -> Result<(), TestError> {
         match rule {
             TestRule::AddClient { id } => {
                 let engine = TestEngine::new();
-                let storage = MemStorageProvider::new();
+                let storage = backend.provider(id);
 
                 let state = ClientState::new(engine, storage);
                 clients.insert(id, Arc::new(TMutex::new(state)));
@@ -248,23 +264,78 @@ async fn run(file: &str) -> Result<(), TestError> {
 }
 
 macro_rules! yaml_test {
-    ($($name:ident,)*) => {
+    ($backend:ident @ $($name:ident,)*) => {
     $(
         #[tokio::test]
         async fn $name() -> Result<(),TestError> {
             let test_path = format!("{}/src/tests/{}.test", env!("CARGO_MANIFEST_DIR"), stringify!($name));
             let _mutex = NETWORK.lock().await;
-            run( &test_path ).await?;
+            run::<$backend>( &test_path ).await?;
             Ok(())
         }
     )*
     }
 }
 
-yaml_test! {
-    two_client_merge,
-    two_client_sync,
-    three_client_sync,
-    two_client_branch,
-    three_client_branch,
+macro_rules! test_suite {
+    ($backend:ident) => {
+        yaml_test! {
+            $backend @
+            two_client_merge,
+            two_client_sync,
+            three_client_sync,
+            two_client_branch,
+            three_client_branch,
+        }
+    };
+}
+
+mod memory {
+    use super::*;
+    use crate::storage::memory::*;
+
+    struct MemBackend;
+    impl StorageBackend for MemBackend {
+        type StorageProvider = MemStorageProvider;
+
+        fn new() -> Self {
+            Self
+        }
+
+        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+            MemStorageProvider::new()
+        }
+    }
+
+    test_suite!(MemBackend);
+}
+
+#[cfg(feature = "rustix")]
+mod linear {
+    // TODO(jdygert): Add in-memory linear io manager
+
+    use super::*;
+    use crate::storage::linear::*;
+
+    struct LinearBackend {
+        tempdir: tempfile::TempDir,
+    }
+    impl StorageBackend for LinearBackend {
+        type StorageProvider = LinearStorageProvider<rustix::FileManager>;
+
+        fn new() -> Self {
+            let tempdir = tempfile::tempdir().unwrap();
+            println!("Using tempdir {:?}", tempdir.path());
+            Self { tempdir }
+        }
+
+        fn provider(&mut self, client_id: u64) -> Self::StorageProvider {
+            let dir = self.tempdir.path().join(client_id.to_string());
+            std::fs::create_dir(&dir).unwrap();
+            let manager = rustix::FileManager::new(&dir).unwrap();
+            LinearStorageProvider::new(manager)
+        }
+    }
+
+    test_suite!(LinearBackend);
 }

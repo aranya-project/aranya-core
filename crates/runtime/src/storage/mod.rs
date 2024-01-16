@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Command, Id, PolicyId, Prior};
 
+pub mod linear;
 pub mod memory;
 
 /// The maximum size of a serialized message
@@ -102,6 +103,14 @@ impl From<Bug> for StorageError {
     }
 }
 
+#[cfg(feature = "rustix")]
+impl From<rustix::io::Errno> for StorageError {
+    fn from(_: rustix::io::Errno) -> Self {
+        // TODO(jdygert): Add variant?
+        StorageError::IoError
+    }
+}
+
 /// Handle to storage implementations used by the runtime.
 pub trait StorageProvider {
     type Perspective: Perspective;
@@ -145,29 +154,49 @@ pub trait Storage {
 
     /// Returns the location of Command with id if it has been stored by
     /// searching from the head.
-    fn get_location(&self, id: &Id) -> Result<Option<Location>, StorageError>;
+    fn get_location(&self, id: &Id) -> Result<Option<Location>, StorageError> {
+        self.get_location_from(&self.get_head()?, id)
+    }
+
+    /// Returns the location of Command with id by searching from the given location.
+    fn get_location_from(
+        &self,
+        start: &Location,
+        id: &Id,
+    ) -> Result<Option<Location>, StorageError> {
+        let mut queue = alloc::collections::VecDeque::new();
+        queue.push_back(start.clone());
+        while let Some(loc) = queue.pop_front() {
+            let seg = self.get_segment(&loc)?;
+            for (i, cmd) in seg.get_from(&loc).iter().enumerate() {
+                if &cmd.id() == id {
+                    return Ok(Some(Location::new(loc.segment, i)));
+                }
+            }
+            queue.extend(seg.prior());
+        }
+        Ok(None)
+    }
 
     /// Returns the ID of the command at the location.
     fn get_command_id(&self, location: &Location) -> Result<Id, StorageError>;
 
-    /// Returns a linear perspective at the command with id, or None if the id
-    /// can not be found.
-    fn get_linear_perspective(&self, id: &Id) -> Result<Option<Self::Perspective>, StorageError>;
+    /// Returns a linear perspective at the given location.
+    fn get_linear_perspective(
+        &self,
+        parent: &Location,
+    ) -> Result<Option<Self::Perspective>, StorageError>;
 
     /// Returns a fact perspective at the given location, intended for evaluating braids.
     /// The fact perspective will include the facts of the command at the given location.
-    fn get_fact_perspective(
-        &self,
-        location: &Location,
-    ) -> Result<Self::FactPerspective, StorageError>;
+    fn get_fact_perspective(&self, first: &Location)
+        -> Result<Self::FactPerspective, StorageError>;
 
-    /// Returns a perspective at the command provided, or None if the id can not
-    /// be found. If the provided command is not a merge command an error will be
-    /// returned. The provided command will be the first command in the
-    /// perspective.
-    fn new_merge_perspective<'a>(
+    /// Returns a merge perspective based on the given locations with the braid as prior facts.
+    fn new_merge_perspective(
         &self,
-        command: &impl Command<'a>,
+        left: &Location,
+        right: &Location,
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError>;

@@ -153,12 +153,14 @@ impl Storage for MemStorage {
     type FactIndex = MemFactIndex;
     type FactPerspective = MemFactPerspective;
 
-    fn get_location(&self, id: &Id) -> Result<Option<Location>, StorageError> {
-        let Some(location) = self.commands.get(id) else {
-            return Ok(None);
-        };
-
-        Ok(Some(location.clone()))
+    fn get_location_from(
+        &self,
+        _location: &Location,
+        id: &Id,
+    ) -> Result<Option<Location>, StorageError> {
+        // FIXME(jdygert): Should filter reachable from location. Use default
+        // impl instead. Need to fix tests in this file.
+        Ok(self.commands.get(id).cloned())
     }
 
     fn get_command_id(&self, location: &Location) -> Result<Id, StorageError> {
@@ -169,19 +171,21 @@ impl Storage for MemStorage {
         Ok(command.id())
     }
 
-    fn get_linear_perspective(&self, id: &Id) -> Result<Option<Self::Perspective>, StorageError> {
-        let Some(location) = self.commands.get(id) else {
-            return Ok(None);
-        };
-
-        let segment = self.get_segment(location)?;
+    fn get_linear_perspective(
+        &self,
+        parent: &Location,
+    ) -> Result<Option<Self::Perspective>, StorageError> {
+        let segment = self.get_segment(parent)?;
+        if !segment.contains(parent) {
+            return Err(StorageError::CommandOutOfBounds(parent.clone()));
+        }
 
         let policy = segment.policy;
-        let prior_facts: FactPerspectivePrior = if location == &segment.head_location() {
+        let prior_facts: FactPerspectivePrior = if parent == &segment.head_location() {
             segment.facts.clone().into()
         } else {
             let mut facts = MemFactPerspective::new(segment.facts.prior.clone().into());
-            for data in &segment.commands[..=location.command] {
+            for data in &segment.commands[..=parent.command] {
                 facts.apply_updates(&data.updates);
             }
             if facts.map.is_empty() {
@@ -190,7 +194,7 @@ impl Storage for MemStorage {
                 facts.into()
             }
         };
-        let prior = Prior::Single(location.clone());
+        let prior = Prior::Single(parent.clone());
 
         let perspective = MemPerspective::new(prior, policy, prior_facts);
 
@@ -215,40 +219,26 @@ impl Storage for MemStorage {
         Ok(facts)
     }
 
-    fn new_merge_perspective<'a>(
+    fn new_merge_perspective(
         &self,
-        command: &impl Command<'a>,
+        left: &Location,
+        right: &Location,
         policy_id: PolicyId,
         braid: MemFactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError> {
         // TODO(jdygert): ensure braid belongs to this storage.
         // TODO(jdygert): ensure braid ends at given command?
 
-        let parent = command.parent();
-
-        let Prior::Merge(left, right) = parent else {
-            return Err(StorageError::NotMerge);
-        };
-
-        let Some(left_location) = self.commands.get(&left) else {
-            return Err(StorageError::NoSuchId(left));
-        };
-
-        let Some(right_location) = self.commands.get(&right) else {
-            return Err(StorageError::NoSuchId(right));
-        };
-
-        let left_policy_id = self.get_segment(left_location)?.policy;
-        let right_policy_id = self.get_segment(right_location)?.policy;
+        let left_policy_id = self.get_segment(left)?.policy;
+        let right_policy_id = self.get_segment(right)?.policy;
 
         if (policy_id != left_policy_id) && (policy_id != right_policy_id) {
             return Err(StorageError::PolicyMismatch);
         }
 
-        let prior = Prior::Merge(left_location.clone(), right_location.clone());
+        let prior = Prior::Merge(left.clone(), right.clone());
 
-        let mut perspective = MemPerspective::new(prior, policy_id, braid.into());
-        perspective.add_command(command)?;
+        let perspective = MemPerspective::new(prior, policy_id, braid.into());
 
         Ok(Some(perspective))
     }
@@ -700,7 +690,8 @@ mod test {
 
         pub fn line(&mut self, prev: u32, ids: &[u32]) {
             let mut prev = Id::from(prev);
-            let mut p = self.storage.get_linear_perspective(&prev).unwrap().unwrap();
+            let loc = self.storage.get_location(&prev).unwrap().unwrap();
+            let mut p = self.storage.get_linear_perspective(&loc).unwrap().unwrap();
             for &id in ids {
                 eval(&mut p, id);
                 p.add_command(&mkcmd(id, Prior::Single(prev), id)).unwrap();
@@ -712,11 +703,14 @@ mod test {
         pub fn merge(&mut self, (left, right): (u32, u32), ids: &[u32]) {
             let command = mkcmd(ids[0], Prior::Merge(left.into(), right.into()), 0);
             let braid = self.braid(left, right);
+            let left = self.storage.get_location(&left.into()).unwrap().unwrap();
+            let right = self.storage.get_location(&right.into()).unwrap().unwrap();
             let mut p = self
                 .storage
-                .new_merge_perspective(&command, PolicyId::new(0), braid)
+                .new_merge_perspective(&left, &right, PolicyId::new(0), braid)
                 .unwrap()
                 .unwrap();
+            p.add_command(&command).unwrap();
             for (&prev, &id) in core::iter::zip(ids, &ids[1..]) {
                 eval(&mut p, id);
                 p.add_command(&mkcmd(id, Prior::Single(Id::from(prev)), id))

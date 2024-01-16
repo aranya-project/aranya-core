@@ -164,7 +164,7 @@ where
 
         // Get the perspective
         let mut perspective = storage
-            .get_linear_perspective(&parent)?
+            .get_linear_perspective(&head)?
             .assume("can always get perspective at head")?;
 
         let policy_id = perspective.policy();
@@ -221,6 +221,18 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         }
     }
 
+    fn locate(&self, storage: &mut SP::Storage, id: &Id) -> Result<Option<Location>, ClientError> {
+        if let Some(found) = storage.get_location(id)? {
+            return Ok(Some(found));
+        }
+        for head in self.heads.values() {
+            if let Some(found) = storage.get_location_from(head, id)? {
+                return Ok(Some(found));
+            }
+        }
+        Ok(None)
+    }
+
     fn commit(
         &mut self,
         provider: &mut SP,
@@ -263,9 +275,10 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 let braid =
                     make_braid_segment::<_, E>(storage, &left_loc, &right_loc, sink, policy)?;
 
-                let perspective = storage
-                    .new_merge_perspective(&command, policy_id, braid)?
+                let mut perspective = storage
+                    .new_merge_perspective(&left_loc, &right_loc, policy_id, braid)?
                     .assume("trx heads should exist in storage")?;
+                perspective.add_command(&command)?;
 
                 let segment = storage.write(perspective)?;
 
@@ -301,7 +314,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         };
         // Handle remaining commands.
         for command in commands {
-            if storage.get_location(&command.id())?.is_some() {
+            if self.locate(storage, &command.id())?.is_some() {
                 // Command already added.
                 continue;
             }
@@ -310,7 +323,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     // This init command must have the wrong ID.
                 }
                 Prior::Single(parent) => {
-                    self.add_message(storage, engine, sink, command, parent)?;
+                    self.add_message(storage, engine, sink, command, &parent)?;
                 }
                 Prior::Merge(left, right) => {
                     self.add_merge(storage, engine, sink, command, left, right)?;
@@ -326,7 +339,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         engine: &mut E,
         sink: &mut impl Sink<E::Effects>,
         command: &impl Command<'a>,
-        parent: Id,
+        parent: &Id,
     ) -> Result<(), ClientError> {
         let perspective = self.get_perspective(parent, storage)?;
 
@@ -373,11 +386,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
         let braid = make_braid_segment::<_, E>(storage, &left_loc, &right_loc, sink, policy)?;
 
-        let perspective = storage
-            .new_merge_perspective(command, policy_id, braid)?
+        let mut perspective = storage
+            .new_merge_perspective(&left_loc, &right_loc, policy_id, braid)?
             .assume(
                 "we already found left and right locations above and we only call this with merge command",
             )?;
+        perspective.add_command(command)?;
 
         self.heads.remove(&left);
         self.heads.remove(&right);
@@ -390,10 +404,14 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
     fn get_perspective(
         &mut self,
-        parent: Id,
+        parent: &Id,
         storage: &mut <SP as StorageProvider>::Storage,
     ) -> Result<&mut <SP as StorageProvider>::Perspective, ClientError> {
-        if self.phead == Some(parent) {
+        let loc = self
+            .locate(storage, parent)?
+            .ok_or(ClientError::NoSuchParent(*parent))?;
+
+        if self.phead == Some(*parent) {
             // Command will append to current perspective.
             return Ok(self
                 .perspective
@@ -410,12 +428,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
         let p = self.perspective.insert(
             storage
-                .get_linear_perspective(&parent)?
-                .ok_or(ClientError::NoSuchParent(parent))?,
+                .get_linear_perspective(&loc)?
+                .assume("location should already be in storage")?,
         );
 
-        self.phead = Some(parent);
-        self.heads.remove(&parent);
+        self.phead = Some(*parent);
+        self.heads.remove(parent);
 
         Ok(p)
     }
