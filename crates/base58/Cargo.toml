@@ -15,9 +15,9 @@ workspace = true
 [features]
 default = []
 # Enable alloc
-alloc = []
+alloc = ["buggy/alloc"]
 # Enable std
-std = ["alloc"]
+std = ["alloc", "buggy/std"]
 
 [dependencies]
 buggy = { path = "../buggy" }

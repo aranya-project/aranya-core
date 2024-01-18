@@ -18,6 +18,7 @@ default = []
 # Enable allocations.
 alloc = [
 	"aes-gcm/alloc",
+	"buggy/alloc",
 	"der/alloc",
 	"ecdsa/alloc",
 	"postcard/alloc",
@@ -84,6 +85,7 @@ std = [
 	"dep:rand",
 
 	"aes-gcm/std",
+	"buggy/std",
 	"der/std",
 	"ecdsa/std",
 	"subtle/std",

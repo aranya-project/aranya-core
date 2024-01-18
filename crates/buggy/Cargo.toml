@@ -11,7 +11,8 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-std = ["trouble/std"]
+std = ["alloc", "trouble/std"]
+alloc = []
 
 [dependencies]
 cfg-if = { workspace = true }

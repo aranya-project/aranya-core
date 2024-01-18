@@ -41,16 +41,24 @@
     missing_docs
 )]
 
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 use core::{fmt, panic::Location};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 /// Error type for errors that should be unreachable, indicating a bug.
 ///
 /// Use [`bug`] to return a `Result<T, Bug>`.
-///
-/// If you need to keep your error type small, use `&'static str` instead of `Bug`,
-/// and use [`Bug::msg`] in your `From<Bug>` impl.
-pub struct Bug {
+pub struct Bug(
+    #[cfg(feature = "alloc")] Box<BugInner>,
+    #[cfg(not(feature = "alloc"))] BugInner,
+);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct BugInner {
     msg: &'static str,
     location: &'static Location<'static>,
 }
@@ -62,10 +70,11 @@ impl Bug {
     pub fn new(msg: &'static str) -> Self {
         cfg_if::cfg_if! {
             if #[cfg(any(test, doc, not(debug_assertions)))] {
-                Self {
+                #[allow(clippy::useless_conversion)]
+                Self(BugInner {
                     msg,
                     location: Location::caller(),
-                }
+                }.into())
             } else {{
                 #![allow(clippy::disallowed_macros)]
                 unreachable!("{}", msg)
@@ -89,14 +98,14 @@ impl Bug {
 
     /// Get the message used when creating the [`Bug`].
     pub fn msg(&self) -> &'static str {
-        self.msg
+        self.0.msg
     }
 }
 
 impl fmt::Display for Bug {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "bug: {}", self.msg)?;
-        writeln!(f, "location: {}", self.location)?;
+        writeln!(f, "bug: {}", self.0.msg)?;
+        writeln!(f, "location: {}", self.0.location)?;
         Ok(())
     }
 }
@@ -179,8 +188,8 @@ mod test {
         let err = val.assume(msg).unwrap_err();
         let after = Location::caller();
 
-        assert_between(err.location, before, after);
-        assert_eq!(err.msg, msg);
+        assert_between(err.0.location, before, after);
+        assert_eq!(err.0.msg, msg);
     }
 
     #[test]
@@ -192,8 +201,8 @@ mod test {
         let err = val.assume(msg).unwrap_err();
         let after = Location::caller();
 
-        assert_between(err.location, before, after);
-        assert_eq!(err.msg, msg);
+        assert_between(err.0.location, before, after);
+        assert_eq!(err.0.msg, msg);
     }
 
     fn assert_between(loc: &Location<'_>, before: &Location<'_>, after: &Location<'_>) {

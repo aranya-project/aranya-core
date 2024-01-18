@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 base58 = { path = "../base58" }
-buggy = { path = "../buggy" }
+buggy = { path = "../buggy", features = ["alloc"] }
 crypto = { path = "../crypto" }
 heapless = { workspace = true, features = ["serde"] }
 log = { workspace = true }

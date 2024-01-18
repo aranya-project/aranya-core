@@ -20,13 +20,14 @@ derive = []
 
 # Enable `std`.
 std = [
+	"buggy/std",
 	"crypto/std",
 	"policy-ast/std",
 	"trouble/std",
 ]
 
 [dependencies]
-buggy = { path = "../buggy" }
+buggy = { path = "../buggy", features = ["alloc"] }
 cfg-if = { workspace = true, default-features = false }
 crypto = { path = "../crypto", default-features = false }
 policy-ast = { path = "../policy-ast" }
