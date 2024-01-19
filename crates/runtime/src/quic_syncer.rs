@@ -8,6 +8,7 @@ use buggy::bug;
 use quinn::{ClientConfig, ConnectError, ConnectionError, Endpoint, ReadToEndError, WriteError};
 use tokio::{select, sync::Mutex as TMutex};
 use tokio_util::sync::CancellationToken;
+use tracing::error;
 
 use crate::{
     command::Id,
@@ -25,35 +26,35 @@ impl From<rustls::Error> for SyncError {
 
 impl From<WriteError> for SyncError {
     fn from(error: WriteError) -> Self {
-        log::error!("write error: {error}");
+        error!("write error: {error}");
         SyncError::NetworkError
     }
 }
 
 impl From<ReadToEndError> for SyncError {
     fn from(error: ReadToEndError) -> Self {
-        log::error!("read error: {error}");
+        error!("read error: {error}");
         SyncError::NetworkError
     }
 }
 
 impl From<ConnectionError> for SyncError {
     fn from(error: ConnectionError) -> Self {
-        log::error!("connection error: {error}");
+        error!("connection error: {error}");
         SyncError::NetworkError
     }
 }
 
 impl From<ConnectError> for SyncError {
     fn from(error: ConnectError) -> Self {
-        log::error!("connect error: {error}");
+        error!("connect error: {error}");
         SyncError::NetworkError
     }
 }
 
 impl From<std::io::Error> for SyncError {
     fn from(error: std::io::Error) -> Self {
-        log::error!("io error: {error}");
+        error!("io error: {error}");
         SyncError::NetworkError
     }
 }

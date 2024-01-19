@@ -32,6 +32,7 @@ unwrap_used = "warn"
 wildcard_imports = "warn"
 
 [workspace.dependencies]
+anyhow = { version = "1.0" }
 byteorder = { version = "1", default-features = false }
 cfg-if = { version = "1", default-features = false }
 const_format = { version = "0.2", default-features = false }
@@ -39,16 +40,17 @@ heapless = { version = "0.7", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
+prettyplease = { version = "0.2.15" }
+quinn = { version = "0.10.1" }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
-prettyplease = { version = "0.2.15" }
+rustls = { version = "0.21.0", default-features = false }
 serde = { version = "1", default-features = false }
 spin = { version = "0.9.8", default-features = false }
-quinn = { version = "0.10.1" }
+test-log = { version = "0.2", default-features = false, features = ["trace"] }
 tokio = { version = "1.28.1", default-features = false}
 tokio-util = { version = "0.7.8", default-features = false }
-rustls = { version = "0.21.0", default-features = false }
-anyhow = { version = "1.0" }
+tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 
 [profile.dev]
 panic = "abort"

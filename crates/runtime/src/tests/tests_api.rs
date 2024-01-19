@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use spin::Mutex;
 use tokio::sync::Mutex as TMutex;
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, error};
 
 use crate::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
@@ -152,7 +153,7 @@ where
     let cert_chain: Vec<rustls::Certificate> = vec![rustls::Certificate(cert_der)];
 
     for rule in actions {
-        dbg!(&rule);
+        debug!(?rule);
         match rule {
             TestRule::AddClient { id } => {
                 let engine = TestEngine::new();
@@ -194,7 +195,7 @@ where
                     );
                     tokio::spawn(async move {
                         if let Err(e) = fut.await {
-                            println!("sync error: {:?}", e)
+                            error!(cause = ?e, "sync error");
                         }
                     });
                 }
@@ -266,7 +267,7 @@ where
 macro_rules! yaml_test {
     ($backend:ident @ $($name:ident,)*) => {
     $(
-        #[tokio::test]
+        #[test_log::test(tokio::test)]
         async fn $name() -> Result<(),TestError> {
             let test_path = format!("{}/src/tests/{}.test", env!("CARGO_MANIFEST_DIR"), stringify!($name));
             let _mutex = NETWORK.lock().await;
@@ -314,6 +315,8 @@ mod memory {
 mod linear {
     // TODO(jdygert): Add in-memory linear io manager
 
+    use tracing::info;
+
     use super::*;
     use crate::storage::linear::*;
 
@@ -325,7 +328,7 @@ mod linear {
 
         fn new() -> Self {
             let tempdir = tempfile::tempdir().unwrap();
-            println!("Using tempdir {:?}", tempdir.path());
+            info!(path = ?tempdir.path(), "using tempdir");
             Self { tempdir }
         }
 
