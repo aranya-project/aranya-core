@@ -25,7 +25,7 @@ use crate::{
 
 /// A unique cryptographic ID.
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
 pub struct Id([u8; 64]);
 
 impl Id {
@@ -109,6 +109,12 @@ impl From<Tag<64>> for Id {
     #[inline]
     fn from(id: Tag<64>) -> Self {
         Self(id.into())
+    }
+}
+
+impl Debug for Id {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Id({})", self.0.to_base58())
     }
 }
 
@@ -256,7 +262,7 @@ macro_rules! custom_id {
 
         impl ::core::fmt::Debug for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                write!(f, concat!(stringify!($name), " {}"), self.0)
+                write!(f, concat!(stringify!($name), "({})"), self.0)
             }
         }
     };
