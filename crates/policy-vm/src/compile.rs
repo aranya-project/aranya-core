@@ -636,19 +636,14 @@ impl<'a> CompileState<'a> {
                 ) => {
                     // Ensure there are no duplicate arm values. Note that this is not completely reliable, because arm values are expressions, evaluated at runtime.
                     // Note: we don't check for zero arms, because that's syntactically invalid.
-                    if let Some(last_index) = s.arms.len().checked_sub(1) {
-                        for i in 0..last_index {
-                            let next = i.checked_add(1).assume("i + 1 must not wrap")?;
-                            for j in next..s.arms.len() {
-                                if s.arms[i].value == s.arms[j].value {
-                                    return Err(CompileError::new(
-                                        CompileErrorType::AlreadyDefined(String::from(
-                                            "duplicate match value",
-                                        )),
-                                    ));
-                                }
-                            }
-                        }
+                    if find_duplicate(&s.arms, |a| &a.value).is_some() {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::AlreadyDefined(String::from(
+                                "duplicate match arm value",
+                            )),
+                            statement.locator,
+                            self.m.codemap.as_ref(),
+                        ));
                     }
 
                     self.compile_expression(&s.expression)?;
@@ -845,6 +840,15 @@ impl<'a> CompileState<'a> {
         self.define_label(Label::new_temp(&function.identifier), self.wp)?;
         self.map_range(function_node)?;
         self.define_function_signature(function_node)?;
+
+        if let Some(identifier) = find_duplicate(&function.arguments, |a| &a.identifier) {
+            return Err(CompileError::from_locator(
+                CompileErrorType::AlreadyDefined(identifier.clone()),
+                function_node.locator,
+                self.m.codemap.as_ref(),
+            ));
+        }
+
         for arg in function.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
             self.append_instruction(Instruction::Def);
@@ -1047,4 +1051,27 @@ pub fn compile_from_policy(
     let mut cs = CompileState::new(machine, ffi_modules);
     cs.compile(policy)?;
     Ok(cs.into_machine())
+}
+
+/// Checks whether a vector has duplicate values, and returns the first one, if found.
+///
+/// Not suitable for large vectors, because complexity is O(n^2).
+fn find_duplicate<T, F, E>(vec: &[T], value: F) -> Option<&E>
+where
+    F: Fn(&T) -> &E,
+    E: PartialEq,
+{
+    if vec.len() < 2 {
+        return None;
+    }
+
+    for (i, v1) in vec.iter().enumerate() {
+        for v2 in &vec[..i] {
+            if value(v1) == value(v2) {
+                return Some(value(v1));
+            }
+        }
+    }
+
+    None
 }

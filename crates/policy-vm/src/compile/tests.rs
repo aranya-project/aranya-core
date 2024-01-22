@@ -3,7 +3,10 @@
 use policy_ast::Version;
 use policy_lang::lang::parse_policy_str;
 
-use crate::{compile::error::CallColor, compile_from_policy, CompileErrorType, Label, LabelType};
+use crate::{
+    compile::error::CallColor, compile_from_policy, CompileError, CompileErrorType, Label,
+    LabelType,
+};
 
 #[test]
 fn test_undefined_struct() -> anyhow::Result<()> {
@@ -104,6 +107,32 @@ fn test_function_wrong_number_arguments() -> anyhow::Result<()> {
             "call to `f` has 0 arguments and it should have 1"
         ))
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_function_duplicate_arg_names() -> anyhow::Result<()> {
+    let text = r#"
+        function f(x int, x int) int {
+            return 1
+        }
+
+        function g() int {
+            return f(1, 2)
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let result = compile_from_policy(&policy, &[]);
+
+    assert!(matches!(
+        result,
+        Err(CompileError {
+            err_type: CompileErrorType::AlreadyDefined(_),
+            ..
+        })
+    ));
 
     Ok(())
 }
