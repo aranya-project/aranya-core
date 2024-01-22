@@ -5,6 +5,7 @@ use std::{
     sync::Arc,
 };
 
+use crypto::Rng;
 use once_cell::sync::Lazy;
 use quinn::{ConnectionError, ReadToEndError, ServerConfig, WriteError};
 use serde::{Deserialize, Serialize};
@@ -136,8 +137,6 @@ where
 {
     let mut backend = SB::new();
 
-    let session_id = 7;
-
     let mut commands = BTreeMap::new();
     let actions: Vec<TestRule> = read(file)?;
     let cancel_token = CancellationToken::new();
@@ -190,7 +189,6 @@ where
                         client.clone(),
                         storage_id,
                         endpoint,
-                        session_id,
                         sink.clone(),
                     );
                     tokio::spawn(async move {
@@ -216,7 +214,7 @@ where
                     return Err(TestError::MissingGraph(graph));
                 };
 
-                let request_syncer = SyncRequester::new(session_id, *storage_id);
+                let request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
 
                 assert!(request_syncer.ready());
 

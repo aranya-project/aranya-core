@@ -5,6 +5,7 @@ use alloc::{sync::Arc, vec};
 use core::{convert::Infallible, fmt, mem};
 
 use buggy::{bug, Bug, BugExt};
+use crypto::Csprng;
 use heapless::Vec;
 use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
 use serde::{Deserialize, Serialize};
@@ -264,7 +265,7 @@ impl<'a> Command<'a> for SyncCommand<'a> {
 
 pub trait SyncState {
     /// Return thge session id for this state;
-    fn session_id(&self) -> u128;
+    fn session_id(&self) -> Result<u128, SyncError>;
 
     /// Receive a sync message. Returns an option
     /// of a slive of up parsed protocol messages.
@@ -310,7 +311,12 @@ pub struct SyncRequester<'a> {
 }
 
 impl SyncRequester<'_> {
-    pub fn new(session_id: u128, storage_id: Id) -> Self {
+    pub fn new<R: Csprng>(storage_id: Id, rng: &mut R) -> Self {
+        // Randomly generate session id.
+        let mut dst = [0u8; 16];
+        rng.fill_bytes(&mut dst);
+        let session_id = u128::from_le_bytes(dst);
+
         SyncRequester {
             session_id,
             storage_id,
@@ -321,8 +327,10 @@ impl SyncRequester<'_> {
         }
     }
 
-    pub fn end_session(session_id: u128, target: &mut [u8]) -> Result<usize, SyncError> {
-        let message = SyncMessage::EndSession { session_id };
+    fn end_session(&mut self, target: &mut [u8]) -> Result<usize, SyncError> {
+        let message = SyncMessage::EndSession {
+            session_id: self.session_id,
+        };
 
         let written = to_slice(&message, target)?;
 
@@ -418,8 +426,8 @@ impl SyncRequester<'_> {
 }
 
 impl SyncState for SyncRequester<'_> {
-    fn session_id(&self) -> u128 {
-        self.session_id
+    fn session_id(&self) -> Result<u128, SyncError> {
+        Ok(self.session_id)
     }
 
     fn receive<'a>(
@@ -560,7 +568,7 @@ impl SyncState for SyncRequester<'_> {
             S::Resync => self.resume(self.max_bytes, target)?,
             S::Reset => {
                 self.state = S::Closed;
-                Self::end_session(self.session_id, target)?
+                self.end_session(target)?
             }
         };
 
@@ -586,8 +594,15 @@ enum SyncResponderState {
     Stopped,
 }
 
+impl Default for SyncResponderState {
+    fn default() -> Self {
+        Self::New
+    }
+}
+
+#[derive(Default)]
 pub struct SyncResponder {
-    session_id: u128,
+    session_id: Option<u128>,
     storage_id: Option<Id>,
     state: SyncResponderState,
     bytes_sent: u64,
@@ -597,9 +612,9 @@ pub struct SyncResponder {
 }
 
 impl SyncResponder {
-    pub fn new(session_id: u128) -> Self {
+    pub fn new() -> Self {
         SyncResponder {
-            session_id,
+            session_id: None,
             storage_id: None,
             state: SyncResponderState::New,
             bytes_sent: 0,
@@ -720,7 +735,7 @@ impl SyncResponder {
         }
 
         let message = SyncMessage::SyncResponse {
-            session_id: self.session_id,
+            session_id: self.session_id()?,
             index: index as u64,
             commands,
         };
@@ -750,8 +765,8 @@ impl SyncResponder {
 }
 
 impl SyncState for SyncResponder {
-    fn session_id(&self) -> u128 {
-        self.session_id
+    fn session_id(&self) -> Result<u128, SyncError> {
+        Ok(self.session_id.assume("session id is set")?)
     }
 
     fn receive<'a>(
@@ -761,6 +776,12 @@ impl SyncState for SyncResponder {
         use SyncMessage::*;
 
         let message: SyncMessage = from_bytes(data)?;
+        if self.session_id.is_none() {
+            self.session_id = Some(message.session_id());
+        }
+        if self.session_id != Some(message.session_id()) {
+            return Err(SyncError::SessionMismatch);
+        }
 
         match message {
             // We should not receive these.
@@ -836,7 +857,7 @@ impl SyncState for SyncResponder {
             S::Reset => {
                 self.state = S::Stopped;
                 let message = SyncMessage::EndSession {
-                    session_id: self.session_id,
+                    session_id: self.session_id()?,
                 };
                 write(target, message)?
             }

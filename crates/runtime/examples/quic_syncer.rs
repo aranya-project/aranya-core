@@ -14,6 +14,7 @@ use std::{error::Error, fmt, fs, io, net::SocketAddr, sync::Arc, thread, time};
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
+use crypto::Rng;
 use quinn::ServerConfig;
 use runtime::{
     engine::Sink,
@@ -77,11 +78,10 @@ async fn sync_peer(
     client: tokio::sync::MutexGuard<'_, ClientState<TestEngine, MemStorageProvider>>,
     cert_chain: Vec<rustls::Certificate>,
     sink: &mut LockedSink<PrintSink>,
-    session_id: u128,
     storage_id: Id,
     server_addr: SocketAddr,
 ) {
-    let syncer = SyncRequester::new(session_id, storage_id);
+    let syncer = SyncRequester::new(storage_id, &mut Rng::new());
     let fut = sync(
         client,
         syncer,
@@ -130,7 +130,6 @@ async fn run(options: Opt) -> Result<()> {
 
     let client = Arc::new(TMutex::new(ClientState::new(engine, storage)));
     let mut sink = LockedSink::new(Arc::new(Mutex::new(PrintSink {})));
-    let session_id = 7;
     let storage_id;
     if options.new_graph {
         let policy_data = 0_u64.to_be_bytes();
@@ -167,7 +166,6 @@ async fn run(options: Opt) -> Result<()> {
         client.clone(),
         storage_id,
         endpoint,
-        session_id,
         sink.clone(),
     );
     tokio::spawn(async move {
@@ -175,14 +173,12 @@ async fn run(options: Opt) -> Result<()> {
             println!("sync error: {:?}", e)
         }
     });
-    let session_id = 7;
     // Initial sync to sync the Init command
     if !options.new_graph {
         sync_peer(
             client.lock().await,
             cert_chain.clone(),
             &mut sink,
-            session_id,
             storage_id,
             options.peer,
         )
@@ -204,7 +200,6 @@ async fn run(options: Opt) -> Result<()> {
                 client.lock().await,
                 cert_chain.clone(),
                 &mut sink,
-                session_id,
                 storage_id,
                 options.peer,
             )

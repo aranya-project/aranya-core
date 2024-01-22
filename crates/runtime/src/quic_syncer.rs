@@ -4,7 +4,6 @@
 use alloc::sync::Arc;
 use std::net::{Ipv4Addr, SocketAddr};
 
-use buggy::bug;
 use quinn::{ClientConfig, ConnectError, ConnectionError, Endpoint, ReadToEndError, WriteError};
 use tokio::{select, sync::Mutex as TMutex};
 use tokio_util::sync::CancellationToken;
@@ -14,8 +13,7 @@ use crate::{
     command::Id,
     engine::{Engine, Sink},
     storage::StorageProvider,
-    ClientState, LockedSink, SyncError, SyncRequester, SyncResponder, SyncState,
-    MAX_SYNC_MESSAGE_SIZE,
+    ClientState, LockedSink, SyncError, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
 
 impl From<rustls::Error> for SyncError {
@@ -64,7 +62,6 @@ pub async fn run_syncer<T, EN, SP>(
     client: Arc<TMutex<ClientState<EN, SP>>>,
     storage_id: Id,
     endpoint: Endpoint,
-    session_id: u128,
     sink: LockedSink<T>,
 ) -> Result<(), SyncError>
 where
@@ -75,8 +72,7 @@ where
 {
     let future = tokio::spawn(async move {
         while let Some(conn) = endpoint.accept().await {
-            let _ =
-                handle_connection(conn, client.clone(), session_id, storage_id, sink.clone()).await;
+            let _ = handle_connection(conn, client.clone(), storage_id, sink.clone()).await;
         }
     });
     select! {
@@ -93,7 +89,6 @@ where
 async fn handle_connection<T, EN, SP>(
     conn: quinn::Connecting,
     client: Arc<TMutex<ClientState<EN, SP>>>,
-    session_id: u128,
     storage_id: Id,
     sink: LockedSink<T>,
 ) -> Result<(), SyncError>
@@ -113,14 +108,13 @@ where
         }
         Ok(s) => s,
     };
-    handle_request(stream, client, session_id, storage_id, sink).await?;
+    handle_request(stream, client, storage_id, sink).await?;
     Ok(())
 }
 
 async fn handle_request<T, EN, SP>(
     (mut send, mut recv): (quinn::SendStream, quinn::RecvStream),
     client: Arc<TMutex<ClientState<EN, SP>>>,
-    session_id: u128,
     storage_id: Id,
     mut sink: LockedSink<T>,
 ) -> Result<(), SyncError>
@@ -130,11 +124,7 @@ where
     LockedSink<T>: Sink<<EN as Engine>::Effects>,
 {
     let req = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
-    let mut response_syncer = SyncResponder::new(session_id);
-    let request_syncer = SyncRequester::new(session_id, storage_id);
-    if !request_syncer.ready() {
-        bug!("new syncer should always be ready");
-    }
+    let mut response_syncer = SyncResponder::new();
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let target = {

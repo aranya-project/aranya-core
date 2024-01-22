@@ -12,6 +12,7 @@ use std::{
 
 use anyhow::Result;
 use criterion::{criterion_group, criterion_main, Criterion};
+use crypto::Rng;
 use quinn::{Endpoint, ServerConfig};
 use runtime::{
     memory::MemStorageProvider,
@@ -95,7 +96,6 @@ fn sync_bench(c: &mut Criterion) {
     c.bench_function("quic sync", |b| {
         b.to_async(&rt).iter_custom(|iters| async move {
             // setup
-            let session_id = 7;
             let cancel_token = CancellationToken::new();
             let mut response_sink = LockedSink::new(Arc::new(Mutex::new(CountSink::new())));
             let mut request_sink = LockedSink::new(Arc::new(Mutex::new(CountSink::new())));
@@ -130,7 +130,6 @@ fn sync_bench(c: &mut Criterion) {
                 response_client.clone(),
                 storage_id,
                 endpoint,
-                session_id,
                 response_sink.clone(),
             );
             tokio::spawn(async move {
@@ -148,7 +147,7 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.sink().lock().count() < iters.try_into().unwrap() {
-                let syncer = SyncRequester::new(session_id, storage_id);
+                let syncer = SyncRequester::new(storage_id, &mut Rng::new());
                 let fut = sync(
                     request_client.lock().await,
                     syncer,
