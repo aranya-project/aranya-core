@@ -28,7 +28,8 @@ impl Engine for ModelEngine {
     type Effects = ModelEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
-        // TODO: (Scott) Implement once this is implemented in the policy_vm
+        // TODO: (Scott) Implement once `add_policy` method is implemented in the policy_vm
+        // For now return dummy PolicyId
         Ok(PolicyId::new(policy[0] as usize))
     }
 
@@ -93,9 +94,9 @@ pub trait Model {
     fn sync(
         &mut self,
         graph_proxy_id: ProxyGraphID,
-        client_proxy_id: ProxyClientID,
         source_client_proxy_id: ProxyClientID,
-    ) -> Result<Self::Effects, ModelError>;
+        dest_client_proxy_id: ProxyClientID,
+    ) -> Result<(), ModelError>;
 }
 
 #[cfg(test)]

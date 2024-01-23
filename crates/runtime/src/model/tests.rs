@@ -3,13 +3,14 @@ use core::cell::RefCell;
 extern crate alloc;
 use alloc::{borrow::Cow, collections::BTreeMap, string::String, vec::Vec};
 
+use crypto::Rng;
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{compile_from_policy, KVPair, Value};
 
 use super::{Model, ModelEffect, ModelEngine, ModelError, ProxyClientID, ProxyGraphID};
 use crate::{
     command::Id, engine::Sink, storage::memory::MemStorageProvider, vm_policy::VmPolicy,
-    ClientState,
+    ClientState, SyncRequester, SyncResponder, SyncState, MAX_SYNC_MESSAGE_SIZE,
 };
 
 const TEST_POLICY_1: &str = r#"---
@@ -54,12 +55,14 @@ command Increment {
     fields {
         key_a int,
         key_b int,
+        value int,
     }
     seal { return None }
     open { return None }
     policy {
         let stuff = unwrap query Stuff[a: this.key_a, b: this.key_b]=>{x: ?}
-        let new_x = stuff.x + 1
+        let new_x = stuff.x + this.value
+        check new_x < 25
         finish {
             update Stuff[a: this.key_a, b: this.key_b]=>{x: stuff.x} to {x: new_x}
             effect StuffHappened{a: this.key_a, b: this.key_b, x: new_x}
@@ -67,35 +70,11 @@ command Increment {
     }
 }
 
-action increment() {
+action increment(v int) {
     emit Increment{
         key_a: 1,
         key_b: 2,
-    }
-}
-
-command Add_five {
-    fields {
-        key_a int,
-        key_b int,
-    }
-    seal { return None }
-    open { return None }
-    policy {
-        let stuff = unwrap query Stuff[a: this.key_a, b: this.key_b]=>{x: ?}
-        let new_x = stuff.x + 5
-        check stuff.x < 20
-        finish {
-            update Stuff[a: this.key_a, b: this.key_b]=>{x: stuff.x} to {x: new_x}
-            effect StuffHappened{a: this.key_a, b: this.key_b, x: new_x}
-        }
-    }
-}
-
-action add_five() {
-    emit Add_five{
-        key_a: 1,
-        key_b: 2,
+        value: v,
     }
 }
 
@@ -103,12 +82,13 @@ command Decrement {
     fields {
         key_a int,
         key_b int,
+        value int,
     }
     seal { return None }
     open { return None }
     policy {
         let stuff = unwrap query Stuff[a: this.key_a, b: this.key_b]=>{x: ?}
-        let new_x = stuff.x - 1
+        let new_x = stuff.x - value
         finish {
             update Stuff[a: this.key_a, b: this.key_b]=>{x: stuff.x} to {x: new_x}
             effect StuffHappened{a: this.key_a, b: this.key_b, x: new_x}
@@ -116,10 +96,11 @@ command Decrement {
     }
 }
 
-action decrement() {
+action decrement(v int) {
     emit Decrement{
         key_a: 1,
         key_b: 2,
+        value: v,
     }
 }
 ```
@@ -180,7 +161,6 @@ impl Sink<ModelEffect> for TestSink {
     }
 
     fn rollback(&mut self) {
-        println!("sink rollback");
         self.rejected_command_count = self
             .rejected_command_count
             .checked_add(1)
@@ -256,6 +236,7 @@ impl Model for TestModel {
         let mut metrics = Self::Metrics::default();
 
         metrics.update(&sink);
+
         client.metrics.insert(proxy_id, metrics);
 
         Ok(sink.effects)
@@ -321,19 +302,123 @@ impl Model for TestModel {
     fn sync(
         &mut self,
         graph_proxy_id: ProxyGraphID,
-        client_proxy_id: ProxyClientID,
         source_client_proxy_id: ProxyClientID,
-    ) -> Result<Self::Effects, ModelError> {
-        // TODO: (Scott) Add logic for syncing local clients
-        // https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues/436
-        // Do something...
-        println!(
-            "Syncing client {} with client {} for graph {}",
-            client_proxy_id, source_client_proxy_id, graph_proxy_id
-        );
+        dest_client_proxy_id: ProxyClientID,
+    ) -> Result<(), ModelError> {
+        let mut request_sink = TestSink::default();
+        let mut response_sink = TestSink::default();
 
-        Ok(vec![])
+        // Destination of the sync
+        let mut request_state = self
+            .clients
+            .get(&dest_client_proxy_id)
+            .expect("Could not get client")
+            .state
+            .borrow_mut();
+
+        // Source of the sync
+        let mut response_state = self
+            .clients
+            .get(&source_client_proxy_id)
+            .expect("Could not get client")
+            .state
+            .borrow_mut();
+
+        let storage_id = self
+            .storage_ids
+            .get(&graph_proxy_id)
+            .expect("Could not get storage id");
+
+        unidirectional_sync(
+            storage_id,
+            &mut request_state,
+            &mut response_state,
+            &mut request_sink,
+            &mut response_sink,
+        )?;
+
+        drop(response_state);
+        drop(request_state);
+
+        // Source of the sync
+        self.clients
+            .get_mut(&source_client_proxy_id)
+            .expect("Could not get client")
+            .metrics
+            .entry(graph_proxy_id)
+            .or_default()
+            .update(&response_sink);
+
+        // Destination of the sync
+        self.clients
+            .get_mut(&dest_client_proxy_id)
+            .expect("Could not get client")
+            .metrics
+            .entry(graph_proxy_id)
+            .or_default()
+            .update(&request_sink);
+
+        Ok(())
     }
+}
+
+fn unidirectional_sync(
+    storage_id: &Id,
+    request_state: &mut ClientState<ModelEngine, MemStorageProvider>,
+    response_state: &mut ClientState<ModelEngine, MemStorageProvider>,
+    request_sink: &mut TestSink,
+    response_sink: &mut TestSink,
+) -> Result<(), ModelError> {
+    let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
+    let mut response_syncer = SyncResponder::new();
+
+    // TODO: (Scott) request_trx and response_trx should be moved out side of the loop once https://git.spideroak-inc.com/spideroak-inc/flow3-rs/pull/502 it merged in.
+
+    assert!(request_syncer.ready());
+
+    // TODO: (Scott) Once https://git.spideroak-inc.com/spideroak-inc/flow3-rs/pull/476 gets merged in we'll need to initiate another loop or run of unidirectional_sync func. The syncer will only queue up to 100 segments to sync at a time.
+
+    loop {
+        if !request_syncer.ready() && !response_syncer.ready() {
+            break;
+        }
+
+        if request_syncer.ready() {
+            let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let len = request_state.sync_poll(&mut request_syncer, &mut buffer)?;
+            let mut response_trx = response_state.transaction(storage_id);
+
+            response_state.sync_receive(
+                &mut response_trx,
+                response_sink,
+                &mut response_syncer,
+                &buffer[0..len],
+            )?;
+
+            response_state
+                .commit(&mut response_trx, request_sink)
+                .expect("Should commit the transaction");
+        }
+
+        if response_syncer.ready() {
+            let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let len = response_state.sync_poll(&mut response_syncer, &mut buffer)?;
+            let mut request_trx = request_state.transaction(storage_id);
+
+            request_state.sync_receive(
+                &mut request_trx,
+                request_sink,
+                &mut request_syncer,
+                &buffer[0..len],
+            )?;
+
+            request_state
+                .commit(&mut request_trx, request_sink)
+                .expect("Should commit the transaction");
+        }
+    }
+
+    Ok(())
 }
 
 #[test]
@@ -373,7 +458,7 @@ fn test_runtime_model() {
     )];
     assert_eq!(effects, expected);
 
-    let action = ("increment", [].as_slice().into());
+    let action = ("increment", [Value::Int(1)].as_slice().into());
     let effects = test_model
         .action(1, 1, action)
         .expect("Should return effect");
@@ -388,37 +473,7 @@ fn test_runtime_model() {
     )];
     assert_eq!(effects, expected);
 
-    let action = ("increment", [].as_slice().into());
-    let effects = test_model
-        .action(1, 1, action)
-        .expect("Should return effect");
-    assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(5)),
-        ],
-    )];
-    assert_eq!(effects, expected);
-
-    let action = ("add_five", [].as_slice().into());
-    let effects = test_model
-        .action(1, 1, action)
-        .expect("Should return effect");
-    assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(10)),
-        ],
-    )];
-    assert_eq!(effects, expected);
-
-    let action = ("decrement", [].as_slice().into());
+    let action = ("increment", [Value::Int(5)].as_slice().into());
     let effects = test_model
         .action(1, 1, action)
         .expect("Should return effect");
@@ -433,7 +488,44 @@ fn test_runtime_model() {
     )];
     assert_eq!(effects, expected);
 
-    let action = ("add_five", [].as_slice().into());
+    let metrics = test_model
+        .get_statistics(1, 1)
+        .expect("Should return metrics");
+    assert_eq!(metrics.effect_count, 3);
+    assert_eq!(metrics.accepted_command_count, 4);
+    assert_eq!(metrics.rejected_command_count, 0);
+    assert_eq!(metrics.step_count, 4);
+
+    test_model
+        .add_client(2, TEST_POLICY_1)
+        .expect("Client not be created");
+
+    test_model.sync(1, 1, 2).expect("Should sync clients");
+
+    let metrics = test_model
+        .get_statistics(2, 1)
+        .expect("Should return metrics");
+    assert_eq!(metrics.effect_count, 3);
+    assert_eq!(metrics.accepted_command_count, 4);
+    assert_eq!(metrics.rejected_command_count, 0);
+    assert_eq!(metrics.step_count, 4);
+
+    let action = ("increment", [Value::Int(1)].as_slice().into());
+    let effects = test_model
+        .action(2, 1, action)
+        .expect("Should return effect");
+    assert_eq!(effects.len(), 1);
+    let expected = vec![(
+        String::from("StuffHappened"),
+        vec![
+            KVPair::new("a", Value::Int(1)),
+            KVPair::new("b", Value::Int(2)),
+            KVPair::new("x", Value::Int(10)),
+        ],
+    )];
+    assert_eq!(effects, expected);
+
+    let action = ("increment", [Value::Int(5)].as_slice().into());
     let effects = test_model
         .action(1, 1, action)
         .expect("Should return effect");
@@ -448,7 +540,17 @@ fn test_runtime_model() {
     )];
     assert_eq!(effects, expected);
 
-    let action = ("add_five", [].as_slice().into());
+    test_model.sync(1, 2, 1).expect("Should sync clients");
+
+    let metrics = test_model
+        .get_statistics(1, 1)
+        .expect("Should return metrics");
+    assert_eq!(metrics.effect_count, 6);
+    assert_eq!(metrics.accepted_command_count, 7);
+    assert_eq!(metrics.rejected_command_count, 0);
+    assert_eq!(metrics.step_count, 7);
+
+    let action = ("increment", [Value::Int(1)].as_slice().into());
     let effects = test_model
         .action(1, 1, action)
         .expect("Should return effect");
@@ -458,54 +560,43 @@ fn test_runtime_model() {
         vec![
             KVPair::new("a", Value::Int(1)),
             KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(19)),
+            KVPair::new("x", Value::Int(16)),
         ],
     )];
     assert_eq!(effects, expected);
 
-    let action = ("add_five", [].as_slice().into());
-    let effects = test_model
-        .action(1, 1, action)
-        .expect("Should return effect");
-    assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(24)),
-        ],
-    )];
-    assert_eq!(effects, expected);
+    test_model.sync(1, 1, 2).expect("Should sync clients");
 
-    // It should fail
-    let action = ("add_five", [].as_slice().into());
+    let metrics = test_model
+        .get_statistics(2, 1)
+        .expect("Should return metrics");
+    assert_eq!(metrics.effect_count, 7);
+    assert_eq!(metrics.accepted_command_count, 8);
+    assert_eq!(metrics.rejected_command_count, 0);
+    assert_eq!(metrics.step_count, 8);
+
+    let metrics = test_model
+        .get_statistics(1, 1)
+        .expect("Should return metrics");
+    assert_eq!(metrics.effect_count, 7);
+    assert_eq!(metrics.accepted_command_count, 8);
+    assert_eq!(metrics.rejected_command_count, 0);
+    assert_eq!(metrics.step_count, 8);
+
+    // This test case should fail
+    // The `increment` command has a policy condition to only allow a final x value under 25.
+    let action = ("increment", [Value::Int(25)].as_slice().into());
     let effects = test_model
         .action(1, 1, action)
         .expect_err("Should fail policy");
     assert!(matches!(effects, ModelError::Client(_)));
 
-    let action = ("decrement", [].as_slice().into());
-    let effects = test_model
-        .action(1, 1, action)
-        .expect("Should return effect");
-    assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(23)),
-        ],
-    )];
-    assert_eq!(effects, expected);
-
     let metrics = test_model
         .get_statistics(1, 1)
         .expect("Should return metrics");
-
-    assert_eq!(metrics.effect_count, 9);
-    assert_eq!(metrics.accepted_command_count, 10);
+    assert_eq!(metrics.effect_count, 7);
+    assert_eq!(metrics.accepted_command_count, 8);
+    // TODO: (Scott) Once #463 is merged in, this will be 1 rejected command.
     assert_eq!(metrics.rejected_command_count, 0);
-    assert_eq!(metrics.step_count, 11);
+    assert_eq!(metrics.step_count, 9);
 }
