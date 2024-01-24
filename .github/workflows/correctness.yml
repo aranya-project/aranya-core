@@ -40,7 +40,7 @@ jobs:
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
-          os: ${{ matrix.os }}
+          os: "self-hosted-linux-amd64"
       - name: Install nightly
         run: rustup toolchain install nightly
       - name: Check formatting
@@ -49,8 +49,7 @@ jobs:
   lint-code:
     strategy:
       matrix:
-        os:
-          [
+        os: [
             # TODO(eric): re-enable after we get macOS runners.
             # "macos-latest",
             "self-hosted-linux-arm",
@@ -66,21 +65,15 @@ jobs:
       - name: Clean temp files
         run: rm -rf ${{ github.workspace }}/_temp
         if: ${{ matrix.os == 'self-hosted-linux-arm' }}
-      - uses: ./.github/actions/setup
+      - name: Setup Environment
+        uses: ./.github/actions/setup
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: ${{ matrix.os }}
-      - name: Check code
-        run: cargo check-all-features --examples --benches
-      - name: Clippy
-        # Set the working directory to run the clippy script
-        working-directory: crates
-        # Run clippy with default features, no default features, and for tests
-        run: bash ../.github/scripts/clippy.sh
-      - name: Check no_std compatibility
-        run: cargo check
-        working-directory: canaries/canary-std
-      - name: Check no_alloc compatibility
-        run: cargo check
-        working-directory: canaries/canary-alloc
+      - name: Check Features
+        run: cargo make check-features
+      - name: Run clippy test
+        run: cargo make clippy
+      - name: Check Canaries
+        run: cargo make check-canaries

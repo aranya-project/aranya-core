@@ -43,13 +43,14 @@ jobs:
       - uses: actions/checkout@v3
       - name: Clean temp files
         run: rm -rf ${{ github.workspace }}/_temp
-        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+        if: ${{ matrix.target.os == 'self-hosted-linux-arm' }}
       - uses: ./.github/actions/setup
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: ${{ matrix.target.os }}
           target: ${{ matrix.target.suffix }}
-
       - name: Build code
-        run: cargo --verbose build-all-features --release
+        run: cargo make build-code
+      - name: Verify build didn't change any checked-in files
+        run: cargo make git-unchanged

@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v3
       - name: Clean temp files
         run: rm -rf ${{ github.workspace }}/_temp
-        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+        if: ${{ matrix.target.os == 'self-hosted-linux-arm' }}
       - uses: ./.github/actions/setup
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
@@ -47,12 +47,7 @@ jobs:
           target: ${{ matrix.target.suffix }}
 
       - name: Run cargo audit
-        run: |
-          cargo install --version 0.18.2 cargo-audit --force
-          cargo generate-lockfile
-          cargo audit
+        run: cargo make cargo-audit
 
       - name: Run cargo deny
-        run: |
-          cargo install --version 0.14.3 --locked cargo-deny --force
-          cargo deny check
+        run: cargo make cargo-deny

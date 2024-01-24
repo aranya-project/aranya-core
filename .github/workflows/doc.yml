@@ -39,14 +39,14 @@ jobs:
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: "self-hosted-linux-amd64"
       - name: Install nightly
-        run: rustup toolchain install nightly
+        run: cargo make install-nightly
       - name: Generate docs
         env:
           RUSTDOCFLAGS: "--cfg docs -Dwarnings"
         run: |
           if ! command -v zip; then
             sudo apt-get install -y zip \
-              --no-install-recommends
+            --no-install-recommends
           fi
           cargo +nightly doc --all-features --workspace
           zip -qr docs.zip target/doc

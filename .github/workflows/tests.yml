@@ -29,8 +29,7 @@ jobs:
   unit-tests:
     strategy:
       matrix:
-        os:
-          [
+        os: [
             # TODO(eric): re-enable after we get macOS runners.
             # "macos-latest",
             "self-hosted-linux-arm",
@@ -46,10 +45,11 @@ jobs:
       - name: Clean temp files
         run: rm -rf ${{ github.workspace }}/_temp
         if: ${{ matrix.os == 'self-hosted-linux-arm' }}
-      - uses: ./.github/actions/setup
+      - name: Setup Environment
+        uses: ./.github/actions/setup
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
           os: ${{ matrix.os }}
       - name: Unit Tests
-        run: cargo test-all-features
+        run: cargo make unit-tests

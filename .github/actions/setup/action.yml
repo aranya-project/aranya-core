@@ -1,21 +1,21 @@
-name: 'Setup build tools'
-description: 'Action for setting up build tools'
+name: "Setup build tools"
+description: "Action for setting up build tools"
 inputs:
   gh-token:
-    description: 'github.com Access Token'
+    description: "github.com Access Token"
     required: true
   ghe-token:
-    description: 'git.spideroak-inc.com Access Token'
+    description: "git.spideroak-inc.com Access Token"
     required: true
   go-version:
-    description: 'Go version'
+    description: "Go version"
     required: true
-    default: 'stable'
+    default: "stable"
   os:
-    description: 'OS being used (e.g., macos-latest)'
+    description: "OS being used (e.g., macos-latest)"
     required: true
   target:
-    description: 'OS-arch target being compiled for (e.g., linux-arm64)'
+    description: "OS-arch target being compiled for (e.g., linux-arm64)"
 runs:
   using: "composite"
   steps:
@@ -97,8 +97,11 @@ runs:
       shell: bash
       run: ldd --version
       if: ${{ inputs.os == 'self-hosted-linux-arm' }}
-    - name: Intall cargo-all-features
-      run: cargo install --version '^1.10' --force cargo-all-features
+    - name: Install cargo-make
+      run: cargo install --version '^0.37.5' --locked --force cargo-make
+      shell: bash
+    - name: Install cargo-all-features
+      run: cargo make all-features-install
       shell: bash
       if: ${{ inputs.target != 'vxworks-ppc' }}
 

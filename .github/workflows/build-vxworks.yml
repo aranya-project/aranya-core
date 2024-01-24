@@ -48,8 +48,8 @@ jobs:
       - name: nuke old .gitconfig
         run: rm ~/.gitconfig || true
       - uses: actions/checkout@v3
-
-      - uses: ./.github/actions/setup
+      - name: Setup Environment
+        uses: ./.github/actions/setup
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
@@ -61,7 +61,7 @@ jobs:
         with:
           workflow: main.yml
           workflow_conclusion: success
-          check_artifacts:  true
+          check_artifacts: true
           search_artifacts: true
           branch: master
           name: ${{ env.PPC }}.tar.gz
@@ -72,13 +72,16 @@ jobs:
         run: |
           tar -xzf ${{ env.PPC }}.tar.gz
 
+      - name: Setup VxWorks Environment
+        run: cargo make setup-vxworks-env
+
       # For now, only try to build the `crypto` crate since it's
       # the only crate that's used on VxWorks.
       - name: Build code
         env:
-          CARGO_BUILD_TARGET: powerpc-wrs-vxworks
           RUSTUP_TOOLCHAIN: nightly
           CARGO_UNSTABLE_BUILD_STD: core,alloc
+          CARGO_BUILD_TARGET: powerpc-wrs-vxworks
           TARGET_AR: ${{ env.PPC_BIN }}/${{ env.PPC }}-ar
           TARGET_CC: ${{ env.PPC_BIN }}/${{ env.PPC }}-gcc
           TARGET_CXX: ${{ env.PPC_BIN }}/${{ env.PPC }}-g++
@@ -86,14 +89,7 @@ jobs:
           TARGET_NM: ${{ env.PPC_BIN }}/${{ env.PPC }}-nm
           TARGET_RANLIB: ${{ env.PPC_BIN }}/${{ env.PPC }}-ranlib
           TARGET_STRIP: ${{ env.PPC_BIN }}/${{ env.PPC }}-strip
-        run: |
-          rustup toolchain install nightly --component rust-src
-          cargo rustc \
-            --package crypto \
-            --lib \
-            --crate-type lib \
-            --verbose \
-            --release \
-            --no-default-features \
-            --target powerpc-wrs-vxworks \
-            --features ${{ matrix.variant.features }}
+        run: cargo make build-vxworks-code --features ${{ matrix.variant.features }}
+
+      - name: Verify build didn't change any checked-in files
+        run: cargo make git-unchanged
