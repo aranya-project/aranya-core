@@ -12,18 +12,17 @@ use crate::{
     aead::Aead,
     ciphersuite::SuiteIds,
     csprng::Csprng,
-    engine::Engine,
+    engine::{unwrapped, Engine},
     error::Error,
     groupkey::GroupKey,
     hash::tuple_hash,
     hpke::{Hpke, Mode},
     id::Id,
-    import::{ExportError, Import, ImportError},
+    import::{Import, ImportError},
     kem::{DecapKey, Kem},
     keys::{PublicKey, SecretKey},
-    misc::{ciphertext, key_misc, DecapKeyData, SigData, SigningKeyData},
+    misc::{ciphertext, key_misc, SigData},
     signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
-    zeroize::ZeroizeOnDrop,
 };
 
 /// A signature created by a signing key.
@@ -94,7 +93,6 @@ impl<'de, E: Engine + ?Sized> Deserialize<'de> for Signature<E> {
 }
 
 /// The private half of [`IdentityKey`].
-#[derive(ZeroizeOnDrop)]
 pub struct IdentityKey<E: Engine + ?Sized>(<E::Signer as Signer>::SigningKey);
 
 key_misc!(IdentityKey, IdentityVerifyingKey, UserId);
@@ -116,8 +114,10 @@ impl<E: Engine + ?Sized> IdentityKey<E> {
     /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
     /// # {
     /// use crypto::{
-    ///     DefaultCipherSuite,
-    ///     DefaultEngine,
+    ///     default::{
+    ///         DefaultCipherSuite,
+    ///         DefaultEngine,
+    ///     },
     ///     IdentityKey,
     ///     Rng,
     /// };
@@ -159,16 +159,13 @@ impl<E: Engine + ?Sized> IdentityKey<E> {
         let sig = self.0.sign(&sum)?;
         Ok(Signature(sig))
     }
+}
 
-    // Utility routines for other modules.
-
-    pub(crate) fn import(data: &[u8]) -> Result<Self, ImportError> {
-        let sk = <E::Signer as Signer>::SigningKey::import(data)?;
-        Ok(Self(sk))
-    }
-    pub(crate) fn try_export_secret(&self) -> Result<SigningKeyData<E>, ExportError> {
-        self.0.try_export_secret()
-    }
+unwrapped! {
+    name: IdentityKey;
+    type: Signing;
+    into: |key: Self| { key.0 };
+    from: |key| { Self(key) };
 }
 
 /// The public half of [`IdentityKey`].
@@ -204,7 +201,6 @@ impl<E: Engine + ?Sized> IdentityVerifyingKey<E> {
 }
 
 /// The private half of [`SigningKey`].
-#[derive(ZeroizeOnDrop)]
 pub struct SigningKey<E: Engine + ?Sized>(<E::Signer as Signer>::SigningKey);
 
 key_misc!(SigningKey, VerifyingKey, SigningKeyId);
@@ -226,8 +222,10 @@ impl<E: Engine + ?Sized> SigningKey<E> {
     /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
     /// # {
     /// use crypto::{
-    ///     DefaultCipherSuite,
-    ///     DefaultEngine,
+    ///     default::{
+    ///         DefaultCipherSuite,
+    ///         DefaultEngine,
+    ///     },
     ///     Rng,
     ///     SigningKey,
     /// };
@@ -269,16 +267,13 @@ impl<E: Engine + ?Sized> SigningKey<E> {
         let sig = self.0.sign(&sum)?;
         Ok(Signature(sig))
     }
+}
 
-    // Utility routines for other modules.
-
-    pub(crate) fn import(data: &[u8]) -> Result<Self, ImportError> {
-        let sk = <E::Signer as Signer>::SigningKey::import(data)?;
-        Ok(Self(sk))
-    }
-    pub(crate) fn try_export_secret(&self) -> Result<SigningKeyData<E>, ExportError> {
-        self.0.try_export_secret()
-    }
+unwrapped! {
+    name: SigningKey;
+    type: Signing;
+    into: |key: Self| { key.0 };
+    from: |key| { Self(key) };
 }
 
 /// The public half of [`SigningKey`].
@@ -314,7 +309,6 @@ impl<E: Engine + ?Sized> VerifyingKey<E> {
 }
 
 /// The private half of [`EncryptionKey`].
-#[derive(ZeroizeOnDrop)]
 pub struct EncryptionKey<E: Engine + ?Sized>(pub(crate) <E::Kem as Kem>::DecapKey);
 
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
@@ -356,17 +350,13 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
         ctx.open(&mut seed, ciphertext.as_bytes(), &info)?;
         Ok(GroupKey::from_seed(seed))
     }
+}
 
-    // Utility routines for other modules.
-
-    pub(crate) fn import(data: &[u8]) -> Result<Self, ImportError> {
-        let sk = <E::Kem as Kem>::DecapKey::import(data)?;
-        Ok(Self(sk))
-    }
-
-    pub(crate) fn try_export_secret(&self) -> Result<DecapKeyData<E>, ExportError> {
-        self.0.try_export_secret()
-    }
+unwrapped! {
+    name: EncryptionKey;
+    type: Decap;
+    into: |key: Self| { key.0 };
+    from: |key| { Self(key) };
 }
 
 /// The public half of [`EncryptionKey`].
@@ -411,6 +401,7 @@ pub struct Encap<E: Engine + ?Sized>(pub(crate) <E::Kem as Kem>::Encap);
 
 impl<E: Engine + ?Sized> Encap<E> {
     /// Encodes itself as bytes.
+    #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         self.0.borrow()
     }

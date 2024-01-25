@@ -72,6 +72,22 @@ impl<N: ArrayLength> Random for GenericArray<u8, N> {
     }
 }
 
+impl<const N: usize> Random for [u8; N] {
+    fn random<R: Csprng>(rng: &mut R) -> Self {
+        let mut v = [0u8; N];
+        rng.fill_bytes(&mut v);
+        v
+    }
+}
+
+impl Random for u128 {
+    fn random<R: Csprng>(rng: &mut R) -> Self {
+        let mut v = [0u8; 16];
+        rng.fill_bytes(&mut v);
+        u128::from_le_bytes(v)
+    }
+}
+
 #[cfg(feature = "moonshot")]
 pub(crate) mod moonshot {
     use core::iter::{IntoIterator, Iterator};

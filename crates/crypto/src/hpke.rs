@@ -21,7 +21,6 @@
 #![allow(non_snake_case)]
 
 use core::{
-    borrow::Borrow,
     fmt::{self, Debug, Display},
     marker::PhantomData,
     num::NonZeroU16,
@@ -29,23 +28,40 @@ use core::{
 };
 
 use buggy::{bug, Bug, BugExt};
+use generic_array::ArrayLength;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
-use typenum::Unsigned;
 
 use crate::{
     aead::{Aead, IndCca2, KeyData, Nonce, OpenError, SealError},
     csprng::Csprng,
     import::{ExportError, Import, ImportError},
-    kdf::{Derive, Kdf, KdfError},
+    kdf::{Context, Expand, Kdf, KdfError, Prk},
     kem::{Kem, KemError},
 };
 
+/// Converts `v` to a big-endian byte array.
 macro_rules! i2osp {
     ($v:expr) => {
         $v.to_be_bytes()
     };
+    ($v:expr, $n:ty) => {{
+        let src = $v.to_be_bytes();
+        let mut dst = generic_array::GenericArray::<u8, $n>::default();
+        // Copy `src` into `dst`, padding with zeros on the
+        // left.
+        //
+        // NB: the compiler knows how to optimize this. Don't
+        // rewrite it without verifying the assembly.
+        let idx = dst.len().abs_diff(src.len());
+        if dst.len() >= src.len() {
+            dst[idx..].copy_from_slice(&src);
+        } else {
+            dst.copy_from_slice(&src[idx..]);
+        }
+        dst
+    }};
 }
 
 /// An HPKE operation mode.
@@ -112,6 +128,18 @@ impl<'a, T> Mode<'a, T> {
     }
 }
 
+/// The PSK or its ID are empty.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct InvalidPsk;
+
+impl Display for InvalidPsk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("invalid pre-shared key: PSK or PSK ID are empty")
+    }
+}
+
+impl trouble::Error for InvalidPsk {}
+
 /// A pre-shared key and its ID.
 #[cfg_attr(test, derive(Debug))]
 #[derive(Copy, Clone)]
@@ -124,10 +152,10 @@ pub struct Psk<'a> {
 
 impl<'a> Psk<'a> {
     /// Creates a [`Psk`] from a pre-shared key and its ID.
-    pub fn new(psk: &'a [u8], psk_id: &'a [u8]) -> Result<Self, HpkeError> {
+    pub fn new(psk: &'a [u8], psk_id: &'a [u8]) -> Result<Self, InvalidPsk> {
         // See Section 5.1, `VerifyPSKInputs`.
         if psk.is_empty() || psk_id.is_empty() {
-            Err(HpkeError::InvalidPsk)
+            Err(InvalidPsk)
         } else {
             Ok(Self { psk, psk_id })
         }
@@ -302,8 +330,6 @@ pub enum HpkeError {
     Import(ImportError),
     /// A key could not be exported.
     Export(ExportError),
-    /// The pre-shared key or its ID are invalid.
-    InvalidPsk,
     /// The encryption context has been used to send the maximum
     /// number of messages.
     MessageLimitReached,
@@ -320,7 +346,6 @@ impl Display for HpkeError {
             Self::Kem(err) => write!(f, "{}", err),
             Self::Import(err) => write!(f, "{}", err),
             Self::Export(err) => write!(f, "{}", err),
-            Self::InvalidPsk => write!(f, "invalid pre-shared key"),
             Self::MessageLimitReached => write!(f, "message limit reached"),
             Self::Bug(err) => write!(f, "{err}"),
         }
@@ -336,7 +361,6 @@ impl trouble::Error for HpkeError {
             Self::Kem(err) => Some(err),
             Self::Import(err) => Some(err),
             Self::Export(err) => Some(err),
-            Self::InvalidPsk => None,
             Self::MessageLimitReached => None,
             Self::Bug(err) => Some(err),
         }
@@ -506,27 +530,27 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> Hpke<K, F, A> {
         let Psk { psk, psk_id } = mode.psk();
 
         //  psk_id_hash = LabeledExtract("", "psk_id_hash", psk_id)
-        let psk_id_hash = Self::labeled_extract(b"", b"psk_id_hash", psk_id);
+        let psk_id_hash = Self::labeled_extract(b"", "psk_id_hash", psk_id);
 
         //  info_hash = LabeledExtract("", "info_hash", info)
-        let info_hash = Self::labeled_extract(b"", b"info_hash", info);
+        let info_hash = Self::labeled_extract(b"", "info_hash", info);
 
         //  key_schedule_context = concat(mode, psk_id_hash, info_hash)
-        let ks_ctx = Info::KeySched([mode.id()], psk_id_hash, info_hash);
+        let ks_ctx = [&[mode.id()], psk_id_hash.as_bytes(), info_hash.as_bytes()];
 
         //  secret = LabeledExtract(shared_secret, "secret", psk)
-        let secret = Self::labeled_extract(shared_secret.borrow(), b"secret", psk);
+        let secret = Self::labeled_extract(shared_secret.as_ref(), "secret", psk);
 
         // key = LabeledExpand(secret, "key", key_schedule_context, Nk)
-        let key: KeyData<A> = Self::labeled_expand(&secret, b"key", &ks_ctx)?;
+        let key = Self::labeled_expand(&secret, "key", &ks_ctx)?;
 
         // base_nonce = LabeledExpand(secret, "base_nonce",
         //                      key_schedule_context, Nn)
-        let base_nonce = Self::labeled_expand(&secret, b"base_nonce", &ks_ctx)?;
+        let base_nonce = Self::labeled_expand(&secret, "base_nonce", &ks_ctx)?;
 
         // exporter_secret = LabeledExpand(secret, "exp",
         //                           key_schedule_context, Nh)
-        let exporter_secret = Self::labeled_expand(&secret, b"exp", &ks_ctx)?;
+        let exporter_secret = Self::labeled_expand(&secret, "exp", &ks_ctx)?;
 
         Ok(Schedule {
             key,
@@ -536,82 +560,52 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> Hpke<K, F, A> {
         })
     }
 
+    const HPKE_CTX: Context = Context {
+        domain: "HPKE-v1",
+        suite_ids: &Self::HPKE_SUITE_ID,
+    };
+
     /// Performs `LabeledExtract`.
-    fn labeled_extract<const N: usize>(salt: &[u8], label: &[u8; N], ikm: &[u8]) -> F::Prk {
+    fn labeled_extract(salt: &[u8], label: &'static str, ikm: &[u8]) -> Prk<F::PrkSize> {
         // def LabeledExtract(salt, label, ikm):
         //     labeled_ikm = concat("HPKE-v1", suite_id, label, ikm)
-        let labeled_ikm = ["HPKE-v1".as_bytes(), &Self::HPKE_SUITE_ID, label, ikm];
-        // Note that `Kdf::extract` takes its arguments in
-        // a different order than the HPKE RFC.
-        //
-        //     Extract(salt, labeled_ikm)
-        F::extract_multi(&labeled_ikm, salt)
+        //     return Extract(salt, labeled_ikm)
+        Self::HPKE_CTX.labeled_extract::<F>(salt, label, ikm)
     }
 
     /// Performs `LabeledExpand`.
-    fn labeled_expand<T, const M: usize>(
-        prk: &F::Prk,
-        label: &[u8; M],
-        info: &Info<'_, F>,
-    ) -> Result<T, KdfError>
-    where
-        T: Derive,
-    {
-        let (a, b, c) = info.parts();
-        let size = u16::try_from(T::Size::USIZE).assume("`T::Size` should be under `u16::MAX`")?;
+    fn labeled_expand<T: Expand>(
+        prk: &Prk<F::PrkSize>,
+        label: &'static str,
+        info: &[&[u8]],
+    ) -> Result<T, KdfError> {
         // def LabeledExpand(prk, label, info, L):
         //     labeled_info = concat(I2OSP(L, 2), "HPKE-v1", suite_id,
         //                 label, info)
-        let labeled_info = [
-            &(i2osp!(size))[..],
-            "HPKE-v1".as_bytes(),
-            &Self::HPKE_SUITE_ID,
-            label,
-            a,
-            b,
-            c,
-        ];
-        // Note that `Kdf::expand` takes its arguments in
-        // a different order than the HPKE RFC.
-        //
         //     return Expand(prk, labeled_info, L)
-        let v = T::expand_multi::<F>(prk, &labeled_info).map_err(Into::into)?;
-        Ok(v)
+        let key = Self::HPKE_CTX.labeled_expand::<F, T>(prk, label, info)?;
+        Ok(key)
     }
 
     /// Performs `LabeledExpand`.
-    fn labeled_expand_into<const M: usize>(
+    fn labeled_expand_into(
         out: &mut [u8],
-        prk: &F::Prk,
-        label: &[u8; M],
-        info: &Info<'_, F>,
+        prk: &Prk<F::PrkSize>,
+        label: &'static str,
+        info: &[&[u8]],
     ) -> Result<(), KdfError> {
-        let (a, b, c) = info.parts();
-        let size = u16::try_from(out.len()).assume("`T::Size` should be under `u16::MAX`")?;
         // def LabeledExpand(prk, label, info, L):
         //     labeled_info = concat(I2OSP(L, 2), "HPKE-v1", suite_id,
         //                 label, info)
-        let labeled_info = [
-            &(i2osp!(size))[..],
-            "HPKE-v1".as_bytes(),
-            &Self::HPKE_SUITE_ID,
-            label,
-            a,
-            b,
-            c,
-        ];
-        // Note that `Kdf::expand` takes its arguments in
-        // a different order than the HPKE RFC.
-        //
         //     return Expand(prk, labeled_info, L)
-        F::expand_multi(out, prk, &labeled_info)
+        Self::HPKE_CTX.labeled_expand_into::<F>(out, prk, label, info)
     }
 }
 
 struct Schedule<K: Kem, F: Kdf, A: Aead + IndCca2> {
     key: KeyData<A>,
     base_nonce: Nonce<A::NonceSize>,
-    exporter_secret: F::Prk,
+    exporter_secret: Prk<F::PrkSize>,
     _kem: PhantomData<K>,
 }
 
@@ -627,20 +621,6 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> Schedule<K, F, A> {
         RecvCtx {
             open: Either::Right((self.key, self.base_nonce)),
             export: ExportCtx::new(self.exporter_secret),
-        }
-    }
-}
-
-enum Info<'a, F: Kdf> {
-    KeySched([u8; 1], F::Prk, F::Prk),
-    Export(&'a [u8]),
-}
-
-impl<F: Kdf> Info<'_, F> {
-    fn parts(&self) -> (&[u8], &[u8], &[u8]) {
-        match self {
-            Self::KeySched(a, b, c) => (a.as_ref(), b.borrow(), c.borrow()),
-            Self::Export(v) => (v, b"", b""),
         }
     }
 }
@@ -690,7 +670,7 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> SendCtx<K, F, A> {
         }
     }
 
-    fn seal_ctx(&mut self) -> Result<&mut SealCtx<A>, HpkeError> {
+    fn seal_ctx(&mut self) -> Result<&mut SealCtx<A>, ImportError> {
         self.seal
             .get_or_insert_left(|(key, nonce)| SealCtx::new(key, nonce, Seq::ZERO))
     }
@@ -706,7 +686,7 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> SendCtx<K, F, A> {
         dst: &mut [u8],
         plaintext: &[u8],
         additional_data: &[u8],
-    ) -> Result<Seq<A>, HpkeError> {
+    ) -> Result<Seq, HpkeError> {
         self.seal_ctx()?.seal(dst, plaintext, additional_data)
     }
 
@@ -717,14 +697,14 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> SendCtx<K, F, A> {
         data: impl AsMut<[u8]>,
         tag: &mut [u8],
         additional_data: &[u8],
-    ) -> Result<Seq<A>, HpkeError> {
+    ) -> Result<Seq, HpkeError> {
         self.seal_ctx()?.seal_in_place(data, tag, additional_data)
     }
 
     /// Exports a secret from the encryption context.
     pub fn export<T>(&self, context: &[u8]) -> Result<T, KdfError>
     where
-        T: Derive,
+        T: Expand,
     {
         self.export.export(context)
     }
@@ -744,7 +724,7 @@ pub struct SealCtx<A: Aead + IndCca2> {
     aead: A,
     base_nonce: Nonce<A::NonceSize>,
     /// Incremented after each call to `seal`.
-    seq: Seq<A>,
+    seq: Seq,
 }
 
 impl<A: Aead + IndCca2> SealCtx<A> {
@@ -754,14 +734,22 @@ impl<A: Aead + IndCca2> SealCtx<A> {
     pub(crate) fn new(
         key: &KeyData<A>,
         base_nonce: &Nonce<A::NonceSize>,
-        seq: Seq<A>,
-    ) -> Result<Self, HpkeError> {
+        seq: Seq,
+    ) -> Result<Self, ImportError> {
         let key = A::Key::import(key.as_bytes())?;
         Ok(Self {
             aead: A::new(&key),
             base_nonce: base_nonce.clone(),
             seq,
         })
+    }
+
+    fn compute_nonce(&self) -> Result<Nonce<A::NonceSize>, MessageLimitReached> {
+        self.seq.compute_nonce::<A::NonceSize>(&self.base_nonce)
+    }
+
+    fn increment_seq(&mut self) -> Result<Seq, Bug> {
+        self.seq.increment::<A::NonceSize>()
     }
 
     /// Encrypts and authenticates `plaintext`, returning the
@@ -775,11 +763,10 @@ impl<A: Aead + IndCca2> SealCtx<A> {
         dst: &mut [u8],
         plaintext: &[u8],
         additional_data: &[u8],
-    ) -> Result<Seq<A>, HpkeError> {
-        let nonce = self.seq.compute_nonce(&self.base_nonce)?;
-        self.aead
-            .seal(dst, nonce.as_ref(), plaintext, additional_data)?;
-        let prev = self.seq.increment()?;
+    ) -> Result<Seq, HpkeError> {
+        let nonce = self.compute_nonce()?;
+        self.aead.seal(dst, &nonce, plaintext, additional_data)?;
+        let prev = self.increment_seq()?;
         Ok(prev)
     }
 
@@ -790,16 +777,16 @@ impl<A: Aead + IndCca2> SealCtx<A> {
         mut data: impl AsMut<[u8]>,
         tag: &mut [u8],
         additional_data: &[u8],
-    ) -> Result<Seq<A>, HpkeError> {
-        let nonce = self.seq.compute_nonce(&self.base_nonce)?;
+    ) -> Result<Seq, HpkeError> {
+        let nonce = self.compute_nonce()?;
         self.aead
-            .seal_in_place(nonce.as_ref(), data.as_mut(), tag, additional_data)?;
-        let prev = self.seq.increment()?;
+            .seal_in_place(&nonce, data.as_mut(), tag, additional_data)?;
+        let prev = self.increment_seq()?;
         Ok(prev)
     }
 
     /// Returns the current sequence number.
-    pub fn seq(&self) -> Seq<A> {
+    pub fn seq(&self) -> Seq {
         self.seq
     }
 }
@@ -822,12 +809,13 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> RecvCtx<K, F, A> {
         }
     }
 
-    fn open_ctx(&mut self) -> Result<&mut OpenCtx<A>, HpkeError> {
+    fn open_ctx(&mut self) -> Result<&mut OpenCtx<A>, ImportError> {
         self.open
             .get_or_insert_left(|(key, nonce)| OpenCtx::new(key, nonce, Seq::ZERO))
     }
 
-    /// Decrypts and authenticates `ciphertext`.
+    /// Decrypts and authenticates `ciphertext` using the
+    /// internal sequence number.
     ///
     /// The resulting plaintext is written to `dst`, which must
     /// must be at least `ciphertext.len()` - [`Self::OVERHEAD`]
@@ -852,7 +840,7 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> RecvCtx<K, F, A> {
         dst: &mut [u8],
         ciphertext: &[u8],
         additional_data: &[u8],
-        seq: Seq<A>,
+        seq: Seq,
     ) -> Result<(), HpkeError> {
         self.open_ctx()?
             .open_at(dst, ciphertext, additional_data, seq)
@@ -875,7 +863,7 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> RecvCtx<K, F, A> {
         data: impl AsMut<[u8]>,
         tag: &[u8],
         additional_data: &[u8],
-        seq: Seq<A>,
+        seq: Seq,
     ) -> Result<(), HpkeError> {
         self.open_ctx()?
             .open_in_place_at(data, tag, additional_data, seq)
@@ -884,7 +872,7 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> RecvCtx<K, F, A> {
     /// Exports a secret from the encryption context.
     pub fn export<T>(&self, context: &[u8]) -> Result<T, KdfError>
     where
-        T: Derive,
+        T: Expand,
     {
         self.export.export(context)
     }
@@ -904,7 +892,7 @@ pub struct OpenCtx<A: Aead + IndCca2> {
     aead: A,
     base_nonce: Nonce<A::NonceSize>,
     /// Incremented after each call to `open`.
-    seq: Seq<A>,
+    seq: Seq,
 }
 
 impl<A: Aead + IndCca2> OpenCtx<A> {
@@ -914,14 +902,18 @@ impl<A: Aead + IndCca2> OpenCtx<A> {
     pub(crate) fn new(
         key: &KeyData<A>,
         base_nonce: &Nonce<A::NonceSize>,
-        seq: Seq<A>,
-    ) -> Result<Self, HpkeError> {
+        seq: Seq,
+    ) -> Result<Self, ImportError> {
         let key = A::Key::import(key.as_bytes())?;
         Ok(Self {
             aead: A::new(&key),
             base_nonce: base_nonce.clone(),
             seq,
         })
+    }
+
+    fn increment_seq(&mut self) -> Result<Seq, Bug> {
+        self.seq.increment::<A::NonceSize>()
     }
 
     /// Decrypts and authenticates `ciphertext`.
@@ -935,9 +927,8 @@ impl<A: Aead + IndCca2> OpenCtx<A> {
         ciphertext: &[u8],
         additional_data: &[u8],
     ) -> Result<(), HpkeError> {
-        let seq = self.seq;
-        self.open_at(dst, ciphertext, additional_data, seq)?;
-        self.seq.increment()?;
+        self.open_at(dst, ciphertext, additional_data, self.seq)?;
+        self.increment_seq()?;
         Ok(())
     }
 
@@ -952,11 +943,10 @@ impl<A: Aead + IndCca2> OpenCtx<A> {
         dst: &mut [u8],
         ciphertext: &[u8],
         additional_data: &[u8],
-        seq: Seq<A>,
+        seq: Seq,
     ) -> Result<(), HpkeError> {
-        let nonce = seq.compute_nonce(&self.base_nonce)?;
-        self.aead
-            .open(dst, nonce.as_ref(), ciphertext, additional_data)?;
+        let nonce = seq.compute_nonce::<A::NonceSize>(&self.base_nonce)?;
+        self.aead.open(dst, &nonce, ciphertext, additional_data)?;
         Ok(())
     }
 
@@ -967,11 +957,8 @@ impl<A: Aead + IndCca2> OpenCtx<A> {
         tag: &[u8],
         additional_data: &[u8],
     ) -> Result<(), HpkeError> {
-        let seq = self.seq;
-        let nonce = seq.compute_nonce(&self.base_nonce)?;
-        self.aead
-            .open_in_place(nonce.as_ref(), data.as_mut(), tag, additional_data)?;
-        self.seq.increment()?;
+        self.open_in_place_at(data.as_mut(), tag, additional_data, self.seq)?;
+        self.increment_seq()?;
         Ok(())
     }
 
@@ -982,11 +969,11 @@ impl<A: Aead + IndCca2> OpenCtx<A> {
         mut data: impl AsMut<[u8]>,
         tag: &[u8],
         additional_data: &[u8],
-        seq: Seq<A>,
+        seq: Seq,
     ) -> Result<(), HpkeError> {
-        let nonce = seq.compute_nonce(&self.base_nonce)?;
+        let nonce = seq.compute_nonce::<A::NonceSize>(&self.base_nonce)?;
         self.aead
-            .open_in_place(nonce.as_ref(), data.as_mut(), tag, additional_data)?;
+            .open_in_place(&nonce, data.as_mut(), tag, additional_data)?;
         Ok(())
     }
 }
@@ -1003,115 +990,97 @@ impl Display for MessageLimitReached {
 
 impl trouble::Error for MessageLimitReached {}
 
-/// A sequence number.
-///
-/// This should be the size of the nonce, but it's vanishingly
-/// unlikely that we'll ever overflow. Since encryption contexts
-/// can only be used serially, we can only overflow if the user
-/// actually performs 2^64-1 operations. At an impossible one
-/// nanosecond per op, this will take upward of 500 years.
-#[derive(Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Seq<A> {
+/// Sequence numbers ensure nonce uniqueness.
+#[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct Seq {
+    /// The sequence number.
+    ///
+    /// It's encoded as a big-endian integer (I2OSP) and XORed
+    /// with the `base_nonce`.
+    ///
+    /// This should be the size of the nonce, but it's
+    /// vanishingly unlikely that we'll ever overflow. Since
+    /// encryption contexts ([`SealCtx`], etc.) can only be used
+    /// serially, we can only overflow if the user actually
+    /// performs 2^64-1 operations. At an impossible one
+    /// nanosecond per encryption, this will take upward of 500
+    /// years.
     seq: u64,
-    _aead: PhantomData<A>,
 }
 
-impl<A> Copy for Seq<A> {}
-impl<A> Clone for Seq<A> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<A: Aead> Seq<A> {
+impl Seq {
     /// The zero value of a `Seq`.
-    pub const ZERO: Self = Self {
-        seq: 0,
-        _aead: PhantomData,
-    };
+    pub const ZERO: Self = Self::new(0);
 
     /// Creates a sequence number.
-    ///
-    /// It returns an error if the sequence number is out of
-    /// range.
-    pub fn new(seq: u64) -> Result<Self, MessageLimitReached> {
-        Self::check(seq)?;
-        Ok(Self {
-            seq,
-            _aead: PhantomData,
-        })
+    #[inline]
+    pub const fn new(seq: u64) -> Self {
+        Self { seq }
     }
 
     /// Converts itself to a `u64`.
+    #[inline]
     pub const fn to_u64(self) -> u64 {
         self.seq
     }
 
-    /// Returns `2^n - 1` or [`u64::MAX`] if the operation would
-    /// overflow.
-    const fn max(n: usize) -> u64 {
-        if n > 8 {
-            u64::MAX
-        } else {
-            (1 << (8 * n as u64)) - 1
-        }
-    }
-
-    /// Checks that `seq` is valid.
-    fn check(seq: u64) -> Result<(), MessageLimitReached> {
-        // if self.seq >= (1 << (8*Nn)) - 1:
-        //     raise MessageLimitReachedError
-        if seq >= Self::max(A::NONCE_SIZE) {
-            Err(MessageLimitReached)
-        } else {
-            Ok(())
+    /// Returns the maximum allowed sequence number.
+    const fn max<N: ArrayLength>() -> u64 {
+        // 1<<(8*N) - 1
+        let shift = 8usize.saturating_mul(N::USIZE);
+        match 1u64.checked_shl(shift as u32) {
+            Some(v) => v.saturating_sub(1),
+            None => u64::MAX,
         }
     }
 
     /// Increments the sequence by one and returns the *previous*
     /// sequence number.
-    fn increment(&mut self) -> Result<Self, Bug> {
+    fn increment<N: ArrayLength>(&mut self) -> Result<Self, Bug> {
+        // if self.seq >= (1 << (8*Nn)) - 1:
+        //     raise MessageLimitReachedError
+        if self.seq >= Self::max::<N>() {
+            // We only call `Seq::increment` after computing the
+            // nonce, which requires `seq < Self::max`.
+            bug!("`Seq::increment` called after limit reached");
+        }
         // self.seq += 1
-        let old = self.seq;
-        self.seq = old
+        let prev = self.seq;
+        self.seq = prev
             .checked_add(1)
-            .assume("sequence wrap around should be impossible")?;
-        Ok(Self {
-            seq: old,
-            _aead: PhantomData,
-        })
+            .assume("`Seq` overflow should be impossible")?;
+        Ok(Self { seq: prev })
     }
 
-    fn compute_nonce(
-        &self,
-        base_nonce: &Nonce<A::NonceSize>,
-    ) -> Result<Nonce<A::NonceSize>, HpkeError> {
-        Self::check(self.seq)?;
+    /// Computes the per-message nonce.
+    fn compute_nonce<N: ArrayLength>(
+        self,
+        base_nonce: &Nonce<N>,
+    ) -> Result<Nonce<N>, MessageLimitReached> {
+        if self.seq >= Self::max::<N>() {
+            Err(MessageLimitReached)
+        } else {
+            //  seq_bytes = I2OSP(seq, Nn)
+            let seq_bytes = i2osp!(self.seq, N);
+            // xor(self.base_nonce, seq_bytes)
+            Ok(base_nonce ^ &Nonce::from_bytes(seq_bytes))
+        }
+    }
+}
 
-        //  seq_bytes = I2OSP(seq, Nn)
-        let seq_bytes = {
-            let mut out = Nonce::<A::NonceSize>::default();
-            let seq = i2osp!(self.seq);
-            let len = out.len();
-            if len >= seq.len() {
-                out.as_mut()[len - seq.len()..].copy_from_slice(&seq);
-            } else {
-                out.as_mut().copy_from_slice(&seq[..len]);
-            }
-            out
-        };
-        // xor(self.base_nonce, seq_bytes)
-        Ok(base_nonce ^ &seq_bytes)
+impl Display for Seq {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.seq)
     }
 }
 
 struct ExportCtx<K: Kem, F: Kdf, A: Aead + IndCca2> {
-    exporter_secret: F::Prk,
+    exporter_secret: Prk<F::PrkSize>,
     _etc: PhantomData<(K, A)>,
 }
 
 impl<K: Kem, F: Kdf, A: Aead + IndCca2> ExportCtx<K, F, A> {
-    fn new(exporter_secret: F::Prk) -> Self {
+    fn new(exporter_secret: Prk<F::PrkSize>) -> Self {
         Self {
             exporter_secret,
             _etc: PhantomData,
@@ -1121,12 +1090,12 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> ExportCtx<K, F, A> {
     /// Exports a secret from the context.
     fn export<T>(&self, context: &[u8]) -> Result<T, KdfError>
     where
-        T: Derive,
+        T: Expand,
     {
         // def Context.Export(exporter_context, L):
         //   return LabeledExpand(self.exporter_secret, "sec",
         //                        exporter_context, L)
-        Hpke::<K, F, A>::labeled_expand(&self.exporter_secret, b"sec", &Info::Export(context))
+        Hpke::<K, F, A>::labeled_expand(&self.exporter_secret, "sec", &[context])
     }
 
     /// Exports a secret from the context, writing it to `out`.
@@ -1134,11 +1103,52 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> ExportCtx<K, F, A> {
         // def Context.Export(exporter_context, L):
         //   return LabeledExpand(self.exporter_secret, "sec",
         //                        exporter_context, L)
-        Hpke::<K, F, A>::labeled_expand_into(
-            out,
-            &self.exporter_secret,
-            b"sec",
-            &Info::Export(context),
-        )
+        Hpke::<K, F, A>::labeled_expand_into(out, &self.exporter_secret, "sec", &[context])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use typenum::{U1, U2};
+
+    use super::*;
+
+    /// Tests that [`Seq::compute_nonce`] generates correct
+    /// nonces.
+    #[test]
+    fn test_seq_compute_nonce() {
+        let base = Nonce::<U1>::try_from_slice(&[0xfe]).expect("should be able to create nonce");
+        let cases = [
+            (0, Ok(&[0xfe])),
+            (1, Ok(&[0xff])),
+            (2, Ok(&[0xfc])),
+            (4, Ok(&[0xfa])),
+            (254, Ok(&[0x00])),
+            (255, Err(MessageLimitReached)),
+            (256, Err(MessageLimitReached)),
+            (257, Err(MessageLimitReached)),
+            (u64::MAX, Err(MessageLimitReached)),
+        ];
+        for (input, output) in cases {
+            let got = Seq::new(input).compute_nonce::<U1>(&base);
+            let want = output.map(|s| Nonce::try_from_slice(s).expect("unable to create nonce"));
+            assert_eq!(got, want, "seq = {input}");
+        }
+    }
+
+    /// Tests that all nonces are unique.
+    #[test]
+    fn test_seq_unique_nonce() {
+        let base =
+            Nonce::<U2>::try_from_slice(&[0xfe, 0xfe]).expect("should be able to create nonce");
+        let mut seen = HashSet::new();
+        for v in 0..u16::MAX {
+            let got = Seq::new(u64::from(v))
+                .compute_nonce::<U2>(&base)
+                .expect("unable to create nonce");
+            assert!(seen.insert(got), "duplicate nonce: {got:?}");
+        }
     }
 }

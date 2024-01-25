@@ -169,11 +169,7 @@ macro_rules! pk_impl {
 
         impl<C: Curve> Import<&[u8]> for $name<C> {
             fn import(data: &[u8]) -> Result<Self, ImportError> {
-                let v: &GenericArray<u8, _> = data.try_into().map_err(|_| InvalidSizeError {
-                    got: data.len(),
-                    want: C::$size::USIZE..C::$size::USIZE,
-                })?;
-                Ok(Self(v.clone()))
+                Ok(Self(Import::<_>::import(data)?))
             }
         }
     };

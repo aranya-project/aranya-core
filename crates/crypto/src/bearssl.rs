@@ -39,7 +39,7 @@ use crate::{
     asn1::{max_sig_len, raw_sig_len, RawSig, Sig},
     csprng::Csprng,
     ec::{Curve, Curve25519, Scalar, Secp256r1, Secp384r1, Secp521r1, Uncompressed},
-    hash::{Block, Hash, HashId},
+    hash::{Block, Digest, Hash, HashId},
     hex::ToHex,
     hkdf::hkdf_impl,
     hmac::hmac_impl,
@@ -117,7 +117,7 @@ impl Aead for Aes256Gcm {
     const MAX_PLAINTEXT_SIZE: u64 = (1 << 36) - 32; // 2^36 - 32
     const MAX_ADDITIONAL_DATA_SIZE: u64 = (1 << 61) - 1; // 2^61 - 1
 
-    type Key = AeadKey<{ Self::KEY_SIZE }>;
+    type Key = AeadKey<Self::KeySize>;
 
     #[inline]
     fn new(key: &Self::Key) -> Self {
@@ -126,7 +126,7 @@ impl Aead for Aes256Gcm {
         unsafe {
             br_aes_ct_ctr_init(
                 ptr::addr_of_mut!(bc),
-                key.as_ptr() as *const c_void,
+                key.as_slice().as_ptr() as *const c_void,
                 key.len(),
             );
         }
@@ -448,7 +448,7 @@ macro_rules! ecdh_impl {
 
             #[inline]
             fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
-                Ok(self.kbuf.0.into())
+                Ok(SecretKeyBytes::new(self.kbuf.0.into()))
             }
         }
 
@@ -756,7 +756,7 @@ macro_rules! ecdsa_impl {
 
             #[inline]
             fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
-                Ok(self.kbuf.0.into())
+                Ok(SecretKeyBytes::new(self.kbuf.0.into()))
             }
         }
 
@@ -975,7 +975,6 @@ macro_rules! hash_impl {
 
             type DigestSize = U<{ $digest_size as usize }>;
             const DIGEST_SIZE: usize = $digest_size as usize;
-            type Digest = [u8; { Self::DIGEST_SIZE }];
 
             const BLOCK_SIZE: usize = $block_size;
             type Block = Block<{ Self::BLOCK_SIZE }>;
@@ -1001,8 +1000,8 @@ macro_rules! hash_impl {
             }
 
             #[inline]
-            fn digest(mut self) -> Self::Digest {
-                let mut out = [0u8; Self::DIGEST_SIZE];
+            fn digest(mut self) -> Digest<Self::DigestSize> {
+                let mut out = Digest::default();
                 // SAFETY: FFI call, no invariants
                 unsafe { $digest(ptr::addr_of_mut!(self.0), out.as_mut_ptr() as *mut c_void) }
                 out

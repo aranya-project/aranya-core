@@ -13,38 +13,36 @@
 
 use core::marker::PhantomData;
 
+use generic_array::GenericArray;
 use typenum::{Prod, U255};
 
 use crate::{
     hash::Hash,
-    hmac::Hmac,
+    hmac::{Hmac, Tag},
     kdf::{KdfError, Prk},
-    mac::Tag,
+    keys::SecretKeyBytes,
 };
 
 /// The size in octets of the maximum expanded output of HKDF.
 pub type MaxOutput<D> = Prod<U255, D>;
 
-/// HKDF for some hash `H` with a `D`-byte digest size.
-pub struct Hkdf<H, const N: usize>(PhantomData<H>);
+/// HKDF for some hash `H`.
+pub struct Hkdf<H>(PhantomData<H>);
 
-impl<H: Hash, const D: usize> Hkdf<H, D>
-where
-    H::Digest: Into<Tag<D>>,
-{
+impl<H: Hash> Hkdf<H> {
     /// The maximum nuumber of bytes that can be expanded by
     /// [`Self::expand`] and [`Self::expand_multi`].
-    pub const MAX_OUTPUT: usize = 255 * D;
+    pub const MAX_OUTPUT: usize = 255 * H::DIGEST_SIZE;
 
     /// The size in bytes of a [`Prk`] returned by this HKDF.
-    pub const PRK_SIZE: usize = D;
+    pub const PRK_SIZE: usize = H::DIGEST_SIZE;
 
     /// Extracts a fixed-length pseudorandom key (PRK) from the
     /// Input Keying Material (IKM) and an optional salt.
     ///
     /// It handles IKM and salts of an arbitrary length.
     #[inline]
-    pub fn extract(ikm: &[u8], salt: &[u8]) -> Prk<D> {
+    pub fn extract(ikm: &[u8], salt: &[u8]) -> Prk<H::DigestSize> {
         Self::extract_multi(&[ikm], salt)
     }
 
@@ -53,16 +51,22 @@ where
     ///
     /// It handles IKM and salts of an arbitrary length.
     #[inline]
-    pub fn extract_multi(ikm: &[&[u8]], salt: &[u8]) -> Prk<D> {
+    pub fn extract_multi<I>(ikm: I, salt: &[u8]) -> Prk<H::DigestSize>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<[u8]>,
+    {
         // Section 2.2
         //
         // salt: optional salt value (a non-secret random value);
         // if not provided, it is set to a string of HashLen
         // zeros.
-        let salt = if salt.is_empty() { &[0u8; D] } else { salt };
+        let zero = GenericArray::<u8, H::DigestSize>::default();
+        let salt = if salt.is_empty() { &zero } else { salt };
 
         // PRK = HMAC-Hash(salt, IKM)
-        Hmac::<H, D>::mac_multi(salt, ikm).into()
+        let prk = Hmac::<H>::mac_multi(salt, ikm).into_array();
+        Prk::new(SecretKeyBytes::new(prk))
     }
 
     /// Expands the PRK with an optional info parameter into
@@ -73,7 +77,7 @@ where
     ///
     /// It returns an error if the output is too large.
     #[inline]
-    pub fn expand(out: &mut [u8], prk: &Prk<D>, info: &[u8]) -> Result<(), KdfError> {
+    pub fn expand(out: &mut [u8], prk: &Prk<H::DigestSize>, info: &[u8]) -> Result<(), KdfError> {
         Self::expand_multi(out, prk, &[info])
     }
 
@@ -84,7 +88,16 @@ where
     /// outputs up to [`MAX_OUTPUT`][Self::MAX_OUTPUT] bytes.
     ///
     /// It returns an error if the output is too large.
-    pub fn expand_multi(out: &mut [u8], prk: &Prk<D>, info: &[&[u8]]) -> Result<(), KdfError> {
+    pub fn expand_multi<I>(
+        out: &mut [u8],
+        prk: &Prk<H::DigestSize>,
+        info: I,
+    ) -> Result<(), KdfError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<[u8]>,
+        I::IntoIter: Clone,
+    {
         // Section 2.3
         //
         // The output OKM is calculated as follows:
@@ -103,20 +116,21 @@ where
             return Err(KdfError::OutputTooLong);
         }
 
-        let expander = Hmac::<H, D>::new(prk.as_ref());
+        let expander = Hmac::<H>::new(prk.as_bytes());
+        let info = info.into_iter();
 
-        let mut prev: Option<Tag<D>> = None;
-        for (i, chunk) in out.chunks_mut(D).enumerate() {
+        let mut prev: Option<Tag<H::DigestSize>> = None;
+        for (i, chunk) in out.chunks_mut(H::DIGEST_SIZE).enumerate() {
             let mut expander = expander.clone();
             if let Some(prev) = prev {
-                expander.update(prev.as_ref());
+                expander.update(prev.as_bytes());
             }
-            for s in info {
-                expander.update(s);
+            for s in info.clone() {
+                expander.update(s.as_ref());
             }
             expander.update(&[(i + 1) as u8]);
             let tag = expander.tag();
-            chunk.copy_from_slice(&tag.as_ref()[..chunk.len()]);
+            chunk.copy_from_slice(&tag.as_bytes()[..chunk.len()]);
             prev = Some(tag);
         }
         Ok(())
@@ -128,10 +142,6 @@ macro_rules! hkdf_impl {
         #[doc = concat!($doc_name, ".")]
         pub struct $name;
 
-        impl $name {
-            const DIGEST_SIZE: usize = <$hash as $crate::hash::Hash>::DIGEST_SIZE;
-        }
-
         impl $crate::kdf::Kdf for $name {
             const ID: $crate::kdf::KdfId = $crate::kdf::KdfId::$name;
 
@@ -139,18 +149,25 @@ macro_rules! hkdf_impl {
 
             type PrkSize = <$hash as $crate::hash::Hash>::DigestSize;
 
-            type Prk = $crate::kdf::Prk<{ Self::DIGEST_SIZE }>;
-
-            fn extract_multi(ikm: &[&[u8]], salt: &[u8]) -> Self::Prk {
-                $crate::hkdf::Hkdf::<$hash, { Self::DIGEST_SIZE }>::extract_multi(ikm, salt)
+            fn extract_multi<I>(ikm: I, salt: &[u8]) -> $crate::kdf::Prk<Self::PrkSize>
+            where
+                I: ::core::iter::IntoIterator,
+                I::Item: ::core::convert::AsRef<[u8]>,
+            {
+                $crate::hkdf::Hkdf::<$hash>::extract_multi(ikm, salt)
             }
 
-            fn expand_multi(
+            fn expand_multi<I>(
                 out: &mut [u8],
-                prk: &Self::Prk,
-                info: &[&[u8]],
-            ) -> Result<(), $crate::kdf::KdfError> {
-                $crate::hkdf::Hkdf::<$hash, { Self::DIGEST_SIZE }>::expand_multi(out, prk, info)
+                prk: &$crate::kdf::Prk<Self::PrkSize>,
+                info: I,
+            ) -> Result<(), $crate::kdf::KdfError>
+            where
+                I: ::core::iter::IntoIterator,
+                I::Item: ::core::convert::AsRef<[u8]>,
+                I::IntoIter: ::core::clone::Clone,
+            {
+                $crate::hkdf::Hkdf::<$hash>::expand_multi(out, prk, info)
             }
         }
     };

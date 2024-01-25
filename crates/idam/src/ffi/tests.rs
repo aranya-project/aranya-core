@@ -1,8 +1,12 @@
+#![cfg(test)]
+
 use std::{borrow::Borrow, collections::HashMap};
 
 use crypto::{
-    engine::WrappedKey, idam::KeyStoreSecret, DefaultCipherSuite, DefaultEngine, DefaultWrappedKey,
-    EncryptionKey, Engine, Error, Id, Rng, SigningKey,
+    default::{DefaultCipherSuite, DefaultEngine, WrappedKey as DefaultWrappedKey},
+    engine::WrappedKey,
+    idam::KeyStoreSecret,
+    EncryptionKey, Engine, Error, Id, Identified, Rng, SigningKey,
 };
 
 use crate::{ffi::CommandContext, IdamCrypto, KeyStore, KeyStoreError};
@@ -37,10 +41,9 @@ impl DefaultKeyStore {
             KeyStoreSecret::Sign => &mut self.signing,
             KeyStoreSecret::Group => &mut self.group,
         };
-        let encoded = wrapped_secret
-            .encode()
-            .expect("unable to encode `WrappedKey`");
-        map.insert(public_key.to_vec(), encoded.borrow().to_vec());
+        let encoded =
+            postcard::to_allocvec(&wrapped_secret).expect("unable to encode `WrappedKey`");
+        map.insert(public_key.to_vec(), encoded);
     }
 }
 
@@ -57,7 +60,7 @@ impl KeyStore for DefaultKeyStore {
             KeyStoreSecret::Group => self.group.get(public_key),
         }
         .ok_or(KeyStoreError)?;
-        let key = E::WrappedKey::decode(bytes).expect("unable to decode `WrappedKey`");
+        let key = postcard::from_bytes(bytes).expect("unable to decode `WrappedKey`");
         Ok(key)
     }
 }
@@ -87,8 +90,9 @@ fn test_key_store() -> anyhow::Result<()> {
 
     let private_key = create_enc_key(&mut eng);
     let public_key = postcard::to_allocvec(&private_key.public()).expect("should work");
-    let want =
-        DefaultEngine::wrap(&mut eng, private_key).expect("should be able to wrap EncryptionKey");
+    let want = eng
+        .wrap(private_key)
+        .expect("should be able to wrap EncryptionKey");
 
     test_ffi
         .key_store
@@ -97,7 +101,7 @@ fn test_key_store() -> anyhow::Result<()> {
         .key_store
         .get::<DefaultEngine<Rng>>(KeyStoreSecret::Encrypt, &public_key)
         .expect("cannot find stored key");
-    assert_eq!(got.ciphertext, want.ciphertext);
+    assert_eq!(got.id(), want.id());
 
     Ok(())
 }

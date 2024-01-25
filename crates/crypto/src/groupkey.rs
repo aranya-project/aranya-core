@@ -2,21 +2,22 @@
 
 use core::{fmt, marker::PhantomData, result::Result};
 
-use buggy::BugExt;
+use postcard::experimental::max_size::MaxSize;
+use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
 
 use crate::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
     aranya::VerifyingKey,
     ciphersuite::SuiteIds,
-    csprng::Csprng,
-    engine::Engine,
+    csprng::{Csprng, Random},
+    engine::{unwrapped, Engine},
     error::Error,
-    hash::{tuple_hash, Hash},
-    id::Id,
-    import::{try_import, Import, ImportError},
-    kdf::{Derive, Kdf, KdfError},
-    mac::Mac,
+    hash::{tuple_hash, Digest, Hash},
+    hmac::Hmac,
+    id::{Id, Identified},
+    import::Import,
+    kdf,
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
 
@@ -45,9 +46,7 @@ impl<E: Engine + ?Sized> Clone for GroupKey<E> {
 impl<E: Engine + ?Sized> GroupKey<E> {
     /// Creates a new, random `GroupKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> GroupKey<E> {
-        let mut seed = [0u8; 64];
-        rng.fill_bytes(&mut seed);
-        Self::from_seed(seed)
+        Self::from_seed(Random::random(rng))
     }
 
     /// Uniquely identifies the [`GroupKey`].
@@ -55,15 +54,15 @@ impl<E: Engine + ?Sized> GroupKey<E> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> GroupKeyId {
-        // ID = MAC(
+        // ID = HMAC(
         //     key=GroupKey,
         //     message="GroupKeyId-v1" || suite_id,
         //     outputBytes=64,
         // )
-        let mut h = E::Mac::new(&self.seed.into());
+        let mut h = Hmac::<E::Hash>::new(&self.seed);
         h.update(b"GroupKeyId-v1");
         h.update(&SuiteIds::from_suite::<E>().into_bytes());
-        GroupKeyId(h.tag().into())
+        GroupKeyId(h.tag().into_array().into())
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -92,8 +91,10 @@ impl<E: Engine + ?Sized> GroupKey<E> {
     /// # {
     /// use crypto::{
     ///     Context,
-    ///     DefaultCipherSuite,
-    ///     DefaultEngine,
+    ///     default::{
+    ///         DefaultCipherSuite,
+    ///         DefaultEngine,
+    ///     },
     ///     GroupKey,
     ///     Id,
     ///     Rng,
@@ -172,6 +173,16 @@ impl<E: Engine + ?Sized> GroupKey<E> {
         Ok(E::Aead::new(&key).open(dst, nonce, ciphertext, &info)?)
     }
 
+    const EXTRACT_CTX: kdf::Context = kdf::Context {
+        domain: "kdf-ext-v1",
+        suite_ids: &SuiteIds::from_suite::<E>().into_bytes(),
+    };
+
+    const EXPAND_CTX: kdf::Context = kdf::Context {
+        domain: "kdf-exp-v1",
+        suite_ids: &SuiteIds::from_suite::<E>().into_bytes(),
+    };
+
     /// Derives a key for [`Self::open`] and [`Self::seal`].
     fn derive_key(&self, info: &[u8]) -> Result<<E::Aead as Aead>::Key, Error> {
         // GroupKey = KDF(
@@ -186,45 +197,15 @@ impl<E: Engine + ?Sized> GroupKey<E> {
         //     ),
         //     outputBytes=64,
         // )
-        let prk = Self::labeled_extract(&[], b"EventKey_prk", &self.seed);
-        let key = Self::labeled_expand(&prk, b"EventKey_key", info)?;
+        let prk = Self::EXTRACT_CTX.labeled_extract::<E::Kdf>(&[], "EventKey_prk", &self.seed);
+        let key = Self::EXPAND_CTX.labeled_expand::<E::Kdf, KeyData<E::Aead>>(
+            &prk,
+            "EventKey_key",
+            &[info],
+        )?;
         Ok(<<E::Aead as Aead>::Key as Import<_>>::import(
             key.as_bytes(),
         )?)
-    }
-
-    fn labeled_extract<const N: usize>(
-        salt: &[u8],
-        label: &[u8; N],
-        ikm: &[u8; 64],
-    ) -> <E::Kdf as Kdf>::Prk {
-        let labeled_ikm = [
-            "kdf-ext-v1".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            label,
-            ikm,
-        ];
-        E::Kdf::extract_multi(&labeled_ikm, salt)
-    }
-
-    fn labeled_expand<const N: usize>(
-        prk: &<E::Kdf as Kdf>::Prk,
-        label: &[u8; N],
-        info: &[u8],
-    ) -> Result<KeyData<E::Aead>, KdfError> {
-        // We know all possible enumerations of `T` and they all
-        // must have a length <= 2^16 - 1.
-        let size =
-            u16::try_from(KeyData::<E::Aead>::SIZE).assume("`Aead::Key` should be <= 2^16-1")?;
-        let labeled_info = [
-            &size.to_be_bytes(),
-            "kdf-exp-v1".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            label,
-            info,
-        ];
-        let key = KeyData::<E::Aead>::expand_multi::<E::Kdf>(prk, &labeled_info)?;
-        Ok(key)
     }
 
     // Utility routines for other modules.
@@ -241,17 +222,21 @@ impl<E: Engine + ?Sized> GroupKey<E> {
             _cs: PhantomData,
         }
     }
+}
 
-    /// Tries to create itself from bytes.
-    ///
-    /// NB: `GroupKey` does not implement `Import<[u8]>` or
-    /// `TryFrom` or `Try` because we do not want to expose this
-    /// functionality to users.
-    pub(crate) fn try_from(data: &[u8]) -> Result<Self, ImportError> {
-        Ok(Self {
-            seed: try_import(data)?,
-            _cs: PhantomData,
-        })
+unwrapped! {
+    name: GroupKey;
+    type: Seed;
+    into: |key: Self| { key.seed };
+    from: |seed: [u8;64] | { Self::from_seed(seed) };
+}
+
+impl<E: Engine + ?Sized> Identified for GroupKey<E> {
+    type Id = GroupKeyId;
+
+    #[inline]
+    fn id(&self) -> Self::Id {
+        self.id()
     }
 }
 
@@ -277,7 +262,7 @@ pub struct Context<'a, E: Engine + ?Sized> {
 
 impl<E: Engine + ?Sized> Context<'_, E> {
     /// Converts the [`Context`] to its byte representation.
-    fn to_bytes(&self) -> <E::Hash as Hash>::Digest {
+    fn to_bytes(&self) -> Digest<<E::Hash as Hash>::DigestSize> {
         // Ideally, this would simple be the actual concatenation
         // of `Context`'s fields. However, we need to be
         // `no_alloc` and without `const_generic_exprs` it's
@@ -296,7 +281,9 @@ impl<E: Engine + ?Sized> Context<'_, E> {
 }
 
 /// Uniquely identifies a [`GroupKey`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(
+    Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize, Serialize, Deserialize,
+)]
 pub struct GroupKeyId(Id);
 
 impl AsRef<[u8]> for GroupKeyId {

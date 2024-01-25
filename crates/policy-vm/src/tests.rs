@@ -5,7 +5,10 @@ extern crate alloc;
 use alloc::collections::{btree_map, BTreeMap};
 use core::fmt;
 
-use crypto::{DefaultCipherSuite, DefaultEngine, Engine, Id, Rng};
+use crypto::{
+    default::{DefaultCipherSuite, DefaultEngine},
+    Engine, Id, Rng,
+};
 use policy_ast::{self as ast, Version};
 use policy_lang::lang::parse_policy_str;
 

@@ -1,6 +1,6 @@
 #![cfg(feature = "test_util")]
 
-use crypto::{test_ciphersuite, DefaultCipherSuite};
+use crypto::{default::DefaultCipherSuite, test_ciphersuite};
 
 #[cfg(feature = "moonshot")]
 #[no_mangle]

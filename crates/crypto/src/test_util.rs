@@ -15,6 +15,7 @@ use core::{
 };
 
 use subtle::{Choice, ConstantTimeEq};
+use typenum::U64;
 use zeroize::ZeroizeOnDrop;
 
 use crate::{
@@ -23,10 +24,10 @@ use crate::{
     csprng::Csprng,
     hash::Hash,
     import::{ExportError, Import, ImportError},
-    kdf::{Kdf, KdfError, KdfId},
+    kdf::{Kdf, KdfError, KdfId, Prk},
     kem::Kem,
     keys::{PublicKey, SecretKey, SecretKeyBytes},
-    mac::{Mac, MacId, MacKey, Tag},
+    mac::{Mac, MacId},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
 };
 
@@ -135,13 +136,20 @@ impl<T: Kdf> Kdf for KdfWithDefaults<T> {
 
     type PrkSize = T::PrkSize;
 
-    type Prk = T::Prk;
-
-    fn extract_multi(ikm: &[&[u8]], salt: &[u8]) -> Self::Prk {
+    fn extract_multi<I>(ikm: I, salt: &[u8]) -> Prk<Self::PrkSize>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<[u8]>,
+    {
         T::extract_multi(ikm, salt)
     }
 
-    fn expand_multi(out: &mut [u8], prk: &Self::Prk, info: &[&[u8]]) -> Result<(), KdfError> {
+    fn expand_multi<I>(out: &mut [u8], prk: &Prk<Self::PrkSize>, info: I) -> Result<(), KdfError>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<[u8]>,
+        I::IntoIter: Clone,
+    {
         T::expand_multi(out, prk, info)
     }
 }
@@ -153,8 +161,11 @@ pub struct MacWithDefaults<T>(T);
 impl<T: Mac> Mac for MacWithDefaults<T> {
     const ID: MacId = T::ID;
 
-    type Key = T::Key;
     type Tag = T::Tag;
+    type TagSize = T::TagSize;
+
+    type Key = T::Key;
+    type KeySize = T::KeySize;
 
     fn new(key: &Self::Key) -> Self {
         Self(T::new(key))
@@ -299,20 +310,20 @@ impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for SignatureWithDefaults<T> {
 /// A test [`CipherSuite`].
 pub struct TestCs<
     A: Aead + IndCca2,
-    H: Hash<Digest = [u8; 64]>,
+    H: Hash<DigestSize = U64>,
     F: Kdf,
     K: Kem,
-    M: Mac<Key = MacKey<64>, Tag = Tag<64>>,
+    M: Mac<KeySize = U64, TagSize = U64>,
     S: Signer,
 >(PhantomData<(A, H, F, K, M, S)>);
 
 impl<A, H, F, K, M, S> CipherSuite for TestCs<A, H, F, K, M, S>
 where
     A: Aead + IndCca2,
-    H: Hash<Digest = [u8; 64]>,
+    H: Hash<DigestSize = U64>,
     F: Kdf,
     K: Kem,
-    M: Mac<Key = MacKey<64>, Tag = Tag<64>>,
+    M: Mac<KeySize = U64, TagSize = U64>,
     S: Signer,
 {
     type Aead = A;
@@ -333,7 +344,14 @@ where
 /// # Example
 ///
 /// ```
-/// use crypto::{test_engine, DefaultCipherSuite, DefaultEngine, Rng};
+/// use crypto::{
+///     test_engine,
+///     default::{
+///         DefaultCipherSuite,
+///         DefaultEngine,
+///     },
+///     Rng,
+/// };
 ///
 /// test_engine!(default_engine, || -> DefaultEngine<_, _> {
 ///     let (eng, _) = DefaultEngine::<_, DefaultCipherSuite>::from_entropy(Rng);
@@ -433,7 +451,7 @@ pub mod engine {
     extern crate alloc;
 
     use alloc::vec;
-    use core::{borrow::Borrow, ops::Add};
+    use core::ops::Add;
 
     use generic_array::ArrayLength;
     use typenum::{Sum, U64};
@@ -449,7 +467,7 @@ pub mod engine {
             Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
             UserId,
         },
-        engine::{Engine, WrappedKey},
+        engine::Engine,
         error::Error,
         groupkey::{Context, GroupKey},
         id::Id,
@@ -510,36 +528,32 @@ pub mod engine {
     /// Simple positive test for wrapping [`GroupKey`]s.
     pub fn test_simple_wrap_group_key<E: Engine + ?Sized>(eng: &mut E) {
         let want = GroupKey::new(eng);
-        let bytes = eng
-            .wrap(&want)
-            .expect("should be able to wrap `GroupKey`")
-            .encode()
-            .expect("should be able to encode wrapped `GroupKey`");
-        let wrapped = E::WrappedKey::decode(bytes.borrow())
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `GroupKey`"),
+        )
+        .expect("should be able to encode wrapped `GroupKey`");
+        let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `GroupKey`");
         let got: GroupKey<E> = eng
             .unwrap(&wrapped)
-            .expect("should be able to unwrap `GroupKey`")
-            .try_into()
-            .expect("should be a `GroupKey`");
+            .expect("should be able to unwrap `GroupKey`");
         assert_eq!(want.id(), got.id());
     }
 
     /// Simple positive test for wrapping [`IdentityKey`]s.
     pub fn test_simple_wrap_user_identity_key<E: Engine + ?Sized>(eng: &mut E) {
         let want = IdentityKey::new(eng);
-        let bytes = eng
-            .wrap(&want)
-            .expect("should be able to wrap `IdentityKey`")
-            .encode()
-            .expect("should be able to encode wrapped `IdentityKey`");
-        let wrapped = E::WrappedKey::decode(bytes.borrow())
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `IdentityKey`"),
+        )
+        .expect("should be able to encode wrapped `IdentityKey`");
+        let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `IdentityKey`");
         let got: IdentityKey<E> = eng
             .unwrap(&wrapped)
-            .expect("should be able to unwrap `IdentityKey`")
-            .try_into()
-            .expect("should be a `IdentityKey`");
+            .expect("should be able to unwrap `IdentityKey`");
         assert_eq!(want.id(), got.id());
     }
 
@@ -590,18 +604,16 @@ pub mod engine {
     /// Simple positive test for wrapping [`UserSigningKey`]s.
     pub fn test_simple_wrap_user_signing_key<E: Engine + ?Sized>(eng: &mut E) {
         let want = UserSigningKey::new(eng);
-        let bytes = eng
-            .wrap(&want)
-            .expect("should be able to wrap `UserSigningKey`")
-            .encode()
-            .expect("should be able to encode wrapped `UserSigningKey`");
-        let wrapped = E::WrappedKey::decode(bytes.borrow())
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `UserSigningKey`"),
+        )
+        .expect("should be able to encode wrapped `UserSigningKey`");
+        let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `UserSigningKey`");
         let got: UserSigningKey<E> = eng
             .unwrap(&wrapped)
-            .expect("should be able to unwrap `UserSigningKey`")
-            .try_into()
-            .expect("should be a `UserSigningKey`");
+            .expect("should be able to unwrap `UserSigningKey`");
         assert_eq!(want.id(), got.id());
     }
 
@@ -618,18 +630,16 @@ pub mod engine {
     /// Simple positive test for wrapping [`EncryptionKey`]s.
     pub fn test_simple_wrap_user_encryption_key<E: Engine + ?Sized>(eng: &mut E) {
         let want = EncryptionKey::new(eng);
-        let bytes = eng
-            .wrap(&want)
-            .expect("should be able to wrap `EncryptionKey`")
-            .encode()
-            .expect("should be able to encode wrapped `EncryptionKey`");
-        let wrapped = E::WrappedKey::decode(bytes.borrow())
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `EncryptionKey`"),
+        )
+        .expect("should be able to encode wrapped `EncryptionKey`");
+        let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `EncryptionKey`");
         let got: EncryptionKey<E> = eng
             .unwrap(&wrapped)
-            .expect("should be able to unwrap `EncryptionKey`")
-            .try_into()
-            .expect("should be a `EncryptionKey`");
+            .expect("should be able to unwrap `EncryptionKey`");
         assert_eq!(want.id(), got.id());
     }
 
@@ -926,54 +936,48 @@ pub mod engine {
     /// Simple positive test for wrapping [`SenderSecretKey`]s.
     pub fn test_simple_wrap_user_sender_secret_key<E: Engine + ?Sized>(eng: &mut E) {
         let want = SenderSecretKey::new(eng);
-        let bytes = eng
-            .wrap(&want)
-            .expect("should be able to wrap `SenderSecretKey`")
-            .encode()
-            .expect("should be able to encode wrapped `SenderSecretKey`");
-        let wrapped = E::WrappedKey::decode(bytes.borrow())
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `SenderSecretKey`"),
+        )
+        .expect("should be able to encode wrapped `SenderSecretKey`");
+        let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `SenderSecretKey`");
         let got: SenderSecretKey<E> = eng
             .unwrap(&wrapped)
-            .expect("should be able to unwrap `SenderSecretKey`")
-            .try_into()
-            .expect("should be a `SenderSecretKey`");
+            .expect("should be able to unwrap `SenderSecretKey`");
         assert_eq!(want.id(), got.id());
     }
 
     /// Simple positive test for wrapping [`SenderSigningKey`]s.
     pub fn test_simple_wrap_user_sender_signing_key<E: Engine + ?Sized>(eng: &mut E) {
         let want = SenderSigningKey::new(eng);
-        let bytes = eng
-            .wrap(&want)
-            .expect("should be able to wrap `SenderSigningKey`")
-            .encode()
-            .expect("should be able to encode wrapped `SenderSigningKey`");
-        let wrapped = E::WrappedKey::decode(bytes.borrow())
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `SenderSigningKey`"),
+        )
+        .expect("should be able to encode wrapped `SenderSigningKey`");
+        let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `SenderSigningKey`");
         let got: SenderSigningKey<E> = eng
             .unwrap(&wrapped)
-            .expect("should be able to unwrap `SenderSigningKey`")
-            .try_into()
-            .expect("should be a `SenderSigningKey`");
+            .expect("should be able to unwrap `SenderSigningKey`");
         assert_eq!(want.id(), got.id());
     }
 
     /// Simple positive test for wrapping [`ReceiverSecretKey`]s.
     pub fn test_simple_wrap_user_receiver_secret_key<E: Engine + ?Sized>(eng: &mut E) {
         let want = ReceiverSecretKey::new(eng);
-        let bytes = eng
-            .wrap(&want)
-            .expect("should be able to wrap `ReceiverSecretKey`")
-            .encode()
-            .expect("should be able to encode wrapped `ReceiverSecretKey`");
-        let wrapped = E::WrappedKey::decode(bytes.borrow())
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `ReceiverSecretKey`"),
+        )
+        .expect("should be able to encode wrapped `ReceiverSecretKey`");
+        let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `ReceiverSecretKey`");
         let got: ReceiverSecretKey<E> = eng
             .unwrap(&wrapped)
-            .expect("should be able to unwrap `ReceiverSecretKey`")
-            .try_into()
-            .expect("should be a `ReceiverSecretKey`");
+            .expect("should be able to unwrap `ReceiverSecretKey`");
         assert_eq!(want.id(), got.id());
     }
 
@@ -1545,7 +1549,7 @@ pub mod engine {
 /// # Example
 ///
 /// ```
-/// use crypto::{test_ciphersuite, DefaultCipherSuite};
+/// use crypto::{default::DefaultCipherSuite, test_ciphersuite};
 ///
 /// test_ciphersuite!(default_ciphersuite, DefaultCipherSuite);
 /// ```
@@ -2026,7 +2030,7 @@ pub mod hpke {
         aead::{Aead, IndCca2},
         csprng::Csprng,
         hpke::{Hpke, Mode, OpenCtx, SealCtx},
-        kdf::{Derive, Kdf, KdfError},
+        kdf::{Expand, Kdf, KdfError, Prk},
         kem::{DecapKey, Kem},
         keys::SecretKey,
     };
@@ -2078,13 +2082,16 @@ pub mod hpke {
 
         #[derive(Debug, Default, Eq, PartialEq)]
         struct Key(GenericArray<u8, U64>);
-        impl Derive for Key {
+        impl Expand for Key {
             type Size = U64;
-            type Error = KdfError;
-            fn expand_multi<K: Kdf>(prk: &K::Prk, info: &[&[u8]]) -> Result<Self, Self::Error> {
-                let mut key = GenericArray::default();
-                K::expand_multi(&mut key, prk, info)?;
-                Ok(Self(key))
+
+            fn expand_multi<'a, K, I>(prk: &Prk<K::PrkSize>, info: I) -> Result<Self, KdfError>
+            where
+                K: Kdf,
+                I: IntoIterator<Item = &'a [u8]>,
+                I::IntoIter: Clone,
+            {
+                Ok(Self(Expand::expand_multi::<K, I>(prk, info)?))
             }
         }
 
@@ -2175,7 +2182,6 @@ pub mod kdf {
     extern crate alloc;
 
     use alloc::vec;
-    use core::borrow::Borrow;
 
     use more_asserts::assert_ge;
 
@@ -2189,9 +2195,9 @@ pub mod kdf {
     /// both [`Kdf::extract`] and [`Kdf::expand`].
     fn check<T: Kdf>(out1: &mut [u8], out2: &mut [u8], ikm: &[u8], salt: &[u8], info: &[u8]) {
         // extract should return the same output
-        assert_eq!(
-            T::extract(ikm, salt).borrow(),
-            T::extract(ikm, salt).borrow(),
+        assert_ct_eq!(
+            T::extract(ikm, salt),
+            T::extract(ikm, salt),
             "extract returned different outputs"
         );
 

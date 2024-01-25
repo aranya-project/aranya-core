@@ -13,6 +13,7 @@ use core::{
     result::Result,
 };
 
+use buggy::Bug;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 
@@ -34,6 +35,8 @@ pub enum SignerError {
     /// [`Signer::verify_batch`] was called with different
     /// lengths for messages, signatures, or verifying keys.
     InvalidBatchLengths,
+    /// An internal error was discovered.
+    Bug(Bug),
 }
 
 impl fmt::Display for SignerError {
@@ -43,6 +46,7 @@ impl fmt::Display for SignerError {
             Self::Encoding(err) => write!(f, "{}", err),
             Self::Verification => write!(f, "unable to verify signature"),
             Self::InvalidBatchLengths => write!(f, "invalid `verify_batch` lengths"),
+            Self::Bug(err) => write!(f, "{err}"),
         }
     }
 }
@@ -54,6 +58,7 @@ impl trouble::Error for SignerError {
             Self::Encoding(err) => Some(err),
             Self::Verification => None,
             Self::InvalidBatchLengths => None,
+            Self::Bug(err) => Some(err),
         }
     }
 }
@@ -61,6 +66,12 @@ impl trouble::Error for SignerError {
 impl From<EncodingError> for SignerError {
     fn from(err: EncodingError) -> Self {
         Self::Encoding(err)
+    }
+}
+
+impl From<Bug> for SignerError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
     }
 }
 

@@ -14,5 +14,7 @@ cfg_if::cfg_if! {
                 None
             }
         }
+
+        impl Error for core::alloc::LayoutError {}
     }
 }

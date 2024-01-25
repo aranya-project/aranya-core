@@ -28,7 +28,7 @@ use elliptic_curve::{
     CurveArithmetic, FieldBytesSize,
 };
 use rand_core::{impls, CryptoRng, RngCore};
-use sha2::{digest::OutputSizeUser, Digest};
+use sha2::digest::OutputSizeUser;
 use subtle::{Choice, ConstantTimeEq};
 use typenum::{Unsigned, U12, U16};
 
@@ -39,7 +39,7 @@ use crate::{
     },
     csprng::Csprng,
     ec::{Curve, Secp256r1, Secp384r1},
-    hash::{Block, Hash, HashId},
+    hash::{Block, Digest, Hash, HashId},
     hex,
     hkdf::hkdf_impl,
     hmac::hmac_impl,
@@ -67,11 +67,11 @@ impl Aead for Aes256Gcm {
     const MAX_ADDITIONAL_DATA_SIZE: u64 = A_MAX;
     const MAX_CIPHERTEXT_SIZE: u64 = C_MAX;
 
-    type Key = AeadKey<{ Self::KEY_SIZE }>;
+    type Key = AeadKey<Self::KeySize>;
 
     #[inline]
     fn new(key: &Self::Key) -> Self {
-        let key: &[u8; 32] = key.into();
+        let key: &[u8; 32] = key.as_array();
         Self(aes_gcm::Aes256Gcm::new(key.into()))
     }
 
@@ -133,7 +133,7 @@ impl IndCca2 for Aes256Gcm {}
 mod committing {
     use aes::cipher::{BlockEncrypt, BlockSizeUser, KeyInit};
     use generic_array::GenericArray;
-    use typenum::Unsigned;
+    use typenum::{Unsigned, U32};
 
     use super::{Aes256Gcm, Sha256};
     use crate::aead::{AeadKey, BlockCipher};
@@ -145,10 +145,10 @@ mod committing {
     impl BlockCipher for Aes256 {
         type BlockSize = <aes::Aes256 as BlockSizeUser>::BlockSize;
         const BLOCK_SIZE: usize = Self::BlockSize::USIZE;
-        type Key = AeadKey<32>;
+        type Key = AeadKey<U32>;
 
         fn new(key: &Self::Key) -> Self {
-            let key: &[u8; 32] = key.into();
+            let key: &[u8; 32] = key.as_array();
             let cipher = <aes::Aes256 as KeyInit>::new(key.into());
             Self(cipher)
         }
@@ -250,7 +250,7 @@ macro_rules! ecdh_impl {
             fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
                 // Mismatched GenericArray versions, yay.
                 let secret: [u8; FieldBytesSize::<$curve>::USIZE] = self.0.to_bytes().into();
-                Ok(secret.into())
+                Ok(SecretKeyBytes::new(secret.into()))
             }
         }
 
@@ -387,7 +387,7 @@ macro_rules! ecdsa_impl {
             fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
                 // Mismatched GenericArray versions, yay.
                 let secret: [u8; FieldBytesSize::<$curve>::USIZE] = self.0.to_bytes().into();
-                Ok(secret.into())
+                Ok(SecretKeyBytes::new(secret.into()))
             }
         }
 
@@ -509,29 +509,28 @@ macro_rules! hash_impl {
             type DigestSize = <sha2::$name as OutputSizeUser>::OutputSize;
             const DIGEST_SIZE: usize =
                 <<sha2::$name as OutputSizeUser>::OutputSize as Unsigned>::USIZE;
-            type Digest = [u8; { Self::DIGEST_SIZE }];
 
             const BLOCK_SIZE: usize = <sha2::$name as BlockSizeUser>::BlockSize::USIZE;
             type Block = Block<{ Self::BLOCK_SIZE }>;
 
             #[inline]
             fn new() -> Self {
-                Self(<sha2::$name as Digest>::new())
+                Self(<sha2::$name as sha2::Digest>::new())
             }
 
             #[inline]
             fn update(&mut self, data: &[u8]) {
-                self.0.update(data)
+                sha2::Digest::update(&mut self.0, data)
             }
 
             #[inline]
-            fn digest(self) -> Self::Digest {
-                self.0.finalize().into()
+            fn digest(self) -> Digest<Self::DigestSize> {
+                Digest::from_array(sha2::Digest::finalize(self.0).into())
             }
 
             #[inline]
-            fn hash(data: &[u8]) -> Self::Digest {
-                sha2::$name::digest(data).into()
+            fn hash(data: &[u8]) -> Digest<Self::DigestSize> {
+                Digest::from_array(<sha2::$name as sha2::Digest>::digest(data).into())
             }
         }
     };

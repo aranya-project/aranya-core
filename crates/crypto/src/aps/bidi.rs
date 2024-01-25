@@ -40,8 +40,10 @@ use crate::{
 ///         },
 ///         CipherSuite,
 ///         Csprng,
-///         DefaultCipherSuite,
-///         DefaultEngine,
+///         default::{
+///             DefaultCipherSuite,
+///             DefaultEngine,
+///         },
 ///         Engine,
 ///         Id,
 ///         IdentityKey,

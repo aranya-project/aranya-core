@@ -1,10 +1,32 @@
+//! Default implementations.
+
 #![forbid(unsafe_code)]
 
+use buggy::BugExt;
 use cfg_if::cfg_if;
+use generic_array::GenericArray;
+use postcard::experimental::max_size::MaxSize;
 #[cfg(feature = "rand_core")]
 use rand_core::{impls, CryptoRng, RngCore};
+use serde::{Deserialize, Serialize};
+use typenum::U64;
 
-use crate::{ciphersuite::CipherSuite, csprng::Csprng};
+use crate::{
+    aead::{Aead, Nonce, Tag},
+    ciphersuite::CipherSuite,
+    csprng::{Csprng, Random},
+    engine::{
+        self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
+        WrongKeyType,
+    },
+    id::{Id, Identified},
+    import::Import,
+    kdf::{Kdf, Prk},
+    kem::Kem,
+    keys::{SecretKey, SecretKeyBytes},
+    mac::Mac,
+    signer::Signer,
+};
 
 /// The default CSPRNG.
 ///
@@ -106,193 +128,263 @@ impl CipherSuite for DefaultCipherSuite {
     type Signer = crate::ed25519::Ed25519;
 }
 
-#[cfg(any(test, feature = "alloc"))]
-#[cfg_attr(docs, doc(cfg(feature = "alloc")))]
-mod default_engine {
-    extern crate alloc;
+/// A basic [`Engine`] implementation that wraps keys with
+/// its [`Aead`].
+///
+/// # Notes
+///
+/// It's mostly useful for tests as its [`Engine::ID`]
+/// constant is all zeros and the user must store the root
+/// encryption key somewhere.
+pub struct DefaultEngine<R: Csprng, S: CipherSuite = DefaultCipherSuite> {
+    aead: S::Aead,
+    rng: R,
+}
 
-    #[allow(clippy::wildcard_imports)]
-    use {
-        crate::{
-            aead::{Aead, OpenError},
-            ciphersuite::CipherSuite,
-            csprng::Csprng,
-            engine::{
-                Engine, KeyType, SecretData, UnwrapError, UnwrappedKey, WrapError, WrappedKey,
-            },
-            id::Id,
-            import::Import,
-            keys::SecretKey,
-            zeroize::Zeroizing,
-            DefaultCipherSuite,
-        },
-        alloc::{vec, vec::Vec},
-        serde::{Deserialize, Serialize},
-    };
-
-    impl KeyType {
-        fn to_vec(self) -> heapless::Vec<u8, 4> {
-            // All of the "*Id" types are `u16`, which is at most
-            // three bytes on the wire. Since `KeyType` is an
-            // enum it's prefixed with a `u32`, which is at most
-            // five bytes on the wire. However, we only have
-            // ~five variants, so we know that the `u32` encodes
-            // as a single byte on the wire. Being exact makes it
-            // more likely that we catch bugs in our tests.
-            //
-            // Ideally, we'd just use something like Postcard's
-            // experimental `MaxSize` feature. But when we used
-            // that feature with APS it prevented us from
-            // building a `no_std` staticlib. So, perhaps try it
-            // in the future.
-            postcard::to_vec(&self).expect("bug: should not fail")
+impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
+    /// Creates an [`Engine`] using `key`.
+    pub fn new(key: &<S::Aead as Aead>::Key, rng: R) -> Self {
+        Self {
+            aead: S::Aead::new(key),
+            rng,
         }
     }
 
-    /// A basic [`Engine`] implementation that wraps keys with its
-    /// [`Aead`].
-    ///
-    /// # Notes
-    ///
-    /// It's mostly useful for tests as its [`Engine::ID`] constant
-    /// is all zeros and the user must store the root encryption key
-    /// somewhere.
-    pub struct DefaultEngine<R: Csprng, S: CipherSuite = DefaultCipherSuite> {
-        aead: S::Aead,
-        rng: R,
-    }
-
-    impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
-        const NONCE_SIZE: usize = S::Aead::NONCE_SIZE;
-        const OVERHEAD: usize = Self::NONCE_SIZE + S::Aead::OVERHEAD;
-
-        /// Creates an [`Engine`] using `key`.
-        pub fn new(key: &<S::Aead as Aead>::Key, rng: R) -> Self {
-            Self {
-                aead: S::Aead::new(key),
-                rng,
-            }
-        }
-
-        /// Creates an [`Engine`] using entropy from `rng` and
-        /// returns it and the generated key.
-        pub fn from_entropy(mut rng: R) -> (Self, <S::Aead as Aead>::Key) {
-            let key = <S::Aead as Aead>::Key::new(&mut rng);
-            let eng = Self::new(&key, rng);
-            (eng, key)
-        }
-    }
-
-    impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
-        fn fill_bytes(&mut self, dst: &mut [u8]) {
-            self.rng.fill_bytes(dst)
-        }
-    }
-
-    impl<R: Csprng, S: CipherSuite> CipherSuite for DefaultEngine<R, S> {
-        type Aead = S::Aead;
-        type Hash = S::Hash;
-        type Kdf = S::Kdf;
-        type Kem = S::Kem;
-        type Mac = S::Mac;
-        type Signer = S::Signer;
-    }
-
-    impl<R: Csprng, S: CipherSuite> Engine for DefaultEngine<R, S> {
-        const ID: Id = Id::default();
-
-        type WrappedKey = DefaultWrappedKey;
-
-        fn wrap<T>(&mut self, key: T) -> Result<Self::WrappedKey, WrapError>
-        where
-            T: Into<UnwrappedKey<Self>>,
-        {
-            let key = key.into();
-            let secret = SecretData::from_unwrapped(&key)?;
-            let kt = key.id();
-
-            // TODO(eric): if we pre-allocate `plaintext` we can
-            // encrypt in-place and avoid creating a second buffer.
-            let mut dst = vec![0u8; secret.as_ref().len() + Self::OVERHEAD];
-            let (nonce, out) = dst.split_at_mut(Self::NONCE_SIZE);
-            self.rng.fill_bytes(nonce);
-            self.aead
-                .seal(out, nonce, secret.as_ref(), kt.to_vec().as_slice())?;
-
-            Ok(DefaultWrappedKey::new(kt, dst))
-        }
-
-        fn unwrap(&self, key: &Self::WrappedKey) -> Result<UnwrappedKey<Self>, UnwrapError> {
-            let DefaultWrappedKey { kt, ciphertext } = key;
-
-            if ciphertext.len() < Self::OVERHEAD {
-                // Cannot authenticate the wrapped key if it clearly
-                // does not contain both the nonce and tag.
-                return Err(UnwrapError::Open(OpenError::Authentication));
-            }
-            let mut plaintext = Zeroizing::new(vec![0u8; ciphertext.len() - Self::OVERHEAD]);
-            let (nonce, ciphertext) = ciphertext.split_at(Self::NONCE_SIZE);
-            self.aead
-                .open(&mut plaintext, nonce, ciphertext, kt.to_vec().as_slice())?;
-
-            Ok(UnwrappedKey::import((*kt, &plaintext))?)
-        }
-    }
-
-    /// The default implementation of [`WrappedKey`].
-    #[derive(Serialize, Deserialize, Debug)]
-    pub struct DefaultWrappedKey {
-        /// The type of the wrapped key.
-        pub kt: KeyType,
-        /// The encrypted, authenticated secret.
-        pub ciphertext: Vec<u8>,
-    }
-
-    impl DefaultWrappedKey {
-        /// Creates a wrapped key.
-        pub fn new(kt: KeyType, ciphertext: Vec<u8>) -> Self {
-            Self { kt, ciphertext }
-        }
-    }
-
-    impl WrappedKey for DefaultWrappedKey {
-        type Output = Vec<u8>;
-        type Error = postcard::Error;
-
-        fn id(&self) -> KeyType {
-            self.kt
-        }
-
-        fn encode(&self) -> Result<Self::Output, Self::Error> {
-            postcard::to_allocvec(self)
-        }
-
-        fn decode(data: &[u8]) -> Result<Self, Self::Error> {
-            postcard::from_bytes(data)
-        }
-    }
-
-    #[cfg(test)]
-    mod test {
-        use crate::{test_engine, DefaultCipherSuite, DefaultEngine, Rng};
-
-        test_engine!(
-            default_engine,
-            || -> DefaultEngine<Rng, DefaultCipherSuite> {
-                let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
-                eng
-            }
-        );
+    /// Creates an [`Engine`] using entropy from `rng` and
+    /// returns it and the generated key.
+    pub fn from_entropy(mut rng: R) -> (Self, <S::Aead as Aead>::Key) {
+        let key = <S::Aead as Aead>::Key::new(&mut rng);
+        let eng = Self::new(&key, rng);
+        (eng, key)
     }
 }
-#[cfg(any(test, feature = "alloc"))]
-pub use default_engine::*;
+
+impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
+    fn fill_bytes(&mut self, dst: &mut [u8]) {
+        self.rng.fill_bytes(dst)
+    }
+}
+
+impl<R: Csprng, S: CipherSuite> CipherSuite for DefaultEngine<R, S> {
+    type Aead = S::Aead;
+    type Hash = S::Hash;
+    type Kdf = S::Kdf;
+    type Kem = S::Kem;
+    type Mac = S::Mac;
+    type Signer = S::Signer;
+}
+
+/// Contextual binding for wrapped keys.
+// TODO(eric): include a `purpose` field. The trick is that it
+// has to be a fixed size so that we can use `heapless`.
+#[derive(Serialize, MaxSize)]
+struct AuthData {
+    /// `Engine::Id`.
+    eng_id: Id,
+    /// `Unwrapped::ID`.
+    alg_id: AlgId,
+    /// `<Unwrapped as Identified>::id`.
+    key_id: Id,
+}
+
+impl<R: Csprng, S: CipherSuite> Engine for DefaultEngine<R, S> {
+    const ID: Id = Id::default();
+
+    type WrappedKey = WrappedKey<Self>;
+}
+
+impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
+    fn wrap_secret<T>(
+        &mut self,
+        id: &<T as Identified>::Id,
+        secret: RawSecret<Self>,
+    ) -> Result<<Self as Engine>::WrappedKey, WrapError>
+    where
+        T: UnwrappedKey<Self>,
+    {
+        let id = (*id).into();
+        let mut tag = Tag::<S::Aead>::default();
+        // TODO(eric): we should probably ensure that we do not
+        // repeat nonces.
+        let nonce = Nonce::<_>::random(&mut self.rng);
+        let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
+            eng_id: Self::ID,
+            alg_id: T::ID,
+            key_id: id,
+        })
+        .assume("there should be enough space")?;
+
+        let mut secret = match secret {
+            RawSecret::Aead(sk) => Ciphertext::Aead(sk.try_export_secret()?.into_bytes()),
+            RawSecret::Decap(sk) => Ciphertext::Decap(sk.try_export_secret()?.into_bytes()),
+            RawSecret::Mac(sk) => Ciphertext::Mac(sk.try_export_secret()?.into_bytes()),
+            RawSecret::Prk(sk) => Ciphertext::Prk(sk.into_bytes().into_bytes()),
+            RawSecret::Seed(sk) => Ciphertext::Seed(sk.into()),
+            RawSecret::Signing(sk) => Ciphertext::Signing(sk.try_export_secret()?.into_bytes()),
+        };
+        self.aead
+            .seal_in_place(nonce.as_ref(), secret.as_bytes_mut(), &mut tag, &ad)?;
+        // `secret` is now encrypted.
+
+        Ok(WrappedKey {
+            id,
+            nonce,
+            ciphertext: secret,
+            tag,
+        })
+    }
+
+    fn unwrap_secret<T>(
+        &self,
+        key: &<Self as Engine>::WrappedKey,
+    ) -> Result<RawSecret<Self>, UnwrapError>
+    where
+        T: UnwrappedKey<Self>,
+    {
+        let mut data = key.ciphertext.clone();
+        let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
+            eng_id: Self::ID,
+            alg_id: T::ID,
+            key_id: key.id,
+        })
+        .assume("there should be enough space")?;
+
+        self.aead
+            .open_in_place(key.nonce.as_ref(), data.as_bytes_mut(), &key.tag, &ad)?;
+        // `data` has now been decrypted
+
+        let secret = match (T::ID, &data) {
+            (AlgId::Aead(_), Ciphertext::Aead(data)) => {
+                RawSecret::Aead(Import::<_>::import(data.as_slice())?)
+            }
+            (AlgId::Decap(_), Ciphertext::Decap(data)) => {
+                RawSecret::Decap(Import::<_>::import(data.as_slice())?)
+            }
+            (AlgId::Mac(_), Ciphertext::Mac(data)) => {
+                RawSecret::Mac(Import::<_>::import(data.as_slice())?)
+            }
+            (AlgId::Prk(_), Ciphertext::Prk(data)) => {
+                RawSecret::Prk(Prk::new(SecretKeyBytes::new(data.clone())))
+            }
+            (AlgId::Seed(_), Ciphertext::Seed(data)) => {
+                RawSecret::Seed(Import::<_>::import(data.as_slice())?)
+            }
+            (AlgId::Signing(_), Ciphertext::Signing(data)) => {
+                RawSecret::Signing(Import::<_>::import(data.as_slice())?)
+            }
+            _ => {
+                return Err(WrongKeyType {
+                    got: data.name(),
+                    expected: T::ID.name(),
+                }
+                .into())
+            }
+        };
+        Ok(secret)
+    }
+}
+
+/// Encrypted [`RawSecret`] bytes.
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+enum Ciphertext<E: Engine + ?Sized> {
+    Aead(GenericArray<u8, <<E::Aead as Aead>::Key as SecretKey>::Size>),
+    Decap(GenericArray<u8, <<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
+    Mac(GenericArray<u8, <<E::Mac as Mac>::Key as SecretKey>::Size>),
+    Prk(GenericArray<u8, <E::Kdf as Kdf>::PrkSize>),
+    // NB: not `[u8; 64]` because serde only supports arrays up
+    // to 32 elements without additional gymnastics.
+    Seed(GenericArray<u8, U64>),
+    Signing(GenericArray<u8, <<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
+}
+
+impl<E: Engine + ?Sized> Ciphertext<E> {
+    const fn name(&self) -> &'static str {
+        self.alg_id().name()
+    }
+
+    const fn alg_id(&self) -> AlgId {
+        match self {
+            Self::Aead(_) => AlgId::Aead(<E::Aead as Aead>::ID),
+            Self::Decap(_) => AlgId::Decap(<E::Kem as Kem>::ID),
+            Self::Mac(_) => AlgId::Mac(<E::Mac as Mac>::ID),
+            Self::Prk(_) => AlgId::Prk(<E::Kdf as Kdf>::ID),
+            Self::Seed(_) => AlgId::Seed(()),
+            Self::Signing(_) => AlgId::Signing(<E::Signer as Signer>::ID),
+        }
+    }
+}
+
+impl<E: Engine + ?Sized> Clone for Ciphertext<E> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Aead(v) => Self::Aead(v.clone()),
+            Self::Decap(v) => Self::Decap(v.clone()),
+            Self::Mac(v) => Self::Mac(*v),
+            Self::Prk(v) => Self::Prk(v.clone()),
+            Self::Seed(v) => Self::Seed(*v),
+            Self::Signing(v) => Self::Signing(v.clone()),
+        }
+    }
+}
+
+impl<E: Engine + ?Sized> Ciphertext<E> {
+    fn as_bytes_mut(&mut self) -> &mut [u8] {
+        match self {
+            Self::Aead(v) => v.as_mut_slice(),
+            Self::Decap(v) => v.as_mut_slice(),
+            Self::Mac(v) => v.as_mut_slice(),
+            Self::Prk(v) => v.as_mut_slice(),
+            Self::Seed(v) => v.as_mut_slice(),
+            Self::Signing(v) => v.as_mut_slice(),
+        }
+    }
+}
+
+/// A key wrapped by [`DefaultEngine`].
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
+pub struct WrappedKey<E: Engine + ?Sized> {
+    id: Id,
+    nonce: Nonce<<E::Aead as Aead>::NonceSize>,
+    ciphertext: Ciphertext<E>,
+    tag: Tag<E::Aead>,
+}
+
+impl<E: Engine + ?Sized> Clone for WrappedKey<E> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            nonce: self.nonce.clone(),
+            ciphertext: self.ciphertext.clone(),
+            tag: self.tag.clone(),
+        }
+    }
+}
+
+impl<E: Engine + ?Sized> engine::WrappedKey for WrappedKey<E> {}
+
+impl<E: Engine + ?Sized> Identified for WrappedKey<E> {
+    type Id = Id;
+
+    fn id(&self) -> Self::Id {
+        self.id
+    }
+}
 
 #[cfg(test)]
 #[allow(clippy::wildcard_imports)]
 mod test {
     use super::*;
-    use crate::test_util::test_ciphersuite;
+    use crate::{test_engine, test_util::test_ciphersuite, Rng};
+
+    test_engine!(
+        default_engine,
+        || -> DefaultEngine<Rng, DefaultCipherSuite> {
+            let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
+            eng
+        }
+    );
 
     test_ciphersuite!(default_ciphersuite, DefaultCipherSuite);
 }

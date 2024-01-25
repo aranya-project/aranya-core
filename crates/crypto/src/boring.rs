@@ -59,7 +59,7 @@ use crate::{
     asn1::{max_sig_len, EncodingError, Sig},
     csprng::Csprng,
     ec::{Curve, Curve25519, Scalar, Secp256r1, Secp384r1, Secp521r1, Uncompressed},
-    hash::{Block, Hash, HashId},
+    hash::{Block, Digest, Hash, HashId},
     hex::ToHex,
     import::{try_import, ExportError, Import, ImportError},
     kem::{
@@ -382,7 +382,7 @@ macro_rules! indcca2_aead_impl {
             const MAX_PLAINTEXT_SIZE: u64 = $max_pt_size;
             const MAX_ADDITIONAL_DATA_SIZE: u64 = $max_ad_size;
 
-            type Key = AeadKey<{ Self::KEY_SIZE }>;
+            type Key = AeadKey<Self::KeySize>;
 
             #[inline]
             fn new(key: &Self::Key) -> Self {
@@ -411,7 +411,7 @@ macro_rules! indcca2_aead_impl {
                     EVP_AEAD_CTX_init(
                         ptr::addr_of_mut!(ctx.0), // ctx
                         $aead(),                  // aead
-                        key.as_ptr(),             // key
+                        key.as_slice().as_ptr(),  // key
                         Self::KEY_SIZE,           // key_len
                         Self::OVERHEAD,           // tag_len
                         ptr::null_mut(),          // impl
@@ -591,7 +591,7 @@ mod committing {
 
     use bssl_sys::{AES_encrypt, AES_set_encrypt_key, AES_BLOCK_SIZE, AES_KEY};
     use generic_array::GenericArray;
-    use typenum::{Unsigned, U16};
+    use typenum::{Unsigned, U16, U32};
 
     use super::{Aes256Gcm, Sha256};
     use crate::{
@@ -606,12 +606,13 @@ mod committing {
     impl BlockCipher for Aes256 {
         type BlockSize = U16;
         const BLOCK_SIZE: usize = Self::BlockSize::USIZE;
-        type Key = AeadKey<32>;
+        type Key = AeadKey<U32>;
 
         fn new(key: &Self::Key) -> Self {
             let mut v = AES_KEY::default();
             // SAFETY: FFI call, no invariants.
-            let ret = unsafe { AES_set_encrypt_key(key.as_ptr(), 256, ptr::addr_of_mut!(v)) };
+            let ret =
+                unsafe { AES_set_encrypt_key(key.as_slice().as_ptr(), 256, ptr::addr_of_mut!(v)) };
             // Unlike other parts of the BoringSSL API, it returns
             // 0 on success.
             assert_eq!(ret, 0);
@@ -802,7 +803,7 @@ macro_rules! ecdh_impl {
                     // The zero-padded integer will always be
                     // exactly this many bytes.
                     assert_eq!(n, out.len());
-                    Ok(out.0.into())
+                    Ok(SecretKeyBytes::new(out.0))
                 }
             }
 
@@ -1067,7 +1068,7 @@ macro_rules! ecdsa_impl {
                     // is some sort of programmer error or bug in
                     // BoringSSL.
                     assert_eq!(n, out.len());
-                    Ok(out.0.into())
+                    Ok(SecretKeyBytes::new(out.0))
                 }
             }
         }
@@ -1327,7 +1328,7 @@ impl SecretKey for Ed25519SigningKey {
     fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
         // sk is seed || public key
         let seed: [u8; 32] = self.sk[..32].try_into().expect("unreachable");
-        Ok(seed.into())
+        Ok(SecretKeyBytes::new(seed.into()))
     }
 }
 
@@ -1483,7 +1484,6 @@ macro_rules! hash_impl {
 
             type DigestSize = U<{ $digest_size as usize }>;
             const DIGEST_SIZE: usize = $digest_size as usize;
-            type Digest = [u8; $digest_size as usize];
 
             const BLOCK_SIZE: usize = $block_size as usize;
             type Block = Block<{ $block_size as usize }>;
@@ -1509,7 +1509,7 @@ macro_rules! hash_impl {
             }
 
             #[inline]
-            fn digest(mut self) -> Self::Digest {
+            fn digest(mut self) -> Digest<Self::DigestSize> {
                 let mut out = [0u8; $digest_size as usize];
 
                 // SAFETY: FFI call, no invariants
@@ -1523,17 +1523,17 @@ macro_rules! hash_impl {
                 // failure.
                 assert_eq!(ret, 1);
 
-                out.into()
+                Digest::new(out.into())
             }
 
             #[inline]
-            fn hash(data: &[u8]) -> Self::Digest {
+            fn hash(data: &[u8]) -> Digest<Self::DigestSize> {
                 let mut out = [0u8; $digest_size as usize];
                 // SAFETY: FFI call, no invariants
                 unsafe {
                     $hash(data.as_ptr(), data.len(), ptr::addr_of_mut!(out));
                 }
-                out.into()
+                Digest::new(out.into())
             }
         }
     };
@@ -2019,7 +2019,7 @@ mod fun_crypto {
 
         #[inline]
         fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
-            Ok(self.0.into())
+            Ok(SecretKeyBytes::new(self.0.into()))
         }
 
         fn new<R: Csprng>(_rng: &mut R) -> Self {

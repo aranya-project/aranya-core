@@ -17,14 +17,14 @@
 use core::fmt::{self, Debug};
 
 use ed25519_dalek as dalek;
-use generic_array::typenum::U32;
 use subtle::{Choice, ConstantTimeEq};
+use typenum::U32;
 
 use crate::{
     csprng::Csprng,
     hex::ToHex,
     import::{try_import, ExportError, Import, ImportError},
-    keys::{PublicKey, RawKey, SecretKey, SecretKeyBytes},
+    keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{self, Signer, SignerError, SignerId},
     zeroize::{ZeroizeOnDrop, Zeroizing},
 };
@@ -85,7 +85,7 @@ impl SecretKey for SigningKey {
 
     #[inline]
     fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
-        Ok(self.0.to_bytes().into())
+        Ok(SecretKeyBytes::new(self.0.to_bytes().into()))
     }
 }
 
@@ -106,12 +106,6 @@ impl Import<&[u8; 32]> for SigningKey {
 impl Import<[u8; 32]> for SigningKey {
     fn import(data: [u8; 32]) -> Result<Self, ImportError> {
         Self::import(&data)
-    }
-}
-
-impl Import<RawKey<32>> for SigningKey {
-    fn import(data: RawKey<32>) -> Result<Self, ImportError> {
-        Self::import(Into::<[u8; 32]>::into(data))
     }
 }
 

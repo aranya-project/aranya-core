@@ -3,24 +3,21 @@
 use core::{
     borrow::Borrow,
     fmt::{self, Debug, Display},
+    hash::Hash,
 };
 
 use base58::{String64, ToBase58};
+use generic_array::GenericArray;
 use postcard::experimental::max_size::MaxSize;
 use serde::{
-    de::{self, SeqAccess, Visitor},
+    de::{self, DeserializeOwned, SeqAccess, Visitor},
     ser::SerializeTuple,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use typenum::U64;
 
 use crate::{
-    aranya::{EncryptionKeyId, Signature, SigningKeyId, UserId},
-    ciphersuite::SuiteIds,
-    csprng::Csprng,
-    engine::Engine,
-    groupkey::GroupKeyId,
-    hash::tuple_hash,
-    mac::Tag,
+    aranya::Signature, ciphersuite::SuiteIds, csprng::Csprng, engine::Engine, hash::tuple_hash,
 };
 
 /// A unique cryptographic ID.
@@ -39,6 +36,7 @@ impl Id {
             data,
             tag,
         ])
+        .into_array()
         .into()
     }
 
@@ -52,12 +50,20 @@ impl Id {
             sig.raw_sig().borrow(),
             msg,
         ])
+        .into_array()
         .into()
     }
 
     /// Same as [`Default`], but const.
+    #[inline]
     pub const fn default() -> Self {
         Self([0u8; 64])
+    }
+
+    /// Creates itself from a byte array.
+    #[inline]
+    pub const fn from_bytes(bytes: [u8; 64]) -> Self {
+        Self(bytes)
     }
 
     /// Creates a random ID.
@@ -68,11 +74,13 @@ impl Id {
     }
 
     /// Returns the [`Id`] as a byte slice.
+    #[inline]
     pub const fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 
     /// Returns the [`Id`] as a byte array.
+    #[inline]
     pub const fn as_array(&self) -> &[u8; 64] {
         &self.0
     }
@@ -91,6 +99,13 @@ impl AsRef<[u8]> for Id {
     }
 }
 
+impl From<GenericArray<u8, U64>> for Id {
+    #[inline]
+    fn from(id: GenericArray<u8, U64>) -> Self {
+        Self(id.into())
+    }
+}
+
 impl From<[u8; 64]> for Id {
     #[inline]
     fn from(id: [u8; 64]) -> Self {
@@ -102,13 +117,6 @@ impl From<Id> for [u8; 64] {
     #[inline]
     fn from(id: Id) -> Self {
         id.0
-    }
-}
-
-impl From<Tag<64>> for Id {
-    #[inline]
-    fn from(id: Tag<64>) -> Self {
-        Self(id.into())
     }
 }
 
@@ -179,7 +187,7 @@ impl<'de> Deserialize<'de> for Id {
 /// Creates a custom ID.
 #[macro_export]
 macro_rules! custom_id {
-    ($name:ident, $doc:expr) => {
+    ($name:ident, $doc:expr $(,)?) => {
         #[doc = $doc]
         #[repr(C)]
         #[derive(
@@ -199,6 +207,7 @@ macro_rules! custom_id {
 
         impl $name {
             /// Same as [`Default`], but const.
+            #[inline]
             pub const fn default() -> Self {
                 Self($crate::Id::default())
             }
@@ -209,45 +218,56 @@ macro_rules! custom_id {
             }
 
             /// Returns itself as a byte slice.
+            #[inline]
             pub const fn as_bytes(&self) -> &[u8] {
                 self.0.as_bytes()
             }
 
             /// Returns itself as a byte array.
+            #[inline]
             pub const fn as_array(&self) -> &[u8; 64] {
                 self.0.as_array()
             }
         }
 
-        impl AsRef<[u8]> for $name {
+        impl ::core::convert::AsRef<[u8]> for $name {
             #[inline]
             fn as_ref(&self) -> &[u8] {
                 self.0.as_ref()
             }
         }
 
-        impl From<[u8; 64]> for $name {
+        impl ::core::convert::From<$crate::generic_array::GenericArray<u8, $crate::typenum::U64>>
+            for $name
+        {
+            #[inline]
+            fn from(id: $crate::generic_array::GenericArray<u8, $crate::typenum::U64>) -> Self {
+                Self(id.into())
+            }
+        }
+
+        impl ::core::convert::From<[u8; 64]> for $name {
             #[inline]
             fn from(id: [u8; 64]) -> Self {
                 Self(id.into())
             }
         }
 
-        impl From<$name> for [u8; 64] {
+        impl ::core::convert::From<$name> for [u8; 64] {
             #[inline]
             fn from(id: $name) -> Self {
                 id.0.into()
             }
         }
 
-        impl From<$crate::Id> for $name {
+        impl ::core::convert::From<$crate::Id> for $name {
             #[inline]
             fn from(id: $crate::Id) -> Self {
                 Self(id)
             }
         }
 
-        impl From<$name> for $crate::Id {
+        impl ::core::convert::From<$name> for $crate::Id {
             #[inline]
             fn from(id: $name) -> Self {
                 id.0
@@ -269,49 +289,23 @@ macro_rules! custom_id {
 }
 pub(crate) use custom_id;
 
-/// Enumerates the possible key IDs.
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub enum KeyId {
-    /// See [`EncryptionKeyId`].
-    EncryptionKey(EncryptionKeyId),
-    /// See [`GroupKeyId`].
-    GroupKey(GroupKeyId),
-    /// See [`UserId`].
-    IdentityKey(UserId),
-    /// See [`SigningKeyId`].
-    SigningKey(SigningKeyId),
-}
+/// An object with a unique identifier.
+pub trait Identified {
+    /// Uniquely identifies the object.
+    type Id: Copy
+        + Clone
+        + Display
+        + Debug
+        + Hash
+        + Eq
+        + PartialEq
+        + Ord
+        + PartialOrd
+        + Serialize
+        + DeserializeOwned
+        + MaxSize
+        + Into<Id>;
 
-impl KeyId {
-    /// Returns the underlying [`Id`].
-    pub fn id(&self) -> Id {
-        match self {
-            Self::EncryptionKey(id) => (*id).into(),
-            Self::GroupKey(id) => (*id).into(),
-            Self::IdentityKey(id) => (*id).into(),
-            Self::SigningKey(id) => (*id).into(),
-        }
-    }
-}
-
-impl Display for KeyId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::EncryptionKey(id) => Display::fmt(id, f),
-            Self::GroupKey(id) => Display::fmt(id, f),
-            Self::IdentityKey(id) => Display::fmt(id, f),
-            Self::SigningKey(id) => Display::fmt(id, f),
-        }
-    }
-}
-
-impl Debug for KeyId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::EncryptionKey(id) => Debug::fmt(id, f),
-            Self::GroupKey(id) => Debug::fmt(id, f),
-            Self::IdentityKey(id) => Debug::fmt(id, f),
-            Self::SigningKey(id) => Debug::fmt(id, f),
-        }
-    }
+    /// Uniquely identifies the object.
+    fn id(&self) -> Self::Id;
 }

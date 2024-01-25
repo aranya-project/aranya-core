@@ -9,15 +9,18 @@
 
 use core::{
     borrow::{Borrow, BorrowMut},
-    fmt::Debug,
+    fmt::{self, Debug},
+    ops::{Deref, DerefMut},
 };
 
-use generic_array::ArrayLength;
+use generic_array::{ArrayLength, GenericArray, IntoArrayLength};
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
+use subtle::{Choice, ConstantTimeEq};
 use typenum::{
+    generic_const_mappings::Const,
     type_operators::{IsGreaterOrEqual, IsLess},
-    Unsigned, U16, U65536,
+    Unsigned, U32, U65536,
 };
 
 /// Hash algorithm identifiers.
@@ -68,13 +71,10 @@ pub trait Hash: Clone {
 
     /// The size in octets of a digest used by this [`Hash`].
     ///
-    /// Must be at least 16 octets and less than 2¹⁶ octets.
-    type DigestSize: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static;
+    /// Must be at least 32 octets and less than 2¹⁶ octets.
+    type DigestSize: ArrayLength + IsGreaterOrEqual<U32> + IsLess<U65536> + 'static;
     /// Shorthand for [`DigestSize`][Self::DigestSize].
     const DIGEST_SIZE: usize = Self::DigestSize::USIZE;
-
-    /// The output of the hash function.
-    type Digest: Borrow<[u8]> + Debug + Eq;
 
     /// The size in bytes of a [`Self::Block`].
     const BLOCK_SIZE: usize;
@@ -89,20 +89,123 @@ pub trait Hash: Clone {
     fn update(&mut self, data: &[u8]);
 
     /// Returns the current digest.
-    fn digest(self) -> Self::Digest;
+    fn digest(self) -> Digest<Self::DigestSize>;
 
     /// Returns the digest of `data`.
     ///
     /// While this function is provided by default,
     /// implementations of [`Hash`] are encouraged to provide
     /// optimized "single-shot" implementations.
-    fn hash(data: &[u8]) -> Self::Digest
+    fn hash(data: &[u8]) -> Digest<Self::DigestSize>
     where
         Self: Sized,
     {
         let mut h = Self::new();
         h.update(data);
         h.digest()
+    }
+}
+
+/// The output of a [`Hash`].
+#[derive(Clone, Default)]
+#[repr(transparent)]
+pub struct Digest<N: ArrayLength>(GenericArray<u8, N>);
+
+impl<N: ArrayLength> Digest<N> {
+    /// Creates a new hash digest.
+    #[inline]
+    pub const fn new(digest: GenericArray<u8, N>) -> Self {
+        Self(digest)
+    }
+
+    /// Creates a new hash digest from an array.
+    #[inline]
+    pub const fn from_array<const U: usize>(digest: [u8; U]) -> Self
+    where
+        Const<U>: IntoArrayLength<ArrayLength = N>,
+    {
+        Self::new(GenericArray::from_array(digest))
+    }
+
+    /// Returns the length of the hash digest.
+    #[inline]
+    #[allow(clippy::len_without_is_empty)]
+    pub const fn len(&self) -> usize {
+        N::USIZE
+    }
+
+    /// Returns the hash digest as a byte slice.
+    #[inline]
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
+    }
+
+    /// Returns the hash digest as a byte slice.
+    #[inline]
+    pub fn as_bytes_mut(&mut self) -> &mut [u8] {
+        &mut self.0
+    }
+
+    /// Converts itself to an array.
+    #[inline]
+    pub fn into_array(self) -> GenericArray<u8, N> {
+        self.0
+    }
+}
+
+impl<N: ArrayLength> Copy for Digest<N> where N::ArrayType<u8>: Copy {}
+
+impl<N: ArrayLength> Deref for Digest<N> {
+    type Target = [u8];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<N: ArrayLength> DerefMut for Digest<N> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<N: ArrayLength> Debug for Digest<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Digest").field(&self.0).finish()
+    }
+}
+
+// Gated for safety purposes; see the comment inside
+// `PartialEq::Eq`.
+#[cfg(any(test, feature = "test_util"))]
+impl<N: ArrayLength> Eq for Digest<N> {}
+
+// Gated for safety purposes; see the comment inside
+// `PartialEq::Eq`.
+#[cfg(any(test, feature = "test_util"))]
+impl<N: ArrayLength> PartialEq for Digest<N> {
+    fn eq(&self, other: &Self) -> bool {
+        // While it's generally fine to compare digests with ==
+        // (non-constant time), it has the potential to be
+        // a footgun. For example, MACs must be compared in
+        // constant time, but some MACs are simply hash digests
+        // (see HMAC, etc.). A naive implementation of HMAC could
+        // return `Digest` directly, opening it up to side
+        // channel attacks.
+        //
+        // To protect against this, we only allow comparisons
+        // with == while testing. Out of paranoia, we also use
+        // a constant time comparison for the equality check.
+        bool::from(ConstantTimeEq::ct_eq(self, other))
+    }
+}
+
+impl<N: ArrayLength> ConstantTimeEq for Digest<N> {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.as_bytes().ct_eq(other.as_bytes())
     }
 }
 
@@ -143,8 +246,10 @@ impl<const N: usize> BorrowMut<[u8]> for Block<N> {
 /// `H("a")`.
 ///
 /// [NIST SP 800-185]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
-pub fn tuple_hash<H: Hash, I: IntoIterator>(s: I) -> H::Digest
+pub fn tuple_hash<H, I>(s: I) -> Digest<H::DigestSize>
 where
+    H: Hash,
+    I: IntoIterator,
     I::Item: AsRef<[u8]>,
 {
     // TupleHash(X, L, S)

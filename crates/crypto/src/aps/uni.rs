@@ -10,7 +10,7 @@ use crate::{
     ciphersuite::SuiteIds,
     engine::Engine,
     error::Error,
-    hash::{tuple_hash, Hash},
+    hash::{tuple_hash, Digest, Hash},
     hpke::{Hpke, Mode},
     id::Id,
     import::ImportError,
@@ -41,8 +41,10 @@ use crate::{
 ///         },
 ///         CipherSuite,
 ///         Csprng,
-///         DefaultCipherSuite,
-///         DefaultEngine,
+///         default::{
+///             DefaultCipherSuite,
+///             DefaultEngine,
+///         },
 ///         Engine,
 ///         Id,
 ///         IdentityKey,
@@ -152,7 +154,7 @@ where
 }
 
 impl<E: Engine + ?Sized> UniChannel<'_, E> {
-    fn info(&self) -> <E::Hash as Hash>::Digest {
+    fn info(&self) -> Digest<<E::Hash as Hash>::DigestSize> {
         // info = H(
         //     "ApsUnidirectionalKey",
         //     suite_id,

@@ -20,7 +20,7 @@ impl Id {
     /// (unfortunately) some code already depends on it.
     pub fn hash_for_testing_only(data: &[u8]) -> Self {
         use crypto::{hash::Hash, rust::Sha512};
-        Sha512::hash(data).into()
+        Sha512::hash(data).into_array().into()
     }
 
     #[cfg(test)]

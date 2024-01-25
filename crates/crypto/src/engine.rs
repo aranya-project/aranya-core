@@ -8,27 +8,295 @@
 #![forbid(unsafe_code)]
 
 use core::{
-    borrow::Borrow,
+    convert::Infallible,
     fmt::{self, Debug, Display},
+    hash::Hash,
     result::Result,
 };
 
-use serde::{Deserialize, Serialize};
+use buggy::Bug;
+use postcard::experimental::max_size::MaxSize;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
     aead::{Aead, AeadId, OpenError, SealError},
-    apq::{ReceiverSecretKey, SenderSecretKey, SenderSigningKey},
-    aranya::{EncryptionKey, IdentityKey, SigningKey},
     ciphersuite::CipherSuite,
     csprng::Csprng,
-    groupkey::GroupKey,
-    id::Id,
-    import::{ExportError, Import, ImportError},
+    id::{Id, Identified},
+    import::{ExportError, ImportError},
+    kdf::{Kdf, KdfId, Prk},
     kem::{Kem, KemId},
-    keys::{SecretKey, SecretKeyBytes},
     mac::{Mac, MacId},
     signer::{Signer, SignerId},
 };
+
+/// The core trait used by the cryptography engine APIs.
+pub trait Engine: CipherSuite + Csprng + RawSecretWrap<Self> + Sized {
+    /// Uniquely identifies the [`Engine`].
+    const ID: Id;
+
+    /// An encrypted, authenticated key that can only be
+    /// decrypted with [`Engine::unwrap`].
+    type WrappedKey: WrappedKey;
+
+    /// Encrypts and authenticates an unwrapped key.
+    fn wrap<T>(&mut self, key: T) -> Result<Self::WrappedKey, WrapError>
+    where
+        T: UnwrappedKey<Self>,
+    {
+        let id = key.id();
+        let secret = key.into_secret();
+        self.wrap_secret::<T>(&id, secret.0)
+    }
+
+    /// Decrypts and authenticates the wrapped key.
+    fn unwrap<T>(&self, key: &Self::WrappedKey) -> Result<T, UnwrapError>
+    where
+        T: UnwrappedKey<Self>,
+    {
+        let secret = self.unwrap_secret::<T>(key)?;
+        Ok(T::try_from_secret(UnwrappedSecret(secret))?)
+    }
+
+    /// Makes a best-effort attempt to render irrecoverable all
+    /// key material protected by the [`Engine`].
+    ///
+    /// This is usually implemented by destroying the key
+    /// wrapping keys.
+    fn destroy(self) {}
+}
+
+/// An encrypted, authenticated key created by [`Engine::wrap`]
+/// that can only be decrypted by [`Engine::unwrap`].
+///
+/// It need not directly contain the ciphertext. For example,
+/// it might only contain an identifier used to look up the
+/// key in an HSM.
+pub trait WrappedKey: Identified + Serialize + DeserializeOwned + Sized {}
+
+/// A key that an [`Engine`] can wrap.
+pub trait UnwrappedKey<E: Engine + ?Sized>: Sized + Identified {
+    /// The key's algorithm identifier.
+    const ID: AlgId;
+
+    /// Converts itself into the underlying [`Secret`].
+    fn into_secret(self) -> Secret<E>;
+
+    /// Converts itself from a [`UnwrappedSecret`].
+    fn try_from_secret(key: UnwrappedSecret<E>) -> Result<Self, WrongKeyType>;
+}
+
+/// A cryptographic secret underlying an [`UnwrappedKey`].
+///
+/// It is intentionally opaque; only [`Engine::wrap`] can access
+/// the internal [`RawSecret`].
+pub struct Secret<E: Engine + ?Sized>(RawSecret<E>);
+
+impl<E: Engine + ?Sized> Secret<E> {
+    /// Creates a new [`Secret`].
+    pub const fn new(secret: RawSecret<E>) -> Self {
+        Self(secret)
+    }
+}
+
+/// A cryptographic secret as unwrapped by an [`Engine`].
+///
+/// It is intentionally opaque; only [`Engine::unwrap`] can
+/// construct this type.
+pub struct UnwrappedSecret<E: Engine + ?Sized>(RawSecret<E>);
+
+impl<E: Engine + ?Sized> UnwrappedSecret<E> {
+    /// Returns the underlying [`RawSecret`].
+    pub fn into_raw(self) -> RawSecret<E> {
+        self.0
+    }
+}
+
+/// Encrypts and authenticates [`RawSecret`]s from
+/// [`UnwrappedKey`]s.
+pub trait RawSecretWrap<E: Engine + ?Sized> {
+    /// Encrypts and authenticates an unwrapped key.
+    ///
+    /// # Warning
+    ///
+    /// This method is used by [`Engine::wrap`] and should not be
+    /// called manually.
+    fn wrap_secret<T>(
+        &mut self,
+        id: &<T as Identified>::Id,
+        secret: RawSecret<E>,
+    ) -> Result<E::WrappedKey, WrapError>
+    where
+        T: UnwrappedKey<E>;
+
+    /// Decrypts and authenticates the wrapped key.
+    ///
+    /// # Warning
+    ///
+    /// This method is used by [`Engine::unwrap`] and should not
+    /// be called manually.
+    fn unwrap_secret<T>(&self, key: &E::WrappedKey) -> Result<RawSecret<E>, UnwrapError>
+    where
+        T: UnwrappedKey<E>;
+}
+
+/// A raw, unwrapped secret.
+pub enum RawSecret<E: Engine + ?Sized> {
+    /// A symmetric AEAD key.
+    Aead(<E::Aead as Aead>::Key),
+    /// An asymmetric decapsulation key.
+    Decap(<E::Kem as Kem>::DecapKey),
+    /// A MAC key.
+    Mac(<E::Mac as Mac>::Key),
+    /// A PRK.
+    Prk(Prk<<E::Kdf as Kdf>::PrkSize>),
+    /// Cryptographic seeds.
+    Seed([u8; 64]),
+    /// An asymmetric signing key.
+    Signing(<E::Signer as Signer>::SigningKey),
+}
+
+impl<E: Engine + ?Sized> RawSecret<E> {
+    /// Returns the string name of the key.
+    pub const fn name(&self) -> &'static str {
+        self.alg_id().name()
+    }
+
+    /// Returns the secret's algorithm identifier.
+    pub const fn alg_id(&self) -> AlgId {
+        match self {
+            Self::Aead(_) => AlgId::Aead(<E::Aead as Aead>::ID),
+            Self::Decap(_) => AlgId::Decap(<E::Kem as Kem>::ID),
+            Self::Mac(_) => AlgId::Mac(<E::Mac as Mac>::ID),
+            Self::Prk(_) => AlgId::Prk(<E::Kdf as Kdf>::ID),
+            Self::Seed(_) => AlgId::Seed(()),
+            Self::Signing(_) => AlgId::Signing(<E::Signer as Signer>::ID),
+        }
+    }
+}
+
+/// An algorithm identifier for [`UnwrappedKey`].
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+pub enum AlgId {
+    /// See [`RawSecret::Aead`].
+    Aead(AeadId),
+    /// See [`RawSecret::Decap`].
+    Decap(KemId),
+    /// See [`RawSecret::Mac`].
+    Mac(MacId),
+    /// See [`RawSecret::Prk`].
+    Prk(KdfId),
+    /// See [`RawSecret::Seed`].
+    Seed(()),
+    /// See [`RawSecret::Signing`].
+    Signing(SignerId),
+}
+
+impl AlgId {
+    /// Returns the string name of the key.
+    #[inline]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Aead(_) => "Aead",
+            Self::Decap(_) => "Decap",
+            Self::Mac(_) => "Mac",
+            Self::Prk(_) => "Prk",
+            Self::Seed(_) => "Seed",
+            Self::Signing(_) => "Signing",
+        }
+    }
+}
+
+/// Implements [`UnwrappedKey`] for `$name`.
+///
+/// - `$type` identifies which variant should be used.
+/// - `$into` is a function that takes `Self` and returns the
+/// inner value for the `$type` variant.
+/// - `$from` is a function that takes the inner value for the
+/// `$type` variant and returns `Self`.
+#[macro_export]
+macro_rules! unwrapped {
+    { name: $name:ident; type: Aead; into: $into:expr; from: $from:expr $(;)? } => {
+        $crate::engine::__unwrapped_inner!(Aead, <E::Aead as $crate::aead::Aead>::ID, $name, $into, $from);
+    };
+    { name: $name:ident; type: Decap; into: $into:expr; from: $from:expr $(;)? } => {
+        $crate::engine::__unwrapped_inner!(Decap, <E::Kem as $crate::kem::Kem>::ID, $name, $into, $from);
+    };
+    { name: $name:ident; type: Mac; into: $into:expr; from: $from:expr $(;)? } => {
+        $crate::engine::__unwrapped_inner!(Mac, <E::Mac as $crate::mac::Mac>::ID, $name, $into, $from);
+    };
+    { name: $name:ident; type: Prk; into: $into:expr; from: $from:expr $(;)? } => {
+        $crate::engine::__unwrapped_inner!(Prk, <E::Kdf as $crate::kdf::Kdf>::ID, $name, $into, $from);
+    };
+    { name: $name:ident; type: Seed; into: $into:expr; from: $from:expr $(;)? } => {
+        $crate::engine::__unwrapped_inner!(Seed, (), $name, $into, $from);
+    };
+    { name: $name:ident; type: Signing; into: $into:expr; from: $from:expr $(;)? } => {
+        $crate::engine::__unwrapped_inner!(Signing, <E::Signer as $crate::signer::Signer>::ID, $name, $into, $from);
+    };
+    ($($fallthrough:tt)*) => {
+        ::core::compile_error!("unknown variant");
+    };
+}
+pub(crate) use unwrapped;
+
+#[doc(hidden)]
+macro_rules! __unwrapped_inner {
+    ($enum:ident, $id:expr, $name:ident, $into:expr, $from:expr) => {
+        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::engine::UnwrappedKey<E>
+            for $name<E>
+        {
+            const ID: $crate::engine::AlgId = $crate::engine::AlgId::$enum($id);
+
+            #[inline]
+            fn into_secret(self) -> $crate::engine::Secret<E> {
+                $crate::engine::Secret::new($crate::engine::RawSecret::$enum(
+                    #[allow(clippy::redundant_closure_call)]
+                    $into(self),
+                ))
+            }
+
+            #[inline]
+            fn try_from_secret(
+                key: $crate::engine::UnwrappedSecret<E>,
+            ) -> ::core::result::Result<Self, $crate::engine::WrongKeyType> {
+                match key.into_raw() {
+                    $crate::engine::RawSecret::$enum(key) => ::core::result::Result::Ok(
+                        #[allow(clippy::redundant_closure_call)]
+                        $from(key),
+                    ),
+                    got => ::core::result::Result::Err($crate::engine::WrongKeyType {
+                        got: got.name(),
+                        expected: ::core::stringify!($name),
+                    }),
+                }
+            }
+        }
+    };
+}
+pub(crate) use __unwrapped_inner;
+
+/// Returned when converting [`UnwrappedKey`]s to concrete key
+/// types.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct WrongKeyType {
+    /// The type of key received.
+    pub got: &'static str,
+    /// The expected key type.
+    pub expected: &'static str,
+}
+
+impl Display for WrongKeyType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "wrong key type: got {}, expected {}",
+            self.got, self.expected
+        )
+    }
+}
+
+impl trouble::Error for WrongKeyType {}
 
 /// An error from [`Engine::wrap`].
 #[derive(Debug, Eq, PartialEq)]
@@ -39,6 +307,8 @@ pub enum WrapError {
     Export(ExportError),
     /// The encoded secret key cannot be encrypted.
     Seal(SealError),
+    /// A bug was discovered.
+    Bug(Bug),
 }
 
 impl Display for WrapError {
@@ -48,6 +318,7 @@ impl Display for WrapError {
             Self::Other(msg) => write!(f, "{}", msg),
             Self::Export(err) => write!(f, "{}", err),
             Self::Seal(err) => write!(f, "{}", err),
+            Self::Bug(err) => write!(f, "{}", err),
         }
     }
 }
@@ -57,6 +328,7 @@ impl trouble::Error for WrapError {
         match self {
             Self::Export(err) => Some(err),
             Self::Seal(err) => Some(err),
+            Self::Bug(err) => Some(err),
             _ => None,
         }
     }
@@ -74,6 +346,18 @@ impl From<ExportError> for WrapError {
     }
 }
 
+impl From<Bug> for WrapError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
+    }
+}
+
+impl From<Infallible> for WrapError {
+    fn from(err: Infallible) -> Self {
+        match err {}
+    }
+}
+
 /// An error from [`Engine::unwrap`].
 #[derive(Debug, Eq, PartialEq)]
 pub enum UnwrapError {
@@ -83,6 +367,10 @@ pub enum UnwrapError {
     Open(OpenError),
     /// The unwrapped secret key data cannot be imported.
     Import(ImportError),
+    /// Could not convert the [`UnwrappedKey`] to `T`.
+    WrongKeyType(WrongKeyType),
+    /// A bug was discovered.
+    Bug(Bug),
 }
 
 impl Display for UnwrapError {
@@ -92,6 +380,8 @@ impl Display for UnwrapError {
             Self::Other(msg) => write!(f, "{}", msg),
             Self::Open(err) => write!(f, "{}", err),
             Self::Import(err) => write!(f, "{}", err),
+            Self::WrongKeyType(err) => write!(f, "{}", err),
+            Self::Bug(err) => write!(f, "{}", err),
         }
     }
 }
@@ -117,247 +407,20 @@ impl From<ImportError> for UnwrapError {
     }
 }
 
-/// Identifies each discriminant in [`UnwrappedKey`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum KeyType {
-    /// See [`UnwrappedKey::Aead`].
-    Aead(AeadId),
-    /// See [`UnwrappedKey::Encryption`].
-    Encryption(KemId),
-    /// See [`UnwrappedKey::Group`].
-    Group,
-    /// See [`UnwrappedKey::Identity`].
-    Identity(SignerId),
-    /// See [`UnwrappedKey::Mac`].
-    Mac(MacId),
-    /// See [`UnwrappedKey::ReceiverSecret`].
-    ReceiverSecret(SignerId),
-    /// See [`UnwrappedKey::SenderSecret`].
-    SenderSecret(SignerId),
-    /// See [`UnwrappedKey::SenderSigning`].
-    SenderSigning(SignerId),
-    /// See [`UnwrappedKey::Signing`].
-    Signing(SignerId),
-}
-
-/// An encrypted, authenticated key.
-///
-/// It can only be decrypted by [`Engine::unwrap`].
-pub trait WrappedKey: Sized {
-    /// Identifies the type of that was wrapped.
-    fn id(&self) -> KeyType;
-
-    /// The output of [`encode`][Self::encode].
-    type Output: Borrow<[u8]>;
-    /// The error returned by [`encode`][Self::encode] and
-    /// [`decode`][Self::decode].
-    type Error: Debug + Display;
-
-    /// Encodes itself as bytes.
-    fn encode(&self) -> Result<Self::Output, Self::Error>;
-    /// Decodes itself from bytes.
-    fn decode(data: &[u8]) -> Result<Self, Self::Error>;
-}
-
-/// Keys that can be wrapped by an [`Engine`].
-///
-/// In general, unless you are implementing an [`Engine`] you
-/// should not need to use this type directly. The keys that
-/// commonly need to be wrapped---like [`EncryptionKey`], for
-/// example---implement [`Into<UnwrappedKey<E>>`] and can be used
-/// directly with [`Engine::wrap`].
-pub enum UnwrappedKey<E: Engine + ?Sized> {
-    /// An [`Aead::Key`].
-    Aead(<E::Aead as Aead>::Key),
-    /// A [`EncryptionKey`].
-    Encryption(EncryptionKey<E>),
-    /// A [`GroupKey`].
-    Group(GroupKey<E>),
-    /// An [`IdentityKey`].
-    Identity(IdentityKey<E>),
-    /// A [`Mac::Key`].
-    Mac(<E::Mac as Mac>::Key),
-    /// A [`ReceiverSecretKey`].
-    ReceiverSecret(ReceiverSecretKey<E>),
-    /// A [`SenderSecretKey`].
-    SenderSecret(SenderSecretKey<E>),
-    /// A [`SenderSigningKey`].
-    SenderSigning(SenderSigningKey<E>),
-    /// A [`SigningKey`].
-    Signing(SigningKey<E>),
-}
-
-impl<E: Engine + ?Sized> UnwrappedKey<E> {
-    /// Identifies the discriminant.
-    pub fn id(&self) -> KeyType {
-        match self {
-            Self::Aead(_) => KeyType::Aead(E::Aead::ID),
-            Self::Encryption(_) => KeyType::Encryption(E::Kem::ID),
-            Self::Group(_) => KeyType::Group,
-            Self::Identity(_) => KeyType::Identity(E::Signer::ID),
-            Self::Mac(_) => KeyType::Mac(E::Mac::ID),
-            Self::ReceiverSecret(_) => KeyType::ReceiverSecret(E::Signer::ID),
-            Self::SenderSecret(_) => KeyType::SenderSecret(E::Signer::ID),
-            Self::SenderSigning(_) => KeyType::SenderSigning(E::Signer::ID),
-            Self::Signing(_) => KeyType::Signing(E::Signer::ID),
-        }
+impl From<WrongKeyType> for UnwrapError {
+    fn from(err: WrongKeyType) -> Self {
+        Self::WrongKeyType(err)
     }
 }
 
-impl<E: Engine> Import<(KeyType, &[u8])> for UnwrappedKey<E> {
-    fn import(data: (KeyType, &[u8])) -> Result<Self, ImportError> {
-        let (kt, secret) = data;
-        let v = match kt {
-            KeyType::Aead(_) => Self::Aead(<E::Aead as Aead>::Key::import(secret)?),
-            KeyType::Encryption(_) => Self::Encryption(EncryptionKey::import(secret)?),
-            KeyType::Group => Self::Group(GroupKey::try_from(secret)?),
-            KeyType::Identity(_) => Self::Identity(IdentityKey::import(secret)?),
-            KeyType::Mac(_) => Self::Mac(<E::Mac as Mac>::Key::import(secret)?),
-            KeyType::ReceiverSecret(_) => Self::ReceiverSecret(ReceiverSecretKey::import(secret)?),
-            KeyType::SenderSecret(_) => Self::SenderSecret(SenderSecretKey::import(secret)?),
-            KeyType::SenderSigning(_) => Self::SenderSigning(SenderSigningKey::import(secret)?),
-            KeyType::Signing(_) => Self::Signing(SigningKey::import(secret)?),
-        };
-        Ok(v)
+impl From<Bug> for UnwrapError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
     }
 }
 
-/// Returned when converting [`UnwrappedKey`]s to concrete key
-/// types via [`TryFrom`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct WrongKeyTypeError;
-
-impl Display for WrongKeyTypeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "wrong key type")
+impl From<Infallible> for UnwrapError {
+    fn from(err: Infallible) -> Self {
+        match err {}
     }
-}
-
-impl trouble::Error for WrongKeyTypeError {}
-
-macro_rules! conv_key {
-    ($name:ident, $enum:ident) => {
-        impl<E: Engine + ?Sized> From<$name<E>> for UnwrappedKey<E> {
-            fn from(key: $name<E>) -> Self {
-                Self::$enum(key)
-            }
-        }
-
-        impl<E: Engine + ?Sized> From<&$name<E>> for UnwrappedKey<E> {
-            fn from(key: &$name<E>) -> Self {
-                Self::$enum(key.clone())
-            }
-        }
-
-        impl<E: Engine + ?Sized> TryFrom<UnwrappedKey<E>> for $name<E> {
-            type Error = WrongKeyTypeError;
-
-            fn try_from(key: UnwrappedKey<E>) -> Result<Self, Self::Error> {
-                match key {
-                    UnwrappedKey::$enum(key) => Ok(key),
-                    _ => Err(WrongKeyTypeError),
-                }
-            }
-        }
-    };
-}
-conv_key!(EncryptionKey, Encryption);
-conv_key!(GroupKey, Group);
-conv_key!(IdentityKey, Identity);
-conv_key!(ReceiverSecretKey, ReceiverSecret);
-conv_key!(SenderSecretKey, SenderSecret);
-conv_key!(SenderSigningKey, SenderSigning);
-conv_key!(SigningKey, Signing);
-
-/// The secret data from an [`UnwrappedKey`].
-pub enum SecretData<'a, E: Engine + ?Sized> {
-    /// See [`UnwrappedKey::Aead`].
-    Aead(SecretKeyBytes<<<E::Aead as Aead>::Key as SecretKey>::Size>),
-    /// See [`UnwrappedKey::Encryption`].
-    Encryption(SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
-    /// See [`UnwrappedKey::Group`].
-    Group(&'a [u8; 64]),
-    /// See [`UnwrappedKey::Identity`].
-    Identity(SecretKeyBytes<<<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
-    /// See [`UnwrappedKey::Mac`].
-    Mac(SecretKeyBytes<<<E::Mac as Mac>::Key as SecretKey>::Size>),
-    /// See [`UnwrappedKey::ReceiverSecret`].
-    ReceiverSecret(SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
-    /// See [`UnwrappedKey::SenderSecret`].
-    SenderSecret(SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
-    /// See [`UnwrappedKey::SenderSigning`].
-    SenderSigning(SecretKeyBytes<<<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
-    /// See [`UnwrappedKey::Signing`].
-    Signing(SecretKeyBytes<<<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
-}
-
-impl<'a, E: Engine + ?Sized> SecretData<'a, E> {
-    /// Attempts to return the key's secret data.
-    ///
-    /// # Warning
-    ///
-    /// Do NOT use this function unless you are implementing an
-    /// [`Engine`].
-    pub fn from_unwrapped(key: &'a UnwrappedKey<E>) -> Result<SecretData<'a, E>, ExportError> {
-        // This is a method on `SecretData` not `UnwrappedKey`
-        // because `UnwrappedKey` is part of the crate's default
-        // API and we do not allow users to see secret data in
-        // that API.
-        let data = match key {
-            UnwrappedKey::Aead(key) => Self::Aead(key.try_export_secret()?),
-            UnwrappedKey::Encryption(key) => Self::Encryption(key.try_export_secret()?),
-            UnwrappedKey::Group(key) => Self::Group(key.raw_seed()),
-            UnwrappedKey::Identity(key) => Self::Identity(key.try_export_secret()?),
-            UnwrappedKey::Mac(key) => Self::Mac(key.try_export_secret()?),
-            UnwrappedKey::ReceiverSecret(key) => Self::ReceiverSecret(key.try_export_secret()?),
-            UnwrappedKey::SenderSecret(key) => Self::SenderSecret(key.try_export_secret()?),
-            UnwrappedKey::SenderSigning(key) => Self::SenderSigning(key.try_export_secret()?),
-            UnwrappedKey::Signing(key) => Self::Signing(key.try_export_secret()?),
-        };
-        Ok(data)
-    }
-}
-
-impl<E: Engine + ?Sized> AsRef<[u8]> for SecretData<'_, E> {
-    fn as_ref(&self) -> &[u8] {
-        match self {
-            Self::Aead(key) => key.as_bytes(),
-            Self::Encryption(sk) => sk.as_bytes(),
-            Self::Group(seed) => seed.as_ref(),
-            Self::Identity(sk) => sk.as_bytes(),
-            Self::Mac(key) => key.as_bytes(),
-            Self::ReceiverSecret(sk) => sk.as_bytes(),
-            Self::SenderSecret(sk) => sk.as_bytes(),
-            Self::SenderSigning(sk) => sk.as_bytes(),
-            Self::Signing(sk) => sk.as_bytes(),
-        }
-    }
-}
-
-/// The core trait used by the cryptography engine APIs.
-pub trait Engine: CipherSuite + Csprng + Sized {
-    /// Uniquely identifies the [`Engine`].
-    const ID: Id;
-
-    /// An encrypted, authenticated key.
-    ///
-    /// It can only be decrypted by [`Engine::unwrap`].
-    type WrappedKey: WrappedKey;
-
-    /// Encrypts and authenticates `key` and returns the wrapped
-    /// key.
-    fn wrap<T>(&mut self, key: T) -> Result<Self::WrappedKey, WrapError>
-    where
-        T: Into<UnwrappedKey<Self>>;
-
-    /// Decrypts and authenticates the wrapped key, returning the
-    /// unwrapped key.
-    fn unwrap(&self, key: &Self::WrappedKey) -> Result<UnwrappedKey<Self>, UnwrapError>;
-
-    /// Makes a best-effort attempt to render irrecoverable all
-    /// key material protected by the [`Engine`].
-    ///
-    /// This is usually implemented by destroying the key
-    /// wrapping keys.
-    fn destroy(self) {}
 }

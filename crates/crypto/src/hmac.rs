@@ -16,27 +16,26 @@ use core::{
     cmp,
 };
 
+use generic_array::{ArrayLength, GenericArray, LengthError};
+use subtle::{Choice, ConstantTimeEq};
+
 use crate::{
-    hash::Hash,
-    mac::{MacKey, Tag},
+    hash::{Digest, Hash},
+    mac::MacKey,
 };
 
-/// HMAC per [FIPS PUB 198-1] for some hash `H` with a `D`-byte
-/// digest size.
+/// HMAC per [FIPS PUB 198-1] for some hash `H`.
 ///
 /// [FIPS PUB 198-1]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.198-1.pdf
 #[derive(Clone)]
-pub struct Hmac<H, const D: usize> {
+pub struct Hmac<H> {
     /// H(ipad).
     ipad: H,
     /// H(opad).
     opad: H,
 }
 
-impl<H: Hash, const D: usize> Hmac<H, D>
-where
-    H::Digest: Into<Tag<D>>,
-{
+impl<H: Hash> Hmac<H> {
     /// Creates an HMAC using the provided `key`.
     pub fn new(key: &[u8]) -> Self {
         let mut key = {
@@ -48,8 +47,8 @@ where
             } else {
                 // Step 2
                 let d = H::hash(key);
-                let n = cmp::min(d.borrow().len(), tmp_len);
-                tmp.borrow_mut()[..n].copy_from_slice(&d.borrow()[..n]);
+                let n = cmp::min(d.len(), tmp_len);
+                tmp.borrow_mut()[..n].copy_from_slice(&d[..n]);
             };
             tmp
         };
@@ -78,43 +77,95 @@ where
     }
 
     /// Returns the authentication tag.
-    pub fn tag(mut self) -> Tag<D> {
+    pub fn tag(mut self) -> Tag<H::DigestSize> {
         let d = self.ipad.digest();
         // Step 8: (K_0 ^ opad) || H((K_0 ^ ipad) || text)
-        self.opad.update(d.borrow());
+        self.opad.update(&d);
         // Step 9: H((K_0 ^ opad) || H((K_0 ^ ipad) || text))
-        self.opad.digest().into()
+        Tag(self.opad.digest())
     }
 
     /// Computes the single-shot tag from `data` using `key`.
-    pub fn mac_multi(key: &[u8], data: &[&[u8]]) -> Tag<D> {
+    pub fn mac_multi<I>(key: &[u8], data: I) -> Tag<H::DigestSize>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<[u8]>,
+    {
         let mut h = Self::new(key);
         for s in data {
-            h.update(s);
+            h.update(s.as_ref());
         }
         h.tag()
     }
 }
 
 /// An [`Hmac`] key.
-pub type HmacKey<const N: usize> = MacKey<N>;
+pub type HmacKey<N> = MacKey<N>;
+
+/// An [`Hmac`] authentication code.
+#[derive(Clone, Debug)]
+#[repr(transparent)]
+pub struct Tag<N: ArrayLength>(Digest<N>);
+
+impl<N: ArrayLength> Tag<N> {
+    #[cfg(feature = "committing-aead")]
+    #[allow(clippy::len_without_is_empty)]
+    pub(crate) const fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    // NB: this is intentionally not public because the only safe
+    // way to use a MAC is to compare it for equality using
+    // `ConstantTimeEq`. It's needed by the `hkdf` module,
+    // however.
+    pub(crate) fn as_bytes(&self) -> &[u8] {
+        self.0.as_bytes()
+    }
+
+    // NB: this is intentionally not public because the only safe
+    // way to use a MAC is to compare it for equality using
+    // `ConstantTimeEq`. It's needed by the `hkdf` module,
+    // however.
+    pub(crate) fn into_array(self) -> GenericArray<u8, N> {
+        self.0.into_array()
+    }
+}
+
+impl<N: ArrayLength> ConstantTimeEq for Tag<N> {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.0.ct_eq(&other.0)
+    }
+}
+
+// Required by `crate::test_util::test_mac`.
+impl<'a, N: ArrayLength> TryFrom<&'a [u8]> for Tag<N> {
+    type Error = LengthError;
+
+    fn try_from(tag: &'a [u8]) -> Result<Self, Self::Error> {
+        let digest = GenericArray::try_from_slice(tag)?;
+        Ok(Self(Digest::new(digest.clone())))
+    }
+}
 
 macro_rules! hmac_impl {
     ($name:ident, $doc:expr, $hash:ident) => {
         #[doc = concat!($doc, ".")]
         #[derive(Clone)]
-        pub struct $name($crate::hmac::Hmac<$hash, { <$hash as $crate::hash::Hash>::DIGEST_SIZE }>);
+        pub struct $name($crate::hmac::Hmac<$hash>);
 
         impl $crate::mac::Mac for $name {
             const ID: $crate::mac::MacId = $crate::mac::MacId::$name;
 
             // Setting len(K) = L ensures that we're always in
             // [L, B].
-            type Key = $crate::hmac::HmacKey<{ <$hash as $crate::hash::Hash>::DIGEST_SIZE }>;
-            type Tag = $crate::mac::Tag<{ <$hash as $crate::hash::Hash>::DIGEST_SIZE }>;
+            type Key = $crate::hmac::HmacKey<Self::KeySize>;
+            type KeySize = <$hash as $crate::hash::Hash>::DigestSize;
+            type Tag = $crate::hmac::Tag<Self::TagSize>;
+            type TagSize = <$hash as $crate::hash::Hash>::DigestSize;
 
             fn new(key: &Self::Key) -> Self {
-                Self($crate::hmac::Hmac::new(key.as_ref()))
+                Self($crate::hmac::Hmac::new(key.as_slice()))
             }
 
             fn update(&mut self, data: &[u8]) {

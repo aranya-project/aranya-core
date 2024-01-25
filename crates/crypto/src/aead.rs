@@ -11,14 +11,18 @@
 use core::{
     cmp::{Eq, PartialEq},
     fmt::{self, Debug},
+    iter::IntoIterator,
     mem,
-    ops::BitXor,
+    ops::{BitXor, Deref, DerefMut},
     result::Result,
 };
 
-use generic_array::{ArrayLength, GenericArray};
+use buggy::Bug;
+use generic_array::{ArrayLength, GenericArray, IntoArrayLength};
+use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
 use typenum::{
+    generic_const_mappings::Const,
     type_operators::{IsGreaterOrEqual, IsLess},
     Unsigned, U16, U65536,
 };
@@ -28,8 +32,7 @@ use crate::features::*;
 pub use crate::hpke::AeadId;
 use crate::{
     csprng::{Csprng, Random},
-    error::Unreachable,
-    kdf::{Derive, Kdf, KdfError},
+    kdf::{Expand, Kdf, KdfError, Prk},
     keys::{raw_key, SecretKey, SecretKeyBytes},
     zeroize::Zeroize,
 };
@@ -87,8 +90,8 @@ impl trouble::Error for InvalidNonceSize {}
 /// An error from an [`Aead`] seal.
 #[derive(Debug, Eq, PartialEq)]
 pub enum SealError {
-    /// An unreachable code path has been taken.
-    Unreachable(Unreachable),
+    /// An internal bug was discovered.
+    Bug(Bug),
     /// An unknown or internal error has occurred.
     Other(&'static str),
     /// The size of the key is incorrect.
@@ -111,7 +114,7 @@ impl SealError {
     /// Returns a human-readable string describing the error.
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unreachable(err) => err.as_str(),
+            Self::Bug(err) => err.msg(),
             Self::Other(msg) => msg,
             Self::InvalidKeySize => "invalid key size",
             Self::InvalidNonceSize(err) => err.as_str(),
@@ -127,7 +130,7 @@ impl SealError {
 impl fmt::Display for SealError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unreachable(err) => write!(f, "{}", err),
+            Self::Bug(err) => write!(f, "{}", err),
             Self::BufferTooSmall(err) => write!(f, "{}", err),
             Self::InvalidNonceSize(err) => write!(f, "{}", err),
             _ => write!(f, "{}", self.as_str()),
@@ -138,7 +141,7 @@ impl fmt::Display for SealError {
 impl trouble::Error for SealError {
     fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
-            Self::Unreachable(err) => Some(err),
+            Self::Bug(err) => Some(err),
             Self::BufferTooSmall(err) => Some(err),
             Self::InvalidNonceSize(err) => Some(err),
             _ => None,
@@ -152,9 +155,9 @@ impl From<BufferTooSmallError> for SealError {
     }
 }
 
-impl From<Unreachable> for SealError {
-    fn from(value: Unreachable) -> Self {
-        SealError::Unreachable(value)
+impl From<Bug> for SealError {
+    fn from(value: Bug) -> Self {
+        SealError::Bug(value)
     }
 }
 
@@ -167,8 +170,8 @@ impl From<InvalidNonceSize> for SealError {
 /// An error from an [`Aead`] open.
 #[derive(Debug, Eq, PartialEq)]
 pub enum OpenError {
-    /// An unreachable code path has been taken.
-    Unreachable(Unreachable),
+    /// An internal bug was discovered.
+    Bug(Bug),
     /// An unknown or internal error has occurred.
     Other(&'static str),
     /// The size of the key is incorrect.
@@ -193,7 +196,7 @@ impl OpenError {
     /// Returns a human-readable string describing the error.
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::Unreachable(err) => err.as_str(),
+            Self::Bug(err) => err.msg(),
             Self::Other(msg) => msg,
             Self::InvalidKeySize => "invalid key size",
             Self::InvalidNonceSize(err) => err.as_str(),
@@ -210,7 +213,7 @@ impl OpenError {
 impl fmt::Display for OpenError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unreachable(err) => write!(f, "{}", err),
+            Self::Bug(err) => write!(f, "{}", err),
             Self::BufferTooSmall(err) => write!(f, "{}", err),
             Self::InvalidNonceSize(err) => write!(f, "{}", err),
             _ => write!(f, "{}", self.as_str()),
@@ -221,7 +224,7 @@ impl fmt::Display for OpenError {
 impl trouble::Error for OpenError {
     fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
-            Self::Unreachable(err) => Some(err),
+            Self::Bug(err) => Some(err),
             Self::BufferTooSmall(err) => Some(err),
             Self::InvalidNonceSize(err) => Some(err),
             _ => None,
@@ -235,9 +238,9 @@ impl From<BufferTooSmallError> for OpenError {
     }
 }
 
-impl From<Unreachable> for OpenError {
-    fn from(value: Unreachable) -> Self {
-        OpenError::Unreachable(value)
+impl From<Bug> for OpenError {
+    fn from(value: Bug) -> Self {
+        OpenError::Bug(value)
     }
 }
 
@@ -412,7 +415,7 @@ pub trait Aead {
         };
 
     /// The key used by the [`Aead`].
-    type Key: SecretKey<Size = Self::KeySize> + Derive;
+    type Key: SecretKey<Size = Self::KeySize>;
 
     /// Creates a new [`Aead`].
     fn new(key: &Self::Key) -> Self;
@@ -668,9 +671,21 @@ raw_key! {
     pub AeadKey,
 }
 
+impl<N: ArrayLength> AeadKey<N> {
+    // Used by `crate::rust::Aes256Gcm::new`.
+    pub(crate) fn as_array<const U: usize>(&self) -> &[u8; U]
+    where
+        Const<U>: IntoArrayLength<ArrayLength = N>,
+    {
+        self.0.as_array()
+    }
+}
+
 /// An [`Aead`] nonce.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Hash, Eq, PartialEq, Serialize, Deserialize)]
 #[repr(transparent)]
+#[serde(bound = "")]
+#[serde(transparent)]
 pub struct Nonce<N: ArrayLength>(GenericArray<u8, N>);
 
 impl<N: ArrayLength> Nonce<N> {
@@ -678,22 +693,42 @@ impl<N: ArrayLength> Nonce<N> {
     pub const SIZE: usize = N::USIZE;
 
     /// Returns the size in octets of the nonce.
+    #[inline]
     #[allow(clippy::len_without_is_empty)]
     pub const fn len(&self) -> usize {
         Self::SIZE
+    }
+
+    pub(crate) const fn from_bytes(nonce: GenericArray<u8, N>) -> Self {
+        Self(nonce)
+    }
+
+    pub(crate) fn try_from_slice(data: &[u8]) -> Result<Self, InvalidNonceSize> {
+        let nonce = GenericArray::try_from_slice(data).map_err(|_| InvalidNonceSize)?;
+        Ok(Self(nonce.clone()))
     }
 }
 
 impl<N: ArrayLength> Copy for Nonce<N> where N::ArrayType<u8>: Copy {}
 
-impl<N: ArrayLength> AsRef<[u8]> for Nonce<N> {
-    fn as_ref(&self) -> &[u8] {
+impl<N: ArrayLength> Debug for Nonce<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Nonce").field(&self.0).finish()
+    }
+}
+
+impl<N: ArrayLength> Deref for Nonce<N> {
+    type Target = [u8];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
         &self.0
     }
 }
 
-impl<N: ArrayLength> AsMut<[u8]> for Nonce<N> {
-    fn as_mut(&mut self) -> &mut [u8] {
+impl<N: ArrayLength> DerefMut for Nonce<N> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
 }
@@ -701,6 +736,7 @@ impl<N: ArrayLength> AsMut<[u8]> for Nonce<N> {
 impl<N: ArrayLength> BitXor for Nonce<N> {
     type Output = Self;
 
+    #[inline]
     fn bitxor(mut self, rhs: Self) -> Self::Output {
         for (x, y) in self.0.iter_mut().zip(&rhs.0) {
             *x ^= y;
@@ -712,6 +748,7 @@ impl<N: ArrayLength> BitXor for Nonce<N> {
 impl<N: ArrayLength> BitXor for &Nonce<N> {
     type Output = Nonce<N>;
 
+    #[inline]
     fn bitxor(self, rhs: Self) -> Self::Output {
         let mut lhs = self.clone();
         for (x, y) in lhs.0.iter_mut().zip(&rhs.0) {
@@ -722,49 +759,31 @@ impl<N: ArrayLength> BitXor for &Nonce<N> {
 }
 
 impl<N: ArrayLength> ConstantTimeEq for Nonce<N> {
+    #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
     }
 }
 
-impl<N: ArrayLength> Derive for Nonce<N> {
-    type Size = N;
-    type Error = KdfError;
-
-    fn expand_multi<K: Kdf>(prk: &K::Prk, info: &[&[u8]]) -> Result<Self, Self::Error> {
-        let mut nonce = GenericArray::default();
-        K::expand_multi(&mut nonce, prk, info)?;
-        Ok(Self(nonce))
-    }
-}
-
 impl<N: ArrayLength> Random for Nonce<N> {
     fn random<R: Csprng>(rng: &mut R) -> Self {
-        let mut nonce = Self::default();
-        rng.fill_bytes(nonce.as_mut());
-        nonce
+        Self(Random::random(rng))
     }
 }
 
-impl<N: ArrayLength> From<Nonce<N>> for GenericArray<u8, N> {
-    #[inline]
-    fn from(key: Nonce<N>) -> Self {
-        key.0
-    }
-}
+impl<N: ArrayLength> Expand for Nonce<N>
+where
+    N: IsLess<U65536>,
+{
+    type Size = N;
 
-impl<N: ArrayLength> From<GenericArray<u8, N>> for Nonce<N> {
-    #[inline]
-    fn from(key: GenericArray<u8, N>) -> Self {
-        Self(key)
-    }
-}
-
-impl<'a, N: ArrayLength> From<&'a GenericArray<u8, N>> for &'a Nonce<N> {
-    fn from(v: &'a GenericArray<u8, N>) -> Self {
-        // SAFETY: `Nonce` and `GenericArray` have the
-        // same memory layout.
-        unsafe { mem::transmute(v) }
+    fn expand_multi<'a, K, I>(prk: &Prk<K::PrkSize>, info: I) -> Result<Self, KdfError>
+    where
+        K: Kdf,
+        I: IntoIterator<Item = &'a [u8]>,
+        I::IntoIter: Clone,
+    {
+        Ok(Self(Expand::expand_multi::<K, I>(prk, info)?))
     }
 }
 
@@ -772,8 +791,7 @@ impl<N: ArrayLength> TryFrom<&[u8]> for Nonce<N> {
     type Error = InvalidNonceSize;
 
     fn try_from(data: &[u8]) -> Result<Self, InvalidNonceSize> {
-        let nonce = GenericArray::try_from_slice(data).map_err(|_| InvalidNonceSize)?;
-        Ok(Self(nonce.clone()))
+        Self::try_from_slice(data)
     }
 }
 
@@ -803,16 +821,17 @@ pub trait Cmt4Aead: Cmt3Aead {}
 
 #[cfg(feature = "committing-aead")]
 mod committing {
-    use core::{cmp, marker::PhantomData, num::NonZeroU64, result::Result};
+    use core::{cmp, fmt, marker::PhantomData, num::NonZeroU64, result::Result};
 
+    use buggy::{Bug, BugExt};
     use generic_array::{ArrayLength, GenericArray};
     use typenum::{
         type_operators::{IsGreaterOrEqual, IsLess},
         Unsigned, U16, U65536,
     };
 
-    use super::{Aead, KeyData, Nonce};
-    use crate::error::{safe_unreachable, Unreachable};
+    use super::{Aead, KeyData, Nonce, OpenError, SealError};
+    use crate::import::{ExportError, ImportError};
 
     /// A symmetric block cipher.
     #[doc(hidden)]
@@ -855,7 +874,7 @@ mod committing {
         pub fn commit(
             key: &A::Key,
             nonce: &Nonce<A::NonceSize>,
-        ) -> Result<(GenericArray<u8, C::BlockSize>, KeyData<A>), Unreachable> {
+        ) -> Result<(GenericArray<u8, C::BlockSize>, KeyData<A>), Bug> {
             let mut cx = Default::default();
             let key = Self::commit_into(&mut cx, key, nonce)?;
             Ok((cx, key))
@@ -867,7 +886,7 @@ mod committing {
             cx: &mut GenericArray<u8, C::BlockSize>,
             key: &A::Key,
             nonce: &Nonce<A::NonceSize>,
-        ) -> Result<KeyData<A>, Unreachable> {
+        ) -> Result<KeyData<A>, Bug> {
             /// Pad is a one-to-one encoding that converts the
             /// pair (M,i) in {0,1}^m x {1,...,2^(n-m)} into an
             /// n-bit string.
@@ -920,7 +939,7 @@ mod committing {
                     // It should be impossible to overflow. At
                     // one nanosecond per op, this will take
                     // upward of 500 years.
-                    .ok_or_else(|| safe_unreachable!("should be impossible to overflow"))?;
+                    .assume("should be impossible to overflow")?;
 
                 // V_i <- E_k(X_i);
                 let v_i = {
@@ -932,6 +951,66 @@ mod committing {
                 chunk.copy_from_slice(&v_i[..chunk.len()]);
             }
             Ok(key)
+        }
+    }
+
+    /// An error occurred during the UNAE-then-Commit transform.
+    #[derive(Debug, Eq, PartialEq)]
+    pub enum UtcError {
+        /// An internal bug was discovered.
+        Bug(Bug),
+        /// The transformed AEAD key could not be imported.
+        Import(ImportError),
+    }
+
+    impl UtcError {
+        const fn as_str(&self) -> &'static str {
+            match self {
+                Self::Bug(_) => "bug",
+                Self::Import(_) => "unable to import HtE transformed key",
+            }
+        }
+    }
+
+    impl fmt::Display for UtcError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Bug(err) => write!(f, "{}: {err}", self.as_str()),
+                Self::Import(err) => write!(f, "{}: {err}", self.as_str()),
+            }
+        }
+    }
+
+    impl trouble::Error for UtcError {
+        fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+            match self {
+                Self::Bug(err) => Some(err),
+                Self::Import(err) => Some(err),
+            }
+        }
+    }
+
+    impl From<Bug> for UtcError {
+        fn from(err: Bug) -> Self {
+            Self::Bug(err)
+        }
+    }
+
+    impl From<ImportError> for UtcError {
+        fn from(err: ImportError) -> Self {
+            Self::Import(err)
+        }
+    }
+
+    impl From<UtcError> for SealError {
+        fn from(err: UtcError) -> SealError {
+            SealError::Other(err.as_str())
+        }
+    }
+
+    impl From<UtcError> for OpenError {
+        fn from(err: UtcError) -> OpenError {
+            OpenError::Other(err.as_str())
         }
     }
 
@@ -997,14 +1076,17 @@ mod committing {
 
                     let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
                     let (out, cx) = out.split_at_mut(out.len() - $name::COMMITMENT_SIZE);
-                    let key = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit_into(
-                        cx.try_into().map_err(|_| {
-                            $crate::error::safe_unreachable!("should be exactly `COMMITTMENT_SIZE`")
-                        })?,
+                    let key_bytes = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit_into(
+                        ::buggy::BugExt::assume(
+                            cx.try_into(),
+                            "should be exactly `COMMITTMENT_SIZE`",
+                        )?,
                         &self.key,
                         &nonce.try_into()?,
                     )?;
-                    <$inner as $crate::aead::Aead>::new(&key.into_bytes().into()).seal(
+                    let key = $crate::import::Import::<_>::import(key_bytes.as_bytes())
+                        .map_err($crate::aead::UtcError::Import)?;
+                    <$inner as $crate::aead::Aead>::new(&key).seal(
                         out,
                         nonce,
                         plaintext,
@@ -1027,14 +1109,17 @@ mod committing {
                     )?;
 
                     let (tag, cx) = overhead.split_at_mut(overhead.len() - $name::COMMITMENT_SIZE);
-                    let key = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit_into(
-                        cx.try_into().map_err(|_| {
-                            $crate::error::safe_unreachable!("should be exactly `COMMITTMENT_SIZE`")
-                        })?,
+                    let key_bytes = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit_into(
+                        ::buggy::BugExt::assume(
+                            cx.try_into(),
+                            "should be exactly `COMMITTMENT_SIZE`",
+                        )?,
                         &self.key,
                         &nonce.try_into()?,
                     )?;
-                    <$inner as $crate::aead::Aead>::new(&key.into_bytes().into()).seal_in_place(
+                    let key = $crate::import::Import::<_>::import(key_bytes.as_bytes())
+                        .map_err($crate::aead::UtcError::Import)?;
+                    <$inner as $crate::aead::Aead>::new(&key).seal_in_place(
                         nonce,
                         data,
                         tag,
@@ -1058,17 +1143,19 @@ mod committing {
 
                     let (ciphertext, got_cx) =
                         ciphertext.split_at(ciphertext.len() - $name::COMMITMENT_SIZE);
-                    let (want_cx, key) = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit(
+                    let (want_cx, key_bytes) = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit(
                         &self.key,
                         &nonce.try_into()?,
                     )?;
                     if !bool::from(::subtle::ConstantTimeEq::ct_eq(
-                        ::core::borrow::Borrow::borrow(&want_cx),
+                        want_cx.as_slice(),
                         got_cx,
                     )) {
                         Err($crate::aead::OpenError::Authentication)
                     } else {
-                        <$inner as $crate::aead::Aead>::new(&key.into_bytes().into()).open(
+                        let key = $crate::import::Import::<_>::import(key_bytes.as_bytes())
+                            .map_err($crate::aead::UtcError::Import)?;
+                        <$inner as $crate::aead::Aead>::new(&key).open(
                             dst,
                             nonce,
                             ciphertext,
@@ -1093,17 +1180,19 @@ mod committing {
 
                     let (overhead, got_cx) =
                         overhead.split_at(overhead.len() - $name::COMMITMENT_SIZE);
-                    let (want_cx, key) = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit(
+                    let (want_cx, key_bytes) = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit(
                         &self.key,
                         &nonce.try_into()?,
                     )?;
                     if !bool::from(::subtle::ConstantTimeEq::ct_eq(
-                        ::core::borrow::Borrow::borrow(&want_cx),
+                        want_cx.as_slice(),
                         got_cx,
                     )) {
                         Err($crate::aead::OpenError::Authentication)
                     } else {
-                        <$inner as $crate::aead::Aead>::new(&key.into_bytes().into()).open_in_place(
+                        let key = $crate::import::Import::<_>::import(key_bytes.as_bytes())
+                            .map_err($crate::aead::UtcError::Import)?;
+                        <$inner as $crate::aead::Aead>::new(&key).open_in_place(
                             nonce,
                             data,
                             overhead,
@@ -1116,6 +1205,66 @@ mod committing {
     }
     pub(crate) use utc_aead;
 
+    /// An error occurred during the Hash-then-Encrypt transform.
+    #[derive(Debug, Eq, PartialEq)]
+    pub enum HteError {
+        /// The current AEAD key could not be exported.
+        Export(ExportError),
+        /// The transformed AEAD key could not be imported.
+        Import(ImportError),
+    }
+
+    impl HteError {
+        const fn as_str(&self) -> &'static str {
+            match self {
+                Self::Export(_) => "unable to export inner secret key",
+                Self::Import(_) => "unable to import HtE transformed key",
+            }
+        }
+    }
+
+    impl fmt::Display for HteError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Export(err) => write!(f, "{}: {err}", self.as_str()),
+                Self::Import(err) => write!(f, "{}: {err}", self.as_str()),
+            }
+        }
+    }
+
+    impl trouble::Error for HteError {
+        fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+            match self {
+                Self::Export(err) => Some(err),
+                Self::Import(err) => Some(err),
+            }
+        }
+    }
+
+    impl From<ExportError> for HteError {
+        fn from(err: ExportError) -> Self {
+            Self::Export(err)
+        }
+    }
+
+    impl From<ImportError> for HteError {
+        fn from(err: ImportError) -> Self {
+            Self::Import(err)
+        }
+    }
+
+    impl From<HteError> for SealError {
+        fn from(err: HteError) -> SealError {
+            SealError::Other(err.as_str())
+        }
+    }
+
+    impl From<HteError> for OpenError {
+        fn from(err: HteError) -> OpenError {
+            OpenError::Other(err.as_str())
+        }
+    }
+
     /// Implements the Hash-then-Encrypt (HtE) transform to turn
     /// a CMT-1 AEAD into a CMT-4 AEAD.
     macro_rules! hte_aead {
@@ -1127,29 +1276,36 @@ mod committing {
             }
 
             impl $name {
-                fn hash(&self, nonce: &[u8], ad: &[u8]) -> <$inner as $crate::aead::Aead>::Key {
+                fn hash(
+                    &self,
+                    nonce: &[u8],
+                    ad: &[u8],
+                ) -> ::core::result::Result<
+                    <$inner as $crate::aead::Aead>::Key,
+                    $crate::aead::HteError,
+                > {
                     // The nonce length is fixed, so use
                     // HMAC(K || N || A)[1 : k] per Theorem 3.2.
                     let tag = {
-                        let mut hmac = $crate::hmac::Hmac::<
-                            $hash,
-                            {
-                                <<$inner as $crate::aead::Aead>::KeySize as
-                                                                    ::typenum::Unsigned>::USIZE
-                            },
-                        >::new(&self.key.as_bytes()[..]);
+                        let key = $crate::keys::SecretKey::try_export_secret(&self.key)?;
+                        let mut hmac = $crate::hmac::Hmac::<$hash>::new(key.as_bytes());
                         hmac.update(nonce);
                         hmac.update(ad);
                         hmac.tag()
                     };
-                    let mut key = <$inner as $crate::aead::Aead>::Key::default();
-                    let k = ::core::cmp::min(
-                        tag.len(),
-                        ::core::borrow::Borrow::<[u8]>::borrow(&key).len(),
-                    );
-                    ::core::borrow::BorrowMut::<[u8]>::borrow_mut(&mut key)
+                    let mut key_bytes = ::generic_array::GenericArray::<
+                        u8,
+                        <<$inner as $crate::aead::Aead>::Key as $crate::keys::SecretKey>::Size,
+                    >::default();
+                    let k = ::core::cmp::min(tag.len(), key_bytes.as_slice().len());
+                    key_bytes
+                        .as_mut_slice()
                         .copy_from_slice(&tag.as_bytes()[..k]);
-                    key
+                    let key =
+                        <<$inner as $crate::aead::Aead>::Key as $crate::import::Import<_>>::import(
+                            key_bytes.as_slice(),
+                        )?;
+                    Ok(key)
                 }
             }
 
@@ -1203,7 +1359,7 @@ mod committing {
                     )?;
 
                     let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
-                    let key = self.hash(nonce, additional_data);
+                    let key = self.hash(nonce, additional_data)?;
                     <$inner as $crate::aead::Aead>::new(&key).seal(
                         out,
                         nonce,
@@ -1226,7 +1382,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let key = self.hash(nonce, additional_data);
+                    let key = self.hash(nonce, additional_data)?;
                     <$inner as $crate::aead::Aead>::new(&key).seal_in_place(
                         nonce,
                         data,
@@ -1249,7 +1405,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let key = self.hash(nonce, additional_data);
+                    let key = self.hash(nonce, additional_data)?;
                     <$inner as $crate::aead::Aead>::new(&key).open(
                         dst,
                         nonce,
@@ -1272,7 +1428,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let key = self.hash(nonce, additional_data);
+                    let key = self.hash(nonce, additional_data)?;
                     <$inner as $crate::aead::Aead>::new(&key).open_in_place(
                         nonce,
                         data,

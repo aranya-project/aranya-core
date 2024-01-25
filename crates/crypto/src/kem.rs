@@ -9,19 +9,17 @@
 
 use core::{
     array::TryFromSliceError,
-    borrow::{Borrow, BorrowMut},
+    borrow::Borrow,
     fmt::{self, Debug, Display},
     marker::PhantomData,
     result::Result,
 };
 
-use subtle::ConstantTimeEq;
-
 pub use crate::hpke::KemId;
 use crate::{
     csprng::Csprng,
     import::{Import, ImportError},
-    kdf::{Kdf, KdfError},
+    kdf::{Kdf, KdfError, Prk},
     keys::{PublicKey, SecretKey},
     zeroize::ZeroizeOnDrop,
 };
@@ -98,7 +96,7 @@ pub trait Kem {
     /// An ephemeral, fixed-length symmetric key.
     ///
     /// The key must be at least 128 bits.
-    type Secret: Borrow<[u8]> + BorrowMut<[u8]> + Default + ZeroizeOnDrop;
+    type Secret: AsRef<[u8]> + ZeroizeOnDrop;
 
     /// An encapsulated [`Self::Secret`].
     type Encap: Borrow<[u8]> + for<'a> Import<&'a [u8]>;
@@ -187,7 +185,7 @@ pub trait Kem {
 }
 
 /// An asymmetric private key used to decapsulate keys.
-pub trait DecapKey: SecretKey + ConstantTimeEq {
+pub trait DecapKey: SecretKey {
     /// The corresponding public key.
     type EncapKey: EncapKey;
 
@@ -345,7 +343,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         &self,
         rng: &mut R,
         pkR: &E::PublicKey,
-    ) -> Result<(F::Prk, PubKeyData<E>), KemError> {
+    ) -> Result<(Prk<F::PrkSize>, PubKeyData<E>), KemError> {
         let skE = E::PrivateKey::new(rng);
         self.encap_deterministically(pkR, skE)
     }
@@ -355,7 +353,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         &self,
         pkR: &E::PublicKey,
         skE: E::PrivateKey,
-    ) -> Result<(F::Prk, PubKeyData<E>), KemError> {
+    ) -> Result<(Prk<F::PrkSize>, PubKeyData<E>), KemError> {
         // def Encap(pkR):
         //   skE, pkE = GenerateKeyPair()
         //   dh = DH(skE, pkR)
@@ -378,7 +376,11 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
     }
 
     /// See [`Kem::decap`].
-    pub fn decap(&self, enc: &PubKeyData<E>, skR: &E::PrivateKey) -> Result<F::Prk, KemError> {
+    pub fn decap(
+        &self,
+        enc: &PubKeyData<E>,
+        skR: &E::PrivateKey,
+    ) -> Result<Prk<F::PrkSize>, KemError> {
         // def Decap(enc, skR):
         //   pkE = DeserializePublicKey(enc)
         //   dh = DH(skR, pkE)
@@ -404,7 +406,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         rng: &mut R,
         pkR: &E::PublicKey,
         skS: &E::PrivateKey,
-    ) -> Result<(F::Prk, PubKeyData<E>), KemError> {
+    ) -> Result<(Prk<F::PrkSize>, PubKeyData<E>), KemError> {
         let skE = E::PrivateKey::new(rng);
         self.auth_encap_deterministically(pkR, skS, skE)
     }
@@ -415,7 +417,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         pkR: &E::PublicKey,
         skS: &E::PrivateKey,
         skE: E::PrivateKey,
-    ) -> Result<(F::Prk, PubKeyData<E>), KemError> {
+    ) -> Result<(Prk<F::PrkSize>, PubKeyData<E>), KemError> {
         // def AuthEncap(pkR, skS):
         //   skE, pkE = GenerateKeyPair()
         //   dh = concat(DH(skE, pkR), DH(skS, pkR))
@@ -448,7 +450,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         enc: &PubKeyData<E>,
         skR: &E::PrivateKey,
         pkS: &E::PublicKey,
-    ) -> Result<F::Prk, KemError> {
+    ) -> Result<Prk<F::PrkSize>, KemError> {
         // def AuthDecap(enc, skR, pkS):
         //   pkE = DeserializePublicKey(enc)
         //   dh = concat(DH(skR, pkE), DH(skR, pkS))
@@ -480,13 +482,13 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         pkRm: &PubKeyData<E>,
         pkSm: Option<&PubKeyData<E>>,
         id: KemId,
-    ) -> Result<F::Prk, KdfError> {
+    ) -> Result<Prk<F::PrkSize>, KdfError> {
         // def ExtractAndExpand(dh, kem_context):
         //   eae_prk = LabeledExtract("", "eae_prk", dh)
         //   shared_secret = LabeledExpand(eae_prk, "shared_secret",
         //                                 kem_context, Nsecret)
         //   return shared_secret
-        let mut out = F::Prk::default();
+        let mut out = Prk::<F::PrkSize>::default();
         //  labeled_ikm = concat("HPKE-v1", suite_id, label, ikm)
         let labeled_ikm = [
             "HPKE-v1".as_bytes(),
@@ -514,7 +516,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
             pkRm.borrow(),
             pkSm.map_or(&[], |v| v.borrow()),
         ];
-        F::extract_and_expand_multi(out.borrow_mut(), &labeled_ikm, &[], &labeled_info)?;
+        F::extract_and_expand_multi(out.as_bytes_mut(), &labeled_ikm, &[], &labeled_info)?;
         Ok(out)
     }
 }
@@ -532,7 +534,7 @@ macro_rules! dhkem_impl {
 
             type DecapKey = $sk;
             type EncapKey = $pk;
-            type Secret = <$kdf as $crate::kdf::Kdf>::Prk;
+            type Secret = $crate::kdf::Prk<<$kdf as $crate::kdf::Kdf>::PrkSize>;
             type Encap = <$pk as $crate::keys::PublicKey>::Data;
 
             fn encap<R: Csprng>(

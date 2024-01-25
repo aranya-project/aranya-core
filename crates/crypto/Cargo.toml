@@ -113,17 +113,15 @@ aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
 base58 = { path = "../base58", default-features = false }
 bearssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bearssl.git", tag = "v0.2.0", optional = true }
 bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branch = "main", optional = true }
-byteorder = { workspace = true, default-features = false }
 buggy = { path = "../buggy", default-features = false }
+byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
-const_format = { workspace = true, default-features = false }
 crypto-common = { version = "0.1", default-features = false }
 der = { version = "0.7", default-features = false }
 ecdsa = { version = "0.16", default-features = false, features = ["signing", "verifying", "der"] }
 ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic", "sec1"] }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
-heapless = { workspace = true, default-features = false }
 lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"] }
 more-asserts = { version = "0.3", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
@@ -147,12 +145,6 @@ typenum = { version = "1", default-features = false, features = ["const-generics
 wycheproof = { version = "0.5", optional = true }
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
 
-[dependencies.old-generic-array]
-package = "generic-array"
-version = "0.14.6"
-default-features = false
-features = ["more_lengths", "zeroize"]
-
 # While `getrandom` supports VxWorks, it only supports VxWorks 7.
 # Since it uses `target_os = "vxworks"`, it indiscriminately
 # tries to build for all VxWorks versions, resulting in
@@ -168,14 +160,19 @@ getrandom = { version = "0.2", features = ["custom"] }
 rand_core = { workspace = true, default-features = false }
 
 [dev-dependencies]
-# A little bit of a hack: always enable allocations during tests.
-crypto = { path = ".", features = ["alloc"] }
+# A little bit of a hack: always certain features for tests and
+# examples.
+crypto = { path = ".", features = ["alloc", "test_util"] }
 postcard = { workspace = true, features = ["alloc", "heapless"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false }
 serde_repr = { version = "0.1", default-features = false }
 wycheproof = { version = "0.5" }
+
+[[example]]
+name = "hsm"
+crate-type = ["lib"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -197,3 +194,6 @@ skip_feature_sets = []
 denylist = [
 	"result_option_inspect",
 ]
+
+[package.metadata.cargo-machete]
+ignored = ["old-generic-array"]

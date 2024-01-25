@@ -6,7 +6,6 @@
 
 use core::{borrow::Borrow, fmt, ops::Add, result::Result};
 
-use buggy::BugExt;
 use generic_array::{ArrayLength, GenericArray};
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
@@ -17,19 +16,19 @@ use crate::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
     aranya::{Encap, Signature},
     ciphersuite::SuiteIds,
-    csprng::Csprng,
-    engine::Engine,
+    csprng::{Csprng, Random},
+    engine::{unwrapped, Engine},
     error::Error,
     hash::tuple_hash,
     hex::ToHex,
+    hmac::Hmac,
     hpke::{Hpke, Mode},
     id::custom_id,
-    import::{ExportError, Import, ImportError},
-    kdf::{Derive, Kdf, KdfError},
+    import::{Import, ImportError},
+    kdf::Context,
     kem::{DecapKey, Kem},
     keys::{PublicKey, SecretKey},
-    mac::Mac,
-    misc::{ciphertext, key_misc, DecapKeyData, SigningKeyData},
+    misc::{ciphertext, key_misc},
     signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
@@ -153,9 +152,7 @@ impl<E: Engine + ?Sized> Clone for TopicKey<E> {
 impl<E: Engine + ?Sized> TopicKey<E> {
     /// Creates a new, random `TopicKey`.
     pub fn new<R: Csprng>(rng: &mut R, version: Version, topic: &Topic) -> Result<Self, Error> {
-        let mut seed = [0u8; 64];
-        rng.fill_bytes(&mut seed);
-        Self::from_seed(seed, version, topic)
+        Self::from_seed(Random::random(rng), version, topic)
     }
 
     /// Uniquely identifies the [`TopicKey`].
@@ -163,15 +160,15 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> TopicKeyId {
-        // ID = MAC(
+        // ID = HMAC(
         //     key=TopicKey,
         //     message="TopicKeyId-v1" || suite_id,
         //     outputBytes=64,
         // )
-        let mut h = E::Mac::new(&self.seed.into());
+        let mut h = Hmac::<E::Hash>::new(&self.seed);
         h.update(b"TopicKeyId-v1");
         h.update(&SuiteIds::from_suite::<E>().into_bytes());
-        TopicKeyId(h.tag().into())
+        TopicKeyId(h.tag().into_array().into())
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -206,8 +203,10 @@ impl<E: Engine + ?Sized> TopicKey<E> {
     ///         TopicKey,
     ///         Version,
     ///     },
-    ///     DefaultCipherSuite,
-    ///     DefaultEngine,
+    ///     default::{
+    ///         DefaultCipherSuite,
+    ///         DefaultEngine,
+    ///     },
     ///     Id,
     ///     Rng,
     ///     UserId,
@@ -328,6 +327,11 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         Ok(Self { key, seed })
     }
 
+    const KDF_CTX: Context = Context {
+        domain: "APQ-v1",
+        suite_ids: &SuiteIds::from_suite::<E>().into_bytes(),
+    };
+
     /// Derives a key for [`Self::open`] and [`Self::seal`].
     ///
     /// See <https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#topickey-generation>
@@ -337,55 +341,21 @@ impl<E: Engine + ?Sized> TopicKey<E> {
         topic: &Topic,
     ) -> Result<<E::Aead as Aead>::Key, Error> {
         // prk = LabeledExtract({0}^512, seed, "topic_key_prk")
-        let prk = Self::labeled_extract(&[], b"topic_key_prk", seed);
+        let prk = Self::KDF_CTX.labeled_extract::<E::Kdf>(&[], "topic_key_prk", seed);
         // info = concat(
         //     i2osp(version, 4),
         //     topic,
         // )
         // key = LabeledExpand(prk, "topic_key_key", info, L)
-        let key: KeyData<E::Aead> = Self::labeled_expand(&prk, b"topic_key_key", version, topic)?;
+        let key = Self::KDF_CTX.labeled_expand::<E::Kdf, KeyData<E::Aead>>(
+            &prk,
+            "topic_key_key",
+            &[&version.to_be_bytes(), &topic.as_bytes()[..]],
+        )?;
+
         Ok(<<E::Aead as Aead>::Key as Import<_>>::import(
             key.as_bytes(),
         )?)
-    }
-
-    fn labeled_extract<const N: usize>(
-        salt: &[u8],
-        label: &[u8; N],
-        ikm: &[u8; 64],
-    ) -> <E::Kdf as Kdf>::Prk {
-        let labeled_ikm = [
-            "APQ-v1".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            label,
-            ikm,
-        ];
-        E::Kdf::extract_multi(&labeled_ikm, salt)
-    }
-
-    fn labeled_expand<T, const N: usize>(
-        prk: &<E::Kdf as Kdf>::Prk,
-        label: &[u8; N],
-        version: Version,
-        topic: &Topic,
-    ) -> Result<T, KdfError>
-    where
-        T: Derive,
-    {
-        // We know all possible enumerations of `T` and they all
-        // must have a length <= 2^16 - 1.
-        let size =
-            u16::try_from(KeyData::<E::Aead>::SIZE).assume("`Aead::Key` should be <= 2^16-1")?;
-        let labeled_info = [
-            &size.to_be_bytes(),
-            "APQ-v1".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            label,
-            &version.to_be_bytes(),
-            &topic.as_bytes()[..],
-        ];
-        let key = T::expand_multi::<E::Kdf>(prk, &labeled_info).map_err(Into::into)?;
-        Ok(key)
     }
 }
 
@@ -394,7 +364,6 @@ ciphertext!(EncryptedTopicKey, U64, "An encrypted [`TopicKey`].");
 /// The private half of a [SenderSigningKey].
 ///
 /// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
-#[derive(ZeroizeOnDrop)]
 pub struct SenderSigningKey<E: Engine + ?Sized>(<E::Signer as Signer>::SigningKey);
 
 key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
@@ -415,8 +384,10 @@ impl<E: Engine + ?Sized> SenderSigningKey<E> {
     /// # {
     /// use crypto::{
     ///     apq::{SenderSigningKey, Topic, Version},
-    ///     DefaultCipherSuite,
-    ///     DefaultEngine,
+    ///     default::{
+    ///         DefaultCipherSuite,
+    ///         DefaultEngine,
+    ///     },
     ///     Rng,
     /// };
     ///
@@ -475,16 +446,13 @@ impl<E: Engine + ?Sized> SenderSigningKey<E> {
         let sig = self.0.sign(&msg)?;
         Ok(Signature(sig))
     }
+}
 
-    // Utility routines for other modules.
-
-    pub(crate) fn import(data: &[u8]) -> Result<Self, ImportError> {
-        let sk = <E::Signer as Signer>::SigningKey::import(data)?;
-        Ok(Self(sk))
-    }
-    pub(crate) fn try_export_secret(&self) -> Result<SigningKeyData<E>, ExportError> {
-        self.0.try_export_secret()
-    }
+unwrapped! {
+    name: SenderSigningKey;
+    type: Signing;
+    into: |key: Self| { key.0 };
+    from: |key| { Self(key) };
 }
 
 /// The public half of a [SenderSigningKey].
@@ -524,7 +492,6 @@ impl<E: Engine + ?Sized> SenderVerifyingKey<E> {
 /// The private half of a [SenderKey].
 ///
 /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
-#[derive(ZeroizeOnDrop)]
 pub struct SenderSecretKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
 
 key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
@@ -535,16 +502,13 @@ impl<E: Engine + ?Sized> SenderSecretKey<E> {
         let sk = <E::Kem as Kem>::DecapKey::new(rng);
         SenderSecretKey(sk)
     }
+}
 
-    // Utility routines for other modules.
-
-    pub(crate) fn import(data: &[u8]) -> Result<Self, ImportError> {
-        let sk = <E::Kem as Kem>::DecapKey::import(data)?;
-        Ok(Self(sk))
-    }
-    pub(crate) fn try_export_secret(&self) -> Result<DecapKeyData<E>, ExportError> {
-        self.0.try_export_secret()
-    }
+unwrapped! {
+    name: SenderSecretKey;
+    type: Decap;
+    into: |key: Self| { key.0 };
+    from: |key| { Self(key) };
 }
 
 /// The public half of a [SenderKey].
@@ -555,7 +519,6 @@ pub struct SenderPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
 /// The private half of a [ReceiverKey].
 ///
 /// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
-#[derive(ZeroizeOnDrop)]
 pub struct ReceiverSecretKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
 
 key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
@@ -608,16 +571,13 @@ impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
         ctx.open(&mut seed, ciphertext.as_bytes(), &ad)?;
         TopicKey::from_seed(seed, version, topic)
     }
+}
 
-    // Utility routines for other modules.
-
-    pub(crate) fn import(data: &[u8]) -> Result<Self, ImportError> {
-        let sk = <E::Kem as Kem>::DecapKey::import(data)?;
-        Ok(Self(sk))
-    }
-    pub(crate) fn try_export_secret(&self) -> Result<DecapKeyData<E>, ExportError> {
-        self.0.try_export_secret()
-    }
+unwrapped! {
+    name: ReceiverSecretKey;
+    type: Decap;
+    into: |key: Self| { key.0 };
+    from: |key| { Self(key) };
 }
 
 /// The public half of a [ReceiverKey].
@@ -643,8 +603,10 @@ impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
     ///         TopicKey,
     ///         Version,
     ///     },
-    ///     DefaultCipherSuite,
-    ///     DefaultEngine,
+    ///     default::{
+    ///         DefaultCipherSuite,
+    ///         DefaultEngine,
+    ///     },
     ///     Id,
     ///     Rng,
     ///     UserId,

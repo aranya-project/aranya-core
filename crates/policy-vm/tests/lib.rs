@@ -1,6 +1,9 @@
 use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
-use crypto::{DefaultCipherSuite, DefaultEngine, Engine, Id, Rng};
+use crypto::{
+    default::{DefaultCipherSuite, DefaultEngine},
+    Engine, Id, Rng,
+};
 use policy_vm::{
     self,
     ffi::{ffi, FfiModule},

@@ -11,6 +11,9 @@ use core::{
     result::Result,
 };
 
+use buggy::Bug;
+use generic_array::{ArrayLength, GenericArray};
+
 /// A slice could not be converted to a fixed-size buffer.
 #[derive(Debug, Eq, PartialEq)]
 pub struct InvalidSizeError {
@@ -44,6 +47,8 @@ pub enum ImportError {
     /// The data came from a different context (e.g., a different
     /// `Engine`).
     InvalidContext,
+    /// An internal bug was discovered.
+    Bug(Bug),
 }
 
 impl Display for ImportError {
@@ -53,6 +58,7 @@ impl Display for ImportError {
             Self::InvalidSize(err) => write!(f, "{}", err),
             Self::InvalidSyntax => write!(f, "data is syntactically invalid"),
             Self::InvalidContext => write!(f, "data came from a different context"),
+            Self::Bug(err) => write!(f, "{}", err),
         }
     }
 }
@@ -61,6 +67,7 @@ impl trouble::Error for ImportError {
     fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
             Self::InvalidSize(err) => Some(err),
+            Self::Bug(err) => Some(err),
             _ => None,
         }
     }
@@ -69,6 +76,12 @@ impl trouble::Error for ImportError {
 impl From<InvalidSizeError> for ImportError {
     fn from(err: InvalidSizeError) -> Self {
         Self::InvalidSize(err)
+    }
+}
+
+impl From<Bug> for ImportError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
     }
 }
 
@@ -103,22 +116,44 @@ impl<'a, const N: usize> Import<&'a [u8]> for &'a [u8; N] {
 
 impl<const N: usize> Import<&[u8]> for [u8; N] {
     fn import(data: &[u8]) -> Result<Self, ImportError> {
-        data.try_into().map_err(|_| {
-            ImportError::InvalidSize(InvalidSizeError {
-                got: data.len(),
-                want: N..N,
-            })
-        })
+        let data: &[u8; N] = Import::<_>::import(data)?;
+        Ok(*data)
     }
 }
 
 impl<const N: usize> Import<[u8; N]> for [u8; N] {
+    #[inline]
     fn import(data: [u8; N]) -> Result<Self, ImportError> {
         Ok(data)
     }
 }
 
-/// Implemented by types that can be imported from bytes.
+impl<'a, N: ArrayLength> Import<&'a [u8]> for &'a GenericArray<u8, N> {
+    fn import(data: &'a [u8]) -> Result<Self, ImportError> {
+        GenericArray::try_from_slice(data).map_err(|_| {
+            ImportError::InvalidSize(InvalidSizeError {
+                got: data.len(),
+                want: N::USIZE..N::USIZE,
+            })
+        })
+    }
+}
+
+impl<N: ArrayLength> Import<&[u8]> for GenericArray<u8, N> {
+    fn import(data: &[u8]) -> Result<Self, ImportError> {
+        let data: &GenericArray<u8, N> = Import::<_>::import(data)?;
+        Ok(data.clone())
+    }
+}
+
+impl<N: ArrayLength> Import<GenericArray<u8, N>> for GenericArray<u8, N> {
+    #[inline]
+    fn import(data: GenericArray<u8, N>) -> Result<Self, ImportError> {
+        Ok(data)
+    }
+}
+
+/// Implemented by types that can be imported from its encoding.
 pub trait Import<T>: Sized {
     /// Creates itself from its encoding.
     fn import(data: T) -> Result<Self, ImportError>;

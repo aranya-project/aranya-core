@@ -8,15 +8,17 @@
 use core::{
     array::TryFromSliceError,
     fmt::{self, Debug},
-    mem,
     result::Result,
 };
 
-use generic_array::GenericArray;
+use generic_array::{ArrayLength, GenericArray};
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
-use typenum::{U32, U48, U64};
+use typenum::{
+    type_operators::{IsGreaterOrEqual, IsLess},
+    U16, U32, U48, U64, U65536,
+};
 
 use crate::keys::{raw_key, SecretKey};
 
@@ -85,9 +87,17 @@ pub trait Mac: Clone + Sized {
 
     /// An authentication tag.
     type Tag: ConstantTimeEq;
+    /// The size in octets of a tag used by this [`Mac`].
+    ///
+    /// Must be at least 32 octets and less than 2³² octets.
+    type TagSize: ArrayLength + IsGreaterOrEqual<U32> + IsLess<U65536> + 'static;
 
     /// The key used by the [`Mac`].
-    type Key: SecretKey;
+    type Key: SecretKey<Size = Self::KeySize>;
+    /// The size in octets of a key used by this [`Mac`].
+    ///
+    /// Must be at least 16 octets and less than 2¹⁶ octets.
+    type KeySize: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static;
 
     /// Creates a new [`Mac`].
     fn new(key: &Self::Key) -> Self;
@@ -125,16 +135,7 @@ raw_key! {
     pub MacKey,
 }
 
-impl<'a, const N: usize> From<&'a [u8; N]> for &'a MacKey<N> {
-    #[inline]
-    fn from(v: &[u8; N]) -> Self {
-        // SAFETY: `[u8; N]` and `MacKey` have the same
-        // memory layout.
-        unsafe { mem::transmute(v) }
-    }
-}
-
-/// A [`Mac`] authentication tag.
+/// An authentication tag.
 #[derive(Copy, Clone, Debug)]
 pub struct Tag<const N: usize>([u8; N]);
 

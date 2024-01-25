@@ -5,17 +5,16 @@
 #![forbid(unsafe_code)]
 #![cfg_attr(docs, doc(cfg(feature = "alloc")))]
 #![cfg(feature = "alloc")]
+
 extern crate alloc;
 
 use alloc::{vec, vec::Vec};
 use core::{
-    borrow::Borrow,
     fmt::{self, Display},
     ops::Add,
 };
 
 use generic_array::ArrayLength;
-use postcard::from_bytes;
 use typenum::{operator_aliases::Sum, U64};
 
 use crate::{
@@ -24,7 +23,7 @@ use crate::{
         Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, IdentityKey, SigningKey,
         VerifyingKey,
     },
-    engine::{Engine, UnwrappedKey, WrappedKey, WrongKeyTypeError},
+    engine::Engine,
     error::Error,
     groupkey::{Context, GroupKey},
     id::Id,
@@ -48,15 +47,15 @@ impl trouble::Error for DecodePublicKeyCertError {}
 pub enum KeyConversionError {
     /// An unknown or internal error has occurred.
     Other(&'static str),
-    /// Unable to convert [`UnwrappedKey`] into the key object.
-    WrongKeyType(WrongKeyTypeError),
     /// Cannot obtain [`EncryptedGroupKey`] from provided bytes.
     InvalidCiphertext(InvalidSizeError),
     /// Cannot deserialize or validate the public key certificate.
     DecodePublicKeyCert(DecodePublicKeyCertError),
-    /// Cannot encode [`WrappedKey`] into bytes.
+    /// Cannot encode [`WrappedKey`][crate::engine::WrappedKey]
+    /// into bytes.
     EncodeWrappedKey,
-    /// Cannot decode [`WrappedKey`] from bytes.
+    /// Cannot decode [`WrappedKey`][crate::engine::WrappedKey]
+    /// from bytes.
     DecodeWrappedKey,
 }
 
@@ -64,7 +63,6 @@ impl Display for KeyConversionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Other(msg) => write!(f, "{}", msg),
-            Self::WrongKeyType(err) => write!(f, "{}", err),
             Self::InvalidCiphertext(err) => write!(f, "{}", err),
             Self::DecodePublicKeyCert(err) => write!(f, "{}", err),
             Self::EncodeWrappedKey => write!(f, "error encoding `WrappedKey` to bytes"),
@@ -76,17 +74,10 @@ impl Display for KeyConversionError {
 impl trouble::Error for KeyConversionError {
     fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
         match self {
-            Self::WrongKeyType(err) => Some(err),
             Self::InvalidCiphertext(err) => Some(err),
             Self::DecodePublicKeyCert(err) => Some(err),
             _ => None,
         }
-    }
-}
-
-impl From<WrongKeyTypeError> for Error {
-    fn from(err: WrongKeyTypeError) -> Self {
-        Self::KeyConversion(KeyConversionError::WrongKeyType(err))
     }
 }
 
@@ -98,14 +89,14 @@ impl From<InvalidSizeError> for Error {
 
 /// Derives the keyId for a user's public EncryptionKey
 pub fn encryption_key_id<E: Engine + ?Sized>(pub_key_cert: &[u8]) -> Result<Id, Error> {
-    let pub_key: EncryptionPublicKey<E> = from_bytes(pub_key_cert)
+    let pub_key: EncryptionPublicKey<E> = postcard::from_bytes(pub_key_cert)
         .map_err(|e| KeyConversionError::DecodePublicKeyCert(DecodePublicKeyCertError(e)))?;
     Ok(pub_key.id().into())
 }
 
 /// Derives the keyId for a user's public SigningKey
 pub fn signing_key_id<E: Engine + ?Sized>(pub_key_cert: &[u8]) -> Result<Id, Error> {
-    let pub_key: VerifyingKey<E> = from_bytes(pub_key_cert)
+    let pub_key: VerifyingKey<E> = postcard::from_bytes(pub_key_cert)
         .map_err(|e| KeyConversionError::DecodePublicKeyCert(DecodePublicKeyCertError(e)))?;
     Ok(pub_key.id().into())
 }
@@ -122,27 +113,21 @@ fn group_key_for_fact<E: Engine + ?Sized>(
     group_key: GroupKey<E>,
     eng: &mut E,
 ) -> Result<WrappedGroupKey, Error> {
-    // Compute the keyId of the GroupKey
     let group_key_id = group_key.id();
-    // Convert to UnwrappedKey and wrap for FactDB storage
-    let unwrapped_key = UnwrappedKey::from(group_key);
-    let wrapped_key = E::wrap(eng, unwrapped_key)?;
+    let wrapped_key = eng.wrap(group_key)?;
 
     // Encode the wrapped key into bytes and return WrappedGroupKey struct
-    let group_key_wrap = wrapped_key
-        .encode()
-        .map_err(|_| KeyConversionError::EncodeWrappedKey)?;
+    let group_key_wrap =
+        postcard::to_allocvec(&wrapped_key).map_err(|_| KeyConversionError::EncodeWrappedKey)?;
     Ok(WrappedGroupKey {
         key_id: group_key_id.into(),
-        key_wrap: group_key_wrap.borrow().to_vec(),
+        key_wrap: group_key_wrap,
     })
 }
 
 /// Creates a new GroupKey and returns its wrapped form and keyId for FactDB storage
 pub fn generate_group_key<E: Engine + ?Sized>(eng: &mut E) -> Result<WrappedGroupKey, Error> {
-    // Randomly generate 512 bits
-    let group_key: GroupKey<E> = GroupKey::new(eng);
-    // Prepare the GroupKey for FactDb storage
+    let group_key = GroupKey::<E>::new(eng);
     group_key_for_fact(group_key, eng)
 }
 
@@ -153,11 +138,11 @@ fn unwrap_group_key<E: Engine + ?Sized>(
 ) -> Result<GroupKey<E>, Error> {
     // Decode the provided bytes into WrappedKey
     let wrapped_group_key =
-        WrappedKey::decode(group_key_wrap).map_err(|_| KeyConversionError::DecodeWrappedKey)?;
+        postcard::from_bytes(group_key_wrap).map_err(|_| KeyConversionError::DecodeWrappedKey)?;
 
     // Unwrap and return the GroupKey object
-    let unwrapped_group_key = eng.unwrap(&wrapped_group_key)?;
-    Ok(unwrapped_group_key.try_into()?)
+    let group_key = eng.unwrap(&wrapped_group_key)?;
+    Ok(group_key)
 }
 
 /// GroupKey sealed for a peer
@@ -183,7 +168,7 @@ where
     let group_key = unwrap_group_key(group_key_wrap, eng)?;
 
     // Deserialize and validate the peer's public EncryptionKey cert
-    let pub_key: EncryptionPublicKey<E> = from_bytes(peer_enc_key)
+    let pub_key: EncryptionPublicKey<E> = postcard::from_bytes(peer_enc_key)
         .map_err(|e| KeyConversionError::DecodePublicKeyCert(DecodePublicKeyCertError(e)))?;
 
     // Seal GroupKey to the peer's public encryption key with the associated GroupID
@@ -216,8 +201,7 @@ where
     let ciphertext = EncryptedGroupKey::from_bytes(ct.as_slice())?;
 
     // Obtain the user's unwrapped private EncryptionKey
-    let unwrapped_enc_key = eng.unwrap(priv_enc_key)?;
-    let encryption_key: EncryptionKey<E> = unwrapped_enc_key.try_into()?;
+    let encryption_key: EncryptionKey<E> = eng.unwrap(priv_enc_key)?;
 
     let group_key = encryption_key.open_group_key(&encap, &ciphertext, group_id)?;
 
@@ -237,7 +221,7 @@ pub fn encrypt_message<E: Engine + ?Sized>(
     let group_key = unwrap_group_key(group_key_wrap, eng)?;
     let mut dst = vec![0u8; plaintext.len() + group_key.overhead()];
 
-    let author: VerifyingKey<E> = from_bytes(pub_sign_key)
+    let author: VerifyingKey<E> = postcard::from_bytes(pub_sign_key)
         .map_err(|e| KeyConversionError::DecodePublicKeyCert(DecodePublicKeyCertError(e)))?;
     let ctx = Context {
         label: command_name,
@@ -261,7 +245,7 @@ pub fn decrypt_message<E: Engine + ?Sized>(
     let group_key = unwrap_group_key(group_key_wrap, eng)?;
     let mut dst = vec![0u8; ciphertext.len() - group_key.overhead()];
 
-    let author: VerifyingKey<E> = from_bytes(peer_sign_key)
+    let author: VerifyingKey<E> = postcard::from_bytes(peer_sign_key)
         .map_err(|e| KeyConversionError::DecodePublicKeyCert(DecodePublicKeyCertError(e)))?;
     let ctx = Context {
         label: command_name,
@@ -300,23 +284,19 @@ pub fn verify_stored_secret<E: Engine + ?Sized>(
 ) -> Result<bool, Error> {
     match key_type {
         KeyStoreSecret::Identify => {
-            let unwrapped_key = eng.unwrap(&wrapped_secret)?;
-            let key_id = (IdentityKey::try_from(unwrapped_key)?).id();
+            let key_id = eng.unwrap::<IdentityKey<E>>(&wrapped_secret)?.id();
             Ok(key_id.as_bytes() == locator)
         }
         KeyStoreSecret::Encrypt => {
-            let unwrapped_key: EncryptionKey<E> = (eng.unwrap(&wrapped_secret)?).try_into()?;
-            let key_id = unwrapped_key.id();
+            let key_id = eng.unwrap::<EncryptionKey<E>>(&wrapped_secret)?.id();
             Ok(key_id.as_bytes() == locator)
         }
         KeyStoreSecret::Sign => {
-            let unwrapped_key = eng.unwrap(&wrapped_secret)?;
-            let key_id = (SigningKey::try_from(unwrapped_key)?).id();
+            let key_id = eng.unwrap::<SigningKey<E>>(&wrapped_secret)?.id();
             Ok(key_id.as_bytes() == locator)
         }
         KeyStoreSecret::Group => {
-            let unwrapped_key: GroupKey<E> = (eng.unwrap(&wrapped_secret)?).try_into()?;
-            let key_id = unwrapped_key.id();
+            let key_id = eng.unwrap::<GroupKey<E>>(&wrapped_secret)?.id();
             Ok(key_id.as_ref() == locator)
         }
     }

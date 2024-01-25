@@ -12,18 +12,18 @@ use crate::{
 
 /// A sequence number.
 #[derive(Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Seq<E: Engine + ?Sized>(hpke::Seq<E::Aead>);
+pub struct Seq(hpke::Seq);
 
-impl<E: Engine + ?Sized> Seq<E> {
+impl Seq {
     /// The zero value of a `Seq`.
-    pub const ZERO: Self = Self(hpke::Seq::<E::Aead>::ZERO);
+    pub const ZERO: Self = Self(hpke::Seq::ZERO);
 
     /// Creates a sequence number.
     ///
     /// It returns an error if the sequence number is out of
     /// range.
-    pub fn new(seq: u64) -> Result<Self, MessageLimitReached> {
-        Ok(Self(hpke::Seq::new(seq)?))
+    pub fn new(seq: u64) -> Self {
+        Self(hpke::Seq::new(seq))
     }
 
     /// Converts itself to a `u64`.
@@ -68,7 +68,7 @@ impl<E: Engine + ?Sized> SealKey<E> {
     pub fn from_raw(
         key: &KeyData<E::Aead>,
         base_nonce: &Nonce<<E::Aead as Aead>::NonceSize>,
-        seq: Seq<E>,
+        seq: Seq,
     ) -> Result<Self, Error> {
         let ctx = SealCtx::new(key, base_nonce, seq.0)?;
         Ok(Self { ctx })
@@ -85,7 +85,7 @@ impl<E: Engine + ?Sized> SealKey<E> {
         dst: &mut [u8],
         plaintext: &[u8],
         (version, label): (u32, u32),
-    ) -> Result<Seq<E>, HpkeError> {
+    ) -> Result<Seq, HpkeError> {
         let ad = AuthData { version, label };
         let seq = self.ctx.seal(dst, plaintext, &ad.into_bytes())?;
         Ok(Seq(seq))
@@ -98,14 +98,14 @@ impl<E: Engine + ?Sized> SealKey<E> {
         data: impl AsMut<[u8]>,
         tag: &mut [u8],
         (version, label): (u32, u32),
-    ) -> Result<Seq<E>, HpkeError> {
+    ) -> Result<Seq, HpkeError> {
         let ad = AuthData { version, label };
         let seq = self.ctx.seal_in_place(data, tag, &ad.into_bytes())?;
         Ok(Seq(seq))
     }
 
     /// Returns the current sequence number.
-    pub fn seq(&self) -> Seq<E> {
+    pub fn seq(&self) -> Seq {
         Seq(self.ctx.seq())
     }
 }
@@ -123,7 +123,7 @@ impl<E: Engine + ?Sized> OpenKey<E> {
     pub fn from_raw(
         key: &KeyData<E::Aead>,
         base_nonce: &Nonce<<E::Aead as Aead>::NonceSize>,
-        seq: Seq<E>,
+        seq: Seq,
     ) -> Result<Self, Error> {
         let ctx = OpenCtx::new(key, base_nonce, seq.0)?;
         Ok(Self { ctx })
@@ -140,7 +140,7 @@ impl<E: Engine + ?Sized> OpenKey<E> {
         dst: &mut [u8],
         ciphertext: &[u8],
         (version, label): (u32, u32),
-        seq: Seq<E>,
+        seq: Seq,
     ) -> Result<(), HpkeError> {
         let ad = AuthData { version, label };
         self.ctx.open_at(dst, ciphertext, &ad.into_bytes(), seq.0)
@@ -157,7 +157,7 @@ impl<E: Engine + ?Sized> OpenKey<E> {
         data: impl AsMut<[u8]>,
         tag: &[u8],
         (version, label): (u32, u32),
-        seq: Seq<E>,
+        seq: Seq,
     ) -> Result<(), HpkeError> {
         let ad = AuthData { version, label };
         self.ctx

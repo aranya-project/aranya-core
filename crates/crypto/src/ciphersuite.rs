@@ -20,13 +20,14 @@
 
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
+use typenum::U64;
 
 use crate::{
     aead::{Aead, AeadId, IndCca2},
     hash::{Hash, HashId},
     kdf::{Kdf, KdfId},
     kem::{Kem, KemId},
-    mac::{Mac, MacId, MacKey, Tag},
+    mac::{Mac, MacId},
     signer::{Signer, SignerId},
 };
 
@@ -53,13 +54,13 @@ pub trait CipherSuite {
     /// See [`Aead`] for more information.
     type Aead: Aead + IndCca2;
     /// See [`Hash`] for more information.
-    type Hash: Hash<Digest = [u8; 64]>;
+    type Hash: Hash<DigestSize = U64>;
     /// See [`Kdf`] for more information.
     type Kdf: Kdf;
     /// See [`Kem`] for more information.
     type Kem: Kem;
     /// See [`Mac`] for more information.
-    type Mac: Mac<Key = MacKey<64>, Tag = Tag<64>>;
+    type Mac: Mac<KeySize = U64, TagSize = U64>;
     /// See [`Signer`] for more information.
     type Signer: Signer;
 }
