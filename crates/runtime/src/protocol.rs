@@ -310,13 +310,10 @@ impl Policy for TestPolicy {
                 let payload = (key, value);
                 let command = self.basic(target, *parent, payload)?;
 
-                let checkpoint = facts.checkpoint();
                 let passed = self.call_rule_internal(&command.command, facts, sink)?;
 
                 if passed {
                     facts.add_command(&command)?;
-                } else {
-                    facts.revert(checkpoint);
                 }
                 Ok(passed)
             }

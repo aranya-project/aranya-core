@@ -33,7 +33,7 @@ use vec1::Vec1;
 
 use crate::{
     Checkpoint, Command, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId, Prior,
-    Priority, Segment, Storage, StorageError, StorageProvider,
+    Priority, Revertable, Segment, Storage, StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -754,11 +754,7 @@ impl<R: Read> FactPerspective for LinearPerspective<R> {
     }
 }
 
-impl<R: Read> Perspective for LinearPerspective<R> {
-    fn policy(&self) -> PolicyId {
-        self.policy
-    }
-
+impl<R: Read> Revertable for LinearPerspective<R> {
     fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
             index: self.commands.len(),
@@ -772,6 +768,12 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         for data in &self.commands {
             self.facts.apply_updates(&data.updates);
         }
+    }
+}
+
+impl<R: Read> Perspective for LinearPerspective<R> {
+    fn policy(&self) -> PolicyId {
+        self.policy
     }
 
     fn add_command<'a>(&mut self, command: &impl Command<'a>) -> Result<usize, StorageError> {

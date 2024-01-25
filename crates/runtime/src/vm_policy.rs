@@ -333,7 +333,6 @@ impl Policy for VmPolicy {
             let mut buffer = [0u8; MAX_COMMAND_LENGTH];
             let new_command = self.basic(&mut buffer, *parent, c.clone())?;
 
-            let checkpoint = facts.checkpoint();
             let passed = self.evaluate_rule(&c.0, &c.1, facts, sink)?;
             if passed {
                 facts
@@ -342,7 +341,6 @@ impl Policy for VmPolicy {
             } else {
                 // Should this early return on failure or continue the
                 // rest of the queued commands?
-                facts.revert(checkpoint);
                 return Ok(false);
             }
         }
@@ -403,10 +401,10 @@ impl Policy for VmPolicy {
             kind,
             fields,
         };
-        postcard::to_slice(&c, target).map_err(|_| EngineError::Write)?;
-        let id = Id::hash_for_testing_only(target);
+        let data = postcard::to_slice(&c, target).map_err(|_| EngineError::Write)?;
+        let id = Id::hash_for_testing_only(data);
         Ok(VmCommand {
-            data: target,
+            data,
             id,
             unpacked: c,
         })

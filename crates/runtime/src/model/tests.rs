@@ -594,9 +594,9 @@ fn test_runtime_model() {
     let metrics = test_model
         .get_statistics(1, 1)
         .expect("Should return metrics");
+
     assert_eq!(metrics.effect_count, 7);
     assert_eq!(metrics.accepted_command_count, 8);
-    // TODO: (Scott) Once #463 is merged in, this will be 1 rejected command.
-    assert_eq!(metrics.rejected_command_count, 0);
+    assert_eq!(metrics.rejected_command_count, 1);
     assert_eq!(metrics.step_count, 9);
 }

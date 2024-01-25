@@ -113,7 +113,7 @@ impl From<rustix::io::Errno> for StorageError {
 
 /// Handle to storage implementations used by the runtime.
 pub trait StorageProvider {
-    type Perspective: Perspective;
+    type Perspective: Perspective + Revertable;
     type Segment: Segment;
     type Storage: Storage<Segment = Self::Segment, Perspective = Self::Perspective>;
 
@@ -147,7 +147,7 @@ pub trait StorageProvider {
 /// Represents the runtime's graph; [`Command`]s in storage have been validated
 /// by an associated policy and committed to state.
 pub trait Storage {
-    type Perspective: Perspective;
+    type Perspective: Perspective + Revertable;
     type FactPerspective: FactPerspective;
     type Segment: Segment<FactIndex = Self::FactIndex>;
     type FactIndex: FactIndex;
@@ -296,12 +296,6 @@ pub trait Perspective: FactPerspective {
     /// Returns the id for the policy used for this perspective.
     fn policy(&self) -> PolicyId;
 
-    /// Create a checkpoint which can be used to revert the perspective.
-    fn checkpoint(&self) -> Checkpoint;
-
-    /// Revert the perspective to the state it was at when the checkpoint was created.
-    fn revert(&mut self, checkpoint: Checkpoint);
-
     /// Adds the given command to the head of the perspective. The command's
     /// parent must be the head of the perspective.
     fn add_command<'a>(&mut self, command: &impl Command<'a>) -> Result<usize, StorageError>;
@@ -317,6 +311,16 @@ pub trait FactPerspective {
 
     /// Delete any value associated to the key.
     fn delete(&mut self, key: &[u8]);
+}
+
+/// A revertable perspective can make checkpoints and be reverted such that the
+/// state of the perspective matches that when the checkpoint was created.
+pub trait Revertable {
+    /// Create a checkpoint which can be used to revert the perspective.
+    fn checkpoint(&self) -> Checkpoint;
+
+    /// Revert the perspective to the state it was at when the checkpoint was created.
+    fn revert(&mut self, checkpoint: Checkpoint);
 }
 
 /// A checkpoint used to revert perspectives.

@@ -6,7 +6,7 @@ use vec1::Vec1;
 
 use crate::{
     Checkpoint, Command, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId, Prior,
-    Priority, Segment, Storage, StorageError, StorageProvider,
+    Priority, Revertable, Segment, Storage, StorageError, StorageProvider,
 };
 
 #[derive(Debug)]
@@ -538,17 +538,7 @@ impl MemPerspective {
     }
 }
 
-impl Perspective for MemPerspective {
-    fn add_command<'b>(&mut self, command: &impl Command<'b>) -> Result<usize, StorageError> {
-        // TODO(jdygert): Ensure command points to previous?
-        let entry = CommandData {
-            command: command.into(),
-            updates: core::mem::take(&mut self.current_updates),
-        };
-        self.commands.push(entry);
-        Ok(self.commands.len()) // FIXME(jdygert): Off by one?
-    }
-
+impl Revertable for MemPerspective {
     fn checkpoint(&self) -> Checkpoint {
         Checkpoint {
             index: self.commands.len(),
@@ -562,6 +552,18 @@ impl Perspective for MemPerspective {
         for data in &self.commands {
             self.facts.apply_updates(&data.updates);
         }
+    }
+}
+
+impl Perspective for MemPerspective {
+    fn add_command<'b>(&mut self, command: &impl Command<'b>) -> Result<usize, StorageError> {
+        // TODO(jdygert): Ensure command points to previous?
+        let entry = CommandData {
+            command: command.into(),
+            updates: core::mem::take(&mut self.current_updates),
+        };
+        self.commands.push(entry);
+        Ok(self.commands.len()) // FIXME(jdygert): Off by one?
     }
 
     fn policy(&self) -> PolicyId {
