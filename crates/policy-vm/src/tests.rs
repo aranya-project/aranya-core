@@ -1753,3 +1753,78 @@ fn test_bad_statements() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_fact_function_return() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[a int]=>{b int}
+
+        effect Result {
+            x struct Foo
+        }
+
+        // This tests the implicitly defined struct as a return type
+        function get_foo(a int) struct Foo {
+            let foo = unwrap query Foo[a: a]=>{b: ?}
+          
+            return foo
+        }
+
+        // Foo creates and emmits the fact
+        command Bar {
+            fields {
+                a int,
+                x int,
+            }
+
+            seal { return None }
+            open { return None }
+
+            policy {
+                finish {
+                    create Foo[a: this.a]=>{b: this.x}
+                    effect Result { x: get_foo(this.a) }
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
+    // Create fact through Foo
+    {
+        let mut rs = machine.create_run_state(&mut io);
+        let self_struct = Struct::new(
+            "Foo",
+            &[
+                KVPair::new("a", Value::Int(1)),
+                KVPair::new("x", Value::Int(2)),
+            ],
+        );
+        rs.call_command_policy("Bar", &self_struct)
+            .map_err(anyhow::Error::msg)?;
+    }
+
+    assert_eq!(
+        io.effect_stack[0],
+        (
+            "Result".to_string(),
+            vec![KVPair::new(
+                "x",
+                Value::Struct(Struct {
+                    name: "Foo".to_string(),
+                    fields: {
+                        let mut test_struct_map = BTreeMap::new();
+                        test_struct_map.insert("a".to_string(), Value::Int(1));
+                        test_struct_map.insert("b".to_string(), Value::Int(2));
+                        test_struct_map
+                    }
+                })
+            ),]
+        )
+    );
+
+    Ok(())
+}

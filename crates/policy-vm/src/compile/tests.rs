@@ -336,39 +336,29 @@ fn test_autodefine_struct() -> anyhow::Result<()> {
 
 #[test]
 fn test_duplicate_struct_fact_names() -> anyhow::Result<()> {
-    let text = r#"
-        // Should give an "already defined" error.
-        struct Foo {}
-        fact Foo[]=>{}
-    "#;
+    let texts = &[
+        r#"
+            // Should give an "already defined" error.
+            struct Foo {}
+            fact Foo[]=>{}
+        "#,
+        r#"
+            fact Foo[]=>{}
+            struct Foo {}
+        "#,
+    ];
 
-    let text_2 = r#"
-        // Should give an "already defined" error.
-        fact Foo[]=>{}
-        struct Foo {}
-    "#;
-
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let result = compile_from_policy(&policy, &[]);
-
-    let policy_2 = parse_policy_str(text_2, Version::V3).map_err(anyhow::Error::msg)?;
-    let result_2 = compile_from_policy(&policy_2, &[]);
-
-    assert!(matches!(
-        result,
-        Err(CompileError {
-            err_type: CompileErrorType::AlreadyDefined(_),
-            ..
-        })
-    ));
-
-    assert!(matches!(
-        result_2,
-        Err(CompileError {
-            err_type: CompileErrorType::AlreadyDefined(_),
-            ..
-        })
-    ));
+    for text in texts {
+        let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+        let result = compile_from_policy(&policy, &[]);
+        assert!(matches!(
+            result,
+            Err(CompileError {
+                err_type: CompileErrorType::AlreadyDefined(_),
+                ..
+            })
+        ));
+    }
 
     Ok(())
 }
