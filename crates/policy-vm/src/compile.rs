@@ -2,17 +2,17 @@ extern crate alloc;
 
 mod error;
 mod tests;
-
 use alloc::{
     borrow::ToOwned,
     collections::{btree_map, BTreeMap},
     format,
-    string::String,
+    string::{String, ToString},
     vec,
     vec::Vec,
 };
 use core::{fmt, ops::Range};
 
+use ast::FactDefinition;
 pub use ast::Policy as AstPolicy;
 use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
@@ -134,11 +134,23 @@ impl<'a> CompileState<'a> {
         self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
     }
 
-    /// Insert a struct definition.
-    pub fn define_struct(&mut self, name: &str, fields: &[ast::FieldDefinition]) {
-        self.m
-            .struct_defs
-            .insert(name.to_owned(), fields.to_owned());
+    /// Insert a struct definition while preventing duplicates.
+    pub fn define_struct(
+        &mut self,
+        identifier: &str,
+        fields: &[ast::FieldDefinition],
+    ) -> Result<(), CompileError> {
+        match self.m.struct_defs.entry(identifier.to_string()) {
+            btree_map::Entry::Vacant(e) => {
+                e.insert(fields.to_vec());
+                Ok(())
+            }
+            btree_map::Entry::Occupied(_) => Err(CompileError::from_locator(
+                CompileErrorType::AlreadyDefined(identifier.to_string()),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            )),
+        }
     }
 
     /// Turn a [FunctionDefinition](ast::FunctionDefinition) into a
@@ -915,7 +927,7 @@ impl<'a> CompileState<'a> {
         command_node: &AstNode<ast::CommandDefinition>,
     ) -> Result<(), CompileError> {
         let command = &command_node.inner;
-        self.define_struct(&command.identifier, &command.fields);
+        self.define_struct(&command.identifier, &command.fields)?;
         self.map_range(command_node)?;
 
         self.define_label(
@@ -994,11 +1006,11 @@ impl<'a> CompileState<'a> {
         for effect in &policy.effects {
             let fields: Vec<ast::FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
-            self.define_struct(&effect.inner.identifier, &fields);
+            self.define_struct(&effect.inner.identifier, &fields)?;
         }
 
         for struct_def in &policy.structs {
-            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields);
+            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields)?;
         }
 
         self.enter_statement_context(StatementContext::PureFunction);
@@ -1024,10 +1036,13 @@ impl<'a> CompileState<'a> {
         }
         self.exit_statement_context();
 
-        for effect in &policy.effects {
+        for fact in &policy.facts {
+            let FactDefinition { key, value, .. } = &fact.inner;
+
             let fields: Vec<ast::FieldDefinition> =
-                effect.inner.fields.iter().map(|f| f.into()).collect();
-            self.define_struct(&effect.inner.identifier, &fields);
+                key.iter().chain(value.iter()).cloned().collect();
+
+            self.define_struct(&fact.inner.identifier, &fields)?;
         }
 
         self.resolve_targets()?;

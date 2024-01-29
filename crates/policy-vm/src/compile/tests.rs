@@ -1,6 +1,7 @@
 #![cfg(test)]
+use std::collections::BTreeMap;
 
-use policy_ast::Version;
+use policy_ast::{FieldDefinition, VType, Version};
 use policy_lang::lang::parse_policy_str;
 
 use crate::{
@@ -293,6 +294,81 @@ fn test_command_with_no_return_in_open_block() -> anyhow::Result<()> {
         .err_type;
 
     assert_eq!(err, CompileErrorType::NoReturn);
+
+    Ok(())
+}
+
+#[test]
+fn test_autodefine_struct() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[a int]=>{b int}
+
+        function get_foo(a int) struct Foo {
+            let foo = unwrap query Foo[a: a]=>{b: ?}
+            
+            return foo
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let result = compile_from_policy(&policy, &[])?;
+
+    assert_eq!(result.struct_defs, {
+        let mut test_struct_map = BTreeMap::new();
+        test_struct_map.insert(
+            "Foo".to_string(),
+            vec![
+                FieldDefinition {
+                    identifier: "a".to_string(),
+                    field_type: VType::Int,
+                },
+                FieldDefinition {
+                    identifier: "b".to_string(),
+                    field_type: VType::Int,
+                },
+            ],
+        );
+        test_struct_map
+    });
+
+    Ok(())
+}
+
+#[test]
+fn test_duplicate_struct_fact_names() -> anyhow::Result<()> {
+    let text = r#"
+        // Should give an "already defined" error.
+        struct Foo {}
+        fact Foo[]=>{}
+    "#;
+
+    let text_2 = r#"
+        // Should give an "already defined" error.
+        fact Foo[]=>{}
+        struct Foo {}
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let result = compile_from_policy(&policy, &[]);
+
+    let policy_2 = parse_policy_str(text_2, Version::V3).map_err(anyhow::Error::msg)?;
+    let result_2 = compile_from_policy(&policy_2, &[]);
+
+    assert!(matches!(
+        result,
+        Err(CompileError {
+            err_type: CompileErrorType::AlreadyDefined(_),
+            ..
+        })
+    ));
+
+    assert!(matches!(
+        result_2,
+        Err(CompileError {
+            err_type: CompileErrorType::AlreadyDefined(_),
+            ..
+        })
+    ));
 
     Ok(())
 }
