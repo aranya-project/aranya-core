@@ -240,18 +240,6 @@ pub fn braid<S: Storage>(
                 segment,
             })
         }
-
-        fn previous(&mut self) -> Result<bool, ClientError> {
-            if !self.next.previous() {
-                return Ok(false);
-            }
-            let cmd = self
-                .segment
-                .get_command(&self.next)
-                .assume("can walk backward along segment")?;
-            self.key = (cmd.priority(), cmd.id());
-            Ok(true)
-        }
     }
 
     impl<S> Eq for Strand<S> {}
@@ -284,31 +272,30 @@ pub fn braid<S: Storage>(
         braid.push(strand.next.clone());
 
         // Consume another command off the strand
-        if strand.previous()? {
-            // Add modified strand back to heap
-            strands.push(strand);
+        let prior = if strand.next.previous() {
+            Prior::Single(strand.next)
         } else {
-            let prior = strand.segment.prior();
-            if matches!(prior, Prior::Merge(..)) {
-                // Skip merge commands
-                braid.pop();
-            }
+            strand.segment.prior()
+        };
+        if matches!(prior, Prior::Merge(..)) {
+            // Skip merge commands
+            braid.pop();
+        }
 
-            // Strand done, add parents if needed
-            'location: for location in prior {
-                for other in &strands {
-                    if storage.is_ancestor(&location, &other.segment)? {
-                        continue 'location;
-                    }
+        // Continue processing prior if not accessible from other strands.
+        'location: for location in prior {
+            for other in &strands {
+                if storage.is_ancestor(&location, &other.segment)? {
+                    continue 'location;
                 }
+            }
 
-                strands.push(Strand::new(storage, location)?);
-            }
-            if strands.len() == 1 {
-                // No concurrency left, done.
-                braid.push(strands.pop().assume("strands not empty")?.next);
-                break;
-            }
+            strands.push(Strand::new(storage, location)?);
+        }
+        if strands.len() == 1 {
+            // No concurrency left, done.
+            braid.push(strands.pop().assume("strands not empty")?.next);
+            break;
         }
     }
 

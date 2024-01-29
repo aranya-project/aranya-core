@@ -32,7 +32,7 @@ impl From<(usize, usize)> for Location {
 }
 
 impl Location {
-    fn new(segment: usize, command: usize) -> Location {
+    pub fn new(segment: usize, command: usize) -> Location {
         Location { segment, command }
     }
 
@@ -168,7 +168,11 @@ pub trait Storage {
         queue.push_back(start.clone());
         while let Some(loc) = queue.pop_front() {
             let seg = self.get_segment(&loc)?;
-            for (i, cmd) in seg.get_from(&loc).iter().enumerate() {
+            for (cmd, i) in seg
+                .get_from(&Location::new(loc.segment, 0))
+                .iter()
+                .zip(0..=loc.command)
+            {
                 if &cmd.id() == id {
                     return Ok(Some(Location::new(loc.segment, i)));
                 }
@@ -229,7 +233,9 @@ pub trait Storage {
         let mut queue = alloc::collections::VecDeque::new();
         queue.extend(segment.prior());
         while let Some(location) = queue.pop_front() {
-            if location.same_segment(search_location) {
+            if location.segment == search_location.segment
+                && location.command >= search_location.command
+            {
                 return Ok(true);
             }
             let segment = self.get_segment(&location)?;

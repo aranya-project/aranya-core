@@ -4,8 +4,8 @@ use core::marker::PhantomData;
 use buggy::{bug, BugExt};
 
 use crate::{
-    ClientError, Command, Engine, Id, Location, Perspective, Policy, PolicyId, Prior, Revertable,
-    Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    ClientError, Command, Engine, Id, Location, MergeIds, Perspective, Policy, PolicyId, Prior,
+    Revertable, Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 /// Transaction used to receive many commands at once.
@@ -72,30 +72,17 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 .insert(segment.head().id(), segment.head_location());
         }
 
-        // Add graph head to transaction heads if not ancestor of any
-        // transaction head, so that we will merge it in below.
-        let current_head = storage.get_head()?;
-        for (id, location) in &self.heads {
-            if id == &storage.get_command_id(&current_head)? {
-                continue;
-            }
-            let segment = storage.get_segment(location)?;
-            if !storage.is_ancestor(&current_head, &segment)? {
-                self.heads
-                    .insert(storage.get_command_id(&current_head)?, current_head);
-                break;
-            }
-        }
-
         // Merge heads pairwise until single head left, then commit.
         // TODO(#370): Merge deterministically
         let mut heads: VecDeque<_> = core::mem::take(&mut self.heads).into_iter().collect();
+        let mut merging_head = false;
         while let Some((left_id, left_loc)) = heads.pop_front() {
             if let Some((right_id, right_loc)) = heads.pop_front() {
                 let (policy, policy_id) = choose_policy(storage, engine, &left_loc, &right_loc)?;
 
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
-                let command = policy.merge(&mut buffer, left_id, right_id)?;
+                let merge_ids = MergeIds::new(left_id, right_id).assume("merging different ids")?;
+                let command = policy.merge(&mut buffer, merge_ids)?;
 
                 let braid =
                     make_braid_segment::<_, E>(storage, &left_loc, &right_loc, sink, policy)?;
@@ -110,7 +97,25 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 heads.push_back((segment.head().id(), segment.head_location()));
             } else {
                 let segment = storage.get_segment(&left_loc)?;
-                storage.commit(segment)?;
+                // Try to commit. If it fails with `HeadNotAncestor`, we know we
+                // need to merge with the graph head.
+                match storage.commit(segment) {
+                    Ok(()) => break,
+                    Err(StorageError::HeadNotAncestor) => {
+                        if merging_head {
+                            bug!("merging with graph head again, would loop");
+                        }
+
+                        merging_head = true;
+
+                        heads.push_back((left_id, left_loc));
+
+                        let head_loc = storage.get_head()?;
+                        let head_id = storage.get_command_id(&head_loc)?;
+                        heads.push_back((head_id, head_loc));
+                    }
+                    Err(e) => return Err(e.into()),
+                }
             }
         }
 
@@ -209,11 +214,11 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             self.heads.insert(seg.head().id(), seg.head_location());
         }
 
-        let left_loc = storage
-            .get_location(&left)?
+        let left_loc = self
+            .locate(storage, &left)?
             .ok_or(ClientError::NoSuchParent(left))?;
-        let right_loc = storage
-            .get_location(&right)?
+        let right_loc = self
+            .locate(storage, &right)?
             .ok_or(ClientError::NoSuchParent(right))?;
 
         let (policy, policy_id) = choose_policy(storage, engine, &left_loc, &right_loc)?;
@@ -247,10 +252,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         parent: &Id,
         storage: &mut <SP as StorageProvider>::Storage,
     ) -> Result<&mut <SP as StorageProvider>::Perspective, ClientError> {
-        let loc = self
-            .locate(storage, parent)?
-            .ok_or(ClientError::NoSuchParent(*parent))?;
-
         if self.phead == Some(*parent) {
             // Command will append to current perspective.
             return Ok(self
@@ -265,6 +266,10 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             let seg = storage.write(p)?;
             self.heads.insert(seg.head().id(), seg.head_location());
         }
+
+        let loc = self
+            .locate(storage, parent)?
+            .ok_or(ClientError::NoSuchParent(*parent))?;
 
         // Get a new perspective and store it in the transaction.
         let p = self.perspective.insert(
@@ -380,4 +385,358 @@ fn get_policy<'a, E: Engine>(
     let policy_id = segment.policy();
     let policy = engine.get_policy(&policy_id)?;
     Ok((policy, policy_id))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::{memory::MemStorageProvider, ClientState, MergeIds, Priority};
+
+    struct SeqEngine;
+
+    /// [`SeqPolicy`] is a very simple policy which appends the id of each
+    /// command to a fact named `b"seq"`. At each point in the graph, the value
+    /// of this fact should be equal to the ids in braid order of all facts up
+    /// to that point.
+    struct SeqPolicy;
+
+    struct SeqCommand {
+        id: Id,
+        prior: Prior<Id>,
+        data: Box<str>,
+    }
+
+    impl Engine for SeqEngine {
+        type Policy = SeqPolicy;
+        type Effects = ();
+
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, crate::EngineError> {
+            Ok(PolicyId::new(0))
+        }
+
+        fn get_policy<'a>(
+            &'a self,
+            _id: &PolicyId,
+        ) -> Result<&'a Self::Policy, crate::EngineError> {
+            Ok(&SeqPolicy)
+        }
+    }
+
+    impl Policy for SeqPolicy {
+        type Payload<'a> = ();
+        type Actions<'a> = &'a str;
+        type Effects = ();
+        type Command<'a> = SeqCommand;
+
+        fn serial(&self) -> u32 {
+            0
+        }
+
+        fn call_rule<'a>(
+            &self,
+            command: &impl Command<'a>,
+            facts: &mut impl crate::FactPerspective,
+            _sink: &mut impl Sink<Self::Effects>,
+        ) -> Result<bool, crate::EngineError> {
+            assert!(
+                !matches!(command.parent(), Prior::Merge { .. }),
+                "merges shouldn't be evaluated"
+            );
+
+            // For init and basic commands, append the id to the seq fact.
+            let data = command.bytes();
+            if let Some(seq) = facts.query(b"seq")?.as_deref() {
+                facts.insert(b"seq", &[seq, b":", data].concat());
+            } else {
+                facts.insert(b"seq", data);
+            };
+            Ok(true)
+        }
+
+        fn call_action(
+            &self,
+            _id: &Id,
+            _action: Self::Actions<'_>,
+            _facts: &mut impl Perspective,
+            _sink: &mut impl Sink<Self::Effects>,
+        ) -> Result<bool, crate::EngineError> {
+            unimplemented!()
+        }
+
+        fn read_command<'a>(
+            &self,
+            _data: &'a [u8],
+        ) -> Result<Self::Command<'a>, crate::EngineError> {
+            unimplemented!()
+        }
+
+        fn init<'a>(
+            &self,
+            _target: &'a mut [u8],
+            _policy_data: &[u8],
+            _payload: Self::Payload<'_>,
+        ) -> Result<Self::Command<'a>, crate::EngineError> {
+            unimplemented!()
+        }
+
+        fn merge<'a>(
+            &self,
+            _target: &'a mut [u8],
+            ids: MergeIds,
+        ) -> Result<Self::Command<'a>, crate::EngineError> {
+            let (left, right) = ids.into();
+            let mut buf = [0u8; 128];
+            buf[..64].copy_from_slice(left.as_bytes());
+            buf[64..].copy_from_slice(right.as_bytes());
+            let id = Id::hash_for_testing_only(&buf);
+            Ok(SeqCommand::new(id, Prior::Merge(left, right)))
+        }
+
+        fn basic<'a>(
+            &self,
+            _target: &'a mut [u8],
+            _parent: Id,
+            _payload: Self::Payload<'a>,
+        ) -> Result<Self::Command<'a>, crate::EngineError> {
+            unimplemented!()
+        }
+    }
+
+    impl SeqCommand {
+        fn new(id: Id, prior: Prior<Id>) -> Self {
+            let data = id.short_b58().into_boxed_str();
+            Self { id, prior, data }
+        }
+    }
+
+    impl<'cmd> Command<'cmd> for SeqCommand {
+        fn priority(&self) -> Priority {
+            match self.prior {
+                Prior::None => Priority::Init,
+                Prior::Single(_) => {
+                    // Use the last byte of the ID as priority, just so we can
+                    // properly see the effects of braiding
+                    let id = self.id.as_bytes();
+                    let priority = u32::from(*id.last().unwrap());
+                    Priority::Basic(priority)
+                }
+                Prior::Merge(_, _) => Priority::Merge,
+            }
+        }
+
+        fn id(&self) -> Id {
+            self.id
+        }
+
+        fn parent(&self) -> Prior<Id> {
+            self.prior
+        }
+
+        fn policy(&self) -> Option<&[u8]> {
+            // We don't actually need any policy bytes, but the
+            // transaction/storage requires it on init commands.
+            match self.prior {
+                Prior::None { .. } => Some(b""),
+                _ => None,
+            }
+        }
+
+        fn bytes(&self) -> &[u8] {
+            self.data.as_bytes()
+        }
+    }
+
+    struct NullSink;
+    impl<E> Sink<E> for NullSink {
+        fn begin(&mut self) {}
+        fn consume(&mut self, _: E) {}
+        fn rollback(&mut self) {}
+        fn commit(&mut self) {}
+    }
+
+    /// [`GraphBuilder`] and the associated macro [`graph`] provide an easy way
+    /// to create a graph with a specific structure.
+    struct GraphBuilder<SP: StorageProvider> {
+        client: ClientState<SeqEngine, SP>,
+        trx: Transaction<SP, SeqEngine>,
+    }
+
+    impl<SP: StorageProvider> GraphBuilder<SP> {
+        pub fn init(mut client: ClientState<SeqEngine, SP>, ids: &[Id]) -> Self {
+            let mut trx = Transaction::new(ids[0]);
+            let mut prior: Prior<Id> = Prior::None;
+            for &id in ids {
+                let cmd = SeqCommand::new(id, prior);
+                trx.add_commands(
+                    &[cmd],
+                    &mut client.provider,
+                    &mut client.engine,
+                    &mut NullSink,
+                )
+                .unwrap();
+                prior = Prior::Single(id);
+            }
+            Self { client, trx }
+        }
+
+        pub fn line(&mut self, mut prev: Id, ids: &[Id]) {
+            for &id in ids {
+                let cmd = SeqCommand::new(id, Prior::Single(prev));
+                self.trx
+                    .add_commands(
+                        &[cmd],
+                        &mut self.client.provider,
+                        &mut self.client.engine,
+                        &mut NullSink,
+                    )
+                    .unwrap();
+                prev = id;
+            }
+        }
+
+        pub fn merge(&mut self, (left, right): (Id, Id), ids: &[Id]) {
+            let mergecmd = SeqCommand::new(ids[0], Prior::Merge(left, right));
+            self.trx
+                .add_commands(
+                    &[mergecmd],
+                    &mut self.client.provider,
+                    &mut self.client.engine,
+                    &mut NullSink,
+                )
+                .unwrap();
+            for (&prev, &id) in core::iter::zip(ids, &ids[1..]) {
+                let cmd = SeqCommand::new(id, Prior::Single(prev));
+                self.trx
+                    .add_commands(
+                        &[cmd],
+                        &mut self.client.provider,
+                        &mut self.client.engine,
+                        &mut NullSink,
+                    )
+                    .unwrap();
+            }
+        }
+
+        pub fn flush(&mut self) {
+            if let Some(p) = self.trx.perspective.take() {
+                self.trx.phead.take();
+                let seg = self
+                    .client
+                    .provider
+                    .get_storage(&self.trx.storage_id)
+                    .unwrap()
+                    .write(p)
+                    .unwrap();
+                self.trx.heads.insert(seg.head().id(), seg.head_location());
+            }
+        }
+
+        pub fn commit(&mut self) {
+            self.trx
+                .commit(
+                    &mut self.client.provider,
+                    &mut self.client.engine,
+                    &mut NullSink,
+                )
+                .unwrap();
+        }
+    }
+
+    fn mkid(x: &str) -> Id {
+        x.parse().unwrap()
+    }
+
+    /// See tests for usage.
+    macro_rules! graph {
+        ( $client:expr ; $init:literal $($inits:literal )* ; $($rest:tt)*) => {{
+            let mut gb = GraphBuilder::init($client, &[mkid($init), $(mkid($inits)),*]);
+            graph!(@ gb, $($rest)*);
+            gb
+        }};
+        (@ $gb:ident, $prev:literal < $($id:literal)+; $($rest:tt)*) => {
+            $gb.line(mkid($prev), &[$(mkid($id)),+]);
+            graph!(@ $gb, $($rest)*);
+        };
+        (@ $gb:ident, $l:literal $r:literal < $($id:literal)+; $($rest:tt)*) => {
+            $gb.merge((mkid($l), mkid($r)), &[$(mkid($id)),+]);
+            graph!(@ $gb, $($rest)*);
+        };
+        (@ $gb:ident, commit; $($rest:tt)*) => {
+            $gb.commit();
+            graph!(@ $gb, $($rest)*);
+        };
+        (@ $gb:ident, ) => {
+            $gb.flush();
+        };
+    }
+
+    fn lookup(storage: &impl Storage, key: &[u8]) -> Option<Box<[u8]>> {
+        use crate::FactPerspective;
+        let head = storage.get_head().unwrap();
+        let p = storage.get_fact_perspective(&head).unwrap();
+        p.query(key).unwrap()
+    }
+
+    #[test]
+    fn test_simple() -> Result<(), StorageError> {
+        let mut gb = graph! {
+            ClientState::new(SeqEngine, MemStorageProvider::new());
+            "a";
+            "a" < "b";
+            "a" < "c";
+            "b" "c" < "ma";
+            "b" < "d";
+            "ma" "d" < "mb";
+            commit;
+        };
+        let g = gb.client.provider.get_storage(&mkid("a")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        crate::storage::memory::graphviz::dot(g, "simple");
+
+        assert_eq!(g.get_head().unwrap(), Location::new(5, 0));
+
+        let seq = lookup(g, b"seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(seq, "a:b:d:c");
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_complex() -> Result<(), StorageError> {
+        let mut gb = graph! {
+            ClientState::new(SeqEngine, MemStorageProvider::new());
+            "a";
+            "a" < "1" "2" "3";
+            "3" < "4" "6" "7";
+            "3" < "5" "8";
+            "6" "8" < "9" "aa"; commit;
+            "7" < "a1" "a2";
+            "aa" "a2" < "a3";
+            "a3" < "a6" "a4";
+            "a3" < "a7" "a5";
+            "a4" "a5" < "a8";
+            "9" < "42" "43";
+            "42" < "45" "46";
+            "45" < "47" "48";
+            commit;
+        };
+
+        let g = gb.client.provider.get_storage(&mkid("a")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        crate::storage::memory::graphviz::dot(g, "complex");
+
+        assert_eq!(g.get_head().unwrap(), Location::new(15, 0));
+
+        let seq = lookup(g, b"seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(
+            seq,
+            "a:1:2:3:5:8:4:6:42:45:47:48:46:43:aa:7:a1:a2:a7:a6:a5:a4"
+        );
+
+        Ok(())
+    }
 }

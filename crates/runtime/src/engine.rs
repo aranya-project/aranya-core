@@ -69,6 +69,32 @@ pub trait Sink<E> {
     fn commit(&mut self);
 }
 
+/// The IDs to a merge command in sorted order.
+pub struct MergeIds {
+    // left < right
+    left: Id,
+    right: Id,
+}
+
+impl MergeIds {
+    /// Create [`MergeIds`] by ordering two [`Id`]s and ensuring they are different.
+    pub fn new(a: Id, b: Id) -> Option<Self> {
+        use core::cmp::Ordering;
+        match a.cmp(&b) {
+            Ordering::Less => Some(Self { left: a, right: b }),
+            Ordering::Equal => None,
+            Ordering::Greater => Some(Self { left: b, right: a }),
+        }
+    }
+}
+
+impl From<MergeIds> for (Id, Id) {
+    /// Convert [`MergeIds`] into an ordered pair of [`Id`]s.
+    fn from(value: MergeIds) -> Self {
+        (value.left, value.right)
+    }
+}
+
 pub trait Policy {
     type Payload<'a>;
     type Actions<'a>;
@@ -118,8 +144,7 @@ pub trait Policy {
     fn merge<'a>(
         &self,
         target: &'a mut [u8],
-        left: Id,
-        right: Id,
+        ids: MergeIds,
     ) -> Result<Self::Command<'a>, EngineError>;
 
     /// Produces a protocol message serialized to target. The `struct` representing the

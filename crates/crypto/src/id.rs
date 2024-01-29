@@ -1,11 +1,15 @@
+//! [`Id`]s and generation of [`custom_id`] types.
+
 #![forbid(unsafe_code)]
 
 use core::{
     borrow::Borrow,
     fmt::{self, Debug, Display},
     hash::Hash,
+    str::FromStr,
 };
 
+pub use base58::DecodeError;
 use base58::{String64, ToBase58};
 use generic_array::GenericArray;
 use postcard::experimental::max_size::MaxSize;
@@ -84,6 +88,11 @@ impl Id {
     pub const fn as_array(&self) -> &[u8; 64] {
         &self.0
     }
+
+    /// Decode the [`Id`] from a base58 string.
+    pub fn decode<T: AsRef<[u8]>>(s: T) -> Result<Self, DecodeError> {
+        String64::decode(s).map(Self::from)
+    }
 }
 
 impl Default for Id {
@@ -117,6 +126,14 @@ impl From<Id> for [u8; 64] {
     #[inline]
     fn from(id: Id) -> Self {
         id.0
+    }
+}
+
+impl FromStr for Id {
+    type Err = DecodeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::decode(s)
     }
 }
 
@@ -228,6 +245,13 @@ macro_rules! custom_id {
             pub const fn as_array(&self) -> &[u8; 64] {
                 self.0.as_array()
             }
+
+            /// Decode the ID from a base58 string.
+            pub fn decode<T: ::core::convert::AsRef<[u8]>>(
+                s: T,
+            ) -> ::core::result::Result<Self, $crate::id::DecodeError> {
+                $crate::Id::decode(s).map(Self)
+            }
         }
 
         impl ::core::convert::AsRef<[u8]> for $name {
@@ -271,6 +295,14 @@ macro_rules! custom_id {
             #[inline]
             fn from(id: $name) -> Self {
                 id.0
+            }
+        }
+
+        impl ::core::str::FromStr for $name {
+            type Err = $crate::id::DecodeError;
+
+            fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
+                Self::decode(s)
             }
         }
 

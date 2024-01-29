@@ -8,6 +8,7 @@ use super::{
     alloc, Command, Engine, EngineError, Expectation, FactPerspective, Id, Perspective, Policy,
     PolicyId, Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
 };
+use crate::MergeIds;
 
 impl From<StorageError> for EngineError {
     fn from(_: StorageError) -> Self {
@@ -285,9 +286,9 @@ impl Policy for TestPolicy {
     fn merge<'a>(
         &self,
         target: &'a mut [u8],
-        left: Id,
-        right: Id,
+        ids: MergeIds,
     ) -> Result<TestProtocol<'a>, EngineError> {
+        let (left, right) = ids.into();
         let command = WireProtocol::Merge(WireMerge { left, right });
         let data = write(target, &command)?;
         let id = Id::hash_for_testing_only(data);

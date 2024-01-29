@@ -24,18 +24,18 @@ impl Id {
     }
 
     #[cfg(test)]
-    pub fn shorthex(&self) -> String {
-        use std::fmt::Write;
-        let mut hex = String::new();
-        let mut bytes = self.0.as_bytes();
-        while bytes.len() > 1 && bytes[0] == 0 {
-            bytes = &bytes[1..];
+    pub fn short_b58(&self) -> String {
+        #![allow(clippy::arithmetic_side_effects)]
+        let b58 = self.to_string();
+        let trimmed = b58.trim_start_matches('1');
+        let len = trimmed.len();
+        if len == 0 {
+            "1".to_owned()
+        } else if len > 8 {
+            format!("..{}", &trimmed[len - 6..])
+        } else {
+            trimmed.to_owned()
         }
-        write!(hex, "{:X}", bytes[0]).unwrap();
-        for &b in &bytes[1..] {
-            write!(hex, "{:02X}", b).unwrap();
-        }
-        hex
     }
 }
 

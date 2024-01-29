@@ -11,7 +11,7 @@ use crate::{
     command::{Command, Id, Priority},
     engine::{EngineError, Policy, Sink},
     storage::MAX_COMMAND_LENGTH,
-    FactPerspective, Perspective, Prior,
+    FactPerspective, MergeIds, Perspective, Prior,
 };
 
 mod error;
@@ -377,9 +377,9 @@ impl Policy for VmPolicy {
     fn merge<'a>(
         &self,
         target: &'a mut [u8],
-        left: Id,
-        right: Id,
+        ids: MergeIds,
     ) -> Result<Self::Command<'a>, EngineError> {
+        let (left, right) = ids.into();
         let c = VmCommandData::Merge { left, right };
         postcard::to_slice(&c, target).map_err(|_| EngineError::Write)?;
         let id = Id::hash_for_testing_only(target);

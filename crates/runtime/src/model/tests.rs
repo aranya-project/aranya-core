@@ -372,9 +372,10 @@ fn unidirectional_sync(
     let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
     let mut response_syncer = SyncResponder::new();
 
-    // TODO: (Scott) request_trx and response_trx should be moved out side of the loop once https://git.spideroak-inc.com/spideroak-inc/flow3-rs/pull/502 it merged in.
-
     assert!(request_syncer.ready());
+
+    let mut response_trx = response_state.transaction(storage_id);
+    let mut request_trx = request_state.transaction(storage_id);
 
     // TODO: (Scott) Once https://git.spideroak-inc.com/spideroak-inc/flow3-rs/pull/476 gets merged in we'll need to initiate another loop or run of unidirectional_sync func. The syncer will only queue up to 100 segments to sync at a time.
 
@@ -386,7 +387,6 @@ fn unidirectional_sync(
         if request_syncer.ready() {
             let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = request_state.sync_poll(&mut request_syncer, &mut buffer)?;
-            let mut response_trx = response_state.transaction(storage_id);
 
             response_state.sync_receive(
                 &mut response_trx,
@@ -394,16 +394,11 @@ fn unidirectional_sync(
                 &mut response_syncer,
                 &buffer[0..len],
             )?;
-
-            response_state
-                .commit(&mut response_trx, request_sink)
-                .expect("Should commit the transaction");
         }
 
         if response_syncer.ready() {
             let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_state.sync_poll(&mut response_syncer, &mut buffer)?;
-            let mut request_trx = request_state.transaction(storage_id);
 
             request_state.sync_receive(
                 &mut request_trx,
@@ -411,12 +406,16 @@ fn unidirectional_sync(
                 &mut request_syncer,
                 &buffer[0..len],
             )?;
-
-            request_state
-                .commit(&mut request_trx, request_sink)
-                .expect("Should commit the transaction");
         }
     }
+
+    response_state
+        .commit(&mut response_trx, request_sink)
+        .expect("Should commit the transaction");
+
+    request_state
+        .commit(&mut request_trx, request_sink)
+        .expect("Should commit the transaction");
 
     Ok(())
 }

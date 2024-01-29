@@ -153,16 +153,6 @@ impl Storage for MemStorage {
     type FactIndex = MemFactIndex;
     type FactPerspective = MemFactPerspective;
 
-    fn get_location_from(
-        &self,
-        _location: &Location,
-        id: &Id,
-    ) -> Result<Option<Location>, StorageError> {
-        // FIXME(jdygert): Should filter reachable from location. Use default
-        // impl instead. Need to fix tests in this file.
-        Ok(self.commands.get(id).cloned())
-    }
-
     fn get_command_id(&self, location: &Location) -> Result<Id, StorageError> {
         let segment = self.get_segment(location)?;
         let command = segment
@@ -321,7 +311,7 @@ impl Deref for MemFactIndex {
 }
 
 impl MemFactIndex {
-    #[cfg(test)]
+    #[cfg(all(test, feature = "graphviz"))]
     fn name(&self) -> String {
         format!("\"{:p}\"", Arc::as_ptr(&self.0))
     }
@@ -609,155 +599,16 @@ impl FactPerspective for MemFactPerspective {
     }
 }
 
-#[cfg(test)]
-mod test {
+#[cfg(all(test, feature = "graphviz"))]
+pub mod graphviz {
+    #![allow(clippy::unwrap_used)]
+
     use std::{fs::File, io::BufWriter};
 
     use dot_writer::{Attributes, DotWriter, Style};
 
+    #[allow(clippy::wildcard_imports)]
     use super::*;
-
-    struct TestCommand {
-        id: Id,
-        parent: Prior<Id>,
-        priority: Priority,
-    }
-
-    impl<'a> Command<'a> for TestCommand {
-        fn priority(&self) -> Priority {
-            self.priority.clone()
-        }
-
-        fn id(&self) -> Id {
-            self.id
-        }
-
-        fn parent(&self) -> Prior<Id> {
-            self.parent
-        }
-
-        fn policy(&self) -> Option<&[u8]> {
-            None
-        }
-
-        fn bytes(&self) -> &[u8] {
-            &[]
-        }
-    }
-
-    fn mkcmd(id: impl Into<Id>, parent: Prior<Id>, priority: u32) -> TestCommand {
-        let priority = match parent {
-            Prior::None => Priority::Init,
-            Prior::Single(..) => Priority::Basic(priority),
-            Prior::Merge(..) => Priority::Merge,
-        };
-        TestCommand {
-            id: id.into(),
-            parent,
-            priority,
-        }
-    }
-
-    struct GraphBuilder<'a, S: Storage> {
-        storage: &'a mut S,
-        pending: Option<S::Segment>,
-    }
-
-    fn eval(p: &mut impl FactPerspective, id: impl Into<Id>) {
-        let id = id.into().shorthex();
-        let seq = match p.query(b"seq").unwrap() {
-            Some(seq) => format!("{}:{}", std::str::from_utf8(&seq).unwrap(), id),
-            None => id,
-        };
-        p.insert(b"seq", seq.as_bytes());
-    }
-
-    impl<'a, S: Storage> GraphBuilder<'a, S> {
-        pub fn init<SP>(sp: &'a mut SP, ids: &[u32]) -> Self
-        where
-            SP: StorageProvider<Storage = S>,
-        {
-            let mut persp = sp.new_perspective(&PolicyId::new(0));
-            let mut prev = Prior::None;
-            for &id in ids {
-                eval(&mut persp, id);
-                persp.add_command(&mkcmd(id, prev, id)).unwrap();
-                prev = Prior::Single(id.into());
-            }
-            Self {
-                storage: sp.new_storage(&Id::from(0u32), persp).unwrap(),
-                pending: None,
-            }
-        }
-
-        pub fn line(&mut self, prev: u32, ids: &[u32]) {
-            let mut prev = Id::from(prev);
-            let loc = self.storage.get_location(&prev).unwrap().unwrap();
-            let mut p = self.storage.get_linear_perspective(&loc).unwrap().unwrap();
-            for &id in ids {
-                eval(&mut p, id);
-                p.add_command(&mkcmd(id, Prior::Single(prev), id)).unwrap();
-                prev = Id::from(id);
-            }
-            self.pending = Some(self.storage.write(p).unwrap());
-        }
-
-        pub fn merge(&mut self, (left, right): (u32, u32), ids: &[u32]) {
-            let command = mkcmd(ids[0], Prior::Merge(left.into(), right.into()), 0);
-            let braid = self.braid(left, right);
-            let left = self.storage.get_location(&left.into()).unwrap().unwrap();
-            let right = self.storage.get_location(&right.into()).unwrap().unwrap();
-            let mut p = self
-                .storage
-                .new_merge_perspective(&left, &right, PolicyId::new(0), braid)
-                .unwrap()
-                .unwrap();
-            p.add_command(&command).unwrap();
-            for (&prev, &id) in core::iter::zip(ids, &ids[1..]) {
-                eval(&mut p, id);
-                p.add_command(&mkcmd(id, Prior::Single(Id::from(prev)), id))
-                    .unwrap();
-            }
-            self.pending = Some(self.storage.write(p).unwrap());
-        }
-
-        fn braid(&mut self, left: u32, right: u32) -> S::FactIndex {
-            let left = self.storage.get_location(&left.into()).unwrap().unwrap();
-            let right = self.storage.get_location(&right.into()).unwrap().unwrap();
-            let order = crate::braid(self.storage, &left, &right).unwrap();
-            let mut p = self.storage.get_fact_perspective(&order[0]).unwrap();
-            for location in &order[1..] {
-                let id = self.storage.get_command_id(location).unwrap();
-                eval(&mut p, id);
-            }
-            self.storage.write_facts(p).unwrap()
-        }
-
-        pub fn commit(&mut self) {
-            self.storage.commit(self.pending.take().unwrap()).unwrap()
-        }
-    }
-
-    macro_rules! graph {
-        ( $sp:ident ; $($init:literal )+ ; $($rest:tt)*) => {{
-            let mut gb = GraphBuilder::init(&mut $sp, &[$($init)+]);
-            graph!(@ gb, $($rest)*);
-            gb.storage
-        }};
-        (@ $gb:ident, $prev:literal < $($id:literal)+; $($rest:tt)*) => {
-            $gb.line($prev, &[$($id),+]);
-            graph!(@ $gb, $($rest)*);
-        };
-        (@ $gb:ident, $l:literal $r:literal < $($id:literal)+; $($rest:tt)*) => {
-            $gb.merge(($l, $r), &[$($id),+]);
-            graph!(@ $gb, $($rest)*);
-        };
-        (@ $gb:ident, commit; $($rest:tt)*) => {
-            $gb.commit();
-            graph!(@ $gb, $($rest)*);
-        };
-        (@ $gb:ident, ) => {};
-    }
 
     fn loc(location: impl Into<Location>) -> String {
         let location = location.into();
@@ -765,8 +616,11 @@ mod test {
     }
 
     fn get_seq(p: &MemFactIndex) -> &str {
-        let seq = p.map.get(b"seq".as_slice()).unwrap().as_ref().unwrap();
-        std::str::from_utf8(seq).unwrap()
+        if let Some(Some(seq)) = p.map.get(b"seq".as_slice()) {
+            std::str::from_utf8(seq).unwrap()
+        } else {
+            ""
+        }
     }
 
     fn dotwrite(storage: &MemStorage, out: &mut DotWriter<'_>) {
@@ -802,7 +656,7 @@ mod test {
             for (i, cmd) in segment.commands.iter().enumerate() {
                 {
                     let mut node = cluster.node_named(loc((segment.index, i)));
-                    node.set_label(&cmd.command.id().shorthex());
+                    node.set_label(&cmd.command.id.short_b58());
                     match cmd.command.parent {
                         Prior::None => {
                             node.set("shape", "house", false);
@@ -860,6 +714,7 @@ mod test {
         for fact in external_facts {
             // Draw nodes for fact indices not directly associated with a segment.
             graph.node_named(fact.name()).set_label(get_seq(&fact));
+
             // Draw edge to prior facts.
             if let Some(prior) = &fact.prior {
                 graph
@@ -884,7 +739,7 @@ mod test {
         graph.edge("HEAD", loc(storage.get_head().unwrap()));
     }
 
-    fn dot(storage: &MemStorage, name: &str) {
+    pub fn dot(storage: &MemStorage, name: &str) {
         std::fs::create_dir_all(".ignore").unwrap();
         dotwrite(
             storage,
@@ -892,40 +747,5 @@ mod test {
                 File::create(format!(".ignore/{name}.dot")).unwrap(),
             )),
         );
-    }
-
-    #[test]
-    fn test_simple() -> Result<(), StorageError> {
-        let mut sp = MemStorageProvider::new();
-        let g = graph! { sp; 0;
-            0 < 1;
-            0 < 3;
-            1 3 < 0xB0;
-            1 < 5;
-            0xB0 5 < 0xB1;
-        };
-        dot(g, "simple");
-        Ok(())
-    }
-
-    #[test]
-    fn test_complex() -> Result<(), StorageError> {
-        let mut sp = MemStorageProvider::new();
-        let g = graph! { sp; 0;
-            0 < 1 2 3; commit;
-            3 < 4 6 7; commit;
-            3 < 5 8;
-            6 8 < 9 10; commit;
-            7 < 11 12;
-            10 12 < 13;
-            13 < 16 14;
-            13 < 17 15;
-            14 15 < 18; commit;
-            9 < 42 43;
-            42 < 45 46;
-            45 < 47 48;
-        };
-        dot(g, "complex");
-        Ok(())
     }
 }
