@@ -305,7 +305,7 @@ fn test_autodefine_struct() -> anyhow::Result<()> {
 
         function get_foo(a int) struct Foo {
             let foo = unwrap query Foo[a: a]=>{b: ?}
-            
+
             return foo
         }
     "#;
@@ -359,6 +359,189 @@ fn test_duplicate_struct_fact_names() -> anyhow::Result<()> {
             })
         ));
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_undefined_fact() -> anyhow::Result<()> {
+    let text = r#"
+        action test() {
+            check exists Foo[]
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(err, CompileErrorType::NotDefined(String::from("Foo")));
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_invalid_key_name() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        action test() {
+            check exists Foo[k: 1]
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(err, CompileErrorType::Missing(String::from("i")));
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_incomplete_key() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        action test() {
+            check exists Foo[]
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(err, CompileErrorType::Missing(String::from("i")));
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_invalid_key_type() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        action test() {
+            check exists Foo[i: "1"]
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(err, CompileErrorType::InvalidType);
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_duplicate_key() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int, j int] => {a string}
+        action test() {
+            check exists Foo[i: 1, i: 2]
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("Duplicate key: i"))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_invalid_value_name() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        action test() {
+            check exists Foo[i: 1] => {b: ""}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(err, CompileErrorType::NotDefined(String::from("b")));
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_invalid_value_type() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        action test() {
+            check exists Foo[i: 1] => {a: true}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(err, CompileErrorType::InvalidType);
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_bind_value_type() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        action test() {
+            check exists Foo[i: 1] => {a: ?}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    compile_from_policy(&policy, &[]).expect("compilation should have succeeded");
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_expression_value_type() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        action test() {
+            check exists Foo[i: 1] => {a: 1+1}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    compile_from_policy(&policy, &[]).expect("compilation should have succeeded");
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_update_invalid_to_type() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        command test {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    update Foo[i: 1]=>{a: 1} to {a: 0}
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have succeeded")
+        .err_type;
+    assert_eq!(err, CompileErrorType::InvalidType);
 
     Ok(())
 }

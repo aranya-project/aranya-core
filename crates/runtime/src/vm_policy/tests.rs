@@ -19,7 +19,7 @@ policy-version: 3
 ---
 
 ```policy
-fact Value[x int]=>{y int}
+fact Stuff[x int]=>{y int}
 
 effect StuffHappened {
     x int,

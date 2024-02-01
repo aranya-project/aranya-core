@@ -4,6 +4,7 @@ mod error;
 mod tests;
 use alloc::{
     borrow::ToOwned,
+    boxed::Box,
     collections::{btree_map, BTreeMap},
     format,
     string::{String, ToString},
@@ -12,8 +13,8 @@ use alloc::{
 };
 use core::{fmt, ops::Range};
 
-use ast::FactDefinition;
 pub use ast::Policy as AstPolicy;
+use ast::{Expression, FactDefinition, FactLiteral, FieldDefinition};
 use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
 
@@ -129,16 +130,30 @@ impl<'a> CompileState<'a> {
     /// program counter. If no other PC manipulation has been done,
     /// this means that the program counter points to the new
     /// instruction.
-    pub fn append_instruction(&mut self, i: Instruction) {
+    fn append_instruction(&mut self, i: Instruction) {
         self.m.progmem.push(i);
         self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
+    }
+
+    /// Inserts a fact definition
+    fn define_fact(&mut self, fact: &FactDefinition) -> Result<(), CompileError> {
+        if self.m.fact_defs.contains_key(&fact.identifier) {
+            return Err(CompileError::new(CompileErrorType::AlreadyDefined(
+                fact.identifier.clone(),
+            )));
+        }
+
+        self.m
+            .fact_defs
+            .insert(fact.identifier.clone(), fact.to_owned());
+        Ok(())
     }
 
     /// Insert a struct definition while preventing duplicates.
     pub fn define_struct(
         &mut self,
         identifier: &str,
-        fields: &[ast::FieldDefinition],
+        fields: &[FieldDefinition],
     ) -> Result<(), CompileError> {
         match self.m.struct_defs.entry(identifier.to_string()) {
             btree_map::Entry::Vacant(e) => {
@@ -302,8 +317,109 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn err(&self, err_type: CompileErrorType) -> CompileError {
+        CompileError::from_locator(err_type, self.last_locator, self.m.codemap.as_ref())
+    }
+
+    fn get_fact_def(&self, name: &String) -> Result<&FactDefinition, CompileError> {
+        self.m
+            .fact_defs
+            .get(name)
+            .ok_or(self.err(CompileErrorType::NotDefined(name.clone())))
+    }
+
+    /// Make sure fact literal matches its schema. Checks that:
+    /// - a fact with this name was defined
+    /// - the keys and values all exist, and have the correct types
+    /// - there are no duplicate key or value names
+    fn verify_fact_against_schema(&self, fact: &FactLiteral) -> Result<(), CompileError> {
+        // Fetch schema
+        let fact_def = self.get_fact_def(&fact.identifier)?;
+
+        // Ensure there are no duplicate keys in the literal
+        if let Some(dup_key) = find_duplicate(&fact.key_fields, |k| &k.0) {
+            return Err(self.err(CompileErrorType::Unknown(format!(
+                "Duplicate key: {}",
+                dup_key
+            ))));
+        }
+
+        // Ensure the fact has all keys defined in the schema, and they have matching types.
+        // Key order doesn't matter.
+        for schema_key in fact_def.key.iter() {
+            let fact_key = fact
+                .key_fields
+                .iter()
+                .find(|k| k.0 == schema_key.identifier)
+                .ok_or(CompileError::from_locator(
+                    CompileErrorType::Missing(schema_key.identifier.clone()),
+                    self.last_locator,
+                    self.m.codemap.as_ref(),
+                ))?;
+
+            let Some(vtype) = expression_vtype(&fact_key.1) else {
+                // If the type cannot be determined, e.g. it's an expression or query, return Ok. The machine will verify the type at runtime.
+                // TODO should we allow expressions/queries for key values?
+                return Ok(());
+            };
+
+            // key type must be one of `HashableValue`
+            if !((vtype == VType::Int
+                || vtype == VType::Bool
+                || vtype == VType::String
+                || vtype == VType::Id)
+                && schema_key.field_type == vtype)
+            {
+                return Err(self.err(CompileErrorType::InvalidType));
+            };
+        }
+
+        if let Some(values) = &fact.value_fields {
+            self.verify_fact_values(values, fact_def)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn verify_fact_values(
+        &self,
+        values: &[(String, Expression)],
+        fact_def: &FactDefinition,
+    ) -> Result<(), CompileError> {
+        // Ensure there are no duplicate values in the literal
+        if let Some(dup_value) = find_duplicate(values, |v| &v.0) {
+            return Err(self.err(CompileErrorType::Unknown(format!(
+                "Duplicate value: {}",
+                dup_value
+            ))));
+        }
+
+        // Ensure values exist in schema, and have matching types
+        for lit_v in values.iter() {
+            let def_v = fact_def
+                .value
+                .iter()
+                .find(|v| v.identifier == lit_v.0)
+                .ok_or(CompileError::from_locator(
+                    CompileErrorType::NotDefined(lit_v.0.clone()),
+                    self.last_locator,
+                    self.m.codemap.as_ref(),
+                ))?;
+
+            let Some(lit_type) = expression_vtype(&lit_v.1) else {
+                // Let complex expressions through, the machine will resolve and verify them.
+                continue;
+            };
+            if lit_type != def_v.field_type {
+                return Err(self.err(CompileErrorType::InvalidType));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Compile instructions to construct a fact literal
-    fn compile_fact_literal(&mut self, f: &ast::FactLiteral) -> Result<(), CompileError> {
+    fn compile_fact_literal(&mut self, f: &FactLiteral) -> Result<(), CompileError> {
         self.append_instruction(Instruction::Const(Value::String(f.identifier.clone())));
         self.append_instruction(Instruction::FactNew);
         for field in &f.key_fields {
@@ -326,7 +442,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile an expression
-    fn compile_expression(&mut self, expression: &ast::Expression) -> Result<(), CompileError> {
+    fn compile_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
         match expression {
             ast::Expression::Int(n) => self.append_instruction(Instruction::Const(Value::Int(*n))),
             ast::Expression::String(s) => {
@@ -353,12 +469,17 @@ impl<'a> CompileState<'a> {
             }
             ast::Expression::InternalFunction(f) => match f {
                 ast::InternalFunction::Query(f) => {
+                    self.verify_fact_against_schema(f)?;
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
                 }
                 ast::InternalFunction::Exists(f) => {
+                    self.verify_fact_against_schema(f)?;
                     self.compile_fact_literal(f)?;
-                    self.append_instruction(Instruction::Exists);
+                    self.append_instruction(Instruction::Query);
+                    self.append_instruction(Instruction::Const(Value::None));
+                    self.append_instruction(Instruction::Eq);
+                    self.append_instruction(Instruction::Not);
                 }
                 ast::InternalFunction::If(e, t, f) => {
                     let else_name = self.anonymous_label();
@@ -756,8 +877,14 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Create);
                 }
                 (ast::Statement::Update(s), StatementContext::Finish) => {
+                    self.verify_fact_against_schema(&s.fact)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Dup(0));
+
+                    // Verify the 'to' fact literal
+                    let fact_def = self.get_fact_def(&s.fact.identifier)?;
+                    self.verify_fact_values(&s.to, fact_def)?;
+
                     for (k, v) in &s.to {
                         if *v == ast::Expression::Bind {
                             // Cannot bind in the set statement
@@ -776,6 +903,7 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Update);
                 }
                 (ast::Statement::Delete(s), StatementContext::Finish) => {
+                    self.verify_fact_against_schema(&s.fact)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Delete);
                 }
@@ -1004,13 +1132,22 @@ impl<'a> CompileState<'a> {
     /// Compile a policy into instructions inside the given Machine.
     pub fn compile(&mut self, policy: &AstPolicy) -> Result<(), CompileError> {
         for effect in &policy.effects {
-            let fields: Vec<ast::FieldDefinition> =
+            let fields: Vec<FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
             self.define_struct(&effect.inner.identifier, &fields)?;
         }
 
         for struct_def in &policy.structs {
             self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields)?;
+        }
+
+        for fact in &policy.facts {
+            let FactDefinition { key, value, .. } = &fact.inner;
+
+            let fields: Vec<FieldDefinition> = key.iter().chain(value.iter()).cloned().collect();
+
+            self.define_struct(&fact.inner.identifier, &fields)?;
+            self.define_fact(&fact.inner)?;
         }
 
         self.enter_statement_context(StatementContext::PureFunction);
@@ -1035,15 +1172,6 @@ impl<'a> CompileState<'a> {
             self.compile_action(action)?;
         }
         self.exit_statement_context();
-
-        for fact in &policy.facts {
-            let FactDefinition { key, value, .. } = &fact.inner;
-
-            let fields: Vec<ast::FieldDefinition> =
-                key.iter().chain(value.iter()).cloned().collect();
-
-            self.define_struct(&fact.inner.identifier, &fields)?;
-        }
 
         self.resolve_targets()?;
 
@@ -1089,4 +1217,22 @@ where
     }
 
     None
+}
+
+/// Get expression type, e.g. Expression::Int => VType::Int
+fn expression_vtype(e: &Expression) -> Option<VType> {
+    match e {
+        ast::Expression::Int(_) => Some(VType::Int),
+        // ast::Expression::Bytes(_) => Ok(VType::Bytes), // TODO: Bytes expression not implemented
+        ast::Expression::Bool(_) => Some(VType::Bool),
+        ast::Expression::String(_) => Some(VType::String),
+        // We can't resolve var names to values at the moment, so we defer to the machine.
+        ast::Expression::Identifier(_) => None,
+        ast::Expression::NamedStruct(s) => Some(VType::Struct(s.identifier.clone())),
+        ast::Expression::Optional(Some(e)) => {
+            let interior_type = expression_vtype(e)?;
+            Some(VType::Optional(Box::new(interior_type)))
+        }
+        _ => None,
+    }
 }

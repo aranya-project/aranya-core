@@ -62,12 +62,6 @@ impl TestIO {
     pub const FFI_SCHEMAS: &'static [ModuleSchema<'static>] = &[PrintFfi::SCHEMA];
 }
 
-struct TestQueryIterator {
-    name: String,
-    key: FactKeyList,
-    iter: btree_map::IntoIter<(String, FactKeyList), FactValueList>,
-}
-
 /// Calculates whether the k/v pairs in a exist in b
 fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
     for entry in a {
@@ -78,22 +72,11 @@ fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
     true
 }
 
-impl Iterator for TestQueryIterator {
-    type Item = Result<(FactKeyList, FactValueList), MachineIOError>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iter
-            .next()
-            .filter(|((n, k), _)| *n == self.name && subset_key_match(k, &self.key))
-            .map(|((_, k), v)| Ok((k, v)))
-    }
-}
-
 impl<S> MachineIO<S> for TestIO
 where
     S: Stack,
 {
-    type QueryIterator<'c> = TestQueryIterator where Self: 'c;
+    type QueryIterator<'c> = Box<dyn Iterator<Item=Result<(FactKeyList, FactValueList), MachineIOError>>> where Self: 'c;
 
     fn fact_insert(
         &mut self,
@@ -136,11 +119,14 @@ where
     ) -> Result<Self::QueryIterator<'_>, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
         println!("query {}[{:?}]", name, key);
-        Ok(TestQueryIterator {
-            name,
-            key,
-            iter: self.facts.clone().into_iter(),
-        })
+        let iter = self
+            .facts
+            .clone()
+            .into_iter()
+            .filter(move |f| f.0 .0 == name && subset_key_match(&f.0 .1, &key))
+            .map(|((_, k), v)| Ok::<(FactKeyList, FactValueList), MachineIOError>((k, v)));
+
+        Ok(Box::new(iter))
     }
 
     fn emit(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
@@ -274,6 +260,7 @@ fn test_command_policy() -> anyhow::Result<()> {
 
 const TEST_POLICY_2: &str = r#"
 fact Foo[]=>{x int}
+
 effect Update {
     value int
 }
@@ -318,13 +305,6 @@ command Increment {
     }
 }
 
-action testExists() {
-    check exists Foo[]=>{x: ?}
-}
-
-action testNotExists() {
-    check !exists Bar[]=>{x: ?}
-}
 "#;
 
 #[test]
@@ -384,6 +364,76 @@ fn test_fact_query() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_fact_exists() -> anyhow::Result<()> {
+    let text = r#"
+    fact Foo[] => {x int}
+    fact Bar[i int] => {s string, b bool}
+
+    command setup {
+        fields {}
+        seal { return None }
+        open { return None }
+        policy {
+            finish {
+                create Foo[] => {x: 3}
+                create Bar[i: 1] => {s: "abc", b: true}
+            }
+        }
+    }
+
+    action testExists() {
+        check exists Foo[] => {x: 3}
+        check exists Foo[]
+        check exists Bar[i: 1] => {s: "abc", b: true}
+
+        // NOTE: expressions with bind (?) values are commented out because we don't allow Bind values at the moment.
+
+        // check exists Foo[] => {x: ?}
+        // check exists Bar[i: ?] => {s: ?, b: ?}
+
+        // Not-exists
+
+        // no values
+
+        // no such key
+        //check !exists Foo[i: ?]
+
+        // incomplete values
+        // check !exists Bar[i: 0]=>{s: ?}
+
+        // no fact with such values
+        check !exists Bar[i:0] => {s:"ab", b:true}
+        check !exists Bar[i:1] => {s:"", b:true}
+        // check !exists Bar[i: ?]=>{s: "ab", b: ?}
+    }
+    "#;
+
+    let policy = parse_policy_str(text.trim(), Version::V3).map_err(anyhow::Error::msg)?;
+
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
+    let mut rs = RunState::new(&machine, &mut io);
+
+    {
+        let self_struct = Struct::new("insertInvalid", &[]);
+        let result = rs
+            .call_command_policy("setup", &self_struct)
+            .map_err(anyhow::Error::msg)?;
+        assert_eq!(result, MachineStatus::Exited);
+    }
+
+    {
+        let result = rs
+            .call_action("testExists", [false])
+            .map_err(anyhow::Error::msg)?;
+        assert_eq!(result, MachineStatus::Exited);
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_not_operator() -> anyhow::Result<()> {
     let policy = parse_policy_str(
         r#"
@@ -398,38 +448,6 @@ fn test_not_operator() -> anyhow::Result<()> {
     let mut rs = RunState::new(&machine, &mut io);
     let result = rs.run()?;
     assert_eq!(result, MachineStatus::Exited);
-
-    Ok(())
-}
-
-#[test]
-fn test_fact_exists() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3).map_err(anyhow::Error::msg)?;
-
-    let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
-
-    // Create fact
-    {
-        let mut rs = RunState::new(&machine, &mut io);
-        let self_struct = Struct::new("Set", &[KVPair::new_int("a", 3)]);
-        rs.call_command_policy("Set", &self_struct)
-            .map_err(anyhow::Error::msg)?;
-    }
-
-    // True for facts that exist
-    {
-        let mut rs = RunState::new(&machine, &mut io);
-        let status = rs.call_action("testExists", [Value::None])?;
-        assert_eq!(status, MachineStatus::Exited, "testExists");
-    }
-
-    // False for facts that don't exist
-    {
-        let mut rs = RunState::new(&machine, &mut io);
-        let status = rs.call_action("testNotExists", [Value::None])?;
-        assert_eq!(status, MachineStatus::Exited, "testNotExists");
-    }
 
     Ok(())
 }

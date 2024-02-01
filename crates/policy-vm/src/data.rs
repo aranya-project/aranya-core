@@ -366,35 +366,51 @@ impl fmt::Display for HashableValue {
 /// One labeled value in a fact key. A sequence of FactKeys mapped to
 /// a sequence of FactValues comprises a Fact.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct FactKey(String, HashableValue);
+pub struct FactKey {
+    /// key name
+    pub identifier: String,
+    /// key value
+    pub value: HashableValue,
+}
 
 impl FactKey {
-    /// Creates a fact key.
-    pub fn new(key: &str, value: HashableValue) -> FactKey {
-        FactKey(key.to_owned(), value)
+    /// Creates a new fact key.
+    pub fn new(name: &str, value: HashableValue) -> Self {
+        Self {
+            identifier: String::from(name),
+            value,
+        }
     }
 }
 
 impl fmt::Display for FactKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.0, self.1)
+        write!(f, "{}: {}", self.identifier, self.value)
     }
 }
 
 /// One labeled value in a fact value.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FactValue(String, Value);
+pub struct FactValue {
+    /// value name
+    pub identifier: String,
+    /// value
+    pub value: Value,
+}
 
 impl FactValue {
-    /// Creates a fact value.
-    pub fn new(key: &str, value: Value) -> FactValue {
-        FactValue(key.to_owned(), value)
+    /// Creates a new fact value.
+    pub fn new(name: &str, value: Value) -> Self {
+        Self {
+            identifier: String::from(name),
+            value,
+        }
     }
 }
 
 impl fmt::Display for FactValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.0, self.1)
+        write!(f, "{}: {}", self.identifier, self.value)
     }
 }
 
@@ -452,13 +468,13 @@ impl From<&KVPair> for (String, Value) {
 
 impl From<FactKey> for KVPair {
     fn from(value: FactKey) -> Self {
-        KVPair(value.0, value.1.into())
+        KVPair(value.identifier, value.value.into())
     }
 }
 
 impl From<FactValue> for KVPair {
     fn from(value: FactValue) -> Self {
-        KVPair(value.0, value.1)
+        KVPair(value.identifier, value.value)
     }
 }
 
@@ -488,9 +504,9 @@ impl Fact {
     where
         V: Into<HashableValue>,
     {
-        match self.keys.iter_mut().find(|e| e.0 == name) {
-            None => self.keys.push(FactKey(name, value.into())),
-            Some(e) => e.1 = value.into(),
+        match self.keys.iter_mut().find(|e| e.identifier == name) {
+            None => self.keys.push(FactKey::new(&name, value.into())),
+            Some(e) => e.value = value.into(),
         }
     }
 
@@ -499,9 +515,12 @@ impl Fact {
     where
         V: Into<Value>,
     {
-        match self.values.iter_mut().find(|e| e.0 == name) {
-            None => self.values.push(FactValue(name, value.into())),
-            Some(e) => e.1 = value.into(),
+        match self.values.iter_mut().find(|e| e.identifier == name) {
+            None => self.values.push(FactValue {
+                identifier: name,
+                value: value.into(),
+            }),
+            Some(e) => e.value = value.into(),
         }
     }
 }
@@ -510,7 +529,11 @@ impl fmt::Display for Fact {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}[", self.name)?;
         let mut i = false;
-        for FactKey(k, v) in &self.keys {
+        for FactKey {
+            identifier: k,
+            value: v,
+        } in &self.keys
+        {
             if i {
                 write!(f, ", ")?;
             }
@@ -519,7 +542,11 @@ impl fmt::Display for Fact {
         }
         write!(f, "]=>{{")?;
         i = false;
-        for FactValue(k, v) in &self.values {
+        for FactValue {
+            identifier: k,
+            value: v,
+        } in &self.values
+        {
             if i {
                 write!(f, ", ")?;
             }

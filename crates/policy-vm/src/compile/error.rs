@@ -24,6 +24,8 @@ pub enum CompileErrorType {
     InvalidStatement(StatementContext),
     /// Invalid expression - the expression does not make sense in context.
     InvalidExpression(ast::Expression),
+    /// Invalid type
+    InvalidType,
     /// Invalid call color - Tried to make a function call to the wrong type of function.
     InvalidCallColor(CallColor),
     /// Resolution of branch targets failed to find a valid target
@@ -35,6 +37,8 @@ pub enum CompileErrorType {
     NotDefined(String),
     /// A thing by that name has already been defined
     AlreadyDefined(String),
+    /// Expected value was missing
+    Missing(String),
     /// A pure function has no return statement
     NoReturn,
     /// An implementation bug
@@ -48,6 +52,7 @@ impl core::fmt::Display for CompileErrorType {
         match self {
             Self::InvalidStatement(c) => write!(f, "Invalid statement in {} context", c),
             Self::InvalidExpression(e) => write!(f, "Invalid expression: {:?}", e),
+            Self::InvalidType => write!(f, "Invalid type"),
             Self::InvalidCallColor(cc) => match cc {
                 CallColor::Pure => write!(f, "Pure function not allowed in finish context"),
                 CallColor::Finish => write!(f, "Finish function not allowed in expression"),
@@ -56,6 +61,7 @@ impl core::fmt::Display for CompileErrorType {
             Self::BadArgument(s) => write!(f, "Bad argument: {}", s),
             Self::NotDefined(s) => write!(f, "Not defined: {}", s),
             Self::AlreadyDefined(s) => write!(f, "Already defined: {}", s),
+            Self::Missing(s) => write!(f, "Missing: {}", s),
             Self::NoReturn => write!(f, "Function has no return statement"),
             Self::Bug(bug) => write!(f, "Bug: {}", bug),
             Self::Unknown(s) => write!(f, "Unknown error: {}", s),

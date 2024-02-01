@@ -94,8 +94,6 @@ pub enum Instruction {
     Effect,
     /// Query for a fact
     Query,
-    /// Simple query that's true if the fact exists
-    Exists,
     /// Get the id of a command
     Id,
     /// Get the id of the author of a command
@@ -145,7 +143,6 @@ impl Display for Instruction {
             Instruction::Update => write!(f, "update"),
             Instruction::Effect => write!(f, "effect"),
             Instruction::Query => write!(f, "query"),
-            Instruction::Exists => write!(f, "exists"),
             Instruction::Id => write!(f, "id"),
             Instruction::AuthorId => write!(f, "author.id"),
         }

@@ -3,26 +3,88 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
+use ast::FactDefinition;
 use buggy::BugExt;
 use policy_ast as ast;
 
 use crate::{
-    data::{Fact, FactValue, HashableValue, KVPair, Struct, TryAsMut, Value},
+    data::{Fact, HashableValue, KVPair, Struct, TryAsMut, Value},
     error::{MachineError, MachineErrorType},
     instructions::{Instruction, Target},
     io::MachineIO,
     stack::Stack,
-    CodeMap, Span,
+    CodeMap, FactKey, FactValue, Span,
 };
 
-/// Returns true if all of the k/v pairs in a exist in b, or false
-/// otherwise.
-fn fact_value_subset_match(a: &[FactValue], b: &[FactValue]) -> bool {
-    for entry in a {
-        if !b.iter().any(|e| e == entry) {
+/// Compares a fact's keys and values to its schema.
+fn validate_fact_schema(fact: &Fact, schema: &FactDefinition) -> bool {
+    if fact.name != schema.identifier {
+        return false;
+    }
+
+    if fact.keys.len() != schema.key.len() {
+        return false;
+    }
+
+    for (key, key_def) in fact.keys.iter().zip(schema.key.iter()) {
+        if key.identifier != key_def.identifier {
+            return false;
+        }
+        if key.value.vtype() != key_def.field_type {
             return false;
         }
     }
+
+    // TODO Bind values are not included in the fact values (see compile_fact_literal), so we only compare existing fact values to the schema. (As opposed to expecting the fact to match all  schema values.)
+
+    for value in fact.values.iter() {
+        // Ensure named value exists in schema
+        let Some(schema_value) = schema
+            .value
+            .iter()
+            .find(|v| v.identifier == value.identifier)
+        else {
+            return false;
+        };
+
+        // Ensure fact value type matches schema
+        let Some(value_type) = value.value.vtype() else {
+            return false;
+        };
+        if value_type != schema_value.field_type {
+            return false;
+        }
+    }
+    true
+}
+
+/// Compares a fact to the given keys and values.
+/// NOTE that Bind keys/values are not included in the fact literal (see compile_fact_literal), so we only compare key/value pairs with exact values.
+///
+/// Returns true if all given keys and values match the fact.
+fn fact_match(fact: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
+    for fk in fact.keys.iter() {
+        if let Some(k) = keys.iter().find(|k| k.identifier == fk.identifier) {
+            // Keys don't match
+            if fk != k {
+                return false;
+            }
+        } else {
+            // Invalid key
+            return false;
+        }
+    }
+
+    for fv in fact.values.iter() {
+        if let Some(v) = values.iter().find(|v| v.identifier == fv.identifier) {
+            if fv != v {
+                return false;
+            }
+        } else {
+            return false;
+        }
+    }
+
     true
 }
 
@@ -122,7 +184,7 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub(crate) labels: BTreeMap<Label, usize>,
     /// Fact schemas
-    fact_defs: BTreeMap<String, ast::FactDefinition>,
+    pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct schemas
     pub(crate) struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Mapping between program instructions and original code
@@ -578,12 +640,34 @@ where
             }
             Instruction::Query => {
                 let qf: Fact = self.ipop()?;
+
+                // Before we spend time fetching facts from storage, make sure the given fact literal is valid.
+                if self
+                    .machine
+                    .fact_defs
+                    .get(&qf.name)
+                    .and_then(|schema| {
+                        if validate_fact_schema(&qf, schema) {
+                            Some(true)
+                        } else {
+                            None
+                        }
+                    })
+                    .is_none()
+                {
+                    return Err(MachineError::from_position(
+                        MachineErrorType::InvalidSchema,
+                        self.pc,
+                        self.machine.codemap.as_ref(),
+                    ));
+                }
+
                 let result = {
-                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys)?;
+                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
                     // Find the first match, or the first error
                     iter.find_map(|r| match r {
                         Ok(f) => {
-                            if fact_value_subset_match(&qf.values, &f.1) {
+                            if fact_match(&qf, &f.0, &f.1) {
                                 Some(Ok(f))
                             } else {
                                 None
@@ -602,26 +686,6 @@ where
                         self.ipush(s)?;
                     }
                     None => self.ipush(Value::None)?,
-                }
-            }
-            Instruction::Exists => {
-                let qf: Fact = self.ipop()?;
-                let exists = {
-                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys)?;
-                    iter.find_map(|r| match r {
-                        Ok(f) => {
-                            if fact_value_subset_match(&qf.values, &f.1) {
-                                Some(Ok(true))
-                            } else {
-                                None
-                            }
-                        }
-                        Err(e) => Some(Err(e)),
-                    })
-                };
-                match exists {
-                    Some(res) => self.ipush(Value::Bool(res?))?,
-                    None => self.ipush(Value::Bool(false))?,
                 }
             }
             Instruction::Id => todo!(),

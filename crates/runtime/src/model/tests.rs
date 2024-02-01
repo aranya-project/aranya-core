@@ -18,7 +18,7 @@ policy-version: 3
 ---
 
 ```policy
-fact Value[a int, b int]=>{x int}
+fact Stuff[a int, b int]=>{x int}
 
 effect StuffHappened {
     a int,
