@@ -11,7 +11,7 @@ inputs:
     description: "Go version"
     required: true
     default: "stable"
-  os:
+  runner:
     description: "OS being used (e.g., macos-latest)"
     required: true
   target:
@@ -19,6 +19,11 @@ inputs:
 runs:
   using: "composite"
   steps:
+    # Our runners don't get wiped between runs :/
+    - name: nuke old .gitconfig
+      run: rm ~/.gitconfig || true
+      shell: bash
+
     - name: Set up git
       run: |
         git config --global url."https://${{ inputs.ghe-token }}@git.spideroak-inc.com/".insteadOf https://git.spideroak-inc.com/
@@ -55,7 +60,7 @@ runs:
           echo "CXX=$GITHUB_WORKSPACE/clang++12" >> $GITHUB_ENV
           echo "LD=$(which lld-12)" >> $GITHUB_ENV
       shell: bash
-      if: ${{ inputs.os == 'self-hosted-linux-arm64' || inputs.os == 'self-hosted-linux-amd64' }}
+      if: ${{ inputs.runner == 'self-hosted-linux-arm64' || inputs.runner == 'self-hosted-linux-amd64' }}
 
     #
     # Set up Rust
@@ -87,7 +92,7 @@ runs:
         rustup set default-host armv7-unknown-linux-gnueabihf
         rustup show active-toolchain
       shell: bash
-      if: ${{ inputs.os == 'self-hosted-linux-arm' }}
+      if: ${{ inputs.runner == 'self-hosted-linux-arm' }}
     - name: cargo version
       shell: bash
       run: |
@@ -96,14 +101,10 @@ runs:
     - name: glibc version
       shell: bash
       run: ldd --version
-      if: ${{ inputs.os == 'self-hosted-linux-arm' }}
+      if: ${{ inputs.runner == 'self-hosted-linux-arm' }}
     - name: Install cargo-make
       run: cargo install --version '^0.37.5' --locked --force cargo-make
       shell: bash
-    - name: Install cargo-all-features
-      run: cargo make all-features-install
-      shell: bash
-      if: ${{ inputs.target != 'vxworks-ppc' }}
 
     # BoringSSL uses Go.
     - name: Set up Go
@@ -112,6 +113,8 @@ runs:
         token: ${{ inputs.gh-token }}
         go-version: ${{ inputs.go-version }}
         check-latest: true
+      if: ${{ inputs.target != 'vxworks-ppc' }}
+
     - name: Export GO_VERSION
       run: |
         echo "GO_VERSION=${{ inputs.go-version }}" >> $GITHUB_ENV
@@ -119,7 +122,7 @@ runs:
         go env -w "GONOSUMDB=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
         go env -w "GOPRIVATE=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
       shell: bash
-      if: ${{ matrix.os != 'windows-latest' && inputs.target != 'vxworks-ppc' }}
+      if: ${{ inputs.runner != 'windows-latest' && inputs.target != 'vxworks-ppc' }}
     - name: Export GO_VERSION
       run: |
         echo "GO_VERSION=${{ inputs.go-version }}" >> $env:GITHUB_ENV
@@ -127,4 +130,4 @@ runs:
         go env -w "GONOSUMDB=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
         go env -w "GOPRIVATE=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
       shell: pwsh
-      if: ${{ matrix.os == 'windows-latest' && inputs.target != 'vxworks-ppc' }}
+      if: ${{ inputs.runner == 'windows-latest' && inputs.target != 'vxworks-ppc' }}

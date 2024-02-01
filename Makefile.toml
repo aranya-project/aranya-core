@@ -1,25 +1,170 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = 1
+RUSTDOCFLAGS = { value = "", condition = { env_not_set = ["RUSTDOCFLAGS"] } }
 
 [config]
 default_to_workspace = false
 skip_core_tasks = true
+skip_crate_env_info = true
+skip_git_env_info = true
+skip_rust_env_info = true
 
+
+[tasks.default]
+description = "List tasks"
+script = "cargo make --quiet --list-all-steps --hide-uninteresting"
+
+
+# Build
+[tasks.build-code]
+category = "build"
+description = "Build Code"
+command = "cargo"
+args = ["build", "--verbose", "--release"]
+
+
+# Test
+[tasks.unit-tests]
+category = "test"
+description = "Run Unit Tests"
+command = "cargo"
+args = ["--verbose", "test-all-features"]
+dependencies = ["install-cargo-all-features"]
+
+
+# Security
+[tasks.cargo-audit]
+category = "security"
+install_crate = { crate_name = "cargo-audit", version = "0.18.3", binary = "cargo-audit", test_arg = "-V" }
+command = "cargo"
+args = ["audit"]
+dependencies = ["gen-lockfile"]
+
+[tasks.gen-lockfile]
+private = true
+command = "cargo"
+args = ["generate-lockfile"]
+
+[tasks.cargo-deny]
+category = "security"
+install_crate = { crate_name = "cargo-deny", version = "0.14.10", binary = "cargo-deny", test_arg = "-V" }
+command = "cargo"
+args = ["deny", "check"]
+
+
+# VxWorks
+[tasks.setup-vxworks-env]
+category = "vxworks"
+description = "Setup vxworks environment"
+script = "rustup component add --toolchain nightly rust-src"
+dependencies = ["install-nightly"]
+
+[tasks.build-vxworks-code]
+category = "vxworks"
+description = "Build vxworks code"
+toolchain = "nightly"
+command = "cargo"
+args = [
+    "build",
+    "-Zbuild-std=core",
+    "--target=powerpc-wrs-vxworks",
+    "--release",
+    # For now, only try to build the `crypto` crate since it's
+    # the only crate that's used on VxWorks.
+    "--package=crypto",
+    # Build the variant used by the Moonshot project since
+    # it's currently our only use of VxWorks.
+    "--no-default-features",
+    "--features=moonshot",
+    "${@}",
+]
+dependencies = ["setup-vxworks-env"]
+
+
+# Correctness
+[tasks.correctness]
+category = "correctness"
+description = "Run correctness checks"
+dependencies = [
+    "fmt",
+    "check-features",
+    "clippy",
+    "check-canaries",
+]
+
+[tasks.check-fmt]
+category = "correctness"
+description = "Check code formatting"
+toolchain = "nightly"
+command = "cargo"
+args = ["fmt", "--all", "--", "--check"]
+dependencies = ["install-nightly"]
+
+[tasks.fmt]
+category = "correctness"
+description = "Format code"
+toolchain = "nightly"
+command = "cargo"
+args = ["fmt", "--all"]
+dependencies = ["install-nightly"]
+
+[tasks.check-features]
+category = "correctness"
+description = "Check features"
+command = "cargo"
+args = ["--verbose", "check-all-features"]
+dependencies = ["install-cargo-all-features"]
+
+[tasks.clippy]
+category = "correctness"
+description = "Run clippy to lint code"
+workspace = true
+script = '''
+cargo clippy
+cargo clippy --tests --benches --examples
+cargo clippy --no-default-features
+'''
+install_crate = { rustup_component_name = "clippy" }
+
+[tasks.check-canary-std]
+category = "correctness"
+description = "Check no-std support"
+script = "cargo check --manifest-path canaries/canary-std/Cargo.toml"
+
+[tasks.check-canary-alloc]
+category = "correctness"
+description = "Check no-alloc support"
+script = "cargo check --manifest-path canaries/canary-alloc/Cargo.toml"
+
+[tasks.check-canaries]
+category = "correctness"
+description = "Check no-std/no-alloc support"
+dependencies = ["check-canary-alloc", "check-canary-std"]
+
+
+# Docs
+[tasks.gen-docs-nightly]
+category = "docs"
+description = "Generate docs with rust nightly"
+toolchain = "nightly"
+env = { RUSTDOCFLAGS = "--cfg docs ${RUSTDOCFLAGS}" }
+command = "cargo"
+args = ["doc", "--all-features", "--workspace"]
+dependencies = ["install-nightly"]
+
+[tasks.zip-docs]
+category = "docs"
+description = "Zip docs"
+script = "zip -qr docs.zip target/doc"
+
+
+# Misc
 [tasks.install-nightly]
 description = "Install nightly rust"
-script = ["rustup toolchain install nightly"]
-
-#GIT STATUS
-[tasks.git-diff]
-script = ["git diff"]
-
-[tasks.git-stat]
-script = ["git status -s"]
-
-[tasks.git-status]
-dependencies = ["git-diff", "git-stat"]
+script = "rustup toolchain install nightly"
 
 [tasks.git-unchanged]
+description = "Verify files are unchanged"
 script = '''
 git diff
 status=$(git status -s)
@@ -29,106 +174,6 @@ if [[ -n "$status" ]]; then
 fi
 '''
 
-[tasks.build-code]
-description = "Build Code"
-script = ["cargo build --verbose --release"]
-
-#UNIT TESTS
-[tasks.unit-tests]
-description = "Run Unit Tests"
-script = ["cargo --verbose test-all-features --tests --examples"]
-
-#SECURITY
-[tasks.gen-lockfile]
-script = ["cargo generate-lockfile"]
-
-[tasks.cargo-audit]
-install_crate = { crate_name = "cargo-audit", version = "0.18.2" }
-script = ["cargo audit"]
-dependencies = ["gen-lockfile"]
-
-[tasks.cargo-deny]
-install_crate = { crate_name = "cargo-deny", version = "0.14.3" }
-script = ["cargo deny check"]
-
-[tasks.list-files]
-description = "List files in directory"
-script = ["ls -R -al"]
-
-#VXWORKS SPECIFIC
-
-[tasks.setup-vxworks-env]
-description = "Setup vxworks environment"
-script = ["rustup toolchain install nightly --component rust-src"]
-
-[tasks.build-vxworks-code]
-description = "Build vxworks code"
-script = [
-    "cargo rustc --package crypto --lib --crate-type lib --verbose --release --no-default-features --target powerpc-wrs-vxworks $@",
-]
-
-#CORRECTNESS
-[tasks.clippy]
-workspace = true
-script = '''
-cargo clippy
-cargo clippy --tests --benches --examples
-cargo clippy --no-default-features
-'''
-
-[tasks.correctness]
-description = "Run correctness checks"
-dependencies = [
-    "install-nightly",
-    "format",
-    "check-features",
-    "clippy",
-    "check-canaries",
-]
-
-[tasks.fmt]
-description = "Format code"
-toolchain = "nightly"
-command = "cargo"
-args = ["fmt", "--all"]
-
-[tasks.check-fmt]
-description = "Check code formatting"
-toolchain = "nightly"
-command = "cargo"
-args = ["fmt", "--all", "--", "--check"]
-
-[tasks.check-features]
-description = "Check features"
-script = ["cargo --verbose check-all-features"]
-dependencies = ["all-features-install"]
-
-[tasks.check-canary-std]
-description = "Check canary std"
-script = ["cargo check --manifest-path canaries/canary-std/Cargo.toml"]
-
-[tasks.check-canary-alloc]
-description = "Check canary alloc"
-script = ["cargo check --manifest-path canaries/canary-alloc/Cargo.toml"]
-
-[tasks.check-canaries]
-dependencies = ["check-canary-alloc", "check-canary-std"]
-
-#DOC
-[tasks.install-zip]
-description = "Install zip package"
-script = ["sudo apt-get install -y zip --no-install-recommends"]
-
-[tasks.gen-docs-nightly]
-description = "Generate docs with rust nightly"
-toolchain = "nightly"
-script = ["cargo doc --all-features--workspace"]
-dependencies = ["all-features-install"]
-
-[tasks.zip-docs]
-description = "Zip docs"
-script = ["zip -qr docs.zip target/doc"]
-
-[tasks.all-features-install]
-description = "Install cargo-all-features"
-script = "cargo install --version '^1.10' --force cargo-all-features"
+[tasks.install-cargo-all-features]
+private = true
+install_crate = { crate_name = "cargo-all-features", version = "1.10.0", binary = "cargo-check-all-features", test_arg = ["-V"] }

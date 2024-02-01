@@ -29,27 +29,22 @@ jobs:
   unit-tests:
     strategy:
       matrix:
-        os: [
-            # TODO(eric): re-enable after we get macOS runners.
-            # "macos-latest",
-            "self-hosted-linux-arm",
-            "self-hosted-linux-arm64",
-            "self-hosted-linux-amd64",
-          ]
-    runs-on: ${{ matrix.os }}
+        runner:
+          # TODO(eric): re-enable after we get macOS runners.
+          # - "macos-latest"
+          - "self-hosted-linux-arm"
+          - "self-hosted-linux-arm64"
+          - "self-hosted-linux-amd64"
+    runs-on: ${{ matrix.runner }}
     steps:
-      # Our runners don't get wiped between runs :/
-      - name: nuke old .gitconfig
-        run: rm ~/.gitconfig || true
       - uses: actions/checkout@v3
-      - name: Clean temp files
-        run: rm -rf ${{ github.workspace }}/_temp
-        if: ${{ matrix.os == 'self-hosted-linux-arm' }}
+
       - name: Setup Environment
         uses: ./.github/actions/setup
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
-          os: ${{ matrix.os }}
+          runner: ${{ matrix.runner }}
+
       - name: Unit Tests
         run: cargo make unit-tests

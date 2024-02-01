@@ -30,66 +30,21 @@ jobs:
     strategy:
       matrix:
         include:
-          # Build the variant used by the Moonshot project since
-          # it's currently our only use of VxWorks.
-          - target: { os: "self-hosted-build-lin-1", suffix: "vxworks-ppc" }
-            variant:
-              name: "moonshot"
-              features: "alloc,moonshot"
-    runs-on: ${{ matrix.target.os }}
-    env:
-      PPC: powerpc-wrs-vxworks
-      PPC_LIB: ${{ github.workspace }}/powerpc-wrs-vxworks/14.0.0/powerpc-wrs-vxworks/lib/msoft-float
-      PPC_BIN: ${{ github.workspace }}/powerpc-wrs-vxworks/14.0.0/bin
-      X86: x86_64-linux-gnu
-      X86_BIN: ${{ github.workspace }}/x86_64-linux-gnu/14.0.0/bin
+          - { runner: "self-hosted-linux-amd64", target: "vxworks-ppc" }
+    runs-on: ${{ matrix.runner }}
     steps:
-      # Our runners don't get wiped between runs :/
-      - name: nuke old .gitconfig
-        run: rm ~/.gitconfig || true
       - uses: actions/checkout@v3
+
       - name: Setup Environment
         uses: ./.github/actions/setup
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
-          os: ${{ matrix.target.os }}
-          target: ${{ matrix.target.suffix }}
+          runner: ${{ matrix.runner }}
+          target: ${{ matrix.target }}
 
-      - name: Download gccgo-vxworks
-        uses: spideroak-inc/action-download-artifact@v2.26.0
-        with:
-          workflow: main.yml
-          workflow_conclusion: success
-          check_artifacts: true
-          search_artifacts: true
-          branch: master
-          name: ${{ env.PPC }}.tar.gz
-          repo: spideroak-inc/gccgo-vxworks
-          github_token: ${{ secrets.CC_BUILD_TOKEN }}
-
-      - name: Extract gccgo-vxworks toolchain
-        run: |
-          tar -xzf ${{ env.PPC }}.tar.gz
-
-      - name: Setup VxWorks Environment
-        run: cargo make setup-vxworks-env
-
-      # For now, only try to build the `crypto` crate since it's
-      # the only crate that's used on VxWorks.
       - name: Build code
-        env:
-          RUSTUP_TOOLCHAIN: nightly
-          CARGO_UNSTABLE_BUILD_STD: core,alloc
-          CARGO_BUILD_TARGET: powerpc-wrs-vxworks
-          TARGET_AR: ${{ env.PPC_BIN }}/${{ env.PPC }}-ar
-          TARGET_CC: ${{ env.PPC_BIN }}/${{ env.PPC }}-gcc
-          TARGET_CXX: ${{ env.PPC_BIN }}/${{ env.PPC }}-g++
-          TARGET_LD_LIBRARY_PATH: ${{ env.PPC_LIB }}
-          TARGET_NM: ${{ env.PPC_BIN }}/${{ env.PPC }}-nm
-          TARGET_RANLIB: ${{ env.PPC_BIN }}/${{ env.PPC }}-ranlib
-          TARGET_STRIP: ${{ env.PPC_BIN }}/${{ env.PPC }}-strip
-        run: cargo make build-vxworks-code --features ${{ matrix.variant.features }}
+        run: cargo make build-vxworks-code
 
       - name: Verify build didn't change any checked-in files
         run: cargo make git-unchanged

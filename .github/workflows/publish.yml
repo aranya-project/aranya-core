@@ -4,10 +4,24 @@ on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      workflow:
+        required: true
+        type: string
+    secrets:
+      CC_BUILD_TOKEN:
+        required: true
+      GH_DOTCOM_TOKEN:
+        required: true
 
 jobs:
   release:
-    runs-on: "self-hosted-linux-amd64"
+    strategy:
+      matrix:
+        runner: ["self-hosted-linux-amd64"]
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Create Release
         id: release
@@ -32,7 +46,10 @@ jobs:
     needs:
       - release
       - build
-    runs-on: "self-hosted-linux-amd64"
+    strategy:
+      matrix:
+        runner: ["self-hosted-linux-amd64"]
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Download doc artifacts
         uses: actions/download-artifact@v3

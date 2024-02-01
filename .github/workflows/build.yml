@@ -29,28 +29,24 @@ jobs:
   build-release:
     strategy:
       matrix:
-        include:
+        runner:
           # TODO(eric): re-enable after we get macOS runners.
-          # - target: { os: "macos-latest", suffix: "darwin-amd64" }
-          - target: { os: "self-hosted-linux-arm", suffix: "linux-arm" }
-          - target: { os: "self-hosted-linux-arm64", suffix: "linux-arm64" }
-          - target: { os: "self-hosted-linux-amd64", suffix: "linux-amd64" }
-    runs-on: ${{ matrix.target.os }}
+          # - "macos-latest"
+          - "self-hosted-linux-arm"
+          - "self-hosted-linux-arm64"
+          - "self-hosted-linux-amd64"
+    runs-on: ${{ matrix.runner }}
     steps:
-      # Our runners don't get wiped between runs :/
-      - name: nuke old .gitconfig
-        run: rm ~/.gitconfig || true
       - uses: actions/checkout@v3
-      - name: Clean temp files
-        run: rm -rf ${{ github.workspace }}/_temp
-        if: ${{ matrix.target.os == 'self-hosted-linux-arm' }}
+
       - uses: ./.github/actions/setup
         with:
           ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
           gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
-          os: ${{ matrix.target.os }}
-          target: ${{ matrix.target.suffix }}
+          runner: ${{ matrix.runner }}
+
       - name: Build code
         run: cargo make build-code
+
       - name: Verify build didn't change any checked-in files
         run: cargo make git-unchanged
