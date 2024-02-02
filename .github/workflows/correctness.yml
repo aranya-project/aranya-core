@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check-fmt:
+  fmt:
     strategy:
       matrix:
         runner: ["self-hosted-linux-amd64"]
@@ -43,7 +43,41 @@ jobs:
       - name: Check formatting
         run: cargo make check-fmt
 
-  lint-code:
+  canaries:
+    strategy:
+      matrix:
+        runner: ["self-hosted-linux-amd64"]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup
+        with:
+          ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
+          gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
+          runner: ${{ matrix.runner }}
+
+      - name: Check canaries (no-std/no-alloc)
+        run: cargo make check-canaries
+
+  clippy:
+    strategy:
+      matrix:
+        runner: ["self-hosted-linux-amd64"]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: ./.github/actions/setup
+        with:
+          ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
+          gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
+          runner: ${{ matrix.runner }}
+
+      - name: Run clippy
+        run: cargo make clippy
+
+  check:
     strategy:
       matrix:
         runner:
@@ -65,9 +99,3 @@ jobs:
 
       - name: Check Features
         run: cargo make check-features
-
-      - name: Run clippy test
-        run: cargo make clippy
-
-      - name: Check Canaries
-        run: cargo make check-canaries

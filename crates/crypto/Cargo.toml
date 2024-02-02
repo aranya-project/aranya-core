@@ -66,6 +66,8 @@ ed25519_batch = [
 # Build for Project Moonshot.
 moonshot = [
 	"dep:aes",
+	"dep:lazy_static",
+	"dep:spin",
 ]
 
 # Makes `OsRng` implement `Csprng`.
@@ -122,7 +124,7 @@ ecdsa = { version = "0.16", default-features = false, features = ["signing", "ve
 ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic", "sec1"] }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
-lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"] }
+lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"], optional = true }
 more-asserts = { version = "0.3", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
@@ -135,7 +137,7 @@ serde_json = { version = "1", default-features = false, optional = true }
 serde_repr = { version = "0.1", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false }
 siphasher = { version = "1", default-features = false }
-spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"] }
+spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"], optional = true }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
 trouble = { path = "../trouble", default-features = false }
 typenum = { version = "1", default-features = false, features = ["const-generics"] }

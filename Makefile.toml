@@ -130,18 +130,27 @@ install_crate = { rustup_component_name = "clippy" }
 [tasks.check-canary-std]
 category = "correctness"
 description = "Check no-std support"
-script = "cargo check --manifest-path canaries/canary-std/Cargo.toml"
+command = "cargo"
+args = ["check", "--target=aarch64-unknown-none"]
+cwd = "canaries/canary-std"
+dependencies = ["install-no-std-target"]
 
 [tasks.check-canary-alloc]
 category = "correctness"
 description = "Check no-alloc support"
-script = "cargo check --manifest-path canaries/canary-alloc/Cargo.toml"
+command = "cargo"
+args = ["check", "--target=aarch64-unknown-none"]
+cwd = "canaries/canary-alloc"
+dependencies = ["install-no-std-target"]
 
 [tasks.check-canaries]
 category = "correctness"
 description = "Check no-std/no-alloc support"
 dependencies = ["check-canary-alloc", "check-canary-std"]
 
+[tasks.install-no-std-target]
+private = true
+script = "rustup target add aarch64-unknown-none"
 
 # Docs
 [tasks.gen-docs-nightly]
