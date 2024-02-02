@@ -1,6 +1,7 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = 1
 RUSTDOCFLAGS = { value = "", condition = { env_not_set = ["RUSTDOCFLAGS"] } }
+NIGHTLY = { script = ["cat rust-nightly.txt"] }
 
 [config]
 default_to_workspace = false
@@ -56,13 +57,13 @@ args = ["deny", "check"]
 [tasks.setup-vxworks-env]
 category = "vxworks"
 description = "Setup vxworks environment"
-script = "rustup component add --toolchain nightly rust-src"
+script = "rustup component add --toolchain ${NIGHTLY} rust-src"
 dependencies = ["install-nightly"]
 
 [tasks.build-vxworks-code]
 category = "vxworks"
 description = "Build vxworks code"
-toolchain = "nightly"
+toolchain = "${NIGHTLY}"
 command = "cargo"
 args = [
     "build",
@@ -95,7 +96,7 @@ dependencies = [
 [tasks.check-fmt]
 category = "correctness"
 description = "Check code formatting"
-toolchain = "nightly"
+toolchain = "${NIGHTLY}"
 command = "cargo"
 args = ["fmt", "--all", "--", "--check"]
 dependencies = ["install-nightly"]
@@ -103,7 +104,7 @@ dependencies = ["install-nightly"]
 [tasks.fmt]
 category = "correctness"
 description = "Format code"
-toolchain = "nightly"
+toolchain = "${NIGHTLY}"
 command = "cargo"
 args = ["fmt", "--all"]
 dependencies = ["install-nightly"]
@@ -146,7 +147,7 @@ dependencies = ["check-canary-alloc", "check-canary-std"]
 [tasks.gen-docs-nightly]
 category = "docs"
 description = "Generate docs with rust nightly"
-toolchain = "nightly"
+toolchain = "${NIGHTLY}"
 env = { RUSTDOCFLAGS = "--cfg docs ${RUSTDOCFLAGS}" }
 command = "cargo"
 args = ["doc", "--all-features", "--workspace"]
@@ -161,7 +162,9 @@ script = "zip -qr docs.zip target/doc"
 # Misc
 [tasks.install-nightly]
 description = "Install nightly rust"
-script = "rustup toolchain install nightly"
+# First check if the toolchain is installed, because that is much faster.
+# Don't do this if you want to keep a rolling channel up-to-date.
+script = "rustup run ${NIGHTLY} true 2>/dev/null || rustup toolchain install ${NIGHTLY}"
 
 [tasks.git-unchanged]
 description = "Verify files are unchanged"
