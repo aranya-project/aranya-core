@@ -559,6 +559,10 @@ impl Perspective for MemPerspective {
     fn policy(&self) -> PolicyId {
         self.policy
     }
+
+    fn includes(&self, id: &Id) -> bool {
+        self.commands.iter().any(|cmd| cmd.command.id == *id)
+    }
 }
 
 impl FactPerspective for MemPerspective {

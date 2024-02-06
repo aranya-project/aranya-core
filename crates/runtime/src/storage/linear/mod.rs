@@ -786,6 +786,10 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         });
         Ok(self.commands.len()) // FIXME(jdygert): Off by one?
     }
+
+    fn includes(&self, id: &Id) -> bool {
+        self.commands.iter().any(|cmd| cmd.id == *id)
+    }
 }
 
 impl<'a> Command<'a> for LinearCommand<'a> {

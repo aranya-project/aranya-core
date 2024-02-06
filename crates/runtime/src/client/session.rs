@@ -241,4 +241,8 @@ where
             .assume("will not add usize::MAX commands")?;
         Ok(self.added)
     }
+
+    fn includes(&self, id: &Id) -> bool {
+        self.perspective.includes(id)
+    }
 }

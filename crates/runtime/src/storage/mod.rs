@@ -305,6 +305,9 @@ pub trait Perspective: FactPerspective {
     /// Adds the given command to the head of the perspective. The command's
     /// parent must be the head of the perspective.
     fn add_command<'a>(&mut self, command: &impl Command<'a>) -> Result<usize, StorageError>;
+
+    /// Returns true if the perspective contains a command with the given ID.
+    fn includes(&self, id: &Id) -> bool;
 }
 
 /// A fact perspective is essentially a mutable, in-memory version of a [`FactIndex`].

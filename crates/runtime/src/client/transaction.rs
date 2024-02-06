@@ -146,6 +146,14 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
         // Handle remaining commands.
         for command in commands {
+            if self
+                .perspective
+                .as_ref()
+                .is_some_and(|p| p.includes(&command.id()))
+            {
+                // Command in current perspective.
+                continue;
+            }
             if self.locate(storage, &command.id())?.is_some() {
                 // Command already added.
                 continue;
@@ -738,5 +746,33 @@ mod test {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn test_duplicates() {
+        let mut gb = graph! {
+            ClientState::new(SeqEngine, MemStorageProvider::new());
+            "a";
+            "a" < "b" "c";
+            "a" < "b";
+            "b" < "c";
+            "c" < "d";
+            commit;
+            "a" < "b";
+            "b" < "c";
+            "d" < "e";
+            commit;
+        };
+
+        let g = gb.client.provider.get_storage(&mkid("a")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        crate::storage::memory::graphviz::dot(g, "duplicates");
+
+        assert_eq!(g.get_head().unwrap(), Location::new(2, 0));
+
+        let seq = lookup(g, b"seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(seq, "a:b:c:d:e");
     }
 }
