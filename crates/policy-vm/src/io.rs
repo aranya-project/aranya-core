@@ -7,6 +7,7 @@ use super::Stack;
 use crate::{
     data::{FactKey, FactKeyList, FactValue, FactValueList, KVPair},
     error::{MachineError, MachineErrorType},
+    CommandContext,
 };
 
 /// An I/O error.
@@ -76,16 +77,12 @@ where
     /// Create an effect
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
 
-    /// Call external function, e.g., one defined in an
-    /// `FfiModule`.
+    /// Call external function, e.g., one defined in an `FfiModule`.
     fn call(
         &mut self,
         module: usize,
-        _procedure: usize,
-        _stack: &mut S,
-    ) -> Result<(), MachineError> {
-        Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
-            module,
-        )))
-    }
+        procedure: usize,
+        stack: &mut S,
+        ctx: &CommandContext<'_>,
+    ) -> Result<(), MachineError>;
 }

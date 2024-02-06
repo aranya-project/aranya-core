@@ -102,13 +102,14 @@ impl<K: KeyStore> IdamCrypto<K> {
         group_key_wrap: &[u8],
         peer_enc_key: &[u8],
         group_id: Id,
-        ctx: &mut CommandContext<'_, E>,
+        ctx: &CommandContext<'_>,
+        eng: &mut E,
     ) -> Result<SealedGroupKey, Error>
     where
         <E::Aead as Aead>::Overhead: Add<U64>,
         Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
-        idam::seal_group_key(group_key_wrap, peer_enc_key, group_id, ctx.engine)
+        idam::seal_group_key(group_key_wrap, peer_enc_key, group_id, eng)
     }
 
     /// Unseal a received GroupKey
@@ -117,7 +118,8 @@ impl<K: KeyStore> IdamCrypto<K> {
         sealed_group_key: SealedGroupKey,
         pub_enc_key: &[u8],
         group_id: Id,
-        ctx: &mut CommandContext<'_, E>,
+        ctx: &CommandContext<'_>,
+        eng: &mut E,
     ) -> Result<WrappedGroupKey, Error>
     where
         <E::Aead as Aead>::Overhead: Add<U64>,
@@ -127,7 +129,7 @@ impl<K: KeyStore> IdamCrypto<K> {
         let priv_enc_key = self
             .key_store
             .get::<E>(KeyStoreSecret::Encrypt, pub_enc_key)?;
-        idam::unseal_group_key(sealed_group_key, &priv_enc_key, group_id, ctx.engine)
+        idam::unseal_group_key(sealed_group_key, &priv_enc_key, group_id, eng)
     }
 
     /// Encrypt a message using the GroupKey
@@ -137,15 +139,21 @@ impl<K: KeyStore> IdamCrypto<K> {
         group_key_wrap: &[u8],
         parent_id: Id,
         pub_sign_key: &[u8],
-        ctx: &mut CommandContext<'_, E>,
+        ctx: &CommandContext<'_>,
+        eng: &mut E,
     ) -> Result<Vec<u8>, Error> {
+        let CommandContext::Policy(pctx) = ctx else {
+            return Err(Error::InvalidArgument(
+                "encrypt_message used outside policy context",
+            ));
+        };
         idam::encrypt_message(
             group_key_wrap,
             plaintext,
             parent_id,
             pub_sign_key,
-            ctx.name,
-            ctx.engine,
+            pctx.name,
+            eng,
         )
     }
 
@@ -156,15 +164,21 @@ impl<K: KeyStore> IdamCrypto<K> {
         group_key_wrap: &[u8],
         parent_id: Id,
         peer_sign_key: &[u8],
-        ctx: &mut CommandContext<'_, E>,
+        ctx: &CommandContext<'_>,
+        eng: &mut E,
     ) -> Result<Vec<u8>, Error> {
+        let CommandContext::Policy(pctx) = ctx else {
+            return Err(Error::InvalidArgument(
+                "decrypt_message used outside policy context",
+            ));
+        };
         idam::decrypt_message(
             group_key_wrap,
             ciphertext,
             parent_id,
             peer_sign_key,
-            ctx.name,
-            ctx.engine,
+            pctx.name,
+            eng,
         )
     }
 

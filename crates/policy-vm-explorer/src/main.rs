@@ -7,11 +7,12 @@ use std::{
 };
 
 use clap::{arg, ArgGroup, Parser, ValueEnum};
+use crypto::Id;
 use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use policy_vm::{
-    compile_from_policy, FactKey, FactKeyList, FactValue, FactValueList, KVPair, LabelType,
-    Machine, MachineError, MachineErrorType, MachineIO, MachineIOError, MachineStack,
-    MachineStatus, RunState, Stack, Struct, Value,
+    compile_from_policy, ActionContext, CommandContext, FactKey, FactKeyList, FactValue,
+    FactValueList, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
+    MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -208,6 +209,7 @@ where
         module: usize,
         _procedure: usize,
         _stack: &mut S,
+        _ctx: &CommandContext<'_>,
     ) -> Result<(), MachineError> {
         Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
             module,
@@ -242,7 +244,6 @@ fn main() -> anyhow::Result<()> {
         }
     };
     let mut io = MachExpIO::new();
-    let mut rs = machine.create_run_state(&mut io);
 
     let mode = if args.exec {
         Mode::Exec
@@ -258,11 +259,30 @@ fn main() -> anyhow::Result<()> {
     // which will return the commands or effects produced.
     match mode {
         Mode::Exec | Mode::Debug => {
+            let name;
+            let mut rs;
+            let ctx;
+
             if let Some(action) = &args.action {
+                name = action.clone();
+                ctx = CommandContext::Action(ActionContext {
+                    name: &name,
+                    head_id: Id::default(),
+                });
+                rs = machine.create_run_state(&mut io, &ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
                 rs.setup_action(action, call_args)
                     .map_err(anyhow::Error::msg)?;
             } else if let Some(command) = args.command {
+                name = command.clone();
+                ctx = CommandContext::Policy(PolicyContext {
+                    name: &name,
+                    id: Id::default(),
+                    author: Id::default().into(),
+                    version: Id::default(),
+                    parent_id: Id::default(),
+                });
+                rs = machine.create_run_state(&mut io, &ctx);
                 let fields: BTreeMap<String, Value> = args
                     .args
                     .into_iter()

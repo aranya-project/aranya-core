@@ -253,7 +253,7 @@ pub struct Context<'a, E: Engine + ?Sized> {
     /// Describes what is being encrypted.
     ///
     /// For example, it could be an event name.
-    pub label: &'static str,
+    pub label: &'a str,
     /// The stable ID of the parent event.
     pub parent: Id,
     /// The public key of the author of the encrypted data.

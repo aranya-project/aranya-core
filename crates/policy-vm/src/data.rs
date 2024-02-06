@@ -568,10 +568,10 @@ pub struct Struct {
 
 impl Struct {
     /// Creates a struct.
-    pub fn new(name: &str, fields: &[KVPair]) -> Struct {
+    pub fn new(name: &str, fields: impl IntoIterator<Item = impl Into<(String, Value)>>) -> Struct {
         Struct {
             name: name.to_owned(),
-            fields: fields.iter().map(|p| p.into()).collect(),
+            fields: fields.into_iter().map(|p| p.into()).collect(),
         }
     }
 }
@@ -604,17 +604,59 @@ impl fmt::Display for Struct {
     }
 }
 
-/// Properties of policy commands available through FFI.
+/// Context for actions
 #[derive(Debug, PartialEq, Eq)]
-pub struct CommandContext<'a, E> {
+pub struct ActionContext<'a> {
+    /// The name of the action
+    pub name: &'a str,
+    /// The head of the graph
+    pub head_id: Id,
+}
+
+/// Context for seal blocks
+#[derive(Debug, PartialEq, Eq)]
+pub struct SealContext<'a> {
     /// The name of the command
-    pub name: &'static str,
+    pub name: &'a str,
+    /// The parent ID of the command
+    pub parent_id: Id,
+}
+
+/// Context for open blocks
+#[derive(Debug, PartialEq, Eq)]
+pub struct OpenContext<'a> {
+    /// The name of the command
+    pub name: &'a str,
+    /// The parent ID of the command
+    pub parent_id: Id,
+}
+
+/// Context for Policy and Recall blocks
+#[derive(Debug, PartialEq, Eq)]
+pub struct PolicyContext<'a> {
+    /// The name of the command
+    pub name: &'a str,
     /// The ID of the command
     pub id: Id,
     /// The ID of the author of the command
     pub author: UserId,
     /// The ID of the version of policy and FFI module set
     pub version: Id,
-    /// The crypto engine used in this context.
-    pub engine: &'a mut E,
+    /// The parent ID of the command
+    pub parent_id: Id,
+}
+
+/// Properties of policy execution available through FFI.
+#[derive(Debug, PartialEq, Eq)]
+pub enum CommandContext<'a> {
+    /// Action
+    Action(ActionContext<'a>),
+    /// Seal operation
+    Seal(SealContext<'a>),
+    /// Open operation
+    Open(OpenContext<'a>),
+    /// Policy operation
+    Policy(PolicyContext<'a>),
+    /// Recall operation
+    Recall(PolicyContext<'a>),
 }

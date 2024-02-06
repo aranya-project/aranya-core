@@ -539,9 +539,24 @@ fn test_fact_update_invalid_to_type() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let err = compile_from_policy(&policy, &[])
-        .expect_err("compilation should have succeeded")
+        .expect_err("compilation should have failed")
         .err_type;
     assert_eq!(err, CompileErrorType::InvalidType);
+
+    Ok(())
+}
+
+#[test]
+fn test_serialize_deserialize() -> anyhow::Result<()> {
+    let text = r#"
+        function foo() int {
+            let b = serialize(3)
+            return deserialize(b)
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    compile_from_policy(&policy, &[]).expect("compilation should have succeeded");
 
     Ok(())
 }

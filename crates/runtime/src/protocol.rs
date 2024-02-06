@@ -249,7 +249,7 @@ impl Policy for TestPolicy {
         self.serial
     }
 
-    fn read_command<'a>(&self, data: &'a [u8]) -> Result<TestProtocol<'a>, EngineError> {
+    fn read_command<'a>(&self, _id: Id, data: &'a [u8]) -> Result<TestProtocol<'a>, EngineError> {
         let id = Id::hash_for_testing_only(data);
         let command = from_bytes(data)?;
 

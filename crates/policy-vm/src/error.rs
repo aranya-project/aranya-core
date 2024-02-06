@@ -50,8 +50,9 @@ pub enum MachineErrorType {
     /// IntegerOverflow occurs when an instruction wraps an integer above
     /// the max value or below the min value.
     IntegerOverflow,
-    /// Invalid instruction - Some information encoded into an
-    /// instruction is invalid. E.g. a Swap(0)
+    /// Invalid instruction - An instruction was used in the wrong
+    /// context, or some information encoded into an instruction is
+    /// invalid. E.g. a Swap(0)
     InvalidInstruction,
     /// An instruction has done something wrong with the call stack, like
     /// `Return`ed without a `Call`.

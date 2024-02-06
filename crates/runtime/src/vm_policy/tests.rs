@@ -3,7 +3,7 @@
 use alloc::borrow::Cow;
 
 use policy_lang::lang::parse_policy_document;
-use policy_vm::{compile_from_policy, KVPair, Value};
+use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
 use postcard::{from_bytes, to_vec};
 use tracing::trace;
 
@@ -11,6 +11,7 @@ use super::{error::VmPolicyError, VmPolicy};
 use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
     storage::{memory::MemStorageProvider, FactPerspective, Storage, StorageProvider},
+    vm_policy::ffi::FfiEnvelope,
     ClientState,
 };
 
@@ -31,8 +32,8 @@ command Create {
         key int,
         value int,
     }
-    seal { return None }
-    open { return None }
+    seal { return envelope::seal(this) }
+    open { return envelope::open(envelope) }
     policy {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
@@ -53,8 +54,8 @@ command Increment {
         key int,
         amount int,
     }
-    seal { return None }
-    open { return None }
+    seal { return envelope::seal(this) }
+    open { return envelope::open(envelope) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         let new_y = stuff.y + this.amount
@@ -159,7 +160,8 @@ pub struct TestEngine {
 impl TestEngine {
     pub fn new(policy_doc: &str) -> TestEngine {
         let ast = parse_policy_document(policy_doc).unwrap_or_else(|e| panic!("{e}"));
-        let machine = compile_from_policy(&ast, &[]).unwrap_or_else(|e| panic!("{e}"));
+        let machine =
+            compile_from_policy(&ast, &[FfiEnvelope::SCHEMA]).unwrap_or_else(|e| panic!("{e}"));
         let policy = VmPolicy::new(machine).expect("Could not load policy");
         TestEngine { policy }
     }

@@ -69,6 +69,18 @@ pub trait Sink<E> {
     fn commit(&mut self);
 }
 
+pub struct NullSink;
+
+impl<E> Sink<E> for NullSink {
+    fn begin(&mut self) {}
+
+    fn consume(&mut self, _effect: E) {}
+
+    fn rollback(&mut self) {}
+
+    fn commit(&mut self) {}
+}
+
 /// The IDs to a merge command in sorted order.
 pub struct MergeIds {
     // left < right
@@ -121,14 +133,14 @@ pub trait Policy {
     /// any emitted command is rejected no commands are added to the storage.
     fn call_action(
         &self,
-        id: &Id,
+        parent_id: &Id,
         action: Self::Actions<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError>;
 
     /// Deserialize a bytes in to a command
-    fn read_command<'a>(&self, data: &'a [u8]) -> Result<Self::Command<'a>, EngineError>;
+    fn read_command<'a>(&self, id: Id, data: &'a [u8]) -> Result<Self::Command<'a>, EngineError>;
 
     /// Produces an init message serialized to target. The `struct` representing the
     /// Command is returned.

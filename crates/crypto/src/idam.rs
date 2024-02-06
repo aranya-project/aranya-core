@@ -215,7 +215,7 @@ pub fn encrypt_message<E: Engine + ?Sized>(
     plaintext: &[u8],
     parent_id: Id,
     pub_sign_key: &[u8],
-    command_name: &'static str,
+    command_name: &str,
     eng: &mut E,
 ) -> Result<Vec<u8>, Error> {
     let group_key = unwrap_group_key(group_key_wrap, eng)?;
@@ -239,7 +239,7 @@ pub fn decrypt_message<E: Engine + ?Sized>(
     ciphertext: &[u8],
     parent_id: Id,
     peer_sign_key: &[u8],
-    command_name: &'static str,
+    command_name: &str,
     eng: &mut E,
 ) -> Result<Vec<u8>, Error> {
     let group_key = unwrap_group_key(group_key_wrap, eng)?;

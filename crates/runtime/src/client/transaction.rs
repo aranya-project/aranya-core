@@ -473,6 +473,7 @@ mod test {
 
         fn read_command<'a>(
             &self,
+            _id: Id,
             _data: &'a [u8],
         ) -> Result<Self::Command<'a>, crate::EngineError> {
             unimplemented!()

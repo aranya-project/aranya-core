@@ -13,7 +13,7 @@ use crate::{
     instructions::{Instruction, Target},
     io::MachineIO,
     stack::Stack,
-    CodeMap, FactKey, FactValue, Span,
+    CodeMap, CommandContext, FactKey, FactValue, OpenContext, SealContext, Span,
 };
 
 /// Compares a fact's keys and values to its schema.
@@ -218,11 +218,47 @@ impl Machine {
     }
 
     /// Create a RunState associated with this Machine.
-    pub fn create_run_state<'a, M>(&'a self, io: &'a mut M) -> RunState<'a, M>
+    pub fn create_run_state<'a, M>(
+        &'a self,
+        io: &'a mut M,
+        ctx: &'a CommandContext<'_>,
+    ) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
     {
-        RunState::new(self, io)
+        RunState::new(self, io, ctx)
+    }
+
+    /// Call an action
+    pub fn call_action<Args, M>(
+        &mut self,
+        name: &str,
+        args: Args,
+        io: &mut M,
+        ctx: &CommandContext<'_>,
+    ) -> Result<MachineStatus, MachineError>
+    where
+        Args: IntoIterator,
+        Args::Item: Into<Value>,
+        M: MachineIO<MachineStack>,
+    {
+        let mut rs = self.create_run_state(io, ctx);
+        rs.call_action(name, args)
+    }
+
+    /// Call a command
+    pub fn call_command_policy<M>(
+        &mut self,
+        name: &str,
+        this_data: &Struct,
+        io: &mut M,
+        ctx: &CommandContext<'_>,
+    ) -> Result<MachineStatus, MachineError>
+    where
+        M: MachineIO<MachineStack>,
+    {
+        let mut rs = self.create_run_state(io, ctx);
+        rs.call_command_policy(name, this_data)
     }
 }
 
@@ -271,6 +307,8 @@ pub struct RunState<'a, M> {
     pc: usize,
     /// I/O callbacks
     io: &'a mut M,
+    /// Execution Context (actually used for more than Commands)
+    ctx: &'a CommandContext<'a>,
 }
 
 impl<'a, M> RunState<'a, M>
@@ -278,10 +316,11 @@ where
     M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
-    pub fn new<'b>(machine: &'b Machine, io: &'b mut M) -> RunState<'a, M>
-    where
-        'b: 'a,
-    {
+    pub fn new(
+        machine: &'a Machine,
+        io: &'a mut M,
+        ctx: &'a CommandContext<'_>,
+    ) -> RunState<'a, M> {
         RunState {
             machine,
             defs: BTreeMap::new(),
@@ -289,6 +328,7 @@ where
             call_state: vec![],
             pc: 0,
             io,
+            ctx,
         }
     }
 
@@ -505,7 +545,9 @@ where
                 self.defs = s.defs;
                 self.pc = s.return_address;
             }
-            Instruction::ExtCall(module, proc) => self.io.call(module, proc, &mut self.stack)?,
+            Instruction::ExtCall(module, proc) => {
+                self.io.call(module, proc, &mut self.stack, self.ctx)?;
+            }
             Instruction::Exit => return Ok(MachineStatus::Exited),
             Instruction::Panic => return Ok(MachineStatus::Panicked),
             Instruction::Add | Instruction::Sub => {
@@ -688,8 +730,56 @@ where
                     None => self.ipush(Value::None)?,
                 }
             }
-            Instruction::Id => todo!(),
-            Instruction::AuthorId => todo!(),
+            Instruction::Serialize => {
+                let CommandContext::Seal(SealContext { name, .. }) = self.ctx else {
+                    return Err(MachineError::from_position(
+                        MachineErrorType::InvalidInstruction,
+                        self.pc,
+                        self.machine.codemap.as_ref(),
+                    ));
+                };
+                let command_struct: Struct = self.ipop()?;
+                if &command_struct.name != name {
+                    return Err(MachineError::from_position(
+                        MachineErrorType::InvalidInstruction,
+                        self.pc,
+                        self.machine.codemap.as_ref(),
+                    ));
+                }
+                let bytes = postcard::to_allocvec(&command_struct).map_err(|_| {
+                    MachineError::from_position(
+                        MachineErrorType::Unknown,
+                        self.pc,
+                        self.machine.codemap.as_ref(),
+                    )
+                })?;
+                self.ipush(bytes)?;
+            }
+            Instruction::Deserialize => {
+                let CommandContext::Open(OpenContext { name, .. }) = self.ctx else {
+                    return Err(MachineError::from_position(
+                        MachineErrorType::InvalidInstruction,
+                        self.pc,
+                        self.machine.codemap.as_ref(),
+                    ));
+                };
+                let bytes: Vec<u8> = self.ipop()?;
+                let s: Struct = postcard::from_bytes(&bytes).map_err(|_| {
+                    MachineError::from_position(
+                        MachineErrorType::Unknown,
+                        self.pc,
+                        self.machine.codemap.as_ref(),
+                    )
+                })?;
+                if name != &s.name {
+                    return Err(MachineError::from_position(
+                        MachineErrorType::InvalidInstruction,
+                        self.pc,
+                        self.machine.codemap.as_ref(),
+                    ));
+                }
+                self.ipush(s)?;
+            }
         }
         self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;
 
@@ -792,6 +882,44 @@ where
     {
         self.setup_action(name, args)?;
         self.run()
+    }
+
+    /// Call the seal block on this command to produce an envelope. The
+    /// seal block is given an implicit parameter `this` and should
+    /// return an opaque envelope struct on the stack.
+    pub fn call_seal(
+        &mut self,
+        name: &str,
+        this_data: &Struct,
+    ) -> Result<MachineStatus, MachineError> {
+        self.set_pc_by_label(Label::new(name, LabelType::CommandSeal))?;
+        self.defs.clear();
+        self.call_state.clear();
+        // Seal/Open pushes the argument and defines it itself, because
+        // it calls through a function stub. So we just push `this_data`
+        // onto the stack.
+        self.ipush(this_data.to_owned())?;
+        self.run()
+    }
+
+    /// Call the open block on an envelope struct to produce a command struct.
+    pub fn call_open(
+        &mut self,
+        name: &str,
+        envelope: &Struct,
+    ) -> Result<MachineStatus, MachineError> {
+        self.set_pc_by_label(Label::new(name, LabelType::CommandOpen))?;
+        self.defs.clear();
+        self.call_state.clear();
+        self.ipush(envelope.to_owned())?;
+        self.run()
+    }
+
+    /// Destroy the `RunState` and return the value on top of the stack.
+    pub fn consume_return(mut self) -> Result<Value, MachineError> {
+        self.stack
+            .pop_value()
+            .map_err(|t| MachineError::from_position(t, self.pc, self.machine.codemap.as_ref()))
     }
 }
 

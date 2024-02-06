@@ -463,6 +463,30 @@ pub fn parse_expression(
                     ),
                 ))
             }
+            Rule::serialize => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::InvalidFunctionCall,
+                    String::from("empty serialize function"),
+                    Some(primary.as_span()),
+                ))?;
+                let inner = parse_expression(token, pratt)?;
+                Ok(ast::Expression::InternalFunction(
+                    ast::InternalFunction::Serialize(Box::new(inner)),
+                ))
+            }
+            Rule::deserialize => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::InvalidFunctionCall,
+                    String::from("empty deserialize function"),
+                    Some(primary.as_span()),
+                ))?;
+                let inner = parse_expression(token, pratt)?;
+                Ok(ast::Expression::InternalFunction(
+                    ast::InternalFunction::Deserialize(Box::new(inner)),
+                ))
+            }
             Rule::identifier => Ok(ast::Expression::Identifier(primary.as_str().to_owned())),
             Rule::expression => {
                 let subexpr = parse_expression(primary, pratt)?;

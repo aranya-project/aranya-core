@@ -496,6 +496,28 @@ impl<'a> CompileState<'a> {
                     self.compile_expression(t)?;
                     self.define_label(end_name, self.wp)?;
                 }
+                ast::InternalFunction::Serialize(e) => {
+                    if self.get_statement_context()? != StatementContext::PureFunction {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::InvalidExpression((**e).clone()),
+                            self.last_locator,
+                            self.m.codemap.as_ref(),
+                        ));
+                    }
+                    self.compile_expression(e)?;
+                    self.append_instruction(Instruction::Serialize);
+                }
+                ast::InternalFunction::Deserialize(e) => {
+                    if self.get_statement_context()? != StatementContext::PureFunction {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::InvalidExpression((**e).clone()),
+                            self.last_locator,
+                            self.m.codemap.as_ref(),
+                        ));
+                    }
+                    self.compile_expression(e)?;
+                    self.append_instruction(Instruction::Deserialize);
+                }
             },
             ast::Expression::FunctionCall(f) => {
                 let signature = self.function_signatures.get(&f.identifier).ok_or(
@@ -1091,12 +1113,21 @@ impl<'a> CompileState<'a> {
             ));
         }
 
-        let from = self.wp;
+        // Create a call stub for seal. Because it is function-like and
+        // uses "return", we need something on the call stack to return
+        // to.
         self.define_label(
             Label::new(&command.identifier, LabelType::CommandSeal),
             self.wp,
         )?;
+        let actual_seal = self.anonymous_label();
+        self.append_instruction(Instruction::Call(Target::Unresolved(actual_seal.clone())));
+        self.append_instruction(Instruction::Exit);
+        self.define_label(actual_seal, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction);
+        self.append_instruction(Instruction::Const(Value::String("this".to_string())));
+        self.append_instruction(Instruction::Def);
+        let from = self.wp;
         self.compile_statements(&command.seal)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(CompileError::from_locator(
@@ -1109,12 +1140,19 @@ impl<'a> CompileState<'a> {
         // If there is no return, this is an error. Panic if we get here.
         self.append_instruction(Instruction::Panic);
 
-        let from = self.wp;
+        // Same thing for open.
         self.define_label(
             Label::new(&command.identifier, LabelType::CommandOpen),
             self.wp,
         )?;
+        let actual_open = self.anonymous_label();
+        self.append_instruction(Instruction::Call(Target::Unresolved(actual_open.clone())));
+        self.append_instruction(Instruction::Exit);
+        self.define_label(actual_open, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction);
+        self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
+        self.append_instruction(Instruction::Def);
+        let from = self.wp;
         self.compile_statements(&command.open)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(CompileError::from_locator(

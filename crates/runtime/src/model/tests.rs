@@ -5,11 +5,14 @@ use alloc::{borrow::Cow, collections::BTreeMap, string::String, vec::Vec};
 
 use crypto::Rng;
 use policy_lang::lang::parse_policy_document;
-use policy_vm::{compile_from_policy, KVPair, Value};
+use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
 
 use super::{Model, ModelEffect, ModelEngine, ModelError, ProxyClientID, ProxyGraphID};
 use crate::{
-    command::Id, engine::Sink, storage::memory::MemStorageProvider, vm_policy::VmPolicy,
+    command::Id,
+    engine::Sink,
+    storage::memory::MemStorageProvider,
+    vm_policy::{ffi::FfiEnvelope, VmPolicy},
     ClientState, SyncRequester, SyncResponder, SyncState, MAX_SYNC_MESSAGE_SIZE,
 };
 
@@ -33,8 +36,8 @@ command Create {
         key_b int,
         value int,
     }
-    seal { return None }
-    open { return None }
+    seal { return envelope::seal(this) }
+    open { return envelope::open(envelope) }
     policy {
         finish {
             create Stuff[a: this.key_a, b: this.key_b]=>{x: this.value}
@@ -57,8 +60,8 @@ command Increment {
         key_b int,
         value int,
     }
-    seal { return None }
-    open { return None }
+    seal { return envelope::seal(this) }
+    open { return envelope::open(envelope) }
     policy {
         let stuff = unwrap query Stuff[a: this.key_a, b: this.key_b]=>{x: ?}
         let new_x = stuff.x + this.value
@@ -84,8 +87,8 @@ command Decrement {
         key_b int,
         value int,
     }
-    seal { return None }
-    open { return None }
+    seal { return envelope::seal(this) }
+    open { return envelope::open(envelope) }
     policy {
         let stuff = unwrap query Stuff[a: this.key_a, b: this.key_b]=>{x: ?}
         let new_x = stuff.x - value
@@ -194,7 +197,8 @@ impl Model for TestModel {
         };
 
         let policy_ast = parse_policy_document(policy_doc).expect("parse policy document");
-        let machine = compile_from_policy(&policy_ast, &[]).expect("compile policy");
+        let machine =
+            compile_from_policy(&policy_ast, &[FfiEnvelope::SCHEMA]).expect("compile policy");
         let policy = VmPolicy::new(machine).expect("Could not load policy");
         let engine = ModelEngine::new(policy);
         let provider = MemStorageProvider::new();

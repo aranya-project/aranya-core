@@ -1194,3 +1194,52 @@ fn parse_seal_open() {
         )]
     );
 }
+
+#[test]
+fn parse_serialize_deserialize() {
+    let text = r#"
+        command Foo {
+            seal {
+                return serialize(this)
+            }
+
+            open {
+                return deserialize(envelope)
+            }
+        }
+    "#
+    .trim();
+    let policy = parse_policy_str(text, Version::V3).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        policy.commands,
+        vec![AstNode::new(
+            ast::CommandDefinition {
+                identifier: String::from("Foo"),
+                fields: vec![],
+                policy: vec![],
+                recall: vec![],
+                seal: vec![AstNode::new(
+                    ast::Statement::Return(ast::ReturnStatement {
+                        expression: ast::Expression::InternalFunction(
+                            ast::InternalFunction::Serialize(Box::new(
+                                ast::Expression::Identifier(String::from("this"))
+                            ))
+                        )
+                    }),
+                    49
+                )],
+                open: vec![AstNode::new(
+                    ast::Statement::Return(ast::ReturnStatement {
+                        expression: ast::Expression::InternalFunction(
+                            ast::InternalFunction::Deserialize(Box::new(
+                                ast::Expression::Identifier(String::from("envelope"))
+                            ))
+                        )
+                    }),
+                    122
+                )],
+            },
+            0
+        )]
+    );
+}

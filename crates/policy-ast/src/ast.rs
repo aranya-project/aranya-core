@@ -183,6 +183,10 @@ pub enum InternalFunction {
     Exists(FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
+    /// Serialize function
+    Serialize(Box<Expression>),
+    /// Deserialize function
+    Deserialize(Box<Expression>),
 }
 
 /// A foreign function call with a list of arguments.

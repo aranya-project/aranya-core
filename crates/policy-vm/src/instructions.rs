@@ -94,10 +94,10 @@ pub enum Instruction {
     Effect,
     /// Query for a fact
     Query,
-    /// Get the id of a command
-    Id,
-    /// Get the id of the author of a command
-    AuthorId,
+    /// Serialize a command struct
+    Serialize,
+    /// Deserialize a command struct
+    Deserialize,
 }
 
 impl Display for Instruction {
@@ -143,8 +143,8 @@ impl Display for Instruction {
             Instruction::Update => write!(f, "update"),
             Instruction::Effect => write!(f, "effect"),
             Instruction::Query => write!(f, "query"),
-            Instruction::Id => write!(f, "id"),
-            Instruction::AuthorId => write!(f, "author.id"),
+            Instruction::Serialize => write!(f, "serialize"),
+            Instruction::Deserialize => write!(f, "deserialize"),
         }
     }
 }

@@ -7,7 +7,7 @@ use crypto::{
 use policy_vm::{
     self,
     ffi::{ffi, FfiModule},
-    CommandContext, MachineError, MachineErrorType, MachineStack, Stack, Value,
+    CommandContext, MachineError, MachineErrorType, MachineStack, PolicyContext, Stack, Value,
 };
 
 #[derive(Debug, PartialEq)]
@@ -44,16 +44,16 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
     }
 
     fn call(&mut self, name: &str) -> Result<(), TestStateError<M::Error>> {
-        let mut ctx = CommandContext {
+        let ctx = CommandContext::Policy(PolicyContext {
             name: "SomeCommand",
             id: Id::default(),
             author: Id::default().into(),
             version: Id::default(),
-            engine: &mut self.engine,
-        };
+            parent_id: Id::default(),
+        });
         let idx = self.procs.get(name).ok_or(TestStateError::UnknownFunc)?;
         self.module
-            .call(*idx, &mut self.stack, &mut ctx)
+            .call(*idx, &mut self.stack, &ctx, &mut self.engine)
             .map_err(TestStateError::Module)
     }
 
@@ -155,7 +155,8 @@ struct S2 {
 impl<'a, T, G> TestModule<'a, T, G> {
     #[ffi_export(def = "function add(x int, y int) int")]
     fn add<E: Engine + ?Sized>(
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
         x: i64,
         y: i64,
     ) -> Result<i64, Overflow> {
@@ -164,16 +165,18 @@ impl<'a, T, G> TestModule<'a, T, G> {
 
     #[ffi_export(def = "function sub(x int, y int) int")]
     fn sub<E: Engine + ?Sized>(
-        ctx: &mut CommandContext<'_, E>,
+        ctx: &CommandContext<'_>,
+        eng: &mut E,
         x: i64,
         y: i64,
     ) -> Result<i64, Overflow> {
-        Self::add::<E>(ctx, x, -y)
+        Self::add::<E>(ctx, eng, x, -y)
     }
 
     #[ffi_export(def = "function concat(a string, b string) string")]
     fn concat<E: Engine + ?Sized>(
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
         a: String,
         b: String,
     ) -> Result<String, MachineError> {
@@ -183,7 +186,8 @@ impl<'a, T, G> TestModule<'a, T, G> {
     #[ffi_export(def = "function renamed_identity(id id) id")]
     fn identity<E: Engine + ?Sized>(
         &self,
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
         id: Id,
     ) -> Result<Id, Infallible> {
         Ok(id)
@@ -192,7 +196,8 @@ impl<'a, T, G> TestModule<'a, T, G> {
     #[ffi_export(def = "function no_args() int")]
     fn no_args<E: Engine + ?Sized>(
         &self,
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
     ) -> Result<i64, MachineError> {
         Ok(Self::NO_ARGS_RESULT)
     }
@@ -200,7 +205,8 @@ impl<'a, T, G> TestModule<'a, T, G> {
     #[ffi_export(def = "finish function no_result(a int, b int, c int)")]
     fn no_result<E: Engine + ?Sized>(
         &self,
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
         a: i64,
         b: i64,
         c: i64,
@@ -210,7 +216,8 @@ impl<'a, T, G> TestModule<'a, T, G> {
 
     #[ffi_export(def = "function custom_type(label int) int")]
     fn custom_type<E: Engine + ?Sized>(
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
         label: Label,
     ) -> Result<Label, Infallible> {
         assert_eq!(label, Self::CUSTOM_TYPE_ARG);
@@ -219,7 +226,8 @@ impl<'a, T, G> TestModule<'a, T, G> {
 
     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
     fn custom_def<E: Engine + ?Sized>(
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
         _a: i64,
         _b: Vec<u8>,
     ) -> Result<bool, Infallible> {
@@ -233,7 +241,8 @@ function struct_fn(
 ) struct S2
 "#)]
     fn struct_fn<E: Engine + ?Sized>(
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
         a: S0,
         b: S1,
     ) -> Result<S2, Infallible> {

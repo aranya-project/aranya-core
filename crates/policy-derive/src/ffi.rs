@@ -189,19 +189,19 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             let inner = match &f.result {
                 (ReturnType::Default, Color::Finish) => quote! {
                     #(#args);*;
-                    let _: () = #name(__ctx, #(#names),*);
+                    let _: () = #name(__ctx, __eng, #(#names),*);
                     ::core::result::Result::Ok(())
                 },
                 // Rust returns `Result<(), E>`.
                 (ReturnType::Type(_, _), Color::Finish) => quote! {
                     #(#args);*;
-                    let _: () = #name(__ctx, #(#names),*)?;
+                    let _: () = #name(__ctx, __eng, #(#names),*)?;
                     ::core::result::Result::Ok(())
                 },
                 // Rust returns `Result<T, E>`.
                 (ReturnType::Type(_, _), Color::Pure(_)) => quote! {
                     #(#args);*;
-                    let __result = #name(__ctx, #(#names),*)?;
+                    let __result = #name(__ctx, __eng, #(#names),*)?;
                     #vm::Stack::push(__stack, __result)?;
                     ::core::result::Result::Ok(())
                 },
@@ -258,7 +258,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     &mut self,
                     __proc: usize,
                     __stack: &mut impl #vm::Stack,
-                    __ctx: &mut #vm::CommandContext<'_, __E>,
+                    __ctx: &#vm::CommandContext<'_>,
+                    __eng: &mut __E,
                 ) -> ::core::result::Result<(), Self::Error> {
                     #[allow(non_camel_case_types, clippy::enum_variant_names)]
                     enum __Func {
@@ -498,12 +499,12 @@ impl Func {
             .iter()
             .any(|arg| matches!(arg, FnArg::Receiver(_)));
 
-        // The second argument is `&CommandContext`, which is
-        // passed in by `call`, so skip them.
+        // The second and third arguments are `&CommandContext` and
+        // `&mut E`, which is passed in by `call`, so skip them.
         //
-        // TODO(eric): we should issue a diagnostic when the
-        // first non-self argument isn't `&CommandContext`.
-        let num_skip = if is_method { 2 } else { 1 };
+        // TODO(eric): we should issue a diagnostic when the first
+        // non-self argument isn't `&CommandContext`.
+        let num_skip = if is_method { 3 } else { 2 };
         let num_args = match item.sig.inputs.len().checked_sub(num_skip) {
             Some(n) => n,
             None => {

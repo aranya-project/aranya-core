@@ -23,7 +23,8 @@ use crate::{
     io::{MachineIO, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
-    CodeMap, CompileError, CompileErrorType, Label, LabelType, MachineError, Target,
+    ActionContext, CodeMap, CompileError, CompileErrorType, Label, LabelType, MachineError,
+    OpenContext, PolicyContext, SealContext, Target,
 };
 
 struct TestIO {
@@ -143,16 +144,15 @@ where
         self.effect_stack.push((name, fields));
     }
 
-    fn call(&mut self, module: usize, procedure: usize, stack: &mut S) -> Result<(), MachineError> {
-        let mut ctx = CommandContext {
-            name: "SomeCommand",
-            id: Id::default(),
-            author: Id::default().into(),
-            version: Id::default(),
-            engine: &mut self.engine,
-        };
+    fn call(
+        &mut self,
+        module: usize,
+        procedure: usize,
+        stack: &mut S,
+        ctx: &CommandContext<'_>,
+    ) -> Result<(), MachineError> {
         match module {
-            0 => self.print_ffi.call(procedure, stack, &mut ctx),
+            0 => self.print_ffi.call(procedure, stack, ctx, &mut self.engine),
             _ => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,
             ))),
@@ -217,15 +217,49 @@ action foo(b int) {
 }
 "#;
 
+fn dummy_ctx_action(name: &str) -> CommandContext<'_> {
+    CommandContext::Action(ActionContext {
+        name,
+        head_id: Id::default(),
+    })
+}
+
+fn dummy_ctx_seal(name: &str) -> CommandContext<'_> {
+    CommandContext::Seal(SealContext {
+        name,
+        parent_id: Id::default(),
+    })
+}
+
+fn dummy_ctx_open(name: &str) -> CommandContext<'_> {
+    CommandContext::Open(OpenContext {
+        name,
+        parent_id: Id::default(),
+    })
+}
+
+fn dummy_ctx_policy(name: &str) -> CommandContext<'_> {
+    CommandContext::Policy(PolicyContext {
+        name,
+        id: Id::default(),
+        author: Id::default().into(),
+        version: Id::default(),
+        parent_id: Id::default(),
+    })
+}
+
 #[test]
 fn test_action() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
+    let name = "foo";
+    let mut machine =
+        compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
-    let mut rs = RunState::new(&machine, &mut io);
+    let ctx = dummy_ctx_action(name);
 
-    rs.call_action("foo", [Value::from(3), Value::from("foo")])
+    machine
+        .call_action(name, [Value::from(3), Value::from("foo")], &mut io, &ctx)
         .map_err(anyhow::Error::msg)?;
 
     println!("emit stack: {:?}", io.emit_stack);
@@ -237,9 +271,11 @@ fn test_action() -> anyhow::Result<()> {
 fn test_command_policy() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
+    let name = "Foo";
+    let mut machine =
+        compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+    let ctx = dummy_ctx_policy(name);
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
-    let mut rs = RunState::new(&machine, &mut io);
 
     let self_data = Struct {
         name: String::from("Bar"),
@@ -250,10 +286,57 @@ fn test_command_policy() -> anyhow::Result<()> {
         .into_iter()
         .collect(),
     };
-    rs.call_command_policy("Foo", &self_data)
+    machine
+        .call_command_policy(name, &self_data, &mut io, &ctx)
         .expect("Could not call command policy");
 
     println!("effects: {:?}", io.effect_stack);
+
+    Ok(())
+}
+
+#[test]
+fn test_seal() -> anyhow::Result<()> {
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
+
+    let name = "Foo";
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+    let ctx = dummy_ctx_seal(name);
+    let mut io = TestIO::new();
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+
+    let this_data = Struct {
+        name: String::from("Bar"),
+        fields: vec![
+            (String::from("a"), Value::Int(3)),
+            (String::from("b"), Value::Int(4)),
+        ]
+        .into_iter()
+        .collect(),
+    };
+    rs.call_seal(name, &this_data)
+        .expect("Could not call command policy");
+
+    assert_eq!(rs.stack.0[0], Value::None);
+
+    Ok(())
+}
+
+#[test]
+fn test_open() -> anyhow::Result<()> {
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
+
+    let name = "Foo";
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+    let ctx = dummy_ctx_open(name);
+    let mut io = TestIO::new();
+    let mut rs = RunState::new(&machine, &mut io, &ctx);
+
+    let envelope = Struct::new(name, &[]);
+    rs.call_open(name, &envelope)
+        .expect("Could not call command policy");
+
+    assert_eq!(rs.stack.0[0], Value::None);
 
     Ok(())
 }
@@ -311,15 +394,18 @@ command Increment {
 fn test_fact_create_delete() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
+    let mut machine =
+        compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     // We have to scope the RunState so that it and its mutable
     // reference to IO is dropped before we inspect the IO struct.
     {
-        let mut rs = RunState::new(&machine, &mut io);
-        let self_struct = Struct::new("Set", &[(KVPair::new_int("a", 3))]);
-        rs.call_command_policy("Set", &self_struct)
+        let name = "Set";
+        let ctx = dummy_ctx_policy(name);
+        let self_struct = Struct::new(name, [(KVPair::new_int("a", 3))]);
+        machine
+            .call_command_policy(name, &self_struct, &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -328,9 +414,11 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
     assert_eq!(io.facts[&fk], fv);
 
     {
-        let mut rs = RunState::new(&machine, &mut io);
+        let name = "Set";
+        let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new("Set", &[]);
-        rs.call_command_policy("Clear", &self_struct)
+        machine
+            .call_command_policy("Clear", &self_struct, &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -343,16 +431,23 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
 fn test_fact_query() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3).map_err(anyhow::Error::msg)?;
 
+    let mut machine =
+        compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     {
-        let mut rs = RunState::new(&machine, &mut io);
-        let self_struct = Struct::new("Set", &[KVPair::new_int("a", 3)]);
-        rs.call_command_policy("Set", &self_struct)
+        let name = "Set";
+        let ctx = dummy_ctx_policy(name);
+        let self_struct = Struct::new(name, [KVPair::new_int("a", 3)]);
+        machine
+            .call_command_policy(name, &self_struct, &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
-        let self_struct = Struct::new("Increment", &[]);
-        rs.call_command_policy("Increment", &self_struct)
+
+        let name = "Increment";
+        let ctx = dummy_ctx_policy(name);
+        let self_struct = Struct::new(name, &[]);
+        machine
+            .call_command_policy(name, &self_struct, &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -413,20 +508,22 @@ fn test_fact_exists() -> anyhow::Result<()> {
     let mut io = TestIO::new();
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
-    let mut rs = RunState::new(&machine, &mut io);
-
     {
+        let name = "setup";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = RunState::new(&machine, &mut io, &ctx);
         let self_struct = Struct::new("insertInvalid", &[]);
         let result = rs
-            .call_command_policy("setup", &self_struct)
+            .call_command_policy(name, &self_struct)
             .map_err(anyhow::Error::msg)?;
         assert_eq!(result, MachineStatus::Exited);
     }
 
     {
-        let result = rs
-            .call_action("testExists", [false])
-            .map_err(anyhow::Error::msg)?;
+        let name = "testExists";
+        let ctx = dummy_ctx_action(name);
+        let mut rs = RunState::new(&machine, &mut io, &ctx);
+        let result = rs.call_action(name, [false]).map_err(anyhow::Error::msg)?;
         assert_eq!(result, MachineStatus::Exited);
     }
 
@@ -443,9 +540,12 @@ fn test_not_operator() -> anyhow::Result<()> {
     "#,
         Version::V3,
     )?;
+
+    let name = "test";
+    let ctx = dummy_ctx_policy(name);
     let mut io = TestIO::new();
     let machine = compile_from_policy(&policy, &[])?;
-    let mut rs = RunState::new(&machine, &mut io);
+    let mut rs = RunState::new(&machine, &mut io, &ctx);
     let result = rs.run()?;
     assert_eq!(result, MachineStatus::Exited);
 
@@ -454,9 +554,10 @@ fn test_not_operator() -> anyhow::Result<()> {
 
 #[test]
 fn test_pop() {
-    let machine = Machine::new([Instruction::Pop]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_policy("test");
+    let machine = Machine::new([Instruction::Pop]);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     // Add something to the stack
     rs.stack.push(5).unwrap();
@@ -474,9 +575,10 @@ fn test_pop() {
 
 #[test]
 fn test_swap_empty() {
-    let machine = Machine::new([Instruction::Swap(1)]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_policy("test");
+    let machine = Machine::new([Instruction::Swap(1)]);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     // Empty stack - should fail
     let result = rs.step();
@@ -485,12 +587,13 @@ fn test_swap_empty() {
 
 #[test]
 fn test_swap_top() {
+    let mut io = TestIO::new();
+    let ctx = dummy_ctx_policy("test");
     let machine = Machine::new([
         // Swap with self (first) - should fail
         Instruction::Swap(0),
     ]);
-    let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     rs.stack.push(5).unwrap();
     assert!(rs
@@ -500,9 +603,10 @@ fn test_swap_top() {
 
 #[test]
 fn test_swap_middle() {
-    let machine = Machine::new([Instruction::Swap(1)]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_policy("test");
+    let machine = Machine::new([Instruction::Swap(1)]);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     // Swap with second - should succeed
     rs.stack.push(3).unwrap();
@@ -516,9 +620,10 @@ fn test_swap_middle() {
 
 #[test]
 fn test_dup_underflow() {
-    let machine = Machine::new([Instruction::Dup(2)]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_policy("test");
+    let machine = Machine::new([Instruction::Dup(2)]);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     // Try to dup with invalid stack index - should fail
     rs.stack.push(3).unwrap();
@@ -529,9 +634,10 @@ fn test_dup_underflow() {
 
 #[test]
 fn test_dup() {
-    let machine = Machine::new([Instruction::Dup(1)]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_policy("test");
+    let machine = Machine::new([Instruction::Dup(1)]);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     // Dup second value in stack - should succeed.
     rs.stack.push(3).unwrap();
@@ -555,9 +661,10 @@ fn test_add() {
     ];
 
     for t in tups.iter() {
-        let machine = Machine::new([Instruction::Add]);
         let mut io = TestIO::new();
-        let mut rs = machine.create_run_state(&mut io);
+        let ctx = dummy_ctx_policy("test");
+        let machine = Machine::new([Instruction::Add]);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
 
         // adds t.0+t.1
         rs.stack.push(t.0).unwrap();
@@ -579,9 +686,10 @@ fn test_add_overflow() {
     ];
 
     for p in pairs.iter() {
-        let machine = Machine::new([Instruction::Add]);
         let mut io = TestIO::new();
-        let mut rs = machine.create_run_state(&mut io);
+        let ctx = dummy_ctx_policy("test");
+        let machine = Machine::new([Instruction::Add]);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
@@ -600,9 +708,10 @@ fn test_sub() {
     let tups: [(i64, i64, i64); 4] = [(5, 3, 2), (5, 8, -3), (-10, 8, -18), (-10, -5, -5)];
 
     for t in tups.iter() {
-        let machine = Machine::new([Instruction::Sub]);
         let mut io = TestIO::new();
-        let mut rs = machine.create_run_state(&mut io);
+        let ctx = dummy_ctx_policy("test");
+        let machine = Machine::new([Instruction::Sub]);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
 
         // sub t.0-t.1
         rs.stack.push(t.0).unwrap();
@@ -626,9 +735,10 @@ fn test_sub_overflow() {
     ];
 
     for p in pairs.iter() {
-        let machine = Machine::new([Instruction::Sub]);
         let mut io = TestIO::new();
-        let mut rs = machine.create_run_state(&mut io);
+        let ctx = dummy_ctx_policy("test");
+        let machine = Machine::new([Instruction::Sub]);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
@@ -651,12 +761,14 @@ fn test_when_true() -> anyhow::Result<()> {
         }
     "#;
 
+    let name = "foo";
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
-    let mut rs = machine.create_run_state(&mut io);
-    let result = rs.call_action("foo", [true]).map_err(anyhow::Error::msg)?;
+    let result = rs.call_action(name, [true]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Panicked);
 
     Ok(())
@@ -672,12 +784,14 @@ fn test_when_false() -> anyhow::Result<()> {
         }
     "#;
 
+    let name = "foo";
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
-    let mut rs = machine.create_run_state(&mut io);
-    let result = rs.call_action("foo", [false]).map_err(anyhow::Error::msg)?;
+    let result = rs.call_action(name, [false]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
 
     Ok(())
@@ -706,12 +820,14 @@ const POLICY_MATCH: &str = r#"
 
 #[test]
 fn test_match_first() -> anyhow::Result<()> {
+    let name = "foo";
     let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
-    let mut rs = machine.create_run_state(&mut io);
-    let result = rs.call_action("foo", [5]).map_err(anyhow::Error::msg)?;
+    let result = rs.call_action(name, [5]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
@@ -724,12 +840,14 @@ fn test_match_first() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_second() -> anyhow::Result<()> {
+    let name = "foo";
     let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
     let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
 
-    let mut rs = machine.create_run_state(&mut io);
-    let result = rs.call_action("foo", [6]).map_err(anyhow::Error::msg)?;
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+    let result = rs.call_action(name, [6]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
@@ -742,11 +860,13 @@ fn test_match_second() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_none() -> anyhow::Result<()> {
+    let name = "foo";
     let policy = parse_policy_str(POLICY_MATCH, Version::V3).map_err(anyhow::Error::msg)?;
     let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
 
-    let mut rs = machine.create_run_state(&mut io);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs
         .call_action("foo", [Value::Int(0)])
         .map_err(anyhow::Error::msg)?;
@@ -781,7 +901,6 @@ fn test_match_duplicate() -> anyhow::Result<()> {
         }
     "#;
     let policy = parse_policy_str(policy_str, Version::V3).map_err(anyhow::Error::msg)?;
-    let _ = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg);
     let res = compile_from_policy(&policy, &[]);
     assert!(matches!(
         res,
@@ -814,14 +933,16 @@ const POLICY_IS: &str = r#"
 
 #[test]
 fn test_is_some_statement() -> anyhow::Result<()> {
+    let name = "check_none";
     let policy = parse_policy_str(POLICY_IS, Version::V3).map_err(anyhow::Error::msg)?;
     let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
 
     // Test with a value that is not None
-    let mut rs = machine.create_run_state(&mut io);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs
-        .call_action("check_none", [Value::Int(10)])
+        .call_action(name, [Value::Int(10)])
         .map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
     assert_eq!(io.emit_stack.len(), 1);
@@ -835,14 +956,16 @@ fn test_is_some_statement() -> anyhow::Result<()> {
 
 #[test]
 fn test_is_none_statement() -> anyhow::Result<()> {
+    let name = "check_none";
     let policy = parse_policy_str(POLICY_IS, Version::V3).map_err(anyhow::Error::msg)?;
     let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
 
     // Test with a None value
-    let mut rs = machine.create_run_state(&mut io);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs
-        .call_action("check_none", [Value::None])
+        .call_action(name, [Value::None])
         .map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
     assert_eq!(io.emit_stack.len(), 1);
@@ -863,12 +986,14 @@ fn test_negative_numeric_expression() -> anyhow::Result<()> {
         check c
     }
     "#;
+    let name = "foo";
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
-    let mut rs = machine.create_run_state(&mut io);
-    let result = rs.call_action("foo", [-1]).map_err(anyhow::Error::msg)?;
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+    let result = rs.call_action(name, [-1]).map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
 
     Ok(())
@@ -886,13 +1011,15 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
         }
     }
     "#;
+    let name = "foo";
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
-    let mut rs = machine.create_run_state(&mut io);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs
-        .call_action("foo", [true, false])
+        .call_action(name, [true, false])
         .map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
 
@@ -906,14 +1033,14 @@ fn test_negative_overflow_numeric_expression() -> anyhow::Result<()> {
         let a = -x
     }
     "#;
+    let name = "check_overflow";
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
+    let ctx = dummy_ctx_action(name);
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
-    let mut rs = machine.create_run_state(&mut io);
-    let result = rs
-        .call_action("check_overflow", [i64::MIN])
-        .map_err(anyhow::Error::msg);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+    let result = rs.call_action(name, [i64::MIN]).map_err(anyhow::Error::msg);
 
     assert!(result.is_err());
 
@@ -942,12 +1069,14 @@ fn test_match_default() -> anyhow::Result<()> {
             }
         }
     "#;
+    let name = "foo";
     let policy = parse_policy_str(policy_str, Version::V3).map_err(anyhow::Error::msg)?;
     let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_action(name);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs
-        .call_action("foo", [Value::Int(6)])
+        .call_action(name, [Value::Int(6)])
         .map_err(anyhow::Error::msg)?;
     assert_eq!(result, MachineStatus::Exited);
     assert_eq!(io.emit_stack.len(), 1);
@@ -1103,9 +1232,11 @@ fn test_bytes() -> anyhow::Result<()> {
     let mut io = TestIO::new();
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
     {
-        let mut rs = machine.create_run_state(&mut io);
+        let name = "foo";
+        let ctx = dummy_ctx_action(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
 
-        rs.call_action("foo", [vec![0xa, 0xb, 0xc], vec![0, 255, 42]])
+        rs.call_action(name, [vec![0xa, 0xb, 0xc], vec![0, 255, 42]])
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -1166,8 +1297,10 @@ fn test_structs() -> anyhow::Result<()> {
     );
 
     {
-        let mut rs = machine.create_run_state(&mut io);
-        rs.call_action("foo", [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
+        let name = "foo";
+        let ctx = dummy_ctx_action(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        rs.call_action(name, [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -1178,7 +1311,7 @@ fn test_structs() -> anyhow::Result<()> {
             vec![
                 KVPair::new(
                     "bar",
-                    Value::Struct(Struct::new("Bar", &[KVPair::new("x", Value::Int(3))]))
+                    Value::Struct(Struct::new("Bar", [KVPair::new("x", Value::Int(3))]))
                 ),
                 KVPair::new("id", Value::Bytes(vec![0xa, 0xb, 0xc])),
             ]
@@ -1207,7 +1340,9 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
     let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     let err = {
-        let mut rs = machine.create_run_state(&mut io);
+        let name = "foo";
+        let ctx = dummy_ctx_action(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
         rs.call_action("foo", [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
             .unwrap_err()
     };
@@ -1243,7 +1378,8 @@ impl FfiModule for PrintFfi {
         &mut self,
         procedure: usize,
         stack: &mut impl Stack,
-        _ctx: &mut CommandContext<'_, E>,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
     ) -> Result<(), Self::Error> {
         match procedure {
             0 => {
@@ -1274,7 +1410,8 @@ fn test_ffi() {
     stack
         .push(Value::String("hello".to_string()))
         .expect("can't push");
-    io.call(0, 0, &mut stack).expect("Should succeed");
+    let ctx = dummy_ctx_action("test");
+    io.call(0, 0, &mut stack, &ctx).expect("Should succeed");
 
     // Verify function was called
     assert!(stack.pop::<String>().expect("should have return value") == "HELLO");
@@ -1288,7 +1425,8 @@ fn test_extcall() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_action("test");
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     rs.run().expect("Should succeed");
 
@@ -1308,7 +1446,8 @@ fn test_extcall_invalid_module() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_action("test");
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     assert_eq!(
         rs.run().unwrap_err(),
@@ -1324,7 +1463,8 @@ fn test_extcall_invalid_proc() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_action("test");
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     assert_eq!(
         rs.run().unwrap_err(),
@@ -1343,7 +1483,8 @@ fn test_extcall_invalid_arg() {
         Instruction::Exit,
     ]);
     let mut io = TestIO::new();
-    let mut rs = machine.create_run_state(&mut io);
+    let ctx = dummy_ctx_action("test");
+    let mut rs = machine.create_run_state(&mut io, &ctx);
 
     // Empty stack - should fail
     assert_eq!(
@@ -1374,11 +1515,15 @@ fn test_pure_function() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+    let mut machine =
+        compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     {
-        let mut rs = machine.create_run_state(&mut io);
-        rs.call_action("foo", [3]).map_err(anyhow::Error::msg)?;
+        let name = "foo";
+        let ctx = dummy_ctx_action(name);
+        machine
+            .call_action(name, [3], &mut io, &ctx)
+            .map_err(anyhow::Error::msg)?;
     }
 
     assert_eq!(
@@ -1418,12 +1563,15 @@ fn test_finish_function() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+    let mut machine =
+        compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
 
     {
-        let mut rs = machine.create_run_state(&mut io);
-        let self_struct = Struct::new("Foo", &[KVPair::new("x", Value::Int(3))]);
-        rs.call_command_policy("Foo", &self_struct)
+        let name = "Foo";
+        let ctx = dummy_ctx_policy(name);
+        let self_struct = Struct::new("Foo", [KVPair::new("x", Value::Int(3))]);
+        machine
+            .call_command_policy(name, &self_struct, &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -1480,6 +1628,7 @@ fn general_test_harness<F, G>(
     instructions: &[Instruction],
     mut machine_closure: F,
     mut rs_closure: G,
+    ctx: &CommandContext<'_>,
 ) where
     F: FnMut(&mut Machine) -> anyhow::Result<()>,
     G: FnMut(&mut RunState<'_, TestIO>) -> anyhow::Result<()>,
@@ -1489,7 +1638,7 @@ fn general_test_harness<F, G>(
     machine_closure(&mut m).unwrap();
 
     let mut io = TestIO::new();
-    let mut rs = m.create_run_state(&mut io);
+    let mut rs = m.create_run_state(&mut io, ctx);
     rs_closure(&mut rs).unwrap();
 }
 
@@ -1497,7 +1646,8 @@ fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType
     let m = Machine::new(instructions.to_owned());
 
     let mut io = TestIO::new();
-    let mut rs = m.create_run_state(&mut io);
+    let ctx = dummy_ctx_policy("test");
+    let mut rs = m.create_run_state(&mut io, &ctx);
     assert_eq!(rs.run(), Err(MachineError::new(error_type)));
 }
 
@@ -1507,6 +1657,7 @@ fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType
 // it.
 #[allow(clippy::redundant_clone)]
 fn test_errors() {
+    let ctx = dummy_ctx_policy("test");
     let x = String::from("x");
 
     // StackUnderflow: Pop an empty stack
@@ -1680,6 +1831,7 @@ fn test_errors() {
             assert_eq!(r, Err(MachineError::new(MachineErrorType::InvalidAddress)));
             Ok(())
         },
+        &ctx,
     );
 
     // InvalidAddress: Set PC to a label of the wrong type
@@ -1694,6 +1846,7 @@ fn test_errors() {
             assert_eq!(r, Err(MachineError::new(MachineErrorType::InvalidAddress)));
             Ok(())
         },
+        &ctx,
     );
 
     // InvalidInstruction: Swap of depth zero
@@ -1813,15 +1966,17 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
     // Create fact through Foo
     {
-        let mut rs = machine.create_run_state(&mut io);
+        let name = "Bar";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
         let self_struct = Struct::new(
             "Foo",
-            &[
+            [
                 KVPair::new("a", Value::Int(1)),
                 KVPair::new("x", Value::Int(2)),
             ],
         );
-        rs.call_command_policy("Bar", &self_struct)
+        rs.call_command_policy(name, &self_struct)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -1843,6 +1998,70 @@ fn test_fact_function_return() -> anyhow::Result<()> {
             ),]
         )
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_serialize_deserialize() -> anyhow::Result<()> {
+    let text = r#"
+        command Foo {
+            fields {
+                a int,
+                b string,
+            }
+
+            seal {
+                return serialize(this)
+            }
+            open {
+                // Don't access payload this way. See below.
+                return deserialize(envelope.payload)
+            }
+
+            policy {
+                finish {}
+            }
+        }
+    "#;
+
+    let this_struct = Struct::new(
+        "Foo",
+        [
+            KVPair::new("a", Value::Int(1)),
+            KVPair::new("b", Value::String(String::from("foo"))),
+        ],
+    );
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
+    let name = "Foo";
+    let this_bytes: Vec<u8> = {
+        let ctx = dummy_ctx_seal(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        rs.call_seal(name, &this_struct)
+            .map_err(anyhow::Error::msg)?;
+        let result = rs.consume_return()?;
+        result.try_into().map_err(anyhow::Error::msg)?
+    };
+
+    {
+        let ctx = dummy_ctx_open(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        // call_open expects an envelope struct, so we smuggle the bytes
+        // in through a field. The payload would normally be accessed
+        // through an FFI module.
+        let envelope = Struct::new(
+            "Envelope",
+            [KVPair::new("payload", Value::Bytes(this_bytes))],
+        );
+        rs.call_open(name, &envelope).map_err(anyhow::Error::msg)?;
+        let result = rs.consume_return()?;
+        let got_this: Struct = result.try_into().map_err(anyhow::Error::msg)?;
+        assert_eq!(got_this, this_struct);
+    }
 
     Ok(())
 }

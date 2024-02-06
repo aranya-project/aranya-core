@@ -141,13 +141,12 @@ exists = { "exists" ~ fact_literal }
 // expression or the other depending on the boolean evaluation of the
 // first expression.
 if_e = { "if" ~ expression ~ "then" ~ expression ~ "else" ~ expression }
-// id(c) returns the ID of command c
-id_e = { "id(" ~ expression ~ ")" }
-// author_id(c) returns the ID of the author of command c
-author_id = { "author_id(" ~ expression ~ ")" }
+// serialize() and deserialize() transform command structs to/from bytes
+serialize = { "serialize(" ~ expression ~ ")" }
+deserialize = { "deserialize(" ~ expression ~ ")" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
-internal_function = _{ query | exists | if_e | id_e | author_id }
+internal_function = _{ query | exists | if_e | serialize | deserialize }
 // An atom is any of the literals, a bind marker, an internal function,
 // a function call, an identifier, or a parenthetical sub-expression.
 atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | bind | internal_function | function_call | foreign_function_call | identifier | "(" ~ expression ~ ")" }

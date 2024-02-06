@@ -8,6 +8,7 @@ use crypto::{
     idam::KeyStoreSecret,
     EncryptionKey, Engine, Error, Id, Identified, Rng, SigningKey,
 };
+use policy_vm::PolicyContext;
 
 use crate::{ffi::CommandContext, IdamCrypto, KeyStore, KeyStoreError};
 
@@ -159,40 +160,41 @@ fn test_idam_crypto() -> anyhow::Result<()> {
         &wrapped_enc_key,
     );
 
-    let mut ctx = CommandContext {
+    let mut ctx = CommandContext::Policy(PolicyContext {
         name: "GroupKey",
         id: Id::default(),
         author: Id::default().into(),
         version: Id::default(),
-        engine: &mut eng,
-    };
+        parent_id: Id::default(),
+    });
 
     // Test GroupKey delivery
     let sealed_group_key = test_ffi
-        .seal_group_key(&group_key_wrap, &pub_enc_key, group_id, &mut ctx)
+        .seal_group_key(&group_key_wrap, &pub_enc_key, group_id, &ctx, &mut eng)
         .expect("should be able to seal a GroupKey");
     let unsealed_group_key = test_ffi
-        .unseal_group_key(sealed_group_key, &pub_enc_key, group_id, &mut ctx)
+        .unseal_group_key(sealed_group_key, &pub_enc_key, group_id, &ctx, &mut eng)
         .expect("should be able to unseal a GroupKey");
     assert_eq!(group_key.key_id, unsealed_group_key.key_id);
 
     // Test message encryption
     let plaintext = "hello";
     let parent_id = group_id;
-    let mut ctx = CommandContext {
+    let mut ctx = CommandContext::Policy(PolicyContext {
         name: "Message",
         id: Id::default(),
         author: Id::default().into(),
         version: Id::default(),
-        engine: &mut eng,
-    };
+        parent_id: Id::default(),
+    });
     let ciphertext = test_ffi
         .encrypt_message(
             plaintext.as_bytes(),
             &group_key_wrap,
             parent_id,
             &pub_sign_key,
-            &mut ctx,
+            &ctx,
+            &mut eng,
         )
         .expect("should be able to encrypt message");
     let message = test_ffi
@@ -201,7 +203,8 @@ fn test_idam_crypto() -> anyhow::Result<()> {
             &group_key_wrap,
             parent_id,
             &pub_sign_key,
-            &mut ctx,
+            &ctx,
+            &mut eng,
         )
         .expect("should be able to decrypt message");
     assert_eq!(plaintext.as_bytes(), message);
