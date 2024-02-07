@@ -216,7 +216,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
         // The function table.
         let funcs = funcs.iter().map(|f| {
-            let name = format!("{module}::{}", f.ext_name);
+            let name = f.ext_name.to_string();
             let args = f.args.iter().map(|arg| {
                 let name = arg.def.identifier.clone();
                 let vtype = VTypeTokens::new(&arg.def.field_type, &vm);

@@ -264,9 +264,7 @@ fn test_ffi_derive() {
     {
         state.push(1i64);
         state.push(2i64);
-        state
-            .call("test::add")
-            .expect("`test::add` should not fail");
+        state.call("add").expect("`test::add` should not fail");
         let got = state.pop::<i64>().expect("should have got an `i64`");
         assert_eq!(got, 3, "`test::add` returned the wrong result");
         assert!(state.is_empty());
@@ -277,7 +275,7 @@ fn test_ffi_derive() {
         state.push(i64::MAX);
         state.push(1i64);
         let err = state
-            .call("test::add")
+            .call("add")
             .expect_err("`test::sub` should have failed");
         assert_eq!(
             err,
@@ -291,9 +289,7 @@ fn test_ffi_derive() {
     {
         state.push(10i64);
         state.push(2i64);
-        state
-            .call("test::sub")
-            .expect("`test::sub` should not fail");
+        state.call("sub").expect("`test::sub` should not fail");
         let got = state.pop::<i64>().expect("should have got an `i64`");
         assert_eq!(got, 8, "`test::sub` returned the wrong result");
         assert!(state.is_empty());
@@ -304,7 +300,7 @@ fn test_ffi_derive() {
         state.push(i64::MIN);
         state.push(2i64);
         let err = state
-            .call("test::sub")
+            .call("sub")
             .expect_err("`test::sub` should have failed");
         assert_eq!(
             err,
@@ -319,7 +315,7 @@ fn test_ffi_derive() {
         state.push("hello, ");
         state.push("world!");
         state
-            .call("test::concat")
+            .call("concat")
             .expect("`test::concat` should not fail");
         let got = state.pop::<String>().expect("should have got a `String`");
         assert_eq!(
@@ -339,7 +335,7 @@ fn test_ffi_derive() {
 
         for (id, len) in [(a, 1), (b, 0)] {
             state
-                .call("test::renamed_identity")
+                .call("renamed_identity")
                 .expect("`test::renamed_identity` should not fail");
             let got = state.pop::<Id>().expect("should have got an `Id`");
             assert_eq!(
@@ -354,7 +350,7 @@ fn test_ffi_derive() {
     {
         state.push("existing arg");
         state
-            .call("test::no_args")
+            .call("no_args")
             .expect("`test::no_args` should not fail");
         let got = state.pop::<i64>().expect("should have got an `i64`");
         assert_eq!(
@@ -373,7 +369,7 @@ fn test_ffi_derive() {
         state.push(TestModule::<(), ()>::NO_RESULT_ARGS.1);
         state.push(TestModule::<(), ()>::NO_RESULT_ARGS.2);
         state
-            .call("test::no_result")
+            .call("no_result")
             .expect("`test::no_result` should not fail");
         assert!(state.is_empty());
     }
@@ -382,7 +378,7 @@ fn test_ffi_derive() {
     {
         state.push(TestModule::<(), ()>::CUSTOM_TYPE_ARG);
         state
-            .call("test::custom_type")
+            .call("custom_type")
             .expect("`test::custom_type` should not fail");
         let got = state.pop::<Label>().expect("should have got a `Label`");
         assert_eq!(
@@ -398,7 +394,7 @@ fn test_ffi_derive() {
         state.push(0i64);
         state.push(Vec::new());
         state
-            .call("test::custom_def")
+            .call("custom_def")
             .expect("`test::custom_def` should not fail");
         let got = state.pop::<bool>().expect("should have got a `bool`");
         assert!(got, "`test::custom_def` returned the wrong result`");
@@ -421,7 +417,7 @@ fn test_ffi_derive() {
         state.push(a.clone());
         state.push(b.clone());
         state
-            .call("test::struct_fn")
+            .call("struct_fn")
             .expect("`test::struct_fn` should not fail");
         let got = state.pop::<S2>().expect("should have got an `S2`");
         assert_eq!(got, S2 { a, b });

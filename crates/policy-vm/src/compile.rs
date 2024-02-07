@@ -579,7 +579,7 @@ impl<'a> CompileState<'a> {
                     .enumerate()
                     .find(|(_, proc)| proc.name == f.identifier)
                     .ok_or(CompileError::from_locator(
-                        CompileErrorType::NotDefined(f.module.clone()),
+                        CompileErrorType::NotDefined(format!("{}::{}", f.module, f.identifier)),
                         self.last_locator,
                         self.m.codemap.as_ref(),
                     ))?;
