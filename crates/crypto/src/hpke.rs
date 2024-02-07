@@ -1025,7 +1025,7 @@ impl Seq {
     }
 
     /// Returns the maximum allowed sequence number.
-    const fn max<N: ArrayLength>() -> u64 {
+    pub(crate) const fn max<N: ArrayLength>() -> u64 {
         // 1<<(8*N) - 1
         let shift = 8usize.saturating_mul(N::USIZE);
         match 1u64.checked_shl(shift as u32) {
@@ -1149,6 +1149,27 @@ mod tests {
                 .compute_nonce::<U2>(&base)
                 .expect("unable to create nonce");
             assert!(seen.insert(got), "duplicate nonce: {got:?}");
+        }
+    }
+
+    #[test]
+    fn test_invalid_psk() {
+        let err = Psk::new(&[], &[]).expect_err("should get `InvalidPsk`");
+        assert_eq!(err, InvalidPsk);
+    }
+
+    #[test]
+    fn test_psk_ct_eq() {
+        let cases = [
+            (true, ("abc", "123"), ("abc", "123")),
+            (false, ("a", "b"), ("a", "x")),
+            (false, ("a", "b"), ("x", "b")),
+            (false, ("a", "b"), ("c", "d")),
+        ];
+        for (pass, lhs, rhs) in cases {
+            let lhs = Psk::new(lhs.0.as_bytes(), lhs.1.as_bytes()).expect("should not fail");
+            let rhs = Psk::new(rhs.0.as_bytes(), rhs.1.as_bytes()).expect("should not fail");
+            assert_eq!(pass, bool::from(lhs.ct_eq(&rhs)));
         }
     }
 }

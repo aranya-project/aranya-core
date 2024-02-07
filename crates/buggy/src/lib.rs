@@ -46,7 +46,7 @@ extern crate alloc;
 
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
-use core::{fmt, panic::Location};
+use core::{convert::Infallible, fmt, panic::Location};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 /// Error type for errors that should be unreachable, indicating a bug.
@@ -111,6 +111,12 @@ impl fmt::Display for Bug {
 }
 
 impl trouble::Error for Bug {}
+
+impl From<Infallible> for Bug {
+    fn from(err: Infallible) -> Self {
+        match err {}
+    }
+}
 
 /// Extension trait for assuming an option or result can be unwrapped.
 pub trait BugExt<T> {

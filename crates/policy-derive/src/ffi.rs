@@ -254,7 +254,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
-                fn call<__E: #crypto::Engine + ?Sized>(
+                fn call<__E: #crypto::engine::Engine + ?::core::marker::Sized>(
                     &mut self,
                     __proc: usize,
                     __stack: &mut impl #vm::Stack,
@@ -273,7 +273,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                             _ => {
                                 return ::core::result::Result::Err(
                                     #vm::MachineError::new(#vm::MachineErrorType::FfiProcedureNotDefined(
-                                        Self::SCHEMA.name.to_owned(),
+                                        #alloc::string::String::from(Self::SCHEMA.name),
                                         __proc,
                                 )));
                             }
@@ -307,9 +307,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
             #(#structs)*
         }
-
-        #[cfg(test)]
-        pub(crate) use #module::*;
+        pub use #module::*;
 
         #[doc(hidden)]
         #[allow(missing_docs, unused_extern_crates)]
@@ -499,11 +497,13 @@ impl Func {
             .iter()
             .any(|arg| matches!(arg, FnArg::Receiver(_)));
 
-        // The second and third arguments are `&CommandContext` and
-        // `&mut E`, which is passed in by `call`, so skip them.
+        // The second and third arguments are `&CommandContext`
+        // and `&mut E`, which are passed in by `call`, so skip
+        // them.
         //
-        // TODO(eric): we should issue a diagnostic when the first
-        // non-self argument isn't `&CommandContext`.
+        // TODO(eric): we should issue a diagnostic when the
+        // first non-self argument isn't `&CommandContext` and
+        // second argument isn't `&mut E`.
         let num_skip = if is_method { 3 } else { 2 };
         let num_args = match item.sig.inputs.len().checked_sub(num_skip) {
             Some(n) => n,

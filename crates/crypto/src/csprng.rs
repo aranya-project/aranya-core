@@ -6,7 +6,7 @@
 //! directly unless you are implementing an engine.
 
 use generic_array::{ArrayLength, GenericArray};
-#[cfg(not(target_os = "vxworks"))]
+#[cfg(all(feature = "getrandom", not(target_os = "vxworks")))]
 pub use getrandom;
 
 /// A cryptographically secure pseudorandom number generator

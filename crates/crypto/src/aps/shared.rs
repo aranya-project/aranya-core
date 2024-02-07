@@ -1,162 +1,182 @@
-use generic_array::GenericArray;
-use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
 
 use crate::{
-    aead::{Aead, KeyData, Nonce, Tag},
-    aranya::{Encap, EncryptionKey, EncryptionPublicKey},
+    csprng::{Csprng, Random},
     engine::Engine,
-    error::Error,
-    hpke::{Hpke, Mode},
     import::{ExportError, Import, ImportError},
-    kem::Kem,
+    kem::{DecapKey, Kem},
     keys::{SecretKey, SecretKeyBytes},
-    util::Ciphertext,
+    zeroize::ZeroizeOnDrop,
 };
 
-/// A channel author's encapsulated secret.
-#[derive(Serialize, Deserialize)]
-#[serde(bound = "")]
-pub(super) struct AuthorEncap<E: Engine + ?Sized> {
-    /// The encapsulation needed to decrypt `ciphertext`.
-    encap: Encap<E>,
-    /// The encrypted ephemeral key, `skE`.
-    #[allow(clippy::type_complexity)]
-    ciphertext: Ciphertext<
-        GenericArray<u8, <<E::Kem as Kem>::DecapKey as SecretKey>::Size>,
-        GenericArray<u8, <E::Aead as Aead>::Overhead>,
-    >,
-}
+/// The root key material for a channel.
+pub(crate) struct RootChannelKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
 
-/// A channel peer's encapsulated secret.
-#[derive(Serialize, Deserialize)]
-#[serde(transparent)]
-pub(super) struct PeerEncap<E: Engine + ?Sized>(Encap<E>);
-
-impl<E: Engine + ?Sized> PeerEncap<E> {
-    /// Creates a peer's encapsulation deterministically using
-    /// `ephemeral_sk`.
-    pub fn new(
-        author_sk: &EncryptionKey<E>,
-        peer_pk: &EncryptionPublicKey<E>,
-        info: &[u8],
-        ephemeral_sk: EphemeralDecapKey<E>,
-    ) -> Result<Self, Error> {
-        let (encap, _) = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send_deterministically(
-            Mode::Auth(&author_sk.0),
-            &peer_pk.0,
-            info,
-            // TODO(eric): should HPKE take a ref?
-            ephemeral_sk.into_inner(),
-        )?;
-        Ok(Self(Encap(encap)))
+impl<E: Engine + ?Sized> RootChannelKey<E> {
+    pub(super) fn new(sk: <E::Kem as Kem>::DecapKey) -> Self {
+        Self(sk)
     }
 
-    /// Encodes itself as bytes.
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+    pub(super) fn public(&self) -> <E::Kem as Kem>::EncapKey {
+        self.0.public()
     }
 
-    /// Returns itself from its byte encoding.
-    pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
-        Ok(Self(Encap::from_bytes(data)?))
-    }
-
-    pub fn as_inner(&self) -> &<E::Kem as Kem>::Encap {
-        self.0.as_inner()
-    }
-}
-
-/// An ephemeral decapsulation (secret) key.
-pub(super) struct EphemeralDecapKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
-
-impl<E: Engine + ?Sized> EphemeralDecapKey<E> {
-    /// Creates a random ephemeral decapsulation key.
-    pub fn new(eng: &mut E) -> Self {
-        Self(<<E::Kem as Kem>::DecapKey as SecretKey>::new(eng))
-    }
-
-    /// Encrypts the ephemeral secret key to itself (`sk`).
-    pub fn seal(
-        self,
-        eng: &mut E,
-        sk: &EncryptionKey<E>,
-        info: &[u8],
-    ) -> Result<AuthorEncap<E>, Error> {
-        let (encap, mut ctx) = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(
-            eng,
-            Mode::Auth(&sk.0),
-            &sk.public().0,
-            info,
-        )?;
-        let (ciphertext, overhead) = {
-            let mut secret = self.try_export_secret()?;
-            let mut tag = Tag::<E::Aead>::default();
-            ctx.seal_in_place(secret.as_bytes_mut(), &mut tag, info)?;
-            (secret.into_bytes(), tag)
-        };
-        Ok(AuthorEncap {
-            encap: Encap(encap),
-            ciphertext: Ciphertext {
-                ciphertext,
-                overhead,
-            },
-        })
-    }
-
-    /// Decrypts the ephemeral secret key that we encrypted to
-    /// ourself.
-    pub fn open(encap: AuthorEncap<E>, sk: &EncryptionKey<E>, info: &[u8]) -> Result<Self, Error> {
-        let mut ctx = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(
-            Mode::Auth(&sk.public().0),
-            &encap.encap.0,
-            &sk.0,
-            info,
-        )?;
-        let Ciphertext {
-            mut ciphertext,
-            overhead,
-        } = encap.ciphertext;
-        ctx.open_in_place(&mut ciphertext, &overhead, info)?;
-        let ephemeral_sk = <E::Kem as Kem>::DecapKey::import(&ciphertext)?;
-        Ok(EphemeralDecapKey(ephemeral_sk))
-    }
-
-    pub fn into_inner(self) -> <E::Kem as Kem>::DecapKey {
+    pub(super) fn into_inner(self) -> <E::Kem as Kem>::DecapKey {
         self.0
     }
-
-    pub fn try_export_secret(
-        &self,
-    ) -> Result<SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>, ExportError> {
-        self.0.try_export_secret()
-    }
 }
 
-impl<E: Engine + ?Sized> Clone for EphemeralDecapKey<E> {
+impl<E: Engine + ?Sized> Clone for RootChannelKey<E> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-/// A raw (key, nonce) tuple.
-pub struct RawKey<E: Engine + ?Sized> {
-    /// The key data.
-    pub key: KeyData<E::Aead>,
-    /// The base nonce.
-    pub base_nonce: Nonce<<E::Aead as Aead>::NonceSize>,
-}
-
-impl<E: Engine + ?Sized> ConstantTimeEq for RawKey<E> {
+impl<E: Engine + ?Sized> ConstantTimeEq for RootChannelKey<E> {
     fn ct_eq(&self, other: &Self) -> Choice {
-        let key = self.key.ct_eq(&other.key);
-        let nonce = self.base_nonce.ct_eq(&other.base_nonce);
-        key | nonce
+        self.0.ct_eq(&other.0)
     }
 }
 
-impl<E: Engine + ?Sized> ConstantTimeEq for &RawKey<E> {
-    fn ct_eq(&self, other: &Self) -> Choice {
-        (*self).ct_eq(other)
+impl<E: Engine + ?Sized> Random for RootChannelKey<E> {
+    fn random<R: Csprng>(rng: &mut R) -> Self {
+        Self(<<E::Kem as Kem>::DecapKey as SecretKey>::new(rng))
+    }
+}
+
+impl<E: Engine + ?Sized> SecretKey for RootChannelKey<E> {
+    fn new<R: Csprng>(rng: &mut R) -> Self {
+        Random::random(rng)
+    }
+
+    type Size = <<E::Kem as Kem>::DecapKey as SecretKey>::Size;
+
+    fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
+        self.0.try_export_secret()
+    }
+}
+
+impl<E: Engine + ?Sized> ZeroizeOnDrop for RootChannelKey<E> {
+    // The only field is `DecapKey`, which is `ZeroizeOnDrop`.
+}
+
+impl<'a, E: Engine + ?Sized> Import<&'a [u8]> for RootChannelKey<E> {
+    fn import(key: &'a [u8]) -> Result<Self, ImportError> {
+        Ok(Self(Import::import(key)?))
+    }
+}
+
+macro_rules! raw_key {
+    ($name:ident, $doc:expr $(,)?) => {
+        #[doc = $doc]
+        #[repr(C)]
+        pub struct $name<E: $crate::engine::Engine + ?::core::marker::Sized> {
+            /// The key data.
+            pub key: $crate::aead::KeyData<E::Aead>,
+            /// The base nonce.
+            pub base_nonce: $crate::aead::Nonce<<E::Aead as $crate::aead::Aead>::NonceSize>,
+        }
+
+        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::subtle::ConstantTimeEq
+            for $name<E>
+        {
+            #[inline]
+            fn ct_eq(&self, other: &Self) -> Choice {
+                let key = $crate::subtle::ConstantTimeEq::ct_eq(&self.key, &other.key);
+                let base_nonce =
+                    $crate::subtle::ConstantTimeEq::ct_eq(&self.base_nonce, &other.base_nonce);
+                key & base_nonce
+            }
+        }
+
+        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::subtle::ConstantTimeEq
+            for &$name<E>
+        {
+            #[inline]
+            fn ct_eq(&self, other: &Self) -> Choice {
+                $crate::subtle::ConstantTimeEq::ct_eq(*self, other)
+            }
+        }
+
+        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::clone::Clone for $name<E> {
+            #[inline]
+            fn clone(&self) -> Self {
+                Self {
+                    key: ::core::clone::Clone::clone(&self.key),
+                    base_nonce: ::core::clone::Clone::clone(&self.base_nonce),
+                }
+            }
+        }
+
+        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::csprng::Random
+            for $name<E>
+        {
+            fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+                Self {
+                    key: $crate::csprng::Random::random(rng),
+                    base_nonce: $crate::csprng::Random::random(rng),
+                }
+            }
+        }
+    };
+}
+raw_key!(RawSealKey, "A raw [`SealKey`][crate::aps::SealKey].");
+raw_key!(RawOpenKey, "A raw [`OpenKey`][crate::aps::OpenKey].");
+
+// Add some hooks for `test_util`.
+#[cfg(any(test, feature = "test_util"))]
+mod test_misc {
+    use core::fmt;
+
+    use super::*;
+
+    raw_key!(
+        TestingKey,
+        "Unifies `RawSealKey` and `RawOpenKey` for testing.",
+    );
+
+    impl<E: Engine + ?Sized> fmt::Debug for TestingKey<E> {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("TestingKey")
+                .field("key", &self.key.as_bytes())
+                .field("nonce", &self.base_nonce)
+                .finish()
+        }
+    }
+
+    impl<E: Engine + ?Sized> RawSealKey<E> {
+        pub(crate) fn to_testing_key(&self) -> TestingKey<E> {
+            TestingKey {
+                key: self.key.clone(),
+                base_nonce: self.base_nonce.clone(),
+            }
+        }
+    }
+
+    impl<E: Engine + ?Sized> RawOpenKey<E> {
+        pub(crate) fn to_testing_key(&self) -> TestingKey<E> {
+            TestingKey {
+                key: self.key.clone(),
+                base_nonce: self.base_nonce.clone(),
+            }
+        }
+    }
+
+    impl<E: Engine + ?Sized> From<RawSealKey<E>> for RawOpenKey<E> {
+        fn from(key: RawSealKey<E>) -> Self {
+            Self {
+                key: key.key.clone(),
+                base_nonce: key.base_nonce.clone(),
+            }
+        }
+    }
+
+    impl<E: Engine + ?Sized> From<RawOpenKey<E>> for RawSealKey<E> {
+        fn from(key: RawOpenKey<E>) -> Self {
+            Self {
+                key: key.key.clone(),
+                base_nonce: key.base_nonce.clone(),
+            }
+        }
     }
 }

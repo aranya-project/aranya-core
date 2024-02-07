@@ -425,19 +425,30 @@ macro_rules! test_engine {
                 #[allow(unused_imports)]
                 use super::*;
 
+                test!(test_same_seal_key_open_key);
+                test!(test_different_seal_key_open_key);
+                test!(test_seal_key_monotonic_seq_number);
+                test!(test_seal_key_seq_number_exhausted);
+                test!(test_open_key_seq_number_exhausted);
+                test!(test_open_key_wrong_seq_number);
+                test!(test_open_key_wrong_auth_data);
+
                 test!(test_derive_bidi_keys);
                 test!(test_derive_bidi_keys_different_labels);
                 test!(test_derive_bidi_keys_different_user_ids);
                 test!(test_derive_bidi_keys_different_cmd_ids);
                 test!(test_derive_bidi_keys_different_keys);
                 test!(test_derive_bidi_keys_same_user_id);
+                test!(test_wrap_bidi_author_secret);
 
                 test!(test_derive_uni_key);
                 test!(test_derive_uni_key_different_labels);
                 test!(test_derive_uni_key_different_user_ids);
                 test!(test_derive_uni_key_different_cmd_ids);
                 test!(test_derive_uni_key_different_keys);
-                test!(test_derive_uni_key_same_user_id);
+                test!(test_derive_uni_seal_key_same_user_id);
+                test!(test_derive_uni_open_key_same_user_id);
+                test!(test_wrap_uni_author_secret);
             }
             #[allow(unused_imports)]
             pub use aps::*;
@@ -462,11 +473,15 @@ pub mod engine {
             EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
             TopicKey, Version,
         },
-        aps::{BidiChannel, BidiEncaps, BidiKeys, UniChannel, UniEncaps, UniKey},
+        aps::{
+            AuthData, BidiAuthorSecret, BidiChannel, BidiKeys, BidiSecrets, OpenKey, RawSealKey,
+            SealKey, Seq, UniAuthorSecret, UniChannel, UniOpenKey, UniSealKey, UniSecrets,
+        },
         aranya::{
             Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
             UserId,
         },
+        csprng::Random,
         engine::Engine,
         error::Error,
         groupkey::{Context, GroupKey},
@@ -1109,6 +1124,294 @@ pub mod engine {
         assert_eq!(err, Error::Open(OpenError::Authentication));
     }
 
+    /// Checks that `open` can decrypt ciphertexts from `seal`.
+    fn assert_same_aps_keys<E: Engine + ?Sized>(seal: &mut SealKey<E>, open: &OpenKey<E>) {
+        const GOLDEN: &str = "hello, world!";
+        const AD: AuthData = AuthData {
+            version: 1,
+            label: 2,
+        };
+
+        let (ciphertext, seq) = {
+            let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+            let seq = seal
+                .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+                .expect("should be able to encrypt plaintext");
+            (dst, seq)
+        };
+
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        open.open(&mut plaintext, &ciphertext, &AD, seq)
+            .expect("decryption failed; keys differ");
+
+        assert_eq!(
+            GOLDEN.as_bytes(),
+            &plaintext,
+            "`OpenKey` produced incorrect plaintext"
+        );
+    }
+
+    /// Checks that `open` cannot decrypt ciphertexts from
+    /// `seal`.
+    ///
+    /// If `seal` is `None` then a random key will be used.
+    fn assert_different_aps_keys<E: Engine + ?Sized>(
+        eng: &mut E,
+        seal: Option<SealKey<E>>,
+        open: &OpenKey<E>,
+    ) {
+        const GOLDEN: &str = "hello, world!";
+        const AD: AuthData = AuthData {
+            version: 1,
+            label: 2,
+        };
+
+        let (ciphertext, seq) = {
+            let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+            let seq = seal
+                .unwrap_or_else(|| {
+                    SealKey::from_raw(&Random::random(eng), Seq::ZERO)
+                        .expect("should be able to generate random `SealKey`")
+                })
+                .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+                .expect("should be able to encrypt plaintext");
+            (dst, seq)
+        };
+
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        let err = open
+            .open(&mut plaintext, &ciphertext, &AD, seq)
+            .expect_err("should not be able to decrypt ciphertext with mismatched keys");
+        assert_eq!(
+            err,
+            crate::aps::OpenError::Authentication,
+            "should have received `Authentication` error"
+        );
+    }
+
+    /// A simple positive test for [`SealKey`] and [`OpenKey`].
+    pub fn test_same_seal_key_open_key<E: Engine + ?Sized>(eng: &mut E) {
+        let raw: RawSealKey<E> = Random::random(eng);
+        let mut seal =
+            SealKey::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
+        let open = OpenKey::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
+        assert_same_aps_keys(&mut seal, &open);
+    }
+
+    /// A simple negative test for [`SealKey`] and [`OpenKey`].
+    pub fn test_different_seal_key_open_key<E: Engine + ?Sized>(eng: &mut E) {
+        let seal = SealKey::from_raw(&Random::random(eng), Seq::ZERO)
+            .expect("should be able to create `SealKey`");
+        let open =
+            OpenKey::from_raw(&Random::random(eng)).expect("should be able to create `OpenKey`");
+        assert_different_aps_keys(eng, Some(seal), &open);
+        assert_different_aps_keys(eng, None, &open);
+    }
+
+    /// Tests that [`SealKey`]'s sequence number monotonically
+    /// advances by one each time.
+    pub fn test_seal_key_monotonic_seq_number<E: Engine + ?Sized>(eng: &mut E) {
+        let mut seal = SealKey::<E>::from_raw(&Random::random(eng), Seq::ZERO)
+            .expect("should be able to create `SealKey`");
+
+        const GOLDEN: &str = "hello, world!";
+        const AD: AuthData = AuthData {
+            version: 1,
+            label: 2,
+        };
+        let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+        // The upper bound is arbitrary. We obviously cannot test
+        // all 2^61-1 integers.
+        for idx in 0..u16::MAX {
+            let seq = seal
+                .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+                .expect("should be able to encrypt plaintext");
+            assert_eq!(seq, Seq::new(u64::from(idx)));
+        }
+    }
+
+    /// Tests that [`SealKey`] refuses to encrypt when its
+    /// sequence number has been exhausted.
+    pub fn test_seal_key_seq_number_exhausted<E: Engine + ?Sized>(eng: &mut E) {
+        let max = Seq::max::<<E::Aead as Aead>::NonceSize>();
+        // Start at one before the max.
+        let start = Seq::new(max - 1);
+        let mut seal = SealKey::<E>::from_raw(&Random::random(eng), start)
+            .expect("should be able to create `SealKey`");
+
+        const GOLDEN: &str = "hello, world!";
+        const AD: AuthData = AuthData {
+            version: 1,
+            label: 2,
+        };
+        let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+
+        // The first encryption should succeed since seq < max.
+        let seq = seal
+            .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+            .expect("should be able to encrypt plaintext");
+        assert_eq!(seq, Seq::new(max - 1));
+
+        // All encryptions afterward should fail since seq >=
+        // max.
+        let err = seal
+            .seal(&mut dst, GOLDEN.as_bytes(), &AD)
+            .expect_err("sequence counter should be exhausted");
+        assert_eq!(err, crate::aps::SealError::MessageLimitReached);
+    }
+
+    /// Tests that [`OpenKey`] refuses to decrypt when the
+    /// sequence number has been exhausted.
+    pub fn test_open_key_seq_number_exhausted<E: Engine + ?Sized>(eng: &mut E) {
+        let raw: RawSealKey<E> = Random::random(eng);
+        let mut seal =
+            SealKey::<E>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
+        let open = OpenKey::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
+        assert_same_aps_keys(&mut seal, &open);
+
+        const GOLDEN: &str = "hello, world!";
+        const AD: AuthData = AuthData {
+            version: 1,
+            label: 2,
+        };
+        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+
+        // `OpenKey` should reject the sequence number before
+        // attempting to decrypt the ciphertext, but start with
+        // a valid ciphertext anyway.
+        seal.seal(&mut ciphertext, GOLDEN.as_bytes(), &AD)
+            .expect("should be able to encrypt plaintext");
+
+        let exhausted_seq = Seq::new(Seq::max::<<E::Aead as Aead>::NonceSize>());
+        // Decryption should fail since seq >= max.
+        let err = open
+            .open(&mut plaintext, &ciphertext, &AD, exhausted_seq)
+            .expect_err("should not be able to decrypt ciphertext with exhausted seq number");
+        assert_eq!(
+            err,
+            crate::aps::OpenError::MessageLimitReached,
+            "should have received `MessageLimitReached` error"
+        );
+    }
+
+    /// Tests that [`OpenKey`]'s fails when the incorrect
+    /// sequence number is provided.
+    pub fn test_open_key_wrong_seq_number<E: Engine + ?Sized>(eng: &mut E) {
+        let raw: RawSealKey<E> = Random::random(eng);
+        let mut seal =
+            SealKey::<E>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
+        let open = OpenKey::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
+        assert_same_aps_keys(&mut seal, &open);
+
+        const GOLDEN: &str = "hello, world!";
+        const AD: AuthData = AuthData {
+            version: 1,
+            label: 2,
+        };
+        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        for _ in 0..100 {
+            let seq = seal
+                .seal(&mut ciphertext, GOLDEN.as_bytes(), &AD)
+                .expect("should be able to encrypt plaintext");
+
+            let wrong_seq = Seq::new(seq.to_u64() + 1);
+            let err = open
+                .open(&mut plaintext, &ciphertext, &AD, wrong_seq)
+                .expect_err("should not be able to decrypt ciphertext with the wrong seq number");
+            assert_eq!(
+                err,
+                crate::aps::OpenError::Authentication,
+                "should have received `Authentication` error"
+            );
+        }
+    }
+
+    /// Tests that [`OpenKey`]'s fails when the incorrect
+    /// [`AuthData`] is provided.
+    pub fn test_open_key_wrong_auth_data<E: Engine + ?Sized>(eng: &mut E) {
+        let raw: RawSealKey<E> = Random::random(eng);
+        let mut seal =
+            SealKey::<E>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
+        let open = OpenKey::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
+        assert_same_aps_keys(&mut seal, &open);
+
+        const GOLDEN: &str = "hello, world!";
+        const GOOD_AD: AuthData = AuthData {
+            version: 1,
+            label: 2,
+        };
+        const WRONG_AD: AuthData = AuthData {
+            version: 3,
+            label: 4,
+        };
+
+        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+        let seq = seal
+            .seal(&mut ciphertext, GOLDEN.as_bytes(), &GOOD_AD)
+            .expect("should be able to encrypt plaintext");
+
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        let err = open
+            .open(&mut plaintext, &ciphertext, &WRONG_AD, seq)
+            .expect_err("should not be able to decrypt ciphertext with the wrong `AuthData`");
+        assert_eq!(
+            err,
+            crate::aps::OpenError::Authentication,
+            "should have received `Authentication` error"
+        );
+    }
+
+    /// Checks that `lhs` and `rhs` match; that is, `lhs`'s
+    /// encryption key should match `rhs`'s decryption key and
+    /// vice versa.
+    fn assert_bidi_keys_match<E: Engine + ?Sized>(lhs: BidiKeys<E>, rhs: BidiKeys<E>) {
+        // We should never generate duplicate keys.
+        assert_ct_ne!(lhs.seal_key(), rhs.seal_key(), "duplicate `SealKey`");
+        assert_ct_ne!(lhs.open_key(), rhs.open_key(), "duplicate `OpenKey`");
+
+        // Simple test: they should not have the same bytes.
+        {
+            let (lhs_seal, lhs_open) = lhs.as_raw_keys();
+            let (rhs_seal, rhs_open) = rhs.as_raw_keys();
+            assert_ct_eq!(lhs_seal.to_testing_key(), rhs_open.to_testing_key());
+            assert_ct_eq!(lhs_open.to_testing_key(), rhs_seal.to_testing_key());
+        }
+
+        // Double check that the `to_testing_key` impls are
+        // correct: actually perform encryption, which should
+        // fail.
+        let (mut lhs_seal, lhs_open) = lhs
+            .into_keys()
+            .expect("should be able to create bidi keys tuple");
+        let (mut rhs_seal, rhs_open) = rhs
+            .into_keys()
+            .expect("should be able to create bidi keys tuple");
+        assert_same_aps_keys(&mut lhs_seal, &rhs_open);
+        assert_same_aps_keys(&mut rhs_seal, &lhs_open);
+    }
+
+    /// Checks that `lhs` and `rhs` do _not_ match.
+    fn assert_bidi_keys_mismatch<E: Engine + ?Sized>(
+        eng: &mut E,
+        lhs: BidiKeys<E>,
+        rhs: BidiKeys<E>,
+    ) {
+        // We should never generate duplicate keys.
+        assert_ct_ne!(lhs.seal_key(), rhs.seal_key(), "duplicate `SealKey`");
+        assert_ct_ne!(lhs.open_key(), rhs.open_key(), "duplicate `OpenKey`");
+
+        let (lhs_seal, lhs_open) = lhs
+            .into_keys()
+            .expect("should be able to create bidi keys tuple");
+        let (rhs_seal, rhs_open) = rhs
+            .into_keys()
+            .expect("should be able to create bidi keys tuple");
+        assert_different_aps_keys(eng, Some(lhs_seal), &rhs_open);
+        assert_different_aps_keys(eng, Some(rhs_seal), &lhs_open);
+    }
+
     /// A simple positive test for deriving [`BidiKeys`].
     pub fn test_derive_bidi_keys<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
@@ -1130,20 +1433,17 @@ pub mod engine {
             their_id: ch1.our_id,
             label,
         };
+        assert_eq!(ch1.author_info(), ch2.peer_info());
+        assert_eq!(ch1.peer_info(), ch2.author_info());
 
-        let BidiEncaps { author, peer } =
-            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
-        let ck1 =
-            BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt author `BidiKeys`");
+        let BidiSecrets { author, peer } =
+            BidiSecrets::new(eng, &ch1).expect("unable to create `BidiSecrets`");
+        let ck1 = BidiKeys::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `BidiKeys`");
         let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `BidiKeys`");
 
         // `ck1` and `ck2` should be the reverse of each other.
-        assert_ct_eq!(ck1.seal_key(), ck2.open_key());
-        assert_ct_eq!(ck1.open_key(), ck2.seal_key());
-
-        // We should not generate duplicate keys.
-        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.open_key(), ck2.open_key());
+        assert_bidi_keys_match(ck1, ck2);
     }
 
     /// Different labels should create different [`BidiKeys`].
@@ -1166,18 +1466,17 @@ pub mod engine {
             their_id: ch1.our_id,
             label: 456,
         };
+        assert_ne!(ch1.author_info(), ch2.peer_info());
+        assert_ne!(ch1.peer_info(), ch2.author_info());
 
-        let BidiEncaps { author, peer } =
-            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
-        let ck1 = BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt `BidiKeys`");
+        let BidiSecrets { author, peer } =
+            BidiSecrets::new(eng, &ch1).expect("unable to create `BidiSecrets`");
+        let ck1 = BidiKeys::from_author_secret(&ch1, author).expect("unable to decrypt `BidiKeys`");
         let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt `BidiKeys`");
 
         // The labels are different, so the keys should also be
         // different.
-        assert_ct_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ct_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.open_key(), ck2.open_key());
+        assert_bidi_keys_mismatch(eng, ck1, ck2);
     }
 
     /// Different UserIDs should create different
@@ -1204,17 +1503,16 @@ pub mod engine {
             their_id: UserId::random(eng),
             label,
         };
+        assert_ne!(ch1.author_info(), ch2.peer_info());
+        assert_ne!(ch1.peer_info(), ch2.author_info());
 
-        let BidiEncaps { author, peer } =
-            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
-        let ck1 =
-            BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt author `BidiKeys`");
+        let BidiSecrets { author, peer } =
+            BidiSecrets::new(eng, &ch1).expect("unable to create `BidiSecrets`");
+        let ck1 = BidiKeys::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `BidiKeys`");
         let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `BidiKeys`");
 
-        assert_ct_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ct_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.open_key(), ck2.open_key());
+        assert_bidi_keys_mismatch(eng, ck1, ck2);
     }
 
     /// Different command IDs should create different
@@ -1241,17 +1539,16 @@ pub mod engine {
             their_id: ch1.our_id,
             label,
         };
+        assert_ne!(ch1.author_info(), ch2.peer_info());
+        assert_ne!(ch1.peer_info(), ch2.author_info());
 
-        let BidiEncaps { author, peer } =
-            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
-        let ck1 =
-            BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt author `BidiKeys`");
+        let BidiSecrets { author, peer } =
+            BidiSecrets::new(eng, &ch1).expect("unable to create `BidiSecrets`");
+        let ck1 = BidiKeys::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `BidiKeys`");
         let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `BidiKeys`");
 
-        assert_ct_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ct_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.open_key(), ck2.open_key());
+        assert_bidi_keys_mismatch(eng, ck1, ck2);
     }
 
     /// Different encryption keys should create different
@@ -1278,17 +1575,19 @@ pub mod engine {
             their_id: ch1.our_id,
             label,
         };
+        // The info params are equal here because they do not
+        // include the encryption key IDs. Those are mixed in
+        // using HPKE's auth mode.
+        assert_eq!(ch1.author_info(), ch2.peer_info());
+        assert_eq!(ch1.peer_info(), ch2.author_info());
 
-        let BidiEncaps { author, peer } =
-            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`");
-        let ck1 =
-            BidiKeys::from_author_encap(&ch1, author).expect("unable to decrypt author `BidiKeys`");
+        let BidiSecrets { author, peer } =
+            BidiSecrets::new(eng, &ch1).expect("unable to create `BidiSecrets`");
+        let ck1 = BidiKeys::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `BidiKeys`");
         let ck2 = BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `BidiKeys`");
 
-        assert_ct_ne!(ck1.seal_key(), ck2.open_key());
-        assert_ct_ne!(ck1.open_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.seal_key(), ck2.seal_key());
-        assert_ct_ne!(ck1.open_key(), ck2.open_key());
+        assert_bidi_keys_mismatch(eng, ck1, ck2);
     }
 
     /// It is an error to use the same `UserId` when deriving
@@ -1314,17 +1613,17 @@ pub mod engine {
             label,
         };
 
-        let BidiEncaps { peer, .. } = {
+        let BidiSecrets { peer, .. } = {
             let prev = ch1.our_id;
             ch1.our_id = ch1.their_id;
 
-            let err = BidiEncaps::new(eng, &ch1)
+            let err = BidiSecrets::new(eng, &ch1)
                 .err()
-                .expect("should not be able to create `BidiEncaps`");
+                .expect("should not be able to create `BidiSecrets`");
             assert_eq!(err, Error::same_user_id());
 
             ch1.our_id = prev;
-            BidiEncaps::new(eng, &ch1).expect("unable to create `BidiEncaps`")
+            BidiSecrets::new(eng, &ch1).expect("unable to create `BidiSecrets`")
         };
 
         ch2.their_id = ch2.our_id;
@@ -1334,7 +1633,78 @@ pub mod engine {
         assert_eq!(err, Error::same_user_id());
     }
 
-    /// A simple positive test for deriving [`UniKey`].
+    /// Simple positive test for wrapping [`BidiAuthorSecret`]s.
+    pub fn test_wrap_bidi_author_secret<E: Engine + ?Sized>(eng: &mut E) {
+        let sk1 = EncryptionKey::new(eng);
+        let sk2 = EncryptionKey::new(eng);
+        let ch = BidiChannel {
+            parent_cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            our_id: IdentityKey::<E>::new(eng).id(),
+            their_pk: &sk2.public(),
+            their_id: IdentityKey::<E>::new(eng).id(),
+            label: 123,
+        };
+
+        let BidiSecrets { author: want, .. } =
+            BidiSecrets::new(eng, &ch).expect("unable to create `BidiSecrets`");
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `BidiAuthorSecret`"),
+        )
+        .expect("should be able to encode wrapped `BidiAuthorSecret`");
+        let wrapped = postcard::from_bytes(&bytes)
+            .expect("should be able to decode encoded wrapped `BidiAuthorSecret`");
+        let got: BidiAuthorSecret<E> = eng
+            .unwrap(&wrapped)
+            .expect("should be able to unwrap `BidiAuthorSecret`");
+        assert_ct_eq!(want, got);
+    }
+
+    /// Checks that `seal` and `open` are the same key.
+    fn assert_same_uni_key<E: Engine + ?Sized>(seal: UniSealKey<E>, open: UniOpenKey<E>) {
+        // Simple test: they should have the same bytes.
+        {
+            let seal = seal.as_raw_key();
+            let open = open.as_raw_key();
+            assert_ct_eq!(seal.to_testing_key(), open.to_testing_key());
+        }
+
+        // Double check that the `to_testing_key` impls are
+        // correct: actually perform encryption.
+        let mut seal = seal.into_key().expect("should have got `SealKey`");
+        let open = open.into_key().expect("should have got `OpenKey`");
+        assert_same_aps_keys(&mut seal, &open);
+    }
+
+    /// Checks that `seal` and `open` are different keys.
+    fn assert_different_uni_key<E: Engine + ?Sized>(
+        eng: &mut E,
+        seal: UniSealKey<E>,
+        open: UniOpenKey<E>,
+    ) {
+        // Simple test: they should not have the same bytes.
+        {
+            let seal = seal.as_raw_key();
+            let open = open.as_raw_key();
+            assert_ct_ne!(seal.to_testing_key(), open.to_testing_key());
+        }
+
+        // Double check that the `to_testing_key` impls are
+        // correct: actually perform encryption, which should
+        // fail.
+        //
+        // First check with `open` with `seal`.
+        let seal = seal.into_key().expect("should have got `SealKey`");
+        let open = open.into_key().expect("should have got `OpenKey`");
+        assert_different_aps_keys(eng, Some(seal), &open);
+
+        // Then also check `open` with a randomly generated key.
+        assert_different_aps_keys(eng, None, &open);
+    }
+
+    /// A simple positive test for deriving [`UniSealKey`] and
+    /// [`UniOpenKey`].
     pub fn test_derive_uni_key<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
@@ -1355,17 +1725,20 @@ pub mod engine {
             open_id: ch1.open_id,
             label,
         };
+        assert_eq!(ch1.info(), ch2.info());
 
-        let UniEncaps { author, peer } =
-            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
-        let ck1 =
-            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
-        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
+        let UniSecrets { author, peer } =
+            UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`");
+        let ck1 = UniSealKey::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `UniSealKey`");
+        let ck2 =
+            UniOpenKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniOpenKey`");
 
-        assert_ct_eq!(ck1.raw_key(), ck2.raw_key());
+        assert_same_uni_key(ck1, ck2);
     }
 
-    /// Different labels should create different [`UniKey`]s.
+    /// Different labels should create different [`UniSealKey`]
+    /// and [`UniOpenKey`]s.
     pub fn test_derive_uni_key_different_labels<E: Engine + ?Sized>(eng: &mut E) {
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
@@ -1385,18 +1758,20 @@ pub mod engine {
             open_id: ch1.open_id,
             label: 456,
         };
+        assert_ne!(ch1.info(), ch2.info());
 
-        let UniEncaps { author, peer } =
-            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
-        let ck1 =
-            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
-        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
+        let UniSecrets { author, peer } =
+            UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`");
+        let ck1 = UniSealKey::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `UniSealKey`");
+        let ck2 =
+            UniOpenKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniOpenKey`");
 
-        assert_ct_ne!(ck1.raw_key(), ck2.raw_key());
+        assert_different_uni_key(eng, ck1, ck2);
     }
 
     /// Different UserIDs should create different
-    /// [`UniKey`]s.
+    /// [`UniSealKey`] and [`UniOpenKey`]s.
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
     pub fn test_derive_uni_key_different_user_ids<E: Engine + ?Sized>(eng: &mut E) {
@@ -1419,18 +1794,20 @@ pub mod engine {
             open_id: UserId::random(eng),
             label,
         };
+        assert_ne!(ch1.info(), ch2.info());
 
-        let UniEncaps { author, peer } =
-            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
-        let ck1 =
-            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
-        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
+        let UniSecrets { author, peer } =
+            UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`");
+        let ck1 = UniSealKey::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `UniSealKey`");
+        let ck2 =
+            UniOpenKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniOpenKey`");
 
-        assert_ct_ne!(ck1.raw_key(), ck2.raw_key());
+        assert_different_uni_key(eng, ck1, ck2);
     }
 
     /// Different command IDs should create different
-    /// [`UniKey`]s.
+    /// [`UniSealKey`] and [`UniOpenKey`]s.
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
     pub fn test_derive_uni_key_different_cmd_ids<E: Engine + ?Sized>(eng: &mut E) {
@@ -1453,18 +1830,20 @@ pub mod engine {
             open_id: ch1.open_id,
             label,
         };
+        assert_ne!(ch1.info(), ch2.info());
 
-        let UniEncaps { author, peer } =
-            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
-        let ck1 =
-            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
-        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
+        let UniSecrets { author, peer } =
+            UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`");
+        let ck1 = UniSealKey::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `UniSealKey`");
+        let ck2 =
+            UniOpenKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniOpenKey`");
 
-        assert_ct_ne!(ck1.raw_key(), ck2.raw_key());
+        assert_different_uni_key(eng, ck1, ck2);
     }
 
     /// Different encryption keys should create different
-    /// [`UniKey`]s.
+    /// [`UniSealKey`] and [`UniOpenKey`]s.
     ///
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
     pub fn test_derive_uni_key_different_keys<E: Engine + ?Sized>(eng: &mut E) {
@@ -1488,18 +1867,19 @@ pub mod engine {
             label,
         };
 
-        let UniEncaps { author, peer } =
-            UniEncaps::new(eng, &ch1).expect("unable to create `UniEncaps`");
-        let ck1 =
-            UniKey::from_author_encap(&ch1, author).expect("unable to decrypt author `UniKey`");
-        let ck2 = UniKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniKey`");
+        let UniSecrets { author, peer } =
+            UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`");
+        let ck1 = UniSealKey::from_author_secret(&ch1, author)
+            .expect("unable to decrypt author `UniSealKey`");
+        let ck2 =
+            UniOpenKey::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `UniOpenKey`");
 
-        assert_ct_ne!(ck1.raw_key(), ck2.raw_key());
+        assert_different_uni_key(eng, ck1, ck2);
     }
 
     /// It is an error to use the same `UserId` when deriving
-    /// [`UniKey`]s.
-    pub fn test_derive_uni_key_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
+    /// [`UniSealKey`]s.
+    pub fn test_derive_uni_seal_key_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
         let label = 123;
         let sk1 = EncryptionKey::<E>::new(eng);
         let sk2 = EncryptionKey::<E>::new(eng);
@@ -1519,25 +1899,98 @@ pub mod engine {
             open_id: ch1.open_id,
             label,
         };
+        assert_eq!(ch1.info(), ch2.info());
 
-        let UniEncaps { peer, .. } = {
+        let UniSecrets { peer, .. } = {
             let prev = ch1.seal_id;
             ch1.seal_id = ch1.open_id;
 
-            let err = UniEncaps::new(eng, &ch1)
+            let err = UniSecrets::new(eng, &ch1)
                 .err()
-                .expect("should not be able to create `UniEncaps`");
+                .expect("should not be able to create `UniSecrets`");
             assert_eq!(err, Error::same_user_id());
 
             ch1.seal_id = prev;
-            UniEncaps::new(eng, &ch1).expect("unable to create `Unincaps`")
+            UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`")
         };
 
         ch2.seal_id = ch2.open_id;
-        let err = UniKey::from_peer_encap(&ch2, peer)
+        let err = UniSealKey::from_peer_encap(&ch2, peer)
             .err()
-            .expect("should not be able to decrypt `UniKeys`");
+            .expect("should not be able to decrypt `UniSealKey`");
         assert_eq!(err, Error::same_user_id());
+    }
+
+    /// It is an error to use the same `UserId` when deriving
+    /// [`UniOpenKey`]s.
+    pub fn test_derive_uni_open_key_same_user_id<E: Engine + ?Sized>(eng: &mut E) {
+        let label = 123;
+        let sk1 = EncryptionKey::<E>::new(eng);
+        let sk2 = EncryptionKey::<E>::new(eng);
+        let mut ch1 = UniChannel {
+            parent_cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            their_pk: &sk2.public(),
+            seal_id: IdentityKey::<E>::new(eng).id(),
+            open_id: IdentityKey::<E>::new(eng).id(),
+            label,
+        };
+        let mut ch2 = UniChannel {
+            parent_cmd_id: ch1.parent_cmd_id,
+            our_sk: &sk2,
+            their_pk: &EncryptionKey::<E>::new(eng).public(),
+            seal_id: ch1.seal_id,
+            open_id: ch1.open_id,
+            label,
+        };
+        assert_eq!(ch1.info(), ch2.info());
+
+        let UniSecrets { peer, .. } = {
+            let prev = ch1.seal_id;
+            ch1.seal_id = ch1.open_id;
+
+            let err = UniSecrets::new(eng, &ch1)
+                .err()
+                .expect("should not be able to create `UniSecrets`");
+            assert_eq!(err, Error::same_user_id());
+
+            ch1.seal_id = prev;
+            UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`")
+        };
+
+        ch2.seal_id = ch2.open_id;
+        let err = UniOpenKey::from_peer_encap(&ch2, peer)
+            .err()
+            .expect("should not be able to decrypt `UniOpenKey`");
+        assert_eq!(err, Error::same_user_id());
+    }
+
+    /// Simple positive test for wrapping [`UniAuthorSecret`]s.
+    pub fn test_wrap_uni_author_secret<E: Engine + ?Sized>(eng: &mut E) {
+        let sk1 = EncryptionKey::new(eng);
+        let sk2 = EncryptionKey::new(eng);
+        let ch = UniChannel {
+            parent_cmd_id: Id::random(eng),
+            our_sk: &sk1,
+            their_pk: &sk2.public(),
+            seal_id: IdentityKey::<E>::new(eng).id(),
+            open_id: IdentityKey::<E>::new(eng).id(),
+            label: 123,
+        };
+
+        let UniSecrets { author: want, .. } =
+            UniSecrets::new(eng, &ch).expect("unable to create `UniSecrets`");
+        let bytes = postcard::to_allocvec(
+            &eng.wrap(want.clone())
+                .expect("should be able to wrap `UniAuthorSecret`"),
+        )
+        .expect("should be able to encode wrapped `UniAuthorSecret`");
+        let wrapped = postcard::from_bytes(&bytes)
+            .expect("should be able to decode encoded wrapped `UniAuthorSecret`");
+        let got: UniAuthorSecret<E> = eng
+            .unwrap(&wrapped)
+            .expect("should be able to unwrap `UniAuthorSecret`");
+        assert_ct_eq!(want, got);
     }
 }
 

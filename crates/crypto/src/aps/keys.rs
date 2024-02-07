@@ -1,17 +1,19 @@
-use core::mem;
+use core::fmt;
 
+use buggy::Bug;
 use byteorder::{ByteOrder, LittleEndian};
 pub use hpke::MessageLimitReached;
 
+use super::shared::{RawOpenKey, RawSealKey};
 use crate::{
-    aead::{Aead, KeyData, Nonce},
+    aead,
     engine::Engine,
-    error::Error,
     hpke::{self, HpkeError, OpenCtx, SealCtx},
+    import::ImportError,
 };
 
 /// A sequence number.
-#[derive(Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Seq(hpke::Seq);
 
 impl Seq {
@@ -19,10 +21,7 @@ impl Seq {
     pub const ZERO: Self = Self(hpke::Seq::ZERO);
 
     /// Creates a sequence number.
-    ///
-    /// It returns an error if the sequence number is out of
-    /// range.
-    pub fn new(seq: u64) -> Self {
+    pub const fn new(seq: u64) -> Self {
         Self(hpke::Seq::new(seq))
     }
 
@@ -30,25 +29,56 @@ impl Seq {
     pub const fn to_u64(&self) -> u64 {
         self.0.to_u64()
     }
+
+    /// Returns the maximum allowed sequence number.
+    ///
+    /// For testing only.
+    #[cfg(any(test, feature = "test_util"))]
+    pub(crate) fn max<N: ::generic_array::ArrayLength>() -> u64 {
+        hpke::Seq::max::<N>()
+    }
 }
 
-/// The authenticated data for each encryotion.
-///
-/// Note that the sequence number is not part of the AD because
-/// it is included in the nonce.
-// `repr(packed)` so we can get its unpadded size; see the `SIZE`
-// constant.
-#[repr(packed)]
-struct AuthData {
-    version: u32,
-    label: u32,
+impl fmt::Display for Seq {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+macro_rules! packed {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident $($tokens:tt)*
+    ) => {
+        $(#[$meta])*
+        $vis struct $name $($tokens)*
+        impl $name {
+            /// The size in bytes of the packed struct.
+            $vis const PACKED_SIZE: usize = {
+                #[repr(packed)]
+                $vis struct $name $($tokens)*
+                ::core::mem::size_of::<$name>()
+            };
+        }
+    };
+}
+
+packed! {
+    /// The authenticated data for each encryotion.
+    ///
+    /// Note that the sequence number is not part of the AD because
+    /// it is included in the nonce.
+    pub struct AuthData {
+        /// The APS version number.
+        pub version: u32,
+        /// The channel's label.
+        pub label: u32,
+    }
 }
 
 impl AuthData {
-    const SIZE: usize = mem::size_of::<Self>();
-
-    fn into_bytes(self) -> [u8; Self::SIZE] {
-        let mut b = [0u8; Self::SIZE];
+    fn to_bytes(&self) -> [u8; Self::PACKED_SIZE] {
+        let mut b = [0u8; Self::PACKED_SIZE];
         LittleEndian::write_u32(&mut b[0..4], self.version);
         LittleEndian::write_u32(&mut b[4..8], self.label);
         b
@@ -65,11 +95,8 @@ impl<E: Engine + ?Sized> SealKey<E> {
     pub const OVERHEAD: usize = SealCtx::<E::Aead>::OVERHEAD;
 
     /// Creates an encryption key from its raw parts.
-    pub fn from_raw(
-        key: &KeyData<E::Aead>,
-        base_nonce: &Nonce<<E::Aead as Aead>::NonceSize>,
-        seq: Seq,
-    ) -> Result<Self, Error> {
+    pub fn from_raw(key: &RawSealKey<E>, seq: Seq) -> Result<Self, ImportError> {
+        let RawSealKey { key, base_nonce } = key;
         let ctx = SealCtx::new(key, base_nonce, seq.0)?;
         Ok(Self { ctx })
     }
@@ -84,10 +111,9 @@ impl<E: Engine + ?Sized> SealKey<E> {
         &mut self,
         dst: &mut [u8],
         plaintext: &[u8],
-        (version, label): (u32, u32),
-    ) -> Result<Seq, HpkeError> {
-        let ad = AuthData { version, label };
-        let seq = self.ctx.seal(dst, plaintext, &ad.into_bytes())?;
+        ad: &AuthData,
+    ) -> Result<Seq, SealError> {
+        let seq = self.ctx.seal(dst, plaintext, &ad.to_bytes())?;
         Ok(Seq(seq))
     }
 
@@ -97,16 +123,62 @@ impl<E: Engine + ?Sized> SealKey<E> {
         &mut self,
         data: impl AsMut<[u8]>,
         tag: &mut [u8],
-        (version, label): (u32, u32),
-    ) -> Result<Seq, HpkeError> {
-        let ad = AuthData { version, label };
-        let seq = self.ctx.seal_in_place(data, tag, &ad.into_bytes())?;
+        ad: &AuthData,
+    ) -> Result<Seq, SealError> {
+        let seq = self.ctx.seal_in_place(data, tag, &ad.to_bytes())?;
         Ok(Seq(seq))
     }
 
     /// Returns the current sequence number.
+    #[inline]
     pub fn seq(&self) -> Seq {
         Seq(self.ctx.seq())
+    }
+}
+
+/// An error from [`SealKey`].
+#[derive(Debug, Eq, PartialEq)]
+pub enum SealError {
+    /// The maximum nuumber of messages have been encrypted with
+    /// this particular key.
+    MessageLimitReached,
+    /// Some other error occurred.
+    Other(HpkeError),
+    /// An internal bug was discovered.
+    Bug(Bug),
+}
+
+impl fmt::Display for SealError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MessageLimitReached => f.write_str("message limit reached"),
+            Self::Other(err) => write!(f, "{err}"),
+            Self::Bug(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl trouble::Error for SealError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+        match self {
+            Self::Other(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<Bug> for SealError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
+    }
+}
+
+impl From<HpkeError> for SealError {
+    fn from(err: HpkeError) -> Self {
+        match err {
+            HpkeError::MessageLimitReached => Self::MessageLimitReached,
+            err => Self::Other(err),
+        }
     }
 }
 
@@ -120,12 +192,12 @@ impl<E: Engine + ?Sized> OpenKey<E> {
     pub const OVERHEAD: usize = OpenCtx::<E::Aead>::OVERHEAD;
 
     /// Creates decryption key from a raw key.
-    pub fn from_raw(
-        key: &KeyData<E::Aead>,
-        base_nonce: &Nonce<<E::Aead as Aead>::NonceSize>,
-        seq: Seq,
-    ) -> Result<Self, Error> {
-        let ctx = OpenCtx::new(key, base_nonce, seq.0)?;
+    pub fn from_raw(key: &RawOpenKey<E>) -> Result<Self, ImportError> {
+        let RawOpenKey { key, base_nonce } = key;
+        // We unconditionally set the sequence number to zero
+        // because `OpenKey` only supports decrypting with an
+        // explicit sequence number.
+        let ctx = OpenCtx::new(key, base_nonce, Seq::ZERO.0)?;
         Ok(Self { ctx })
     }
 
@@ -139,11 +211,11 @@ impl<E: Engine + ?Sized> OpenKey<E> {
         &self,
         dst: &mut [u8],
         ciphertext: &[u8],
-        (version, label): (u32, u32),
+        ad: &AuthData,
         seq: Seq,
-    ) -> Result<(), HpkeError> {
-        let ad = AuthData { version, label };
-        self.ctx.open_at(dst, ciphertext, &ad.into_bytes(), seq.0)
+    ) -> Result<(), OpenError> {
+        self.ctx.open_at(dst, ciphertext, &ad.to_bytes(), seq.0)?;
+        Ok(())
     }
 
     /// Decrypts and authenticates `ciphertext` at a particular
@@ -156,11 +228,64 @@ impl<E: Engine + ?Sized> OpenKey<E> {
         &self,
         data: impl AsMut<[u8]>,
         tag: &[u8],
-        (version, label): (u32, u32),
+        ad: &AuthData,
         seq: Seq,
-    ) -> Result<(), HpkeError> {
-        let ad = AuthData { version, label };
+    ) -> Result<(), OpenError> {
         self.ctx
-            .open_in_place_at(data, tag, &ad.into_bytes(), seq.0)
+            .open_in_place_at(data, tag, &ad.to_bytes(), seq.0)?;
+        Ok(())
+    }
+}
+
+/// An error from [`OpenKey`].
+#[derive(Debug, Eq, PartialEq)]
+pub enum OpenError {
+    /// The ciphertext could not be authenticated.
+    Authentication,
+    /// The sequence number is out of range.
+    ///
+    /// Note that [`SealKey`] will never produce sequence numbers
+    /// that are out of range. See
+    /// [`SealError::MessageLimitReached`] for more information.
+    MessageLimitReached,
+    /// Some other error occurred.
+    Other(HpkeError),
+    /// An internal bug was discovered.
+    Bug(Bug),
+}
+
+impl fmt::Display for OpenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Authentication => f.write_str("authentication error"),
+            Self::MessageLimitReached => f.write_str("message limit reached"),
+            Self::Other(err) => write!(f, "{err}"),
+            Self::Bug(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl trouble::Error for OpenError {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+        match self {
+            Self::Other(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<Bug> for OpenError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
+    }
+}
+
+impl From<HpkeError> for OpenError {
+    fn from(err: HpkeError) -> Self {
+        match err {
+            HpkeError::Open(aead::OpenError::Authentication) => Self::Authentication,
+            HpkeError::MessageLimitReached => Self::MessageLimitReached,
+            err => Self::Other(err),
+        }
     }
 }

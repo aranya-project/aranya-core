@@ -26,7 +26,7 @@ mod uni;
 
 pub use bidi::*;
 pub use keys::*;
-pub use shared::RawKey;
+pub use shared::{RawOpenKey, RawSealKey};
 pub use uni::*;
 
 use crate::error::Error;

@@ -13,7 +13,9 @@ workspace = true
 [lib]
 
 [features]
-default = []
+default = [
+	"getrandom",
+]
 
 # Enable allocations.
 alloc = [
@@ -61,6 +63,13 @@ committing-aead = [
 ed25519_batch = [
 	"alloc",
 	"ed25519-dalek/batch",
+]
+
+# Enable `getrandom` support.
+#
+# NB: `getrandom` does not support VxWorks < 7.
+getrandom = [
+	"dep:getrandom",
 ]
 
 # Build for Project Moonshot.
@@ -124,6 +133,7 @@ ecdsa = { version = "0.16", default-features = false, features = ["signing", "ve
 ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic", "sec1"] }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
+getrandom = { version = "0.2", default-features = false, optional = true }
 lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"], optional = true }
 more-asserts = { version = "0.3", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
@@ -132,6 +142,8 @@ postcard = { workspace = true, default-features = false, features = ["heapless",
 # `rand` is only pulled in when `std` is enabled. It's only used
 # to add trait impls for `ThreadRng`.
 rand = { workspace = true, features = ["std", "std_rng"], optional = true }
+# `rand_core` is required by the `rust` backend.
+rand_core = { workspace = true, default-features = false }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, optional = true }
 serde_repr = { version = "0.1", default-features = false, optional = true }
@@ -146,20 +158,6 @@ typenum = { version = "1", default-features = false, features = ["const-generics
 # should only use this feature inside [dev-dependencies].
 wycheproof = { version = "0.5", optional = true }
 zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
-
-# While `getrandom` supports VxWorks, it only supports VxWorks 7.
-# Since it uses `target_os = "vxworks"`, it indiscriminately
-# tries to build for all VxWorks versions, resulting in
-# compilation errors for VxWorks 6.9.
-#
-# We currently do not need to support VxWorks 7, so just disable
-# `getrandom` for VxWorks.
-[target.'cfg(target_os = "vxworks")'.dependencies]
-rand_core = { workspace = true, default-features = false }
-
-[target.'cfg(not(target_os = "vxworks"))'.dependencies]
-getrandom = { version = "0.2", features = ["custom"] }
-rand_core = { workspace = true, default-features = false }
 
 [dev-dependencies]
 # A little bit of a hack: always certain features for tests and
@@ -186,6 +184,7 @@ always_include_features = [
 	"boringssl",
 	"committing-aead",
 	"ed25519_batch",
+	"getrandom",
 	"rand_core",
 	"std",
 	"test_util",

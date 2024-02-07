@@ -1,0 +1,251 @@
+//! An in-memory implementation of [`KeyStore`].
+
+#![cfg(feature = "alloc")]
+
+extern crate alloc;
+
+use alloc::{
+    boxed::Box,
+    collections::btree_map::{self, BTreeMap},
+    vec::Vec,
+};
+use core::fmt;
+
+use super::{Entry, ErrorKind, KeyStore, Occupied, Vacant};
+use crate::{engine::WrappedKey, id::Id};
+
+/// An in-memory implementation of [`KeyStore`].
+#[derive(Clone, Default, Debug)]
+pub struct MemStore {
+    keys: BTreeMap<Id, StoredKey>,
+}
+
+impl MemStore {
+    /// Creates an empty [`MemStore`].
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            keys: BTreeMap::new(),
+        }
+    }
+}
+
+impl KeyStore for MemStore {
+    type Error = Error;
+
+    type Vacant<'a> = VacantEntry<'a>;
+    type Occupied<'a> = OccupiedEntry<'a>;
+
+    fn entry(&mut self, id: Id) -> Result<Entry<'_, Self>, Self::Error> {
+        match self.keys.entry(id) {
+            btree_map::Entry::Vacant(v) => Ok(Entry::Vacant(VacantEntry(v))),
+            btree_map::Entry::Occupied(v) => Ok(Entry::Occupied(OccupiedEntry(v))),
+        }
+    }
+
+    fn get<T: WrappedKey>(&self, id: &Id) -> Result<Option<T>, Self::Error> {
+        match self.keys.get(id) {
+            Some(v) => Ok(Some(v.to_wrapped()?)),
+            None => Ok(None),
+        }
+    }
+}
+
+/// An implementation of [`WrappedKey`].
+#[derive(Clone, Debug)]
+struct StoredKey(Vec<u8>);
+
+impl StoredKey {
+    fn new<T: WrappedKey>(key: T) -> Result<Self, Error> {
+        let data = postcard::to_allocvec(&key)
+            .map_err(|_| <Error as super::Error>::other(EncodingError))?;
+        Ok(Self(data))
+    }
+
+    fn to_wrapped<T: WrappedKey>(&self) -> Result<T, Error> {
+        postcard::from_bytes(&self.0).map_err(|_| <Error as super::Error>::other(DecodingError))
+    }
+}
+
+/// A vacant entry.
+pub struct VacantEntry<'a>(btree_map::VacantEntry<'a, Id, StoredKey>);
+
+impl Vacant for VacantEntry<'_> {
+    type Error = Error;
+
+    fn insert<T: WrappedKey>(self, key: T) -> Result<(), Self::Error> {
+        self.0.insert(StoredKey::new(key)?);
+        Ok(())
+    }
+}
+
+/// An occupied entry.
+pub struct OccupiedEntry<'a>(btree_map::OccupiedEntry<'a, Id, StoredKey>);
+
+impl Occupied for OccupiedEntry<'_> {
+    type Error = Error;
+
+    fn get<T: WrappedKey>(&self) -> Result<T, Self::Error> {
+        self.0.get().to_wrapped()
+    }
+
+    fn remove<T: WrappedKey>(self) -> Result<T, Self::Error> {
+        self.0.remove().to_wrapped()
+    }
+}
+
+/// An error returned by [`MemStore`].
+#[derive(Debug)]
+pub struct Error {
+    kind: ErrorKind,
+    err: Box<dyn trouble::Error>,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.err)
+    }
+}
+
+impl trouble::Error for Error {}
+
+impl super::Error for Error {
+    fn new<E>(kind: ErrorKind, err: E) -> Self
+    where
+        E: trouble::Error + Send + Sync + 'static,
+    {
+        Self {
+            kind,
+            err: Box::new(err),
+        }
+    }
+
+    fn kind(&self) -> ErrorKind {
+        self.kind
+    }
+}
+
+#[derive(Debug)]
+struct EncodingError;
+
+impl fmt::Display for EncodingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unable to encode key")
+    }
+}
+
+impl trouble::Error for EncodingError {}
+
+#[derive(Debug)]
+struct DecodingError;
+
+impl fmt::Display for DecodingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "unable to decode key")
+    }
+}
+
+impl trouble::Error for DecodingError {}
+
+#[cfg(test)]
+mod tests {
+    use serde::{Deserialize, Serialize};
+
+    use super::*;
+    use crate::{
+        default::{DefaultEngine, Rng},
+        id::{Id, Identified},
+    };
+
+    macro_rules! id {
+        ($id:expr) => {{
+            let data = ($id as u64).to_le_bytes();
+            Id::new::<DefaultEngine<Rng>>(&data, b"TestKey")
+        }};
+    }
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+    struct TestKey64(u64);
+
+    impl WrappedKey for TestKey64 {}
+
+    impl Identified for TestKey64 {
+        type Id = Id;
+
+        fn id(&self) -> Self::Id {
+            id!(self.0)
+        }
+    }
+
+    #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+    struct TestKeyId(Id);
+
+    impl WrappedKey for TestKeyId {}
+
+    impl Identified for TestKeyId {
+        type Id = Id;
+
+        fn id(&self) -> Self::Id {
+            self.0
+        }
+    }
+
+    #[test]
+    fn test_get() {
+        let mut store = MemStore::new();
+
+        let want = TestKey64(1);
+        store
+            .try_insert(id!(1), want)
+            .expect("should be able to store key");
+        let got = store
+            .get::<TestKey64>(&id!(1))
+            .expect("`get` should not fail")
+            .expect("should be able to find key");
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn test_get_wrong_key_type() {
+        let mut store = MemStore::new();
+
+        let want = TestKey64(1);
+        store
+            .try_insert(id!(1), want)
+            .expect("should be able to store key");
+        store
+            .get::<TestKeyId>(&id!(1))
+            .expect_err("should not be able to get key");
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut store = MemStore::new();
+
+        store
+            .try_insert(id!(1), TestKey64(1))
+            .expect("should be able to store key");
+        store
+            .try_insert(id!(2), TestKey64(2))
+            .expect("should be able to store key");
+
+        let got = store
+            .remove::<TestKey64>(&id!(1))
+            .expect("`remove` should not fail")
+            .expect("should be able to find key");
+        assert_eq!(got, TestKey64(1));
+
+        // After removing key=1, key=2 should still exist.
+        let got = store
+            .get::<TestKey64>(&id!(2))
+            .expect("`get` should not fail")
+            .expect("should be able to find key");
+        assert_eq!(got, TestKey64(2));
+
+        // But key=1 should not.
+        assert!(store
+            .get::<TestKey64>(&id!(1))
+            .expect("`get` should not fail")
+            .is_none());
+    }
+}

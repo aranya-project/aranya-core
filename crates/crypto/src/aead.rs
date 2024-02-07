@@ -388,7 +388,7 @@ pub trait Aead {
     /// the size of the authentication tag and key committment.
     ///
     /// Must be at least 16 octets (128 bits).
-    type Overhead: ArrayLength + 'static;
+    type Overhead: ArrayLength + IsGreaterOrEqual<U16> + 'static;
     /// Shorthand for [`Overhead`][Self::Overhead].
     const OVERHEAD: usize = Self::Overhead::USIZE;
 

@@ -122,6 +122,13 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 
         let policy = client.engine.get_policy(&self.policy_id)?;
 
+        // Validate command parent information
+        if let Prior::Single(parent) = command.parent() {
+            if self.head != parent {
+                return Err(ClientError::Bug(Bug::new("parent not valid")));
+            }
+        }
+
         // Try to evaluate command.
         sink.begin();
         let checkpoint = self.perspective.checkpoint();

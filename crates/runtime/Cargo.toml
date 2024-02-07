@@ -13,7 +13,8 @@ workspace = true
 [dependencies]
 base58 = { path = "../base58" }
 buggy = { path = "../buggy", features = ["alloc"] }
-crypto = { path = "../crypto" }
+# `crypto` enables `getrandom` by default.
+crypto = { path = "../crypto", default-features = false }
 heapless = { workspace = true, features = ["serde"] }
 policy-vm = { path = "../policy-vm" }
 postcard = { workspace = true, features = ["alloc"] }
@@ -59,8 +60,11 @@ clap = { version = "4", features = ["derive"] }
 directories-next = "2"
 
 [features]
-std = ["buggy/std"]
 default = []
+std = [
+	"buggy/std",
+	"crypto/std",
+]
 quic_syncer = [
     "std",
     "dep:serde_yaml",

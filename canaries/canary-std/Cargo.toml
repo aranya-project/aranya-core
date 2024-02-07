@@ -3,12 +3,11 @@ name = "canary-std"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 base58 = { path = "../../crates/base58" }
 buggy = { path = "../../crates/buggy" }
-crypto = { path = "../../crates/crypto" }
+# `crypto` enables `getrandom` by default.
+crypto = { path = "../../crates/crypto", default-features = false }
 idam = { path = "../../crates/idam" }
 policy-ast = { path = "../../crates/policy-ast" }
 policy-vm = { path = "../../crates/policy-vm" }

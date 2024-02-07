@@ -1,7 +1,5 @@
 //! Default implementations.
 
-#![forbid(unsafe_code)]
-
 use buggy::BugExt;
 use cfg_if::cfg_if;
 use generic_array::GenericArray;
@@ -30,16 +28,26 @@ use crate::{
 
 /// The default CSPRNG.
 ///
-/// By default, `Rng` uses [`getrandom`] which uses
-/// a system-specific CSPRNG. If `getrandom` does not support the
-/// current target, it can be overridden with
-/// [`register_custom_getrandom`][crate::csprng::getrandom::register_custom_getrandom].
-///
 /// Certain feature flags will change the default CSPRNG:
 ///
 /// - `moonshot`: Uses a CSPRNG specific to Project Moonshot.
-/// - `std`: Uses a thread-local CSPRNG.
+/// - `std`: Uses a thread-local CSPRNG seeded from the system
+/// CSPRNG.
 /// - `boringssl`: Uses BoringSSL's CSPRNG.
+/// - `libc`: Uses the system CSPRNG.
+///
+/// The `libc` flag is enabled by default.
+///
+/// If all of those feature flags are disabled, `Rng` invokes the
+/// following routine:
+///
+/// ```
+/// extern "C" {
+///     /// Reads `len` cryptographically secure bytes into
+///     /// `dst`.
+///     fn crypto_getrandom(dst: *mut u8, len: usize);
+/// }
+/// ```
 ///
 /// In general, `Rng` should be used directly instead of being
 /// created with [`Rng::new`]. For example:
@@ -52,16 +60,15 @@ use crate::{
 ///
 /// foo(&mut Rng);
 /// ```
+#[derive(Copy, Clone, Debug, Default)]
 pub struct Rng;
-
-impl Default for Rng {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl Rng {
     /// Creates a default CSPRNG.
+    ///
+    /// In general, `Rng` should be used directly instead of
+    /// being created with this method.
+    #[inline]
     pub const fn new() -> Self {
         Self
     }
@@ -77,8 +84,16 @@ impl Csprng for Rng {
                 RngCore::fill_bytes(&mut rand::thread_rng(), dst)
             } else if #[cfg(feature = "boringssl")] {
                 crate::boring::Rand.fill_bytes(dst)
-            } else {
+            } else if #[cfg(feature = "getrandom")] {
                 getrandom::getrandom(dst).expect("should not fail")
+            } else {
+                extern "C" {
+                    fn crypto_getrandom(dst: *mut u8, len: usize);
+                }
+                // SAFETY: FFI call, no invariants.
+                unsafe {
+                    crypto_getrandom(dst.as_mut_ptr(), dst.len())
+                }
             }
         }
     }

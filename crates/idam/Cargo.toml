@@ -24,7 +24,7 @@ std = [
 ]
 
 [dependencies]
-crypto = { path = "../crypto" }
+crypto = { path = "../crypto", default-features = false }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
 policy-vm = { path = "../policy-vm" }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
@@ -33,6 +33,7 @@ typenum = { version = "1", default-features = false }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+crypto = { path = "../crypto" }
 
 [package.metadata.docs.rs]
 all-features = true

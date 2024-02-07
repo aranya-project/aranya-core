@@ -3,7 +3,7 @@
 use std::{borrow::Borrow, collections::HashMap};
 
 use crypto::{
-    default::{DefaultCipherSuite, DefaultEngine, WrappedKey as DefaultWrappedKey},
+    default::{DefaultCipherSuite, DefaultEngine},
     engine::WrappedKey,
     idam::KeyStoreSecret,
     EncryptionKey, Engine, Error, Id, Identified, Rng, SigningKey,

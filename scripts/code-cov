@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+set -xeuo pipefail
+
+# cargo install cargo-tarpaulin
+
+tmp="$(mktemp -d)"
+cargo tarpaulin \
+	--no-dead-code \
+	--out Html \
+	--output-dir "${tmp}" \
+	"${@}"
+http -a 127.0.0.1 -p 8080 "${tmp}"
+
+# Or see https://doc.rust-lang.org/rustc/instrument-coverage.html
+if false; then
+	crate="${1}"
+	shift
+
+	tmp=
+	if [[ "${COV_TMP_DIR:-x}" == "x" ]]; then
+		tmp="$(mktemp -d)"
+	else
+		tmp="${COV_TMP_DIR}"
+	fi
+
+	export LLVM_PROFILE_FILE="${tmp}/default_%m_%p.profraw"
+	export RUSTFLAGS="-C instrument-coverage"
+	cargo test \
+		-p "${crate}" \
+		--no-run "${@}"
+
+	# TODO: exe suffix
+	exe="$(pwd)/target/debug/deps/${crate}-8fb0c3af8a09a514"
+	"${exe}"
+
+	cargo profdata -- \
+		merge \
+		-sparse "${tmp}"/*.profraw -o "${tmp}/merge.profdata"
+
+	cargo cov -- \
+		show \
+		-Xdemangler=rustfilt "${exe}" \
+		-instr-profile="${tmp}/merge.profdata" \
+		-show-line-counts-or-regions \
+		-show-instantiations &>"${tmp}/report.txt"
+
+	echo "${tmp}/report.txt"
+fi

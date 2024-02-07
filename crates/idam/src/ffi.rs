@@ -34,7 +34,7 @@ use crypto::{
     aead::Aead,
     engine::Engine,
     idam::{self, KeyStoreSecret, SealedGroupKey, WrappedGroupKey},
-    Error, Id,
+    Error, Id, Identified,
 };
 use generic_array::ArrayLength;
 use policy_vm::CommandContext;

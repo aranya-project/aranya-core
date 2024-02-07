@@ -99,6 +99,8 @@ impl fmt::Display for MachineErrorType {
     }
 }
 
+impl trouble::Error for MachineErrorType {}
+
 impl From<Infallible> for MachineErrorType {
     fn from(err: Infallible) -> Self {
         match err {}
