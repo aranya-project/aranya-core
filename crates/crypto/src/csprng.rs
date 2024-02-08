@@ -80,13 +80,21 @@ impl<const N: usize> Random for [u8; N] {
     }
 }
 
-impl Random for u128 {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
-        let mut v = [0u8; 16];
-        rng.fill_bytes(&mut v);
-        u128::from_le_bytes(v)
-    }
+macro_rules! rand_int_impl {
+    ($($name:ty)* $(,)?) => {
+        $(
+            impl $crate::Random for $name {
+                fn random<R: $crate::Csprng>(rng: &mut R) -> Self {
+                    let mut v = [0u8; ::core::mem::size_of::<$name>()];
+                    rng.fill_bytes(&mut v);
+                    <$name>::from_le_bytes(v)
+                }
+            }
+        )*
+    };
 }
+rand_int_impl!(u8 u16 u32 u64 u128 usize);
+rand_int_impl!(i8 i16 i32 i64 i128 isize);
 
 #[cfg(feature = "moonshot")]
 pub(crate) mod moonshot {

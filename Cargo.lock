@@ -863,6 +863,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "envelope-ffi"
+version = "0.1.0"
+dependencies = [
+ "crypto",
+ "policy-vm",
+ "trouble",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
