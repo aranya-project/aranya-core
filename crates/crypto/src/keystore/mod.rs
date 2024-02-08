@@ -92,7 +92,7 @@ impl fmt::Display for DuplicateKey {
 impl trouble::Error for DuplicateKey {}
 
 /// An error returned by [`KeyStore`].
-pub trait Error: trouble::Error + Sized {
+pub trait Error: trouble::Error + Send + Sync + 'static + Sized {
     /// Creates a new [`Error`].
     fn new<E>(kind: ErrorKind, err: E) -> Self
     where

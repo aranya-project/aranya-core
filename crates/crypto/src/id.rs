@@ -3,7 +3,6 @@
 #![forbid(unsafe_code)]
 
 use core::{
-    borrow::Borrow,
     fmt::{self, Debug, Display},
     hash::Hash,
     str::FromStr,
@@ -18,11 +17,10 @@ use serde::{
     ser::SerializeTuple,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use subtle::{Choice, ConstantTimeEq};
 use typenum::U64;
 
-use crate::{
-    aranya::Signature, ciphersuite::SuiteIds, csprng::Csprng, engine::Engine, hash::tuple_hash,
-};
+use crate::{ciphersuite::SuiteIds, csprng::Csprng, engine::Engine, hash::tuple_hash};
 
 /// A unique cryptographic ID.
 #[repr(C)]
@@ -39,20 +37,6 @@ impl Id {
             &SuiteIds::from_suite::<E>().into_bytes(),
             data,
             tag,
-        ])
-        .into_array()
-        .into()
-    }
-
-    /// Derives an [`Id`] from `msg` and a signature over `msg`.
-    pub fn from_sig<E: Engine + ?Sized>(msg: &[u8], sig: &Signature<E>) -> Id {
-        // id = H("ID-v1" || eng_id || suites || sig || msg)
-        tuple_hash::<E::Hash, _>([
-            "ID-v1".as_bytes(),
-            E::ID.as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            sig.raw_sig().borrow(),
-            msg,
         ])
         .into_array()
         .into()
@@ -96,8 +80,16 @@ impl Id {
 }
 
 impl Default for Id {
+    #[inline]
     fn default() -> Self {
         Self([0u8; 64])
+    }
+}
+
+impl ConstantTimeEq for Id {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.0.ct_eq(&other.0)
     }
 }
 
@@ -246,11 +238,24 @@ macro_rules! custom_id {
                 self.0.as_array()
             }
 
+            /// Returns itself as a plain `Id`.
+            #[inline]
+            pub const fn into_id(self) -> $crate::Id {
+                self.0
+            }
+
             /// Decode the ID from a base58 string.
             pub fn decode<T: ::core::convert::AsRef<[u8]>>(
                 s: T,
             ) -> ::core::result::Result<Self, $crate::id::DecodeError> {
                 $crate::Id::decode(s).map(Self)
+            }
+        }
+
+        impl $crate::subtle::ConstantTimeEq for $name {
+            #[inline]
+            fn ct_eq(&self, other: &Self) -> $crate::subtle::Choice {
+                self.0.ct_eq(&other.0)
             }
         }
 

@@ -9,7 +9,7 @@ use alloc::{
     collections::btree_map::{self, BTreeMap},
     vec::Vec,
 };
-use core::fmt;
+use core::{fmt, ops::Deref};
 
 use super::{Entry, ErrorKind, KeyStore, Occupied, Vacant};
 use crate::{engine::WrappedKey, id::Id};
@@ -98,7 +98,15 @@ impl Occupied for OccupiedEntry<'_> {
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    err: Box<dyn trouble::Error>,
+    err: Box<dyn trouble::Error + Send + Sync + 'static>,
+}
+
+impl Error {
+    /// Attempts to downcast the error into `T`.
+    #[inline]
+    pub fn downcast_ref<T: trouble::Error + 'static>(&self) -> Option<&T> {
+        self.err.downcast_ref::<T>()
+    }
 }
 
 impl fmt::Display for Error {
@@ -107,7 +115,11 @@ impl fmt::Display for Error {
     }
 }
 
-impl trouble::Error for Error {}
+impl trouble::Error for Error {
+    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+        Some(self.err.deref())
+    }
+}
 
 impl super::Error for Error {
     fn new<E>(kind: ErrorKind, err: E) -> Self
@@ -120,6 +132,7 @@ impl super::Error for Error {
         }
     }
 
+    #[inline]
     fn kind(&self) -> ErrorKind {
         self.kind
     }

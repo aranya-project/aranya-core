@@ -491,7 +491,7 @@ pub mod engine {
     /// Simple test for [`UserSigningKey`].
     pub fn test_simple_user_signing_key_sign<E: Engine + ?Sized>(eng: &mut E) {
         const MSG: &[u8] = b"hello, world!";
-        const CONTEXT: &str = "test_simple_user_signing_key_sign";
+        const CONTEXT: &[u8] = b"test_simple_user_signing_key_sign";
 
         let sign_key = UserSigningKey::<E>::new(eng);
 
@@ -506,11 +506,11 @@ pub mod engine {
 
         sign_key
             .public()
-            .verify(MSG, "wrong context", &sig)
+            .verify(MSG, b"wrong context", &sig)
             .expect_err("should fail with wrong context");
 
         let wrong_sig = sign_key
-            .sign(b"different", "signature")
+            .sign(b"different", b"signature")
             .expect("should not fail to create signature");
 
         sign_key
@@ -590,7 +590,7 @@ pub mod engine {
         let sign_key = IdentityKey::<E>::new(eng);
 
         const MESSAGE: &[u8] = b"hello, world!";
-        const CONTEXT: &str = "test_simple_identity_key_sign";
+        const CONTEXT: &[u8] = b"test_simple_identity_key_sign";
 
         let sig = sign_key
             .sign(MESSAGE, CONTEXT)
@@ -603,11 +603,11 @@ pub mod engine {
 
         sign_key
             .public()
-            .verify(MESSAGE, "wrong context", &sig)
+            .verify(MESSAGE, b"wrong context", &sig)
             .expect_err("should fail with wrong context");
 
         let wrong_sig = sign_key
-            .sign(b"different", "signature")
+            .sign(b"different", b"signature")
             .expect("should not fail to create signature");
 
         sign_key

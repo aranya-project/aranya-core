@@ -13,9 +13,7 @@ use crypto::{
     import::{Import, ImportError},
     keys::{PublicKey, SecretKey},
     rust::{Aes256Gcm, Sha512},
-    signer,
-    subtle::{Choice, ConstantTimeEq},
-    Rng,
+    signer, Rng,
 };
 use serde::{Deserialize, Serialize};
 
@@ -214,10 +212,3 @@ enum HsmKey {
 }
 
 custom_id!(KeyId, "Uniquely identifies an HSM key");
-
-impl ConstantTimeEq for KeyId {
-    #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
-        ConstantTimeEq::ct_eq(self.as_bytes(), other.as_bytes())
-    }
-}

@@ -28,7 +28,7 @@ crypto = { path = "../crypto", default-features = false }
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
 policy-vm = { path = "../policy-vm" }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
-trouble = { path = "../trouble" }
+trouble = { path = "../trouble", features = ["third-party"] }
 typenum = { version = "1", default-features = false }
 
 [dev-dependencies]

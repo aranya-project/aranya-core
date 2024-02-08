@@ -22,19 +22,18 @@ use crate::{
     kem::{DecapKey, Kem},
     keys::{PublicKey, SecretKey},
     misc::{ciphertext, key_misc, SigData},
+    policy::{self, Cmd, CmdId},
     signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
 };
 
 /// A signature created by a signing key.
-#[derive(Clone, Debug)]
 pub struct Signature<E: Engine + ?Sized>(pub(crate) <E::Signer as Signer>::Signature);
 
 impl<E: Engine + ?Sized> Signature<E> {
     /// Returns the raw signature.
     ///
     /// Should only be used in situations where contextual data
-    /// is being merged in. E.g., [`Id::from_sig`]. Otherwise,
-    /// use [`Serialize`].
+    /// is being merged in. Otherwise, use [`Serialize`].
     pub(crate) fn raw_sig(&self) -> SigData<E> {
         signer::Signature::export(&self.0)
     }
@@ -48,6 +47,18 @@ impl<E: Engine + ?Sized> Signature<E> {
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
         let sig = <E::Signer as Signer>::Signature::import(data)?;
         Ok(Self(sig))
+    }
+}
+
+impl<E: Engine + ?Sized> fmt::Debug for Signature<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Signature").field(&self.0).finish()
+    }
+}
+
+impl<E: Engine + ?Sized> Clone for Signature<E> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 
@@ -125,23 +136,23 @@ impl<E: Engine + ?Sized> IdentityKey<E> {
     /// let sk = IdentityKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
-    /// const CONTEXT: &str = "doc test";
+    /// const CONTEXT: &[u8] = b"doc test";
     /// let sig = sk.sign(MESSAGE, CONTEXT)
     ///     .expect("should not fail");
     ///
     /// sk.public().verify(MESSAGE, CONTEXT, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(MESSAGE, "wrong context", &sig)
+    /// sk.public().verify(MESSAGE, b"wrong context", &sig)
     ///     .expect_err("should fail");
     ///
-    /// let wrong_sig = sk.sign(b"different", "signature")
+    /// let wrong_sig = sk.sign(b"different", b"signature")
     ///     .expect("should not fail");
     /// sk.public().verify(MESSAGE, CONTEXT, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
-    pub fn sign(&self, msg: &[u8], context: &'static str) -> Result<Signature<E>, Error> {
+    pub fn sign(&self, msg: &[u8], context: &[u8]) -> Result<Signature<E>, Error> {
         // digest = H(
         //     "IdentityKey",
         //     suites,
@@ -153,7 +164,7 @@ impl<E: Engine + ?Sized> IdentityKey<E> {
             "IdentityKey".as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             self.id().as_bytes(),
-            context.as_bytes(),
+            context,
             msg,
         ]);
         let sig = self.0.sign(&sum)?;
@@ -176,12 +187,7 @@ impl<E: Engine + ?Sized> IdentityVerifyingKey<E> {
     /// bound to some `context`.
     ///
     /// `msg` must NOT be pre-hashed.
-    pub fn verify(
-        &self,
-        msg: &[u8],
-        context: &'static str,
-        sig: &Signature<E>,
-    ) -> Result<(), Error> {
+    pub fn verify(&self, msg: &[u8], context: &[u8], sig: &Signature<E>) -> Result<(), Error> {
         // digest = H(
         //     "IdentityKey",
         //     suites,
@@ -193,7 +199,7 @@ impl<E: Engine + ?Sized> IdentityVerifyingKey<E> {
             "IdentityKey".as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             self.id().as_bytes(),
-            context.as_bytes(),
+            context,
             msg,
         ]);
         Ok(self.0.verify(&sum, &sig.0)?)
@@ -233,23 +239,23 @@ impl<E: Engine + ?Sized> SigningKey<E> {
     /// let sk = SigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
-    /// const CONTEXT: &str = "doc test";
+    /// const CONTEXT: &[u8] = b"doc test";
     /// let sig = sk.sign(MESSAGE, CONTEXT)
     ///     .expect("should not fail");
     ///
     /// sk.public().verify(MESSAGE, CONTEXT, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(MESSAGE, "wrong context", &sig)
+    /// sk.public().verify(MESSAGE, b"wrong context", &sig)
     ///     .expect_err("should fail");
     ///
-    /// let wrong_sig = sk.sign(b"different", "signature")
+    /// let wrong_sig = sk.sign(b"different", b"signature")
     ///     .expect("should not fail");
     /// sk.public().verify(MESSAGE, CONTEXT, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
-    pub fn sign(&self, msg: &[u8], context: &'static str) -> Result<Signature<E>, Error> {
+    pub fn sign(&self, msg: &[u8], context: &[u8]) -> Result<Signature<E>, Error> {
         // digest = H(
         //     "SigningKey",
         //     suites,
@@ -261,11 +267,75 @@ impl<E: Engine + ?Sized> SigningKey<E> {
             "SigningKey".as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             self.id().as_bytes(),
-            context.as_bytes(),
+            context,
             msg,
         ]);
         let sig = self.0.sign(&sum)?;
         Ok(Signature(sig))
+    }
+
+    /// Creates a signature over a named policy command.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+    /// # {
+    /// use crypto::{
+    ///     default::{
+    ///         DefaultCipherSuite,
+    ///         DefaultEngine,
+    ///     },
+    ///     Cmd,
+    ///     Id,
+    ///     Rng,
+    ///     SigningKey,
+    /// };
+    ///
+    /// let sk = SigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
+    ///
+    /// let data = b"... some command data ...";
+    /// let name = "AddUser";
+    /// let parent_id = &Id::random(&mut Rng);
+    ///
+    /// let good_cmd = Cmd { data, name, parent_id };
+    /// let (sig, _) = sk.sign_cmd(good_cmd)
+    ///     .expect("should not fail");
+    /// sk.public().verify_cmd(good_cmd, &sig)
+    ///     .expect("should not fail");
+    ///
+    /// let wrong_name_cmd = Cmd {
+    ///     data,
+    ///     name: "wrong name",
+    ///     parent_id,
+    /// };
+    /// sk.public().verify_cmd(wrong_name_cmd, &sig)
+    ///     .expect_err("should fail");
+    ///
+    /// let wrong_id_cmd = Cmd {
+    ///     data,
+    ///     name,
+    ///     parent_id: &Id::random(&mut Rng),
+    /// };
+    /// sk.public().verify_cmd(wrong_id_cmd, &sig)
+    ///     .expect_err("should fail");
+    ///
+    /// let wrong_sig_cmd = Cmd {
+    ///     data: b"different",
+    ///     name: "signature",
+    ///     parent_id: &Id::random(&mut Rng),
+    /// };
+    /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd)
+    ///     .expect("should not fail");
+    /// sk.public().verify_cmd(good_cmd, &wrong_sig)
+    ///     .expect_err("should fail");
+    /// # }
+    /// ```
+    pub fn sign_cmd(&self, cmd: Cmd<'_>) -> Result<(Signature<E>, CmdId), Error> {
+        let digest = cmd.digest::<E>(&self.id());
+        let sig = Signature(self.0.sign(&digest)?);
+        let id = policy::cmd_id(&digest, &sig);
+        Ok((sig, id))
     }
 }
 
@@ -284,12 +354,7 @@ impl<E: Engine + ?Sized> VerifyingKey<E> {
     /// bound to some `context`.
     ///
     /// `msg` must NOT be pre-hashed.
-    pub fn verify(
-        &self,
-        msg: &[u8],
-        context: &'static str,
-        sig: &Signature<E>,
-    ) -> Result<(), Error> {
+    pub fn verify(&self, msg: &[u8], context: &[u8], sig: &Signature<E>) -> Result<(), Error> {
         // digest = H(
         //     "SigningKey",
         //     suites,
@@ -301,10 +366,19 @@ impl<E: Engine + ?Sized> VerifyingKey<E> {
             "SigningKey".as_bytes(),
             &SuiteIds::from_suite::<E>().into_bytes(),
             self.id().as_bytes(),
-            context.as_bytes(),
+            context,
             msg,
         ]);
         Ok(self.0.verify(&sum, &sig.0)?)
+    }
+
+    /// Verifies the signature allegedly created over a policy
+    /// command and returns its ID.
+    pub fn verify_cmd(&self, cmd: Cmd<'_>, sig: &Signature<E>) -> Result<CmdId, Error> {
+        let digest = cmd.digest::<E>(&self.id());
+        self.0.verify(&digest, &sig.0)?;
+        let id = policy::cmd_id(&digest, sig);
+        Ok(id)
     }
 }
 

@@ -1,4 +1,3 @@
-use crypto::{Engine, Signature};
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;
@@ -9,11 +8,6 @@ crypto::custom_id!(
 );
 
 impl Id {
-    /// Derives an [`Id`] from `cmd` and a signature over `cmd`.
-    pub fn new<E: Engine + ?Sized>(cmd: &[u8], sig: &Signature<E>) -> Self {
-        Self(crypto::Id::from_sig(cmd, sig))
-    }
-
     /// Derives an [`Id`] from some data.
     ///
     /// This is for testing only. It's not `#[cfg(test)]` because

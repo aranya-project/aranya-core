@@ -1,0 +1,68 @@
+[package]
+name = "crypto-ffi"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+
+[features]
+default = [
+	# NB: currently required.
+	"alloc",
+]
+
+# Enable allocations.
+alloc = []
+
+# Enable std.
+std = [
+	"alloc",
+
+	"crypto/std",
+	"policy-vm/std",
+	"postcard/use-std",
+	"serde/std",
+	"trouble/std",
+]
+
+# Enable the `testing` module.
+testing = [
+	"alloc",
+
+	"dep:serde",
+]
+
+#
+# Nightly features
+#
+
+[dependencies]
+cfg-if = { workspace = true, default-features = false }
+crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
+policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
+postcard = { workspace = true, default-features = false, features = ["heapless"] }
+serde = { workspace = true, default-features = false, features = ["derive"], optional = true }
+trouble = { path = "../trouble", default-features = false, features = ["third-party"] }
+
+[dev-dependencies]
+# A little bit of a hack: always certain features for tests and
+# examples.
+crypto-ffi = { path = ".", features = ["testing"] }
+crypto = { path = "../crypto", features = ["alloc", "getrandom"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+always_include_features = []
+
+skip_feature_sets = []
+
+denylist = []
