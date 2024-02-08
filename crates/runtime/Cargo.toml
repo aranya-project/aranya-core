@@ -44,6 +44,7 @@ policy-lang = { path = "../policy-lang" }
 rcgen = "0.11.3"
 test-log = { workspace = true }
 tempfile = "3.9.0"
+tracing-subscriber = { workspace = true, default-features = true } # affects features used by test-log
 
 # quic syncer
 futures = "0.3.28"

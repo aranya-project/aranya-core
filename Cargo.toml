@@ -51,6 +51,7 @@ test-log = { version = "0.2", default-features = false, features = ["trace"] }
 tokio = { version = "1.28.1", default-features = false}
 tokio-util = { version = "0.7.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
+tracing-subscriber = { version = "0.3.18", default-features = false }
 
 [profile.dev]
 panic = "abort"
