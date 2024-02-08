@@ -136,13 +136,6 @@ macro_rules! encode_x {
                 }
             }
 
-            impl Borrow<[u8]> for $name {
-                #[inline]
-                fn borrow(&self) -> &[u8] {
-                    self.as_bytes()
-                }
-            }
-
             impl Borrow<str> for $name {
                 #[inline]
                 fn borrow(&self) -> &str {

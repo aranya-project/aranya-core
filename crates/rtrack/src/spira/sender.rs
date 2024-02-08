@@ -129,7 +129,7 @@ impl Writer<Stdout> {
 
 impl Writer<File> {
     pub fn file<P: AsRef<Path>>(name: P) -> anyhow::Result<Self> {
-        let file = OpenOptions::new().write(true).append(true).open(name)?;
+        let file = OpenOptions::new().append(true).open(name)?;
         Ok(Self::new(file))
     }
 }

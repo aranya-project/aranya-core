@@ -3,7 +3,7 @@
 //! The [`spira`][macro@crate::spira] macro records the result of
 //! a unit test. For example:
 //!
-//! ```
+//! ```no_run
 //! #[test]
 //! #[rtrack::spira(
 //!     project_id = 4,
