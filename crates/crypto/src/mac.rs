@@ -8,19 +8,21 @@
 use core::{
     array::TryFromSliceError,
     fmt::{self, Debug},
+    num::NonZeroU16,
     result::Result,
 };
 
 use generic_array::{ArrayLength, GenericArray};
-use postcard::experimental::max_size::MaxSize;
-use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
 use typenum::{
     type_operators::{IsGreaterOrEqual, IsLess},
     U16, U32, U48, U64, U65536,
 };
 
-use crate::keys::{raw_key, SecretKey};
+use crate::{
+    keys::{raw_key, SecretKey},
+    AlgId,
+};
 
 /// An error from a [`Mac`].
 #[derive(Debug, Eq, PartialEq)]
@@ -43,27 +45,20 @@ impl fmt::Display for MacError {
 impl trouble::Error for MacError {}
 
 /// MAC algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, AlgId)]
 pub enum MacId {
     /// HMAC-SHA256.
+    #[alg_id(0x0001)]
     HmacSha256,
     /// HMAC-SHA384.
+    #[alg_id(0x0002)]
     HmacSha384,
     /// HMAC-SHA512.
+    #[alg_id(0x0003)]
     HmacSha512,
     /// Some other digital signature algorithm.
-    Other(u16),
-}
-
-impl MacId {
-    pub(crate) const fn to_u16(self) -> u16 {
-        match self {
-            Self::HmacSha256 => 0x0001,
-            Self::HmacSha384 => 0x0002,
-            Self::HmacSha512 => 0x0003,
-            Self::Other(id) => id,
-        }
-    }
+    #[alg_id(Other)]
+    Other(NonZeroU16),
 }
 
 /// A keyed Message Authentication Code Function (MAC).

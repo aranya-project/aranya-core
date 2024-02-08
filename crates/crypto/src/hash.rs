@@ -10,12 +10,11 @@
 use core::{
     borrow::{Borrow, BorrowMut},
     fmt::{self, Debug},
+    num::NonZeroU16,
     ops::{Deref, DerefMut},
 };
 
 use generic_array::{ArrayLength, GenericArray, IntoArrayLength};
-use postcard::experimental::max_size::MaxSize;
-use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
 use typenum::{
     generic_const_mappings::Const,
@@ -23,31 +22,26 @@ use typenum::{
     Unsigned, U32, U65536,
 };
 
+use crate::AlgId;
+
 /// Hash algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, AlgId)]
 pub enum HashId {
     /// SHA-256.
+    #[alg_id(0x0001)]
     Sha256,
     /// SHA-384.
+    #[alg_id(0x0002)]
     Sha384,
     /// SHA-512/256.
+    #[alg_id(0x0003)]
     Sha512_256,
     /// SHA-512.
+    #[alg_id(0x0004)]
     Sha512,
     /// Some other hash function.
-    Other(u16),
-}
-
-impl HashId {
-    pub(crate) const fn to_u16(self) -> u16 {
-        match self {
-            Self::Sha256 => 0x0001,
-            Self::Sha384 => 0x0002,
-            Self::Sha512_256 => 0x0003,
-            Self::Sha512 => 0x0004,
-            Self::Other(id) => id,
-        }
-    }
+    #[alg_id(Other)]
+    Other(NonZeroU16),
 }
 
 /// A cryptographic hash function.

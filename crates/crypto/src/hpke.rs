@@ -29,8 +29,6 @@ use core::{
 
 use buggy::{bug, Bug, BugExt};
 use generic_array::ArrayLength;
-use postcard::experimental::max_size::MaxSize;
-use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
 
 use crate::{
@@ -39,6 +37,7 @@ use crate::{
     import::{ExportError, Import, ImportError},
     kdf::{Context, Expand, Kdf, KdfError, Prk},
     kem::{Kem, KemError},
+    AlgId,
 };
 
 /// Converts `v` to a big-endian byte array.
@@ -168,40 +167,46 @@ impl ConstantTimeEq for Psk<'_> {
     }
 }
 
-/// KEM algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+/// KEM algorithm identifiers per [IANA].
+///
+/// [IANA]: https://www.iana.org/assignments/hpke/hpke.xhtml
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, AlgId)]
 pub enum KemId {
     /// DHKEM(P-256, HKDF-SHA256).
+    #[alg_id(0x0010)]
     DhKemP256HkdfSha256,
     /// DHKEM(P-384, HKDF-SHA384).
+    #[alg_id(0x0011)]
     DhKemP384HkdfSha384,
     /// DHKEM(P-521, HKDF-SHA512).
+    #[alg_id(0x0012)]
     DhKemP521HkdfSha512,
+    /// DHKEM(CP-256, HKDF-SHA256)
+    #[alg_id(0x0013)]
+    DhKemCp256HkdfSha256,
+    /// DHKEM(CP-384, HKDF-SHA384)
+    #[alg_id(0x0014)]
+    DhKemCp384HkdfSha384,
+    /// DHKEM(CP-521, HKDF-SHA512)
+    #[alg_id(0x0015)]
+    DhKemCp521HkdfSha512,
+    /// DHKEM(secp256k1, HKDF-SHA256)
+    #[alg_id(0x0016)]
+    DhKemSecp256k1HkdfSha256,
     /// DHKEM(X25519, HKDF-SHA256).
+    #[alg_id(0x0020)]
     DhKemX25519HkdfSha256,
     /// DHKEM(X448, HKDF-SHA512).
+    #[alg_id(0x0021)]
     DhKemX448HkdfSha512,
+    /// X25519Kyber768Draft00
+    #[alg_id(0x0030)]
+    X25519Kyber768Draft00,
     /// Some other KEM.
     ///
     /// Non-zero since 0x0000 is marked as 'reserved'.
+    #[alg_id(Other)]
     Other(NonZeroU16),
-}
-
-impl KemId {
-    pub(crate) const fn to_u16(self) -> u16 {
-        match self {
-            Self::DhKemP256HkdfSha256 => 0x0010,
-            Self::DhKemP384HkdfSha384 => 0x0011,
-            Self::DhKemP521HkdfSha512 => 0x0012,
-            Self::DhKemX25519HkdfSha256 => 0x0020,
-            Self::DhKemX448HkdfSha512 => 0x0021,
-            Self::Other(id) => id.get(),
-        }
-    }
-
-    pub(crate) const fn to_be_bytes(self) -> [u8; 2] {
-        i2osp!(self.to_u16())
-    }
 }
 
 impl Display for KemId {
@@ -210,41 +215,37 @@ impl Display for KemId {
             Self::DhKemP256HkdfSha256 => write!(f, "DHKEM(P-256, HKDF-SHA256)"),
             Self::DhKemP384HkdfSha384 => write!(f, "DHKEM(P-384, HKDF-SHA384)"),
             Self::DhKemP521HkdfSha512 => write!(f, "DHKEM(P-521, HKDF-SHA512)"),
+            Self::DhKemCp256HkdfSha256 => write!(f, "DHKEM(CP-256, HKDF-SHA256)"),
+            Self::DhKemCp384HkdfSha384 => write!(f, "DHKEM(CP-384, HKDF-SHA384)"),
+            Self::DhKemCp521HkdfSha512 => write!(f, "DHKEM(CP-521, HKDF-SHA512)"),
+            Self::DhKemSecp256k1HkdfSha256 => write!(f, "DHKEM(secp256k1, HKDF-SHA256)"),
             Self::DhKemX25519HkdfSha256 => write!(f, "DHKEM(X25519, HKDF-SHA256)"),
             Self::DhKemX448HkdfSha512 => write!(f, "DHKEM(X448, HKDF-SHA512)"),
+            Self::X25519Kyber768Draft00 => write!(f, "X25519Kyber768Draft00"),
             Self::Other(id) => write!(f, "Kem({:#02x})", id),
         }
     }
 }
 
-/// KDF algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+/// KDF algorithm identifiers per [IANA].
+///
+/// [IANA]: https://www.iana.org/assignments/hpke/hpke.xhtml
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, AlgId)]
 pub enum KdfId {
     /// HKDF-SHA256.
+    #[alg_id(0x0001)]
     HkdfSha256,
     /// HKDF-SHA384.
+    #[alg_id(0x0002)]
     HkdfSha384,
     /// HKDF-SHA512.
+    #[alg_id(0x0003)]
     HkdfSha512,
     /// Some other KDF.
     ///
     /// Non-zero since 0x0000 is marked as 'reserved'.
+    #[alg_id(Other)]
     Other(NonZeroU16),
-}
-
-impl KdfId {
-    pub(crate) const fn to_u16(self) -> u16 {
-        match self {
-            Self::HkdfSha256 => 0x0001,
-            Self::HkdfSha384 => 0x0002,
-            Self::HkdfSha512 => 0x0003,
-            Self::Other(id) => id.get(),
-        }
-    }
-
-    pub(crate) const fn to_be_bytes(self) -> [u8; 2] {
-        i2osp!(self.to_u16())
-    }
 }
 
 impl Display for KdfId {
@@ -258,47 +259,38 @@ impl Display for KdfId {
     }
 }
 
-/// AEAD algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+/// AEAD algorithm identifiers per [IANA].
+///
+/// [IANA]: https://www.iana.org/assignments/hpke/hpke.xhtml
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, AlgId)]
 pub enum AeadId {
     /// AES-128-GCM.
+    #[alg_id(0x0001)]
     Aes128Gcm,
     /// AES-256-GCM.
+    #[alg_id(0x0002)]
     Aes256Gcm,
     /// ChaCha20Poly1305.
+    #[alg_id(0x0003)]
     ChaCha20Poly1305,
     /// CMT-1 AES-256-GCM.
     ///
     /// Not an official RFC ID.
+    #[alg_id(0xfffd)]
     Cmt1Aes256Gcm,
     /// CMT-4 AES-256-GCM.
     ///
     /// Not an official RFC ID.
+    #[alg_id(0xfffe)]
     Cmt4Aes256Gcm,
     /// Some other AEAD.
     ///
     /// Non-zero since 0x0000 is marked as 'reserved'.
+    #[alg_id(Other)]
     Other(NonZeroU16),
     /// Export-only AEAD.
+    #[alg_id(0xffff)]
     ExportOnly,
-}
-
-impl AeadId {
-    pub(crate) const fn to_u16(self) -> u16 {
-        match self {
-            Self::Aes128Gcm => 0x0001,
-            Self::Aes256Gcm => 0x0002,
-            Self::ChaCha20Poly1305 => 0x0003,
-            Self::Cmt1Aes256Gcm => 0xfffd,
-            Self::Cmt4Aes256Gcm => 0xfffe,
-            Self::Other(id) => id.get(),
-            Self::ExportOnly => 0xffff,
-        }
-    }
-
-    pub(crate) const fn to_be_bytes(self) -> [u8; 2] {
-        i2osp!(self.to_u16())
-    }
 }
 
 impl Display for AeadId {
@@ -1109,8 +1101,9 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> ExportCtx<K, F, A> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::{collections::HashSet, ops::RangeInclusive};
 
+    use postcard::experimental::max_size::MaxSize;
     use typenum::{U1, U2};
 
     use super::*;
@@ -1170,6 +1163,53 @@ mod tests {
             let lhs = Psk::new(lhs.0.as_bytes(), lhs.1.as_bytes()).expect("should not fail");
             let rhs = Psk::new(rhs.0.as_bytes(), rhs.1.as_bytes()).expect("should not fail");
             assert_eq!(pass, bool::from(lhs.ct_eq(&rhs)));
+        }
+    }
+
+    /// Tests that [`AeadId`] is assigned correctly.
+    #[test]
+    fn test_aead_id() {
+        // NB: we include two unofficiant IDs.
+        let unassigned = 0x0004..=0xFFFE - 2;
+        for id in unassigned {
+            let want = AeadId::Other(NonZeroU16::new(id).expect("`id` should be non-zero"));
+            let encoded = postcard::to_vec::<_, { u16::POSTCARD_MAX_SIZE }>(&id)
+                .expect("should be able to encode `u16`");
+            let got: AeadId = postcard::from_bytes(&encoded).unwrap_or_else(|err| {
+                panic!("should be able to decode unassigned `AeadId` {id}: {err}")
+            });
+            assert_eq!(got, want);
+        }
+    }
+
+    /// Tests that [`KdfId`] is assigned correctly.
+    #[test]
+    fn test_kdf_id() {
+        let unassigned = 0x0004..=0xFFFF;
+        for id in unassigned {
+            let want = KdfId::Other(NonZeroU16::new(id).expect("`id` should be non-zero"));
+            let encoded = postcard::to_vec::<_, { u16::POSTCARD_MAX_SIZE }>(&id)
+                .expect("should be able to encode `u16`");
+            let got: KdfId = postcard::from_bytes(&encoded).unwrap_or_else(|err| {
+                panic!("should be able to decode unassigned `KdfId` {id}: {err}")
+            });
+            assert_eq!(got, want);
+        }
+    }
+
+    /// Tests that [`KemId`] is assigned correctly.
+    #[test]
+    fn test_kem_id() {
+        let unassigned: [RangeInclusive<u16>; 3] =
+            [0x0001..=0x000F, 0x0022..=0x002F, 0x0031..=0xFFFF];
+        for id in unassigned.into_iter().flatten() {
+            let want = KemId::Other(NonZeroU16::new(id).expect("`id` should be non-zero"));
+            let encoded = postcard::to_vec::<_, { u16::POSTCARD_MAX_SIZE }>(&id)
+                .expect("should be able to encode `u16`");
+            let got: KemId = postcard::from_bytes(&encoded).unwrap_or_else(|err| {
+                panic!("should be able to decode unassigned `KemId` {id}: {err}")
+            });
+            assert_eq!(got, want);
         }
     }
 }

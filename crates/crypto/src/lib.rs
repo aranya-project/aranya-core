@@ -45,6 +45,7 @@
 #[macro_use]
 mod util;
 
+pub(crate) use crypto_derive::AlgId;
 pub mod aead;
 pub mod apq;
 pub mod aps;

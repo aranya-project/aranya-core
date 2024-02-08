@@ -10,17 +10,17 @@
 use core::{
     borrow::Borrow,
     fmt::{self, Debug},
+    num::NonZeroU16,
     result::Result,
 };
 
 use buggy::Bug;
-use postcard::experimental::max_size::MaxSize;
-use serde::{Deserialize, Serialize};
 
 use crate::{
     asn1::EncodingError,
     import::Import,
     keys::{PublicKey, SecretKey},
+    AlgId,
 };
 
 /// An error from a [`Signer`].
@@ -76,33 +76,26 @@ impl From<Bug> for SignerError {
 }
 
 /// Digital signature algorithm identifiers.
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, AlgId)]
 pub enum SignerId {
     /// ECDSA using NIST Curve P-256.
+    #[alg_id(0x0001)]
     P256,
     /// ECDSA using NIST Curve P-384.
+    #[alg_id(0x0002)]
     P384,
     /// ECDSA using NIST Curve P-521.
+    #[alg_id(0x0003)]
     P521,
     /// EdDSA using Ed25519.
+    #[alg_id(0x0004)]
     Ed25519,
     /// EdDSA using Ed448.
+    #[alg_id(0x0005)]
     Ed448,
     /// Some other digital signature algorithm.
-    Other(u16),
-}
-
-impl SignerId {
-    pub(crate) const fn to_u16(self) -> u16 {
-        match self {
-            Self::P256 => 0x0001,
-            Self::P384 => 0x0002,
-            Self::P521 => 0x0003,
-            Self::Ed25519 => 0x0004,
-            Self::Ed448 => 0x0005,
-            Self::Other(id) => id,
-        }
-    }
+    #[alg_id(Other)]
+    Other(NonZeroU16),
 }
 
 /// Signer is a digital signature algorithm.
