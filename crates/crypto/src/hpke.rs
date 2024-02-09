@@ -1101,6 +1101,8 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> ExportCtx<K, F, A> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(clippy::panic)]
+
     use std::{collections::HashSet, ops::RangeInclusive};
 
     use postcard::experimental::max_size::MaxSize;

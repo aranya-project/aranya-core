@@ -3,6 +3,8 @@ CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = 1
 RUSTDOCFLAGS = { value = "", condition = { env_not_set = ["RUSTDOCFLAGS"] } }
 NIGHTLY = { script = ["cat rust-nightly.txt"] }
 
+RUSTFLAGS = { value = "-Dwarnings", condition = { env_set = ["CARGO_MAKE_CI"] } }
+
 [config]
 default_to_workspace = false
 skip_core_tasks = true
