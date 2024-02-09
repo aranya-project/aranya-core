@@ -1077,7 +1077,6 @@ impl<'a> CompileState<'a> {
         command_node: &AstNode<ast::CommandDefinition>,
     ) -> Result<(), CompileError> {
         let command = &command_node.inner;
-        self.define_struct(&command.identifier, &command.fields)?;
         self.map_range(command_node)?;
 
         self.define_label(
@@ -1186,6 +1185,11 @@ impl<'a> CompileState<'a> {
 
             self.define_struct(&fact.inner.identifier, &fields)?;
             self.define_fact(&fact.inner)?;
+        }
+
+        // Define command structs before compiling functions
+        for command in &policy.commands {
+            self.define_struct(&command.identifier, &command.fields)?;
         }
 
         self.enter_statement_context(StatementContext::PureFunction);
