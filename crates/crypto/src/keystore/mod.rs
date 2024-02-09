@@ -15,13 +15,13 @@ pub trait KeyStore {
     type Error: Error;
 
     /// A vacant entry.
-    type Vacant<'a>: Vacant<Error = Self::Error>;
+    type Vacant<'a, T: WrappedKey>: Vacant<T, Error = Self::Error>;
 
     /// An occupied entry.
-    type Occupied<'a>: Occupied<Error = Self::Error>;
+    type Occupied<'a, T: WrappedKey>: Occupied<T, Error = Self::Error>;
 
     /// Accesses a particular entry.
-    fn entry(&mut self, id: Id) -> Result<Entry<'_, Self>, Self::Error>;
+    fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error>;
 
     /// Retrieves a stored `WrappedKey`.
     fn get<T: WrappedKey>(&self, id: &Id) -> Result<Option<T>, Self::Error>;
@@ -49,35 +49,36 @@ pub trait KeyStore {
 }
 
 /// A view into a [`KeyStore`] entry.
-pub enum Entry<'a, S>
+pub enum Entry<'a, S, T>
 where
     S: KeyStore + ?Sized,
+    T: WrappedKey,
 {
     /// A vacant entry.
-    Vacant(S::Vacant<'a>),
+    Vacant(S::Vacant<'a, T>),
     /// An occupied entry.
-    Occupied(S::Occupied<'a>),
+    Occupied(S::Occupied<'a, T>),
 }
 
 /// A vacant entry.
-pub trait Vacant {
+pub trait Vacant<T: WrappedKey> {
     /// The error returned by [`insert`][Self::insert].
     type Error: Error;
 
     /// Inserts the entry.
-    fn insert<T: WrappedKey>(self, key: T) -> Result<(), Self::Error>;
+    fn insert(self, key: T) -> Result<(), Self::Error>;
 }
 
 /// An occupied entry.
-pub trait Occupied {
+pub trait Occupied<T: WrappedKey> {
     /// The error returned by [`get`][Self::get] and
     /// [`remove`][Self::remove].
     type Error: Error;
 
     /// Retrieves the entry.
-    fn get<T: WrappedKey>(&self) -> Result<T, Self::Error>;
+    fn get(&self) -> Result<T, Self::Error>;
     /// Retrieves and removes the entry.
-    fn remove<T: WrappedKey>(self) -> Result<T, Self::Error>;
+    fn remove(self) -> Result<T, Self::Error>;
 }
 
 #[derive(Debug)]

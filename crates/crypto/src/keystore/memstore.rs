@@ -9,7 +9,7 @@ use alloc::{
     collections::btree_map::{self, BTreeMap},
     vec::Vec,
 };
-use core::{fmt, ops::Deref};
+use core::{fmt, marker::PhantomData, ops::Deref};
 
 use super::{Entry, ErrorKind, KeyStore, Occupied, Vacant};
 use crate::{engine::WrappedKey, id::Id};
@@ -33,13 +33,19 @@ impl MemStore {
 impl KeyStore for MemStore {
     type Error = Error;
 
-    type Vacant<'a> = VacantEntry<'a>;
-    type Occupied<'a> = OccupiedEntry<'a>;
+    type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
+    type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry(&mut self, id: Id) -> Result<Entry<'_, Self>, Self::Error> {
+    fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error> {
         match self.keys.entry(id) {
-            btree_map::Entry::Vacant(v) => Ok(Entry::Vacant(VacantEntry(v))),
-            btree_map::Entry::Occupied(v) => Ok(Entry::Occupied(OccupiedEntry(v))),
+            btree_map::Entry::Vacant(entry) => Ok(Entry::Vacant(VacantEntry {
+                entry,
+                _t: PhantomData,
+            })),
+            btree_map::Entry::Occupied(entry) => Ok(Entry::Occupied(OccupiedEntry {
+                entry,
+                _t: PhantomData,
+            })),
         }
     }
 
@@ -68,29 +74,35 @@ impl StoredKey {
 }
 
 /// A vacant entry.
-pub struct VacantEntry<'a>(btree_map::VacantEntry<'a, Id, StoredKey>);
+pub struct VacantEntry<'a, T> {
+    entry: btree_map::VacantEntry<'a, Id, StoredKey>,
+    _t: PhantomData<T>,
+}
 
-impl Vacant for VacantEntry<'_> {
+impl<T: WrappedKey> Vacant<T> for VacantEntry<'_, T> {
     type Error = Error;
 
-    fn insert<T: WrappedKey>(self, key: T) -> Result<(), Self::Error> {
-        self.0.insert(StoredKey::new(key)?);
+    fn insert(self, key: T) -> Result<(), Self::Error> {
+        self.entry.insert(StoredKey::new(key)?);
         Ok(())
     }
 }
 
 /// An occupied entry.
-pub struct OccupiedEntry<'a>(btree_map::OccupiedEntry<'a, Id, StoredKey>);
+pub struct OccupiedEntry<'a, T> {
+    entry: btree_map::OccupiedEntry<'a, Id, StoredKey>,
+    _t: PhantomData<T>,
+}
 
-impl Occupied for OccupiedEntry<'_> {
+impl<T: WrappedKey> Occupied<T> for OccupiedEntry<'_, T> {
     type Error = Error;
 
-    fn get<T: WrappedKey>(&self) -> Result<T, Self::Error> {
-        self.0.get().to_wrapped()
+    fn get(&self) -> Result<T, Self::Error> {
+        self.entry.get().to_wrapped()
     }
 
-    fn remove<T: WrappedKey>(self) -> Result<T, Self::Error> {
-        self.0.remove().to_wrapped()
+    fn remove(self) -> Result<T, Self::Error> {
+        self.entry.remove().to_wrapped()
     }
 }
 
