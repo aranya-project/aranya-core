@@ -2,26 +2,24 @@
 
 #![forbid(unsafe_code)]
 
-use core::{borrow::Borrow, fmt, marker::PhantomData, ops::Add, result::Result};
+use core::{borrow::Borrow, fmt, marker::PhantomData, result::Result};
 
-use generic_array::{ArrayLength, GenericArray};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use typenum::{operator_aliases::Sum, U64};
 
 use crate::{
-    aead::Aead,
+    aead::Tag,
     ciphersuite::SuiteIds,
     csprng::Csprng,
     engine::{unwrapped, Engine},
     error::Error,
-    groupkey::GroupKey,
+    groupkey::{EncryptedGroupKey, GroupKey},
     hash::tuple_hash,
     hpke::{Hpke, Mode},
     id::Id,
     import::{Import, ImportError},
     kem::{DecapKey, Kem},
     keys::{PublicKey, SecretKey},
-    misc::{ciphertext, key_misc, SigData},
+    misc::{key_misc, SigData},
     policy::{self, Cmd, CmdId},
     signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
 };
@@ -399,13 +397,14 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
     pub fn open_group_key(
         &self,
         enc: &Encap<E>,
-        ciphertext: &EncryptedGroupKey<E>,
+        ciphertext: EncryptedGroupKey<E>,
         group: Id,
-    ) -> Result<GroupKey<E>, Error>
-    where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
-    {
+    ) -> Result<GroupKey<E>, Error> {
+        let EncryptedGroupKey {
+            mut ciphertext,
+            tag,
+        } = ciphertext;
+
         // info = H(
         //     "GroupKey",
         //     suite_id,
@@ -420,9 +419,8 @@ impl<E: Engine + ?Sized> EncryptionKey<E> {
         ]);
         let mut ctx =
             Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
-        let mut seed = [0u8; 64];
-        ctx.open(&mut seed, ciphertext.as_bytes(), &info)?;
-        Ok(GroupKey::from_seed(seed))
+        ctx.open_in_place(&mut ciphertext, &tag, &info)?;
+        Ok(GroupKey::from_seed(ciphertext.into()))
     }
 }
 
@@ -445,11 +443,7 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
         rng: &mut R,
         key: &GroupKey<E>,
         group: Id,
-    ) -> Result<(Encap<E>, EncryptedGroupKey<E>), Error>
-    where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
-    {
+    ) -> Result<(Encap<E>, EncryptedGroupKey<E>), Error> {
         // info = H(
         //     "GroupKey",
         //     suite_id,
@@ -464,9 +458,10 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
         ]);
         let (enc, mut ctx) =
             Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
-        let mut dst = GenericArray::default();
-        ctx.seal(&mut dst, key.raw_seed(), &info)?;
-        Ok((Encap(enc), EncryptedGroupKey(dst)))
+        let mut ciphertext = (*key.raw_seed()).into();
+        let mut tag = Tag::<E::Aead>::default();
+        ctx.seal_in_place(&mut ciphertext, &mut tag, &info)?;
+        Ok((Encap(enc), EncryptedGroupKey { ciphertext, tag }))
     }
 }
 
@@ -539,5 +534,3 @@ where
         d.deserialize_bytes(EncapVisitor(PhantomData))
     }
 }
-
-ciphertext!(EncryptedGroupKey, U64, "An encrypted [`GroupKey`].");

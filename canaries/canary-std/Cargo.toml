@@ -8,7 +8,7 @@ base58 = { path = "../../crates/base58" }
 buggy = { path = "../../crates/buggy" }
 # `crypto` enables `getrandom` by default.
 crypto = { path = "../../crates/crypto", default-features = false }
-idam = { path = "../../crates/idam" }
+idam-ffi = { path = "../../crates/idam-ffi" }
 policy-ast = { path = "../../crates/policy-ast" }
 policy-vm = { path = "../../crates/policy-vm" }
 runtime = { path = "../../crates/runtime" }

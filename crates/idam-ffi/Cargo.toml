@@ -1,5 +1,5 @@
 [package]
-name = "idam"
+name = "idam-ffi"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -13,27 +13,34 @@ workspace = true
 [features]
 default = ["alloc"]
 
+# Enable allocations.
 alloc = [
 	"crypto/alloc",
 ]
+
+# Enable `std`.
 std = [
 	"alloc",
+
 	"crypto/std",
 	"policy-vm/std",
+	"postcard/use-std",
 	"trouble/std",
 ]
 
+# Enable the testing feature.
+testing = []
+
 [dependencies]
-crypto = { path = "../crypto", default-features = false }
-generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
-policy-vm = { path = "../policy-vm" }
+crypto = { path = "../crypto", default-features = false, features = ["alloc"]}
+policy-vm = { path = "../policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
-trouble = { path = "../trouble", features = ["third-party"] }
-typenum = { version = "1", default-features = false }
+trouble = { path = "../trouble", default-features = false, features = ["third-party"] }
 
 [dev-dependencies]
+idam-ffi = { path = ".", features = ["testing"] }
 anyhow = { workspace = true }
-crypto = { path = "../crypto" }
+crypto = { path = "../crypto", features = ["alloc"] }
 
 [package.metadata.docs.rs]
 all-features = true
@@ -41,4 +48,5 @@ all-features = true
 [package.metadata.cargo-all-features]
 always_include_features = [
 	"alloc",
+	"testing",
 ]

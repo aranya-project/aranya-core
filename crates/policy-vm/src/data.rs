@@ -605,7 +605,7 @@ impl fmt::Display for Struct {
 }
 
 /// Context for actions
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActionContext<'a> {
     /// The name of the action
     pub name: &'a str,
@@ -614,7 +614,7 @@ pub struct ActionContext<'a> {
 }
 
 /// Context for seal blocks
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SealContext<'a> {
     /// The name of the command
     pub name: &'a str,
@@ -623,7 +623,7 @@ pub struct SealContext<'a> {
 }
 
 /// Context for open blocks
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OpenContext<'a> {
     /// The name of the command
     pub name: &'a str,
@@ -632,7 +632,7 @@ pub struct OpenContext<'a> {
 }
 
 /// Context for Policy and Recall blocks
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PolicyContext<'a> {
     /// The name of the command
     pub name: &'a str,
@@ -647,7 +647,7 @@ pub struct PolicyContext<'a> {
 }
 
 /// Properties of policy execution available through FFI.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CommandContext<'a> {
     /// Action
     Action(ActionContext<'a>),

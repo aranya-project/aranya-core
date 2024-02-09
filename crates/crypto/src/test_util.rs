@@ -477,14 +477,11 @@ pub mod engine {
             AuthData, BidiAuthorSecret, BidiChannel, BidiKeys, BidiSecrets, OpenKey, RawSealKey,
             SealKey, Seq, UniAuthorSecret, UniChannel, UniOpenKey, UniSealKey, UniSecrets,
         },
-        aranya::{
-            Encap, EncryptedGroupKey, EncryptionKey, IdentityKey, SigningKey as UserSigningKey,
-            UserId,
-        },
+        aranya::{Encap, EncryptionKey, IdentityKey, SigningKey as UserSigningKey, UserId},
         csprng::Random,
         engine::Engine,
         error::Error,
-        groupkey::{Context, GroupKey},
+        groupkey::{Context, EncryptedGroupKey, GroupKey},
         id::Id,
     };
 
@@ -521,11 +518,7 @@ pub mod engine {
 
     /// Simple positive test for encrypting/decrypting
     /// [`GroupKey`]s.
-    pub fn test_simple_seal_group_key<E: Engine + ?Sized>(eng: &mut E)
-    where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
-    {
+    pub fn test_simple_seal_group_key<E: Engine + ?Sized>(eng: &mut E) {
         let enc_key = EncryptionKey::<E>::new(eng);
 
         let group = Id::default();
@@ -535,7 +528,7 @@ pub mod engine {
             .seal_group_key(eng, &want, group)
             .expect("unable to encrypt `GroupKey`");
         let got = enc_key
-            .open_group_key(&enc, &ciphertext, group)
+            .open_group_key(&enc, ciphertext, group)
             .expect("unable to decrypt `GroupKey`");
         assert_eq!(want.id(), got.id());
     }
@@ -861,10 +854,13 @@ pub mod engine {
             .seal_group_key(eng, &want, group)
             .expect("unable to encrypt `GroupKey`");
         let enc = Encap::<E>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
-        let ciphertext = EncryptedGroupKey::<E>::from_bytes(ciphertext.as_bytes())
-            .expect("should be able to decode `EncryptedGroupKey`");
+        let ciphertext: EncryptedGroupKey<E> = postcard::from_bytes(
+            &postcard::to_allocvec(&ciphertext)
+                .expect("should be able to encode `EncryptedGroupKey`"),
+        )
+        .expect("should be able to decode `EncryptedGroupKey`");
         let got = enc_key
-            .open_group_key(&enc, &ciphertext, group)
+            .open_group_key(&enc, ciphertext, group)
             .expect("unable to decrypt `GroupKey`");
         assert_eq!(want.id(), got.id());
     }

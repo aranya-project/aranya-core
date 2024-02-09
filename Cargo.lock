@@ -1319,16 +1319,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "idam"
+name = "idam-ffi"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "crypto",
- "generic-array 1.0.0",
+ "idam-ffi",
  "policy-vm",
  "postcard",
  "trouble",
- "typenum",
 ]
 
 [[package]]

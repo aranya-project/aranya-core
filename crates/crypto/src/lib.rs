@@ -68,7 +68,6 @@ pub mod hkdf;
 pub mod hmac;
 pub mod hpke;
 pub mod id;
-pub mod idam;
 pub mod import;
 pub mod kdf;
 pub mod kem;

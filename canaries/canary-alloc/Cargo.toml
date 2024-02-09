@@ -7,7 +7,7 @@ edition = "2021"
 base58 = { path = "../../crates/base58" }
 # `crypto` enables `getrandom` by default.
 crypto = { path = "../../crates/crypto", default-features = false }
-# idam = { path = "../../crates/idam" }
+# idam-ffi = { path = "../../crates/idam-ffi" }
 # policy-ast = { path = "../../crates/policy-ast" }
 # policy-vm = { path = "../../crates/policy-vm" }
 # runtime = { path = "../../crates/runtime" }

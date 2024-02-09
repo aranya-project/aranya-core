@@ -4,8 +4,6 @@ use core::fmt;
 
 use buggy::Bug;
 
-#[cfg(feature = "alloc")]
-use crate::idam::KeyConversionError;
 use crate::{
     aead::{OpenError, SealError},
     engine::{UnwrapError, WrapError},
@@ -53,9 +51,6 @@ pub enum Error {
     Wrap(WrapError),
     /// A key unwrapping failure.
     Unwrap(UnwrapError),
-    /// A key conversion failure.
-    #[cfg(feature = "alloc")]
-    KeyConversion(KeyConversionError),
 }
 
 impl fmt::Display for Error {
@@ -76,8 +71,6 @@ impl fmt::Display for Error {
             Self::Export(err) => write!(f, "{}", err),
             Self::Wrap(err) => write!(f, "{}", err),
             Self::Unwrap(err) => write!(f, "{}", err),
-            #[cfg(feature = "alloc")]
-            Self::KeyConversion(err) => write!(f, "{}", err),
         }
     }
 }
@@ -98,8 +91,6 @@ impl trouble::Error for Error {
             Self::Export(err) => Some(err),
             Self::Wrap(err) => Some(err),
             Self::Unwrap(err) => Some(err),
-            #[cfg(feature = "alloc")]
-            Self::KeyConversion(err) => Some(err),
             _ => None,
         }
     }
@@ -174,12 +165,5 @@ impl From<WrapError> for Error {
 impl From<UnwrapError> for Error {
     fn from(err: UnwrapError) -> Self {
         Self::Unwrap(err)
-    }
-}
-
-#[cfg(feature = "alloc")]
-impl From<KeyConversionError> for Error {
-    fn from(err: KeyConversionError) -> Self {
-        Self::KeyConversion(err)
     }
 }

@@ -1,13 +1,14 @@
 #![forbid(unsafe_code)]
 
-use core::{fmt, marker::PhantomData, result::Result};
+use core::{marker::PhantomData, result::Result};
 
-use postcard::experimental::max_size::MaxSize;
+use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
+use typenum::U64;
 
 use crate::{
-    aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
+    aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError, Tag},
     aranya::VerifyingKey,
     ciphersuite::SuiteIds,
     csprng::{Csprng, Random},
@@ -15,7 +16,7 @@ use crate::{
     error::Error,
     hash::{tuple_hash, Digest, Hash},
     hmac::Hmac,
-    id::{Id, Identified},
+    id::{custom_id, Id, Identified},
     import::Import,
     kdf,
     zeroize::{Zeroize, ZeroizeOnDrop},
@@ -280,35 +281,21 @@ impl<E: Engine + ?Sized> Context<'_, E> {
     }
 }
 
-/// Uniquely identifies a [`GroupKey`].
-#[derive(
-    Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize, Serialize, Deserialize,
-)]
-pub struct GroupKeyId(Id);
+custom_id!(GroupKeyId, "Uniquely identifies a [`GroupKey`].");
 
-impl AsRef<[u8]> for GroupKeyId {
-    #[inline]
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
+/// An encrypted [`GroupKey`].
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EncryptedGroupKey<E: Engine + ?Sized> {
+    pub(crate) ciphertext: GenericArray<u8, U64>,
+    pub(crate) tag: Tag<E::Aead>,
 }
 
-impl From<Id> for GroupKeyId {
+impl<E: Engine + ?Sized> Clone for EncryptedGroupKey<E> {
     #[inline]
-    fn from(id: Id) -> Self {
-        Self(id)
-    }
-}
-
-impl From<GroupKeyId> for Id {
-    #[inline]
-    fn from(id: GroupKeyId) -> Self {
-        id.0
-    }
-}
-
-impl fmt::Display for GroupKeyId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&self.0, f)
+    fn clone(&self) -> Self {
+        Self {
+            ciphertext: self.ciphertext,
+            tag: self.tag.clone(),
+        }
     }
 }
