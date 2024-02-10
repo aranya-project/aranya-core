@@ -5,6 +5,7 @@
 
 use core::fmt;
 
+use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -18,6 +19,7 @@ pub enum EngineError {
     Write,
     Check,
     InternalError,
+    Bug(Bug),
 }
 
 impl fmt::Display for EngineError {
@@ -27,7 +29,14 @@ impl fmt::Display for EngineError {
             Self::Write => write!(f, "write error "),
             Self::Check => write!(f, "check error"),
             Self::InternalError => write!(f, "internal error"),
+            Self::Bug(b) => write!(f, "{b}"),
         }
+    }
+}
+
+impl From<Bug> for EngineError {
+    fn from(value: Bug) -> Self {
+        EngineError::Bug(value)
     }
 }
 

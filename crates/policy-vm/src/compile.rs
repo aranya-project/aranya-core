@@ -895,6 +895,7 @@ impl<'a> CompileState<'a> {
                     self.exit_statement_context();
                 }
                 (ast::Statement::Create(s), StatementContext::Finish) => {
+                    self.verify_fact_against_schema(&s.fact)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Create);
                 }

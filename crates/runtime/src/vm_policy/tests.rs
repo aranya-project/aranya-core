@@ -5,6 +5,7 @@ use alloc::borrow::Cow;
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
 use postcard::{from_bytes, to_vec};
+use test_log::test;
 use tracing::trace;
 
 use super::{error::VmPolicyError, VmPolicy};

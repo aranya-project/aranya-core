@@ -78,10 +78,8 @@ where
     M: MachineIO<MachineStack>,
 {
     print!("{}", status);
-    if let Some(span) = rs.source_text() {
-        let (row, col) = span.start_linecol();
-        println!(" at row {} col {}:", row, col);
-        println!("\t{}", span.as_str());
+    if let Some(loc) = rs.source_location() {
+        println!(" {}", loc);
     } else {
         println!();
     }

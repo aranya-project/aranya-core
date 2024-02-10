@@ -13,7 +13,7 @@ use crate::{
     instructions::{Instruction, Target},
     io::MachineIO,
     stack::Stack,
-    CodeMap, CommandContext, FactKey, FactValue, OpenContext, SealContext, Span,
+    CodeMap, CommandContext, FactKey, FactValue, OpenContext, SealContext,
 };
 
 /// Compares a fact's keys and values to its schema.
@@ -332,14 +332,26 @@ where
         }
     }
 
-    /// Get the source line associated with the current PC, if source
-    /// is available.
-    pub fn source_text(&self) -> Option<Span<'_>> {
-        self.machine
+    /// Returns a string describing the source code at the current PC,
+    /// if available.
+    pub fn source_location(&self) -> Option<String> {
+        let source_span = self
+            .machine
             .codemap
             .as_ref()?
             .span_from_instruction(self.pc)
-            .ok()
+            .ok();
+        if let Some(span) = source_span {
+            let (row, col) = span.start_linecol();
+            Some(alloc::format!(
+                "at row {} col {}:\n\t{}",
+                row,
+                col,
+                span.as_str()
+            ))
+        } else {
+            None
+        }
     }
 
     /// Internal function to produce a MachineError with location
