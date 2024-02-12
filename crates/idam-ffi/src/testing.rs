@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 
 use crypto::{
     aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, EncryptionKey, Engine, GroupKey, Id,
-    KeyStore, SigningKey, UserId,
+    IdentityKey, KeyStore, SigningKey, UserId,
 };
 use policy_vm::{CommandContext, PolicyContext};
 
@@ -64,6 +64,7 @@ macro_rules! run_tests {
             test!(test_open_group_key_wrong_group_id);
             test!(test_derive_enc_key_id);
             test!(test_derive_sign_key_id);
+            test!(test_derive_user_id);
         }
     };
 }
@@ -534,10 +535,23 @@ where
         let ffi = Ffi::new(store);
         let sk = SigningKey::<E>::new(&mut eng);
         let want = sk.public().id().into_id();
-        let enc_pk =
+        let sign_pk =
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`");
         let got = ffi
-            .derive_sign_key_id(&Self::CTX, &mut eng, enc_pk)
+            .derive_sign_key_id(&Self::CTX, &mut eng, sign_pk)
+            .expect("should be able to derive `VerifyingKey` ID");
+        assert_eq!(want, got);
+    }
+
+    /// Round trip tests `derive_user_id`.
+    pub fn test_derive_user_id(mut eng: E, store: S) {
+        let ffi = Ffi::new(store);
+        let sk = IdentityKey::<E>::new(&mut eng);
+        let want = sk.public().id().into_id();
+        let ident_pk = postcard::to_allocvec(&sk.public())
+            .expect("should be able to encode `IdentityVerifyingKey`");
+        let got = ffi
+            .derive_user_id(&Self::CTX, &mut eng, ident_pk)
             .expect("should be able to derive `VerifyingKey` ID");
         assert_eq!(want, got);
     }

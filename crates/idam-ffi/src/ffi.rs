@@ -4,7 +4,7 @@ use alloc::{vec, vec::Vec};
 
 use crypto::{
     engine::Engine, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey, EncryptionKey,
-    EncryptionPublicKey, GroupKey, Id, KeyStore, VerifyingKey,
+    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, VerifyingKey,
 };
 use policy_vm::{ffi::ffi, CommandContext};
 
@@ -79,6 +79,23 @@ function derive_sign_key_id(
         sign_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: VerifyingKey<E> = postcard::from_bytes(&sign_pk)?;
+        Ok(pk.id().into())
+    }
+
+    /// Returns the ID of an encoded [`IdentityVerifyingKey`].
+    #[ffi_export(def = r#"
+function derive_user_id(
+    // The encoded `IdentityVerifyingKey`.
+    ident_pk bytes,
+) id
+"#)]
+    pub(crate) fn derive_user_id<E: Engine + ?Sized>(
+        &self,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
+        ident_pk: Vec<u8>,
+    ) -> Result<Id, Error> {
+        let pk: IdentityVerifyingKey<E> = postcard::from_bytes(&ident_pk)?;
         Ok(pk.id().into())
     }
 
