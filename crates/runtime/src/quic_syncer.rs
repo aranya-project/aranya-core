@@ -1,4 +1,4 @@
-//! Quic syncer
+//! An implementation of the syncer using QUIC.
 #![cfg(any(feature = "quic_syncer", test))]
 
 use alloc::sync::Arc;
@@ -57,6 +57,7 @@ impl From<std::io::Error> for SyncError {
     }
 }
 
+/// Runs a server listening for sync requests from other peers.
 pub async fn run_syncer<T, EN, SP>(
     cancel_token: CancellationToken,
     client: Arc<TMutex<ClientState<EN, SP>>>,
@@ -143,6 +144,7 @@ where
     Ok(())
 }
 
+/// Initiates a sync request to another peer.
 pub async fn sync<T, EN, SP>(
     mut client: tokio::sync::MutexGuard<'_, ClientState<EN, SP>>,
     mut syncer: SyncRequester<'_>,

@@ -13,6 +13,7 @@ use crate::{
     storage::{FactPerspective, Perspective},
 };
 
+/// An error returned by the runtime engine.
 #[derive(Debug)]
 pub enum EngineError {
     Read,
@@ -51,6 +52,7 @@ impl PolicyId {
     }
 }
 
+/// The [`Engine`] manages storing and retrieving [`Policy`].
 pub trait Engine {
     type Policy: Policy<Effects = Self::Effects>;
 
@@ -71,6 +73,7 @@ pub trait Engine {
     fn get_policy<'a>(&'a self, id: &PolicyId) -> Result<&'a Self::Policy, EngineError>;
 }
 
+/// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].
 pub trait Sink<E> {
     fn begin(&mut self);
     fn consume(&mut self, effect: E);
@@ -116,6 +119,8 @@ impl From<MergeIds> for (Id, Id) {
     }
 }
 
+/// [`Policy`] evaluates actions and [`Command`]s on the graph, emitting effects
+/// as a result.
 pub trait Policy {
     type Payload<'a>;
     type Actions<'a>;

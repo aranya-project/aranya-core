@@ -1,3 +1,7 @@
+//! Interface for simulating or testing Aranya.
+//!
+//! The Aranya Model is a library which provides APIs to construct one or more clients, execute actions on the clients, sync between clients, and gather performance metrics about the operations performed.
+
 #![cfg(feature = "model")]
 
 extern crate alloc;
@@ -11,13 +15,19 @@ use crate::{
     ClientError,
 };
 
+/// Model engine effect.
+///
+/// An Effect is a struct used in policy `finish` and `recall` blocks to describe the shape of side effects produced from processed commands.
 pub type ModelEffect = (String, Vec<KVPair>);
 
+/// Model engine.
+/// Holds the [`VmPolicy`] model engine methods.
 pub struct ModelEngine {
     policy: VmPolicy,
 }
 
 impl ModelEngine {
+    /// Creates a new ModelEngine instance with a [`VmPolicy`].
     pub fn new(policy: VmPolicy) -> ModelEngine {
         ModelEngine { policy }
     }
@@ -38,6 +48,7 @@ impl Engine for ModelEngine {
     }
 }
 
+/// An error returned by the model engine.
 #[derive(Debug)]
 pub enum ModelError {
     Client(ClientError),
@@ -61,6 +72,7 @@ impl From<EngineError> for ModelError {
 pub type ProxyClientID = u64;
 pub type ProxyGraphID = u64;
 
+/// The [`Model`] manages adding clients, graphs, actions, and syncing client state.
 pub trait Model {
     type Effects;
     type Metrics;

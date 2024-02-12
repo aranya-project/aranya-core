@@ -54,6 +54,7 @@ impl Location {
     }
 }
 
+/// An error returned by [`Storage`] or [`StorageProvider`].
 #[derive(Debug)]
 pub enum StorageError {
     StorageExists,
@@ -291,6 +292,7 @@ pub trait Segment {
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;
 }
 
+/// An index of facts in storage.
 pub trait FactIndex {
     /// Look up a value associated to the given key.
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError>;

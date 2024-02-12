@@ -27,6 +27,7 @@ use spin::Mutex;
 use tokio::sync::Mutex as TMutex;
 use tokio_util::sync::CancellationToken;
 
+/// An error returned by the syncer.
 #[derive(Debug)]
 struct SyncError {
     error_msg: String,

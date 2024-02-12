@@ -47,6 +47,7 @@ pub struct CommandMeta {
     length: u32,
 }
 
+/// Enum of all supported sync messages.
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
 // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
 // As the buffer consts will be compile-time variables in the future, we will be
@@ -152,6 +153,7 @@ impl SyncMessage {
     }
 }
 
+/// An error returned by the syncer.
 #[derive(Debug)]
 pub enum SyncError {
     UnexpectedMessage,
@@ -232,6 +234,7 @@ impl From<ClientError> for SyncError {
     }
 }
 
+/// Sync command to be committed to graph.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncCommand<'a> {
     priority: Priority,
@@ -268,7 +271,7 @@ pub trait SyncState {
     fn session_id(&self) -> Result<u128, SyncError>;
 
     /// Receive a sync message. Returns an option
-    /// of a slive of up parsed protocol messages.
+    /// of a slice of up parsed protocol messages.
     fn receive<'a>(
         &mut self,
         message: &'a [u8],
@@ -300,6 +303,8 @@ pub enum SyncRequesterState {
 
 // The length of the Out Of Order buffer
 const OOO_LEN: usize = 4;
+
+/// Used to perform a sync request.
 pub struct SyncRequester<'a> {
     session_id: u128,
     storage_id: Id,
@@ -600,6 +605,7 @@ impl Default for SyncResponderState {
     }
 }
 
+/// Used to respond to a sync request.
 #[derive(Default)]
 pub struct SyncResponder {
     session_id: Option<u128>,

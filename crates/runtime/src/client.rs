@@ -13,6 +13,7 @@ mod transaction;
 
 pub use self::{session::Session, transaction::Transaction};
 
+/// An error returned by the runtime client.
 #[derive(Debug)]
 pub enum ClientError {
     NoSuchParent(Id),
@@ -75,6 +76,8 @@ impl From<Bug> for ClientError {
     }
 }
 
+/// Keeps track of client graph state.
+/// Supports generic [`Engine`] and [`StorageProvider`].
 #[derive(Debug)]
 pub struct ClientState<E, SP> {
     engine: E,
@@ -119,7 +122,7 @@ where
         Ok(storage_id)
     }
 
-    /// Create a new [`Transaction`], used to receive commands when syncing.
+    /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.
     pub fn transaction(&mut self, storage_id: &Id) -> Transaction<SP, E> {
         Transaction::new(*storage_id)
     }
@@ -209,6 +212,7 @@ where
     }
 }
 
+/// Enforces deterministic ordering for a set of [`Command`]s in a graph.
 pub fn braid<S: Storage>(
     storage: &mut S,
     left: &Location,
