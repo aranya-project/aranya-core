@@ -211,4 +211,7 @@ enum HsmKey {
     Verifying(VerifyingKey),
 }
 
-custom_id!(KeyId, "Uniquely identifies an HSM key");
+custom_id! {
+    /// Uniquely identifies an HSM key
+    pub struct KeyId;
+}

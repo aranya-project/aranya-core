@@ -196,8 +196,10 @@ impl<'de> Deserialize<'de> for Id {
 /// Creates a custom ID.
 #[macro_export]
 macro_rules! custom_id {
-    ($name:ident, $doc:expr $(,)?) => {
-        #[doc = $doc]
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident;
+    ) => {
         #[repr(C)]
         #[derive(
             Copy,
@@ -212,7 +214,8 @@ macro_rules! custom_id {
             ::serde::Deserialize,
             ::postcard::experimental::max_size::MaxSize,
         )]
-        pub struct $name($crate::Id);
+        $(#[$meta])*
+        $vis struct $name($crate::Id);
 
         impl $name {
             /// Same as [`Default`], but const.

@@ -206,10 +206,10 @@ pub(crate) use key_misc;
 macro_rules! sk_misc {
     // For when the public key isn't used.
     ($name:ident, $id:ident) => {
-        $crate::id::custom_id!(
-            $id,
-            ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")
-        );
+        $crate::id::custom_id! {
+            #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
+            pub struct $id;
+        }
 
         impl<E: $crate::engine::Engine + ?::core::marker::Sized> $name<E> {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
@@ -232,10 +232,10 @@ macro_rules! sk_misc {
 
     // For when the public key *is* used.
     ($name:ident, $pk:ident, $id:ident) => {
-        $crate::id::custom_id!(
-            $id,
-            ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")
-        );
+        $crate::id::custom_id! {
+            #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
+            pub struct $id;
+        }
 
         impl<E: $crate::engine::Engine + ?::core::marker::Sized> $name<E> {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]

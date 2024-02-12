@@ -109,7 +109,10 @@ impl fmt::Display for Topic {
     }
 }
 
-custom_id!(TopicKeyId, "Uniquely identifies a [`TopicKey`].");
+custom_id! {
+    /// Uniquely identifies a [`TopicKey`].
+    pub struct TopicKeyId;
+}
 
 /// A [symmetric key] used to encrypt queue messages for
 /// a particular topic.

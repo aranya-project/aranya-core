@@ -233,10 +233,10 @@ impl<E: Engine + ?Sized> UniPeerEncap<E> {
     }
 }
 
-custom_id!(
-    UniChannelId,
-    "Uniquely identifies a unidirectional channel.",
-);
+custom_id! {
+    /// Uniquely identifies a unidirectional channel.
+    pub struct UniChannelId;
+}
 
 /// The secrets for a unirectional channel.
 pub struct UniSecrets<E: Engine + ?Sized> {

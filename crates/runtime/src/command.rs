@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::Prior;
 
-crypto::custom_id!(
-    Id,
-    "An ID constructed as a cryptographic hash of a serialized [`Command`]."
-);
+crypto::custom_id! {
+    /// An ID constructed as a cryptographic hash of a serialized [`Command`].
+    pub struct Id;
+}
 
 impl Id {
     /// Derives an [`Id`] from some data.

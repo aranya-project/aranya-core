@@ -281,7 +281,10 @@ impl<E: Engine + ?Sized> Context<'_, E> {
     }
 }
 
-custom_id!(GroupKeyId, "Uniquely identifies a [`GroupKey`].");
+custom_id! {
+    /// Uniquely identifies a [`GroupKey`].
+    pub struct GroupKeyId;
+}
 
 /// An encrypted [`GroupKey`].
 #[derive(Debug, Serialize, Deserialize)]

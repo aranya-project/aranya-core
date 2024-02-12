@@ -262,10 +262,10 @@ impl<E: Engine + ?Sized> BidiPeerEncap<E> {
     }
 }
 
-custom_id!(
-    BidiChannelId,
-    "Uniquely identifies a bidirectional channel.",
-);
+custom_id! {
+    /// Uniquely identifies a bidirectional channel.
+    pub struct BidiChannelId;
+}
 
 /// The secrets for a bidirectional channel.
 pub struct BidiSecrets<E: Engine + ?Sized> {

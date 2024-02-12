@@ -8,7 +8,10 @@ use crate::{
     id::{custom_id, Id},
 };
 
-custom_id!(CmdId, "The ID of a policy command.");
+custom_id! {
+    /// The ID of a policy command.
+    pub struct CmdId;
+}
 
 /// Computes the command's unique ID.
 pub(crate) fn cmd_id<E: Engine + ?Sized>(
