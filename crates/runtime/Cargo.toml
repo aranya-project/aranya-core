@@ -25,6 +25,7 @@ spin = { workspace = true, features = ["spin_mutex"] }
 tracing = { workspace = true }
 trouble = { path = "../trouble" }
 vec1 = { version = "1.10.1", default-features = false, features = ["serde"] }
+perspective-ffi = { path = "../perspective-ffi" }
 
 # quic syncer
 futures = { version = "0.3.28", optional = true }

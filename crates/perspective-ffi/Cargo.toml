@@ -1,0 +1,46 @@
+[package]
+name = "perspective-ffi"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+
+[features]
+default = []
+
+# Enable allocations.
+alloc = []
+
+# Enable std.
+std = []
+
+# Enable the `testing` module.
+testing = []
+
+#
+# Nightly features
+#
+
+[dependencies]
+crypto = { path = "../crypto", default-features = false }
+policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+policy-lang = { path = "../policy-lang" }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+always_include_features = []
+
+skip_feature_sets = []
+
+denylist = []

@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 
 use crypto::default::{DefaultCipherSuite, DefaultEngine, Rng};
+use perspective_ffi::FfiPerspective;
 use policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, KVPair, MachineError, MachineErrorType,
     MachineIO, MachineIOError, Stack,
@@ -21,7 +22,9 @@ where
     sink: &'o mut S,
     emit_stack: Vec<(String, Vec<KVPair>)>,
     engine: DefaultEngine<Rng, DefaultCipherSuite>,
+    // FFI modules
     envelope_module: FfiEnvelope,
+    perspective_module: FfiPerspective,
 }
 
 impl<'o, P, S> VmPolicyIO<'o, P, S>
@@ -43,6 +46,7 @@ where
             emit_stack: vec![],
             engine,
             envelope_module: FfiEnvelope {},
+            perspective_module: FfiPerspective {},
         }
     }
 
@@ -120,6 +124,10 @@ where
                 .envelope_module
                 .call(procedure, stack, ctx, &mut self.engine)
                 .map_err(|e| MachineError::new(MachineErrorType::IO(e))),
+            1 => self
+                .perspective_module
+                .call(procedure, stack, ctx, &mut self.engine)
+                .map_err(|_| MachineError::new(MachineErrorType::Unknown)),
             _ => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,
             ))),

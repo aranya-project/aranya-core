@@ -1766,6 +1766,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
+name = "perspective-ffi"
+version = "0.1.0"
+dependencies = [
+ "crypto",
+ "policy-lang",
+ "policy-vm",
+]
+
+[[package]]
 name = "pest"
 version = "2.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2359,6 +2368,7 @@ dependencies = [
  "futures",
  "heapless",
  "once_cell",
+ "perspective-ffi",
  "policy-lang",
  "policy-vm",
  "postcard",
