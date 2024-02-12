@@ -24,6 +24,10 @@ use crate::{
 
 static NETWORK: Lazy<TMutex<()>> = Lazy::new(TMutex::default);
 
+fn default_repeat() -> u64 {
+    1
+}
+
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 enum TestRule {
     AddClient {
@@ -38,13 +42,20 @@ enum TestRule {
         graph: u64,
         client: u64,
         from: u64,
+        must_receive: Option<usize>,
     },
     AddExpectation(u64),
+    AddExpectations {
+        expectation: u64,
+        repeat: u64,
+    },
     ActionSet {
         client: u64,
         graph: u64,
         key: u64,
         value: u64,
+        #[serde(default = "default_repeat")]
+        repeat: u64,
     },
 }
 
@@ -204,6 +215,7 @@ where
                 client,
                 graph,
                 from,
+                must_receive,
             } => {
                 let Some(request_cell) = clients.get(&client) else {
                     return Err(TestError::MissingClient);
@@ -219,7 +231,7 @@ where
                 assert!(request_syncer.ready());
 
                 let server_addr = *addrs.get(&from).expect("client addr registered");
-                sync(
+                let commands_received = sync(
                     request_client,
                     request_syncer,
                     cert_chain.clone(),
@@ -229,6 +241,10 @@ where
                 )
                 .await?;
 
+                if let Some(mr) = must_receive {
+                    assert_eq!(commands_received, mr);
+                }
+
                 assert_eq!(0, sink.count());
             }
 
@@ -236,11 +252,21 @@ where
                 sink.add_expectation(TestEffect::Got(expectation));
             }
 
+            TestRule::AddExpectations {
+                expectation,
+                repeat,
+            } => {
+                for _ in 0..repeat {
+                    sink.add_expectation(TestEffect::Got(expectation));
+                }
+            }
+
             TestRule::ActionSet {
                 client,
                 graph,
                 key,
                 value,
+                repeat,
             } => {
                 let Some(cell) = clients.get(&client) else {
                     return Err(TestError::MissingClient);
@@ -251,8 +277,10 @@ where
                     return Err(TestError::MissingGraph(graph));
                 };
 
-                let set = TestActions::SetValue(key, value);
-                state.action(storage_id, &mut sink, set)?;
+                for _ in 0..repeat {
+                    let set = TestActions::SetValue(key, value);
+                    state.action(storage_id, &mut sink, set)?;
+                }
 
                 assert_eq!(0, sink.count());
             }
@@ -280,11 +308,13 @@ macro_rules! test_suite {
     ($backend:ident) => {
         yaml_test! {
             $backend @
+            empty_sync,
             two_client_merge,
             two_client_sync,
             three_client_sync,
             two_client_branch,
             three_client_branch,
+            large_sync,
         }
     };
 }

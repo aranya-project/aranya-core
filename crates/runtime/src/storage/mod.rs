@@ -31,6 +31,12 @@ impl From<(usize, usize)> for Location {
     }
 }
 
+impl AsRef<Location> for Location {
+    fn as_ref(&self) -> &Location {
+        self
+    }
+}
+
 impl Location {
     pub fn new(segment: usize, command: usize) -> Location {
         Location { segment, command }
@@ -290,6 +296,14 @@ pub trait Segment {
 
     /// Get the fact index associated with this segment.
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;
+
+    fn contains_any<I>(&self, locations: I) -> bool
+    where
+        I: IntoIterator,
+        I::Item: AsRef<Location>,
+    {
+        locations.into_iter().any(|loc| self.contains(loc.as_ref()))
+    }
 }
 
 /// An index of facts in storage.

@@ -404,6 +404,10 @@ fn unidirectional_sync(
             let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_state.sync_poll(&mut response_syncer, &mut buffer)?;
 
+            if len == 0 {
+                break;
+            }
+
             request_state.sync_receive(
                 &mut request_trx,
                 request_sink,

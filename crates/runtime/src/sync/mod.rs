@@ -1,12 +1,11 @@
 //! Interface for syncing state between clients.
 
-// use std::sync::{Arc, Mutex};
 use alloc::{sync::Arc, vec};
 use core::{convert::Infallible, fmt, mem};
 
 use buggy::{bug, Bug, BugExt};
 use crypto::Csprng;
-use heapless::Vec;
+use heapless::{Deque, Vec};
 use postcard::{from_bytes, take_from_bytes, to_slice, Error as PostcardError};
 use serde::{Deserialize, Serialize};
 use spin::Mutex;
@@ -639,7 +638,7 @@ impl SyncResponder {
             let Some(location) = storage.get_location(id)? else {
                 // Note: We could use things we don't
                 // have as a hint to know we should
-                // preform a sync request.
+                // perform a sync request.
                 continue;
             };
 
@@ -649,19 +648,24 @@ impl SyncResponder {
         let mut heads = alloc::vec::Vec::new();
         heads.push(storage.get_head()?);
 
-        // FIXME(jdygert): Handle more than SEGMENT_BUFFER_MAX segments.
-        let mut result = Vec::new();
+        let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();
 
         while !heads.is_empty() {
             let current = mem::take(&mut heads);
             'heads: for head in current {
                 let segment = storage.get_segment(&head)?;
+                if segment.contains_any(&result) {
+                    continue 'heads;
+                }
 
                 for location in &have_locations {
                     if segment.contains(location) {
                         if location != &segment.head_location() {
+                            if result.is_full() {
+                                result.pop_back();
+                            }
                             result
-                                .push(location.clone())
+                                .push_front(location.clone())
                                 .ok()
                                 .assume("too many segments")?;
                         }
@@ -670,12 +674,22 @@ impl SyncResponder {
                 }
                 heads.extend(segment.prior());
 
+                if result.is_full() {
+                    result.pop_back();
+                }
+
                 let location = segment.first_location();
-                result.push(location).ok().assume("too many segments")?;
+                result
+                    .push_front(location)
+                    .ok()
+                    .assume("too many segments")?;
             }
         }
-        result.reverse();
-        Ok(result)
+        let mut r: Vec<Location, SEGMENT_BUFFER_MAX> = Vec::new();
+        for l in result {
+            r.push(l).ok().assume("too many segments")?;
+        }
+        Ok(r)
     }
 
     fn get_next(
@@ -696,76 +710,81 @@ impl SyncResponder {
             }
         };
 
-        let index = self.next_send;
-        self.next_send = self
-            .next_send
-            .checked_add(1)
-            .assume("next_send + 1 mustn't overflow")?;
-
         if self.next_send >= self.to_send.len() {
             self.state = SyncResponderState::Idle;
+            return Ok(0);
         }
 
-        let Some(location) = self.to_send.get(index) else {
-            self.state = SyncResponderState::Reset;
-            bug!("send index OOB");
-        };
+        let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
+        let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
+        let mut index = self.next_send;
 
-        let Ok(segment) = storage.get_segment(location) else {
-            self.state = SyncResponderState::Reset;
-            return Err(SyncError::StorageError);
-        };
-
-        let found = segment.get_from(location);
-
-        let mut commands = Vec::new();
-        for command in &found {
-            let mut policy_length = 0;
-
-            if let Some(policy) = command.policy() {
-                policy_length = policy.len() as u32;
-            }
-
-            let meta = CommandMeta {
-                priority: command.priority(),
-                parent: command.parent(),
-                policy_length,
-                length: command.bytes().len() as u32,
+        for i in self.next_send..self.to_send.len() {
+            index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
+            let Some(location) = self.to_send.get(i) else {
+                self.state = SyncResponderState::Reset;
+                bug!("send index OOB");
             };
 
-            // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
-            commands
-                .push(meta)
-                .ok()
-                .assume("too many commands in segment")?;
+            let Ok(segment) = storage.get_segment(location) else {
+                self.state = SyncResponderState::Reset;
+                return Err(SyncError::StorageError);
+            };
+
+            let found = segment.get_from(location);
+
+            for command in &found {
+                let mut policy_length = 0;
+
+                if let Some(policy) = command.policy() {
+                    policy_length = policy.len();
+                    command_data
+                        .extend_from_slice(policy)
+                        .ok()
+                        .assume("command_data is too large")?;
+                }
+
+                let bytes = command.bytes();
+                command_data
+                    .extend_from_slice(bytes)
+                    .ok()
+                    .assume("command_data is too large")?;
+
+                let meta = CommandMeta {
+                    priority: command.priority(),
+                    parent: command.parent(),
+                    policy_length: policy_length as u32,
+                    length: bytes.len() as u32,
+                };
+
+                // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.
+                commands
+                    .push(meta)
+                    .ok()
+                    .assume("too many commands in segment")?;
+                if commands.is_full() {
+                    break;
+                }
+            }
         }
 
         let message = SyncMessage::SyncResponse {
             session_id: self.session_id()?,
-            index: index as u64,
+            index: self.next_send as u64,
             commands,
         };
 
+        self.next_send = index;
+
         let mut length = write(target, message)?;
-
-        for command in found {
-            if let Some(policy) = command.policy() {
-                let end = length
-                    .checked_add(policy.len())
-                    .assume("length + policy.len() mustn't overflow")?;
-                target[length..end].clone_from_slice(policy);
-                length = end;
-            }
-
-            let bytes = command.bytes();
-
-            let end = length
-                .checked_add(bytes.len())
-                .assume("length + bytes.len() mustn't overflow")?;
-            target[length..end].clone_from_slice(bytes);
-            length = end;
-        }
-
+        let total_length = length
+            .checked_add(command_data.len())
+            .assume("length + command_data_length mustn't overflow")?;
+        target
+            .get_mut(length..total_length)
+            .assume("sync message fits in target")?
+            .copy_from_slice(&command_data);
+        length = total_length;
         Ok(length)
     }
 }

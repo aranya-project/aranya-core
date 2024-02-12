@@ -12,7 +12,6 @@
 - !ActionSet { client: 0, graph: 0, key: 0, value: 2 }
 
 - !AddExpectation 1
-- !Sync {client: 1, graph: 0 , from: 0}
 - !AddExpectation 2
 - !Sync {client: 1, graph: 0 , from: 0}
 

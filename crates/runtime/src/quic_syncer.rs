@@ -152,7 +152,7 @@ pub async fn sync<T, EN, SP>(
     sink: &mut LockedSink<T>,
     storage_id: &Id,
     server_addr: SocketAddr,
-) -> Result<(), SyncError>
+) -> Result<usize, SyncError>
 where
     EN: Engine,
     SP: StorageProvider,
@@ -178,11 +178,15 @@ where
     send.write_all(&buffer[0..len]).await?;
     send.finish().await?;
     let resp = recv.read_to_end(usize::max_value()).await?;
-    let mut trx = client.transaction(storage_id);
-    client.sync_receive(&mut trx, sink, &mut syncer, &resp)?;
-    client.commit(&mut trx, sink)?;
+    // An empty response means we're up to date and there's nothing to sync.
+    let mut received = 0;
+    if !resp.is_empty() {
+        let mut trx = client.transaction(storage_id);
+        received = client.sync_receive(&mut trx, sink, &mut syncer, &resp)?;
+        client.commit(&mut trx, sink)?;
+    }
     conn.close(0u32.into(), b"done");
     endpoint.wait_idle().await;
     endpoint.close(0u32.into(), b"done");
-    Ok(())
+    Ok(received)
 }

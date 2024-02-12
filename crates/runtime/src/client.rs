@@ -150,11 +150,13 @@ where
         sink: &mut impl Sink<E::Effects>,
         syncer: &mut impl SyncState,
         message: &[u8],
-    ) -> Result<(), ClientError> {
+    ) -> Result<usize, ClientError> {
+        let mut received = 0;
         if let Some(commands) = syncer.receive(message)? {
+            received = commands.len();
             trx.add_commands(&commands, &mut self.provider, &mut self.engine, sink)?;
         }
-        Ok(())
+        Ok(received)
     }
 
     pub fn action(

@@ -36,15 +36,9 @@
 - !Sync {client: 0, graph: 0, from: 1}
 
 - !AddExpectation 2
-- !Sync {client: 2, graph: 0, from: 1}
-
 - !AddExpectation 1
 - !AddExpectation 1
-- !Sync {client: 2, graph: 0, from: 1}
-
 - !AddExpectation 4
-- !Sync {client: 2, graph: 0, from: 1}
-
 - !AddExpectation 3
 - !AddExpectation 3
-- !Sync {client: 2, graph: 0, from: 1}
+- !Sync {client: 2, graph: 0, from: 1, must_receive: 6}
