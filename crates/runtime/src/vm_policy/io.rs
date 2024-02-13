@@ -2,7 +2,11 @@ extern crate alloc;
 
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 
-use crypto::default::{DefaultCipherSuite, DefaultEngine, Rng};
+use crypto::{
+    default::{DefaultCipherSuite, DefaultEngine, Rng},
+    UserId,
+};
+use device_ffi::FfiDevice;
 use perspective_ffi::FfiPerspective;
 use policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, KVPair, MachineError, MachineErrorType,
@@ -25,6 +29,7 @@ where
     // FFI modules
     envelope_module: FfiEnvelope,
     perspective_module: FfiPerspective,
+    device_module: FfiDevice,
 }
 
 impl<'o, P, S> VmPolicyIO<'o, P, S>
@@ -40,6 +45,7 @@ where
         'b: 'o,
     {
         let (engine, _) = DefaultEngine::from_entropy(Rng);
+
         VmPolicyIO {
             facts,
             sink,
@@ -47,6 +53,7 @@ where
             engine,
             envelope_module: FfiEnvelope {},
             perspective_module: FfiPerspective {},
+            device_module: FfiDevice::new(UserId::default()),
         }
     }
 
@@ -126,6 +133,10 @@ where
                 .map_err(|e| MachineError::new(MachineErrorType::IO(e))),
             1 => self
                 .perspective_module
+                .call(procedure, stack, ctx, &mut self.engine)
+                .map_err(|_| MachineError::new(MachineErrorType::Unknown)),
+            2 => self
+                .device_module
                 .call(procedure, stack, ctx, &mut self.engine)
                 .map_err(|_| MachineError::new(MachineErrorType::Unknown)),
             _ => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(

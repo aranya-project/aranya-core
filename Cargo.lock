@@ -750,6 +750,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "device-ffi"
+version = "0.1.0"
+dependencies = [
+ "crypto",
+ "policy-lang",
+ "policy-vm",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2363,6 +2372,7 @@ dependencies = [
  "clap",
  "criterion",
  "crypto",
+ "device-ffi",
  "directories-next",
  "dot-writer",
  "futures",
