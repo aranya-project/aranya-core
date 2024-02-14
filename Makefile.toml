@@ -208,7 +208,7 @@ git diff
 status=$(git status -s)
 if [[ -n "$status" ]]; then
     echo "$status"
-    exit
+    exit 1
 fi
 '''
 
