@@ -44,6 +44,7 @@ prettyplease = { version = "0.2.15" }
 quinn = { version = "0.10.1" }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
+rustix = { version = "0.38", default-features = false }
 rustls = { version = "0.21.0", default-features = false }
 serde = { version = "1", default-features = false }
 spin = { version = "0.9.8", default-features = false }

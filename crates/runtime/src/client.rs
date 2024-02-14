@@ -5,7 +5,7 @@ use buggy::{Bug, BugExt};
 
 use crate::{
     Command, Engine, EngineError, Id, Location, Perspective, Policy, Prior, Priority, Segment,
-    Sink, Storage, StorageError, StorageProvider, SyncError, SyncState, MAX_COMMAND_LENGTH,
+    Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 mod session;
@@ -21,7 +21,6 @@ pub enum ClientError {
     StorageError(StorageError),
     InitError,
     NotAuthorized,
-    SyncError,
     SessionDeserialize(postcard::Error),
     Bug(Bug),
 }
@@ -34,7 +33,6 @@ impl fmt::Display for ClientError {
             Self::StorageError(e) => write!(f, "storage error: {e}"),
             Self::InitError => write!(f, "init error"),
             Self::NotAuthorized => write!(f, "not authorized"),
-            Self::SyncError => write!(f, "sync error"),
             Self::SessionDeserialize(e) => write!(f, "session deserialize error: {e}"),
             Self::Bug(bug) => write!(f, "{bug}"),
         }
@@ -61,12 +59,6 @@ impl From<EngineError> for ClientError {
 impl From<StorageError> for ClientError {
     fn from(error: StorageError) -> Self {
         ClientError::StorageError(error)
-    }
-}
-
-impl From<SyncError> for ClientError {
-    fn from(_error: SyncError) -> Self {
-        ClientError::SyncError
     }
 }
 
@@ -136,27 +128,14 @@ where
         trx.commit(&mut self.provider, &mut self.engine, sink)
     }
 
-    pub fn sync_poll(
-        &mut self,
-        syncer: &mut impl SyncState,
-        target: &mut [u8],
-    ) -> Result<usize, ClientError> {
-        Ok(syncer.poll(target, &mut self.provider)?)
-    }
-
-    pub fn sync_receive(
+    pub fn add_commands<'cmd>(
         &mut self,
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effects>,
-        syncer: &mut impl SyncState,
-        message: &[u8],
-    ) -> Result<usize, ClientError> {
-        let mut received = 0;
-        if let Some(commands) = syncer.receive(message)? {
-            received = commands.len();
-            trx.add_commands(&commands, &mut self.provider, &mut self.engine, sink)?;
-        }
-        Ok(received)
+        commands: &[impl Command<'cmd>],
+    ) -> Result<(), ClientError> {
+        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
+        Ok(())
     }
 
     pub fn action(
@@ -207,9 +186,8 @@ where
         Session::new(&mut self.provider, storage_id)
     }
 
-    /// Provide access to the storage provider (mostly for tests)
-    #[cfg(test)]
-    pub(crate) fn provider(&mut self) -> &mut SP {
+    /// Provide access to the storage provider
+    pub fn provider(&mut self) -> &mut SP {
         &mut self.provider
     }
 }

@@ -75,6 +75,17 @@ impl From<Bug> for DecodeError {
     }
 }
 
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::BadInput => write!(f, "bad input"),
+            Self::Bug(bug) => write!(f, "{bug}"),
+        }
+    }
+}
+
+impl trouble::Error for DecodeError {}
+
 // Generate PartialEq for $lhs and $rhs.
 macro_rules! impl_eq {
     ($lhs:ty, $rhs:ty) => {

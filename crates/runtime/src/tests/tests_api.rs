@@ -9,17 +9,13 @@ use crypto::Rng;
 use once_cell::sync::Lazy;
 use quinn::{ConnectionError, ReadToEndError, ServerConfig, WriteError};
 use serde::{Deserialize, Serialize};
-use spin::Mutex;
 use tokio::sync::Mutex as TMutex;
-use tokio_util::sync::CancellationToken;
-use tracing::{debug, error};
+use tracing::debug;
 
 use crate::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    quic_syncer::{run_syncer, sync},
-    sync::LockedSink,
-    ClientError, ClientState, EngineError, Expectation, StorageProvider, SyncError, SyncRequester,
-    SyncState,
+    quic_syncer::{run_syncer, sync, QuicSyncError},
+    ClientError, ClientState, EngineError, StorageProvider, SyncRequester,
 };
 
 static NETWORK: Lazy<TMutex<()>> = Lazy::new(TMutex::default);
@@ -67,7 +63,7 @@ enum TestError {
     SerdeYaml(serde_yaml::Error),
     MissingClient,
     MissingGraph(u64),
-    Sync(SyncError),
+    Sync(QuicSyncError),
     Crypto,
     Network,
 }
@@ -120,8 +116,8 @@ impl From<EngineError> for TestError {
     }
 }
 
-impl From<SyncError> for TestError {
-    fn from(err: SyncError) -> Self {
+impl From<QuicSyncError> for TestError {
+    fn from(err: QuicSyncError) -> Self {
         TestError::Sync(err)
     }
 }
@@ -150,12 +146,11 @@ where
 
     let mut commands = BTreeMap::new();
     let actions: Vec<TestRule> = read(file)?;
-    let cancel_token = CancellationToken::new();
 
     let mut clients = BTreeMap::new();
     let mut addrs = BTreeMap::new();
 
-    let mut sink = LockedSink::new(Arc::new(Mutex::new(TestSink::new())));
+    let mut sink = TestSink::new();
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
     let cert_der = cert.serialize_der().unwrap();
     let priv_key = cert.serialize_private_key_der();
@@ -195,18 +190,7 @@ where
                     transport_config.max_concurrent_uni_streams(0_u8.into());
                     let endpoint = quinn::Endpoint::server(server_config, server_addr).unwrap();
                     addrs.insert(id, endpoint.local_addr()?);
-                    let fut = run_syncer(
-                        cancel_token.clone(),
-                        client.clone(),
-                        storage_id,
-                        endpoint,
-                        sink.clone(),
-                    );
-                    tokio::spawn(async move {
-                        if let Err(e) = fut.await {
-                            error!(cause = ?e, "sync error");
-                        }
-                    });
+                    tokio::spawn(run_syncer(client.clone(), endpoint));
                 }
 
                 assert_eq!(0, sink.count());
@@ -220,7 +204,7 @@ where
                 let Some(request_cell) = clients.get(&client) else {
                     return Err(TestError::MissingClient);
                 };
-                let request_client = request_cell.lock().await;
+                let mut request_client = request_cell.lock().await;
 
                 let Some(storage_id) = commands.get(&graph) else {
                     return Err(TestError::MissingGraph(graph));
@@ -228,13 +212,11 @@ where
 
                 let request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
 
-                assert!(request_syncer.ready());
-
                 let server_addr = *addrs.get(&from).expect("client addr registered");
                 let commands_received = sync(
-                    request_client,
+                    &mut request_client,
                     request_syncer,
-                    cert_chain.clone(),
+                    &cert_chain,
                     &mut sink,
                     storage_id,
                     server_addr,
@@ -286,7 +268,7 @@ where
             }
         };
     }
-    cancel_token.cancel();
+
     Ok(())
 }
 

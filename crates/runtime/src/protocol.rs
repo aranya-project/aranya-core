@@ -6,8 +6,8 @@ use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    alloc, Command, Engine, EngineError, Expectation, FactPerspective, Id, Perspective, Policy,
-    PolicyId, Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
+    alloc, Command, Engine, EngineError, FactPerspective, Id, Perspective, Policy, PolicyId, Prior,
+    Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
 };
 use crate::MergeIds;
 
@@ -206,12 +206,12 @@ impl Default for TestSink {
     }
 }
 
-impl Expectation<TestEffect> for TestSink {
-    fn add_expectation(&mut self, expect: TestEffect) {
+impl TestSink {
+    pub fn add_expectation(&mut self, expect: TestEffect) {
         self.expect.push(expect);
     }
 
-    fn count(&self) -> usize {
+    pub fn count(&self) -> usize {
         self.expect.len()
     }
 }

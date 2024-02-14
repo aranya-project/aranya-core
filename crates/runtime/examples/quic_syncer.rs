@@ -3,14 +3,14 @@
 //! It creates two peers, a new graph, and Peer B syncs with Peer A and outputs the effects.
 //!
 //! Peer 1
-//! cargo run --example sync --features quic_syncer -- --new --listen 127.0.0.1:5001 --peer 127.0.0.1:5002
+//! cargo run --example quic_syncer -- --new --listen 127.0.0.1:5001 --peer 127.0.0.1:5002
 //!
 //! Peer 1 will print the new storage id. You will need this id for peer 2.
 //!
 //! Peer 2
-//! cargo run --example sync --features quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --storage $STORAGE_ID
+//! cargo run --example quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --storage $STORAGE_ID
 
-use std::{error::Error, fmt, fs, io, net::SocketAddr, sync::Arc, thread, time};
+use std::{error::Error, fmt, fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
@@ -21,11 +21,9 @@ use runtime::{
     protocol::{TestActions, TestEffect, TestEngine},
     quic_syncer::{run_syncer, sync},
     storage::memory::MemStorageProvider,
-    ClientState, Id, LockedSink, SyncRequester,
+    ClientState, Id, SyncRequester,
 };
-use spin::Mutex;
 use tokio::sync::Mutex as TMutex;
-use tokio_util::sync::CancellationToken;
 
 /// An error returned by the syncer.
 #[derive(Debug)]
@@ -59,7 +57,7 @@ struct Opt {
     peer: SocketAddr,
     /// whether to create a new graph
     #[clap(long = "storage")]
-    storage_id: Option<String>,
+    storage_id: Option<Id>,
 }
 
 fn main() {
@@ -76,21 +74,14 @@ fn main() {
 }
 
 async fn sync_peer(
-    client: tokio::sync::MutexGuard<'_, ClientState<TestEngine, MemStorageProvider>>,
-    cert_chain: Vec<rustls::Certificate>,
-    sink: &mut LockedSink<PrintSink>,
+    client: &mut ClientState<TestEngine, MemStorageProvider>,
+    cert_chain: &[rustls::Certificate],
+    sink: &mut PrintSink,
     storage_id: Id,
     server_addr: SocketAddr,
 ) {
     let syncer = SyncRequester::new(storage_id, &mut Rng::new());
-    let fut = sync(
-        client,
-        syncer,
-        cert_chain.clone(),
-        sink,
-        &storage_id,
-        server_addr,
-    );
+    let fut = sync(client, syncer, cert_chain, sink, &storage_id, server_addr);
     match fut.await {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),
@@ -99,7 +90,6 @@ async fn sync_peer(
 
 #[tokio::main]
 async fn run(options: Opt) -> Result<()> {
-    let cancel_token = CancellationToken::new();
     let dirs = directories_next::ProjectDirs::from("org", "spideroak", "aranya")
         .expect("unable to load directory");
     let path = dirs.data_local_dir();
@@ -130,7 +120,7 @@ async fn run(options: Opt) -> Result<()> {
     let storage = MemStorageProvider::new();
 
     let client = Arc::new(TMutex::new(ClientState::new(engine, storage)));
-    let mut sink = LockedSink::new(Arc::new(Mutex::new(PrintSink {})));
+    let mut sink = PrintSink {};
     let storage_id;
     if options.new_graph {
         let policy_data = 0_u64.to_be_bytes();
@@ -144,9 +134,7 @@ async fn run(options: Opt) -> Result<()> {
             })?;
         println!("Storage id: {}", storage_id)
     } else if let Some(id) = options.storage_id {
-        storage_id = base58::String64::decode(id)
-            .expect("unable to decode id")
-            .into();
+        storage_id = id;
     } else {
         return Err(SyncError {
             error_msg: "storage id is missing".to_string(),
@@ -162,23 +150,12 @@ async fn run(options: Opt) -> Result<()> {
         quinn::Endpoint::server(server_config, options.listen).map_err(|e| SyncError {
             error_msg: e.to_string(),
         })?;
-    let fut = run_syncer(
-        cancel_token.clone(),
-        client.clone(),
-        storage_id,
-        endpoint,
-        sink.clone(),
-    );
-    tokio::spawn(async move {
-        if let Err(e) = fut.await {
-            println!("sync error: {:?}", e)
-        }
-    });
+    let task = tokio::spawn(run_syncer(client.clone(), endpoint));
     // Initial sync to sync the Init command
     if !options.new_graph {
         sync_peer(
-            client.lock().await,
-            cert_chain.clone(),
+            client.lock().await.deref_mut(),
+            &cert_chain,
             &mut sink,
             storage_id,
             options.peer,
@@ -198,8 +175,8 @@ async fn run(options: Opt) -> Result<()> {
                 })?;
         } else {
             sync_peer(
-                client.lock().await,
-                cert_chain.clone(),
+                client.lock().await.deref_mut(),
+                &cert_chain,
                 &mut sink,
                 storage_id,
                 options.peer,
@@ -209,8 +186,8 @@ async fn run(options: Opt) -> Result<()> {
         thread::sleep(time::Duration::from_secs(1));
     }
     thread::sleep(time::Duration::from_secs(5));
+    task.abort();
     println!("done");
-    cancel_token.cancel();
     Ok(())
 }
 

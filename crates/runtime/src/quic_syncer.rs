@@ -1,102 +1,71 @@
 //! An implementation of the syncer using QUIC.
-#![cfg(any(feature = "quic_syncer", test))]
+
+#![cfg(feature = "quic_syncer")]
+#![cfg_attr(docs, doc(cfg(feature = "quic_syncer")))]
 
 use alloc::sync::Arc;
 use std::net::{Ipv4Addr, SocketAddr};
 
 use quinn::{ClientConfig, ConnectError, ConnectionError, Endpoint, ReadToEndError, WriteError};
-use tokio::{select, sync::Mutex as TMutex};
-use tokio_util::sync::CancellationToken;
+use tokio::sync::Mutex as TMutex;
 use tracing::error;
 
 use crate::{
     command::Id,
     engine::{Engine, Sink},
     storage::StorageProvider,
-    ClientState, LockedSink, SyncError, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
+    ClientError, ClientState, SyncError, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
 
-impl From<rustls::Error> for SyncError {
-    fn from(_error: rustls::Error) -> Self {
-        SyncError::CryptoError
-    }
-}
-
-impl From<WriteError> for SyncError {
-    fn from(error: WriteError) -> Self {
-        error!("write error: {error}");
-        SyncError::NetworkError
-    }
-}
-
-impl From<ReadToEndError> for SyncError {
-    fn from(error: ReadToEndError) -> Self {
-        error!("read error: {error}");
-        SyncError::NetworkError
-    }
-}
-
-impl From<ConnectionError> for SyncError {
-    fn from(error: ConnectionError) -> Self {
-        error!("connection error: {error}");
-        SyncError::NetworkError
-    }
-}
-
-impl From<ConnectError> for SyncError {
-    fn from(error: ConnectError) -> Self {
-        error!("connect error: {error}");
-        SyncError::NetworkError
-    }
-}
-
-impl From<std::io::Error> for SyncError {
-    fn from(error: std::io::Error) -> Self {
-        error!("io error: {error}");
-        SyncError::NetworkError
-    }
+/// An error running the quic sync client or server.
+#[derive(thiserror::Error, Debug)]
+pub enum QuicSyncError {
+    /// A sync protocol error.
+    #[error("sync error")]
+    Sync(#[from] SyncError),
+    /// An error interacting with the runtime client.
+    #[error("client error")]
+    Client(#[from] ClientError),
+    /// A tls error from configuring certificates
+    #[error("rustls error")]
+    Rustls(#[from] rustls::Error),
+    /// An error writing to the quic stream
+    #[error("write error")]
+    Write(#[from] WriteError),
+    /// An error reading from the quic stream
+    #[error("read error")]
+    Read(#[from] ReadToEndError),
+    /// An error when creating a connection
+    #[error("connect error")]
+    Connect(#[from] ConnectError),
+    /// An error during connection
+    #[error("connection error")]
+    Connection(#[from] ConnectionError),
+    /// An IO error binding the socket
+    #[error("io error")]
+    Io(#[from] std::io::Error),
 }
 
 /// Runs a server listening for sync requests from other peers.
-pub async fn run_syncer<T, EN, SP>(
-    cancel_token: CancellationToken,
-    client: Arc<TMutex<ClientState<EN, SP>>>,
-    storage_id: Id,
-    endpoint: Endpoint,
-    sink: LockedSink<T>,
-) -> Result<(), SyncError>
-where
-    T: Send + 'static,
-    EN: Engine + Send + 'static,
-    SP: StorageProvider + Send + 'static,
-    LockedSink<T>: Sink<<EN as Engine>::Effects> + Clone,
-{
-    let future = tokio::spawn(async move {
-        while let Some(conn) = endpoint.accept().await {
-            let _ = handle_connection(conn, client.clone(), storage_id, sink.clone()).await;
-        }
-    });
-    select! {
-        _ = cancel_token.cancelled() => {
-            // The token was cancelled
-        },
-        _ = future => {
-            // Listen completed
-        }
-    };
-    Ok(())
-}
-
-async fn handle_connection<T, EN, SP>(
-    conn: quinn::Connecting,
-    client: Arc<TMutex<ClientState<EN, SP>>>,
-    storage_id: Id,
-    sink: LockedSink<T>,
-) -> Result<(), SyncError>
+pub async fn run_syncer<EN, SP>(client: Arc<TMutex<ClientState<EN, SP>>>, endpoint: Endpoint)
 where
     EN: Engine,
     SP: StorageProvider,
-    LockedSink<T>: Sink<<EN as Engine>::Effects>,
+{
+    while let Some(conn) = endpoint.accept().await {
+        if let Err(e) = handle_connection(conn, client.clone()).await {
+            error!(cause = ?e, "sync error");
+        }
+    }
+}
+
+async fn handle_connection<EN, SP>(
+    conn: quinn::Connecting,
+    client: Arc<TMutex<ClientState<EN, SP>>>,
+) -> Result<(), QuicSyncError>
+where
+    EN: Engine,
+    SP: StorageProvider,
 {
     let connection = conn.await?;
     let stream = connection.accept_bi().await;
@@ -109,20 +78,17 @@ where
         }
         Ok(s) => s,
     };
-    handle_request(stream, client, storage_id, sink).await?;
+    handle_request(stream, client).await?;
     Ok(())
 }
 
-async fn handle_request<T, EN, SP>(
+async fn handle_request<EN, SP>(
     (mut send, mut recv): (quinn::SendStream, quinn::RecvStream),
     client: Arc<TMutex<ClientState<EN, SP>>>,
-    storage_id: Id,
-    mut sink: LockedSink<T>,
-) -> Result<(), SyncError>
+) -> Result<(), QuicSyncError>
 where
     EN: Engine,
     SP: StorageProvider,
-    LockedSink<T>: Sink<<EN as Engine>::Effects>,
 {
     let req = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
     let mut response_syncer = SyncResponder::new();
@@ -130,11 +96,9 @@ where
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let target = {
         let mut client = client.lock().await;
-        let mut trx = client.transaction(&storage_id);
-        client.sync_receive(&mut trx, &mut sink, &mut response_syncer, &req)?;
-        client.commit(&mut trx, &mut sink)?;
+        response_syncer.receive(&req)?;
 
-        let len = client.sync_poll(&mut response_syncer, &mut buffer)?;
+        let len = response_syncer.poll(&mut buffer, client.provider())?;
         &buffer[..len]
     };
 
@@ -145,26 +109,26 @@ where
 }
 
 /// Initiates a sync request to another peer.
-pub async fn sync<T, EN, SP>(
-    mut client: tokio::sync::MutexGuard<'_, ClientState<EN, SP>>,
+pub async fn sync<S, EN, SP>(
+    client: &mut ClientState<EN, SP>,
     mut syncer: SyncRequester<'_>,
-    cert_chain: Vec<rustls::Certificate>,
-    sink: &mut LockedSink<T>,
+    cert_chain: &[rustls::Certificate],
+    sink: &mut S,
     storage_id: &Id,
     server_addr: SocketAddr,
-) -> Result<usize, SyncError>
+) -> Result<usize, QuicSyncError>
 where
     EN: Engine,
     SP: StorageProvider,
-    LockedSink<T>: Sink<<EN as Engine>::Effects>,
+    S: Sink<<EN as Engine>::Effects>,
 {
-    let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let len = client.sync_poll(&mut syncer, &mut buffer)?;
+    let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+    let len = syncer.poll(&mut buffer, client.provider())?;
     if len > buffer.len() {
-        return Err(SyncError::SerilizeError);
+        return Err(SyncError::SerilizeError.into());
     }
     let mut certs = rustls::RootCertStore::empty();
-    for cert in &cert_chain {
+    for cert in cert_chain {
         certs.add(cert)?;
     }
     let client_cfg = ClientConfig::with_root_certificates(certs);
@@ -177,14 +141,19 @@ where
 
     send.write_all(&buffer[0..len]).await?;
     send.finish().await?;
-    let resp = recv.read_to_end(usize::max_value()).await?;
+
+    let resp = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
     // An empty response means we're up to date and there's nothing to sync.
     let mut received = 0;
     if !resp.is_empty() {
-        let mut trx = client.transaction(storage_id);
-        received = client.sync_receive(&mut trx, sink, &mut syncer, &resp)?;
-        client.commit(&mut trx, sink)?;
+        if let Some(cmds) = syncer.receive(&resp)? {
+            received = cmds.len();
+            let mut trx = client.transaction(storage_id);
+            client.add_commands(&mut trx, sink, &cmds)?;
+            client.commit(&mut trx, sink)?;
+        }
     }
+
     conn.close(0u32.into(), b"done");
     endpoint.wait_idle().await;
     endpoint.close(0u32.into(), b"done");

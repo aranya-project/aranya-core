@@ -13,7 +13,7 @@ use crate::{
     engine::Sink,
     storage::memory::MemStorageProvider,
     vm_policy::{ffi::FfiEnvelope, VmPolicy},
-    ClientState, SyncRequester, SyncResponder, SyncState, MAX_SYNC_MESSAGE_SIZE,
+    ClientState, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
 
 const TEST_POLICY_1: &str = r#"---
@@ -310,7 +310,6 @@ impl Model for TestModel {
         dest_client_proxy_id: ProxyClientID,
     ) -> Result<(), ModelError> {
         let mut request_sink = TestSink::default();
-        let mut response_sink = TestSink::default();
 
         // Destination of the sync
         let mut request_state = self
@@ -338,20 +337,10 @@ impl Model for TestModel {
             &mut request_state,
             &mut response_state,
             &mut request_sink,
-            &mut response_sink,
         )?;
 
         drop(response_state);
         drop(request_state);
-
-        // Source of the sync
-        self.clients
-            .get_mut(&source_client_proxy_id)
-            .expect("Could not get client")
-            .metrics
-            .entry(graph_proxy_id)
-            .or_default()
-            .update(&response_sink);
 
         // Destination of the sync
         self.clients
@@ -371,14 +360,12 @@ fn unidirectional_sync(
     request_state: &mut ClientState<ModelEngine, MemStorageProvider>,
     response_state: &mut ClientState<ModelEngine, MemStorageProvider>,
     request_sink: &mut TestSink,
-    response_sink: &mut TestSink,
 ) -> Result<(), ModelError> {
     let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
     let mut response_syncer = SyncResponder::new();
 
     assert!(request_syncer.ready());
 
-    let mut response_trx = response_state.transaction(storage_id);
     let mut request_trx = request_state.transaction(storage_id);
 
     // TODO: (Scott) Once https://git.spideroak-inc.com/spideroak-inc/flow3-rs/pull/476 gets merged in we'll need to initiate another loop or run of unidirectional_sync func. The syncer will only queue up to 100 segments to sync at a time.
@@ -390,36 +377,24 @@ fn unidirectional_sync(
 
         if request_syncer.ready() {
             let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-            let len = request_state.sync_poll(&mut request_syncer, &mut buffer)?;
+            let len = request_syncer.poll(&mut buffer, request_state.provider())?;
 
-            response_state.sync_receive(
-                &mut response_trx,
-                response_sink,
-                &mut response_syncer,
-                &buffer[0..len],
-            )?;
+            response_syncer.receive(&buffer[..len])?;
         }
 
         if response_syncer.ready() {
             let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-            let len = response_state.sync_poll(&mut response_syncer, &mut buffer)?;
+            let len = response_syncer.poll(&mut buffer, response_state.provider())?;
 
             if len == 0 {
                 break;
             }
 
-            request_state.sync_receive(
-                &mut request_trx,
-                request_sink,
-                &mut request_syncer,
-                &buffer[0..len],
-            )?;
+            if let Some(cmds) = request_syncer.receive(&buffer[..len])? {
+                request_state.add_commands(&mut request_trx, request_sink, &cmds)?;
+            };
         }
     }
-
-    response_state
-        .commit(&mut response_trx, request_sink)
-        .expect("Should commit the transaction");
 
     request_state
         .commit(&mut request_trx, request_sink)

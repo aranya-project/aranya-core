@@ -3,6 +3,7 @@
 //! The Aranya Model is a library which provides APIs to construct one or more clients, execute actions on the clients, sync between clients, and gather performance metrics about the operations performed.
 
 #![cfg(feature = "model")]
+#![cfg_attr(docs, doc(cfg(feature = "model")))]
 
 extern crate alloc;
 use alloc::{string::String, vec::Vec};
@@ -12,7 +13,7 @@ use policy_vm::KVPair;
 use crate::{
     engine::{Engine, EngineError, PolicyId},
     vm_policy::VmPolicy,
-    ClientError,
+    ClientError, SyncError,
 };
 
 /// Model engine effect.
@@ -55,6 +56,7 @@ pub enum ModelError {
     DuplicateClient,
     DuplicateGraph,
     Engine(EngineError),
+    Sync(SyncError),
 }
 
 impl From<ClientError> for ModelError {
@@ -66,6 +68,12 @@ impl From<ClientError> for ModelError {
 impl From<EngineError> for ModelError {
     fn from(err: EngineError) -> Self {
         ModelError::Engine(err)
+    }
+}
+
+impl From<SyncError> for ModelError {
+    fn from(err: SyncError) -> Self {
+        ModelError::Sync(err)
     }
 }
 

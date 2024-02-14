@@ -111,6 +111,7 @@ impl From<Bug> for StorageError {
 }
 
 #[cfg(feature = "rustix")]
+#[cfg_attr(docs, doc(cfg(feature = "rustix")))]
 impl From<rustix::io::Errno> for StorageError {
     fn from(_: rustix::io::Errno) -> Self {
         // TODO(jdygert): Add variant?

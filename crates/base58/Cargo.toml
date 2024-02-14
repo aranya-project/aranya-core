@@ -17,10 +17,12 @@ default = []
 # Enable alloc
 alloc = ["buggy/alloc"]
 # Enable std
-std = ["alloc", "buggy/std"]
+std = ["alloc", "buggy/std", "trouble/std"]
 
 [dependencies]
 buggy = { path = "../buggy" }
+trouble = { path = "../trouble" }
+
 byteorder = { workspace = true, default-features = false }
 
 [dev-dependencies]

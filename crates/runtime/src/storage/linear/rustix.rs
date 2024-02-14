@@ -1,10 +1,10 @@
 //! IO provider for linear storage based on libc files.
 
 #![cfg(feature = "rustix")]
+#![cfg_attr(docs, doc(cfg(feature = "rustix")))]
 
-use alloc::sync::Arc;
+use alloc::{string::ToString, sync::Arc};
 
-use base58::ToBase58;
 use buggy::BugExt;
 use rustix::{
     fd::OwnedFd,
@@ -35,10 +35,10 @@ impl linear::io::FileManager for FileManager {
     type File = File;
 
     fn create(&mut self, id: Id) -> Result<Self::File, StorageError> {
-        let name = crypto::Id::from(id).to_base58();
+        let name = id.to_string();
         let fd = fs::openat(
             &self.dir,
-            name.as_bytes(),
+            name,
             OFlags::RDWR | OFlags::CREATE | OFlags::EXCL,
             Mode::RUSR | Mode::WUSR | Mode::RGRP | Mode::WGRP,
         )?;
@@ -48,8 +48,8 @@ impl linear::io::FileManager for FileManager {
     }
 
     fn open(&mut self, id: Id) -> Result<Option<Self::File>, StorageError> {
-        let name = crypto::Id::from(id).to_base58();
-        let fd = match fs::openat(&self.dir, name.as_bytes(), OFlags::RDWR, Mode::empty()) {
+        let name = id.to_string();
+        let fd = match fs::openat(&self.dir, name, OFlags::RDWR, Mode::empty()) {
             Ok(fd) => fd,
             Err(rustix::io::Errno::NOENT) => return Ok(None),
             Err(e) => return Err(e.into()),
@@ -78,7 +78,7 @@ pub struct ReadOnly {
 impl linear::io::Read for ReadOnly {
     fn read_exact(&self, mut offset: u64, mut buf: &mut [u8]) -> Result<(), StorageError> {
         while !buf.is_empty() {
-            match rustix::io::pread(&self.fd, buf, offset) {
+            match rustix::io::pread(&*self.fd, buf, offset) {
                 Ok(0) => break,
                 Ok(n) => {
                     let tmp = buf;
@@ -110,7 +110,7 @@ impl linear::io::Write for File {
 
     fn write_all(&mut self, mut offset: u64, mut buf: &[u8]) -> Result<(), StorageError> {
         while !buf.is_empty() {
-            match rustix::io::pwrite(&self.fd, buf, offset) {
+            match rustix::io::pwrite(&*self.fd, buf, offset) {
                 Ok(0) => {
                     // Failed to write whole buffer
                     return Err(StorageError::IoError);
@@ -129,7 +129,7 @@ impl linear::io::Write for File {
     }
 
     fn sync(&mut self) -> Result<(), StorageError> {
-        fs::fsync(&self.fd)?;
+        fs::fsync(&*self.fd)?;
         Ok(())
     }
 }

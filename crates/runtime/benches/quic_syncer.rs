@@ -18,11 +18,9 @@ use runtime::{
     memory::MemStorageProvider,
     protocol::{TestActions, TestEffect, TestEngine},
     quic_syncer::{run_syncer, sync},
-    ClientState, Id, LockedSink, Sink, SyncRequester,
+    ClientState, Id, Sink, SyncRequester,
 };
-use spin::Mutex;
 use tokio::{runtime::Runtime, sync::Mutex as TMutex};
-use tokio_util::sync::CancellationToken;
 
 #[derive(Debug, Clone)]
 /// Counts the number of effects which are consumed. Used to track the
@@ -67,7 +65,7 @@ fn create_client() -> ClientState<TestEngine, MemStorageProvider> {
 
 fn new_graph(
     client: &mut ClientState<TestEngine, MemStorageProvider>,
-    sink: &mut LockedSink<CountSink>,
+    sink: &mut CountSink,
 ) -> Result<Id> {
     let policy_data = 0_u64.to_be_bytes();
     let payload = (0, 0);
@@ -79,7 +77,7 @@ fn new_graph(
 fn add_commands(
     client: &mut ClientState<TestEngine, MemStorageProvider>,
     storage_id: &Id,
-    sink: &mut LockedSink<CountSink>,
+    sink: &mut CountSink,
     n: u64,
 ) {
     for x in 0..n {
@@ -96,9 +94,8 @@ fn sync_bench(c: &mut Criterion) {
     c.bench_function("quic sync", |b| {
         b.to_async(&rt).iter_custom(|iters| async move {
             // setup
-            let cancel_token = CancellationToken::new();
-            let mut response_sink = LockedSink::new(Arc::new(Mutex::new(CountSink::new())));
-            let mut request_sink = LockedSink::new(Arc::new(Mutex::new(CountSink::new())));
+            let mut response_sink = CountSink::new();
+            let mut request_sink = CountSink::new();
             let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
             let cert_der = cert.serialize_der().unwrap();
             let priv_key = cert.serialize_private_key_der();
@@ -125,18 +122,7 @@ fn sync_bench(c: &mut Criterion) {
             let Ok(listen_addr) = endpoint.local_addr() else {
                 panic!("error getting listen address");
             };
-            let fut = run_syncer(
-                cancel_token.clone(),
-                response_client.clone(),
-                storage_id,
-                endpoint,
-                response_sink.clone(),
-            );
-            tokio::spawn(async move {
-                if let Err(e) = fut.await {
-                    println!("sync error: {:?}", e)
-                }
-            });
+            let task = tokio::spawn(run_syncer(response_client.clone(), endpoint));
             add_commands(
                 response_client.lock().await.deref_mut(),
                 &storage_id,
@@ -146,23 +132,23 @@ fn sync_bench(c: &mut Criterion) {
 
             // Start timing for benchmark
             let start = Instant::now();
-            while request_sink.sink().lock().count() < iters.try_into().unwrap() {
+            while request_sink.count() < iters.try_into().unwrap() {
                 let syncer = SyncRequester::new(storage_id, &mut Rng::new());
-                let fut = sync(
-                    request_client.lock().await,
+                if let Err(e) = sync(
+                    request_client.lock().await.deref_mut(),
                     syncer,
-                    cert_chain.clone(),
+                    &cert_chain,
                     &mut request_sink,
                     &storage_id,
                     listen_addr,
-                );
-                match fut.await {
-                    Ok(_) => {}
-                    Err(e) => println!("err: {:?}", e),
+                )
+                .await
+                {
+                    println!("err: {:?}", e);
                 }
             }
             let elapsed = start.elapsed();
-            cancel_token.cancel();
+            task.abort();
             elapsed
         });
     });
