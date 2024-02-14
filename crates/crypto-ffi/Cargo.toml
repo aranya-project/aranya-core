@@ -55,6 +55,7 @@ trouble = { path = "../trouble", default-features = false, features = ["third-pa
 # A little bit of a hack: always certain features for tests and
 # examples.
 crypto-ffi = { path = ".", features = ["testing"] }
+
 crypto = { path = "../crypto", features = ["alloc", "getrandom"] }
 
 [package.metadata.docs.rs]

@@ -42,7 +42,7 @@ all-features = true
 always_include_features = []
 
 skip_feature_sets = [
-    ["std", "alloc"],
+	["std", "alloc"],
 ]
 
 denylist = []

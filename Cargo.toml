@@ -2,7 +2,7 @@
 resolver = "2"
 
 members = [
-	"crates/*"
+	"crates/*",
 ]
 
 exclude = [
@@ -48,7 +48,7 @@ rustls = { version = "0.21.0", default-features = false }
 serde = { version = "1", default-features = false }
 spin = { version = "0.9.8", default-features = false }
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
-tokio = { version = "1.28.1", default-features = false}
+tokio = { version = "1.28.1", default-features = false }
 tokio-util = { version = "0.7.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.18", default-features = false }

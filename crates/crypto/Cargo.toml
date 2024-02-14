@@ -121,7 +121,6 @@ result_option_inspect = []
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
-crypto-derive = { path = "../crypto-derive" }
 base58 = { path = "../base58", default-features = false }
 bearssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bearssl.git", tag = "v0.2.0", optional = true }
 bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branch = "main", optional = true }
@@ -129,6 +128,7 @@ buggy = { path = "../buggy", default-features = false }
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
 crypto-common = { version = "0.1", default-features = false }
+crypto-derive = { path = "../crypto-derive" }
 der = { version = "0.7", default-features = false }
 ecdsa = { version = "0.16", default-features = false, features = ["signing", "verifying", "der"] }
 ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }

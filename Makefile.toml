@@ -96,20 +96,44 @@ dependencies = [
 ]
 
 [tasks.check-fmt]
+dependencies = ["check-fmt-rust", "check-fmt-toml"]
+description = "Check file formatting"
+
+[tasks.fmt]
+dependencies = ["fmt-rust", "fmt-toml"]
+description = "Format files"
+
+[tasks.check-fmt-rust]
 category = "correctness"
-description = "Check code formatting"
+description = "Check rust code formatting"
 toolchain = "${NIGHTLY}"
 command = "cargo"
 args = ["fmt", "--all", "--", "--check"]
 dependencies = ["install-nightly"]
 
-[tasks.fmt]
+[tasks.fmt-rust]
 category = "correctness"
-description = "Format code"
+description = "Format rust code"
 toolchain = "${NIGHTLY}"
 command = "cargo"
 args = ["fmt", "--all"]
 dependencies = ["install-nightly"]
+
+[tasks.check-fmt-toml]
+category = "correctness"
+description = "Check toml formatting"
+script = "git ls-files -z '*.toml' | xargs -0 -- taplo fmt --check --diff"
+dependencies = ["install-taplo"]
+
+[tasks.fmt-toml]
+category = "correctness"
+description = "Format toml"
+script = "git ls-files -z '*.toml' | xargs -0 taplo fmt"
+dependencies = ["install-taplo"]
+
+[tasks.install-taplo]
+private = true
+install_crate = { crate_name = "taplo-cli", version = "0.9.0", binary = "taplo", test_arg = ["-V"] }
 
 [tasks.check-features]
 category = "correctness"

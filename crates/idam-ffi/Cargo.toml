@@ -32,13 +32,14 @@ std = [
 testing = []
 
 [dependencies]
-crypto = { path = "../crypto", default-features = false, features = ["alloc"]}
+crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-vm = { path = "../policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 trouble = { path = "../trouble", default-features = false, features = ["third-party"] }
 
 [dev-dependencies]
 idam-ffi = { path = ".", features = ["testing"] }
+
 anyhow = { workspace = true }
 crypto = { path = "../crypto", features = ["alloc"] }
 

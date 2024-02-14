@@ -15,25 +15,25 @@ base58 = { path = "../base58" }
 buggy = { path = "../buggy", features = ["alloc"] }
 # `crypto` enables `getrandom` by default.
 crypto = { path = "../crypto", default-features = false }
+device-ffi = { path = "../device-ffi" }
 heapless = { workspace = true, features = ["serde"] }
+perspective-ffi = { path = "../perspective-ffi" }
 policy-vm = { path = "../policy-vm" }
 postcard = { workspace = true, features = ["alloc"] }
-rand = { workspace = true, default-features = false}
+rand = { workspace = true, default-features = false }
 rustix = { version = "0.38.25", optional = true, features = ["fs"] }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 spin = { workspace = true, features = ["spin_mutex"] }
 tracing = { workspace = true }
 trouble = { path = "../trouble" }
 vec1 = { version = "1.10.1", default-features = false, features = ["serde"] }
-device-ffi = { path = "../device-ffi" }
-perspective-ffi = { path = "../perspective-ffi" }
 
 # quic syncer
 futures = { version = "0.3.28", optional = true }
 quinn = { workspace = true, optional = true }
-rustls = { workspace = true, default-features = false, features = ["quic"], optional = true}
+rustls = { workspace = true, default-features = false, features = ["quic"], optional = true }
 serde_yaml = { version = "0.9", optional = true }
-tokio = { workspace = true, features = ["full"], optional = true}
+tokio = { workspace = true, features = ["full"], optional = true }
 tokio-util = { workspace = true, optional = true }
 
 # graphviz
@@ -44,8 +44,8 @@ criterion = { version = "0.5", features = ["async_tokio"] }
 once_cell = "1.18.0"
 policy-lang = { path = "../policy-lang" }
 rcgen = "0.11.3"
-test-log = { workspace = true }
 tempfile = "3.9.0"
+test-log = { workspace = true }
 tracing-subscriber = { workspace = true, default-features = true } # affects features used by test-log
 
 # quic syncer
@@ -64,21 +64,24 @@ directories-next = "2"
 
 [features]
 default = []
+
 std = [
 	"buggy/std",
 	"crypto/std",
 ]
-quic_syncer = [
-    "std",
-    "dep:serde_yaml",
-    "dep:futures",
-    "dep:quinn",
-    "dep:tokio",
-    "dep:tokio-util",
-    "dep:rustls"
-]
-model = []
+
 graphviz = ["dep:dot-writer"]
+model = []
+quic_syncer = [
+	"std",
+
+	"dep:futures",
+	"dep:quinn",
+	"dep:rustls",
+	"dep:serde_yaml",
+	"dep:tokio",
+	"dep:tokio-util",
+]
 
 [[example]]
 name = "quic_syncer"
@@ -91,9 +94,9 @@ required-features = ["quic_syncer"]
 
 [package.metadata.cargo-all-features]
 always_include_features = [
-    "std",
-    "model",
-    "quic_syncer",
-    "rustix",
-    "graphviz",
+	"std",
+	"model",
+	"quic_syncer",
+	"rustix",
+	"graphviz",
 ]

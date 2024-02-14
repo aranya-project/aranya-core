@@ -17,5 +17,5 @@ proc-macro = true
 anyhow = { workspace = true }
 policy-ifgen-core = { path = "../policy-ifgen-core" }
 policy-lang = { path = "../policy-lang" }
-syn = { version = "2.0", features = ["full"] }
 quote = { version = "1.0" }
+syn = { version = "2.0", features = ["full"] }
