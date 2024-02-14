@@ -1,6 +1,8 @@
 //! An in-memory implementation of [`KeyStore`].
 
 #![cfg(feature = "alloc")]
+#![cfg_attr(docs, doc(cfg(feature = "alloc")))]
+#![forbid(unsafe_code)]
 
 extern crate alloc;
 

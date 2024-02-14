@@ -7,6 +7,7 @@ use crate::{
     id::Id,
 };
 
+pub mod fs_keystore;
 pub mod memstore;
 
 /// Stores wrapped secret key material.

@@ -65,6 +65,15 @@ ed25519_batch = [
 	"ed25519-dalek/batch",
 ]
 
+# Enable the file system backed `KeyStore`.
+fs-keystore = [
+	"alloc", # ciborium already requires alloc
+
+	"dep:ciborium",
+	"dep:ciborium-io",
+	"dep:rustix",
+]
+
 # Enable `getrandom` support.
 #
 # NB: `getrandom` does not support VxWorks < 7.
@@ -127,6 +136,8 @@ bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branc
 buggy = { path = "../buggy", default-features = false }
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
+ciborium = { version = "0.2", default-features = false, optional = true }
+ciborium-io = { version = "0.2", default-features = false, optional = true }
 crypto-common = { version = "0.1", default-features = false }
 crypto-derive = { path = "../crypto-derive" }
 der = { version = "0.7", default-features = false }
@@ -145,6 +156,7 @@ postcard = { workspace = true, default-features = false, features = ["heapless",
 rand = { workspace = true, features = ["std", "std_rng"], optional = true }
 # `rand_core` is required by the `rust` backend.
 rand_core = { workspace = true, default-features = false }
+rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, optional = true }
 serde_repr = { version = "0.1", default-features = false, optional = true }
@@ -169,6 +181,7 @@ rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false }
 serde_repr = { version = "0.1", default-features = false }
+tempfile = { version = "3" }
 wycheproof = { version = "0.5" }
 
 [[example]]
@@ -185,6 +198,7 @@ always_include_features = [
 	"boringssl",
 	"committing-aead",
 	"ed25519_batch",
+	"fs-keystore",
 	"getrandom",
 	"rand_core",
 	"std",
