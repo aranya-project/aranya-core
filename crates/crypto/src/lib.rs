@@ -60,7 +60,6 @@ pub mod ec;
 pub mod ed25519;
 pub mod engine;
 mod error;
-mod features;
 mod groupkey;
 pub mod hash;
 pub mod hex;

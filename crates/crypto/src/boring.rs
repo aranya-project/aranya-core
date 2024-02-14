@@ -48,8 +48,6 @@ use more_asserts::assert_ge;
 use subtle::{Choice, ConstantTimeEq};
 use typenum::{Unsigned, U, U12, U16, U32};
 
-#[allow(clippy::wildcard_imports, unused_imports)]
-use crate::features::*;
 use crate::{
     aead::{
         check_open_in_place_params, check_open_params, check_seal_in_place_params,

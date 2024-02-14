@@ -140,12 +140,6 @@ test_util = [
 	"dep:wycheproof",
 ]
 
-#
-# Nightly features
-#
-
-result_option_inspect = []
-
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
