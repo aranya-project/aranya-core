@@ -769,6 +769,7 @@ impl<'a> CompileState<'a> {
                 (
                     ast::Statement::Check(s),
                     StatementContext::Action
+                    | StatementContext::PureFunction
                     | StatementContext::CommandPolicy
                     | StatementContext::CommandRecall,
                 ) => {
