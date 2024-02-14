@@ -128,7 +128,10 @@ impl<T: WrappedKey> Vacant<T> for VacantEntry<T> {
 
     fn insert(self, key: T) -> Result<(), Self::Error> {
         // The file should be empty.
-        debug_assert_eq!(self.fd.fstat()?.st_size, 0);
+        #[cfg(debug_assertions)]
+        {
+            assert_eq!(self.fd.fstat()?.st_size, 0);
+        }
 
         cbor::into_writer(&key, self.fd)?;
         Ok(())
