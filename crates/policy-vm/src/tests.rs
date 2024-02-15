@@ -512,7 +512,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let name = "setup";
         let ctx = dummy_ctx_policy(name);
         let mut rs = RunState::new(&machine, &mut io, &ctx);
-        let self_struct = Struct::new("insertInvalid", &[]);
+        let self_struct = Struct::new(name, &[]);
         let result = rs
             .call_command_policy(name, &self_struct)
             .map_err(anyhow::Error::msg)?;

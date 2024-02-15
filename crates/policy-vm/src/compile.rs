@@ -894,6 +894,19 @@ impl<'a> CompileState<'a> {
                     self.enter_statement_context(StatementContext::Finish);
                     self.compile_statements(s)?;
                     self.exit_statement_context();
+
+                    // Ensure `finish` is the last statement in the block. This also guarantees we can't have more than one finish block.
+                    if statement != statements.last().expect("expected statement") {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::Unknown(
+                                "`finish` must be the last statement in the block".to_owned(),
+                            ),
+                            statement.locator,
+                            self.m.codemap.as_ref(),
+                        ));
+                    }
+                    // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
+                    self.append_instruction(Instruction::Exit);
                 }
                 (ast::Statement::Create(s), StatementContext::Finish) => {
                     self.verify_fact_against_schema(&s.fact)?;

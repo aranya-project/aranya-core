@@ -560,3 +560,35 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn finish_block_should_exit() -> anyhow::Result<()> {
+    let text = r#"
+        fact Blah[] => {}
+        command Foo {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                check true
+                finish {
+                    delete Blah[] => {}
+                } // finish must be the last statement in policy
+                finish {
+                    delete Blah[] => {}
+                }
+                let a = 5
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let result = compile_from_policy(&policy, &[]).expect_err("").err_type;
+
+    assert_eq!(
+        result,
+        CompileErrorType::Unknown("`finish` must be the last statement in the block".to_owned())
+    );
+
+    Ok(())
+}
