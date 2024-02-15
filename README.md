@@ -1,28 +1,33 @@
-# Aranya
+# flow3-rs
 
-`aranya` is the Rust library implementation for Aranya
+This repo is a cargo workspace for the Rust implementation for Aranya.
 
-# Building Aranya
+## Cargo Make
 
-MAC:
-`cargo make build-code`
-LINUX:
-`cargo make --env FEATURES="posix" build-code`
+This repo uses `cargo-make` as a task runner.
 
-# Running unit tests
+### Install
 
-From root:
+```
+cargo install cargo-make --locked
+```
 
-`cargo make unit-tests`
+### Usage
 
-# Correctness checks
+`cargo-make` can be used as a cargo plugin via `cargo make <task>` or directly as `makers <task>`.
 
-From root:
+Note that you must be in the root directory of the repo to run tasks. To view all tasks, run `cargo make` or see [`Makefile.toml`](Makefile.toml).
 
-`cargo make correctness`
+```sh
+# lists all tasks
+makers
 
-# Formatting code
+# auto-format files
+makers fmt
 
-From root:
+# run all unit tests
+makers unit-tests
 
-`cargo make fmt`
+# run correctness checks
+makers correctness
+```
