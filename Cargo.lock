@@ -2345,6 +2345,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_yaml",
+ "spin 0.9.8",
  "tempfile",
  "test-log",
  "thiserror",

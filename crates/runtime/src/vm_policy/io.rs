@@ -2,19 +2,41 @@ extern crate alloc;
 
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 
-use crypto::{
-    default::{DefaultCipherSuite, DefaultEngine, Rng},
-    UserId,
-};
-use device_ffi::FfiDevice;
-use perspective_ffi::FfiPerspective;
+use crypto::default::{DefaultCipherSuite, DefaultEngine, Rng};
 use policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, KVPair, MachineError, MachineErrorType,
-    MachineIO, MachineIOError, Stack,
+    MachineIO, MachineIOError, MachineStack,
 };
 
-use super::ffi::envelope::FfiEnvelope;
 use crate::{FactPerspective, Sink, StorageError, VmFactCursor};
+
+/// Object safe wrapper for [`FfiModule`].
+pub trait FfiCallable<E> {
+    /// Invokes a function in the module.
+    fn call(
+        &mut self,
+        procedure: usize,
+        stack: &mut MachineStack,
+        ctx: &CommandContext<'_>,
+        eng: &mut E,
+    ) -> Result<(), MachineError>;
+}
+
+impl<FM, E> FfiCallable<E> for FM
+where
+    FM: FfiModule,
+    E: crypto::Engine,
+{
+    fn call(
+        &mut self,
+        procedure: usize,
+        stack: &mut MachineStack,
+        ctx: &CommandContext<'_>,
+        eng: &mut E,
+    ) -> Result<(), MachineError> {
+        FM::call(self, procedure, stack, ctx, eng).map_err(Into::into)
+    }
+}
 
 /// Implements the `MachineIO` interface for [VmPolicy](super::VmPolicy).
 pub struct VmPolicyIO<'o, P, S>
@@ -26,11 +48,10 @@ where
     sink: &'o mut S,
     emit_stack: Vec<(String, Vec<KVPair>)>,
     engine: DefaultEngine<Rng, DefaultCipherSuite>,
-    // FFI modules
-    envelope_module: FfiEnvelope,
-    perspective_module: FfiPerspective,
-    device_module: FfiDevice,
+    ffis: FfiList<'o>,
 }
+
+pub type FfiList<'a> = &'a mut [&'a mut dyn FfiCallable<DefaultEngine<Rng>>];
 
 impl<'o, P, S> VmPolicyIO<'o, P, S>
 where
@@ -39,11 +60,7 @@ where
 {
     /// Creates a new `VmPolicyIO` for a [FactPerspective](crate::storage::FactPerspective) and a
     /// [Sink](crate::engine::Sink).
-    pub fn new<'a, 'b>(facts: &'a mut P, sink: &'b mut S) -> VmPolicyIO<'o, P, S>
-    where
-        'a: 'o,
-        'b: 'o,
-    {
+    pub fn new(facts: &'o mut P, sink: &'o mut S, ffis: FfiList<'o>) -> VmPolicyIO<'o, P, S> {
         let (engine, _) = DefaultEngine::from_entropy(Rng);
 
         VmPolicyIO {
@@ -51,9 +68,7 @@ where
             sink,
             emit_stack: vec![],
             engine,
-            envelope_module: FfiEnvelope {},
-            perspective_module: FfiPerspective {},
-            device_module: FfiDevice::new(UserId::default()),
+            ffis,
         }
     }
 
@@ -63,11 +78,10 @@ where
     }
 }
 
-impl<'o, P, S, ST> MachineIO<ST> for VmPolicyIO<'o, P, S>
+impl<'o, P, S> MachineIO<MachineStack> for VmPolicyIO<'o, P, S>
 where
     P: FactPerspective,
     S: Sink<(String, Vec<KVPair>)>,
-    ST: Stack,
 {
     type QueryIterator<'c> = VmFactCursor<'c, P> where Self: 'c;
 
@@ -123,26 +137,15 @@ where
         &mut self,
         module: usize,
         procedure: usize,
-        stack: &mut ST,
+        stack: &mut MachineStack,
         ctx: &CommandContext<'_>,
     ) -> Result<(), MachineError> {
-        match module {
-            0 => self
-                .envelope_module
-                .call(procedure, stack, ctx, &mut self.engine)
-                .map_err(|e| MachineError::new(MachineErrorType::IO(e))),
-            1 => self
-                .perspective_module
-                .call(procedure, stack, ctx, &mut self.engine)
-                .map_err(|_| MachineError::new(MachineErrorType::Unknown)),
-            2 => self
-                .device_module
-                .call(procedure, stack, ctx, &mut self.engine)
-                .map_err(|_| MachineError::new(MachineErrorType::Unknown)),
-            _ => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
+        self.ffis.get_mut(module).map_or(
+            Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,
             ))),
-        }
+            |ffi| ffi.call(procedure, stack, ctx, &mut self.engine),
+        )
     }
 }
 

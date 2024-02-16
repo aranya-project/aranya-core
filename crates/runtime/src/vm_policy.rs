@@ -1,13 +1,15 @@
 extern crate alloc;
 
-use alloc::{borrow::Cow, string::String, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
+use core::mem;
 
 use buggy::bug;
-use crypto::UserId;
+use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_vm::{
     ActionContext, CommandContext, KVPair, Machine, MachineIO, MachineStack, MachineStatus,
     OpenContext, PolicyContext, RunState, SealContext, Struct, Value,
 };
+use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
@@ -29,12 +31,26 @@ pub use protocol::*;
 /// A [Policy](crate::engine::Policy) implementation that uses the Policy VM.
 pub struct VmPolicy {
     machine: Machine,
+    ffis: Mutex<Vec<Box<dyn FfiCallable<DefaultEngine<Rng>> + Send + 'static>>>,
+}
+
+fn cast<'a>(
+    objs: &'a mut [Box<dyn FfiCallable<DefaultEngine<Rng>> + Send + 'static>],
+) -> &'a mut [&'a mut dyn FfiCallable<DefaultEngine<Rng>>] {
+    // SAFETY: miri seems ok with it... but haven't found a guarantee.
+    unsafe { mem::transmute(objs) }
 }
 
 impl VmPolicy {
     /// Create a new `VmPolicy` from a [Machine]
-    pub fn new(machine: Machine) -> Result<VmPolicy, VmPolicyError> {
-        Ok(VmPolicy { machine })
+    pub fn new(
+        machine: Machine,
+        ffis: Vec<Box<dyn FfiCallable<DefaultEngine<Rng>> + Send + 'static>>,
+    ) -> Result<VmPolicy, VmPolicyError> {
+        Ok(VmPolicy {
+            machine,
+            ffis: Mutex::from(ffis),
+        })
     }
 
     fn source_location<M>(&self, rs: &RunState<'_, M>) -> String
@@ -57,7 +73,8 @@ impl VmPolicy {
     where
         P: FactPerspective,
     {
-        let mut io = VmPolicyIO::new(facts, sink);
+        let mut ffis = self.ffis.lock();
+        let mut io = VmPolicyIO::new(facts, sink, cast(&mut ffis));
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let self_data = Struct::new(name, fields);
         match rs.call_command_policy(&self_data.name, &self_data) {
@@ -91,7 +108,8 @@ impl VmPolicy {
         P: FactPerspective,
     {
         let mut sink = NullSink;
-        let mut io = VmPolicyIO::new(facts, &mut sink);
+        let mut ffis = self.ffis.lock();
+        let mut io = VmPolicyIO::new(facts, &mut sink, cast(&mut ffis));
         let ctx = CommandContext::Open(OpenContext {
             name,
             parent_id: parent.into(),
@@ -141,7 +159,8 @@ impl VmPolicy {
     ) -> Result<Struct, EngineError> {
         let mut facts = NullFacts;
         let mut sink = NullSink;
-        let mut io = VmPolicyIO::new(&mut facts, &mut sink);
+        let mut ffis = self.ffis.lock();
+        let mut io = VmPolicyIO::new(&mut facts, &mut sink, cast(&mut ffis));
         let ctx = CommandContext::Seal(SealContext {
             name,
             parent_id: (*parent).into(),
@@ -245,7 +264,8 @@ impl Policy for VmPolicy {
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError> {
         let emit_stack = {
-            let mut io = VmPolicyIO::new(facts, sink);
+            let mut ffis = self.ffis.lock();
+            let mut io = VmPolicyIO::new(facts, sink, cast(&mut ffis));
             let ctx = CommandContext::Action(ActionContext {
                 name,
                 head_id: (*parent).into(),

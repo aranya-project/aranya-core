@@ -163,7 +163,8 @@ impl TestEngine {
         let ast = parse_policy_document(policy_doc).unwrap_or_else(|e| panic!("{e}"));
         let machine =
             compile_from_policy(&ast, &[FfiEnvelope::SCHEMA]).unwrap_or_else(|e| panic!("{e}"));
-        let policy = VmPolicy::new(machine).expect("Could not load policy");
+        let policy =
+            VmPolicy::new(machine, vec![Box::from(FfiEnvelope {})]).expect("Could not load policy");
         TestEngine { policy }
     }
 }

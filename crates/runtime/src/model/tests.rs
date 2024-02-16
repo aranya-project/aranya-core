@@ -199,7 +199,8 @@ impl Model for TestModel {
         let policy_ast = parse_policy_document(policy_doc).expect("parse policy document");
         let machine =
             compile_from_policy(&policy_ast, &[FfiEnvelope::SCHEMA]).expect("compile policy");
-        let policy = VmPolicy::new(machine).expect("Could not load policy");
+        let policy =
+            VmPolicy::new(machine, vec![Box::from(FfiEnvelope {})]).expect("Could not load policy");
         let engine = ModelEngine::new(policy);
         let provider = MemStorageProvider::new();
         let metrics: BTreeMap<ProxyGraphID, Self::Metrics> = BTreeMap::new();
