@@ -272,6 +272,9 @@ impl SyncResponder {
         for l in result {
             r.push(l).ok().assume("too many segments")?;
         }
+        // Order segments to ensure that a segment isn't received before its
+        // ancestor segments.
+        r.sort();
         Ok(r)
     }
 
@@ -303,6 +306,9 @@ impl SyncResponder {
         let mut index = self.next_send;
 
         for i in self.next_send..self.to_send.len() {
+            if commands.is_full() {
+                break;
+            }
             index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
             let Some(location) = self.to_send.get(i) else {
                 self.state = SyncResponderState::Reset;

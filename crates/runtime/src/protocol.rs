@@ -192,11 +192,19 @@ pub enum TestEffect {
 #[derive(Debug, Clone)]
 pub struct TestSink {
     expect: Vec<TestEffect>,
+    ignore_expect: bool,
 }
 
 impl TestSink {
     pub fn new() -> Self {
-        TestSink { expect: Vec::new() }
+        TestSink {
+            expect: Vec::new(),
+            ignore_expect: false,
+        }
+    }
+
+    pub fn ignore_expectations(&mut self, ignore: bool) {
+        self.ignore_expect = ignore;
     }
 }
 
@@ -222,8 +230,10 @@ impl Sink<TestEffect> for TestSink {
     }
 
     fn consume(&mut self, effect: TestEffect) {
-        let expect = self.expect.remove(0);
-        assert_eq!(effect, expect);
+        if !self.ignore_expect {
+            let expect = self.expect.remove(0);
+            assert_eq!(effect, expect);
+        }
     }
 
     fn rollback(&mut self) {

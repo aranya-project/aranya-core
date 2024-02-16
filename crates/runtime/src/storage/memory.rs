@@ -147,6 +147,14 @@ impl MemStorage {
     }
 }
 
+impl Drop for MemStorage {
+    // Ensure the segments are dropped high to low, which helps avoid a stack
+    // overflow on dropping really long Arc chains.
+    fn drop(&mut self) {
+        while self.segments.pop().is_some() {}
+    }
+}
+
 impl Storage for MemStorage {
     type Perspective = MemPerspective;
     type Segment = MemSegment;

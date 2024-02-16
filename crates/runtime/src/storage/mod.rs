@@ -19,10 +19,10 @@ pub mod memory;
 /// The maximum size of a serialized message
 pub const MAX_COMMAND_LENGTH: usize = 2048;
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Location {
-    segment: usize,
-    command: usize,
+    pub segment: usize,
+    pub command: usize,
 }
 
 impl From<(usize, usize)> for Location {

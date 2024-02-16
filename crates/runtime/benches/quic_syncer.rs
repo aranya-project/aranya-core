@@ -17,7 +17,7 @@ use quinn::{Endpoint, ServerConfig};
 use runtime::{
     memory::MemStorageProvider,
     protocol::{TestActions, TestEffect, TestEngine},
-    quic_syncer::{run_syncer, sync},
+    quic_syncer::{run_syncer, Syncer},
     ClientState, Id, Sink, SyncRequester,
 };
 use tokio::{runtime::Runtime, sync::Mutex as TMutex};
@@ -101,6 +101,7 @@ fn sync_bench(c: &mut Criterion) {
             let priv_key = cert.serialize_private_key_der();
             let priv_key = rustls::PrivateKey(priv_key);
             let cert_chain: Vec<rustls::Certificate> = vec![rustls::Certificate(cert_der)];
+            let syncer = Syncer::new(&cert_chain).expect("Syncer creation must succeed");
             let request_client = Arc::new(TMutex::new(create_client()));
             let response_client = Arc::new(TMutex::new(create_client()));
 
@@ -133,16 +134,16 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.count() < iters.try_into().unwrap() {
-                let syncer = SyncRequester::new(storage_id, &mut Rng::new());
-                if let Err(e) = sync(
-                    request_client.lock().await.deref_mut(),
-                    syncer,
-                    &cert_chain,
-                    &mut request_sink,
-                    &storage_id,
-                    listen_addr,
-                )
-                .await
+                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());
+                if let Err(e) = syncer
+                    .sync(
+                        request_client.lock().await.deref_mut(),
+                        sync_requester,
+                        &mut request_sink,
+                        &storage_id,
+                        listen_addr,
+                    )
+                    .await
                 {
                     println!("err: {:?}", e);
                 }

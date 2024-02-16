@@ -1,0 +1,15 @@
+- !AddClient { id: 0 }
+- !AddClient { id: 1 }
+- !AddClient { id: 2 }
+- !NewGraph { client: 0, id: 0, policy: 0 }
+- !Sync { graph: 0, client: 1, from: 0 }
+- !Sync { graph: 0, client: 2, from: 0 }
+- !IgnoreExpectations { ignore: true }
+- !ActionSet { client: 1, graph: 0, key: 0, value: 9, repeat: 1 }
+- !Sync { graph: 0, client: 2, from: 1 }
+- !ActionSet { client: 1, graph: 0, key: 0, value: 1, repeat: 1 }
+- !ActionSet { client: 2, graph: 0, key: 0, value: 9, repeat: 1 }
+- !ActionSet { client: 1, graph: 0, key: 0, value: 9, repeat: 1 }
+- !Sync { graph: 0, client: 1, from: 2 }
+- !Sync { graph: 0, client: 2, from: 1 }
+- !Sync { graph: 0, client: 0, from: 1 }

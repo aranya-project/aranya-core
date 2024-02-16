@@ -28,7 +28,7 @@ const COMMAND_SAMPLE_MAX: usize = 100;
 const REQUEST_MISSING_MAX: usize = 100;
 
 /// The maximum number of commands in a response
-const COMMAND_RESPONSE_MAX: usize = 100;
+pub const COMMAND_RESPONSE_MAX: usize = 100;
 
 /// The maximum number of segments which can be stored to send
 const SEGMENT_BUFFER_MAX: usize = 100;

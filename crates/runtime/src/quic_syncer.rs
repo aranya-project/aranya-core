@@ -108,54 +108,59 @@ where
     Ok(())
 }
 
-/// Initiates a sync request to another peer.
-pub async fn sync<S, EN, SP>(
-    client: &mut ClientState<EN, SP>,
-    mut syncer: SyncRequester<'_>,
-    cert_chain: &[rustls::Certificate],
-    sink: &mut S,
-    storage_id: &Id,
-    server_addr: SocketAddr,
-) -> Result<usize, QuicSyncError>
-where
-    EN: Engine,
-    SP: StorageProvider,
-    S: Sink<<EN as Engine>::Effects>,
-{
-    let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-    let len = syncer.poll(&mut buffer, client.provider())?;
-    if len > buffer.len() {
-        return Err(SyncError::SerilizeError.into());
-    }
-    let mut certs = rustls::RootCertStore::empty();
-    for cert in cert_chain {
-        certs.add(cert)?;
-    }
-    let client_cfg = ClientConfig::with_root_certificates(certs);
-    let client_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0);
-    let mut endpoint = Endpoint::client(client_addr)?;
-    endpoint.set_default_client_config(client_cfg);
+pub struct Syncer {
+    endpoint: Endpoint,
+}
 
-    let conn = endpoint.connect(server_addr, "localhost")?.await?;
-    let (mut send, mut recv) = conn.open_bi().await?;
-
-    send.write_all(&buffer[0..len]).await?;
-    send.finish().await?;
-
-    let resp = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
-    // An empty response means we're up to date and there's nothing to sync.
-    let mut received = 0;
-    if !resp.is_empty() {
-        if let Some(cmds) = syncer.receive(&resp)? {
-            received = cmds.len();
-            let mut trx = client.transaction(storage_id);
-            client.add_commands(&mut trx, sink, &cmds)?;
-            client.commit(&mut trx, sink)?;
+impl Syncer {
+    pub fn new(cert_chain: &[rustls::Certificate]) -> Result<Syncer, QuicSyncError> {
+        let mut certs = rustls::RootCertStore::empty();
+        for cert in cert_chain {
+            certs.add(cert)?;
         }
+        let client_cfg = ClientConfig::with_root_certificates(certs);
+        let client_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0);
+        let mut endpoint = Endpoint::client(client_addr)?;
+        endpoint.set_default_client_config(client_cfg);
+        Ok(Syncer { endpoint })
     }
 
-    conn.close(0u32.into(), b"done");
-    endpoint.wait_idle().await;
-    endpoint.close(0u32.into(), b"done");
-    Ok(received)
+    pub async fn sync<S, EN, SP>(
+        &self,
+        client: &mut ClientState<EN, SP>,
+        mut syncer: SyncRequester<'_>,
+        sink: &mut S,
+        storage_id: &Id,
+        server_addr: SocketAddr,
+    ) -> Result<usize, QuicSyncError>
+    where
+        EN: Engine,
+        SP: StorageProvider,
+        S: Sink<<EN as Engine>::Effects>,
+    {
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = syncer.poll(&mut buffer, client.provider())?;
+        if len > buffer.len() {
+            return Err(SyncError::SerilizeError.into());
+        }
+
+        let conn = self.endpoint.connect(server_addr, "localhost")?.await?;
+        let (mut send, mut recv) = conn.open_bi().await?;
+
+        send.write_all(&buffer[0..len]).await?;
+        send.finish().await?;
+        let resp = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
+        // An empty response means we're up to date and there's nothing to sync.
+        let mut received = 0;
+        if !resp.is_empty() {
+            if let Some(cmds) = syncer.receive(&resp)? {
+                received = cmds.len();
+                let mut trx = client.transaction(storage_id);
+                client.add_commands(&mut trx, sink, &cmds)?;
+                client.commit(&mut trx, sink)?;
+            }
+        }
+        conn.close(0u32.into(), b"done");
+        Ok(received)
+    }
 }

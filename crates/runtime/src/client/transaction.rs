@@ -1,5 +1,5 @@
 use alloc::collections::{BTreeMap, VecDeque};
-use core::marker::PhantomData;
+use core::{marker::PhantomData, mem};
 
 use buggy::{bug, BugExt};
 
@@ -76,12 +76,15 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // TODO(#370): Merge deterministically
         let mut heads: VecDeque<_> = core::mem::take(&mut self.heads).into_iter().collect();
         let mut merging_head = false;
-        while let Some((left_id, left_loc)) = heads.pop_front() {
-            if let Some((right_id, right_loc)) = heads.pop_front() {
+        while let Some((left_id, mut left_loc)) = heads.pop_front() {
+            if let Some((right_id, mut right_loc)) = heads.pop_front() {
                 let (policy, policy_id) = choose_policy(storage, engine, &left_loc, &right_loc)?;
 
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let merge_ids = MergeIds::new(left_id, right_id).assume("merging different ids")?;
+                if left_id > right_id {
+                    mem::swap(&mut left_loc, &mut right_loc);
+                }
                 let command = policy.merge(&mut buffer, merge_ids)?;
 
                 let braid =

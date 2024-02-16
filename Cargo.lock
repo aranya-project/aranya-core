@@ -2338,6 +2338,7 @@ dependencies = [
  "policy-vm",
  "postcard",
  "quinn",
+ "rand",
  "rcgen",
  "runtime",
  "rustix",

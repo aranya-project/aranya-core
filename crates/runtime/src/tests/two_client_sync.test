@@ -8,5 +8,9 @@
 - !AddExpectation 1
 - !ActionSet { client: 0, graph: 0, key: 0, value: 1 }
 
+- !CompareGraphs {clienta: 0, clientb: 1, graph: 0, equal: false}
+
 - !AddExpectation 1
 - !Sync {client: 1, graph: 0 , from: 0}
+
+- !CompareGraphs {clienta: 0, clientb: 1, graph: 0, equal: true}

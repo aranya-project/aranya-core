@@ -19,7 +19,7 @@ use quinn::ServerConfig;
 use runtime::{
     engine::Sink,
     protocol::{TestActions, TestEffect, TestEngine},
-    quic_syncer::{run_syncer, sync},
+    quic_syncer::{run_syncer, Syncer},
     storage::memory::MemStorageProvider,
     ClientState, Id, SyncRequester,
 };
@@ -75,13 +75,13 @@ fn main() {
 
 async fn sync_peer(
     client: &mut ClientState<TestEngine, MemStorageProvider>,
-    cert_chain: &[rustls::Certificate],
+    syncer: &mut Syncer,
     sink: &mut PrintSink,
     storage_id: Id,
     server_addr: SocketAddr,
 ) {
-    let syncer = SyncRequester::new(storage_id, &mut Rng::new());
-    let fut = sync(client, syncer, cert_chain, sink, &storage_id, server_addr);
+    let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());
+    let fut = syncer.sync(client, sync_requester, sink, &storage_id, server_addr);
     match fut.await {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),
@@ -115,6 +115,7 @@ async fn run(options: Opt) -> Result<()> {
     let key = rustls::PrivateKey(key);
     let cert = rustls::Certificate(cert);
     let cert_chain = vec![cert];
+    let mut syncer = Syncer::new(&cert_chain)?;
 
     let engine = TestEngine::new();
     let storage = MemStorageProvider::new();
@@ -155,7 +156,7 @@ async fn run(options: Opt) -> Result<()> {
     if !options.new_graph {
         sync_peer(
             client.lock().await.deref_mut(),
-            &cert_chain,
+            &mut syncer,
             &mut sink,
             storage_id,
             options.peer,
@@ -176,7 +177,7 @@ async fn run(options: Opt) -> Result<()> {
         } else {
             sync_peer(
                 client.lock().await.deref_mut(),
-                &cert_chain,
+                &mut syncer,
                 &mut sink,
                 storage_id,
                 options.peer,
