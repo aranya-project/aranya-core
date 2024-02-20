@@ -88,6 +88,7 @@ cfg_if::cfg_if! {
         }
 
         impl Error for core::alloc::LayoutError {}
+        impl Error for core::convert::Infallible {}
 
         #[cfg(feature = "third-party")]
         impl Error for postcard::Error {}

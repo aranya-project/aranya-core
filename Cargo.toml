@@ -54,6 +54,11 @@ tokio-util = { version = "0.7.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.18", default-features = false }
 
+[patch."https://git.spideroak-inc.com/spideroak-inc/flow3-rs"]
+trouble.path = "crates/trouble"
+buggy.path = "crates/buggy"
+crypto.path = "crates/crypto"
+
 [profile.dev]
 panic = "abort"
 

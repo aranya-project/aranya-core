@@ -138,6 +138,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "080e9890a082662b09c1ad45f567faeeb47f22b5fb23895fbe1e651e718e25ca"
 
 [[package]]
+name = "aps"
+version = "0.1.0"
+source = "git+https://git.spideroak-inc.com/spideroak-inc/aps.git?branch=main#fe0774511f3504e93c58039194c8ae44cf1601e5"
+dependencies = [
+ "buggy",
+ "byteorder",
+ "cfg-if",
+ "const_format",
+ "crypto",
+ "heapless",
+ "serde",
+ "trouble",
+]
+
+[[package]]
+name = "aps-util"
+version = "0.1.0"
+dependencies = [
+ "aps",
+ "aps-util",
+ "cfg-if",
+ "crypto",
+ "indexmap",
+ "policy-vm",
+ "postcard",
+ "serde",
+ "siphasher",
+ "spin 0.9.8",
+ "tracing",
+ "trouble",
+]
+
+[[package]]
 name = "atomic-polyfill"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
