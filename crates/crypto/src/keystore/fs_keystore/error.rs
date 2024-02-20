@@ -1,5 +1,6 @@
 use core::{any::TypeId, fmt, ops::Deref};
 
+use buggy::Bug;
 use ciborium as cbor;
 use rustix::io::Errno;
 
@@ -89,10 +90,17 @@ where
     }
 }
 
+impl From<Bug> for Error {
+    fn from(err: Bug) -> Self {
+        <Self as keystore::Error>::other(err)
+    }
+}
+
 #[derive(Debug)]
 enum Repr {
     AlreadyExists,
     UnexpectedEof(UnexpectedEof),
+    Bug(Bug),
     Errno(Errno),
     Encode(cbor::ser::Error<Errno>),
     Decode(cbor::de::Error<Errno>),
@@ -119,6 +127,8 @@ impl Repr {
                 cbor::de::Error::Semantic(x, y) => cbor::de::Error::Semantic(*x, y.clone()),
                 cbor::de::Error::RecursionLimitExceeded => cbor::de::Error::RecursionLimitExceeded,
             })
+        } else if let Some(err) = err.downcast_ref::<Bug>() {
+            Self::Bug(err.clone())
         } else {
             Self::Other
         }
@@ -131,6 +141,7 @@ impl Repr {
             Self::Errno(err) => downcast_ref(err),
             Self::Encode(err) => downcast_ref(err),
             Self::Decode(err) => downcast_ref(err),
+            Self::Bug(err) => downcast_ref(err),
             Self::Other => None,
         }
     }
@@ -142,6 +153,7 @@ impl Repr {
             Self::Errno(err) => Some(Trouble::from(err)),
             Self::Encode(err) => Some(Trouble::from(err)),
             Self::Decode(err) => Some(Trouble::from(err)),
+            Self::Bug(err) => Some(err),
             Self::Other => None,
         }
     }
@@ -155,6 +167,7 @@ impl fmt::Display for Repr {
             Self::Errno(err) => err.fmt(f),
             Self::Encode(err) => err.fmt(f),
             Self::Decode(err) => err.fmt(f),
+            Self::Bug(err) => err.fmt(f),
             Self::Other => write!(f, "unknown error"),
         }
     }
@@ -215,8 +228,10 @@ impl<E> Deref for Trouble<E> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "std")]
     use super::*;
 
+    #[cfg(feature = "std")]
     mod conversion {
         use keystore::Error as _;
 

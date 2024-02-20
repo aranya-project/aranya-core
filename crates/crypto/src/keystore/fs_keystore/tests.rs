@@ -105,3 +105,26 @@ fn test_remove() {
         .expect("`get` should not fail")
         .is_none());
 }
+
+#[test]
+fn test_get_cloned() {
+    let dir = tempdir().expect("should be able to create tempdir");
+    let mut store1 = Store::open(dir.path()).expect("should be able to create `Store`");
+
+    let want = TestKey64(1);
+    store1
+        .try_insert(id!(1), want)
+        .expect("should be able to store key");
+    let got = store1
+        .get::<TestKey64>(&id!(1))
+        .expect("`get` should not fail")
+        .expect("should be able to find key");
+    assert_eq!(got, want);
+
+    let store2 = store1.try_clone().expect("should be able to clone `Store`");
+    let got = store2
+        .get::<TestKey64>(&id!(1))
+        .expect("`get` should not fail")
+        .expect("should be able to find key");
+    assert_eq!(got, want);
+}
