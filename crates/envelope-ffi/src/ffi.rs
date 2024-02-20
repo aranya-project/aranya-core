@@ -78,6 +78,8 @@ pub struct Ffi;
     module = "envelope",
     def = r#"
 struct Envelope {
+    // The parent command ID.
+    parent_id id,
     // The author's user ID.
     author_id id,
     // Uniquely identifies the command.
@@ -91,6 +93,26 @@ struct Envelope {
 "#
 )]
 impl Ffi {
+    /// Returns the envelope's `parent_id` field.
+    #[ffi_export(def = r#"
+function parent_id(envelope struct Envelope) id
+"#)]
+    pub(crate) fn parent_id<E: Engine + ?Sized>(
+        &self,
+        ctx: &CommandContext<'_>,
+        _eng: &mut E,
+        envelope: Envelope,
+    ) -> Result<Id, Error> {
+        match ctx {
+            CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
+                Ok(envelope.parent_id)
+            }
+            _ => Err(WrongContext(
+                "`envelope::parent_id` called outside of an `open`, `policy`, or `recall` block",
+            )
+            .into()),
+        }
+    }
     /// Returns the envelope's `author_id` field.
     #[ffi_export(def = r#"
 function author_id(envelope struct Envelope) id
@@ -178,16 +200,19 @@ function payload(envelope struct Envelope) bytes
     /// Creates a new envelope.
     #[ffi_export(def = r#"
 function new(
+    parent_id id,
     author_id id,
     command_id id,
     signature bytes,
     payload bytes,
 ) struct Envelope
 "#)]
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_envelope<E: Engine + ?Sized>(
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
+        parent_id: Id,
         author_id: Id,
         command_id: Id,
         signature: Vec<u8>,
@@ -195,6 +220,7 @@ function new(
     ) -> Result<Envelope, Error> {
         if matches!(ctx, CommandContext::Seal(_)) {
             Ok(Envelope {
+                parent_id,
                 command_id,
                 author_id,
                 signature,

@@ -33,6 +33,7 @@ fn rand_vec<R: Csprng>(rng: &mut R, max: usize) -> Vec<u8> {
 impl Random for Envelope {
     fn random<R: Csprng>(rng: &mut R) -> Self {
         Self {
+            parent_id: Id::random(rng),
             command_id: Id::random(rng),
             author_id: Id::random(rng),
             payload: rand_vec(rng, 4096),
@@ -143,6 +144,7 @@ fn test_new_envelope() {
         .new_envelope(
             SEAL_CTX,
             &mut eng,
+            env.parent_id,
             env.author_id,
             env.command_id,
             env.signature.clone(),
