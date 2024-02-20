@@ -423,6 +423,11 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Const(Value::String(f.identifier.clone())));
         self.append_instruction(Instruction::FactNew);
         for field in &f.key_fields {
+            if field.1 == ast::Expression::Bind {
+                return Err(self.err(CompileErrorType::BadArgument(String::from(
+                    "Partial fact key queries are not yet implemented",
+                ))));
+            }
             self.compile_expression(&field.1)?;
             self.append_instruction(Instruction::Const(Value::String(field.0.clone())));
             self.append_instruction(Instruction::FactKeySet);
