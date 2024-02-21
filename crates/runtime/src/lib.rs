@@ -52,6 +52,7 @@ extern crate alloc;
 mod client;
 mod command;
 pub mod engine;
+pub mod metrics;
 pub mod model;
 mod prior;
 pub mod protocol;

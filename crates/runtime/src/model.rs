@@ -2,16 +2,17 @@
 //!
 //! The Aranya Model is a library which provides APIs to construct one or more clients, execute actions on the clients, sync between clients, and gather performance metrics about the operations performed.
 
-#![cfg(feature = "model")]
 #![cfg_attr(docs, doc(cfg(feature = "model")))]
 
 extern crate alloc;
 use alloc::{string::String, vec::Vec};
+use core::fmt::{self, Debug, Display};
 
 use policy_vm::KVPair;
 
 use crate::{
     engine::{Engine, EngineError, PolicyId},
+    metrics::MetricError,
     vm_policy::VmPolicy,
     ClientError, SyncError,
 };
@@ -22,6 +23,7 @@ use crate::{
 pub type ModelEffect = (String, Vec<KVPair>);
 
 /// Model engine.
+///
 /// Holds the [`VmPolicy`] model engine methods.
 pub struct ModelEngine {
     policy: VmPolicy,
@@ -57,6 +59,7 @@ pub enum ModelError {
     DuplicateGraph,
     Engine(EngineError),
     Sync(SyncError),
+    Metric(MetricError),
 }
 
 impl From<ClientError> for ModelError {
@@ -71,11 +74,32 @@ impl From<EngineError> for ModelError {
     }
 }
 
+impl From<MetricError> for ModelError {
+    fn from(err: MetricError) -> Self {
+        ModelError::Metric(err)
+    }
+}
+
 impl From<SyncError> for ModelError {
     fn from(err: SyncError) -> Self {
         ModelError::Sync(err)
     }
 }
+
+impl Display for ModelError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Client(err) => write!(f, "{}", err),
+            Self::DuplicateClient => write!(f, "duplicate client"),
+            Self::DuplicateGraph => write!(f, "duplicate graph"),
+            Self::Engine(err) => write!(f, "{}", err),
+            Self::Sync(err) => write!(f, "{}", err),
+            Self::Metric(err) => write!(f, "{}", err),
+        }
+    }
+}
+
+impl trouble::Error for ModelError {}
 
 pub type ProxyClientID = u64;
 pub type ProxyGraphID = u64;
@@ -83,7 +107,6 @@ pub type ProxyGraphID = u64;
 /// The [`Model`] manages adding clients, graphs, actions, and syncing client state.
 pub trait Model {
     type Effects;
-    type Metrics;
     type Action<'a>;
 
     fn add_client(
@@ -104,12 +127,6 @@ pub trait Model {
         graph_proxy_id: ProxyGraphID,
         action: Self::Action<'_>,
     ) -> Result<Self::Effects, ModelError>;
-
-    fn get_statistics(
-        &self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
-    ) -> Result<Self::Metrics, ModelError>;
 
     fn sync(
         &mut self,
