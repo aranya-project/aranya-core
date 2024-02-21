@@ -1,10 +1,10 @@
+extern crate alloc;
+
+use alloc::{borrow::Cow, collections::BTreeMap, string::String, vec::Vec};
 use core::{cell::RefCell, matches, time::Duration};
 use std::time::Instant;
 
-extern crate alloc;
-use alloc::{borrow::Cow, collections::BTreeMap, string::String, vec::Vec};
-
-use crypto::Rng;
+use crypto::{default::DefaultEngine, Rng};
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
 
@@ -156,7 +156,7 @@ impl Metrics for TestMetrics {
 ///
 /// Holds [`ClientState`] for graphs that belong to the client.
 struct TestClient {
-    state: RefCell<ClientState<ModelEngine, MemStorageProvider>>,
+    state: RefCell<ClientState<ModelEngine<DefaultEngine<Rng>>, MemStorageProvider>>,
 }
 
 /// Test sink.
@@ -259,8 +259,9 @@ impl Model for TestModel {
         let policy_ast = parse_policy_document(policy_doc).expect("parse policy document");
         let machine =
             compile_from_policy(&policy_ast, &[FfiEnvelope::SCHEMA]).expect("compile policy");
-        let policy =
-            VmPolicy::new(machine, vec![Box::from(FfiEnvelope {})]).expect("Could not load policy");
+        let (eng, _) = DefaultEngine::from_entropy(Rng);
+        let policy = VmPolicy::new(machine, eng, vec![Box::from(FfiEnvelope {})])
+            .expect("Could not load policy");
         let engine = ModelEngine::new(policy);
         let provider = MemStorageProvider::new();
         let cs = ClientState::new(engine, provider);
@@ -403,10 +404,10 @@ impl Model for TestModel {
     }
 }
 
-fn unidirectional_sync(
+fn unidirectional_sync<E: crypto::Engine + ?Sized>(
     storage_id: &Id,
-    request_state: &mut ClientState<ModelEngine, MemStorageProvider>,
-    response_state: &mut ClientState<ModelEngine, MemStorageProvider>,
+    request_state: &mut ClientState<ModelEngine<E>, MemStorageProvider>,
+    response_state: &mut ClientState<ModelEngine<E>, MemStorageProvider>,
     sink: &mut TestSink<'_>,
 ) -> Result<(), ModelError> {
     let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());

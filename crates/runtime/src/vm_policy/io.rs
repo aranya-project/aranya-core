@@ -3,7 +3,6 @@ extern crate alloc;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
-use crypto::default::{DefaultCipherSuite, DefaultEngine, Rng};
 use policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, KVPair, MachineError, MachineErrorType,
     MachineIO, MachineIOError, MachineStack,
@@ -26,7 +25,7 @@ pub trait FfiCallable<E> {
 impl<FM, E> FfiCallable<E> for FM
 where
     FM: FfiModule,
-    E: crypto::Engine,
+    E: crypto::Engine + ?Sized,
 {
     fn call(
         &mut self,
@@ -40,32 +39,25 @@ where
 }
 
 /// Implements the `MachineIO` interface for [VmPolicy](super::VmPolicy).
-pub struct VmPolicyIO<'o, P, S, FFI>
-where
-    P: FactPerspective,
-    S: Sink<(String, Vec<KVPair>)>,
-{
+pub struct VmPolicyIO<'o, P, S, E, FFI> {
     facts: &'o mut P,
     sink: &'o mut S,
     emit_stack: Vec<(String, Vec<KVPair>)>,
-    engine: DefaultEngine<Rng, DefaultCipherSuite>,
+    engine: &'o mut E,
     ffis: &'o mut [FFI],
 }
 
-impl<'o, P, S, FFI> VmPolicyIO<'o, P, S, FFI>
-where
-    P: FactPerspective,
-    S: Sink<(String, Vec<KVPair>)>,
-{
+pub type FfiList<'a, E> = &'a mut [&'a mut dyn FfiCallable<E>];
+
+impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     /// Creates a new `VmPolicyIO` for a [FactPerspective](crate::storage::FactPerspective) and a
     /// [Sink](crate::engine::Sink).
     pub fn new(
         facts: &'o mut P,
         sink: &'o mut S,
+        engine: &'o mut E,
         ffis: &'o mut [FFI],
-    ) -> VmPolicyIO<'o, P, S, FFI> {
-        let (engine, _) = DefaultEngine::from_entropy(Rng);
-
+    ) -> VmPolicyIO<'o, P, S, E, FFI> {
         VmPolicyIO {
             facts,
             sink,
@@ -81,12 +73,13 @@ where
     }
 }
 
-impl<'o, P, S, FFI> MachineIO<MachineStack> for VmPolicyIO<'o, P, S, FFI>
+impl<'o, P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'o, P, S, E, FFI>
 where
     P: FactPerspective,
     S: Sink<(String, Vec<KVPair>)>,
+    E: crypto::Engine + ?Sized,
     FFI: DerefMut,
-    <FFI as Deref>::Target: FfiCallable<DefaultEngine<Rng>>,
+    <FFI as Deref>::Target: FfiCallable<E>,
 {
     type QueryIterator<'c> = VmFactCursor<'c, P> where Self: 'c;
 
@@ -149,7 +142,7 @@ where
             Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,
             ))),
-            |ffi| ffi.call(procedure, stack, ctx, &mut self.engine),
+            |ffi| ffi.call(procedure, stack, ctx, self.engine),
         )
     }
 }

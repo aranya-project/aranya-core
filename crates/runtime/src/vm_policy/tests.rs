@@ -2,6 +2,7 @@
 
 use alloc::borrow::Cow;
 
+use crypto::{default::DefaultEngine, Rng};
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
 use postcard::{from_bytes, to_vec};
@@ -155,7 +156,7 @@ impl Sink<&[u8]> for MsgSink {
 }
 
 pub struct TestEngine {
-    policy: VmPolicy,
+    policy: VmPolicy<DefaultEngine<Rng>>,
 }
 
 impl TestEngine {
@@ -163,14 +164,15 @@ impl TestEngine {
         let ast = parse_policy_document(policy_doc).unwrap_or_else(|e| panic!("{e}"));
         let machine =
             compile_from_policy(&ast, &[FfiEnvelope::SCHEMA]).unwrap_or_else(|e| panic!("{e}"));
-        let policy =
-            VmPolicy::new(machine, vec![Box::from(FfiEnvelope {})]).expect("Could not load policy");
+        let (eng, _) = DefaultEngine::from_entropy(Rng);
+        let policy = VmPolicy::new(machine, eng, vec![Box::from(FfiEnvelope {})])
+            .expect("Could not load policy");
         TestEngine { policy }
     }
 }
 
 impl Engine for TestEngine {
-    type Policy = VmPolicy;
+    type Policy = VmPolicy<DefaultEngine<Rng>>;
     type Effects = TestEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {

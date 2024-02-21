@@ -25,19 +25,22 @@ pub type ModelEffect = (String, Vec<KVPair>);
 /// Model engine.
 ///
 /// Holds the [`VmPolicy`] model engine methods.
-pub struct ModelEngine {
-    policy: VmPolicy,
+pub struct ModelEngine<E> {
+    policy: VmPolicy<E>,
 }
 
-impl ModelEngine {
+impl<E> ModelEngine<E> {
     /// Creates a new ModelEngine instance with a [`VmPolicy`].
-    pub fn new(policy: VmPolicy) -> ModelEngine {
-        ModelEngine { policy }
+    pub fn new(policy: VmPolicy<E>) -> Self {
+        Self { policy }
     }
 }
 
-impl Engine for ModelEngine {
-    type Policy = VmPolicy;
+impl<E> Engine for ModelEngine<E>
+where
+    E: crypto::Engine + ?Sized,
+{
+    type Policy = VmPolicy<E>;
     type Effects = ModelEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {

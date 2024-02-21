@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
 
 use buggy::bug;
-use crypto::{default::DefaultEngine, Rng, UserId};
+use crypto::UserId;
 use policy_vm::{
     ActionContext, CommandContext, KVPair, Machine, MachineIO, MachineStack, MachineStatus,
     OpenContext, PolicyContext, RunState, SealContext, Struct, Value,
@@ -28,19 +28,22 @@ pub use io::*;
 pub use protocol::*;
 
 /// A [Policy](crate::engine::Policy) implementation that uses the Policy VM.
-pub struct VmPolicy {
+pub struct VmPolicy<E> {
     machine: Machine,
-    ffis: Mutex<Vec<Box<dyn FfiCallable<DefaultEngine<Rng>> + Send + 'static>>>,
+    engine: Mutex<E>,
+    ffis: Mutex<Vec<Box<dyn FfiCallable<E> + Send + 'static>>>,
 }
 
-impl VmPolicy {
+impl<E> VmPolicy<E> {
     /// Create a new `VmPolicy` from a [Machine]
     pub fn new(
         machine: Machine,
-        ffis: Vec<Box<dyn FfiCallable<DefaultEngine<Rng>> + Send + 'static>>,
-    ) -> Result<VmPolicy, VmPolicyError> {
-        Ok(VmPolicy {
+        engine: E,
+        ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
+    ) -> Result<Self, VmPolicyError> {
+        Ok(Self {
             machine,
+            engine: Mutex::from(engine),
             ffis: Mutex::from(ffis),
         })
     }
@@ -52,7 +55,12 @@ impl VmPolicy {
         rs.source_location()
             .unwrap_or(String::from("(unknown location)"))
     }
+}
 
+impl<E> VmPolicy<E>
+where
+    E: crypto::Engine + ?Sized,
+{
     #[instrument(skip_all, fields(name = name))]
     fn evaluate_rule<'a, P>(
         &self,
@@ -66,7 +74,8 @@ impl VmPolicy {
         P: FactPerspective,
     {
         let mut ffis = self.ffis.lock();
-        let mut io = VmPolicyIO::new(facts, sink, &mut ffis);
+        let mut eng = self.engine.lock();
+        let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let self_data = Struct::new(name, fields);
         match rs.call_command_policy(&self_data.name, &self_data) {
@@ -101,7 +110,8 @@ impl VmPolicy {
     {
         let mut sink = NullSink;
         let mut ffis = self.ffis.lock();
-        let mut io = VmPolicyIO::new(facts, &mut sink, &mut ffis);
+        let mut eng = self.engine.lock();
+        let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
         let ctx = CommandContext::Open(OpenContext {
             name,
             parent_id: parent.into(),
@@ -152,7 +162,8 @@ impl VmPolicy {
         let mut facts = NullFacts;
         let mut sink = NullSink;
         let mut ffis = self.ffis.lock();
-        let mut io = VmPolicyIO::new(&mut facts, &mut sink, &mut ffis);
+        let mut eng = self.engine.lock();
+        let mut io = VmPolicyIO::new(&mut facts, &mut sink, &mut *eng, &mut ffis);
         let ctx = CommandContext::Seal(SealContext {
             name,
             parent_id: (*parent).into(),
@@ -184,12 +195,21 @@ impl VmPolicy {
     }
 }
 
-impl Policy for VmPolicy {
+/// [`VmPolicy`]'s actions.
+pub type VmActions<'a> = (&'a str, Cow<'a, [Value]>);
+
+/// [`VmPolicy`]'s effects.
+pub type VmEffects = (String, Vec<KVPair>);
+
+impl<E> Policy for VmPolicy<E>
+where
+    E: crypto::Engine + ?Sized,
+{
     type Payload<'a> = (String, Vec<u8>);
 
-    type Actions<'a> = (&'a str, Cow<'a, [Value]>);
+    type Actions<'a> = VmActions<'a>;
 
-    type Effects = (String, Vec<KVPair>);
+    type Effects = VmEffects;
 
     type Command<'a> = VmProtocol<'a>;
 
@@ -257,7 +277,8 @@ impl Policy for VmPolicy {
     ) -> Result<bool, EngineError> {
         let emit_stack = {
             let mut ffis = self.ffis.lock();
-            let mut io = VmPolicyIO::new(facts, sink, &mut ffis);
+            let mut eng = self.engine.lock();
+            let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
             let ctx = CommandContext::Action(ActionContext {
                 name,
                 head_id: (*parent).into(),
