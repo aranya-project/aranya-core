@@ -27,7 +27,7 @@ pub use facts::*;
 pub use io::*;
 pub use protocol::*;
 
-/// A [Policy](crate::engine::Policy) implementation that uses the Policy VM.
+/// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<E> {
     machine: Machine,
     engine: Mutex<E>,

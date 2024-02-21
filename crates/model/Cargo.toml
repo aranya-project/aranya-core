@@ -1,0 +1,21 @@
+[package]
+name = "model"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
+policy-vm = { path = "../policy-vm" }
+runtime = { path = "../runtime" }
+trouble = { path = "../trouble" }
+
+[dev-dependencies]
+policy-lang = { path = "../policy-lang" }
+
+
+[lints]
+workspace = true

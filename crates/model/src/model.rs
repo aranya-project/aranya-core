@@ -2,15 +2,12 @@
 //!
 //! The Aranya Model is a library which provides APIs to construct one or more clients, execute actions on the clients, sync between clients, and gather performance metrics about the operations performed.
 
-#![cfg_attr(docs, doc(cfg(feature = "model")))]
-
 extern crate alloc;
 use alloc::{string::String, vec::Vec};
 use core::fmt::{self, Debug, Display};
 
 use policy_vm::KVPair;
-
-use crate::{
+use runtime::{
     engine::{Engine, EngineError, PolicyId},
     metrics::MetricError,
     vm_policy::VmPolicy,
@@ -138,6 +135,3 @@ pub trait Model {
         dest_client_proxy_id: ProxyClientID,
     ) -> Result<(), ModelError>;
 }
-
-#[cfg(test)]
-mod tests;

@@ -7,9 +7,7 @@ use std::time::Instant;
 use crypto::{default::DefaultEngine, Rng};
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
-
-use super::{Model, ModelEffect, ModelEngine, ModelError, ProxyClientID, ProxyGraphID};
-use crate::{
+use runtime::{
     command::Id,
     engine::Sink,
     metrics::{Metric, MetricError, Metrics},
@@ -17,6 +15,8 @@ use crate::{
     vm_policy::{ffi::FfiEnvelope, VmPolicy},
     ClientState, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
+
+use crate::{Model, ModelEffect, ModelEngine, ModelError, ProxyClientID, ProxyGraphID};
 
 const TEST_POLICY_1: &str = r#"---
 policy-version: 3

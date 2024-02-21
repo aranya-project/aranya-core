@@ -74,7 +74,6 @@ std = [
 ]
 
 graphviz = ["dep:dot-writer"]
-model = []
 quic_syncer = [
 	"std",
 
@@ -91,7 +90,6 @@ harness = false
 [package.metadata.cargo-all-features]
 always_include_features = [
 	"std",
-	"model",
 	"quic_syncer",
 	"rustix",
 	"graphviz",

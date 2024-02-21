@@ -50,10 +50,9 @@
 extern crate alloc;
 
 mod client;
-mod command;
+pub mod command;
 pub mod engine;
 pub mod metrics;
-pub mod model;
 mod prior;
 pub mod protocol;
 pub mod quic_syncer;
@@ -66,4 +65,4 @@ pub use crate::{
 
 #[cfg(test)]
 mod tests;
-mod vm_policy;
+pub mod vm_policy;

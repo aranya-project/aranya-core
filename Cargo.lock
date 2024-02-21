@@ -1576,6 +1576,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "model"
+version = "0.1.0"
+dependencies = [
+ "crypto",
+ "policy-lang",
+ "policy-vm",
+ "runtime",
+ "trouble",
+]
+
+[[package]]
 name = "more-asserts"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
