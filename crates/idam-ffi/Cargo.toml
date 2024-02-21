@@ -35,6 +35,7 @@ testing = []
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-vm = { path = "../policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
+tracing = { workspace = true }
 trouble = { path = "../trouble", default-features = false, features = ["third-party"] }
 
 [dev-dependencies]

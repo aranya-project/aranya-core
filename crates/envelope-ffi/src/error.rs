@@ -4,6 +4,7 @@ use alloc::boxed::Box;
 use core::{fmt, ops::Deref};
 
 use policy_vm::{MachineError, MachineErrorType, MachineIOError};
+use tracing::error;
 
 /// An error returned by `Ffi`.
 #[derive(Debug)]
@@ -49,7 +50,8 @@ impl fmt::Display for Error {
 }
 
 impl From<Error> for MachineError {
-    fn from(_err: Error) -> Self {
+    fn from(err: Error) -> Self {
+        error!("{err}");
         // TODO(eric): correct error type.
         Self::new(MachineErrorType::IO(MachineIOError::Internal))
     }

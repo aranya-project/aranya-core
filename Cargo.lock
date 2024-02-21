@@ -728,6 +728,7 @@ dependencies = [
  "policy-vm",
  "postcard",
  "serde",
+ "tracing",
  "trouble",
 ]
 
@@ -928,6 +929,7 @@ version = "0.1.0"
 dependencies = [
  "crypto",
  "policy-vm",
+ "tracing",
  "trouble",
 ]
 
@@ -1349,6 +1351,7 @@ dependencies = [
  "idam-ffi",
  "policy-vm",
  "postcard",
+ "tracing",
  "trouble",
 ]
 

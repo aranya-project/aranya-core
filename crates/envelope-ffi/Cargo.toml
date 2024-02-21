@@ -30,6 +30,7 @@ std = [
 [dependencies]
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
+tracing = { workspace = true }
 trouble = { path = "../trouble", default-features = false }
 
 [dev-dependencies]

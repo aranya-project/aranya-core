@@ -213,6 +213,7 @@ impl trouble::Error for FfiError {
 
 impl From<FfiError> for MachineError {
     fn from(err: FfiError) -> Self {
+        error!("{err}");
         match err {
             FfiError::Stack(err) => Self::new(err),
             _ => Self::new(MachineErrorType::IO(MachineIOError::Internal)),

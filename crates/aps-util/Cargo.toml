@@ -39,7 +39,7 @@ postcard = { workspace = true, default-features = false, features = ["heapless"]
 serde = { workspace = true, default-features = false, features = ["derive"] }
 siphasher = { version = "1", default-features = false, optional = true }
 spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"], optional = true }
-tracing = { workspace = true, default-features = false }
+tracing = { workspace = true }
 trouble = { path = "../trouble", default-features = false }
 
 [dev-dependencies]
