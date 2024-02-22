@@ -2,11 +2,12 @@
 resolver = "2"
 
 members = [
+	"canaries/*",
 	"crates/*",
 ]
 
-exclude = [
-	"canaries",
+default-members = [
+	"crates/*",
 ]
 
 [workspace.package]

@@ -1,14 +1,14 @@
 [env]
 CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = 1
+CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "canaries/*"
 RUSTDOCFLAGS = { value = "", condition = { env_not_set = ["RUSTDOCFLAGS"] } }
-NIGHTLY = { script = ["cat rust-nightly.txt"] }
+NIGHTLY = { script = ["cat rust-nightly.txt"], condition = { env_not_set = ["NIGHTLY"] } }
 
 RUSTFLAGS = { value = "-Dwarnings", condition = { env_set = ["CARGO_MAKE_CI"] } }
 
 [config]
 default_to_workspace = false
 skip_core_tasks = true
-skip_crate_env_info = true
 skip_git_env_info = true
 skip_rust_env_info = true
 
@@ -30,6 +30,7 @@ args = ["build", "--verbose", "--release"]
 [tasks.unit-tests]
 category = "test"
 description = "Run Unit Tests"
+workspace = true
 command = "cargo"
 args = ["--verbose", "test-all-features"]
 dependencies = ["install-cargo-all-features"]
@@ -138,6 +139,7 @@ install_crate = { crate_name = "taplo-cli", version = "0.9.0", binary = "taplo",
 [tasks.check-features]
 category = "correctness"
 description = "Check features"
+workspace = true
 command = "cargo"
 args = ["--verbose", "check-all-features"]
 dependencies = ["install-cargo-all-features"]
@@ -157,16 +159,14 @@ install_crate = { rustup_component_name = "clippy" }
 category = "correctness"
 description = "Check no-std support"
 command = "cargo"
-args = ["check", "--target=aarch64-unknown-none"]
-cwd = "canaries/canary-std"
+args = ["check", "--target=aarch64-unknown-none", "-p=canary-std"]
 dependencies = ["install-no-std-target"]
 
 [tasks.check-canary-alloc]
 category = "correctness"
 description = "Check no-alloc support"
 command = "cargo"
-args = ["check", "--target=aarch64-unknown-none"]
-cwd = "canaries/canary-alloc"
+args = ["check", "--target=aarch64-unknown-none", "-p=canary-alloc"]
 dependencies = ["install-no-std-target"]
 
 [tasks.check-canaries]
@@ -185,7 +185,7 @@ description = "Generate docs with rust nightly"
 toolchain = "${NIGHTLY}"
 env = { RUSTDOCFLAGS = "--cfg docs ${RUSTDOCFLAGS}" }
 command = "cargo"
-args = ["doc", "--all-features", "--workspace"]
+args = ["doc", "--all-features"]
 dependencies = ["install-nightly"]
 
 [tasks.zip-docs]

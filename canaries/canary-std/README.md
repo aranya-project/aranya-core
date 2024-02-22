@@ -5,5 +5,5 @@ This is a `no_std` binary that depends on crates to ensure they are `no_std` com
 ## Usage
 
 ```sh
-cargo check
+cargo build --target aarch64-unknown-none
 ```

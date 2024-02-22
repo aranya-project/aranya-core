@@ -1,17 +1,23 @@
 [package]
 name = "canary-std"
 version = "0.1.0"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
 
 [dependencies]
-base58 = { path = "../../crates/base58" }
-buggy = { path = "../../crates/buggy" }
+# aps-util = { path = "../../crates/aps-util", features = ["alloc"] }
+base58 = { path = "../../crates/base58", features = ["alloc"] }
+buggy = { path = "../../crates/buggy", features = ["alloc"] }
 # `crypto` enables `getrandom` by default.
-crypto = { path = "../../crates/crypto", default-features = false }
-idam-ffi = { path = "../../crates/idam-ffi" }
+crypto = { path = "../../crates/crypto", default-features = false, features = ["alloc"] }
+crypto-ffi = { path = "../../crates/crypto-ffi", features = ["alloc"] }
+device-ffi = { path = "../../crates/device-ffi", features = ["alloc"] }
+idam-ffi = { path = "../../crates/idam-ffi", features = ["alloc"] }
+perspective-ffi = { path = "../../crates/perspective-ffi", features = ["alloc"] }
 policy-ast = { path = "../../crates/policy-ast" }
 policy-vm = { path = "../../crates/policy-vm" }
 runtime = { path = "../../crates/runtime" }
-
-[profile.dev]
-panic = "abort"
+trouble = { path = "../../crates/trouble" }

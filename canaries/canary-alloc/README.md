@@ -5,5 +5,5 @@ This is a `no_alloc` binary that depends on crates to ensure they are `no_alloc`
 ## Usage
 
 ```sh
-cargo check
+cargo build --target aarch64-unknown-none
 ```

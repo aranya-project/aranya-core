@@ -1,16 +1,15 @@
 [package]
 name = "canary-alloc"
 version = "0.1.0"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 base58 = { path = "../../crates/base58" }
+buggy = { path = "../../crates/buggy" }
 # `crypto` enables `getrandom` by default.
 crypto = { path = "../../crates/crypto", default-features = false }
-# idam-ffi = { path = "../../crates/idam-ffi" }
-# policy-ast = { path = "../../crates/policy-ast" }
-# policy-vm = { path = "../../crates/policy-vm" }
-# runtime = { path = "../../crates/runtime" }
-
-[profile.dev]
-panic = "abort"
+trouble = { path = "../../crates/trouble" }
