@@ -31,3 +31,11 @@ makers unit-tests
 # run correctness checks
 makers correctness
 ```
+
+### Tools
+
+
+For Policy development, the [VSCode Policy extension](https://git.spideroak-inc.com/spideroak-inc/policy-lang-vscode-ext)
+is available for installation. The extension provides syntax highlighting for
+Policy code blocks in markdown files.
+
