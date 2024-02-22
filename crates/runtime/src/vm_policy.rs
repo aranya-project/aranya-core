@@ -2,10 +2,9 @@ extern crate alloc;
 
 use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
 
-use buggy::bug;
 use crypto::UserId;
 use policy_vm::{
-    ActionContext, CommandContext, KVPair, Machine, MachineIO, MachineStack, MachineStatus,
+    ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     OpenContext, PolicyContext, RunState, SealContext, Struct, Value,
 };
 use spin::Mutex;
@@ -79,14 +78,16 @@ where
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let self_data = Struct::new(name, fields);
         match rs.call_command_policy(&self_data.name, &self_data) {
-            Ok(status) => match status {
-                MachineStatus::Exited => Ok(true),
-                MachineStatus::Panicked => {
+            Ok(reason) => match reason {
+                ExitReason::Normal => Ok(true),
+                ExitReason::Check => {
+                    info!("Check {}", self.source_location(&rs));
+                    Ok(false)
+                }
+                ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
                     Ok(false)
                 }
-                // call_command_policy should never return Executing
-                MachineStatus::Executing => bug!("policy still executing"),
             },
             Err(e) => {
                 error!("\n{e}");
@@ -130,21 +131,26 @@ where
         );
         let status = rs.call_open(name, &envelope);
         match status {
-            Ok(MachineStatus::Panicked) => {
-                info!("Panicked {}", self.source_location(&rs));
-                Err(EngineError::Check)
-            }
-            Ok(MachineStatus::Executing) => bug!("policy open still executing"),
-            Ok(MachineStatus::Exited) => {
-                let v = rs.consume_return().map_err(|e| {
-                    error!("Could not pull envelope from stack: {e}");
-                    EngineError::InternalError
-                })?;
-                Ok(v.try_into().map_err(|e| {
-                    error!("Envelope is not a struct: {e}");
-                    EngineError::InternalError
-                })?)
-            }
+            Ok(reason) => match reason {
+                ExitReason::Normal => {
+                    let v = rs.consume_return().map_err(|e| {
+                        error!("Could not pull envelope from stack: {e}");
+                        EngineError::InternalError
+                    })?;
+                    Ok(v.try_into().map_err(|e| {
+                        error!("Envelope is not a struct: {e}");
+                        EngineError::InternalError
+                    })?)
+                }
+                ExitReason::Check => {
+                    info!("Check {}", self.source_location(&rs));
+                    Err(EngineError::Check)
+                }
+                ExitReason::Panic => {
+                    info!("Panicked {}", self.source_location(&rs));
+                    Err(EngineError::Check)
+                }
+            },
             Err(e) => {
                 error!("\n{e}");
                 Err(EngineError::InternalError)
@@ -172,21 +178,26 @@ where
         let command_struct = Struct::new(name, fields);
         let status = rs.call_seal(name, &command_struct);
         match status {
-            Ok(MachineStatus::Panicked) => {
-                info!("Panicked {}", self.source_location(&rs));
-                Err(EngineError::Check)
-            }
-            Ok(MachineStatus::Executing) => bug!("policy seal still executing"),
-            Ok(MachineStatus::Exited) => {
-                let v = rs.consume_return().map_err(|e| {
-                    error!("Could not pull envelope from stack: {e}");
-                    EngineError::InternalError
-                })?;
-                Ok(v.try_into().map_err(|e| {
-                    error!("Envelope is not a struct: {e}");
-                    EngineError::InternalError
-                })?)
-            }
+            Ok(reason) => match reason {
+                ExitReason::Normal => {
+                    let v = rs.consume_return().map_err(|e| {
+                        error!("Could not pull envelope from stack: {e}");
+                        EngineError::InternalError
+                    })?;
+                    Ok(v.try_into().map_err(|e| {
+                        error!("Envelope is not a struct: {e}");
+                        EngineError::InternalError
+                    })?)
+                }
+                ExitReason::Check => {
+                    info!("Check {}", self.source_location(&rs));
+                    Err(EngineError::Check)
+                }
+                ExitReason::Panic => {
+                    info!("Panicked {}", self.source_location(&rs));
+                    Err(EngineError::Check)
+                }
+            },
             Err(e) => {
                 error!("\n{e}");
                 Err(EngineError::InternalError)
@@ -284,7 +295,7 @@ where
                 head_id: (*parent).into(),
             });
             let mut rs = self.machine.create_run_state(&mut io, &ctx);
-            let status = match args {
+            let exit_reason = match args {
                 Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
                 Cow::Owned(args) => rs.call_action(name, args),
             }
@@ -292,13 +303,16 @@ where
                 error!("\n{e}");
                 EngineError::InternalError
             })?;
-            match status {
-                MachineStatus::Exited => (),
-                MachineStatus::Panicked => {
+            match exit_reason {
+                ExitReason::Normal => {}
+                ExitReason::Check => {
+                    info!("Check {}", self.source_location(&rs));
+                    return Ok(false);
+                }
+                ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
                     return Ok(false);
                 }
-                MachineStatus::Executing => bug!("action still executing"),
             };
             io.into_emit_stack()
         };

@@ -23,8 +23,8 @@ use crate::{
     io::{MachineIO, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
-    ActionContext, CodeMap, CompileError, CompileErrorType, Label, LabelType, MachineError,
-    OpenContext, PolicyContext, SealContext, Target,
+    ActionContext, CodeMap, CompileError, CompileErrorType, ExitReason, Label, LabelType,
+    MachineError, OpenContext, PolicyContext, SealContext, Target,
 };
 
 struct TestIO {
@@ -516,7 +516,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let result = rs
             .call_command_policy(name, &self_struct)
             .map_err(anyhow::Error::msg)?;
-        assert_eq!(result, MachineStatus::Exited);
+        assert_eq!(result, ExitReason::Normal);
     }
 
     {
@@ -524,7 +524,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(name);
         let mut rs = RunState::new(&machine, &mut io, &ctx);
         let result = rs.call_action(name, [false]).map_err(anyhow::Error::msg)?;
-        assert_eq!(result, MachineStatus::Exited);
+        assert_eq!(result, ExitReason::Normal);
     }
 
     Ok(())
@@ -547,7 +547,7 @@ fn test_not_operator() -> anyhow::Result<()> {
     let machine = compile_from_policy(&policy, &[])?;
     let mut rs = RunState::new(&machine, &mut io, &ctx);
     let result = rs.run()?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
 
     Ok(())
 }
@@ -769,7 +769,7 @@ fn test_when_true() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
     let result = rs.call_action(name, [true]).map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Panicked);
+    assert_eq!(result, ExitReason::Check);
 
     Ok(())
 }
@@ -792,7 +792,7 @@ fn test_when_false() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
     let result = rs.call_action(name, [false]).map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
 
     Ok(())
 }
@@ -828,7 +828,7 @@ fn test_match_first() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
     let result = rs.call_action(name, [5]).map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
         io.emit_stack[0],
@@ -848,7 +848,7 @@ fn test_match_second() -> anyhow::Result<()> {
 
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [6]).map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
         io.emit_stack[0],
@@ -870,7 +870,7 @@ fn test_match_none() -> anyhow::Result<()> {
     let result = rs
         .call_action("foo", [Value::Int(0)])
         .map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Panicked);
+    assert_eq!(result, ExitReason::Panic);
 
     Ok(())
 }
@@ -944,7 +944,7 @@ fn test_is_some_statement() -> anyhow::Result<()> {
     let result = rs
         .call_action(name, [Value::Int(10)])
         .map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
         io.emit_stack[0],
@@ -967,7 +967,7 @@ fn test_is_none_statement() -> anyhow::Result<()> {
     let result = rs
         .call_action(name, [Value::None])
         .map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
         io.emit_stack[0],
@@ -994,7 +994,7 @@ fn test_negative_numeric_expression() -> anyhow::Result<()> {
 
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [-1]).map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
 
     Ok(())
 }
@@ -1021,7 +1021,7 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let result = rs
         .call_action(name, [true, false])
         .map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
 
     Ok(())
 }
@@ -1078,7 +1078,7 @@ fn test_match_default() -> anyhow::Result<()> {
     let result = rs
         .call_action(name, [Value::Int(6)])
         .map_err(anyhow::Error::msg)?;
-    assert_eq!(result, MachineStatus::Exited);
+    assert_eq!(result, ExitReason::Normal);
     assert_eq!(io.emit_stack.len(), 1);
     assert_eq!(
         io.emit_stack[0],
@@ -1422,7 +1422,7 @@ fn test_extcall() {
     let machine = Machine::new([
         Instruction::Const(Value::String("hi".to_string())),
         Instruction::ExtCall(0, 0),
-        Instruction::Exit,
+        Instruction::Exit(ExitReason::Normal),
     ]);
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action("test");
@@ -1443,7 +1443,7 @@ fn test_extcall_invalid_module() {
     let machine = Machine::new([
         Instruction::Const(Value::String("hi".to_string())),
         Instruction::ExtCall(1, 0), // invalid module id
-        Instruction::Exit,
+        Instruction::Exit(ExitReason::Normal),
     ]);
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action("test");
@@ -1460,7 +1460,7 @@ fn test_extcall_invalid_proc() {
     let machine = Machine::new([
         Instruction::Const(Value::String("hi".to_string())),
         Instruction::ExtCall(0, 1), // invalid proc id
-        Instruction::Exit,
+        Instruction::Exit(ExitReason::Normal),
     ]);
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action("test");
@@ -1480,7 +1480,7 @@ fn test_extcall_invalid_arg() {
     let machine = Machine::new([
         Instruction::Const(Value::Int(0)), // function expects string
         Instruction::ExtCall(0, 0),
-        Instruction::Exit,
+        Instruction::Exit(ExitReason::Normal),
     ]);
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action("test");
@@ -1820,7 +1820,7 @@ fn test_errors() {
     );
 
     // InvalidAddress: Run empty program
-    error_test_harness(&[], MachineErrorType::InvalidAddress);
+    error_test_harness(&[], MachineErrorType::InvalidAddress("pc".to_owned()));
 
     // InvalidAddress: Set PC to non-existent label
     general_test_harness(
@@ -1828,7 +1828,12 @@ fn test_errors() {
         |_| Ok(()),
         |rs| {
             let r = rs.set_pc_by_label(Label::new("x", LabelType::Action));
-            assert_eq!(r, Err(MachineError::new(MachineErrorType::InvalidAddress)));
+            assert_eq!(
+                r,
+                Err(MachineError::new(MachineErrorType::InvalidAddress(
+                    "x".to_owned()
+                )))
+            );
             Ok(())
         },
         &ctx,
@@ -1843,7 +1848,12 @@ fn test_errors() {
         },
         |rs| {
             let r = rs.set_pc_by_label(Label::new("x", LabelType::CommandPolicy));
-            assert_eq!(r, Err(MachineError::new(MachineErrorType::InvalidAddress)));
+            assert_eq!(
+                r,
+                Err(MachineError::new(MachineErrorType::InvalidAddress(
+                    "x".to_owned()
+                )))
+            );
             Ok(())
         },
         &ctx,
@@ -2061,6 +2071,75 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
         let result = rs.consume_return()?;
         let got_this: Struct = result.try_into().map_err(anyhow::Error::msg)?;
         assert_eq!(got_this, this_struct);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_check_unwrap() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int]=>{x int}
+
+        command Setup {
+            fields {}
+
+            seal {
+                return None
+            }
+            open {
+                return None
+            }
+
+            policy {
+                finish {
+                    create Foo[i: 1]=>{x: 1}
+                }
+            }
+        }
+
+        action test_existing() {
+            let f = check_unwrap query Foo[i: 1]=>{}
+            check f.i == 1
+        }
+
+        action test_nonexistent() {
+            let f = check_unwrap query Foo[i: 0]=>{}
+            check false // would exit(panic), but check_unwrap should exit(check) first
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS).map_err(anyhow::Error::msg)?;
+
+    {
+        let cmd_name = "Setup";
+        let this_data = Struct {
+            name: String::from(cmd_name),
+            fields: [].into(),
+        };
+
+        let ctx = dummy_ctx_open(cmd_name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let status = rs.call_command_policy(cmd_name, &this_data)?;
+        assert_eq!(status, ExitReason::Normal);
+    }
+
+    {
+        let action_name = "test_existing";
+        let ctx = dummy_ctx_open(action_name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let status = rs.call_action(action_name, [Value::None])?;
+        assert_eq!(status, ExitReason::Normal);
+    }
+
+    {
+        let action_name = "test_nonexistent";
+        let ctx = dummy_ctx_open(action_name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let status = rs.call_action(action_name, [Value::None])?;
+        assert_eq!(status, ExitReason::Check);
     }
 
     Ok(())

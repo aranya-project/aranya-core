@@ -43,7 +43,7 @@ pub enum MachineErrorType {
     /// Invalid address - An attempt to execute an instruction went
     /// beyond instruction bounds, or an action/command lookup did not
     /// find an address for the given name.
-    InvalidAddress,
+    InvalidAddress(String),
     /// Bad state - Some internal state is invalid and execution cannot
     /// continue.
     BadState,
@@ -81,7 +81,7 @@ impl fmt::Display for MachineErrorType {
             MachineErrorType::InvalidFact => write!(f, "invalid fact"),
             MachineErrorType::InvalidSchema => write!(f, "invalid schema"),
             MachineErrorType::UnresolvedTarget => write!(f, "unresolved branch/jump target"),
-            MachineErrorType::InvalidAddress => write!(f, "invalid address"),
+            MachineErrorType::InvalidAddress(label) => write!(f, "invalid address: {}", label),
             MachineErrorType::BadState => write!(f, "Bad state"),
             MachineErrorType::IntegerOverflow => write!(f, "integer wrap"),
             MachineErrorType::InvalidInstruction => write!(f, "bad state"),
@@ -186,5 +186,26 @@ impl From<Infallible> for MachineError {
 impl From<Bug> for MachineError {
     fn from(bug: Bug) -> Self {
         MachineError::new(MachineErrorType::Bug(bug))
+    }
+}
+
+/// Reason for ending execution.
+#[derive(Debug, PartialEq, Clone)]
+pub enum ExitReason {
+    /// Execution completed without errors.
+    Normal,
+    /// Execution was aborted gracefully, due an error.
+    Check,
+    /// Execution was aborted due to an unhandled error.
+    Panic,
+}
+
+impl fmt::Display for ExitReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Normal => f.write_str("Normal"),
+            Self::Check => f.write_str("Check"),
+            Self::Panic => f.write_str("Panic"),
+        }
     }
 }

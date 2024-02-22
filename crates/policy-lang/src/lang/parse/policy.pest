@@ -169,7 +169,8 @@ infix_op = _{ add | subtract | and | or | dot | equal | not_equal | greater_than
 neg = { "-" }
 not = { "!" }
 unwrap = { "unwrap" }
-prefix_op = _{ neg | not | unwrap }
+check_unwrap = { "check_unwrap" }
+prefix_op = _{ neg | not | unwrap | check_unwrap }
 
 // ## Postfix operators
 is = { "is" ~ (none | some) }

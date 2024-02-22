@@ -503,6 +503,7 @@ pub fn parse_expression(
             Rule::neg => Ok(ast::Expression::Negative(Box::new(rhs?))),
             Rule::not => Ok(ast::Expression::Not(Box::new(rhs?))),
             Rule::unwrap => Ok(ast::Expression::Unwrap(Box::new(rhs?))),
+            Rule::check_unwrap => Ok(ast::Expression::CheckUnwrap(Box::new(rhs?))),
             _ => Err(ParseError::new(
                 ParseErrorKind::Expression,
                 format!("bad prefix: {:?}", op.as_rule()),
@@ -1235,7 +1236,7 @@ pub fn parse_ffi_structs(data: &str) -> Result<Vec<AstNode<ast::StructDefinition
 /// | Priority | Op |
 /// |----------|----|
 /// | 1        | `.` |
-/// | 2        | `-` (prefix), `!`, `unwrap` |
+/// | 2        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
 /// | 3        | `%` |
 /// | 4        | `+`, `-` (infix) |
 /// | 5        | `>`, `<`, `>=`, `<=`, `is` |
@@ -1251,7 +1252,10 @@ pub fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::infix(Rule::less_than_or_equal, Assoc::Left)
             | Op::postfix(Rule::is))
         .op(Op::infix(Rule::add, Assoc::Left) | Op::infix(Rule::subtract, Assoc::Left))
-        .op(Op::prefix(Rule::neg) | Op::prefix(Rule::not) | Op::prefix(Rule::unwrap))
+        .op(Op::prefix(Rule::neg)
+            | Op::prefix(Rule::not)
+            | Op::prefix(Rule::unwrap)
+            | Op::prefix(Rule::check_unwrap))
         .op(Op::infix(Rule::dot, Assoc::Left))
 }
 

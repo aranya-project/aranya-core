@@ -19,7 +19,9 @@ use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
 
 pub use self::error::{CallColor, CompileError, CompileErrorType};
-use crate::{ffi::ModuleSchema, CodeMap, Instruction, Label, LabelType, Machine, Target, Value};
+use crate::{
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Machine, Target, Value,
+};
 
 enum FunctionColor {
     /// Function has no side-effects and returns a value
@@ -707,23 +709,10 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Not);
             }
             ast::Expression::Unwrap(e) => {
-                // create an anonymous name for the successful case
-                let not_none = self.anonymous_label();
-                // evaluate the expression
-                self.compile_expression(e)?;
-                // Duplicate value for testing
-                self.append_instruction(Instruction::Dup(0));
-                // Push a None to compare against
-                self.append_instruction(Instruction::Const(Value::None));
-                // Is the value not equal to None?
-                self.append_instruction(Instruction::Eq);
-                self.append_instruction(Instruction::Not);
-                // Then branch over the Panic
-                self.append_instruction(Instruction::Branch(Target::Unresolved(not_none.clone())));
-                // If the value is equal to None, panic
-                self.append_instruction(Instruction::Panic);
-                // Define the target of the branch as the instruction after the Panic
-                self.define_label(not_none, self.wp)?;
+                self.compile_unwrap(e, ExitReason::Panic)?;
+            }
+            ast::Expression::CheckUnwrap(e) => {
+                self.compile_unwrap(e, ExitReason::Check)?;
             }
             ast::Expression::Is(e, expr_is_some) => {
                 // Evaluate the expression
@@ -786,7 +775,7 @@ impl<'a> CompileState<'a> {
                     // instruction after that - current instruction + 2.
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
-                    self.append_instruction(Instruction::Panic);
+                    self.append_instruction(Instruction::Exit(ExitReason::Check));
                 }
                 (
                     ast::Statement::Match(s),
@@ -847,7 +836,7 @@ impl<'a> CompileState<'a> {
 
                     // if no match, and no default case, panic
                     if !s.arms.iter().any(|a| a.value.is_none()) {
-                        self.append_instruction(Instruction::Panic);
+                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
                     }
 
                     // 2. Define arm labels, and compile instructions
@@ -911,7 +900,7 @@ impl<'a> CompileState<'a> {
                         ));
                     }
                     // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
-                    self.append_instruction(Instruction::Exit);
+                    self.append_instruction(Instruction::Exit(ExitReason::Normal));
                 }
                 (ast::Statement::Create(s), StatementContext::Finish) => {
                     self.verify_fact_against_schema(&s.fact)?;
@@ -1046,7 +1035,7 @@ impl<'a> CompileState<'a> {
             ));
         }
         // If execution does not hit a return statement, it will panic here.
-        self.append_instruction(Instruction::Panic);
+        self.append_instruction(Instruction::Exit(ExitReason::Panic));
         Ok(())
     }
 
@@ -1086,9 +1075,33 @@ impl<'a> CompileState<'a> {
 
         self.compile_statements(&action.statements)?;
 
-        self.append_instruction(Instruction::Exit);
+        self.append_instruction(Instruction::Exit(ExitReason::Normal));
 
         Ok(())
+    }
+
+    /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
+    fn compile_unwrap(
+        &mut self,
+        e: &Expression,
+        exit_reason: ExitReason,
+    ) -> Result<(), CompileError> {
+        let not_none = self.anonymous_label();
+        // evaluate the expression
+        self.compile_expression(e)?;
+        // Duplicate value for testing
+        self.append_instruction(Instruction::Dup(0));
+        // Push a None to compare against
+        self.append_instruction(Instruction::Const(Value::None));
+        // Is the value not equal to None?
+        self.append_instruction(Instruction::Eq);
+        self.append_instruction(Instruction::Not);
+        // Then branch over the Panic
+        self.append_instruction(Instruction::Branch(Target::Unresolved(not_none.clone())));
+        // If the value is equal to None, panic
+        self.append_instruction(Instruction::Exit(exit_reason));
+        // Define the target of the branch as the instruction after the Panic
+        self.define_label(not_none, self.wp)
     }
 
     /// Compile a command policy block
@@ -1106,7 +1119,7 @@ impl<'a> CompileState<'a> {
         self.enter_statement_context(StatementContext::CommandPolicy);
         self.compile_statements(&command.policy)?;
         self.exit_statement_context();
-        self.append_instruction(Instruction::Exit);
+        self.append_instruction(Instruction::Exit(ExitReason::Normal));
 
         self.define_label(
             Label::new(&command.identifier, LabelType::CommandRecall),
@@ -1115,7 +1128,7 @@ impl<'a> CompileState<'a> {
         self.enter_statement_context(StatementContext::CommandRecall);
         self.compile_statements(&command.recall)?;
         self.exit_statement_context();
-        self.append_instruction(Instruction::Exit);
+        self.append_instruction(Instruction::Exit(ExitReason::Normal));
 
         if command.seal.is_empty() {
             return Err(CompileError::from_locator(
@@ -1141,7 +1154,7 @@ impl<'a> CompileState<'a> {
         )?;
         let actual_seal = self.anonymous_label();
         self.append_instruction(Instruction::Call(Target::Unresolved(actual_seal.clone())));
-        self.append_instruction(Instruction::Exit);
+        self.append_instruction(Instruction::Exit(ExitReason::Normal));
         self.define_label(actual_seal, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction);
         self.append_instruction(Instruction::Const(Value::String("this".to_string())));
@@ -1157,7 +1170,7 @@ impl<'a> CompileState<'a> {
         }
         self.exit_statement_context();
         // If there is no return, this is an error. Panic if we get here.
-        self.append_instruction(Instruction::Panic);
+        self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
         // Same thing for open.
         self.define_label(
@@ -1166,7 +1179,7 @@ impl<'a> CompileState<'a> {
         )?;
         let actual_open = self.anonymous_label();
         self.append_instruction(Instruction::Call(Target::Unresolved(actual_open.clone())));
-        self.append_instruction(Instruction::Exit);
+        self.append_instruction(Instruction::Exit(ExitReason::Normal));
         self.define_label(actual_open, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction);
         self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
@@ -1181,7 +1194,7 @@ impl<'a> CompileState<'a> {
             ));
         }
         self.exit_statement_context();
-        self.append_instruction(Instruction::Panic);
+        self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
         Ok(())
     }

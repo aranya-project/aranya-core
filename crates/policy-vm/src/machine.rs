@@ -13,7 +13,7 @@ use crate::{
     instructions::{Instruction, Target},
     io::MachineIO,
     stack::Stack,
-    CodeMap, CommandContext, FactKey, FactValue, OpenContext, SealContext,
+    CodeMap, CommandContext, ExitReason, FactKey, FactValue, OpenContext, SealContext,
 };
 
 /// Compares a fact's keys and values to its schema.
@@ -96,18 +96,15 @@ fn fact_match(fact: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
 pub enum MachineStatus {
     /// Execution will proceed as normal to the next instruction
     Executing,
-    /// Execution has ended normally
-    Exited,
-    /// Execution has ended with some expected failure
-    Panicked,
+    /// Execution has ended
+    Exited(ExitReason),
 }
 
 impl Display for MachineStatus {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             MachineStatus::Executing => write!(f, "Executing"),
-            MachineStatus::Exited => write!(f, "Exited"),
-            MachineStatus::Panicked => write!(f, "Panicked"),
+            MachineStatus::Exited(reason) => write!(f, "Exited: {}", reason),
         }
     }
 }
@@ -236,7 +233,7 @@ impl Machine {
         args: Args,
         io: &mut M,
         ctx: &CommandContext<'_>,
-    ) -> Result<MachineStatus, MachineError>
+    ) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
         Args::Item: Into<Value>,
@@ -253,7 +250,7 @@ impl Machine {
         this_data: &Struct,
         io: &mut M,
         ctx: &CommandContext<'_>,
-    ) -> Result<MachineStatus, MachineError>
+    ) -> Result<ExitReason, MachineError>
     where
         M: MachineIO<MachineStack>,
     {
@@ -451,7 +448,7 @@ where
     /// machine or a MachineError.
     pub fn step(&mut self) -> Result<MachineStatus, MachineError> {
         if self.pc() >= self.machine.progmem.len() {
-            return Err(self.err(MachineErrorType::InvalidAddress));
+            return Err(self.err(MachineErrorType::InvalidAddress("pc".to_owned())));
         }
         // Clone the instruction so we don't take an immutable
         // reference to self while we manipulate the stack later.
@@ -560,8 +557,7 @@ where
             Instruction::ExtCall(module, proc) => {
                 self.io.call(module, proc, &mut self.stack, self.ctx)?;
             }
-            Instruction::Exit => return Ok(MachineStatus::Exited),
-            Instruction::Panic => return Ok(MachineStatus::Panicked),
+            Instruction::Exit(reason) => return Ok(MachineStatus::Exited(reason)),
             Instruction::Add | Instruction::Sub => {
                 let b: i64 = self.ipop()?;
                 let a: i64 = self.ipop()?;
@@ -799,15 +795,14 @@ where
     }
 
     /// Execute machine instructions while each instruction returns
-    /// MachineStatus::Executing. Returns the MachineStatus it exited
+    /// MachineStatus::Executing. Returns the ExitReason it exited
     /// with, or an error.
-    pub fn run(&mut self) -> Result<MachineStatus, MachineError> {
+    pub fn run(&mut self) -> Result<ExitReason, MachineError> {
         loop {
-            let status = self.step()?;
-            if status == MachineStatus::Executing {
-                continue;
-            }
-            return Ok(status);
+            match self.step()? {
+                MachineStatus::Executing => continue,
+                MachineStatus::Exited(reason) => return Ok(reason),
+            };
         }
     }
 
@@ -817,7 +812,7 @@ where
             .machine
             .labels
             .get(&label)
-            .ok_or_else(|| self.err(MachineErrorType::InvalidAddress))?;
+            .ok_or_else(|| self.err(MachineErrorType::InvalidAddress(label.name)))?;
         self.pc = *addr;
         Ok(())
     }
@@ -844,7 +839,7 @@ where
         &mut self,
         name: &str,
         this_data: &Struct,
-    ) -> Result<MachineStatus, MachineError> {
+    ) -> Result<ExitReason, MachineError> {
         self.setup_command(name, LabelType::CommandPolicy, this_data)?;
         self.run()
     }
@@ -856,7 +851,7 @@ where
         &mut self,
         name: &str,
         this_data: &Struct,
-    ) -> Result<MachineStatus, MachineError> {
+    ) -> Result<ExitReason, MachineError> {
         self.setup_command(name, LabelType::CommandRecall, this_data)?;
         self.run()
     }
@@ -883,11 +878,7 @@ where
     // TODO(chip): I don't really like how V: Into<Value> works here
     // because it still means all of the args have to have the same
     // type.
-    pub fn call_action<Args>(
-        &mut self,
-        name: &str,
-        args: Args,
-    ) -> Result<MachineStatus, MachineError>
+    pub fn call_action<Args>(&mut self, name: &str, args: Args) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
         Args::Item: Into<Value>,
@@ -903,7 +894,7 @@ where
         &mut self,
         name: &str,
         this_data: &Struct,
-    ) -> Result<MachineStatus, MachineError> {
+    ) -> Result<ExitReason, MachineError> {
         self.set_pc_by_label(Label::new(name, LabelType::CommandSeal))?;
         self.defs.clear();
         self.call_state.clear();
@@ -915,11 +906,7 @@ where
     }
 
     /// Call the open block on an envelope struct to produce a command struct.
-    pub fn call_open(
-        &mut self,
-        name: &str,
-        envelope: &Struct,
-    ) -> Result<MachineStatus, MachineError> {
+    pub fn call_open(&mut self, name: &str, envelope: &Struct) -> Result<ExitReason, MachineError> {
         self.set_pc_by_label(Label::new(name, LabelType::CommandOpen))?;
         self.defs.clear();
         self.call_state.clear();

@@ -10,9 +10,10 @@ use clap::{arg, ArgGroup, Parser, ValueEnum};
 use crypto::Id;
 use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use policy_vm::{
-    compile_from_policy, ActionContext, CommandContext, FactKey, FactKeyList, FactValue,
-    FactValueList, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
-    MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
+    compile_from_policy, ActionContext, CommandContext, ExitReason, FactKey, FactKeyList,
+    FactValue, FactValueList, KVPair, LabelType, Machine, MachineError, MachineErrorType,
+    MachineIO, MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct,
+    Value,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -68,16 +69,18 @@ where
         stdin().read_line(&mut buf)?;
         status = rs.step().map_err(anyhow::Error::msg)?;
     }
-    print_machine_status(status, rs);
+    if let MachineStatus::Exited(reason) = status {
+        print_machine_status(reason, rs);
+    }
 
     Ok(())
 }
 
-fn print_machine_status<M>(status: MachineStatus, rs: &RunState<'_, M>)
+fn print_machine_status<M>(reason: ExitReason, rs: &RunState<'_, M>)
 where
     M: MachineIO<MachineStack>,
 {
-    print!("{}", status);
+    print!("Exited({})", reason);
     if let Some(loc) = rs.source_location() {
         println!(" {}", loc);
     } else {

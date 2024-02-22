@@ -1,6 +1,6 @@
 use core::fmt::Display;
 
-use crate::{data::Value, Label};
+use crate::{data::Value, ExitReason, Label};
 
 /// The target of a branch
 #[derive(Debug, Clone)]
@@ -47,9 +47,7 @@ pub enum Instruction {
     /// Return to the last address on the control flow stack
     Return,
     /// End execution non-fatally
-    Exit,
-    /// End execution fatally
-    Panic,
+    Exit(ExitReason),
     // arithmetic/logic
     /// Add two numbers
     Add,
@@ -121,8 +119,7 @@ impl Display for Instruction {
             Instruction::Call(Target::Unresolved(s)) => write!(f, "call <{}>", s),
             Instruction::ExtCall(module, proc) => write!(f, "extcall {} {}", module, proc),
             Instruction::Return => write!(f, "return"),
-            Instruction::Exit => write!(f, "exit"),
-            Instruction::Panic => write!(f, "panic"),
+            Instruction::Exit(reason) => write!(f, "exit({})", reason),
             Instruction::Add => write!(f, "add"),
             Instruction::Sub => write!(f, "sub"),
             Instruction::Not => write!(f, "not"),
