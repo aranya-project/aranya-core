@@ -151,9 +151,21 @@ impl CipherSuite for DefaultCipherSuite {
 /// It's mostly useful for tests as its [`Engine::ID`]
 /// constant is all zeros and the user must store the root
 /// encryption key somewhere.
-pub struct DefaultEngine<R: Csprng, S: CipherSuite = DefaultCipherSuite> {
+pub struct DefaultEngine<R: Csprng = Rng, S: CipherSuite = DefaultCipherSuite> {
     aead: S::Aead,
     rng: R,
+}
+
+impl<S: CipherSuite> Clone for DefaultEngine<Rng, S>
+where
+    S::Aead: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            aead: self.aead.clone(),
+            rng: Rng,
+        }
+    }
 }
 
 impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
