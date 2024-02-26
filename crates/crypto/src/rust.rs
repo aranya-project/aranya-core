@@ -51,6 +51,7 @@ use crate::{
 };
 
 /// AES-256-GCM.
+#[cfg_attr(feature = "clone-aead", derive(Clone))]
 pub struct Aes256Gcm(aes_gcm::Aes256Gcm);
 
 impl Aead for Aes256Gcm {

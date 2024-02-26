@@ -82,6 +82,7 @@ fn ct_be_lt(x: &[u8], y: &[u8]) -> Choice {
 }
 
 /// AES-256-GCM.
+#[cfg_attr(feature = "clone-aead", derive(Clone))]
 pub struct Aes256Gcm(br_aes_ct_ctr_keys);
 
 // SAFETY: nothing precludes `Aes256Gcm` from being sent across

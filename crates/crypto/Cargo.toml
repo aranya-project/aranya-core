@@ -43,6 +43,9 @@ committing-aead = [
 	"dep:aes",
 ]
 
+# Implement `Clone` for the built-in AEADs.
+clone-aead = []
+
 # Enable Ed25519 batch signature verification.
 #
 # NB: this is NOT supported on big-endian architectures.
@@ -209,6 +212,7 @@ always_include_features = [
 	"alloc",
 	"bearssl",
 	"boringssl",
+	"clone-aead",
 	"committing-aead",
 	"ed25519_batch",
 	"fs-keystore",

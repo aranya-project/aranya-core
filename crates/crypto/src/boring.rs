@@ -345,6 +345,7 @@ macro_rules! indcca2_aead_impl {
     ) => {
         #[doc = concat!($doc, ".")]
         #[repr(align(16))]
+        #[cfg_attr(feature = "clone-aead", derive(Clone))]
         pub struct $type(EVP_AEAD_CTX);
 
         // SAFETY: nothing precludes it from being sent across
