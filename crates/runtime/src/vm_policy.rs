@@ -164,12 +164,12 @@ where
         name: &str,
         fields: impl IntoIterator<Item = impl Into<(String, Value)>>,
         parent: &Id,
+        facts: &mut impl FactPerspective,
     ) -> Result<Struct, EngineError> {
-        let mut facts = NullFacts;
         let mut sink = NullSink;
         let mut ffis = self.ffis.lock();
         let mut eng = self.engine.lock();
-        let mut io = VmPolicyIO::new(&mut facts, &mut sink, &mut *eng, &mut ffis);
+        let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
         let ctx = CommandContext::Seal(SealContext {
             name,
             parent_id: (*parent).into(),
@@ -317,7 +317,7 @@ where
             io.into_emit_stack()
         };
         for (ref name, ref fields) in emit_stack {
-            let mut envelope = self.seal_command(name, fields, parent)?;
+            let mut envelope = self.seal_command(name, fields, parent, facts)?;
 
             let payload: Vec<u8> = envelope
                 .fields
