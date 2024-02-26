@@ -2,11 +2,13 @@
 #![allow(clippy::enum_variant_names, non_snake_case, unused_imports)]
 extern crate alloc;
 use alloc::{borrow::Cow, string::String, vec, vec::Vec};
+use core::fmt;
 use policy_vm::{Id, KVPair, Value};
 use runtime::{ClientError, Policy, VmPolicy};
 pub use runtime::{VmActions, VmEffects};
+use serde::{Serialize, Deserialize};
 /// Enum of policy effects that can occur in response to a policy action.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Effects {
     GameStart(GameStart),
     GameUpdate(GameUpdate),
@@ -24,7 +26,7 @@ impl TryFrom<(String, Vec<KVPair>)> for Effects {
     }
 }
 /// GameStart policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct GameStart {
     pub gameID: Id,
     pub x: Id,
@@ -49,7 +51,7 @@ impl TryFrom<Vec<KVPair>> for GameStart {
     }
 }
 /// GameUpdate policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct GameUpdate {
     pub gameID: Id,
     pub player: Id,
@@ -78,7 +80,7 @@ impl TryFrom<Vec<KVPair>> for GameUpdate {
     }
 }
 /// GameOver policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct GameOver {
     pub gameID: Id,
     pub winner: Id,
@@ -113,6 +115,17 @@ pub enum EffectsParseError {
     FieldTypeMismatch,
     /// Effect has unknown effect name.
     UnknownEffectName,
+}
+impl trouble::Error for EffectsParseError {}
+impl fmt::Display for EffectsParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ExtraFields => f.write_str("effect has one or more extra fields"),
+            Self::MissingField => f.write_str("effect is missing an expected field"),
+            Self::FieldTypeMismatch => f.write_str("effect has an unexpected field type"),
+            Self::UnknownEffectName => f.write_str("effect has an unknown effect name"),
+        }
+    }
 }
 fn parse_field<T: TryFrom<Value>>(
     fields: &mut alloc::collections::BTreeMap<String, Value>,

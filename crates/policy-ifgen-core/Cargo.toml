@@ -29,3 +29,5 @@ policy-ifgen-macro = { path = "../policy-ifgen-macro" }
 # Dependencies of generated code. Needed to test proc macro
 policy-vm = { path = "../policy-vm" }
 runtime = { path = "../runtime" }
+serde = { version = "1", default-features = false, features = ["alloc", "derive"] }
+trouble = { path = "../trouble" }

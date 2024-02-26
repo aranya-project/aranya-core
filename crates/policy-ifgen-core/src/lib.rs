@@ -25,6 +25,19 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
             UnknownEffectName,
         }
 
+        impl trouble::Error for EffectsParseError {}
+
+        impl fmt::Display for EffectsParseError {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                match self {
+                    Self::ExtraFields => f.write_str("effect has one or more extra fields"),
+                    Self::MissingField => f.write_str("effect is missing an expected field"),
+                    Self::FieldTypeMismatch => f.write_str("effect has an unexpected field type"),
+                    Self::UnknownEffectName => f.write_str("effect has an unknown effect name"),
+                }
+            }
+        }
+
         fn parse_field<T: TryFrom<Value>>(
             fields: &mut alloc::collections::BTreeMap<String, Value>,
             name: &str,
@@ -52,7 +65,16 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
             .collect();
         quote! {
             #[doc = #doc]
-            #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+            #[derive(
+                Clone,
+                Debug,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Serialize,
+                Deserialize,
+            )]
             pub struct #ident {
                 #(pub #field_idents: #field_types),*
             }
@@ -88,7 +110,16 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
             .map(|s| format_ident!("{}", s.identifier))
             .collect();
         quote! {
-            #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+            #[derive(
+                Clone,
+                Debug,
+                PartialEq,
+                Eq,
+                PartialOrd,
+                Ord,
+                Serialize,
+                Deserialize,
+            )]
             pub enum Effects {
                 #(
                     #idents(#idents)
@@ -160,11 +191,14 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
         )]
 
         extern crate alloc;
+
         use alloc::{borrow::Cow, string::String, vec, vec::Vec};
+        use core::fmt;
 
         use policy_vm::{Id, KVPair, Value};
         use runtime::{ClientError, Policy, VmPolicy};
         pub use runtime::{VmActions, VmEffects};
+        use serde::{Serialize, Deserialize};
 
         #(#structs)*
 

@@ -1967,7 +1967,9 @@ dependencies = [
  "proc-macro2",
  "quote",
  "runtime",
+ "serde",
  "syn 2.0.48",
+ "trouble",
 ]
 
 [[package]]

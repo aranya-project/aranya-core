@@ -2,9 +2,11 @@
 #![allow(clippy::enum_variant_names, non_snake_case, unused_imports)]
 extern crate alloc;
 use alloc::{borrow::Cow, string::String, vec, vec::Vec};
+use core::fmt;
 use policy_vm::{Id, KVPair, Value};
 use runtime::{ClientError, Policy, VmPolicy};
 pub use runtime::{VmActions, VmEffects};
+use serde::{Serialize, Deserialize};
 /// NewUser policy struct.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NewUser {
@@ -24,7 +26,7 @@ pub struct User {
     pub role: String,
 }
 /// Enum of policy effects that can occur in response to a policy action.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Effects {
     TtcTeamCreated(TtcTeamCreated),
     OwnerAdded(OwnerAdded),
@@ -62,7 +64,7 @@ impl TryFrom<(String, Vec<KVPair>)> for Effects {
     }
 }
 /// TtcTeamCreated policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TtcTeamCreated {
     pub name: String,
     pub owner_id: Id,
@@ -85,7 +87,7 @@ impl TryFrom<Vec<KVPair>> for TtcTeamCreated {
     }
 }
 /// OwnerAdded policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OwnerAdded {
     pub user_id: Id,
     pub name: String,
@@ -114,7 +116,7 @@ impl TryFrom<Vec<KVPair>> for OwnerAdded {
     }
 }
 /// AdminAdded policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AdminAdded {
     pub user_id: Id,
     pub name: String,
@@ -143,7 +145,7 @@ impl TryFrom<Vec<KVPair>> for AdminAdded {
     }
 }
 /// OperatorAdded policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OperatorAdded {
     pub user_id: Id,
     pub name: String,
@@ -172,7 +174,7 @@ impl TryFrom<Vec<KVPair>> for OperatorAdded {
     }
 }
 /// SatelliteAdded policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SatelliteAdded {
     pub user_id: Id,
     pub name: String,
@@ -201,7 +203,7 @@ impl TryFrom<Vec<KVPair>> for SatelliteAdded {
     }
 }
 /// OwnerRemoved policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OwnerRemoved {
     pub user_id: Id,
 }
@@ -222,7 +224,7 @@ impl TryFrom<Vec<KVPair>> for OwnerRemoved {
     }
 }
 /// AdminRemoved policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AdminRemoved {
     pub user_id: Id,
 }
@@ -243,7 +245,7 @@ impl TryFrom<Vec<KVPair>> for AdminRemoved {
     }
 }
 /// OperatorRemoved policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct OperatorRemoved {
     pub user_id: Id,
 }
@@ -264,7 +266,7 @@ impl TryFrom<Vec<KVPair>> for OperatorRemoved {
     }
 }
 /// SatelliteRemoved policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SatelliteRemoved {
     pub user_id: Id,
 }
@@ -285,7 +287,7 @@ impl TryFrom<Vec<KVPair>> for SatelliteRemoved {
     }
 }
 /// ApsLabelCreated policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ApsLabelCreated {
     pub name: String,
     pub label: i64,
@@ -308,7 +310,7 @@ impl TryFrom<Vec<KVPair>> for ApsLabelCreated {
     }
 }
 /// ApsLabelAssigned policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ApsLabelAssigned {
     pub user_id: Id,
     pub name: String,
@@ -335,7 +337,7 @@ impl TryFrom<Vec<KVPair>> for ApsLabelAssigned {
     }
 }
 /// ApsLabelRevoked policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ApsLabelRevoked {
     pub user_id: Id,
     pub label: i64,
@@ -358,7 +360,7 @@ impl TryFrom<Vec<KVPair>> for ApsLabelRevoked {
     }
 }
 /// ApsBidiChannelCreated policy effect.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct ApsBidiChannelCreated {
     pub user1: Id,
     pub user2: Id,
@@ -393,6 +395,17 @@ pub enum EffectsParseError {
     FieldTypeMismatch,
     /// Effect has unknown effect name.
     UnknownEffectName,
+}
+impl trouble::Error for EffectsParseError {}
+impl fmt::Display for EffectsParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ExtraFields => f.write_str("effect has one or more extra fields"),
+            Self::MissingField => f.write_str("effect is missing an expected field"),
+            Self::FieldTypeMismatch => f.write_str("effect has an unexpected field type"),
+            Self::UnknownEffectName => f.write_str("effect has an unknown effect name"),
+        }
+    }
 }
 fn parse_field<T: TryFrom<Value>>(
     fields: &mut alloc::collections::BTreeMap<String, Value>,
