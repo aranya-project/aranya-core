@@ -99,11 +99,8 @@ where
     #[instrument(skip_all, fields(name = name))]
     fn open_command<P>(
         &self,
-        command_id: Id,
-        author_id: Id,
         name: &str,
-        parent: Id,
-        payload: &[u8],
+        envelope: Envelope,
         facts: &mut P,
     ) -> Result<Struct, EngineError>
     where
@@ -115,21 +112,10 @@ where
         let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
         let ctx = CommandContext::Open(OpenContext {
             name,
-            parent_id: parent.into(),
+            parent_id: envelope.parent_id.into(),
         });
         let mut rs = self.machine.create_run_state(&mut io, &ctx);
-        let envelope = Struct::new(
-            "Envelope",
-            [
-                KVPair::new("parent_id", Value::Id(parent.into())),
-                KVPair::new("author_id", Value::Id(author_id.into())),
-                KVPair::new("command_id", Value::Id(command_id.into())),
-                KVPair::new("payload", Value::Bytes(payload.to_vec())),
-                // TODO(chip): use an actual signature
-                KVPair::new("signature", Value::Bytes(b"LOL".to_vec())),
-            ],
-        );
-        let status = rs.call_open(name, &envelope);
+        let status = rs.call_open(name, &envelope.into());
         match status {
             Ok(reason) => match reason {
                 ExitReason::Normal => {
@@ -165,7 +151,7 @@ where
         fields: impl IntoIterator<Item = impl Into<(String, Value)>>,
         parent: &Id,
         facts: &mut impl FactPerspective,
-    ) -> Result<Struct, EngineError> {
+    ) -> Result<Envelope, EngineError> {
         let mut sink = NullSink;
         let mut ffis = self.ffis.lock();
         let mut eng = self.engine.lock();
@@ -184,10 +170,15 @@ where
                         error!("Could not pull envelope from stack: {e}");
                         EngineError::InternalError
                     })?;
-                    Ok(v.try_into().map_err(|e| {
+                    let strukt = Struct::try_from(v).map_err(|e| {
                         error!("Envelope is not a struct: {e}");
                         EngineError::InternalError
-                    })?)
+                    })?;
+                    let envelope = Envelope::try_from(strukt).map_err(|e| {
+                        error!("Malformed Envelope: {e}");
+                        EngineError::InternalError
+                    })?;
+                    Ok(envelope)
                 }
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
@@ -237,7 +228,7 @@ where
         sink: &mut impl Sink<Self::Effects>,
     ) -> Result<bool, EngineError> {
         let unpacked: VmProtocolData = postcard::from_bytes(command.bytes()).map_err(|e| {
-            error!("Could not deserialize: {e}");
+            error!("Could not deserialize: {e:?}");
             EngineError::Read
         })?;
         let passed = match unpacked {
@@ -249,16 +240,17 @@ where
                 parent,
                 kind,
                 author_id,
-                ..
+                serialized_fields,
+                signature,
             } => {
-                let command_struct = self.open_command(
-                    command.id(),
+                let envelope = Envelope {
+                    parent_id: parent,
                     author_id,
-                    &kind,
-                    parent,
-                    command.bytes(),
-                    facts,
-                )?;
+                    command_id: command.id(),
+                    payload: serialized_fields,
+                    signature,
+                };
+                let command_struct = self.open_command(&kind, envelope, facts)?;
                 let fields: Vec<KVPair> = command_struct
                     .fields
                     .into_iter()
@@ -316,34 +308,16 @@ where
             };
             io.into_emit_stack()
         };
-        for (ref name, ref fields) in emit_stack {
-            let mut envelope = self.seal_command(name, fields, parent, facts)?;
-
-            let payload: Vec<u8> = envelope
-                .fields
-                .remove("payload")
-                .ok_or_else(|| {
-                    error!("Could not extract `payload` field from Envelope");
-                    EngineError::InternalError
-                })?
-                .try_into()
-                .map_err(|e| {
-                    error!("Envelope `payload` is not `bytes`: {e}");
-                    EngineError::InternalError
-                })?;
-            let command_id: crypto::Id = envelope
-                .fields
-                .remove("command_id")
-                .ok_or_else(|| {
-                    error!("Could not extract `command_id` from Envelope");
-                    EngineError::InternalError
-                })?
-                .try_into()
-                .map_err(|e| {
-                    error!("Envelope `command_id` is not `id`: {e}");
-                    EngineError::InternalError
-                })?;
-            let new_command = self.read_command(command_id.into(), &payload)?;
+        for (name, fields) in emit_stack {
+            let envelope = self.seal_command(&name, fields, parent, facts)?;
+            let wrapped = postcard::to_allocvec(&VmProtocolData::Basic {
+                author_id: envelope.author_id,
+                parent: *parent,
+                kind: name,
+                serialized_fields: envelope.payload,
+                signature: envelope.signature,
+            })?;
+            let new_command = self.read_command(envelope.command_id, &wrapped)?;
 
             let passed = self.call_rule(&new_command, facts, sink)?;
             if passed {
@@ -363,7 +337,7 @@ where
     #[instrument(skip_all)]
     fn read_command<'a>(&self, id: Id, data: &'a [u8]) -> Result<Self::Command<'a>, EngineError> {
         let unpacked: VmProtocolData = postcard::from_bytes(data).map_err(|e| {
-            error!("Could not deserialize: {e}");
+            error!("Could not deserialize: {e:?}");
             EngineError::Read
         })?;
         Ok(VmProtocol::new(data, id, unpacked))
@@ -402,27 +376,6 @@ where
         })?;
         let id = Id::hash_for_testing_only(target);
         Ok(VmProtocol::new(target, id, c))
-    }
-
-    fn basic<'a>(
-        &self,
-        target: &'a mut [u8],
-        parent: Id,
-        (kind, serialized_fields): Self::Payload<'_>,
-    ) -> Result<Self::Command<'a>, EngineError> {
-        let c = VmProtocolData::Basic {
-            parent,
-            // FIXME(chip): Where does the author ID come from?
-            author_id: Id::default(),
-            kind,
-            serialized_fields,
-        };
-        let data = postcard::to_slice(&c, target).map_err(|e| {
-            error!("{e}");
-            EngineError::Write
-        })?;
-        let id = Id::hash_for_testing_only(data);
-        Ok(VmProtocol::new(data, id, c))
     }
 }
 

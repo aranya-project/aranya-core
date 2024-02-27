@@ -12,7 +12,7 @@ use runtime::{
     engine::Sink,
     metrics::{Metric, MetricError, Metrics},
     storage::memory::MemStorageProvider,
-    vm_policy::{ffi::FfiEnvelope, VmPolicy},
+    vm_policy::{ffi::TestFfiEnvelope, VmPolicy},
     ClientState, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
 
@@ -258,9 +258,9 @@ impl Model for TestModel {
 
         let policy_ast = parse_policy_document(policy_doc).expect("parse policy document");
         let machine =
-            compile_from_policy(&policy_ast, &[FfiEnvelope::SCHEMA]).expect("compile policy");
+            compile_from_policy(&policy_ast, &[TestFfiEnvelope::SCHEMA]).expect("compile policy");
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        let policy = VmPolicy::new(machine, eng, vec![Box::from(FfiEnvelope {})])
+        let policy = VmPolicy::new(machine, eng, vec![Box::from(TestFfiEnvelope {})])
             .expect("Could not load policy");
         let engine = ModelEngine::new(policy);
         let provider = MemStorageProvider::new();

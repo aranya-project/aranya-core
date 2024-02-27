@@ -41,6 +41,7 @@ pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RES
 /// Represents high-level data of a command.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommandMeta {
+    id: Id,
     priority: Priority,
     parent: Prior<Id>,
     policy_length: u32,

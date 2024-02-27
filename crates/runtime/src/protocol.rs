@@ -175,6 +175,27 @@ impl TestPolicy {
 
         Ok(passed)
     }
+
+    fn basic<'a>(
+        &self,
+        target: &'a mut [u8],
+        parent: Id,
+        payload: <Self as Policy>::Payload<'_>,
+    ) -> Result<TestProtocol<'a>, EngineError> {
+        let prority = 0; //BUG
+
+        let message = WireBasic {
+            parent,
+            prority,
+            payload,
+        };
+
+        let command = WireProtocol::Basic(message);
+        let data = write(target, &command)?;
+        let id = Id::hash_for_testing_only(data);
+
+        Ok(TestProtocol { id, command, data })
+    }
 }
 
 fn write<'a>(target: &'a mut [u8], message: &WireProtocol) -> Result<&'a mut [u8], EngineError> {
@@ -330,26 +351,5 @@ impl Policy for TestPolicy {
                 Ok(passed)
             }
         }
-    }
-
-    fn basic<'a>(
-        &self,
-        target: &'a mut [u8],
-        parent: Id,
-        payload: Self::Payload<'_>,
-    ) -> Result<TestProtocol<'a>, EngineError> {
-        let prority = 0; //BUG
-
-        let message = WireBasic {
-            parent,
-            prority,
-            payload,
-        };
-
-        let command = WireProtocol::Basic(message);
-        let data = write(target, &command)?;
-        let id = Id::hash_for_testing_only(data);
-
-        Ok(TestProtocol { id, command, data })
     }
 }

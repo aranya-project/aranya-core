@@ -1,45 +1,37 @@
 use alloc::vec::Vec;
 
+use crypto::UserId;
 use policy_vm::{
     ffi::{Arg, Color, FfiModule, Func, ModuleSchema, Type},
-    CommandContext, KVPair, MachineIOError, OpenContext, SealContext, Stack, Struct, Value,
+    CommandContext, MachineIOError, OpenContext, SealContext, Stack, Struct, Value,
 };
 
-use crate::{Id, VmProtocolData};
+use crate::{Envelope, Id};
 
-pub struct FfiEnvelope {}
+pub struct TestFfiEnvelope {}
 
-impl FfiEnvelope {
+impl TestFfiEnvelope {
     fn seal(&self, stack: &mut impl Stack, ctx: &SealContext<'_>) -> Result<(), MachineIOError> {
-        let author_id = Id::default(); // should be a parameter, but stubbing it for now
+        let author_id = UserId::default(); // should be a parameter, but stubbing it for now
         let s: Struct = stack.pop().map_err(|_| MachineIOError::Internal)?;
         if s.name != ctx.name {
             return Err(MachineIOError::Internal);
         }
         let serialized_fields = postcard::to_allocvec(&s).map_err(|_| MachineIOError::Internal)?;
 
-        let c = VmProtocolData::Basic {
-            parent: ctx.parent_id.into(),
-            author_id,
-            kind: s.name,
-            serialized_fields,
-        };
-
-        let payload = postcard::to_allocvec(&c).map_err(|_| MachineIOError::Internal)?;
         // FIXME(chip): bad implementation for example only
-        let command_id = Id::hash_for_testing_only(&payload);
-        let envelope = Struct::new(
-            "Envelope",
-            [
-                KVPair::new("parent_id", Value::Id(ctx.parent_id)),
-                KVPair::new("author_id", Value::Id(author_id.into())),
-                KVPair::new("command_id", Value::Id(command_id.into())),
-                KVPair::new("payload", Value::Bytes(payload)),
-                // TODO(chip): use an actual signature
-                KVPair::new("signature", Value::Bytes(b"LOL".to_vec())),
-            ],
-        );
-        stack.push(envelope).map_err(|_| MachineIOError::Internal)
+        let command_id = Id::hash_for_testing_only(&serialized_fields);
+        let envelope = Envelope {
+            parent_id: ctx.parent_id.into(),
+            author_id,
+            command_id,
+            payload: serialized_fields,
+            // TODO(chip): use an actual signature
+            signature: b"LOL".to_vec(),
+        };
+        stack
+            .push(Value::Struct(envelope.into()))
+            .map_err(|_| MachineIOError::Internal)
     }
 
     fn open(&self, stack: &mut impl Stack, ctx: &OpenContext<'_>) -> Result<(), MachineIOError> {
@@ -50,29 +42,17 @@ impl FfiEnvelope {
             .ok_or(MachineIOError::Internal)?
             .try_into()
             .map_err(|_| MachineIOError::Internal)?;
-        let unpacked: VmProtocolData =
-            postcard::from_bytes(&bytes).map_err(|_| MachineIOError::Internal)?;
-        if let VmProtocolData::Basic {
-            kind,
-            serialized_fields,
-            ..
-        } = unpacked
-        {
-            if kind == ctx.name {
-                let s: Struct = postcard::from_bytes(&serialized_fields)
-                    .map_err(|_| MachineIOError::Internal)?;
-                stack.push(s).map_err(|_| MachineIOError::Internal)?;
-                Ok(())
-            } else {
-                Err(MachineIOError::Internal)
-            }
+        let s: Struct = postcard::from_bytes(&bytes).map_err(|_| MachineIOError::Internal)?;
+        if s.name == ctx.name {
+            stack.push(s).map_err(|_| MachineIOError::Internal)?;
+            Ok(())
         } else {
             Err(MachineIOError::Internal)
         }
     }
 }
 
-impl FfiModule for FfiEnvelope {
+impl FfiModule for TestFfiEnvelope {
     type Error = MachineIOError;
 
     const SCHEMA: ModuleSchema<'static> = ModuleSchema {

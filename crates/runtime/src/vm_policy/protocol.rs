@@ -1,7 +1,10 @@
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
+use core::fmt;
 
+use crypto::UserId;
+use policy_vm::{Struct, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -21,9 +24,10 @@ pub enum VmProtocolData {
     },
     Basic {
         parent: Id,
-        author_id: Id,
+        author_id: UserId,
         kind: String,
         serialized_fields: Vec<u8>,
+        signature: Vec<u8>,
     },
 }
 
@@ -76,3 +80,80 @@ impl<'a> Command<'a> for VmProtocol<'a> {
         self.data
     }
 }
+
+#[derive(Clone, Debug)]
+pub struct Envelope {
+    pub parent_id: Id,
+    pub author_id: UserId,
+    pub command_id: Id,
+    pub payload: Vec<u8>,
+    pub signature: Vec<u8>,
+}
+
+impl From<Envelope> for Struct {
+    fn from(e: Envelope) -> Self {
+        Self::new(
+            "Envelope",
+            [
+                ("parent_id".into(), e.parent_id.into_id().into()),
+                ("author_id".into(), e.author_id.into_id().into()),
+                ("command_id".into(), e.command_id.into_id().into()),
+                ("payload".into(), e.payload.into()),
+                ("signature".into(), e.signature.into()),
+            ],
+        )
+    }
+}
+
+impl TryFrom<Struct> for Envelope {
+    type Error = EnvelopeError;
+
+    fn try_from(
+        Struct {
+            name,
+            ref mut fields,
+        }: Struct,
+    ) -> Result<Self, Self::Error> {
+        if name != "Envelope" {
+            return Err(EnvelopeError::InvalidName(name));
+        }
+
+        Ok(Self {
+            parent_id: get::<crypto::Id>(fields, "parent_id")?.into(),
+            author_id: get::<crypto::Id>(fields, "author_id")?.into(),
+            command_id: get::<crypto::Id>(fields, "command_id")?.into(),
+            payload: get(fields, "payload")?,
+            signature: get(fields, "signature")?,
+        })
+    }
+}
+
+fn get<T: TryFrom<Value>>(
+    fields: &mut BTreeMap<String, Value>,
+    key: &'static str,
+) -> Result<T, EnvelopeError> {
+    fields
+        .remove(key)
+        .ok_or(EnvelopeError::MissingField(key))?
+        .try_into()
+        .map_err(|_| EnvelopeError::InvalidType(key))
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EnvelopeError {
+    InvalidName(String),
+    MissingField(&'static str),
+    InvalidType(&'static str),
+}
+
+impl fmt::Display for EnvelopeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidName(name) => write!(f, "invalid struct name {name:?}"),
+            Self::MissingField(field) => write!(f, "missing field {field:?}"),
+            Self::InvalidType(field) => write!(f, "invalid type for field {field:?}"),
+        }
+    }
+}
+
+impl trouble::Error for EnvelopeError {}

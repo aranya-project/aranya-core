@@ -13,7 +13,7 @@ use super::{error::VmPolicyError, VmPolicy};
 use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
     storage::{memory::MemStorageProvider, FactPerspective, Storage, StorageProvider},
-    vm_policy::ffi::FfiEnvelope,
+    vm_policy::ffi::TestFfiEnvelope,
     ClientState,
 };
 
@@ -163,9 +163,9 @@ impl TestEngine {
     pub fn new(policy_doc: &str) -> TestEngine {
         let ast = parse_policy_document(policy_doc).unwrap_or_else(|e| panic!("{e}"));
         let machine =
-            compile_from_policy(&ast, &[FfiEnvelope::SCHEMA]).unwrap_or_else(|e| panic!("{e}"));
+            compile_from_policy(&ast, &[TestFfiEnvelope::SCHEMA]).unwrap_or_else(|e| panic!("{e}"));
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        let policy = VmPolicy::new(machine, eng, vec![Box::from(FfiEnvelope {})])
+        let policy = VmPolicy::new(machine, eng, vec![Box::from(TestFfiEnvelope {})])
             .expect("Could not load policy");
         TestEngine { policy }
     }

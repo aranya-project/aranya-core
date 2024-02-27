@@ -213,11 +213,8 @@ impl SyncRequester<'_> {
                     let payload = &remaining[start..end];
                     start = end;
 
-                    // TODO(eric): fix this
-                    let id = Id::hash_for_testing_only(payload);
-
                     let command = SyncCommand {
-                        id,
+                        id: meta.id,
                         priority: meta.priority,
                         parent: meta.parent,
                         policy,

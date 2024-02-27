@@ -503,15 +503,6 @@ mod test {
             let id = Id::hash_for_testing_only(&buf);
             Ok(SeqCommand::new(id, Prior::Merge(left, right)))
         }
-
-        fn basic<'a>(
-            &self,
-            _target: &'a mut [u8],
-            _parent: Id,
-            _payload: Self::Payload<'a>,
-        ) -> Result<Self::Command<'a>, crate::EngineError> {
-            unimplemented!()
-        }
     }
 
     impl SeqCommand {

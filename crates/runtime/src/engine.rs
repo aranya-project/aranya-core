@@ -172,13 +172,4 @@ pub trait Policy {
         target: &'a mut [u8],
         ids: MergeIds,
     ) -> Result<Self::Command<'a>, EngineError>;
-
-    /// Produces a protocol message serialized to target. The `struct` representing the
-    /// Command is returned.
-    fn basic<'a>(
-        &self,
-        target: &'a mut [u8],
-        parent: Id,
-        payload: Self::Payload<'a>,
-    ) -> Result<Self::Command<'a>, EngineError>;
 }

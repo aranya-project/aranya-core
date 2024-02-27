@@ -340,6 +340,7 @@ impl SyncResponder {
                     .assume("command_data is too large")?;
 
                 let meta = CommandMeta {
+                    id: command.id(),
                     priority: command.priority(),
                     parent: command.parent(),
                     policy_length: policy_length as u32,
