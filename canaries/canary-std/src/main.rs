@@ -1,4 +1,4 @@
-#![cfg(not(any(test, doctest, feature = "std")))]
+#![cfg(not(any(test, doctest)))]
 #![no_std]
 #![no_main]
 
