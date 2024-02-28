@@ -248,6 +248,7 @@ impl Machine {
         &mut self,
         name: &str,
         this_data: &Struct,
+        envelope: Struct,
         io: &mut M,
         ctx: &CommandContext<'_>,
     ) -> Result<ExitReason, MachineError>
@@ -255,7 +256,7 @@ impl Machine {
         M: MachineIO<MachineStack>,
     {
         let mut rs = self.create_run_state(io, ctx);
-        rs.call_command_policy(name, this_data)
+        rs.call_command_policy(name, this_data, envelope)
     }
 }
 
@@ -839,8 +840,10 @@ where
         &mut self,
         name: &str,
         this_data: &Struct,
+        envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
         self.setup_command(name, LabelType::CommandPolicy, this_data)?;
+        self.ipush(envelope)?;
         self.run()
     }
 
@@ -851,8 +854,10 @@ where
         &mut self,
         name: &str,
         this_data: &Struct,
+        envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
         self.setup_command(name, LabelType::CommandRecall, this_data)?;
+        self.ipush(envelope)?;
         self.run()
     }
 
@@ -906,11 +911,11 @@ where
     }
 
     /// Call the open block on an envelope struct to produce a command struct.
-    pub fn call_open(&mut self, name: &str, envelope: &Struct) -> Result<ExitReason, MachineError> {
+    pub fn call_open(&mut self, name: &str, envelope: Struct) -> Result<ExitReason, MachineError> {
         self.set_pc_by_label(Label::new(name, LabelType::CommandOpen))?;
         self.defs.clear();
         self.call_state.clear();
-        self.ipush(envelope.to_owned())?;
+        self.ipush(envelope)?;
         self.run()
     }
 

@@ -1117,6 +1117,8 @@ impl<'a> CompileState<'a> {
             self.wp,
         )?;
         self.enter_statement_context(StatementContext::CommandPolicy);
+        self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
+        self.append_instruction(Instruction::Def);
         self.compile_statements(&command.policy)?;
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
@@ -1126,6 +1128,8 @@ impl<'a> CompileState<'a> {
             self.wp,
         )?;
         self.enter_statement_context(StatementContext::CommandRecall);
+        self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
+        self.append_instruction(Instruction::Def);
         self.compile_statements(&command.recall)?;
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Normal));

@@ -248,6 +248,13 @@ fn dummy_ctx_policy(name: &str) -> CommandContext<'_> {
     })
 }
 
+fn dummy_envelope() -> Struct {
+    Struct {
+        name: "Envelope".into(),
+        fields: BTreeMap::new(),
+    }
+}
+
 #[test]
 fn test_action() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3).map_err(anyhow::Error::msg)?;
@@ -287,7 +294,7 @@ fn test_command_policy() -> anyhow::Result<()> {
         .collect(),
     };
     machine
-        .call_command_policy(name, &self_data, &mut io, &ctx)
+        .call_command_policy(name, &self_data, dummy_envelope(), &mut io, &ctx)
         .expect("Could not call command policy");
 
     println!("effects: {:?}", io.effect_stack);
@@ -332,8 +339,7 @@ fn test_open() -> anyhow::Result<()> {
     let mut io = TestIO::new();
     let mut rs = RunState::new(&machine, &mut io, &ctx);
 
-    let envelope = Struct::new(name, &[]);
-    rs.call_open(name, &envelope)
+    rs.call_open(name, dummy_envelope())
         .expect("Could not call command policy");
 
     assert_eq!(rs.stack.0[0], Value::None);
@@ -405,7 +411,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new(name, [(KVPair::new_int("a", 3))]);
         machine
-            .call_command_policy(name, &self_struct, &mut io, &ctx)
+            .call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -418,7 +424,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new("Set", &[]);
         machine
-            .call_command_policy("Clear", &self_struct, &mut io, &ctx)
+            .call_command_policy("Clear", &self_struct, dummy_envelope(), &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -440,14 +446,14 @@ fn test_fact_query() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new(name, [KVPair::new_int("a", 3)]);
         machine
-            .call_command_policy(name, &self_struct, &mut io, &ctx)
+            .call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
 
         let name = "Increment";
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new(name, &[]);
         machine
-            .call_command_policy(name, &self_struct, &mut io, &ctx)
+            .call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -514,7 +520,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let mut rs = RunState::new(&machine, &mut io, &ctx);
         let self_struct = Struct::new(name, &[]);
         let result = rs
-            .call_command_policy(name, &self_struct)
+            .call_command_policy(name, &self_struct, dummy_envelope())
             .map_err(anyhow::Error::msg)?;
         assert_eq!(result, ExitReason::Normal);
     }
@@ -1571,7 +1577,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new("Foo", [KVPair::new("x", Value::Int(3))]);
         machine
-            .call_command_policy(name, &self_struct, &mut io, &ctx)
+            .call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -1947,7 +1953,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         // This tests the implicitly defined struct as a return type
         function get_foo(a int) struct Foo {
             let foo = unwrap query Foo[a: a]=>{b: ?}
-          
+
             return foo
         }
 
@@ -1986,7 +1992,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
                 KVPair::new("x", Value::Int(2)),
             ],
         );
-        rs.call_command_policy(name, &self_struct)
+        rs.call_command_policy(name, &self_struct, dummy_envelope())
             .map_err(anyhow::Error::msg)?;
     }
 
@@ -2067,7 +2073,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
             "Envelope",
             [KVPair::new("payload", Value::Bytes(this_bytes))],
         );
-        rs.call_open(name, &envelope).map_err(anyhow::Error::msg)?;
+        rs.call_open(name, envelope).map_err(anyhow::Error::msg)?;
         let result = rs.consume_return()?;
         let got_this: Struct = result.try_into().map_err(anyhow::Error::msg)?;
         assert_eq!(got_this, this_struct);
@@ -2122,7 +2128,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
         let ctx = dummy_ctx_open(cmd_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_command_policy(cmd_name, &this_data)?;
+        let status = rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?;
         assert_eq!(status, ExitReason::Normal);
     }
 
@@ -2140,6 +2146,55 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let status = rs.call_action(action_name, [Value::None])?;
         assert_eq!(status, ExitReason::Check);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
+    let text = r#"
+        command Foo {
+            fields {}
+            seal { return None }
+            open { return None }
+
+            policy {
+                check envelope.thing == "policy"
+            }
+
+            recall {
+                check envelope.thing == "recall"
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
+
+    {
+        let name = "Foo";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let status = rs.call_command_policy(
+            name,
+            &Struct::new("Foo", &[]),
+            Struct::new("Envelope", [("thing".into(), "policy".into())]),
+        )?;
+        assert_eq!(status, ExitReason::Normal);
+    }
+
+    {
+        let name = "Foo";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let status = rs.call_command_recall(
+            name,
+            &Struct::new("Foo", &[]),
+            Struct::new("Envelope", [("thing".into(), "recall".into())]),
+        )?;
+        assert_eq!(status, ExitReason::Normal);
     }
 
     Ok(())

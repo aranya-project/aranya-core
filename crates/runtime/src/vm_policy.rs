@@ -65,6 +65,7 @@ where
         &self,
         name: &str,
         fields: &[KVPair],
+        envelope: Envelope,
         facts: &'a mut P,
         sink: &'a mut impl Sink<(String, Vec<KVPair>)>,
         ctx: &CommandContext<'_>,
@@ -77,7 +78,7 @@ where
         let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let self_data = Struct::new(name, fields);
-        match rs.call_command_policy(&self_data.name, &self_data) {
+        match rs.call_command_policy(&self_data.name, &self_data, envelope.into()) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(true),
                 ExitReason::Check => {
@@ -115,7 +116,7 @@ where
             parent_id: envelope.parent_id.into(),
         });
         let mut rs = self.machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_open(name, &envelope.into());
+        let status = rs.call_open(name, envelope.into());
         match status {
             Ok(reason) => match reason {
                 ExitReason::Normal => {
@@ -250,7 +251,7 @@ where
                     payload: serialized_fields,
                     signature,
                 };
-                let command_struct = self.open_command(&kind, envelope, facts)?;
+                let command_struct = self.open_command(&kind, envelope.clone(), facts)?;
                 let fields: Vec<KVPair> = command_struct
                     .fields
                     .into_iter()
@@ -263,7 +264,7 @@ where
                     version: Id::default().into(),
                     parent_id: parent.into(),
                 });
-                self.evaluate_rule(&kind, fields.as_slice(), facts, sink, &ctx)?
+                self.evaluate_rule(&kind, fields.as_slice(), envelope, facts, sink, &ctx)?
             }
         };
 
