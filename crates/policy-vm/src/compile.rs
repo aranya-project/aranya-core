@@ -360,9 +360,9 @@ impl<'a> CompileState<'a> {
                 ))?;
 
             let Some(vtype) = expression_vtype(&fact_key.1) else {
-                // If the type cannot be determined, e.g. it's an expression or query, return Ok. The machine will verify the type at runtime.
+                // If the type cannot be determined, e.g. it's an expression or query, ignore it. The machine will verify the type at runtime.
                 // TODO should we allow expressions/queries for key values?
-                return Ok(());
+                continue;
             };
 
             // key type must be one of `HashableValue`

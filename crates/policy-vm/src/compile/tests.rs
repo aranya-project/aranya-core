@@ -458,17 +458,17 @@ fn test_fact_duplicate_key() -> anyhow::Result<()> {
 #[test]
 fn test_fact_invalid_value_name() -> anyhow::Result<()> {
     let text = r#"
-        fact Foo[i int] => {a string}
-        action test() {
-            check exists Foo[i: 1] => {b: ""}
-        }
+    fact Foo[k int]=>{x int}
+    action test() {
+        check exists Foo[k: 1 + 1]=>{y: 5}
+    }
     "#;
 
     let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
-    assert_eq!(err, CompileErrorType::NotDefined(String::from("b")));
+    assert_eq!(err, CompileErrorType::NotDefined(String::from("y")));
 
     Ok(())
 }
