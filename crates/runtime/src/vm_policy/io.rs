@@ -90,11 +90,9 @@ where
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
-        let key_vec: heapless::Vec<u8, 256> =
-            postcard::to_vec(&(name, key)).map_err(|_| MachineIOError::Internal)?;
+        let key_vec = postcard::to_allocvec(&(name, key)).map_err(|_| MachineIOError::Internal)?;
         let value: Vec<_> = value.into_iter().collect();
-        let value_vec: heapless::Vec<u8, 256> =
-            postcard::to_vec(&value).map_err(|_| MachineIOError::Internal)?;
+        let value_vec = postcard::to_allocvec(&value).map_err(|_| MachineIOError::Internal)?;
         self.facts.insert(&key_vec, &value_vec);
         Ok(())
     }
@@ -105,8 +103,7 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
-        let key_vec: heapless::Vec<u8, 256> =
-            postcard::to_vec(&(name, key)).map_err(|_| MachineIOError::Internal)?;
+        let key_vec = postcard::to_allocvec(&(name, key)).map_err(|_| MachineIOError::Internal)?;
         self.facts.delete(&key_vec);
         Ok(())
     }

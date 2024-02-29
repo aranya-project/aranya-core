@@ -5,7 +5,6 @@ use alloc::borrow::Cow;
 use crypto::{default::DefaultEngine, Rng};
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
-use postcard::{from_bytes, to_vec};
 use test_log::test;
 use tracing::trace;
 
@@ -256,7 +255,7 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
 
     // Serialize an object that represents the key of the fact we created/updated in the
     // previous actions.
-    let key_vec: heapless::Vec<u8, 256> = to_vec(&(
+    let key_vec: Vec<u8> = postcard::to_allocvec(&(
         String::from("Stuff"),
         vec![(String::from("x"), Value::Int(1))],
     ))
@@ -273,7 +272,7 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
         .expect("query")
         .expect("key does not exist");
     // Deserialize the value.
-    let value: Vec<_> = from_bytes(&result).expect("result deserialization");
+    let value: Vec<_> = postcard::from_bytes(&result).expect("result deserialization");
     // And check that it matches the value we expect.
     assert_eq!(expected_value, value);
 
@@ -409,7 +408,7 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
     let storage = cs.provider().get_storage(&storage_id)?;
     let head = storage.get_head()?;
 
-    let key_vec: heapless::Vec<u8, 256> = to_vec(&(
+    let key_vec = postcard::to_allocvec(&(
         String::from("Stuff"),
         vec![(String::from("x"), Value::Int(1))],
     ))
@@ -421,7 +420,7 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
         .query(&key_vec)
         .expect("query")
         .expect("key does not exist");
-    let value: Vec<_> = from_bytes(&result).expect("result deserialization");
+    let value: Vec<_> = postcard::from_bytes(&result).expect("result deserialization");
     assert_eq!(expected_value, value);
 
     Ok(())

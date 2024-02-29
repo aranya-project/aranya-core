@@ -14,7 +14,7 @@ where
 {
     facts: &'o P,
     key: Vec<FactKey>,
-    key_vec: heapless::Vec<u8, 256>,
+    key_vec: Vec<u8>,
 }
 
 impl<'o, P> VmFactCursor<'o, P>
@@ -29,8 +29,7 @@ where
         facts: &'o P,
     ) -> Result<VmFactCursor<'o, P>, MachineIOError> {
         let fk = (name, key);
-        let key_vec: heapless::Vec<u8, 256> =
-            postcard::to_vec(&fk).map_err(|_| MachineIOError::Internal)?;
+        let key_vec = postcard::to_allocvec(&fk).map_err(|_| MachineIOError::Internal)?;
         Ok(VmFactCursor {
             facts,
             key: fk.1,
