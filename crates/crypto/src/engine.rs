@@ -75,7 +75,7 @@ pub trait Engine: CipherSuite + Csprng + RawSecretWrap<Self> + Sized {
 pub trait WrappedKey: Identified + Serialize + DeserializeOwned + Sized {}
 
 /// A key that an [`Engine`] can wrap.
-pub trait UnwrappedKey<E: Engine + ?Sized>: Sized + Identified {
+pub trait UnwrappedKey<E: Engine>: Sized + Identified {
     /// The key's algorithm identifier.
     const ID: AlgId;
 
@@ -90,9 +90,9 @@ pub trait UnwrappedKey<E: Engine + ?Sized>: Sized + Identified {
 ///
 /// It is intentionally opaque; only [`Engine::wrap`] can access
 /// the internal [`RawSecret`].
-pub struct Secret<E: Engine + ?Sized>(RawSecret<E>);
+pub struct Secret<E: Engine>(RawSecret<E>);
 
-impl<E: Engine + ?Sized> Secret<E> {
+impl<E: Engine> Secret<E> {
     /// Creates a new [`Secret`].
     pub const fn new(secret: RawSecret<E>) -> Self {
         Self(secret)
@@ -103,9 +103,9 @@ impl<E: Engine + ?Sized> Secret<E> {
 ///
 /// It is intentionally opaque; only [`Engine::unwrap`] can
 /// construct this type.
-pub struct UnwrappedSecret<E: Engine + ?Sized>(RawSecret<E>);
+pub struct UnwrappedSecret<E: Engine>(RawSecret<E>);
 
-impl<E: Engine + ?Sized> UnwrappedSecret<E> {
+impl<E: Engine> UnwrappedSecret<E> {
     /// Returns the underlying [`RawSecret`].
     pub fn into_raw(self) -> RawSecret<E> {
         self.0
@@ -114,7 +114,7 @@ impl<E: Engine + ?Sized> UnwrappedSecret<E> {
 
 /// Encrypts and authenticates [`RawSecret`]s from
 /// [`UnwrappedKey`]s.
-pub trait RawSecretWrap<E: Engine + ?Sized> {
+pub trait RawSecretWrap<E: Engine> {
     /// Encrypts and authenticates an unwrapped key.
     ///
     /// # Warning
@@ -141,7 +141,7 @@ pub trait RawSecretWrap<E: Engine + ?Sized> {
 }
 
 /// A raw, unwrapped secret.
-pub enum RawSecret<E: Engine + ?Sized> {
+pub enum RawSecret<E: Engine> {
     /// A symmetric AEAD key.
     Aead(<E::Aead as Aead>::Key),
     /// An asymmetric decapsulation key.
@@ -156,7 +156,7 @@ pub enum RawSecret<E: Engine + ?Sized> {
     Signing(<E::Signer as Signer>::SigningKey),
 }
 
-impl<E: Engine + ?Sized> RawSecret<E> {
+impl<E: Engine> RawSecret<E> {
     /// Returns the string name of the key.
     pub const fn name(&self) -> &'static str {
         self.alg_id().name()
@@ -243,9 +243,7 @@ pub(crate) use unwrapped;
 #[doc(hidden)]
 macro_rules! __unwrapped_inner {
     ($enum:ident, $id:expr, $name:ident, $into:expr, $from:expr) => {
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::engine::UnwrappedKey<E>
-            for $name<E>
-        {
+        impl<E: $crate::engine::Engine> $crate::engine::UnwrappedKey<E> for $name<E> {
             const ID: $crate::engine::AlgId = $crate::engine::AlgId::$enum($id);
 
             #[inline]

@@ -145,7 +145,7 @@ impl RawSecretWrap<Self> for HsmEngine {
 /// Simplifies the code inside [`HsmEngine::unwrap`].
 ///
 /// See [`RawSecret`].
-enum RawSecretBytes<E: Engine + ?Sized> {
+enum RawSecretBytes<E: Engine> {
     Aead(SecretKeyBytes<<<E::Aead as Aead>::Key as SecretKey>::Size>),
     Decap(SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
     Mac(SecretKeyBytes<<<E::Mac as Mac>::Key as SecretKey>::Size>),
@@ -154,7 +154,7 @@ enum RawSecretBytes<E: Engine + ?Sized> {
     // Signing is not needed since it's stored inside the HSM.
 }
 
-impl<E: Engine + ?Sized> RawSecretBytes<E> {
+impl<E: Engine> RawSecretBytes<E> {
     fn as_bytes(&self) -> &[u8] {
         match self {
             Self::Aead(v) => v.as_bytes(),

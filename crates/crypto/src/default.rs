@@ -314,7 +314,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
 /// Encrypted [`RawSecret`] bytes.
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-enum Ciphertext<E: Engine + ?Sized> {
+enum Ciphertext<E: Engine> {
     Aead(GenericArray<u8, <<E::Aead as Aead>::Key as SecretKey>::Size>),
     Decap(GenericArray<u8, <<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
     Mac(GenericArray<u8, <<E::Mac as Mac>::Key as SecretKey>::Size>),
@@ -325,7 +325,7 @@ enum Ciphertext<E: Engine + ?Sized> {
     Signing(GenericArray<u8, <<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
 }
 
-impl<E: Engine + ?Sized> Ciphertext<E> {
+impl<E: Engine> Ciphertext<E> {
     const fn name(&self) -> &'static str {
         self.alg_id().name()
     }
@@ -342,7 +342,7 @@ impl<E: Engine + ?Sized> Ciphertext<E> {
     }
 }
 
-impl<E: Engine + ?Sized> Clone for Ciphertext<E> {
+impl<E: Engine> Clone for Ciphertext<E> {
     fn clone(&self) -> Self {
         match self {
             Self::Aead(v) => Self::Aead(v.clone()),
@@ -355,7 +355,7 @@ impl<E: Engine + ?Sized> Clone for Ciphertext<E> {
     }
 }
 
-impl<E: Engine + ?Sized> Ciphertext<E> {
+impl<E: Engine> Ciphertext<E> {
     fn as_bytes_mut(&mut self) -> &mut [u8] {
         match self {
             Self::Aead(v) => v.as_mut_slice(),
@@ -371,14 +371,14 @@ impl<E: Engine + ?Sized> Ciphertext<E> {
 /// A key wrapped by [`DefaultEngine`].
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct WrappedKey<E: Engine + ?Sized> {
+pub struct WrappedKey<E: Engine> {
     id: Id,
     nonce: Nonce<<E::Aead as Aead>::NonceSize>,
     ciphertext: Ciphertext<E>,
     tag: Tag<E::Aead>,
 }
 
-impl<E: Engine + ?Sized> Clone for WrappedKey<E> {
+impl<E: Engine> Clone for WrappedKey<E> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
@@ -389,9 +389,9 @@ impl<E: Engine + ?Sized> Clone for WrappedKey<E> {
     }
 }
 
-impl<E: Engine + ?Sized> engine::WrappedKey for WrappedKey<E> {}
+impl<E: Engine> engine::WrappedKey for WrappedKey<E> {}
 
-impl<E: Engine + ?Sized> Identified for WrappedKey<E> {
+impl<E: Engine> Identified for WrappedKey<E> {
     type Id = Id;
 
     fn id(&self) -> Self::Id {

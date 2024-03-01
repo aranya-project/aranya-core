@@ -58,12 +58,12 @@ use crate::{
 ///     }
 /// };
 ///
-/// struct Keys<E: Engine + ?Sized> {
+/// struct Keys<E: Engine> {
 ///     seal: SealKey<E>,
 ///     open: OpenKey<E>,
 /// }
 ///
-/// impl<E: Engine + ?Sized> Keys<E> {
+/// impl<E: Engine> Keys<E> {
 ///     fn from_author(
 ///         ch: &BidiChannel<'_, E>,
 ///         secret: BidiAuthorSecret<E>,
@@ -125,7 +125,7 @@ use crate::{
 /// };
 /// let mut user2 = Keys::from_peer(&user2_ch, peer);
 ///
-/// fn test<E: Engine + ?Sized>(a: &mut Keys<E>, b: &Keys<E>) {
+/// fn test<E: Engine>(a: &mut Keys<E>, b: &Keys<E>) {
 ///     const GOLDEN: &[u8] = b"hello, world!";
 ///     const ADDITIONAL_DATA: &[u8] = b"authenticated, but not encrypted data";
 ///
@@ -152,10 +152,7 @@ use crate::{
 /// test(&mut user2, &user1); // user2 -> user1
 /// # }
 /// ```
-pub struct BidiChannel<'a, E>
-where
-    E: Engine + ?Sized,
-{
+pub struct BidiChannel<'a, E: Engine> {
     /// The ID of the parent command.
     pub parent_cmd_id: Id,
     /// Our secret encryption key.
@@ -170,7 +167,7 @@ where
     pub label: u32,
 }
 
-impl<E: Engine + ?Sized> BidiChannel<'_, E> {
+impl<E: Engine> BidiChannel<'_, E> {
     const LABEL: &'static [u8] = b"ApsChannelKeys";
 
     /// The author's `info` parameter.
@@ -213,11 +210,11 @@ impl<E: Engine + ?Sized> BidiChannel<'_, E> {
 }
 
 /// A bidirectional channel author's secret.
-pub struct BidiAuthorSecret<E: Engine + ?Sized>(RootChannelKey<E>);
+pub struct BidiAuthorSecret<E: Engine>(RootChannelKey<E>);
 
 sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
 
-impl<E: Engine + ?Sized> ConstantTimeEq for BidiAuthorSecret<E> {
+impl<E: Engine> ConstantTimeEq for BidiAuthorSecret<E> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
@@ -236,9 +233,9 @@ unwrapped! {
 /// This should be freely shared with the channel peer.
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct BidiPeerEncap<E: Engine + ?Sized>(Encap<E>);
+pub struct BidiPeerEncap<E: Engine>(Encap<E>);
 
-impl<E: Engine + ?Sized> BidiPeerEncap<E> {
+impl<E: Engine> BidiPeerEncap<E> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
@@ -268,14 +265,14 @@ custom_id! {
 }
 
 /// The secrets for a bidirectional channel.
-pub struct BidiSecrets<E: Engine + ?Sized> {
+pub struct BidiSecrets<E: Engine> {
     /// The author's secret.
     pub author: BidiAuthorSecret<E>,
     /// The peer's encapsulated secret.
     pub peer: BidiPeerEncap<E>,
 }
 
-impl<E: Engine + ?Sized> BidiSecrets<E> {
+impl<E: Engine> BidiSecrets<E> {
     /// Creates a new set of encapsulated secrets for the
     /// bidirectional channel.
     pub fn new(eng: &mut E, ch: &BidiChannel<'_, E>) -> Result<Self, Error> {
@@ -313,12 +310,12 @@ impl<E: Engine + ?Sized> BidiSecrets<E> {
 }
 
 /// Bidirectional channel encryption keys.
-pub struct BidiKeys<E: Engine + ?Sized> {
+pub struct BidiKeys<E: Engine> {
     seal: RawSealKey<E>,
     open: RawOpenKey<E>,
 }
 
-impl<E: Engine + ?Sized> BidiKeys<E> {
+impl<E: Engine> BidiKeys<E> {
     /// Creates the channel author's bidirectional channel keys.
     pub fn from_author_secret(
         ch: &BidiChannel<'_, E>,
@@ -415,7 +412,7 @@ impl<E: Engine + ?Sized> BidiKeys<E> {
 }
 
 #[cfg(any(test, feature = "test_util"))]
-impl<E: Engine + ?Sized> BidiKeys<E> {
+impl<E: Engine> BidiKeys<E> {
     pub(crate) fn seal_key(&self) -> &RawSealKey<E> {
         &self.seal
     }

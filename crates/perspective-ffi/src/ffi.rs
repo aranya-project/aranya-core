@@ -16,7 +16,7 @@ pub struct FfiPerspective;
 #[ffi(module = "perspective")]
 impl FfiPerspective {
     #[ffi_export(def = r#"function head_id() id"#)]
-    pub(crate) fn head_id<E: crypto::Engine + ?Sized>(
+    pub(crate) fn head_id<E: crypto::Engine>(
         &mut self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,

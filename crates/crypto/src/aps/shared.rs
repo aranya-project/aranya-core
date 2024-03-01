@@ -10,9 +10,9 @@ use crate::{
 };
 
 /// The root key material for a channel.
-pub(crate) struct RootChannelKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
+pub(crate) struct RootChannelKey<E: Engine>(<E::Kem as Kem>::DecapKey);
 
-impl<E: Engine + ?Sized> RootChannelKey<E> {
+impl<E: Engine> RootChannelKey<E> {
     pub(super) fn new(sk: <E::Kem as Kem>::DecapKey) -> Self {
         Self(sk)
     }
@@ -26,25 +26,25 @@ impl<E: Engine + ?Sized> RootChannelKey<E> {
     }
 }
 
-impl<E: Engine + ?Sized> Clone for RootChannelKey<E> {
+impl<E: Engine> Clone for RootChannelKey<E> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<E: Engine + ?Sized> ConstantTimeEq for RootChannelKey<E> {
+impl<E: Engine> ConstantTimeEq for RootChannelKey<E> {
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
     }
 }
 
-impl<E: Engine + ?Sized> Random for RootChannelKey<E> {
+impl<E: Engine> Random for RootChannelKey<E> {
     fn random<R: Csprng>(rng: &mut R) -> Self {
         Self(<<E::Kem as Kem>::DecapKey as SecretKey>::new(rng))
     }
 }
 
-impl<E: Engine + ?Sized> SecretKey for RootChannelKey<E> {
+impl<E: Engine> SecretKey for RootChannelKey<E> {
     fn new<R: Csprng>(rng: &mut R) -> Self {
         Random::random(rng)
     }
@@ -56,11 +56,11 @@ impl<E: Engine + ?Sized> SecretKey for RootChannelKey<E> {
     }
 }
 
-impl<E: Engine + ?Sized> ZeroizeOnDrop for RootChannelKey<E> {
+impl<E: Engine> ZeroizeOnDrop for RootChannelKey<E> {
     // The only field is `DecapKey`, which is `ZeroizeOnDrop`.
 }
 
-impl<'a, E: Engine + ?Sized> Import<&'a [u8]> for RootChannelKey<E> {
+impl<'a, E: Engine> Import<&'a [u8]> for RootChannelKey<E> {
     fn import(key: &'a [u8]) -> Result<Self, ImportError> {
         Ok(Self(Import::import(key)?))
     }
@@ -70,16 +70,14 @@ macro_rules! raw_key {
     ($name:ident, $doc:expr $(,)?) => {
         #[doc = $doc]
         #[repr(C)]
-        pub struct $name<E: $crate::engine::Engine + ?::core::marker::Sized> {
+        pub struct $name<E: $crate::engine::Engine> {
             /// The key data.
             pub key: $crate::aead::KeyData<E::Aead>,
             /// The base nonce.
             pub base_nonce: $crate::aead::Nonce<<E::Aead as $crate::aead::Aead>::NonceSize>,
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::subtle::ConstantTimeEq
-            for $name<E>
-        {
+        impl<E: $crate::engine::Engine> $crate::subtle::ConstantTimeEq for $name<E> {
             #[inline]
             fn ct_eq(&self, other: &Self) -> Choice {
                 let key = $crate::subtle::ConstantTimeEq::ct_eq(&self.key, &other.key);
@@ -89,16 +87,14 @@ macro_rules! raw_key {
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::subtle::ConstantTimeEq
-            for &$name<E>
-        {
+        impl<E: $crate::engine::Engine> $crate::subtle::ConstantTimeEq for &$name<E> {
             #[inline]
             fn ct_eq(&self, other: &Self) -> Choice {
                 $crate::subtle::ConstantTimeEq::ct_eq(*self, other)
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::clone::Clone for $name<E> {
+        impl<E: $crate::engine::Engine> ::core::clone::Clone for $name<E> {
             #[inline]
             fn clone(&self) -> Self {
                 Self {
@@ -108,9 +104,7 @@ macro_rules! raw_key {
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::csprng::Random
-            for $name<E>
-        {
+        impl<E: $crate::engine::Engine> $crate::csprng::Random for $name<E> {
             fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
                 Self {
                     key: $crate::csprng::Random::random(rng),
@@ -135,7 +129,7 @@ mod test_misc {
         "Unifies `RawSealKey` and `RawOpenKey` for testing.",
     );
 
-    impl<E: Engine + ?Sized> fmt::Debug for TestingKey<E> {
+    impl<E: Engine> fmt::Debug for TestingKey<E> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.debug_struct("TestingKey")
                 .field("key", &self.key.as_bytes())
@@ -144,7 +138,7 @@ mod test_misc {
         }
     }
 
-    impl<E: Engine + ?Sized> RawSealKey<E> {
+    impl<E: Engine> RawSealKey<E> {
         pub(crate) fn to_testing_key(&self) -> TestingKey<E> {
             TestingKey {
                 key: self.key.clone(),
@@ -153,7 +147,7 @@ mod test_misc {
         }
     }
 
-    impl<E: Engine + ?Sized> RawOpenKey<E> {
+    impl<E: Engine> RawOpenKey<E> {
         pub(crate) fn to_testing_key(&self) -> TestingKey<E> {
             TestingKey {
                 key: self.key.clone(),
@@ -162,7 +156,7 @@ mod test_misc {
         }
     }
 
-    impl<E: Engine + ?Sized> From<RawSealKey<E>> for RawOpenKey<E> {
+    impl<E: Engine> From<RawSealKey<E>> for RawOpenKey<E> {
         fn from(key: RawSealKey<E>) -> Self {
             Self {
                 key: key.key.clone(),
@@ -171,7 +165,7 @@ mod test_misc {
         }
     }
 
-    impl<E: Engine + ?Sized> From<RawOpenKey<E>> for RawSealKey<E> {
+    impl<E: Engine> From<RawOpenKey<E>> for RawSealKey<E> {
         fn from(key: RawOpenKey<E>) -> Self {
             Self {
                 key: key.key.clone(),

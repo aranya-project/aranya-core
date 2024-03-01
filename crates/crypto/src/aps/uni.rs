@@ -60,7 +60,7 @@ use crate::{
 ///     }
 /// };
 ///
-/// fn key_from_author<E: Engine + ?Sized>(
+/// fn key_from_author<E: Engine>(
 ///     ch: &UniChannel<'_, E>,
 ///     secret: UniAuthorSecret<E>,
 /// ) -> SealKey<E> {
@@ -69,7 +69,7 @@ use crate::{
 ///     key.into_key().expect("should be able to create `SealKey`")
 /// }
 ///
-/// fn key_from_peer<E: Engine + ?Sized>(
+/// fn key_from_peer<E: Engine>(
 ///     ch: &UniChannel<'_, E>,
 ///     encap: UniPeerEncap<E>,
 /// ) -> OpenKey<E>{
@@ -116,7 +116,7 @@ use crate::{
 /// };
 /// let user2 = key_from_peer(&user2_ch, peer);
 ///
-/// fn test<E: Engine + ?Sized>(seal: &mut SealKey<E>, open: &OpenKey<E>) {
+/// fn test<E: Engine>(seal: &mut SealKey<E>, open: &OpenKey<E>) {
 ///     const GOLDEN: &[u8] = b"hello, world!";
 ///     const ADDITIONAL_DATA: &[u8] = b"authenticated, but not encrypted data";
 ///
@@ -142,10 +142,7 @@ use crate::{
 /// test(&mut user1, &user2); // user1 -> user2
 /// # }
 /// ```
-pub struct UniChannel<'a, E>
-where
-    E: Engine + ?Sized,
-{
+pub struct UniChannel<'a, E: Engine> {
     /// The ID of the parent command.
     pub parent_cmd_id: Id,
     /// Our secret encryption key.
@@ -160,7 +157,7 @@ where
     pub label: u32,
 }
 
-impl<E: Engine + ?Sized> UniChannel<'_, E> {
+impl<E: Engine> UniChannel<'_, E> {
     pub(crate) fn info(&self) -> Digest<<E::Hash as Hash>::DigestSize> {
         // info = H(
         //     "ApsUnidirectionalKey",
@@ -184,11 +181,11 @@ impl<E: Engine + ?Sized> UniChannel<'_, E> {
 }
 
 /// A unirectional channel author's secret.
-pub struct UniAuthorSecret<E: Engine + ?Sized>(RootChannelKey<E>);
+pub struct UniAuthorSecret<E: Engine>(RootChannelKey<E>);
 
 sk_misc!(UniAuthorSecret, UniAuthorSecretId);
 
-impl<E: Engine + ?Sized> ConstantTimeEq for UniAuthorSecret<E> {
+impl<E: Engine> ConstantTimeEq for UniAuthorSecret<E> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
@@ -207,9 +204,9 @@ unwrapped! {
 /// This should be freely shared with the channel peer.
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct UniPeerEncap<E: Engine + ?Sized>(Encap<E>);
+pub struct UniPeerEncap<E: Engine>(Encap<E>);
 
-impl<E: Engine + ?Sized> UniPeerEncap<E> {
+impl<E: Engine> UniPeerEncap<E> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
@@ -239,14 +236,14 @@ custom_id! {
 }
 
 /// The secrets for a unirectional channel.
-pub struct UniSecrets<E: Engine + ?Sized> {
+pub struct UniSecrets<E: Engine> {
     /// The author's secret.
     pub author: UniAuthorSecret<E>,
     /// The peer's encapsulation.
     pub peer: UniPeerEncap<E>,
 }
 
-impl<E: Engine + ?Sized> UniSecrets<E> {
+impl<E: Engine> UniSecrets<E> {
     /// Creates a new set of encapsulated secrets for the
     /// unidirectional channel.
     pub fn new(eng: &mut E, ch: &UniChannel<'_, E>) -> Result<Self, Error> {
@@ -284,9 +281,9 @@ impl<E: Engine + ?Sized> UniSecrets<E> {
 macro_rules! uni_key {
     ($name:ident, $inner:ident, $doc:expr $(,)?) => {
         #[doc = $doc]
-        pub struct $name<E: Engine + ?Sized>($inner<E>);
+        pub struct $name<E: Engine>($inner<E>);
 
-        impl<E: Engine + ?Sized> $name<E> {
+        impl<E: Engine> $name<E> {
             /// Creates the channel author's unidirectional
             /// channel key.
             pub fn from_author_secret(
@@ -371,7 +368,7 @@ uni_key!(
     "A unidirectional channel encryption key.",
 );
 
-impl<E: Engine + ?Sized> UniSealKey<E> {
+impl<E: Engine> UniSealKey<E> {
     /// Returns the channel key.
     pub fn into_key(self) -> Result<SealKey<E>, Error> {
         let seal = SealKey::from_raw(&self.0, Seq::ZERO)?;
@@ -385,7 +382,7 @@ uni_key!(
     "A unidirectional channel decryption key.",
 );
 
-impl<E: Engine + ?Sized> UniOpenKey<E> {
+impl<E: Engine> UniOpenKey<E> {
     /// Returns the channel key.
     pub fn into_key(self) -> Result<OpenKey<E>, Error> {
         let open = OpenKey::from_raw(&self.0)?;

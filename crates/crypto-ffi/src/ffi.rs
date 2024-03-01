@@ -106,7 +106,7 @@ function sign(
     command bytes,
 ) struct Seal
 "#)]
-    pub(crate) fn sign<E: Engine + ?Sized>(
+    pub(crate) fn sign<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         eng: &mut E,
@@ -148,7 +148,7 @@ function verify(
     signature bytes,
 ) id
 "#)]
-    pub(crate) fn verify<E: Engine + ?Sized>(
+    pub(crate) fn verify<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,

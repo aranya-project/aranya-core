@@ -34,7 +34,7 @@ use crate::{
 };
 
 /// A sender's identity.
-pub struct Sender<'a, E: Engine + ?Sized> {
+pub struct Sender<'a, E: Engine> {
     /// The sender's public key.
     pub enc_key: &'a SenderPublicKey<E>,
     /// The sender's verifying key.
@@ -118,7 +118,7 @@ custom_id! {
 /// a particular topic.
 ///
 /// [symmetric key]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#topickey
-pub struct TopicKey<E: Engine + ?Sized> {
+pub struct TopicKey<E: Engine> {
     // TopicKey is quite similar to GroupKey. However, unlike
     // GroupKey, we do not compute the key from the seed each
     // time we encrypt some data. Instead, we compute the key
@@ -136,14 +136,14 @@ pub struct TopicKey<E: Engine + ?Sized> {
     seed: [u8; 64],
 }
 
-impl<E: Engine + ?Sized> ZeroizeOnDrop for TopicKey<E> {}
-impl<E: Engine + ?Sized> Drop for TopicKey<E> {
+impl<E: Engine> ZeroizeOnDrop for TopicKey<E> {}
+impl<E: Engine> Drop for TopicKey<E> {
     fn drop(&mut self) {
         self.seed.zeroize()
     }
 }
 
-impl<E: Engine + ?Sized> Clone for TopicKey<E> {
+impl<E: Engine> Clone for TopicKey<E> {
     fn clone(&self) -> Self {
         Self {
             key: self.key.clone(),
@@ -152,7 +152,7 @@ impl<E: Engine + ?Sized> Clone for TopicKey<E> {
     }
 }
 
-impl<E: Engine + ?Sized> TopicKey<E> {
+impl<E: Engine> TopicKey<E> {
     /// Creates a new, random `TopicKey`.
     pub fn new<R: Csprng>(rng: &mut R, version: Version, topic: &Topic) -> Result<Self, Error> {
         Self::from_seed(Random::random(rng), version, topic)
@@ -367,11 +367,11 @@ ciphertext!(EncryptedTopicKey, U64, "An encrypted [`TopicKey`].");
 /// The private half of a [SenderSigningKey].
 ///
 /// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
-pub struct SenderSigningKey<E: Engine + ?Sized>(<E::Signer as Signer>::SigningKey);
+pub struct SenderSigningKey<E: Engine>(<E::Signer as Signer>::SigningKey);
 
 key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
 
-impl<E: Engine + ?Sized> SenderSigningKey<E> {
+impl<E: Engine> SenderSigningKey<E> {
     /// Creates a `SenderSigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Signer as Signer>::SigningKey::new(rng);
@@ -461,9 +461,9 @@ unwrapped! {
 /// The public half of a [SenderSigningKey].
 ///
 /// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
-pub struct SenderVerifyingKey<E: Engine + ?Sized>(<E::Signer as Signer>::VerifyingKey);
+pub struct SenderVerifyingKey<E: Engine>(<E::Signer as Signer>::VerifyingKey);
 
-impl<E: Engine + ?Sized> SenderVerifyingKey<E> {
+impl<E: Engine> SenderVerifyingKey<E> {
     /// Verifies the signature allegedly created over an encoded
     /// record.
     pub fn verify(
@@ -495,11 +495,11 @@ impl<E: Engine + ?Sized> SenderVerifyingKey<E> {
 /// The private half of a [SenderKey].
 ///
 /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
-pub struct SenderSecretKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
+pub struct SenderSecretKey<E: Engine>(<E::Kem as Kem>::DecapKey);
 
 key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
 
-impl<E: Engine + ?Sized> SenderSecretKey<E> {
+impl<E: Engine> SenderSecretKey<E> {
     /// Creates a `SenderSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Kem as Kem>::DecapKey::new(rng);
@@ -517,16 +517,16 @@ unwrapped! {
 /// The public half of a [SenderKey].
 ///
 /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
-pub struct SenderPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
+pub struct SenderPublicKey<E: Engine>(<E::Kem as Kem>::EncapKey);
 
 /// The private half of a [ReceiverKey].
 ///
 /// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
-pub struct ReceiverSecretKey<E: Engine + ?Sized>(<E::Kem as Kem>::DecapKey);
+pub struct ReceiverSecretKey<E: Engine>(<E::Kem as Kem>::DecapKey);
 
 key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 
-impl<E: Engine + ?Sized> ReceiverSecretKey<E> {
+impl<E: Engine> ReceiverSecretKey<E> {
     /// Creates a `ReceiverSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Kem as Kem>::DecapKey::new(rng);
@@ -586,9 +586,9 @@ unwrapped! {
 /// The public half of a [ReceiverKey].
 ///
 /// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
-pub struct ReceiverPublicKey<E: Engine + ?Sized>(<E::Kem as Kem>::EncapKey);
+pub struct ReceiverPublicKey<E: Engine>(<E::Kem as Kem>::EncapKey);
 
-impl<E: Engine + ?Sized> ReceiverPublicKey<E> {
+impl<E: Engine> ReceiverPublicKey<E> {
     /// Encrypts and authenticates the [`TopicKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`ReceiverPublicKey`].

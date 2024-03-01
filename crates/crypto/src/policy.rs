@@ -14,7 +14,7 @@ custom_id! {
 }
 
 /// Computes the command's unique ID.
-pub(crate) fn cmd_id<E: Engine + ?Sized>(
+pub(crate) fn cmd_id<E: Engine>(
     cmd: &Digest<<E::Hash as Hash>::DigestSize>,
     sig: &Signature<E>,
 ) -> CmdId {
@@ -48,7 +48,7 @@ pub struct Cmd<'a> {
 impl<'a> Cmd<'a> {
     /// Returns the digest of the command and its contextual
     /// binding.
-    pub(crate) fn digest<E: Engine + ?Sized>(
+    pub(crate) fn digest<E: Engine>(
         &self,
         author: &SigningKeyId,
     ) -> Digest<<E::Hash as Hash>::DigestSize> {

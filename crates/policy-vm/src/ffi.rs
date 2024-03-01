@@ -174,7 +174,7 @@ pub trait FfiModule {
 
     /// Invokes a function in the module.
     /// `procedure` is the index in [`functions`][Self::SCHEMA].
-    fn call<E: Engine + ?Sized>(
+    fn call<E: Engine>(
         &mut self,
         procedure: usize,
         stack: &mut impl Stack,

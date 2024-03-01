@@ -40,7 +40,7 @@ use crate::{
 };
 
 /// Encodes a [`EncryptionPublicKey`].
-fn encode_enc_pk<E: Engine + ?Sized>(pk: &EncryptionPublicKey<E>) -> Vec<u8> {
+fn encode_enc_pk<E: Engine>(pk: &EncryptionPublicKey<E>) -> Vec<u8> {
     postcard::to_allocvec(pk).expect("should be able to encode an `EncryptionPublicKey`")
 }
 

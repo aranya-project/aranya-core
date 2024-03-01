@@ -69,7 +69,7 @@ pub struct Tests<E, S>(PhantomData<(E, S)>);
 
 impl<E, S> Tests<E, S>
 where
-    E: Engine + ?Sized,
+    E: Engine,
     S: KeyStore,
 {
     const SEAL_CTX: CommandContext<'static> = CommandContext::Seal(SealContext {

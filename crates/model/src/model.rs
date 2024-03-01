@@ -33,10 +33,7 @@ impl<E> ModelEngine<E> {
     }
 }
 
-impl<E> Engine for ModelEngine<E>
-where
-    E: crypto::Engine + ?Sized,
-{
+impl<E: crypto::Engine> Engine for ModelEngine<E> {
     type Policy = VmPolicy<E>;
     type Effects = ModelEffect;
 

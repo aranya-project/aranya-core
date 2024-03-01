@@ -25,9 +25,9 @@ use crate::{
 };
 
 /// A signature created by a signing key.
-pub struct Signature<E: Engine + ?Sized>(pub(crate) <E::Signer as Signer>::Signature);
+pub struct Signature<E: Engine>(pub(crate) <E::Signer as Signer>::Signature);
 
-impl<E: Engine + ?Sized> Signature<E> {
+impl<E: Engine> Signature<E> {
     /// Returns the raw signature.
     ///
     /// Should only be used in situations where contextual data
@@ -48,19 +48,19 @@ impl<E: Engine + ?Sized> Signature<E> {
     }
 }
 
-impl<E: Engine + ?Sized> fmt::Debug for Signature<E> {
+impl<E: Engine> fmt::Debug for Signature<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Signature").field(&self.0).finish()
     }
 }
 
-impl<E: Engine + ?Sized> Clone for Signature<E> {
+impl<E: Engine> Clone for Signature<E> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<E: Engine + ?Sized> Serialize for Signature<E> {
+impl<E: Engine> Serialize for Signature<E> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -69,13 +69,13 @@ impl<E: Engine + ?Sized> Serialize for Signature<E> {
     }
 }
 
-impl<'de, E: Engine + ?Sized> Deserialize<'de> for Signature<E> {
+impl<'de, E: Engine> Deserialize<'de> for Signature<E> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct SigVisitor<E: ?Sized>(PhantomData<E>);
-        impl<'de, G: Engine + ?Sized> de::Visitor<'de> for SigVisitor<G> {
+        struct SigVisitor<E>(PhantomData<E>);
+        impl<'de, G: Engine> de::Visitor<'de> for SigVisitor<G> {
             type Value = Signature<G>;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -102,11 +102,11 @@ impl<'de, E: Engine + ?Sized> Deserialize<'de> for Signature<E> {
 }
 
 /// The private half of [`IdentityKey`].
-pub struct IdentityKey<E: Engine + ?Sized>(<E::Signer as Signer>::SigningKey);
+pub struct IdentityKey<E: Engine>(<E::Signer as Signer>::SigningKey);
 
 key_misc!(IdentityKey, IdentityVerifyingKey, UserId);
 
-impl<E: Engine + ?Sized> IdentityKey<E> {
+impl<E: Engine> IdentityKey<E> {
     /// Creates an `IdentityKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Signer as Signer>::SigningKey::new(rng);
@@ -178,9 +178,9 @@ unwrapped! {
 }
 
 /// The public half of [`IdentityKey`].
-pub struct IdentityVerifyingKey<E: Engine + ?Sized>(<E::Signer as Signer>::VerifyingKey);
+pub struct IdentityVerifyingKey<E: Engine>(<E::Signer as Signer>::VerifyingKey);
 
-impl<E: Engine + ?Sized> IdentityVerifyingKey<E> {
+impl<E: Engine> IdentityVerifyingKey<E> {
     /// Verifies the signature allegedly created over `msg` and
     /// bound to some `context`.
     ///
@@ -205,11 +205,11 @@ impl<E: Engine + ?Sized> IdentityVerifyingKey<E> {
 }
 
 /// The private half of [`SigningKey`].
-pub struct SigningKey<E: Engine + ?Sized>(<E::Signer as Signer>::SigningKey);
+pub struct SigningKey<E: Engine>(<E::Signer as Signer>::SigningKey);
 
 key_misc!(SigningKey, VerifyingKey, SigningKeyId);
 
-impl<E: Engine + ?Sized> SigningKey<E> {
+impl<E: Engine> SigningKey<E> {
     /// Creates a `SigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Signer as Signer>::SigningKey::new(rng);
@@ -345,9 +345,9 @@ unwrapped! {
 }
 
 /// The public half of [`SigningKey`].
-pub struct VerifyingKey<E: Engine + ?Sized>(<E::Signer as Signer>::VerifyingKey);
+pub struct VerifyingKey<E: Engine>(<E::Signer as Signer>::VerifyingKey);
 
-impl<E: Engine + ?Sized> VerifyingKey<E> {
+impl<E: Engine> VerifyingKey<E> {
     /// Verifies the signature allegedly created over `msg` and
     /// bound to some `context`.
     ///
@@ -381,11 +381,11 @@ impl<E: Engine + ?Sized> VerifyingKey<E> {
 }
 
 /// The private half of [`EncryptionKey`].
-pub struct EncryptionKey<E: Engine + ?Sized>(pub(crate) <E::Kem as Kem>::DecapKey);
+pub struct EncryptionKey<E: Engine>(pub(crate) <E::Kem as Kem>::DecapKey);
 
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
-impl<E: Engine + ?Sized> EncryptionKey<E> {
+impl<E: Engine> EncryptionKey<E> {
     /// Creates a user's `EncryptionKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <E::Kem as Kem>::DecapKey::new(rng);
@@ -432,9 +432,9 @@ unwrapped! {
 }
 
 /// The public half of [`EncryptionKey`].
-pub struct EncryptionPublicKey<E: Engine + ?Sized>(pub(crate) <E::Kem as Kem>::EncapKey);
+pub struct EncryptionPublicKey<E: Engine>(pub(crate) <E::Kem as Kem>::EncapKey);
 
-impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
+impl<E: Engine> EncryptionPublicKey<E> {
     /// Encrypts and authenticates the [`GroupKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`EncryptionPublicKey`].
@@ -466,9 +466,9 @@ impl<E: Engine + ?Sized> EncryptionPublicKey<E> {
 }
 
 /// An encapsulated symmetric key.
-pub struct Encap<E: Engine + ?Sized>(pub(crate) <E::Kem as Kem>::Encap);
+pub struct Encap<E: Engine>(pub(crate) <E::Kem as Kem>::Encap);
 
-impl<E: Engine + ?Sized> Encap<E> {
+impl<E: Engine> Encap<E> {
     /// Encodes itself as bytes.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -486,10 +486,7 @@ impl<E: Engine + ?Sized> Encap<E> {
     }
 }
 
-impl<E> Serialize for Encap<E>
-where
-    E: Engine + ?Sized,
-{
+impl<E: Engine> Serialize for Encap<E> {
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -498,10 +495,7 @@ where
     }
 }
 
-impl<'de, E> Deserialize<'de> for Encap<E>
-where
-    E: Engine + ?Sized,
-{
+impl<'de, E: Engine> Deserialize<'de> for Encap<E> {
     fn deserialize<D>(d: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -509,7 +503,7 @@ where
         struct EncapVisitor<G>(PhantomData<G>);
         impl<'de, G> de::Visitor<'de> for EncapVisitor<G>
         where
-            G: Engine + ?Sized,
+            G: Engine,
         {
             type Value = Encap<G>;
 

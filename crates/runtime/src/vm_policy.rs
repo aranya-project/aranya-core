@@ -56,10 +56,7 @@ impl<E> VmPolicy<E> {
     }
 }
 
-impl<E> VmPolicy<E>
-where
-    E: crypto::Engine + ?Sized,
-{
+impl<E: crypto::Engine> VmPolicy<E> {
     #[instrument(skip_all, fields(name = name))]
     fn evaluate_rule<'a, P>(
         &self,
@@ -204,10 +201,7 @@ pub type VmActions<'a> = (&'a str, Cow<'a, [Value]>);
 /// [`VmPolicy`]'s effects.
 pub type VmEffects = (String, Vec<KVPair>);
 
-impl<E> Policy for VmPolicy<E>
-where
-    E: crypto::Engine + ?Sized,
-{
+impl<E: crypto::Engine> Policy for VmPolicy<E> {
     type Payload<'a> = (String, Vec<u8>);
 
     type Actions<'a> = VmActions<'a>;

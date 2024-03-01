@@ -29,14 +29,14 @@ macro_rules! ciphertext {
             >,
         )
         where
-            E: $crate::engine::Engine + ?::core::marker::Sized,
+            E: $crate::engine::Engine,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength;
 
         impl<E> $name<E>
         where
-            E: $crate::engine::Engine + ?::core::marker::Sized,
+            E: $crate::engine::Engine,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
@@ -65,7 +65,7 @@ macro_rules! ciphertext {
 
         impl<E> ::core::convert::TryFrom<&[u8]> for $name<E>
         where
-            E: $crate::engine::Engine + ?::core::marker::Sized,
+            E: $crate::engine::Engine,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
@@ -79,7 +79,7 @@ macro_rules! ciphertext {
 
         impl<E> ::core::clone::Clone for $name<E>
         where
-            E: $crate::engine::Engine + ?::core::marker::Sized,
+            E: $crate::engine::Engine,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
@@ -91,7 +91,7 @@ macro_rules! ciphertext {
 
         impl<E> ::postcard::experimental::max_size::MaxSize for $name<E>
         where
-            E: $crate::engine::Engine + ?::core::marker::Sized,
+            E: $crate::engine::Engine,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
@@ -114,7 +114,7 @@ macro_rules! ciphertext {
                 >,
             > for $name<E>
         where
-            E: $crate::engine::Engine + ?::core::marker::Sized,
+            E: $crate::engine::Engine,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
@@ -131,7 +131,7 @@ macro_rules! ciphertext {
 
         impl<E> ::serde::Serialize for $name<E>
         where
-            E: $crate::engine::Engine + ?::core::marker::Sized,
+            E: $crate::engine::Engine,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
@@ -146,7 +146,7 @@ macro_rules! ciphertext {
 
         impl<'de, E> ::serde::Deserialize<'de> for $name<E>
         where
-            E: $crate::engine::Engine + ?::core::marker::Sized,
+            E: $crate::engine::Engine,
             <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
             ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
@@ -158,7 +158,7 @@ macro_rules! ciphertext {
                 struct CiphertextVisitor<G>(::core::marker::PhantomData<G>);
                 impl<'de, G> ::serde::de::Visitor<'de> for CiphertextVisitor<G>
                 where
-                    G: $crate::engine::Engine + ?::core::marker::Sized,
+                    G: $crate::engine::Engine,
                     <G::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
                     ::typenum::Sum<<G::Aead as $crate::aead::Aead>::Overhead, $size>:
                         ::generic_array::ArrayLength,
@@ -211,7 +211,7 @@ macro_rules! sk_misc {
             pub struct $id;
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $name<E> {
+        impl<E: $crate::engine::Engine> $name<E> {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
             #[doc = ::core::concat!("Two `", ::core::stringify!($name), "s` with the same ID are the same secret.")]
             #[inline]
@@ -237,7 +237,7 @@ macro_rules! sk_misc {
             pub struct $id;
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $name<E> {
+        impl<E: $crate::engine::Engine> $name<E> {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             #[inline]
@@ -259,20 +259,20 @@ pub(crate) use sk_misc;
 
 macro_rules! sk_misc_inner {
     ($name:ident, $id:ident) => {
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::clone::Clone for $name<E> {
+        impl<E: $crate::engine::Engine> ::core::clone::Clone for $name<E> {
             #[inline]
             fn clone(&self) -> Self {
                 Self(::core::clone::Clone::clone(&self.0))
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::fmt::Display for $name<E> {
+        impl<E: $crate::engine::Engine> ::core::fmt::Display for $name<E> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(f, "{}", self.id())
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::fmt::Debug for $name<E> {
+        impl<E: $crate::engine::Engine> ::core::fmt::Debug for $name<E> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(
                     f,
@@ -282,9 +282,7 @@ macro_rules! sk_misc_inner {
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::id::Identified
-            for $name<E>
-        {
+        impl<E: $crate::engine::Engine> $crate::id::Identified for $name<E> {
             type Id = $id;
 
             #[inline]
@@ -299,7 +297,7 @@ pub(crate) use sk_misc_inner;
 /// Public key misc. impls.
 macro_rules! pk_misc {
     ($name:ident, $sk:expr, $id:ident) => {
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $name<E> {
+        impl<E: $crate::engine::Engine> $name<E> {
             #[doc = ::core::concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             pub fn id(&self) -> $id {
@@ -310,45 +308,41 @@ macro_rules! pk_misc {
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::clone::Clone for $name<E> {
+        impl<E: $crate::engine::Engine> ::core::clone::Clone for $name<E> {
             #[inline]
             fn clone(&self) -> Self {
                 Self(self.0.clone())
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::convert::AsRef<$name<E>>
-            for $name<E>
-        {
+        impl<E: $crate::engine::Engine> ::core::convert::AsRef<$name<E>> for $name<E> {
             #[inline]
             fn as_ref(&self) -> &Self {
                 self
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::cmp::Eq for $name<E> {}
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::cmp::PartialEq
-            for $name<E>
-        {
+        impl<E: $crate::engine::Engine> ::core::cmp::Eq for $name<E> {}
+        impl<E: $crate::engine::Engine> ::core::cmp::PartialEq for $name<E> {
             #[inline]
             fn eq(&self, other: &Self) -> bool {
                 self.id() == other.id()
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::fmt::Display for $name<E> {
+        impl<E: $crate::engine::Engine> ::core::fmt::Display for $name<E> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(f, "{}", self.id())
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::core::fmt::Debug for $name<E> {
+        impl<E: $crate::engine::Engine> ::core::fmt::Debug for $name<E> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(f, ::core::concat!(stringify!($name), " {}"), self.id())
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> ::serde::Serialize for $name<E> {
+        impl<E: $crate::engine::Engine> ::serde::Serialize for $name<E> {
             fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
             where
                 S: ::serde::Serializer,
@@ -361,9 +355,7 @@ macro_rules! pk_misc {
             }
         }
 
-        impl<'de, E: $crate::engine::Engine + ?::core::marker::Sized> ::serde::Deserialize<'de>
-            for $name<E>
-        {
+        impl<'de, E: $crate::engine::Engine> ::serde::Deserialize<'de> for $name<E> {
             fn deserialize<D>(deserializer: D) -> ::core::result::Result<Self, D::Error>
             where
                 D: ::serde::Deserializer<'de>,
@@ -380,9 +372,7 @@ macro_rules! pk_misc {
             }
         }
 
-        impl<E: $crate::engine::Engine + ?::core::marker::Sized> $crate::id::Identified
-            for $name<E>
-        {
+        impl<E: $crate::engine::Engine> $crate::id::Identified for $name<E> {
             type Id = $id;
 
             #[inline]
@@ -422,13 +412,13 @@ pub(crate) struct ExportedData<T> {
 }
 
 impl<T> ExportedData<T> {
-    pub(crate) fn valid_context<E: Engine + ?Sized>(&self, name: ExportedDataType) -> bool {
+    pub(crate) fn valid_context<E: Engine>(&self, name: ExportedDataType) -> bool {
         self.eng_id == E::ID && self.suite_id == SuiteIds::from_suite::<E>() && self.name == name
     }
 }
 
 impl<'a, K: PublicKey> ExportedData<SerdeBorrowedKey<'a, K>> {
-    pub(crate) fn from_key<E: Engine + ?Sized>(pk: &'a K, name: ExportedDataType) -> Self {
+    pub(crate) fn from_key<E: Engine>(pk: &'a K, name: ExportedDataType) -> Self {
         Self {
             eng_id: E::ID,
             suite_id: SuiteIds::from_suite::<E>(),

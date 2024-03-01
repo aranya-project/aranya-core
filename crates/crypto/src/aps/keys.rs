@@ -86,11 +86,11 @@ impl AuthData {
 }
 
 /// An encryption key.
-pub struct SealKey<E: Engine + ?Sized> {
+pub struct SealKey<E: Engine> {
     ctx: SealCtx<E::Aead>,
 }
 
-impl<E: Engine + ?Sized> SealKey<E> {
+impl<E: Engine> SealKey<E> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = SealCtx::<E::Aead>::OVERHEAD;
 
@@ -183,11 +183,11 @@ impl From<HpkeError> for SealError {
 }
 
 /// A decryption key.
-pub struct OpenKey<E: Engine + ?Sized> {
+pub struct OpenKey<E: Engine> {
     ctx: OpenCtx<E::Aead>,
 }
 
-impl<E: Engine + ?Sized> OpenKey<E> {
+impl<E: Engine> OpenKey<E> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = OpenCtx::<E::Aead>::OVERHEAD;
 

@@ -27,7 +27,7 @@ impl<C, T> Transform<(C, T)> for (C, T) {
 
 // TODO(eric): I'm not sure we need this impl since we only
 // really care about `Transform<(C, T)> -> (S, O)`.
-impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)> for BidiKeys<E> {
+impl<E: Engine> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)> for BidiKeys<E> {
     type Error = crypto::Error;
 
     fn transform(
@@ -37,9 +37,7 @@ impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)> f
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)>
-    for (SealKey<E>, OpenKey<E>)
-{
+impl<E: Engine> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)> for (SealKey<E>, OpenKey<E>) {
     type Error = crypto::Error;
 
     fn transform(
@@ -49,7 +47,7 @@ impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)>
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)>
+impl<E: Engine> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)>
     for (RawSealKey<E>, RawOpenKey<E>)
 {
     type Error = crypto::Error;
@@ -61,7 +59,7 @@ impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiAuthorSecret<E>)>
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for UniSealKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for UniSealKey<E> {
     type Error = crypto::Error;
 
     fn transform(
@@ -71,7 +69,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for UniOpenKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for UniOpenKey<E> {
     type Error = crypto::Error;
 
     fn transform(
@@ -81,7 +79,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for SealKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for SealKey<E> {
     type Error = crypto::Error;
 
     fn transform(
@@ -91,7 +89,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for OpenKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for OpenKey<E> {
     type Error = crypto::Error;
 
     fn transform(
@@ -101,7 +99,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for RawSealKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for RawSealKey<E> {
     type Error = crypto::Error;
 
     fn transform(
@@ -111,7 +109,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for RawOpenKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for RawOpenKey<E> {
     type Error = crypto::Error;
 
     fn transform(
@@ -123,7 +121,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniAuthorSecret<E>)> for
 
 // TODO(eric): I'm not sure we need this impl since we only
 // really care about `Transform<(C, T)> -> (S, O)`.
-impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)> for BidiKeys<E> {
+impl<E: Engine> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)> for BidiKeys<E> {
     type Error = crypto::Error;
 
     fn transform(
@@ -133,9 +131,7 @@ impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)> for 
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)>
-    for (SealKey<E>, OpenKey<E>)
-{
+impl<E: Engine> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)> for (SealKey<E>, OpenKey<E>) {
     type Error = crypto::Error;
 
     fn transform(
@@ -145,7 +141,7 @@ impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)>
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)>
+impl<E: Engine> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)>
     for (RawSealKey<E>, RawOpenKey<E>)
 {
     type Error = crypto::Error;
@@ -157,7 +153,7 @@ impl<E: Engine + ?Sized> Transform<(&BidiChannel<'_, E>, BidiPeerEncap<E>)>
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for UniSealKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for UniSealKey<E> {
     type Error = crypto::Error;
 
     fn transform((ch, secret): (&UniChannel<'_, E>, UniPeerEncap<E>)) -> Result<Self, Self::Error> {
@@ -165,7 +161,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for Un
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for UniOpenKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for UniOpenKey<E> {
     type Error = crypto::Error;
 
     fn transform((ch, secret): (&UniChannel<'_, E>, UniPeerEncap<E>)) -> Result<Self, Self::Error> {
@@ -173,7 +169,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for Un
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for SealKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for SealKey<E> {
     type Error = crypto::Error;
 
     fn transform((ch, secret): (&UniChannel<'_, E>, UniPeerEncap<E>)) -> Result<Self, Self::Error> {
@@ -181,7 +177,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for Se
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for OpenKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for OpenKey<E> {
     type Error = crypto::Error;
 
     fn transform((ch, secret): (&UniChannel<'_, E>, UniPeerEncap<E>)) -> Result<Self, Self::Error> {
@@ -189,7 +185,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for Op
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for RawSealKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for RawSealKey<E> {
     type Error = crypto::Error;
 
     fn transform((ch, secret): (&UniChannel<'_, E>, UniPeerEncap<E>)) -> Result<Self, Self::Error> {
@@ -197,7 +193,7 @@ impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for Ra
     }
 }
 
-impl<E: Engine + ?Sized> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for RawOpenKey<E> {
+impl<E: Engine> Transform<(&UniChannel<'_, E>, UniPeerEncap<E>)> for RawOpenKey<E> {
     type Error = crypto::Error;
 
     fn transform((ch, secret): (&UniChannel<'_, E>, UniPeerEncap<E>)) -> Result<Self, Self::Error> {

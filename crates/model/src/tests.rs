@@ -404,7 +404,7 @@ impl Model for TestModel {
     }
 }
 
-fn unidirectional_sync<E: crypto::Engine + ?Sized>(
+fn unidirectional_sync<E: crypto::Engine>(
     storage_id: &Id,
     request_state: &mut ClientState<ModelEngine<E>, MemStorageProvider>,
     response_state: &mut ClientState<ModelEngine<E>, MemStorageProvider>,

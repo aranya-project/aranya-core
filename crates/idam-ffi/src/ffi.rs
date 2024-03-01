@@ -55,7 +55,7 @@ function derive_enc_key_id(
     enc_pk bytes,
 ) id
 "#)]
-    pub(crate) fn derive_enc_key_id<E: Engine + ?Sized>(
+    pub(crate) fn derive_enc_key_id<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -72,7 +72,7 @@ function derive_sign_key_id(
     sign_pk bytes,
 ) id
 "#)]
-    pub(crate) fn derive_sign_key_id<E: Engine + ?Sized>(
+    pub(crate) fn derive_sign_key_id<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -89,7 +89,7 @@ function derive_user_id(
     ident_pk bytes,
 ) id
 "#)]
-    pub(crate) fn derive_user_id<E: Engine + ?Sized>(
+    pub(crate) fn derive_user_id<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -103,7 +103,7 @@ function derive_user_id(
     #[ffi_export(def = r#"
 function generate_group_key() struct StoredGroupKey
 "#)]
-    pub(crate) fn generate_group_key<E: Engine + ?Sized>(
+    pub(crate) fn generate_group_key<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         eng: &mut E,
@@ -125,7 +125,7 @@ function seal_group_key(
     group_id id,
 ) struct SealedGroupKey
 "#)]
-    pub(crate) fn seal_group_key<E: Engine + ?Sized>(
+    pub(crate) fn seal_group_key<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         eng: &mut E,
@@ -153,7 +153,7 @@ function open_group_key(
     group_id id,
 ) struct StoredGroupKey
 "#)]
-    pub(crate) fn open_group_key<E: Engine + ?Sized>(
+    pub(crate) fn open_group_key<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         eng: &mut E,
@@ -194,7 +194,7 @@ function encrypt_message(
     our_sign_pk bytes,
 ) bytes
 "#)]
-    pub(crate) fn encrypt_message<E: Engine + ?Sized>(
+    pub(crate) fn encrypt_message<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         eng: &mut E,
@@ -244,7 +244,7 @@ function decrypt_message(
     author_sign_pk bytes,
 ) bytes
 "#)]
-    pub(crate) fn decrypt_message<E: Engine + ?Sized>(
+    pub(crate) fn decrypt_message<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         eng: &mut E,
@@ -284,7 +284,7 @@ function compute_change_id(
     current_change_id id,
 ) id
 "#)]
-    pub(crate) fn compute_change_id<E: Engine + ?Sized>(
+    pub(crate) fn compute_change_id<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,

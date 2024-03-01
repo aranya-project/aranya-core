@@ -45,7 +45,7 @@ impl<S: KeyStore> Handler<S> {
         effect: &BidiChannelCreated<'_>,
     ) -> Result<BidiKeys<SK, OK>, Error>
     where
-        E: Engine + ?Sized,
+        E: Engine,
         (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E>, BidiAuthorSecret<E>)>,
     {
         if self.user_id != effect.author_id {
@@ -91,7 +91,7 @@ impl<S: KeyStore> Handler<S> {
         effect: &BidiChannelReceived<'_>,
     ) -> Result<BidiKeys<SK, OK>, Error>
     where
-        E: Engine + ?Sized,
+        E: Engine,
         (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E>, BidiPeerEncap<E>)>,
     {
         if self.user_id != effect.peer_id {
@@ -204,7 +204,7 @@ impl<S: KeyStore> Handler<S> {
         effect: &UniChannelCreated<'_>,
     ) -> Result<UniKey<SK, OK>, Error>
     where
-        E: Engine + ?Sized,
+        E: Engine,
         SK: for<'a> Transform<(&'a UniChannel<'a, E>, UniAuthorSecret<E>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E>, UniAuthorSecret<E>)>,
     {
@@ -253,7 +253,7 @@ impl<S: KeyStore> Handler<S> {
         effect: &UniChannelReceived<'_>,
     ) -> Result<UniKey<SK, OK>, Error>
     where
-        E: Engine + ?Sized,
+        E: Engine,
         SK: for<'a> Transform<(&'a UniChannel<'a, E>, UniPeerEncap<E>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E>, UniPeerEncap<E>)>,
     {
@@ -358,7 +358,7 @@ pub enum UniKey<S, O> {
 impl<S, O> UniKey<S, O> {
     fn new<E, F, K, V>(ch: &UniChannel<'_, E>, value: V, f: F) -> Result<Self, Error>
     where
-        E: Engine + ?Sized,
+        E: Engine,
         F: FnOnce(K) -> Self,
         K: for<'a> Transform<(&'a UniChannel<'a, E>, V)>,
     {

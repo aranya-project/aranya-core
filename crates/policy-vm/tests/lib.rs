@@ -154,7 +154,7 @@ struct S2 {
 )]
 impl<'a, T, G> TestModule<'a, T, G> {
     #[ffi_export(def = "function add(x int, y int) int")]
-    fn add<E: Engine + ?Sized>(
+    fn add<E: Engine>(
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
         x: i64,
@@ -164,7 +164,7 @@ impl<'a, T, G> TestModule<'a, T, G> {
     }
 
     #[ffi_export(def = "function sub(x int, y int) int")]
-    fn sub<E: Engine + ?Sized>(
+    fn sub<E: Engine>(
         ctx: &CommandContext<'_>,
         eng: &mut E,
         x: i64,
@@ -174,7 +174,7 @@ impl<'a, T, G> TestModule<'a, T, G> {
     }
 
     #[ffi_export(def = "function concat(a string, b string) string")]
-    fn concat<E: Engine + ?Sized>(
+    fn concat<E: Engine>(
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
         a: String,
@@ -184,7 +184,7 @@ impl<'a, T, G> TestModule<'a, T, G> {
     }
 
     #[ffi_export(def = "function renamed_identity(id id) id")]
-    fn identity<E: Engine + ?Sized>(
+    fn identity<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -194,7 +194,7 @@ impl<'a, T, G> TestModule<'a, T, G> {
     }
 
     #[ffi_export(def = "function no_args() int")]
-    fn no_args<E: Engine + ?Sized>(
+    fn no_args<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -203,7 +203,7 @@ impl<'a, T, G> TestModule<'a, T, G> {
     }
 
     #[ffi_export(def = "finish function no_result(a int, b int, c int)")]
-    fn no_result<E: Engine + ?Sized>(
+    fn no_result<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -215,7 +215,7 @@ impl<'a, T, G> TestModule<'a, T, G> {
     }
 
     #[ffi_export(def = "function custom_type(label int) int")]
-    fn custom_type<E: Engine + ?Sized>(
+    fn custom_type<E: Engine>(
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
         label: Label,
@@ -225,7 +225,7 @@ impl<'a, T, G> TestModule<'a, T, G> {
     }
 
     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
-    fn custom_def<E: Engine + ?Sized>(
+    fn custom_def<E: Engine>(
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
         _a: i64,
@@ -240,7 +240,7 @@ function struct_fn(
     b struct S1,
 ) struct S2
 "#)]
-    fn struct_fn<E: Engine + ?Sized>(
+    fn struct_fn<E: Engine>(
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
         a: S0,

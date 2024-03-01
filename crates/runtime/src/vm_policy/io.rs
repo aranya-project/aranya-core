@@ -25,7 +25,7 @@ pub trait FfiCallable<E> {
 impl<FM, E> FfiCallable<E> for FM
 where
     FM: FfiModule,
-    E: crypto::Engine + ?Sized,
+    E: crypto::Engine,
 {
     fn call(
         &mut self,
@@ -77,7 +77,7 @@ impl<'o, P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'o, P, S, E, FFI>
 where
     P: FactPerspective,
     S: Sink<(String, Vec<KVPair>)>,
-    E: crypto::Engine + ?Sized,
+    E: crypto::Engine,
     FFI: DerefMut,
     <FFI as Deref>::Target: FfiCallable<E>,
 {

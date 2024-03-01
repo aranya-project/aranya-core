@@ -23,19 +23,19 @@ use crate::{
 };
 
 /// Key material used to derive per-event encryption keys.
-pub struct GroupKey<E: ?Sized> {
+pub struct GroupKey<E> {
     seed: [u8; 64],
     _cs: PhantomData<E>,
 }
 
-impl<E: ?Sized> ZeroizeOnDrop for GroupKey<E> {}
-impl<E: ?Sized> Drop for GroupKey<E> {
+impl<E> ZeroizeOnDrop for GroupKey<E> {}
+impl<E> Drop for GroupKey<E> {
     fn drop(&mut self) {
         self.seed.zeroize()
     }
 }
 
-impl<E: Engine + ?Sized> Clone for GroupKey<E> {
+impl<E: Engine> Clone for GroupKey<E> {
     fn clone(&self) -> Self {
         Self {
             seed: self.seed,
@@ -44,7 +44,7 @@ impl<E: Engine + ?Sized> Clone for GroupKey<E> {
     }
 }
 
-impl<E: Engine + ?Sized> GroupKey<E> {
+impl<E: Engine> GroupKey<E> {
     /// Creates a new, random `GroupKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> GroupKey<E> {
         Self::from_seed(Random::random(rng))
@@ -232,7 +232,7 @@ unwrapped! {
     from: |seed: [u8;64] | { Self::from_seed(seed) };
 }
 
-impl<E: Engine + ?Sized> Identified for GroupKey<E> {
+impl<E: Engine> Identified for GroupKey<E> {
     type Id = GroupKeyId;
 
     #[inline]
@@ -241,7 +241,7 @@ impl<E: Engine + ?Sized> Identified for GroupKey<E> {
     }
 }
 
-impl<E: Engine + ?Sized> ConstantTimeEq for GroupKey<E> {
+impl<E: Engine> ConstantTimeEq for GroupKey<E> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.seed.ct_eq(&other.seed)
@@ -250,7 +250,7 @@ impl<E: Engine + ?Sized> ConstantTimeEq for GroupKey<E> {
 
 /// Contextual binding for [`GroupKey::seal`] and
 /// [`GroupKey::open`].
-pub struct Context<'a, E: Engine + ?Sized> {
+pub struct Context<'a, E: Engine> {
     /// Describes what is being encrypted.
     ///
     /// For example, it could be an event name.
@@ -261,7 +261,7 @@ pub struct Context<'a, E: Engine + ?Sized> {
     pub author: &'a VerifyingKey<E>,
 }
 
-impl<E: Engine + ?Sized> Context<'_, E> {
+impl<E: Engine> Context<'_, E> {
     /// Converts the [`Context`] to its byte representation.
     fn to_bytes(&self) -> Digest<<E::Hash as Hash>::DigestSize> {
         // Ideally, this would simple be the actual concatenation
@@ -288,12 +288,12 @@ custom_id! {
 
 /// An encrypted [`GroupKey`].
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EncryptedGroupKey<E: Engine + ?Sized> {
+pub struct EncryptedGroupKey<E: Engine> {
     pub(crate) ciphertext: GenericArray<u8, U64>,
     pub(crate) tag: Tag<E::Aead>,
 }
 
-impl<E: Engine + ?Sized> Clone for EncryptedGroupKey<E> {
+impl<E: Engine> Clone for EncryptedGroupKey<E> {
     #[inline]
     fn clone(&self) -> Self {
         Self {

@@ -24,28 +24,28 @@
 /// # Arguments and Results
 ///
 /// Each method or associated function must take the generic
-/// parameter `E: Engine + ?Sized` (see
+/// parameter `E: Engine` (see
 /// [`Engine`][crypto::Engine]):
 ///
 /// ```ignore
-/// fn foo<E: Engine + ?Sized>(...)
+/// fn foo<E: Engine>(...)
 /// ```
 ///
 /// Receivers must not be projected. For example:
 ///
 /// ```ignore
 /// // WRONG!
-/// fn foo<E: Engine + ?Sized>(self: &Pin<Self>, ...)
+/// fn foo<E: Engine>(self: &Pin<Self>, ...)
 /// // WRONG!
-/// fn bar<E: Engine + ?Sized>(self: Box<Self>, ...)
+/// fn bar<E: Engine>(self: Box<Self>, ...)
 /// ```
 ///
 /// The parameter following the receiver, if any, must be
 /// `&CommandContext<'_, E>`:
 ///
 /// ```ignore
-/// fn foo<E: Engine + ?Sized>(&self, ctx: &CommandContext<'_, E>, ...)
-/// fn bar<E: Engine + ?Sized>(ctx: &CommandContext<'_, E>, ...)
+/// fn foo<E: Engine>(&self, ctx: &CommandContext<'_, E>, ...)
+/// fn bar<E: Engine>(ctx: &CommandContext<'_, E>, ...)
 /// ```
 ///
 /// Parameters (other than the receiver and
@@ -110,7 +110,7 @@
 ///     /// exists in Rust. This will be `calc::add` in the
 ///     /// `FfiModule`'s schema.
 ///     #[ffi_export(def = "function add(x int, y int) int")]
-///     fn add<E: Engine + ?Sized>(
+///     fn add<E: Engine>(
 ///         _ctx: &CommandContext<'_>,
 ///         _eng: &mut E,
 ///         x: i64,
@@ -122,7 +122,7 @@
 ///     /// `name` can be used to rename functions. This will be
 ///     /// `calc::divide` in the `FfiModule`'s schema.
 ///     #[ffi_export(def = "function quo(x int, y int) int")]
-///     fn quo<E: Engine + ?Sized>(
+///     fn quo<E: Engine>(
 ///         _ctx: &CommandContext<'_>,
 ///         _eng: &mut E,
 ///         x: i64,
@@ -132,7 +132,7 @@
 ///     }
 ///
 ///     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
-///     fn custom_def<E: Engine + ?Sized>(
+///     fn custom_def<E: Engine>(
 ///         _ctx: &CommandContext<'_>,
 ///         _eng: &mut E,
 ///         _a: i64,
@@ -142,7 +142,7 @@
 ///     }
 ///
 ///     #[ffi_export(def = "function struct_fn(x struct S0) struct S1")]
-///     fn struct_fn<E: Engine + ?Sized>(
+///     fn struct_fn<E: Engine>(
 ///         _ctx: &CommandContext<'_>,
 ///         _eng: &mut E,
 ///         x: S0,

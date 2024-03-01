@@ -20,7 +20,7 @@ pub struct FfiDevice {
 impl FfiDevice {
     /// Returns the current user's UserId
     #[ffi_export(def = r#"function current_user_id() id"#)]
-    pub(crate) fn current_user_id<E: crypto::Engine + ?Sized>(
+    pub(crate) fn current_user_id<E: crypto::Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,

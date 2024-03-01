@@ -36,7 +36,7 @@ impl<S: KeyStore> Ffi<S> {
     }
 
     /// Decodes a [`EncryptionPublicKey`].
-    fn decode_enc_pk<E: Engine + ?Sized>(bytes: &[u8]) -> Result<EncryptionPublicKey<E>, FfiError> {
+    fn decode_enc_pk<E: Engine>(bytes: &[u8]) -> Result<EncryptionPublicKey<E>, FfiError> {
         decode_enc_pk(bytes).map_err(|err| {
             error!("unable to decode `EncryptionPublicKey`: {err}");
             FfiError::Encoding
@@ -70,7 +70,7 @@ function create_bidi_channel(
     label int,
 ) struct ApsBidiChannel
 "#)]
-    pub(crate) fn create_bidi_channel<E: Engine + ?Sized>(
+    pub(crate) fn create_bidi_channel<E: Engine>(
         &mut self,
         _ctx: &CommandContext<'_>,
         eng: &mut E,
@@ -123,7 +123,7 @@ function create_uni_channel(
     label int,
 ) struct ApsUniChannel
 "#)]
-    pub(crate) fn create_uni_channel<E: Engine + ?Sized>(
+    pub(crate) fn create_uni_channel<E: Engine>(
         &mut self,
         _ctx: &CommandContext<'_>,
         eng: &mut E,

@@ -97,7 +97,7 @@ impl Ffi {
     #[ffi_export(def = r#"
 function parent_id(envelope struct Envelope) id
 "#)]
-    pub(crate) fn parent_id<E: Engine + ?Sized>(
+    pub(crate) fn parent_id<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -117,7 +117,7 @@ function parent_id(envelope struct Envelope) id
     #[ffi_export(def = r#"
 function author_id(envelope struct Envelope) id
 "#)]
-    pub(crate) fn author_id<E: Engine + ?Sized>(
+    pub(crate) fn author_id<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -138,7 +138,7 @@ function author_id(envelope struct Envelope) id
     #[ffi_export(def = r#"
 function command_id(envelope struct Envelope) id
 "#)]
-    pub(crate) fn command_id<E: Engine + ?Sized>(
+    pub(crate) fn command_id<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -159,7 +159,7 @@ function command_id(envelope struct Envelope) id
     #[ffi_export(def = r#"
 function signature(envelope struct Envelope) bytes
 "#)]
-    pub(crate) fn signature<E: Engine + ?Sized>(
+    pub(crate) fn signature<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -180,7 +180,7 @@ function signature(envelope struct Envelope) bytes
     #[ffi_export(def = r#"
 function payload(envelope struct Envelope) bytes
 "#)]
-    pub(crate) fn payload<E: Engine + ?Sized>(
+    pub(crate) fn payload<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -208,7 +208,7 @@ function new(
 ) struct Envelope
 "#)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new_envelope<E: Engine + ?Sized>(
+    pub(crate) fn new_envelope<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,

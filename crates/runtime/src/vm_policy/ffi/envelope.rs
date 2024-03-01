@@ -77,7 +77,7 @@ impl FfiModule for TestFfiEnvelope {
         ],
     };
 
-    fn call<E: crypto::Engine + ?Sized>(
+    fn call<E: crypto::Engine>(
         &mut self,
         procedure: usize,
         stack: &mut impl Stack,
