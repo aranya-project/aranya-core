@@ -845,7 +845,13 @@ fn parse_fact_definition(
 ) -> Result<AstNode<ast::FactDefinition>, ParseError> {
     let locator = cc.add_range(&field)?;
     let pc = descend(field);
-    let token = pc.consume_of_type(Rule::fact_signature)?;
+    let token = pc.consume()?;
+
+    let (immutable, token) = if token.as_rule() == Rule::immutable_modifier {
+        (true, pc.consume_of_type(Rule::fact_signature)?)
+    } else {
+        (false, token)
+    };
 
     let pc = descend(token);
     let identifier = pc.consume_string(Rule::identifier)?;
@@ -864,6 +870,7 @@ fn parse_fact_definition(
 
     Ok(AstNode::new(
         ast::FactDefinition {
+            immutable,
             identifier,
             key,
             value,

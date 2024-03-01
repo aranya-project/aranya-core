@@ -253,7 +253,8 @@ command_blocks = _{ fields_block | seal_block | open_block | policy_block | reca
 
 // # Top-level Statements
 // fact Foo[]=>{}
-fact_definition = { "fact" ~ fact_signature }
+immutable_modifier = { "immutable" }
+fact_definition = { immutable_modifier? ~ "fact" ~ fact_signature }
 // action foo(a int) { ... }
 action_definition = { "action" ~ identifier ~ function_arguments ~ statement_block }
 // effect Foo { bar id }

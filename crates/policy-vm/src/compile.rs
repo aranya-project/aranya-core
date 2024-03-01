@@ -908,6 +908,16 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Create);
                 }
                 (ast::Statement::Update(s), StatementContext::Finish) => {
+                    // ensure fact is mutable
+                    let fact_def = self.get_fact_def(&s.fact.identifier)?;
+                    if fact_def.immutable {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::Unknown(String::from("fact is immutable")),
+                            self.last_locator,
+                            self.m.codemap.as_ref(),
+                        ));
+                    }
+
                     self.verify_fact_against_schema(&s.fact)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Dup(0));

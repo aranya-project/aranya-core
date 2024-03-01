@@ -389,6 +389,8 @@ pub enum Statement {
 /// A schema definition for a fact
 #[derive(Debug, Clone, PartialEq)]
 pub struct FactDefinition {
+    /// Is this fact immutable?
+    pub immutable: bool,
     /// The name of the fact
     pub identifier: String,
     /// Types for all of the key fields

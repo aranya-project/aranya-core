@@ -547,6 +547,57 @@ fn test_fact_update_invalid_to_type() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_immutable_fact_can_be_created_and_deleted() -> anyhow::Result<()> {
+    let text = r#"
+        immutable fact Foo[i int] => {a string}
+        command test {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    create Foo[i: 1]=>{a: ""}
+                    delete Foo[i: 1]=>{a: ""}
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    compile_from_policy(&policy, &[])?;
+
+    Ok(())
+}
+
+#[test]
+fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
+    let text = r#"
+        immutable fact Foo[i int] => {a string}
+        command test {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    update Foo[i: 1]=>{a: 1} to {a: 0}
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let err = compile_from_policy(&policy, &[])
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("fact is immutable"))
+    );
+
+    Ok(())
+}
+
+#[test]
 fn test_serialize_deserialize() -> anyhow::Result<()> {
     let text = r#"
         function foo() int {

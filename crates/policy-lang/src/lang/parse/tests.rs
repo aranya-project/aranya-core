@@ -462,6 +462,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
         policy.facts,
         vec![AstNode::new(
             ast::FactDefinition {
+                immutable: false,
                 identifier: String::from("F"),
                 key: vec![ast::FieldDefinition {
                     identifier: String::from("v"),
@@ -969,6 +970,41 @@ fn parse_tictactoe() {
     assert_eq!(policy.commands.len(), 3);
     assert_eq!(policy.functions.len(), 2);
     assert_eq!(policy.finish_functions.len(), 1);
+}
+
+#[test]
+fn parse_policy_immutable_facts() -> Result<(), ParseError> {
+    let policy_str = r#"
+        fact A[]=>{}
+        immutable fact B[]=>{}
+    "#;
+
+    let policy = parse_policy_str(policy_str, Version::V3)?;
+    assert_eq!(
+        policy.facts,
+        vec![
+            AstNode::new(
+                ast::FactDefinition {
+                    immutable: false,
+                    identifier: String::from("A"),
+                    key: vec![],
+                    value: vec![],
+                },
+                9,
+            ),
+            AstNode::new(
+                ast::FactDefinition {
+                    immutable: true,
+                    identifier: String::from("B"),
+                    key: vec![],
+                    value: vec![],
+                },
+                30,
+            )
+        ]
+    );
+
+    Ok(())
 }
 
 #[test]
