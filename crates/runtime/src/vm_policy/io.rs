@@ -7,6 +7,7 @@ use policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, KVPair, MachineError, MachineErrorType,
     MachineIO, MachineIOError, MachineStack,
 };
+use tracing::error;
 
 use crate::{FactPerspective, Sink, StorageError, VmFactCursor};
 
@@ -90,9 +91,15 @@ where
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
-        let key_vec = postcard::to_allocvec(&(name, key)).map_err(|_| MachineIOError::Internal)?;
+        let key_vec = postcard::to_allocvec(&(name, key)).map_err(|e| {
+            error!("fact_insert: could not serialize key: {e}");
+            MachineIOError::Internal
+        })?;
         let value: Vec<_> = value.into_iter().collect();
-        let value_vec = postcard::to_allocvec(&value).map_err(|_| MachineIOError::Internal)?;
+        let value_vec = postcard::to_allocvec(&value).map_err(|e| {
+            error!("fact_insert: could not serialize value: {e}");
+            MachineIOError::Internal
+        })?;
         self.facts.insert(&key_vec, &value_vec);
         Ok(())
     }
@@ -103,7 +110,10 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
-        let key_vec = postcard::to_allocvec(&(name, key)).map_err(|_| MachineIOError::Internal)?;
+        let key_vec = postcard::to_allocvec(&(name, key)).map_err(|e| {
+            error!("fact_delete: could not serialize key: {e}");
+            MachineIOError::Internal
+        })?;
         self.facts.delete(&key_vec);
         Ok(())
     }
@@ -114,7 +124,10 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator<'_>, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
-        let c = VmFactCursor::new(name, key, self.facts)?;
+        let c = VmFactCursor::new(name, key, self.facts).map_err(|e| {
+            error!("fact_query: could not crate cursor: {e}");
+            MachineIOError::Internal
+        })?;
         Ok(c)
     }
 
