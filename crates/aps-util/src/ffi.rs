@@ -5,7 +5,7 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use core::{fmt, result::Result};
 
 use crypto::{
@@ -280,7 +280,8 @@ impl TryFrom<Value> for Label {
         let x: i64 = value.try_into()?;
         Ok(Label(
             // TODO(eric): better errors
-            u32::try_from(x).map_err(|_| MachineErrorType::Unknown)?,
+            u32::try_from(x)
+                .map_err(|_| MachineErrorType::Unknown(String::from("cannot create Label")))?,
         ))
     }
 }

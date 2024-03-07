@@ -44,20 +44,16 @@ impl Random for Envelope {
 
 const SEAL_CTX: &CommandContext<'static> = &CommandContext::Seal(SealContext {
     name: "dummy",
-    parent_id: Id::default(),
+    head_id: Id::default(),
 });
 
-const OPEN_CTX: &CommandContext<'static> = &CommandContext::Open(OpenContext {
-    name: "dummy",
-    parent_id: Id::default(),
-});
+const OPEN_CTX: &CommandContext<'static> = &CommandContext::Open(OpenContext { name: "dummy" });
 
 const POLICY_CTX: &CommandContext<'static> = &CommandContext::Policy(PolicyContext {
     name: "dummy",
     id: Id::default(),
     author: UserId::default(),
     version: Id::default(),
-    parent_id: Id::default(),
 });
 
 const RECALL_CTX: &CommandContext<'static> = &CommandContext::Recall(PolicyContext {
@@ -65,7 +61,6 @@ const RECALL_CTX: &CommandContext<'static> = &CommandContext::Recall(PolicyConte
     id: Id::default(),
     author: UserId::default(),
     version: Id::default(),
-    parent_id: Id::default(),
 });
 
 #[test]

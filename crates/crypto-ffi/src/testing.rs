@@ -74,13 +74,10 @@ where
 {
     const SEAL_CTX: CommandContext<'static> = CommandContext::Seal(SealContext {
         name: "dummy",
-        parent_id: Id::default(),
+        head_id: Id::default(),
     });
 
-    const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext {
-        name: "dummy",
-        parent_id: Id::default(),
-    });
+    const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext { name: "dummy" });
 
     /// Test that we can verify valid signatures.
     pub fn test_sign_verify(mut eng: E, mut store: S) {
@@ -116,6 +113,7 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
+                Id::default(),
                 command.clone(),
                 command_id,
                 signature,
@@ -166,6 +164,7 @@ where
             &Self::OPEN_CTX,
             &mut eng,
             pk,
+            Id::default(),
             command,
             command_id,
             signature,
@@ -213,6 +212,7 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
+                Id::default(),
                 command,
                 command_id,
                 signature,
@@ -230,13 +230,10 @@ where
     pub fn test_verify_reject_different_cmd_name(mut eng: E, mut store: S) {
         const SEAL_CTX: CommandContext<'static> = CommandContext::Seal(SealContext {
             name: "foo",
-            parent_id: Id::default(),
+            head_id: Id::default(),
         });
 
-        const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext {
-            name: "bar",
-            parent_id: Id::default(),
-        });
+        const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext { name: "bar" });
 
         let (sk, pk) = {
             let sk = SigningKey::<E>::new(&mut eng);
@@ -262,7 +259,15 @@ where
             .expect("should be able to create signature");
 
         let err = ffi
-            .verify(&OPEN_CTX, &mut eng, pk, command, command_id, signature)
+            .verify(
+                &OPEN_CTX,
+                &mut eng,
+                pk,
+                Id::default(),
+                command,
+                command_id,
+                signature,
+            )
             .expect_err("`crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
@@ -293,7 +298,7 @@ where
 
         let seal_ctx = CommandContext::Seal(SealContext {
             name: "dummy",
-            parent_id: Id::random(&mut eng),
+            head_id: Id::random(&mut eng),
         });
         let Signed {
             signature,
@@ -302,12 +307,17 @@ where
             .sign(&seal_ctx, &mut eng, sk.id().into_id(), command.clone())
             .expect("should be able to create signature");
 
-        let open_ctx = CommandContext::Open(OpenContext {
-            name: "dummy",
-            parent_id: Id::random(&mut eng),
-        });
+        let open_ctx = CommandContext::Open(OpenContext { name: "dummy" });
         let err = ffi
-            .verify(&open_ctx, &mut eng, pk, command, command_id, signature)
+            .verify(
+                &open_ctx,
+                &mut eng,
+                pk,
+                Id::default(),
+                command,
+                command_id,
+                signature,
+            )
             .expect_err("`crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
@@ -355,6 +365,7 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
+                Id::default(),
                 command,
                 command_id,
                 signature,
@@ -390,23 +401,18 @@ where
                 name: "dummy",
                 head_id: Id::default(),
             }),
-            CommandContext::Open(OpenContext {
-                name: "dummy",
-                parent_id: Id::default(),
-            }),
+            CommandContext::Open(OpenContext { name: "dummy" }),
             CommandContext::Policy(PolicyContext {
                 name: "dummy",
                 id: Id::default(),
                 author: UserId::default(),
                 version: Id::default(),
-                parent_id: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: "dummy",
                 id: Id::default(),
                 author: UserId::default(),
                 version: Id::default(),
-                parent_id: Id::default(),
             }),
         ] {
             let err = ffi
@@ -455,21 +461,19 @@ where
             }),
             CommandContext::Seal(SealContext {
                 name: "dummy",
-                parent_id: Id::default(),
+                head_id: Id::default(),
             }),
             CommandContext::Policy(PolicyContext {
                 name: "dummy",
                 id: Id::default(),
                 author: UserId::default(),
                 version: Id::default(),
-                parent_id: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: "dummy",
                 id: Id::default(),
                 author: UserId::default(),
                 version: Id::default(),
-                parent_id: Id::default(),
             }),
         ] {
             let err = ffi
@@ -477,6 +481,7 @@ where
                     ctx,
                     &mut eng,
                     pk.clone(),
+                    Id::default(),
                     command.clone(),
                     command_id,
                     signature.clone(),

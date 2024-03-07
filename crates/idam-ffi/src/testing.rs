@@ -84,7 +84,6 @@ where
         id: Id::default(),
         author: UserId::default(),
         version: Id::default(),
-        parent_id: Id::default(),
     });
 
     /// Test that we can unwrap `GroupKey`s.
@@ -133,10 +132,17 @@ where
 
         const WANT: &[u8] = b"hello, world!";
         let ciphertext = ffi
-            .encrypt_message(ctx, &mut eng, WANT.to_vec(), wrapped.clone(), pk.clone())
+            .encrypt_message(
+                ctx,
+                &mut eng,
+                Id::default(),
+                WANT.to_vec(),
+                wrapped.clone(),
+                pk.clone(),
+            )
             .expect("should be able to encrypt message");
         let got = ffi
-            .decrypt_message(ctx, &mut eng, ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
             .expect("should be able to decrypt message");
         assert_eq!(got, WANT);
     }
@@ -160,6 +166,7 @@ where
             .encrypt_message(
                 ctx,
                 &mut eng,
+                Id::default(),
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 pk.clone(),
@@ -169,7 +176,7 @@ where
         ciphertext[0] = ciphertext[0].wrapping_add(1);
 
         let err = ffi
-            .decrypt_message(ctx, &mut eng, ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt tampered with message");
         assert_eq!(err.kind(), ErrorKind::Crypto);
 
@@ -189,7 +196,6 @@ where
             id: Id::default(),
             author: UserId::default(),
             version: Id::default(),
-            parent_id: Id::default(),
         });
         let StoredGroupKey { wrapped, .. } = ffi
             .generate_group_key(&ctx, &mut eng)
@@ -204,6 +210,7 @@ where
             .encrypt_message(
                 &ctx,
                 &mut eng,
+                Id::default(),
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 pk.clone(),
@@ -215,10 +222,9 @@ where
             id: Id::default(),
             author: UserId::default(),
             version: Id::default(),
-            parent_id: Id::default(),
         });
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, ciphertext, wrapped, pk)
+            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different command name",
             );
@@ -239,7 +245,6 @@ where
             id: Id::default(),
             author: UserId::default(),
             version: Id::default(),
-            parent_id: Id::default(),
         });
         let StoredGroupKey { wrapped, .. } = ffi
             .generate_group_key(&ctx, &mut eng)
@@ -249,10 +254,12 @@ where
         let pk =
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`");
 
+        let random_parent_id = Id::random(&mut eng);
         let ciphertext = ffi
             .encrypt_message(
                 &ctx,
                 &mut eng,
+                random_parent_id,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 pk.clone(),
@@ -264,10 +271,9 @@ where
             id: Id::default(),
             author: UserId::default(),
             version: Id::default(),
-            parent_id: Id::random(&mut eng),
         });
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, ciphertext, wrapped, pk)
+            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different parent command ID",
             );
@@ -288,7 +294,6 @@ where
             id: Id::default(),
             author: UserId::default(),
             version: Id::default(),
-            parent_id: Id::default(),
         });
         let StoredGroupKey { wrapped, .. } = ffi
             .generate_group_key(&ctx, &mut eng)
@@ -302,6 +307,7 @@ where
             .encrypt_message(
                 &ctx,
                 &mut eng,
+                Id::default(),
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 pk.clone(),
@@ -314,7 +320,7 @@ where
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
         };
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, ciphertext, wrapped, pk)
+            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt message encrypted with different author");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(

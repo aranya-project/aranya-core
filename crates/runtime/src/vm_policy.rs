@@ -108,10 +108,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         let mut ffis = self.ffis.lock();
         let mut eng = self.engine.lock();
         let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
-        let ctx = CommandContext::Open(OpenContext {
-            name,
-            parent_id: envelope.parent_id.into(),
-        });
+        let ctx = CommandContext::Open(OpenContext { name });
         let mut rs = self.machine.create_run_state(&mut io, &ctx);
         let status = rs.call_open(name, envelope.into());
         match status {
@@ -156,7 +153,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
         let ctx = CommandContext::Seal(SealContext {
             name,
-            parent_id: (*parent).into(),
+            head_id: (*parent).into(),
         });
         let mut rs = self.machine.create_run_state(&mut io, &ctx);
         let command_struct = Struct::new(name, fields);
@@ -256,7 +253,6 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                     id: command.id().into(),
                     author: UserId::default(),
                     version: Id::default().into(),
-                    parent_id: parent.into(),
                 });
                 self.evaluate_rule(&kind, fields.as_slice(), envelope, facts, sink, &ctx)?
             }

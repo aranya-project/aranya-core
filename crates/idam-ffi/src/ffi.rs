@@ -189,6 +189,7 @@ function open_group_key(
     /// Encrypt a message using the [`GroupKey`].
     #[ffi_export(def = r#"
 function encrypt_message(
+    parent_id id,
     plaintext bytes,
     wrapped_group_key bytes,
     our_sign_pk bytes,
@@ -198,6 +199,7 @@ function encrypt_message(
         &self,
         ctx: &CommandContext<'_>,
         eng: &mut E,
+        parent_id: Id,
         plaintext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
         our_sign_pk: Vec<u8>,
@@ -222,7 +224,7 @@ function encrypt_message(
 
         let ctx = Context {
             label: ctx.name,
-            parent: ctx.parent_id,
+            parent: parent_id,
             author,
         };
         let mut ciphertext = {
@@ -239,6 +241,7 @@ function encrypt_message(
     /// Encrypt a message using the [`GroupKey`].
     #[ffi_export(def = r#"
 function decrypt_message(
+    parent_id id,
     ciphertext bytes,
     wrapped_group_key bytes,
     author_sign_pk bytes,
@@ -248,6 +251,7 @@ function decrypt_message(
         &self,
         ctx: &CommandContext<'_>,
         eng: &mut E,
+        parent_id: Id,
         ciphertext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
         author_sign_pk: Vec<u8>,
@@ -266,7 +270,7 @@ function decrypt_message(
 
         let ctx = Context {
             label: ctx.name,
-            parent: ctx.parent_id,
+            parent: parent_id,
             author,
         };
         let mut plaintext = {

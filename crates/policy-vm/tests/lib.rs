@@ -49,7 +49,6 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
             id: Id::default(),
             author: Id::default().into(),
             version: Id::default(),
-            parent_id: Id::default(),
         });
         let idx = self.procs.get(name).ok_or(TestStateError::UnknownFunc)?;
         self.module
@@ -97,9 +96,9 @@ impl TryFrom<Value> for Label {
             Value::Int(x) => x,
             _ => return Err(MachineErrorType::InvalidType),
         };
-        Ok(Label(
-            u32::try_from(x).map_err(|_| MachineErrorType::Unknown)?,
-        ))
+        Ok(Label(u32::try_from(x).map_err(|_| {
+            MachineErrorType::Unknown("cannot create Label from Value".to_string())
+        })?))
     }
 }
 

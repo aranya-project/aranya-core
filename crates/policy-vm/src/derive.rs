@@ -86,7 +86,7 @@
 ///
 /// impl From<DivideByZero> for MachineError {
 ///     fn from(_err: DivideByZero) -> Self {
-///         MachineError::new(MachineErrorType::Unknown)
+///         MachineError::new(MachineErrorType::Unknown("divide by zero".to_string()))
 ///     }
 /// }
 ///

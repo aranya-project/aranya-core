@@ -66,7 +66,7 @@ pub enum MachineErrorType {
     /// An implementation bug
     Bug(Bug),
     /// Unknown - every other possible problem
-    Unknown,
+    Unknown(String),
 }
 
 impl fmt::Display for MachineErrorType {
@@ -94,7 +94,7 @@ impl fmt::Display for MachineErrorType {
                 write!(f, "FFI proc {} not defined in module {}", proc, module)
             }
             MachineErrorType::Bug(bug) => write!(f, "Bug: {}", bug),
-            MachineErrorType::Unknown => write!(f, "unknown error"),
+            MachineErrorType::Unknown(reason) => write!(f, "unknown error: {}", reason),
         }
     }
 }

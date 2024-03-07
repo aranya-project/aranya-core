@@ -618,8 +618,8 @@ pub struct ActionContext<'a> {
 pub struct SealContext<'a> {
     /// The name of the command
     pub name: &'a str,
-    /// The parent ID of the command
-    pub parent_id: Id,
+    /// The ID of the command at the head of the perspective
+    pub head_id: Id,
 }
 
 /// Context for open blocks
@@ -627,8 +627,6 @@ pub struct SealContext<'a> {
 pub struct OpenContext<'a> {
     /// The name of the command
     pub name: &'a str,
-    /// The parent ID of the command
-    pub parent_id: Id,
 }
 
 /// Context for Policy and Recall blocks
@@ -642,8 +640,6 @@ pub struct PolicyContext<'a> {
     pub author: UserId,
     /// The ID of the version of policy and FFI module set
     pub version: Id,
-    /// The parent ID of the command
-    pub parent_id: Id,
 }
 
 /// Properties of policy execution available through FFI.

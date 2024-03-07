@@ -21,22 +21,17 @@ fn test_current_user_id() {
         }),
         CommandContext::Seal(SealContext {
             name: "seal",
-            parent_id: Id::default(),
+            head_id: Id::default(),
         }),
-        CommandContext::Open(OpenContext {
-            name: "open",
-            parent_id: Id::default(),
-        }),
+        CommandContext::Open(OpenContext { name: "open" }),
         CommandContext::Policy(PolicyContext {
             name: "policy",
-            parent_id: Id::default(),
             id: Id::default(),
             author: UserId::default(),
             version: Id::default(),
         }),
         CommandContext::Recall(PolicyContext {
             name: "recall",
-            parent_id: Id::default(),
             id: Id::default(),
             author: UserId::default(),
             version: Id::default(),

@@ -227,15 +227,12 @@ fn dummy_ctx_action(name: &str) -> CommandContext<'_> {
 fn dummy_ctx_seal(name: &str) -> CommandContext<'_> {
     CommandContext::Seal(SealContext {
         name,
-        parent_id: Id::default(),
+        head_id: Id::default(),
     })
 }
 
 fn dummy_ctx_open(name: &str) -> CommandContext<'_> {
-    CommandContext::Open(OpenContext {
-        name,
-        parent_id: Id::default(),
-    })
+    CommandContext::Open(OpenContext { name })
 }
 
 fn dummy_ctx_policy(name: &str) -> CommandContext<'_> {
@@ -244,7 +241,6 @@ fn dummy_ctx_policy(name: &str) -> CommandContext<'_> {
         id: Id::default(),
         author: Id::default().into(),
         version: Id::default(),
-        parent_id: Id::default(),
     })
 }
 

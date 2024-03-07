@@ -281,7 +281,6 @@ fn main() -> anyhow::Result<()> {
                     id: Id::default(),
                     author: Id::default().into(),
                     version: Id::default(),
-                    parent_id: Id::default(),
                 });
                 rs = machine.create_run_state(&mut io, &ctx);
                 let fields: BTreeMap<String, Value> = args

@@ -22,7 +22,7 @@ impl TestFfiEnvelope {
         // FIXME(chip): bad implementation for example only
         let command_id = Id::hash_for_testing_only(&serialized_fields);
         let envelope = Envelope {
-            parent_id: ctx.parent_id.into(),
+            parent_id: ctx.head_id.into(),
             author_id,
             command_id,
             payload: serialized_fields,

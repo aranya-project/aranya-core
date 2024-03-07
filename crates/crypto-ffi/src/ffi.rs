@@ -34,10 +34,12 @@ use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 ///     }
 ///
 ///     open {
+///         let parent_id = envelope::parent_id(envelope)
 ///         let author_id = envelope::author_id(envelope)
 ///         let author_sign_pk = /* TODO */
 ///         let command = crypto::verify(
 ///             author_sign_pk,
+///             parent_id,
 ///             envelope::payload(envelope),
 ///             envelope::command_id(envelope),
 ///             envelope::signature(envelope),
@@ -98,6 +100,7 @@ struct Signed {
 }
 "#
 )]
+#[allow(clippy::too_many_arguments)]
 impl<S: KeyStore> Ffi<S> {
     /// Signs `command`.
     #[ffi_export(def = r#"
@@ -130,7 +133,7 @@ function sign(
         let (sig, id) = sk.sign_cmd(Cmd {
             data: &command,
             name: ctx.name,
-            parent_id: &ctx.parent_id,
+            parent_id: &ctx.head_id,
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
@@ -143,6 +146,7 @@ function sign(
     #[ffi_export(def = r#"
 function verify(
     author_sign_pk bytes,
+    parent_id id,
     command bytes,
     command_id id,
     signature bytes,
@@ -153,6 +157,7 @@ function verify(
         ctx: &CommandContext<'_>,
         _eng: &mut E,
         author_sign_pk: Vec<u8>,
+        parent_id: Id,
         command: Vec<u8>,
         command_id: Id,
         signature: Vec<u8>,
@@ -167,7 +172,7 @@ function verify(
         let cmd = Cmd {
             data: &command,
             name: ctx.name,
-            parent_id: &ctx.parent_id,
+            parent_id: &parent_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;
         if bool::from(id.ct_eq(&command_id.into())) {

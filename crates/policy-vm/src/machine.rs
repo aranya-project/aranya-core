@@ -757,7 +757,9 @@ where
                 }
                 let bytes = postcard::to_allocvec(&command_struct).map_err(|_| {
                     MachineError::from_position(
-                        MachineErrorType::Unknown,
+                        MachineErrorType::Unknown(String::from(
+                            "could not serialize command Struct",
+                        )),
                         self.pc,
                         self.machine.codemap.as_ref(),
                     )
@@ -775,7 +777,7 @@ where
                 let bytes: Vec<u8> = self.ipop()?;
                 let s: Struct = postcard::from_bytes(&bytes).map_err(|_| {
                     MachineError::from_position(
-                        MachineErrorType::Unknown,
+                        MachineErrorType::Unknown(String::from("could not deserialize Struct")),
                         self.pc,
                         self.machine.codemap.as_ref(),
                     )
