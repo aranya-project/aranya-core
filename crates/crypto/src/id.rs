@@ -154,11 +154,15 @@ impl Serialize for Id {
     where
         S: Serializer,
     {
-        let mut t = serializer.serialize_tuple(self.0.len())?;
-        for c in self.0 {
-            t.serialize_element(&c)?;
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&self.to_base58())
+        } else {
+            let mut t = serializer.serialize_tuple(self.0.len())?;
+            for c in self.0 {
+                t.serialize_element(&c)?;
+            }
+            t.end()
         }
-        t.end()
     }
 }
 
@@ -167,6 +171,24 @@ impl<'de> Deserialize<'de> for Id {
     where
         D: Deserializer<'de>,
     {
+        struct Base58Visitor;
+        impl<'de> Visitor<'de> for Base58Visitor {
+            type Value = Id;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "a base58 string")
+            }
+
+            fn visit_borrowed_str<E: de::Error>(self, v: &'de str) -> Result<Self::Value, E> {
+                v.parse().map_err(|e| match e {
+                    DecodeError::BadInput => {
+                        E::invalid_value(de::Unexpected::Str(v), &"a base58 string")
+                    }
+                    DecodeError::Bug(bug) => de::Error::custom(bug),
+                })
+            }
+        }
+
         struct IdVisitor;
         impl<'de> Visitor<'de> for IdVisitor {
             type Value = Id;
@@ -189,7 +211,12 @@ impl<'de> Deserialize<'de> for Id {
                 Ok(id)
             }
         }
-        deserializer.deserialize_tuple(Self::default().0.len(), IdVisitor)
+
+        if deserializer.is_human_readable() {
+            deserializer.deserialize_str(Base58Visitor)
+        } else {
+            deserializer.deserialize_tuple(Self::default().0.len(), IdVisitor)
+        }
     }
 }
 
