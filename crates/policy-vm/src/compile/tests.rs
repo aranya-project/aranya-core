@@ -17,7 +17,7 @@ fn test_undefined_struct() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     assert_eq!(
         compile_from_policy(&policy, &[])
             .expect_err("compilation succeeded where it should fail")
@@ -37,7 +37,7 @@ fn test_function_no_return() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -55,7 +55,7 @@ fn test_function_not_defined() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -75,7 +75,7 @@ fn test_function_already_defined() -> anyhow::Result<()> {
         function f() int {}
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -97,7 +97,7 @@ fn test_function_wrong_number_arguments() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -124,7 +124,7 @@ fn test_function_duplicate_arg_names() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let result = compile_from_policy(&policy, &[]);
 
     assert!(matches!(
@@ -150,7 +150,7 @@ fn test_function_wrong_color_pure() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -172,7 +172,7 @@ fn test_function_wrong_color_finish() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -196,8 +196,8 @@ fn test_seal_open_command() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
-    let machine = compile_from_policy(&policy, &[]).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
+    let machine = compile_from_policy(&policy, &[])?;
 
     assert!(machine
         .labels
@@ -220,7 +220,7 @@ fn test_command_without_seal_block() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -243,7 +243,7 @@ fn test_command_without_open_block() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -267,7 +267,7 @@ fn test_command_with_no_return_in_seal_block() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -288,7 +288,7 @@ fn test_command_with_no_return_in_open_block() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation succeeded where it should fail")
         .err_type;
@@ -310,7 +310,7 @@ fn test_autodefine_struct() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let result = compile_from_policy(&policy, &[])?;
 
     assert_eq!(result.struct_defs, {
@@ -349,7 +349,7 @@ fn test_duplicate_struct_fact_names() -> anyhow::Result<()> {
     ];
 
     for text in texts {
-        let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+        let policy = parse_policy_str(text, Version::V3)?;
         let result = compile_from_policy(&policy, &[]);
         assert!(matches!(
             result,
@@ -371,7 +371,7 @@ fn test_undefined_fact() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -389,7 +389,7 @@ fn test_fact_invalid_key_name() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -407,7 +407,7 @@ fn test_fact_incomplete_key() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -425,7 +425,7 @@ fn test_fact_invalid_key_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -443,7 +443,7 @@ fn test_fact_duplicate_key() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -464,7 +464,7 @@ fn test_fact_invalid_value_name() -> anyhow::Result<()> {
     }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -482,7 +482,7 @@ fn test_fact_invalid_value_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -500,7 +500,7 @@ fn test_fact_bind_value_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     compile_from_policy(&policy, &[]).expect("compilation should have succeeded");
 
     Ok(())
@@ -515,7 +515,7 @@ fn test_fact_expression_value_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     compile_from_policy(&policy, &[]).expect("compilation should have succeeded");
 
     Ok(())
@@ -537,7 +537,7 @@ fn test_fact_update_invalid_to_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -563,7 +563,7 @@ fn test_immutable_fact_can_be_created_and_deleted() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     compile_from_policy(&policy, &[])?;
 
     Ok(())
@@ -585,7 +585,7 @@ fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let err = compile_from_policy(&policy, &[])
         .expect_err("compilation should have failed")
         .err_type;
@@ -606,7 +606,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     compile_from_policy(&policy, &[]).expect("compilation should have succeeded");
 
     Ok(())
@@ -633,7 +633,7 @@ fn finish_block_should_exit() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let policy = parse_policy_str(text, Version::V3)?;
     let result = compile_from_policy(&policy, &[]).expect_err("").err_type;
 
     assert_eq!(

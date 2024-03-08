@@ -67,7 +67,7 @@ where
     while status == MachineStatus::Executing {
         println!("{}", rs);
         stdin().read_line(&mut buf)?;
-        status = rs.step().map_err(anyhow::Error::msg)?;
+        status = rs.step()?;
     }
     if let MachineStatus::Exited(reason) = status {
         print_machine_status(reason, rs);
@@ -272,8 +272,7 @@ fn main() -> anyhow::Result<()> {
                 });
                 rs = machine.create_run_state(&mut io, &ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
-                rs.setup_action(action, call_args)
-                    .map_err(anyhow::Error::msg)?;
+                rs.setup_action(action, call_args)?;
             } else if let Some(command) = args.command {
                 name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
@@ -295,14 +294,13 @@ fn main() -> anyhow::Result<()> {
                     name: command.clone(),
                     fields,
                 };
-                rs.setup_command(&command, LabelType::CommandPolicy, &self_data)
-                    .map_err(anyhow::Error::msg)?;
+                rs.setup_command(&command, LabelType::CommandPolicy, &self_data)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }
 
             if mode == Mode::Exec {
-                let status = rs.run().map_err(anyhow::Error::msg)?;
+                let status = rs.run()?;
                 print_machine_status(status, &rs);
             } else {
                 match debug_loop(&mut rs) {
