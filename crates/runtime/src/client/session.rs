@@ -30,7 +30,7 @@ pub struct Session<SP: StorageProvider, E> {
     _engine: PhantomData<E>,
 }
 
-impl<SP: StorageProvider, E: Engine> Session<SP, E> {
+impl<SP: StorageProvider, E> Session<SP, E> {
     pub(super) fn new(provider: &mut SP, storage_id: Id) -> Result<Self, ClientError> {
         let storage = provider.get_storage(&storage_id)?;
         let head_loc = storage.get_head()?;
@@ -50,7 +50,9 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 
         Ok(result)
     }
+}
 
+impl<SP: StorageProvider, E: Engine> Session<SP, E> {
     /// Evaluate an action on the ephemeral session and generate serialized
     /// commands, so another client can [`Session::receive`] them.
     pub fn action<ES, MS>(

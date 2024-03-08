@@ -69,25 +69,32 @@ impl From<Bug> for ClientError {
 }
 
 /// Keeps track of client graph state.
-/// Supports generic [`Engine`] and [`StorageProvider`].
+///
+/// - `E` should be an implementation of [`Engine`].
+/// - `SP` should be an implementation of [`StorageProvider`].
 #[derive(Debug)]
 pub struct ClientState<E, SP> {
     engine: E,
     provider: SP,
 }
 
-/// This implements the top level client. It takes several generic arguments
-/// The `E` parameter is the Policy engine to use. It will be specific to a
-/// specific set of actions `A`.
+impl<E, SP> ClientState<E, SP> {
+    /// Creates a `ClientState`.
+    pub const fn new(engine: E, provider: SP) -> ClientState<E, SP> {
+        ClientState { engine, provider }
+    }
+
+    /// Provide access to the [`StorageProvider`].
+    pub fn provider(&mut self) -> &mut SP {
+        &mut self.provider
+    }
+}
+
 impl<E, SP> ClientState<E, SP>
 where
     E: Engine,
     SP: StorageProvider,
 {
-    pub fn new(engine: E, provider: SP) -> ClientState<E, SP> {
-        ClientState { engine, provider }
-    }
-
     /// Create a new graph (AKA Team). This graph will start with the initial policy
     /// provided which must be compatible with the engine E. The `payload` is the initial
     /// init message that will bootstrap the graph facts. Effects produced when processing
@@ -114,11 +121,6 @@ where
         Ok(storage_id)
     }
 
-    /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.
-    pub fn transaction(&mut self, storage_id: &Id) -> Transaction<SP, E> {
-        Transaction::new(*storage_id)
-    }
-
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
     pub fn commit(
         &mut self,
@@ -128,6 +130,8 @@ where
         trx.commit(&mut self.provider, &mut self.engine, sink)
     }
 
+    /// Add commands to the transaction, writing the results to
+    /// `sink`.
     pub fn add_commands<'cmd>(
         &mut self,
         trx: &mut Transaction<SP, E>,
@@ -138,20 +142,19 @@ where
         Ok(())
     }
 
+    /// Performs an `action`, writing the results to `sink`.
     pub fn action(
         &mut self,
         storage_id: &Id,
         sink: &mut impl Sink<E::Effects>,
         action: <E::Policy as Policy>::Actions<'_>,
     ) -> Result<(), ClientError> {
-        // Get storage
         let storage = self.provider.get_storage(storage_id)?;
 
         let head = storage.get_head()?;
 
         let parent = storage.get_command_id(&head)?;
 
-        // Get the perspective
         let mut perspective = storage
             .get_linear_perspective(&head)?
             .assume("can always get perspective at head")?;
@@ -180,15 +183,20 @@ where
             }
         }
     }
+}
+
+impl<E, SP> ClientState<E, SP>
+where
+    SP: StorageProvider,
+{
+    /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.
+    pub fn transaction(&mut self, storage_id: &Id) -> Transaction<SP, E> {
+        Transaction::new(*storage_id)
+    }
 
     /// Create an ephemeral [`Session`] associated with this client.
     pub fn session(&mut self, storage_id: Id) -> Result<Session<SP, E>, ClientError> {
         Session::new(&mut self.provider, storage_id)
-    }
-
-    /// Provide access to the storage provider
-    pub fn provider(&mut self) -> &mut SP {
-        &mut self.provider
     }
 }
 

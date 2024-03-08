@@ -27,8 +27,8 @@ pub struct Transaction<SP: StorageProvider, E> {
     _engine: PhantomData<E>,
 }
 
-impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
-    pub(super) fn new(storage_id: Id) -> Self {
+impl<SP: StorageProvider, E> Transaction<SP, E> {
+    pub(super) const fn new(storage_id: Id) -> Self {
         Self {
             storage_id,
             perspective: None,
@@ -37,7 +37,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             _engine: PhantomData,
         }
     }
+}
 
+impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     /// Find a given id if reachable within this transaction.
     ///
     /// Does not search `self.perspective`, which should be written out beforehand.
