@@ -1,21 +1,19 @@
 //! An implementation of the syncer using QUIC.
 
-#![cfg(feature = "quic_syncer")]
-#![cfg_attr(docs, doc(cfg(feature = "quic_syncer")))]
-
-use alloc::sync::Arc;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
+};
 
 use quinn::{ClientConfig, ConnectError, ConnectionError, Endpoint, ReadToEndError, WriteError};
-use tokio::sync::Mutex as TMutex;
-use tracing::error;
-
-use crate::{
+use runtime::{
     command::Id,
     engine::{Engine, Sink},
     storage::StorageProvider,
     ClientError, ClientState, SyncError, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
+use tokio::sync::Mutex as TMutex;
+use tracing::error;
 
 /// An error running the quic sync client or server.
 #[derive(thiserror::Error, Debug)]

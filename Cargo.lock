@@ -2106,6 +2106,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "quic-syncer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "criterion",
+ "crypto",
+ "directories-next",
+ "quinn",
+ "rcgen",
+ "runtime",
+ "rustls",
+ "test-log",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "quinn"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2399,33 +2419,23 @@ dependencies = [
 name = "runtime"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "buggy",
- "clap",
- "criterion",
  "crypto",
  "device-ffi",
- "directories-next",
  "dot-writer",
  "heapless",
- "once_cell",
  "perspective-ffi",
  "policy-lang",
  "policy-vm",
  "postcard",
- "quinn",
  "rand",
- "rcgen",
  "runtime",
  "rustix",
- "rustls",
  "serde",
  "serde_yaml",
  "spin 0.9.8",
  "tempfile",
  "test-log",
- "thiserror",
- "tokio",
  "tracing",
  "tracing-subscriber",
  "trouble",

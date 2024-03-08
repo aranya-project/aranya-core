@@ -15,11 +15,11 @@ use std::{error::Error, fmt, fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use crypto::Rng;
+use quic_syncer::{run_syncer, Syncer};
 use quinn::ServerConfig;
 use runtime::{
     engine::Sink,
     protocol::{TestActions, TestEffect, TestEngine},
-    quic_syncer::{run_syncer, Syncer},
     storage::memory::MemStorageProvider,
     ClientState, Id, SyncRequester,
 };

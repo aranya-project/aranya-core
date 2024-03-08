@@ -1,0 +1,37 @@
+[package]
+name = "quic-syncer"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+runtime = { path = "../runtime", features = ["std"] }
+
+quinn = { workspace = true }
+rustls = { workspace = true, default-features = false, features = ["quic"] }
+thiserror = { version = "1.0" }
+tokio = { workspace = true, features = ["sync"] }
+tracing = { workspace = true }
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["async_tokio"] }
+crypto = { path = "../crypto", features = ["std"] }
+rcgen = "0.11.3"
+test-log = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tracing-subscriber = { workspace = true, default-features = true }
+
+# quic syncer example
+anyhow = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+directories-next = "2"
+
+[[bench]]
+name = "quic_syncer"
+harness = false

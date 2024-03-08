@@ -55,7 +55,6 @@ pub mod engine;
 pub mod metrics;
 mod prior;
 pub mod protocol;
-pub mod quic_syncer;
 pub mod storage;
 pub mod sync;
 
@@ -63,6 +62,4 @@ pub use crate::{
     client::*, command::*, engine::*, prior::Prior, storage::*, sync::*, vm_policy::*,
 };
 
-#[cfg(test)]
-mod tests;
 pub mod vm_policy;

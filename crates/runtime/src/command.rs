@@ -1,3 +1,8 @@
+use alloc::{
+    format,
+    string::{String, ToString},
+};
+
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;
@@ -17,18 +22,17 @@ impl Id {
         Sha512::hash(data).into_array().into()
     }
 
-    #[cfg(test)]
     pub fn short_b58(&self) -> String {
         #![allow(clippy::arithmetic_side_effects)]
         let b58 = self.to_string();
         let trimmed = b58.trim_start_matches('1');
         let len = trimmed.len();
         if len == 0 {
-            "1".to_owned()
+            "1".into()
         } else if len > 8 {
             format!("..{}", &trimmed[len - 6..])
         } else {
-            trimmed.to_owned()
+            trimmed.into()
         }
     }
 }

@@ -1,31 +1,25 @@
-use alloc::{collections::BTreeSet, fmt};
-use core::fmt::Display;
+#![allow(clippy::unwrap_used)]
+
 use std::{
-    collections::BTreeMap,
+    cell::RefCell,
+    collections::{BTreeMap, BTreeSet},
+    fmt::{self, Display},
     fs::File,
     iter,
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    sync::Arc,
     time::Instant,
 };
 
 use buggy::{Bug, BugExt};
 use crypto::Rng;
-use once_cell::sync::Lazy;
-use quinn::{ConnectionError, ReadToEndError, ServerConfig, WriteError};
 use rand::Rng as RRng;
-use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex as TMutex;
-use tracing::debug;
-
-use crate::{
+use runtime::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    quic_syncer::{run_syncer, QuicSyncError, Syncer},
     ClientError, ClientState, Command, EngineError, Id, Location, Prior, Segment, Storage,
-    StorageError, StorageProvider, SyncRequester, COMMAND_RESPONSE_MAX,
+    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, COMMAND_RESPONSE_MAX,
+    MAX_SYNC_MESSAGE_SIZE,
 };
-
-static NETWORK: Lazy<TMutex<()>> = Lazy::new(TMutex::default);
+use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 fn default_repeat() -> u64 {
     1
@@ -119,13 +113,11 @@ enum TestError {
     Storage(StorageError),
     Client(ClientError),
     Engine(EngineError),
+    Sync(SyncError),
     Io(std::io::Error),
     SerdeYaml(serde_yaml::Error),
     MissingClient,
     MissingGraph(u64),
-    Sync(QuicSyncError),
-    Crypto,
-    Network,
     Bug(Bug),
 }
 
@@ -141,33 +133,15 @@ impl From<StorageError> for TestError {
     }
 }
 
-impl From<ConnectionError> for TestError {
-    fn from(_error: ConnectionError) -> Self {
-        TestError::Network
-    }
-}
-
-impl From<WriteError> for TestError {
-    fn from(_error: WriteError) -> Self {
-        TestError::Network
-    }
-}
-
-impl From<ReadToEndError> for TestError {
-    fn from(_error: ReadToEndError) -> Self {
-        TestError::Network
-    }
-}
-
-impl From<rustls::Error> for TestError {
-    fn from(_err: rustls::Error) -> Self {
-        TestError::Crypto
-    }
-}
-
 impl From<ClientError> for TestError {
     fn from(err: ClientError) -> Self {
         TestError::Client(err)
+    }
+}
+
+impl From<SyncError> for TestError {
+    fn from(err: SyncError) -> Self {
+        TestError::Sync(err)
     }
 }
 
@@ -189,12 +163,6 @@ impl From<EngineError> for TestError {
     }
 }
 
-impl From<QuicSyncError> for TestError {
-    fn from(err: QuicSyncError) -> Self {
-        TestError::Sync(err)
-    }
-}
-
 fn read(file: &str) -> Result<Vec<TestRule>, TestError> {
     let file = File::open(file)?;
     let actions: Vec<TestRule> = serde_yaml::from_reader(file)?;
@@ -210,28 +178,9 @@ trait StorageBackend {
     fn provider(&mut self, client_id: u64) -> Self::StorageProvider;
 }
 
-async fn run<SB>(file: &str) -> Result<(), TestError>
-where
-    SB: StorageBackend,
-    SB::StorageProvider: Send + 'static,
-{
-    let mut backend = SB::new();
-
-    let mut commands = BTreeMap::new();
-    let actions: Vec<TestRule> = read(file)?;
-    let mut clients = BTreeMap::new();
-    let mut addrs = BTreeMap::new();
-
-    let mut sink = TestSink::new();
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-    let cert_der = cert.serialize_der().unwrap();
-    let priv_key = cert.serialize_private_key_der();
-    let priv_key = rustls::PrivateKey(priv_key);
-    let cert_chain: Vec<rustls::Certificate> = vec![rustls::Certificate(cert_der)];
-    let syncer = Syncer::new(&cert_chain)?;
-
+fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
     let mut rng = rand::thread_rng();
-    let actions: Vec<_> = actions
+    let actions: Vec<_> = read(file)?
         .into_iter()
         .flat_map(|rule| {
             match rule {
@@ -364,6 +313,13 @@ where
         })
         .collect();
 
+    let mut backend = SB::new();
+
+    let mut graphs = BTreeMap::new();
+    let mut clients = BTreeMap::new();
+
+    let mut sink = TestSink::new();
+
     for rule in actions {
         debug!(?rule);
         println!("{}", rule);
@@ -374,33 +330,18 @@ where
                 let storage = backend.provider(id);
 
                 let state = ClientState::new(engine, storage);
-                clients.insert(id, Arc::new(TMutex::new(state)));
+                clients.insert(id, RefCell::new(state));
             }
             TestRule::NewGraph { client, id, policy } => {
-                let storage_id;
-                {
-                    let Some(cell) = clients.get(&client) else {
-                        return Err(TestError::MissingClient);
-                    };
-                    let mut state = cell.lock().await;
-                    let policy_data = policy.to_be_bytes();
-                    let payload = (0, 0);
-                    storage_id = state.new_graph(policy_data.as_slice(), payload, &mut sink)?;
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+                let policy_data = policy.to_be_bytes();
+                let payload = (0, 0);
+                let storage_id = state.new_graph(policy_data.as_slice(), payload, &mut sink)?;
 
-                    commands.insert(id, storage_id);
-                }
-
-                for (&id, client) in clients.iter() {
-                    let server_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-                    let mut server_config =
-                        ServerConfig::with_single_cert(cert_chain.clone(), priv_key.clone())?;
-                    let transport_config =
-                        Arc::get_mut(&mut server_config.transport).expect("test");
-                    transport_config.max_concurrent_uni_streams(0_u8.into());
-                    let endpoint = quinn::Endpoint::server(server_config, server_addr).unwrap();
-                    addrs.insert(id, endpoint.local_addr()?);
-                    tokio::spawn(run_syncer(client.clone(), endpoint));
-                }
+                graphs.insert(id, storage_id);
 
                 assert_eq!(0, sink.count());
             }
@@ -411,26 +352,25 @@ where
                 must_receive,
                 max_syncs,
             } => {
-                let Some(storage_id) = commands.get(&graph) else {
-                    return Err(TestError::MissingGraph(graph));
-                };
-                let Some(request_cell) = clients.get(&client) else {
-                    return Err(TestError::MissingClient);
-                };
-                let mut request_client = request_cell.lock().await;
-                let server_addr = *addrs.get(&from).expect("client addr registered");
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
+                let mut request_client = clients
+                    .get(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+                let mut response_client = clients
+                    .get(&from)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+
                 let mut total_received = 0;
                 for _ in 0..max_syncs {
-                    let request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
-                    let commands_received = syncer
-                        .sync(
-                            &mut request_client,
-                            request_syncer,
-                            &mut sink,
-                            storage_id,
-                            server_addr,
-                        )
-                        .await?;
+                    let commands_received = sync(
+                        &mut request_client,
+                        &mut response_client,
+                        &mut sink,
+                        storage_id,
+                    )?;
                     total_received += commands_received;
                     if commands_received < COMMAND_RESPONSE_MAX {
                         break;
@@ -464,14 +404,12 @@ where
                 value,
                 repeat,
             } => {
-                let Some(cell) = clients.get(&client) else {
-                    return Err(TestError::MissingClient);
-                };
-                let mut state = cell.lock().await;
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
 
-                let Some(storage_id) = commands.get(&graph) else {
-                    return Err(TestError::MissingGraph(graph));
-                };
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
@@ -482,14 +420,12 @@ where
             }
 
             TestRule::PrintGraph { client, graph } => {
-                let Some(cell) = clients.get(&client) else {
-                    return Err(TestError::MissingClient);
-                };
-                let mut state = cell.lock().await;
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
 
-                let Some(storage_id) = commands.get(&graph) else {
-                    return Err(TestError::MissingGraph(graph));
-                };
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(storage_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
@@ -501,19 +437,18 @@ where
                 graph,
                 equal,
             } => {
-                let Some(cell_a) = clients.get(&clienta) else {
-                    return Err(TestError::MissingClient);
-                };
-                let mut state_a = cell_a.lock().await;
+                let mut state_a = clients
+                    .get(&clienta)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
 
-                let Some(cell_b) = clients.get(&clientb) else {
-                    return Err(TestError::MissingClient);
-                };
-                let mut state_b = cell_b.lock().await;
+                let mut state_b = clients
+                    .get(&clientb)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
 
-                let Some(storage_id) = commands.get(&graph) else {
-                    return Err(TestError::MissingGraph(graph));
-                };
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+
                 let storage_a = state_a.provider().get_storage(storage_id)?;
                 let storage_b = state_b.provider().get_storage(storage_id)?;
                 let head_a = storage_a.get_head()?;
@@ -540,9 +475,50 @@ where
     Ok(())
 }
 
-impl Display for Prior<Id> {
+fn sync<SP: StorageProvider>(
+    request_state: &mut ClientState<TestEngine, SP>,
+    response_state: &mut ClientState<TestEngine, SP>,
+    sink: &mut TestSink,
+    storage_id: &Id,
+) -> Result<usize, TestError> {
+    let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
+    let mut response_syncer = SyncResponder::new();
+    assert!(request_syncer.ready());
+
+    let mut request_trx = request_state.transaction(storage_id);
+
+    if request_syncer.ready() {
+        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = request_syncer.poll(&mut buffer, request_state.provider())?;
+
+        response_syncer.receive(&buffer[..len])?;
+    }
+
+    let mut count = 0;
+    if response_syncer.ready() {
+        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = response_syncer.poll(&mut buffer, response_state.provider())?;
+
+        if len == 0 {
+            return Ok(0);
+        }
+
+        if let Some(cmds) = request_syncer.receive(&buffer[..len])? {
+            count = cmds.len();
+            request_state.add_commands(&mut request_trx, sink, &cmds)?;
+        };
+    }
+
+    request_state.commit(&mut request_trx, sink)?;
+
+    Ok(count)
+}
+
+struct Parent(Prior<Id>);
+
+impl Display for Parent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
+        match self.0 {
             Prior::Merge(a, b) => {
                 write!(f, "Merge({}, {})", &a.short_b58(), &b.short_b58())
             }
@@ -572,7 +548,7 @@ where
                 storage
                     .get_location(&command.id())?
                     .assume("location must exist"),
-                command.parent()
+                Parent(command.parent())
             );
         }
         locations.extend(segment.prior());
@@ -617,11 +593,10 @@ fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
 macro_rules! yaml_test {
     ($backend:ident @ $($name:ident,)*) => {
     $(
-        #[test_log::test(tokio::test)]
-        async fn $name() -> Result<(),TestError> {
-            let test_path = format!("{}/src/tests/{}.test", env!("CARGO_MANIFEST_DIR"), stringify!($name));
-            let _mutex = NETWORK.lock().await;
-            run::<$backend>( &test_path ).await?;
+        #[test_log::test]
+        fn $name() -> Result<(),TestError> {
+            let test_path = format!("{}/tests/dsl/{}.test", env!("CARGO_MANIFEST_DIR"), stringify!($name));
+            run::<$backend>( &test_path )?;
             Ok(())
         }
     )*
@@ -649,8 +624,9 @@ macro_rules! test_suite {
 }
 
 mod memory {
+    use runtime::memory::MemStorageProvider;
+
     use super::*;
-    use crate::memory::MemStorageProvider;
 
     struct MemBackend;
     impl StorageBackend for MemBackend {
@@ -672,10 +648,10 @@ mod memory {
 mod linear {
     // TODO(jdygert): Add in-memory linear io manager
 
+    use runtime::storage::linear::*;
     use tracing::info;
 
     use super::*;
-    use crate::storage::linear::*;
 
     struct LinearBackend {
         tempdir: tempfile::TempDir,

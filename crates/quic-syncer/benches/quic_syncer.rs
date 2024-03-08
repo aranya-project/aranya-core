@@ -13,11 +13,11 @@ use std::{
 use anyhow::Result;
 use criterion::{criterion_group, criterion_main, Criterion};
 use crypto::Rng;
+use quic_syncer::{run_syncer, Syncer};
 use quinn::{Endpoint, ServerConfig};
 use runtime::{
     memory::MemStorageProvider,
     protocol::{TestActions, TestEffect, TestEngine},
-    quic_syncer::{run_syncer, Syncer},
     ClientState, Id, Sink, SyncRequester,
 };
 use tokio::{runtime::Runtime, sync::Mutex as TMutex};

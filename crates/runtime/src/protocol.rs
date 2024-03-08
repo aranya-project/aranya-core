@@ -4,6 +4,7 @@ use core::convert::Infallible;
 
 use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
 use serde::{Deserialize, Serialize};
+use tracing::trace;
 
 use super::{
     alloc, Command, Engine, EngineError, FactPerspective, Id, Perspective, Policy, PolicyId, Prior,
@@ -251,6 +252,7 @@ impl Sink<TestEffect> for TestSink {
     }
 
     fn consume(&mut self, effect: TestEffect) {
+        trace!(?effect, "consume");
         if !self.ignore_expect {
             let expect = self.expect.remove(0);
             assert_eq!(effect, expect);
