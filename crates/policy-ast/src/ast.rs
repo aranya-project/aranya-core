@@ -384,6 +384,8 @@ pub enum Statement {
     Effect(Expression),
     /// A function call (only valid as a statement for finish functions)
     FunctionCall(FunctionCall),
+    /// A `debug_assert` expression for development purposes
+    DebugAssert(Expression),
 }
 
 /// A schema definition for a fact

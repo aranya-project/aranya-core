@@ -85,6 +85,8 @@ pub struct CompileState<'a> {
     statement_context: Vec<StatementContext>,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
+    /// Determines if one compiles with debug functionality
+    is_debug: bool,
 }
 
 impl<'a> CompileState<'a> {
@@ -99,6 +101,7 @@ impl<'a> CompileState<'a> {
             last_locator: 0,
             statement_context: vec![],
             ffi_modules,
+            is_debug: false,
         }
     }
 
@@ -993,6 +996,17 @@ impl<'a> CompileState<'a> {
                         Label::new_temp(&f.identifier),
                     )));
                 }
+                (ast::Statement::DebugAssert(s), _) => {
+                    if self.is_debug {
+                        // Compile the expression within `debug_assert(e)`
+                        self.compile_expression(s)?;
+                        // Now, branch to the next instruction if the top of the stack is true
+                        let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
+                        self.append_instruction(Instruction::Branch(Target::Resolved(next)));
+                        // Append a `Exit::Panic` instruction to exit if the `debug_assert` fails.
+                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                    }
+                }
                 (_, _) => {
                     return Err(CompileError::from_locator(
                         CompileErrorType::InvalidStatement(context),
@@ -1273,16 +1287,60 @@ impl<'a> CompileState<'a> {
     }
 }
 
+/// A builder for creating an instance of [`Machine`]
+pub struct Compiler<'a> {
+    policy: &'a AstPolicy,
+    ffi_modules: &'a [ModuleSchema<'a>],
+    is_debug: bool,
+}
+
+impl<'a> Compiler<'a> {
+    /// Creates a new an instance of [`Compiler`] which compiles into a [`Machine`]
+    pub fn new(policy: &'a AstPolicy) -> Self {
+        Self {
+            policy,
+            ffi_modules: &[],
+            is_debug: cfg!(debug_assertions),
+        }
+    }
+
+    /// Sets the FFI modules
+    pub fn ffi_modules(mut self, ffi_modules: &'a [ModuleSchema<'a>]) -> Self {
+        self.ffi_modules = ffi_modules;
+        self
+    }
+
+    /// Enables or disables debug mode
+    pub fn debug(mut self, is_debug: bool) -> Self {
+        self.is_debug = is_debug;
+        self
+    }
+
+    /// Consumes the builder to create a [`Machine`]
+    pub fn compile(self) -> Result<Machine, CompileError> {
+        let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
+        let machine = Machine::from_codemap(codemap);
+        let mut cs = CompileState {
+            m: machine,
+            wp: 0,
+            c: 0,
+            function_signatures: BTreeMap::new(),
+            last_locator: 0,
+            statement_context: vec![],
+            ffi_modules: self.ffi_modules,
+            is_debug: self.is_debug,
+        };
+        cs.compile(self.policy)?;
+        Ok(cs.into_machine())
+    }
+}
+
 /// Create a new Machine by compiling a policy AST.
 pub fn compile_from_policy(
     policy: &AstPolicy,
     ffi_modules: &[ModuleSchema<'_>],
 ) -> Result<Machine, CompileError> {
-    let codemap = CodeMap::new(&policy.text, policy.ranges.clone());
-    let machine = Machine::from_codemap(codemap);
-    let mut cs = CompileState::new(machine, ffi_modules);
-    cs.compile(policy)?;
-    Ok(cs.into_machine())
+    Compiler::new(policy).ffi_modules(ffi_modules).compile()
 }
 
 /// Checks whether a vector has duplicate values, and returns the first one, if found.

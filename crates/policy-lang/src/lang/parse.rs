@@ -775,6 +775,19 @@ fn parse_return_statement(
     Ok(ast::ReturnStatement { expression })
 }
 
+/// Parse a Rule::effect_statement into an DebugAssert.
+fn parse_debug_assert_statement(
+    item: Pair<'_, Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::Expression, ParseError> {
+    assert_eq!(item.as_rule(), Rule::debug_assert);
+
+    let pc = descend(item);
+    let expression = pc.consume_expression(pratt)?;
+
+    Ok(expression)
+}
+
 /// Parse a list of statements inside a finish block.
 ///
 /// Valid in this context:
@@ -823,6 +836,9 @@ fn parse_statement_list(
             }
             Rule::function_call => {
                 ast::Statement::FunctionCall(parse_function_call(statement, pratt)?)
+            }
+            Rule::debug_assert => {
+                ast::Statement::DebugAssert(parse_debug_assert_statement(statement, pratt)?)
             }
             s => {
                 return Err(ParseError::new(

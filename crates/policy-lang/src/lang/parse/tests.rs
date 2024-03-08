@@ -179,7 +179,7 @@ fn parse_errors() -> Result<(), ParseError> {
                 |                            ^---\n  |\n  = expected function_call, \
                 emit_statement, let_statement, origin_modifier, match_statement, \
                 when_statement, finish_statement, create_statement, update_statement, \
-                delete_statement, effect_statement, or return_statement",
+                delete_statement, effect_statement, return_statement, or debug_assert",
         ),
         rule: Rule::top_level_statement,
     }];

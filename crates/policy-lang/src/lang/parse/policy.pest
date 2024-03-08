@@ -214,6 +214,8 @@ delete_statement = { "delete" ~ fact_literal }
 effect_statement = { "effect" ~ expression }
 // The return statement returns from a function
 return_statement = { "return" ~ expression }
+// debug_assert() optionally runs the contained expression if the debug flag is enabled
+debug_assert = { "debug_assert(" ~ expression ~ ")" }
 
 // ## All statements
 statements = _{
@@ -228,6 +230,7 @@ statements = _{
     delete_statement |
     effect_statement |
     return_statement |
+    debug_assert | // Note that debug_assert must take precendence over function_call due to the overlapping syntax
     function_call
 }
 statement_block = _{ "{" ~ statements* ~ "}" }

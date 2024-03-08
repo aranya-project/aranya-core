@@ -23,7 +23,7 @@ use crate::{
     io::{MachineIO, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
-    ActionContext, CodeMap, CompileError, CompileErrorType, ExitReason, Label, LabelType,
+    ActionContext, CodeMap, CompileError, CompileErrorType, Compiler, ExitReason, Label, LabelType,
     MachineError, OpenContext, PolicyContext, SealContext, Target,
 };
 
@@ -2191,6 +2191,99 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
             Struct::new("Envelope", [("thing".into(), "recall".into())]),
         )?;
         assert_eq!(status, ExitReason::Normal);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_debug_assert() -> anyhow::Result<()> {
+    let text = r#"
+    function get_false() bool {
+        return false
+    }
+
+    action test_debug_assert_failure() {
+        debug_assert(false)
+    }
+
+    action test_debug_assert_failure_expression() {
+        debug_assert(get_false())
+    }
+    
+    function get_true() bool {
+        return true
+    }
+
+    action test_debug_assert_pass() {
+        debug_assert(true)
+        debug_assert(get_true())
+    }
+
+    action test_debug_assert_invalid_type() {
+        debug_assert(1)
+    }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3).map_err(anyhow::Error::msg)?;
+    let mut io = TestIO::new();
+    let machine = Compiler::new(&policy)
+        .debug(true)
+        .compile()
+        .map_err(anyhow::Error::msg)?;
+
+    fn run_action(
+        machine: &Machine,
+        io: &mut TestIO,
+        action_name: &str,
+    ) -> Result<ExitReason, MachineError> {
+        let ctx = dummy_ctx_open(action_name);
+        let mut rs = machine.create_run_state(io, &ctx);
+        rs.call_action(action_name, [Value::None])
+    }
+
+    assert_eq!(
+        run_action(&machine, &mut io, "test_debug_assert_failure")?,
+        ExitReason::Panic
+    );
+
+    assert_eq!(
+        run_action(&machine, &mut io, "test_debug_assert_failure_expression")?,
+        ExitReason::Panic
+    );
+
+    assert_eq!(
+        run_action(&machine, &mut io, "test_debug_assert_pass")?,
+        ExitReason::Normal
+    );
+
+    assert!(matches!(
+        run_action(&machine, &mut io, "test_debug_assert_invalid_type")
+            .err()
+            .unwrap(),
+        MachineError {
+            err_type: MachineErrorType::InvalidType,
+            ..
+        }
+    ));
+
+    let machine_no_debug = Compiler::new(&policy)
+        .debug(false)
+        .compile()
+        .map_err(anyhow::Error::msg)?;
+
+    let test_names = vec![
+        "test_debug_assert_failure",
+        "test_debug_assert_failure_expression",
+        "test_debug_assert_pass",
+        "test_debug_assert_invalid_type",
+    ];
+
+    for test_name in test_names {
+        assert_eq!(
+            run_action(&machine_no_debug, &mut io, test_name)?,
+            ExitReason::Normal
+        );
     }
 
     Ok(())
