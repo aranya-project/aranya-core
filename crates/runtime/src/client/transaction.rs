@@ -62,7 +62,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         &mut self,
         provider: &mut SP,
         engine: &mut E,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
     ) -> Result<(), ClientError> {
         let storage = provider.get_storage(&self.storage_id)?;
 
@@ -135,7 +135,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         commands: &[impl Command<'a>],
         provider: &mut SP,
         engine: &mut E,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
     ) -> Result<bool, ClientError> {
         let mut commands = commands.iter();
 
@@ -187,7 +187,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
         engine: &mut E,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
         command: &impl Command<'a>,
         parent: &Id,
     ) -> Result<(), ClientError> {
@@ -216,7 +216,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
         engine: &mut E,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
         command: &impl Command<'a>,
         left: Id,
         right: Id,
@@ -302,7 +302,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         command: &impl Command<'cmd>,
         engine: &mut E,
         provider: &'sp mut SP,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
     ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
         // Storage ID is the id of the init command by definition.
         if self.storage_id != command.id() {
@@ -346,7 +346,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
     storage: &mut S,
     left: &Location,
     right: &Location,
-    sink: &mut impl Sink<E::Effects>,
+    sink: &mut impl Sink<E::Effect>,
     policy: &E::Policy,
 ) -> Result<S::FactIndex, ClientError> {
     let order = super::braid(storage, left, right)?;
@@ -421,7 +421,7 @@ mod test {
 
     impl Engine for SeqEngine {
         type Policy = SeqPolicy;
-        type Effects = ();
+        type Effect = ();
 
         fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, crate::EngineError> {
             Ok(PolicyId::new(0))
@@ -437,8 +437,8 @@ mod test {
 
     impl Policy for SeqPolicy {
         type Payload<'a> = ();
-        type Actions<'a> = &'a str;
-        type Effects = ();
+        type Action<'a> = &'a str;
+        type Effect = ();
         type Command<'a> = SeqCommand;
 
         fn serial(&self) -> u32 {
@@ -449,7 +449,7 @@ mod test {
             &self,
             command: &impl Command<'a>,
             facts: &mut impl crate::FactPerspective,
-            _sink: &mut impl Sink<Self::Effects>,
+            _sink: &mut impl Sink<Self::Effect>,
         ) -> Result<bool, crate::EngineError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
@@ -469,9 +469,9 @@ mod test {
         fn call_action(
             &self,
             _id: &Id,
-            _action: Self::Actions<'_>,
+            _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
-            _sink: &mut impl Sink<Self::Effects>,
+            _sink: &mut impl Sink<Self::Effect>,
         ) -> Result<bool, crate::EngineError> {
             unimplemented!()
         }

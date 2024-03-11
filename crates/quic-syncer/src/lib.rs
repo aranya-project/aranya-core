@@ -134,7 +134,7 @@ impl Syncer {
     where
         EN: Engine,
         SP: StorageProvider,
-        S: Sink<<EN as Engine>::Effects>,
+        S: Sink<<EN as Engine>::Effect>,
     {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let len = syncer.poll(&mut buffer, client.provider())?;

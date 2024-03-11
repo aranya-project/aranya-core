@@ -117,7 +117,7 @@ impl Default for TestEngine {
 
 impl Engine for TestEngine {
     type Policy = TestPolicy;
-    type Effects = TestEffect;
+    type Effect = TestEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
         Ok(PolicyId::new(policy[0] as usize))
@@ -158,7 +158,7 @@ impl TestPolicy {
         &self,
         policy_command: &WireProtocol,
         facts: &mut impl FactPerspective,
-        sink: &mut impl Sink<<TestPolicy as Policy>::Effects>,
+        sink: &mut impl Sink<<TestPolicy as Policy>::Effect>,
     ) -> Result<bool, EngineError> {
         let passed = match &policy_command {
             WireProtocol::Init(_) => true,
@@ -275,8 +275,8 @@ pub enum TestActions {
 
 impl Policy for TestPolicy {
     type Payload<'a> = (u64, u64);
-    type Effects = TestEffect;
-    type Actions<'a> = TestActions;
+    type Effect = TestEffect;
+    type Action<'a> = TestActions;
     type Command<'a> = TestProtocol<'a>;
 
     fn serial(&self) -> u32 {
@@ -294,7 +294,7 @@ impl Policy for TestPolicy {
         &self,
         command: &impl Command<'a>,
         facts: &mut impl FactPerspective,
-        sink: &mut impl Sink<Self::Effects>,
+        sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError> {
         let policy_command: WireProtocol = from_bytes(command.bytes())?;
         self.call_rule_internal(&policy_command, facts, sink)
@@ -333,9 +333,9 @@ impl Policy for TestPolicy {
     fn call_action(
         &self,
         parent: &Id,
-        action: Self::Actions<'_>,
+        action: Self::Action<'_>,
         facts: &mut impl Perspective,
-        sink: &mut impl Sink<Self::Effects>,
+        sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError> {
         match action {
             TestActions::SetValue(key, value) => {

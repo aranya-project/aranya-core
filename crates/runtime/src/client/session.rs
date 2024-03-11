@@ -60,10 +60,10 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         client: &ClientState<E, SP>,
         effect_sink: &mut ES,
         message_sink: &mut MS,
-        action: <E::Policy as Policy>::Actions<'_>,
+        action: <E::Policy as Policy>::Action<'_>,
     ) -> Result<(), ClientError>
     where
-        ES: Sink<E::Effects>,
+        ES: Sink<E::Effect>,
         MS: for<'b> Sink<&'b [u8]>,
     {
         let policy = client.engine.get_policy(&self.policy_id)?;
@@ -112,7 +112,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
     pub fn receive(
         &mut self,
         client: &ClientState<E, SP>,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
         command_bytes: &[u8],
     ) -> Result<(), ClientError> {
         let command: SessionCommand<'_> =

@@ -120,14 +120,14 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
                 Serialize,
                 Deserialize,
             )]
-            pub enum Effects {
+            pub enum Effect {
                 #(
                     #idents(#idents)
                 ),*
             }
-            impl TryFrom<(String, Vec<KVPair>)> for Effects {
+            impl TryFrom<VmEffect> for Effect {
                 type Error = EffectsParseError;
-                fn try_from((name, fields): VmEffects) -> Result<Self, Self::Error> {
+                fn try_from((name, fields): VmEffect) -> Result<Self, Self::Error> {
                     match name.as_str() {
                         #(
                             #names => fields.try_into().map(Self::#idents),
@@ -197,7 +197,7 @@ pub fn generate_code(policy: &Policy) -> TokenStream {
 
         use policy_vm::{Id, KVPair, Value};
         use runtime::{ClientError, Policy, VmPolicy};
-        pub use runtime::{VmActions, VmEffects};
+        pub use runtime::{VmActions, VmEffect};
         use serde::{Serialize, Deserialize};
 
         #(#structs)*

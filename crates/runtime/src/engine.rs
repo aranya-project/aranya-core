@@ -54,9 +54,9 @@ impl PolicyId {
 
 /// The [`Engine`] manages storing and retrieving [`Policy`].
 pub trait Engine {
-    type Policy: Policy<Effects = Self::Effects>;
+    type Policy: Policy<Effect = Self::Effect>;
 
-    type Effects;
+    type Effect;
 
     /// Add a policy to this runtime.
     ///
@@ -123,8 +123,8 @@ impl From<MergeIds> for (Id, Id) {
 /// as a result.
 pub trait Policy {
     type Payload<'a>;
-    type Actions<'a>;
-    type Effects;
+    type Action<'a>;
+    type Effect;
     type Command<'a>: Command<'a>;
 
     /// Policies have a serial number which can be used to order them.
@@ -139,7 +139,7 @@ pub trait Policy {
         &self,
         command: &impl Command<'a>,
         facts: &mut impl FactPerspective,
-        sink: &mut impl Sink<Self::Effects>,
+        sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError>;
 
     /// Process an action checking each emitted command against the policy and producing
@@ -148,9 +148,9 @@ pub trait Policy {
     fn call_action(
         &self,
         parent_id: &Id,
-        action: Self::Actions<'_>,
+        action: Self::Action<'_>,
         facts: &mut impl Perspective,
-        sink: &mut impl Sink<Self::Effects>,
+        sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError>;
 
     /// Deserialize a bytes in to a command

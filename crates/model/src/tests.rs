@@ -246,7 +246,7 @@ impl TestModel {
 }
 
 impl Model for TestModel {
-    type Effects = Vec<ModelEffect>;
+    type Effect = Vec<ModelEffect>;
     type Action<'a> = (&'a str, Cow<'a, [Value]>);
 
     // NOTE: Metrics cannot be stores until a graph is initialized, a `proxy_graph_id` is required to store metrics.
@@ -277,7 +277,7 @@ impl Model for TestModel {
         &mut self,
         proxy_id: ProxyGraphID,
         client_proxy_id: ProxyClientID,
-    ) -> Result<Self::Effects, ModelError> {
+    ) -> Result<Self::Effect, ModelError> {
         if self.storage_ids.get(&(client_proxy_id, proxy_id)).is_some() {
             return Err(ModelError::DuplicateGraph);
         }
@@ -315,7 +315,7 @@ impl Model for TestModel {
         client_proxy_id: ProxyClientID,
         graph_proxy_id: ProxyGraphID,
         action: Self::Action<'_>,
-    ) -> Result<Self::Effects, ModelError> {
+    ) -> Result<Self::Effect, ModelError> {
         let action_exc_time = Instant::now();
 
         let storage_id = self

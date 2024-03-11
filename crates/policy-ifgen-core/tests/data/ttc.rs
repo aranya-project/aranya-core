@@ -5,7 +5,7 @@ use alloc::{borrow::Cow, string::String, vec, vec::Vec};
 use core::fmt;
 use policy_vm::{Id, KVPair, Value};
 use runtime::{ClientError, Policy, VmPolicy};
-pub use runtime::{VmActions, VmEffects};
+pub use runtime::{VmActions, VmEffect};
 use serde::{Serialize, Deserialize};
 /// NewUser policy struct.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,7 +27,7 @@ pub struct User {
 }
 /// Enum of policy effects that can occur in response to a policy action.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub enum Effects {
+pub enum Effect {
     TtcTeamCreated(TtcTeamCreated),
     OwnerAdded(OwnerAdded),
     AdminAdded(AdminAdded),
@@ -42,9 +42,9 @@ pub enum Effects {
     ApsLabelRevoked(ApsLabelRevoked),
     ApsBidiChannelCreated(ApsBidiChannelCreated),
 }
-impl TryFrom<(String, Vec<KVPair>)> for Effects {
+impl TryFrom<VmEffect> for Effect {
     type Error = EffectsParseError;
-    fn try_from((name, fields): VmEffects) -> Result<Self, Self::Error> {
+    fn try_from((name, fields): VmEffect) -> Result<Self, Self::Error> {
         match name.as_str() {
             "TtcTeamCreated" => fields.try_into().map(Self::TtcTeamCreated),
             "OwnerAdded" => fields.try_into().map(Self::OwnerAdded),

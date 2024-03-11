@@ -103,7 +103,7 @@ where
         &mut self,
         policy_data: &[u8],
         payload: <E::Policy as Policy>::Payload<'_>,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
     ) -> Result<Id, ClientError> {
         let policy_id = self.engine.add_policy(policy_data)?;
         let policy = self.engine.get_policy(&policy_id)?;
@@ -125,7 +125,7 @@ where
     pub fn commit(
         &mut self,
         trx: &mut Transaction<SP, E>,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
     ) -> Result<(), ClientError> {
         trx.commit(&mut self.provider, &mut self.engine, sink)
     }
@@ -135,7 +135,7 @@ where
     pub fn add_commands<'cmd>(
         &mut self,
         trx: &mut Transaction<SP, E>,
-        sink: &mut impl Sink<E::Effects>,
+        sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command<'cmd>],
     ) -> Result<(), ClientError> {
         trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
@@ -146,8 +146,8 @@ where
     pub fn action(
         &mut self,
         storage_id: &Id,
-        sink: &mut impl Sink<E::Effects>,
-        action: <E::Policy as Policy>::Actions<'_>,
+        sink: &mut impl Sink<E::Effect>,
+        action: <E::Policy as Policy>::Action<'_>,
     ) -> Result<(), ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
 

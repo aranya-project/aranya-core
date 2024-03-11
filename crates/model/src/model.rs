@@ -35,7 +35,7 @@ impl<E> ModelEngine<E> {
 
 impl<E: crypto::Engine> Engine for ModelEngine<E> {
     type Policy = VmPolicy<E>;
-    type Effects = ModelEffect;
+    type Effect = ModelEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
         // TODO: (Scott) Implement once `add_policy` method is implemented in the policy_vm
@@ -103,7 +103,7 @@ pub type ProxyGraphID = u64;
 
 /// The [`Model`] manages adding clients, graphs, actions, and syncing client state.
 pub trait Model {
-    type Effects;
+    type Effect;
     type Action<'a>;
 
     fn add_client(
@@ -116,14 +116,14 @@ pub trait Model {
         &mut self,
         proxy_id: ProxyGraphID,
         client_proxy_id: ProxyClientID,
-    ) -> Result<Self::Effects, ModelError>;
+    ) -> Result<Self::Effect, ModelError>;
 
     fn action(
         &mut self,
         client_proxy_id: ProxyClientID,
         graph_proxy_id: ProxyGraphID,
         action: Self::Action<'_>,
-    ) -> Result<Self::Effects, ModelError>;
+    ) -> Result<Self::Effect, ModelError>;
 
     fn sync(
         &mut self,

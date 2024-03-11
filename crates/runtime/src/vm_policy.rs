@@ -196,14 +196,14 @@ impl<E: crypto::Engine> VmPolicy<E> {
 pub type VmActions<'a> = (&'a str, Cow<'a, [Value]>);
 
 /// [`VmPolicy`]'s effects.
-pub type VmEffects = (String, Vec<KVPair>);
+pub type VmEffect = (String, Vec<KVPair>);
 
 impl<E: crypto::Engine> Policy for VmPolicy<E> {
     type Payload<'a> = (String, Vec<u8>);
 
-    type Actions<'a> = VmActions<'a>;
+    type Action<'a> = VmActions<'a>;
 
-    type Effects = VmEffects;
+    type Effect = VmEffect;
 
     type Command<'a> = VmProtocol<'a>;
 
@@ -217,7 +217,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         &self,
         command: &impl Command<'a>,
         facts: &mut impl FactPerspective,
-        sink: &mut impl Sink<Self::Effects>,
+        sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError> {
         let unpacked: VmProtocolData = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
@@ -265,9 +265,9 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
     fn call_action(
         &self,
         parent: &Id,
-        (name, args): Self::Actions<'_>,
+        (name, args): Self::Action<'_>,
         facts: &mut impl Perspective,
-        sink: &mut impl Sink<Self::Effects>,
+        sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError> {
         let emit_stack = {
             let mut ffis = self.ffis.lock();

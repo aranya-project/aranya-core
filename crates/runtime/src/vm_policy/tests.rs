@@ -172,7 +172,7 @@ impl TestEngine {
 
 impl Engine for TestEngine {
     type Policy = VmPolicy<DefaultEngine<Rng>>;
-    type Effects = TestEffect;
+    type Effect = TestEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
         Ok(PolicyId::new(policy[0] as usize))
