@@ -68,7 +68,7 @@ runs:
     - name: Install Rust
       run: |
         cat<<EOF>>rustup.sh.sha256
-        be3535b3033ff5e0ecc4d589a35d3656f681332f860c5fd6684859970165ddcc  rustup.sh
+        7b826d2c84318cf44897da29225cb9bc0b4e859b05568b5979bf2cc264840d05  rustup.sh
         EOF
         wget 'https://sh.rustup.rs' -O rustup.sh
         shasum -c rustup.sh.sha256

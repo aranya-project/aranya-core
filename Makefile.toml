@@ -42,12 +42,6 @@ category = "security"
 install_crate = { crate_name = "cargo-audit", version = "0.18.3", binary = "cargo-audit", test_arg = "-V" }
 command = "cargo"
 args = ["audit"]
-dependencies = ["gen-lockfile"]
-
-[tasks.gen-lockfile]
-private = true
-command = "cargo"
-args = ["generate-lockfile"]
 
 [tasks.cargo-deny]
 category = "security"
