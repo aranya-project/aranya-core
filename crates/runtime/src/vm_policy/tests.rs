@@ -265,7 +265,7 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     let expected_value = vec![KVPair::new("y", Value::Int(4))];
     // Get a perspective for the head Id we got earlier. It should contain the facts we
     // seek.
-    let perspective = storage.get_fact_perspective(&head).expect("perspective");
+    let perspective = storage.get_fact_perspective(head).expect("perspective");
     // Query the perspective using our key.
     let result = perspective
         .query(&key_vec)
@@ -415,7 +415,7 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
     .expect("key serialization");
 
     let expected_value = vec![KVPair::new("y", Value::Int(4))];
-    let perspective = storage.get_fact_perspective(&head).expect("perspective");
+    let perspective = storage.get_fact_perspective(head).expect("perspective");
     let result = perspective
         .query(&key_vec)
         .expect("query")

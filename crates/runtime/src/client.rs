@@ -153,10 +153,10 @@ where
 
         let head = storage.get_head()?;
 
-        let parent = storage.get_command_id(&head)?;
+        let parent = storage.get_command_id(head)?;
 
         let mut perspective = storage
-            .get_linear_perspective(&head)?
+            .get_linear_perspective(head)?
             .assume("can always get perspective at head")?;
 
         let policy_id = perspective.policy();
@@ -203,8 +203,8 @@ where
 /// Enforces deterministic ordering for a set of [`Command`]s in a graph.
 pub fn braid<S: Storage>(
     storage: &mut S,
-    left: &Location,
-    right: &Location,
+    left: Location,
+    right: Location,
 ) -> Result<Vec<Location>, ClientError> {
     struct Strand<S> {
         key: (Priority, Id),
@@ -217,12 +217,12 @@ pub fn braid<S: Storage>(
             storage: &mut impl Storage<Segment = S>,
             location: Location,
         ) -> Result<Self, ClientError> {
-            let segment = storage.get_segment(&location)?;
+            let segment = storage.get_segment(location)?;
 
             let key = {
                 let cmd = segment
-                    .get_command(&location)
-                    .ok_or_else(|| StorageError::CommandOutOfBounds(location.clone()))?;
+                    .get_command(location)
+                    .ok_or_else(|| StorageError::CommandOutOfBounds(location))?;
                 (cmd.priority(), cmd.id())
             };
 
@@ -254,18 +254,18 @@ pub fn braid<S: Storage>(
     let mut strands = BinaryHeap::<Strand<S::Segment>>::new();
 
     for head in [left, right] {
-        strands.push(Strand::new(storage, head.clone())?);
+        strands.push(Strand::new(storage, head)?);
     }
 
     let mut braid = Vec::new();
 
     // Get latest command
-    while let Some(mut strand) = strands.pop() {
-        braid.push(strand.next.clone());
+    while let Some(strand) = strands.pop() {
+        braid.push(strand.next);
 
         // Consume another command off the strand
-        let prior = if strand.next.previous() {
-            Prior::Single(strand.next)
+        let prior = if let Some(previous) = strand.next.previous() {
+            Prior::Single(previous)
         } else {
             strand.segment.prior()
         };
@@ -277,7 +277,7 @@ pub fn braid<S: Storage>(
         // Continue processing prior if not accessible from other strands.
         'location: for location in prior {
             for other in &strands {
-                if storage.is_ancestor(&location, &other.segment)? {
+                if storage.is_ancestor(location, &other.segment)? {
                     continue 'location;
                 }
             }

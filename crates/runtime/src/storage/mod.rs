@@ -19,7 +19,7 @@ pub mod memory;
 /// The maximum size of a serialized message
 pub const MAX_COMMAND_LENGTH: usize = 2048;
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Location {
     pub segment: usize,
     pub command: usize,
@@ -42,20 +42,20 @@ impl Location {
         Location { segment, command }
     }
 
-    /// If this is not the first command in a segment, update the location to
-    /// point to the previous. Returns true on success or false if current
-    /// location is the first.
-    pub fn previous(&mut self) -> bool {
+    /// If this is not the first command in a segment, return a location
+    /// pointing to the previous command.
+    #[must_use]
+    pub fn previous(mut self) -> Option<Self> {
         if let Some(n) = usize::checked_sub(self.command, 1) {
             self.command = n;
-            true
+            Some(self)
         } else {
-            false
+            None
         }
     }
 
     /// Returns true if other location is in the same segment.
-    pub fn same_segment(&self, other: &Location) -> bool {
+    pub fn same_segment(self, other: Location) -> bool {
         self.segment == other.segment
     }
 }
@@ -163,21 +163,21 @@ pub trait Storage {
     /// Returns the location of Command with id if it has been stored by
     /// searching from the head.
     fn get_location(&self, id: &Id) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(&self.get_head()?, id)
+        self.get_location_from(self.get_head()?, id)
     }
 
     /// Returns the location of Command with id by searching from the given location.
     fn get_location_from(
         &self,
-        start: &Location,
+        start: Location,
         id: &Id,
     ) -> Result<Option<Location>, StorageError> {
         let mut queue = alloc::collections::VecDeque::new();
-        queue.push_back(start.clone());
+        queue.push_back(start);
         while let Some(loc) = queue.pop_front() {
-            let seg = self.get_segment(&loc)?;
+            let seg = self.get_segment(loc)?;
             for (cmd, i) in seg
-                .get_from(&Location::new(loc.segment, 0))
+                .get_from(Location::new(loc.segment, 0))
                 .iter()
                 .zip(0..=loc.command)
             {
@@ -191,30 +191,29 @@ pub trait Storage {
     }
 
     /// Returns the ID of the command at the location.
-    fn get_command_id(&self, location: &Location) -> Result<Id, StorageError>;
+    fn get_command_id(&self, location: Location) -> Result<Id, StorageError>;
 
     /// Returns a linear perspective at the given location.
     fn get_linear_perspective(
         &self,
-        parent: &Location,
+        parent: Location,
     ) -> Result<Option<Self::Perspective>, StorageError>;
 
     /// Returns a fact perspective at the given location, intended for evaluating braids.
     /// The fact perspective will include the facts of the command at the given location.
-    fn get_fact_perspective(&self, first: &Location)
-        -> Result<Self::FactPerspective, StorageError>;
+    fn get_fact_perspective(&self, first: Location) -> Result<Self::FactPerspective, StorageError>;
 
     /// Returns a merge perspective based on the given locations with the braid as prior facts.
     fn new_merge_perspective(
         &self,
-        left: &Location,
-        right: &Location,
+        left: Location,
+        right: Location,
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError>;
 
     /// Returns the segment at the given location.
-    fn get_segment(&self, location: &Location) -> Result<Self::Segment, StorageError>;
+    fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError>;
 
     /// Returns the head of the graph.
     fn get_head(&self) -> Result<Location, StorageError>;
@@ -235,7 +234,7 @@ pub trait Storage {
     /// Determine whether the given location is an ancestor of the given segment.
     fn is_ancestor(
         &self,
-        search_location: &Location,
+        search_location: Location,
         segment: &Self::Segment,
     ) -> Result<bool, StorageError> {
         let mut queue = alloc::collections::VecDeque::new();
@@ -246,7 +245,7 @@ pub trait Storage {
             {
                 return Ok(true);
             }
-            let segment = self.get_segment(&location)?;
+            let segment = self.get_segment(location)?;
             queue.extend(segment.prior());
         }
         Ok(false)
@@ -281,7 +280,7 @@ pub trait Segment {
     fn first_location(&self) -> Location;
 
     /// Returns true if the segment contains the location.
-    fn contains(&self, location: &Location) -> bool;
+    fn contains(&self, location: Location) -> bool;
 
     /// Returns the id for the policy used for this segment.
     fn policy(&self) -> PolicyId;
@@ -290,10 +289,10 @@ pub trait Segment {
     fn prior(&self) -> Prior<Location>;
 
     /// Returns the command at the given location.
-    fn get_command<'a>(&'a self, location: &Location) -> Option<Self::Command<'a>>;
+    fn get_command(&self, location: Location) -> Option<Self::Command<'_>>;
 
     /// Returns an iterator of commands starting at the given location.
-    fn get_from<'a>(&'a self, location: &Location) -> Vec<Self::Command<'a>>;
+    fn get_from(&self, location: Location) -> Vec<Self::Command<'_>>;
 
     /// Get the fact index associated with this segment.
     fn facts(&self) -> Result<Self::FactIndex, StorageError>;
@@ -303,7 +302,9 @@ pub trait Segment {
         I: IntoIterator,
         I::Item: AsRef<Location>,
     {
-        locations.into_iter().any(|loc| self.contains(loc.as_ref()))
+        locations
+            .into_iter()
+            .any(|loc| self.contains(*loc.as_ref()))
     }
 }
 

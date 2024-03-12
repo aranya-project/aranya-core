@@ -49,7 +49,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             return Ok(Some(found));
         }
         // Search from our temporary heads.
-        for head in self.heads.values() {
+        for &head in self.heads.values() {
             if let Some(found) = storage.get_location_from(head, id)? {
                 return Ok(Some(found));
             }
@@ -80,7 +80,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let mut merging_head = false;
         while let Some((left_id, mut left_loc)) = heads.pop_front() {
             if let Some((right_id, mut right_loc)) = heads.pop_front() {
-                let (policy, policy_id) = choose_policy(storage, engine, &left_loc, &right_loc)?;
+                let (policy, policy_id) = choose_policy(storage, engine, left_loc, right_loc)?;
 
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let merge_ids = MergeIds::new(left_id, right_id).assume("merging different ids")?;
@@ -89,11 +89,10 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 }
                 let command = policy.merge(&mut buffer, merge_ids)?;
 
-                let braid =
-                    make_braid_segment::<_, E>(storage, &left_loc, &right_loc, sink, policy)?;
+                let braid = make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
 
                 let mut perspective = storage
-                    .new_merge_perspective(&left_loc, &right_loc, policy_id, braid)?
+                    .new_merge_perspective(left_loc, right_loc, policy_id, braid)?
                     .assume("trx heads should exist in storage")?;
                 perspective.add_command(&command)?;
 
@@ -101,7 +100,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
                 heads.push_back((segment.head().id(), segment.head_location()));
             } else {
-                let segment = storage.get_segment(&left_loc)?;
+                let segment = storage.get_segment(left_loc)?;
                 // Try to commit. If it fails with `HeadNotAncestor`, we know we
                 // need to merge with the graph head.
                 match storage.commit(segment) {
@@ -116,7 +115,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                         heads.push_back((left_id, left_loc));
 
                         let head_loc = storage.get_head()?;
-                        let head_id = storage.get_command_id(&head_loc)?;
+                        let head_id = storage.get_command_id(head_loc)?;
                         heads.push_back((head_id, head_loc));
                     }
                     Err(e) => return Err(e.into()),
@@ -234,13 +233,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             .locate(storage, &right)?
             .ok_or(ClientError::NoSuchParent(right))?;
 
-        let (policy, policy_id) = choose_policy(storage, engine, &left_loc, &right_loc)?;
+        let (policy, policy_id) = choose_policy(storage, engine, left_loc, right_loc)?;
 
         // Braid commands from left and right into an ordered sequence.
-        let braid = make_braid_segment::<_, E>(storage, &left_loc, &right_loc, sink, policy)?;
+        let braid = make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
 
         let mut perspective = storage
-            .new_merge_perspective(&left_loc, &right_loc, policy_id, braid)?
+            .new_merge_perspective(left_loc, right_loc, policy_id, braid)?
             .assume(
                 "we already found left and right locations above and we only call this with merge command",
             )?;
@@ -287,7 +286,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Get a new perspective and store it in the transaction.
         let p = self.perspective.insert(
             storage
-                .get_linear_perspective(&loc)?
+                .get_linear_perspective(loc)?
                 .assume("location should already be in storage")?,
         );
 
@@ -344,20 +343,20 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 /// Run the braid algorithm and evaluate the sequence to create a braided fact index.
 fn make_braid_segment<S: Storage, E: Engine>(
     storage: &mut S,
-    left: &Location,
-    right: &Location,
+    left: Location,
+    right: Location,
     sink: &mut impl Sink<E::Effect>,
     policy: &E::Policy,
 ) -> Result<S::FactIndex, ClientError> {
     let order = super::braid(storage, left, right)?;
 
-    let (first, rest) = order.split_first().assume("braid is non-empty")?;
+    let (&first, rest) = order.split_first().assume("braid is non-empty")?;
 
     let mut braid_perspective = storage.get_fact_perspective(first)?;
 
     sink.begin();
 
-    for location in rest {
+    for &location in rest {
         let segment = storage.get_segment(location)?;
         let command = segment
             .get_command(location)
@@ -379,8 +378,8 @@ fn make_braid_segment<S: Storage, E: Engine>(
 fn choose_policy<'a, E: Engine>(
     storage: &impl Storage,
     engine: &'a E,
-    left: &Location,
-    right: &Location,
+    left: Location,
+    right: Location,
 ) -> Result<(&'a E::Policy, PolicyId), ClientError> {
     Ok(core::cmp::max_by_key(
         get_policy(storage, engine, left)?,
@@ -392,7 +391,7 @@ fn choose_policy<'a, E: Engine>(
 fn get_policy<'a, E: Engine>(
     storage: &impl Storage,
     engine: &'a E,
-    location: &Location,
+    location: Location,
 ) -> Result<(&'a E::Policy, PolicyId), ClientError> {
     let segment = storage.get_segment(location)?;
     let policy_id = segment.policy();
@@ -678,7 +677,7 @@ mod test {
     fn lookup(storage: &impl Storage, key: &[u8]) -> Option<Box<[u8]>> {
         use crate::FactPerspective;
         let head = storage.get_head().unwrap();
-        let p = storage.get_fact_perspective(&head).unwrap();
+        let p = storage.get_fact_perspective(head).unwrap();
         p.query(key).unwrap()
     }
 

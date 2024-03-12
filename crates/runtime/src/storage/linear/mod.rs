@@ -146,7 +146,7 @@ impl<R> LinearPerspective<R> {
         prior_facts: FactPerspectivePrior<R>,
     ) -> Self {
         Self {
-            prior: prior.clone(),
+            prior,
             parents,
             policy,
             facts: LinearFactPerspective::new(prior_facts),
@@ -366,26 +366,26 @@ impl<F: Write> Storage for LinearStorage<F> {
     type Segment = LinearSegment<F::ReadOnly>;
     type FactIndex = LinearFactIndex<F::ReadOnly>;
 
-    fn get_command_id(&self, location: &Location) -> Result<Id, StorageError> {
+    fn get_command_id(&self, location: Location) -> Result<Id, StorageError> {
         let seg = self.get_segment(location)?;
         let cmd = seg
             .get_command(location)
-            .ok_or_else(|| StorageError::CommandOutOfBounds(location.clone()))?;
+            .ok_or(StorageError::CommandOutOfBounds(location))?;
         Ok(cmd.id())
     }
 
     fn get_linear_perspective(
         &self,
-        parent: &Location,
+        parent: Location,
     ) -> Result<Option<Self::Perspective>, StorageError> {
         let segment = self.get_segment(parent)?;
         let parent_id = segment
             .get_command(parent)
-            .ok_or_else(|| StorageError::CommandOutOfBounds(parent.clone()))?
+            .ok_or(StorageError::CommandOutOfBounds(parent))?
             .id();
 
         let policy = segment.repr.policy;
-        let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == &segment.head_location() {
+        let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == segment.head_location() {
             FactPerspectivePrior::FactIndex {
                 offset: segment.repr.facts,
                 reader: self.writer.readonly(),
@@ -408,7 +408,7 @@ impl<F: Write> Storage for LinearStorage<F> {
                 FactPerspectivePrior::FactPerspective(Box::new(facts))
             }
         };
-        let prior = Prior::Single(parent.clone());
+        let prior = Prior::Single(parent);
 
         let perspective =
             LinearPerspective::new(prior, Prior::Single(parent_id), policy, prior_facts);
@@ -418,11 +418,11 @@ impl<F: Write> Storage for LinearStorage<F> {
 
     fn get_fact_perspective(
         &self,
-        location: &Location,
+        location: Location,
     ) -> Result<Self::FactPerspective, StorageError> {
         let segment = self.get_segment(location)?;
 
-        if location == &segment.head_location() {
+        if location == segment.head_location() {
             return Ok(LinearFactPerspective::new(
                 FactPerspectivePrior::FactIndex {
                     offset: segment.repr.facts,
@@ -448,8 +448,8 @@ impl<F: Write> Storage for LinearStorage<F> {
 
     fn new_merge_perspective(
         &self,
-        left: &Location,
-        right: &Location,
+        left: Location,
+        right: Location,
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError> {
@@ -461,11 +461,11 @@ impl<F: Write> Storage for LinearStorage<F> {
         let parent = Prior::Merge(
             left_segment
                 .get_command(left)
-                .ok_or_else(|| StorageError::CommandOutOfBounds(left.clone()))?
+                .ok_or(StorageError::CommandOutOfBounds(left))?
                 .id(),
             right_segment
                 .get_command(right)
-                .ok_or_else(|| StorageError::CommandOutOfBounds(right.clone()))?
+                .ok_or(StorageError::CommandOutOfBounds(right))?
                 .id(),
         );
 
@@ -473,7 +473,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             return Err(StorageError::PolicyMismatch);
         }
 
-        let prior = Prior::Merge(left.clone(), right.clone());
+        let prior = Prior::Merge(left, right);
 
         let perspective = LinearPerspective::new(
             prior,
@@ -488,7 +488,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         Ok(Some(perspective))
     }
 
-    fn get_segment(&self, location: &Location) -> Result<Self::Segment, StorageError> {
+    fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
         let reader = self.writer.readonly();
         let repr = reader.load(
             location
@@ -500,11 +500,11 @@ impl<F: Write> Storage for LinearStorage<F> {
     }
 
     fn get_head(&self) -> Result<Location, StorageError> {
-        Ok(self.root.head.clone())
+        Ok(self.root.head)
     }
 
     fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
-        if !self.is_ancestor(&self.root.head, &segment)? {
+        if !self.is_ancestor(self.root.head, &segment)? {
             return Err(StorageError::HeadNotAncestor);
         }
 
@@ -621,7 +621,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         Location::new(self.repr.offset, 0)
     }
 
-    fn contains(&self, location: &Location) -> bool {
+    fn contains(&self, location: Location) -> bool {
         location.segment == self.repr.offset && location.command < self.repr.commands.len()
     }
 
@@ -630,10 +630,10 @@ impl<R: Read> Segment for LinearSegment<R> {
     }
 
     fn prior(&self) -> Prior<Location> {
-        self.repr.prior.clone()
+        self.repr.prior
     }
 
-    fn get_command<'a>(&'a self, location: &Location) -> Option<Self::Command<'a>> {
+    fn get_command(&self, location: Location) -> Option<Self::Command<'_>> {
         if self.repr.offset != location.segment {
             return None;
         }
@@ -652,7 +652,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         })
     }
 
-    fn get_from<'a>(&'a self, location: &Location) -> Vec<Self::Command<'a>> {
+    fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
         if self.repr.offset != location.segment {
             // TODO(jdygert): Result?
             return Vec::new();
@@ -662,7 +662,7 @@ impl<R: Read> Segment for LinearSegment<R> {
         (location.command..self.repr.commands.len())
             .map(|c| Location::new(location.segment, c))
             .map(|loc| {
-                self.get_command(&loc)
+                self.get_command(loc)
                     .expect("constructed location is valid")
             })
             .collect()

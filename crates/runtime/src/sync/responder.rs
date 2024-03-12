@@ -236,19 +236,19 @@ impl SyncResponder {
         while !heads.is_empty() {
             let current = mem::take(&mut heads);
             'heads: for head in current {
-                let segment = storage.get_segment(&head)?;
+                let segment = storage.get_segment(head)?;
                 if segment.contains_any(&result) {
                     continue 'heads;
                 }
 
-                for location in &have_locations {
+                for &location in &have_locations {
                     if segment.contains(location) {
-                        if location != &segment.head_location() {
+                        if location != segment.head_location() {
                             if result.is_full() {
                                 result.pop_back();
                             }
                             result
-                                .push_front(location.clone())
+                                .push_front(location)
                                 .ok()
                                 .assume("too many segments")?;
                         }
@@ -310,7 +310,7 @@ impl SyncResponder {
                 break;
             }
             index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
-            let Some(location) = self.to_send.get(i) else {
+            let Some(&location) = self.to_send.get(i) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
             };

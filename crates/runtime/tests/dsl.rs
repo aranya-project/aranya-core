@@ -539,8 +539,8 @@ where
             continue;
         }
         visited.insert(loc.segment);
-        let segment = storage.get_segment(&loc)?;
-        let commands = segment.get_from(&segment.first_location());
+        let segment = storage.get_segment(loc)?;
+        let commands = segment.get_from(segment.first_location());
         for command in commands.iter().rev() {
             println!(
                 "id: {} location {:?} parent: {}",
@@ -562,14 +562,14 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = Id> + '_ {
     let mut segment = None;
 
     iter::from_fn(move || {
-        let mut loc = stack.pop()?;
+        let loc = stack.pop()?;
 
-        let seg = segment.get_or_insert_with(|| storage.get_segment(&loc).unwrap());
-        let id = seg.get_command(&loc).unwrap().id();
+        let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
+        let id = seg.get_command(loc).unwrap().id();
 
-        if loc.previous() {
+        if let Some(previous) = loc.previous() {
             // We will visit the segment again.
-            stack.push(loc);
+            stack.push(previous);
         } else {
             // We have exhausted this segment.
             stack.extend(seg.prior());

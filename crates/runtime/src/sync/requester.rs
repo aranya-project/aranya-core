@@ -341,7 +341,7 @@ impl SyncRequester<'_> {
                 while commands.len() < COMMAND_SAMPLE_MAX && !current.is_empty() {
                     let mut next = alloc::vec::Vec::new(); //BUG not constant memory
 
-                    'current: for location in &current {
+                    'current: for &location in &current {
                         let segment = storage.get_segment(location)?;
 
                         let head = segment.head();

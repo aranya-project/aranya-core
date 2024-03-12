@@ -161,25 +161,25 @@ impl Storage for MemStorage {
     type FactIndex = MemFactIndex;
     type FactPerspective = MemFactPerspective;
 
-    fn get_command_id(&self, location: &Location) -> Result<Id, StorageError> {
+    fn get_command_id(&self, location: Location) -> Result<Id, StorageError> {
         let segment = self.get_segment(location)?;
         let command = segment
             .get_command(location)
-            .ok_or_else(|| StorageError::CommandOutOfBounds(location.clone()))?;
+            .ok_or(StorageError::CommandOutOfBounds(location))?;
         Ok(command.id())
     }
 
     fn get_linear_perspective(
         &self,
-        parent: &Location,
+        parent: Location,
     ) -> Result<Option<Self::Perspective>, StorageError> {
         let segment = self.get_segment(parent)?;
         if !segment.contains(parent) {
-            return Err(StorageError::CommandOutOfBounds(parent.clone()));
+            return Err(StorageError::CommandOutOfBounds(parent));
         }
 
         let policy = segment.policy;
-        let prior_facts: FactPerspectivePrior = if parent == &segment.head_location() {
+        let prior_facts: FactPerspectivePrior = if parent == segment.head_location() {
             segment.facts.clone().into()
         } else {
             let mut facts = MemFactPerspective::new(segment.facts.prior.clone().into());
@@ -192,7 +192,7 @@ impl Storage for MemStorage {
                 facts.into()
             }
         };
-        let prior = Prior::Single(parent.clone());
+        let prior = Prior::Single(parent);
 
         let perspective = MemPerspective::new(prior, policy, prior_facts);
 
@@ -201,11 +201,11 @@ impl Storage for MemStorage {
 
     fn get_fact_perspective(
         &self,
-        location: &Location,
+        location: Location,
     ) -> Result<Self::FactPerspective, StorageError> {
         let segment = self.get_segment(location)?;
 
-        if location == &segment.head_location() {
+        if location == segment.head_location() {
             return Ok(MemFactPerspective::new(segment.facts.clone().into()));
         }
 
@@ -219,8 +219,8 @@ impl Storage for MemStorage {
 
     fn new_merge_perspective(
         &self,
-        left: &Location,
-        right: &Location,
+        left: Location,
+        right: Location,
         policy_id: PolicyId,
         braid: MemFactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError> {
@@ -234,23 +234,22 @@ impl Storage for MemStorage {
             return Err(StorageError::PolicyMismatch);
         }
 
-        let prior = Prior::Merge(left.clone(), right.clone());
+        let prior = Prior::Merge(left, right);
 
         let perspective = MemPerspective::new(prior, policy_id, braid.into());
 
         Ok(Some(perspective))
     }
 
-    fn get_segment(&self, location: &Location) -> Result<MemSegment, StorageError> {
+    fn get_segment(&self, location: Location) -> Result<MemSegment, StorageError> {
         self.segments
             .get(location.segment)
-            .ok_or_else(|| StorageError::SegmentOutOfBounds(location.clone()))
+            .ok_or(StorageError::SegmentOutOfBounds(location))
             .cloned()
     }
 
     fn get_head(&self) -> Result<Location, StorageError> {
-        let head = self.head.as_ref().assume("storage has head after init")?;
-        Ok(head.clone())
+        Ok(self.head.assume("storage has head after init")?)
     }
 
     fn write(&mut self, update: Self::Perspective) -> Result<Self::Segment, StorageError> {
@@ -297,7 +296,7 @@ impl Storage for MemStorage {
     fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
         // TODO(jdygert): ensure segment belongs to self?
 
-        if let Some(head) = &self.head {
+        if let Some(head) = self.head {
             if !self.is_ancestor(head, &segment)? {
                 return Err(StorageError::HeadNotAncestor);
             }
@@ -406,7 +405,7 @@ impl Segment for MemSegment {
         }
     }
 
-    fn contains(&self, location: &Location) -> bool {
+    fn contains(&self, location: Location) -> bool {
         location.segment == self.index
     }
 
@@ -415,10 +414,10 @@ impl Segment for MemSegment {
     }
 
     fn prior(&self) -> Prior<Location> {
-        self.prior.clone()
+        self.prior
     }
 
-    fn get_command<'a>(&'a self, location: &Location) -> Option<&'a MemCommand> {
+    fn get_command(&self, location: Location) -> Option<&MemCommand> {
         if location.segment != self.index {
             return None;
         }
@@ -426,7 +425,7 @@ impl Segment for MemSegment {
         self.commands.get(location.command).map(|d| &d.command)
     }
 
-    fn get_from<'a>(&'a self, location: &Location) -> Vec<&'a MemCommand> {
+    fn get_from(&self, location: Location) -> Vec<&MemCommand> {
         if location.segment != self.index {
             return Vec::new();
         }

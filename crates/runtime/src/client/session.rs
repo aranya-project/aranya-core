@@ -34,10 +34,10 @@ impl<SP: StorageProvider, E> Session<SP, E> {
     pub(super) fn new(provider: &mut SP, storage_id: Id) -> Result<Self, ClientError> {
         let storage = provider.get_storage(&storage_id)?;
         let head_loc = storage.get_head()?;
-        let seg = storage.get_segment(&head_loc)?;
+        let seg = storage.get_segment(head_loc)?;
         let head = seg.head().id();
         let perspective = storage
-            .get_linear_perspective(&head_loc)?
+            .get_linear_perspective(head_loc)?
             .assume("can get perspective at head")?;
 
         let result = Self {
