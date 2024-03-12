@@ -22,8 +22,8 @@ use crypto::{
     },
     engine::WrappedKey,
     keystore::{memstore, Entry, Occupied, Vacant},
-    EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id, IdentityKey, KeyStore, Rng,
-    UserId,
+    CipherSuite, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id, IdentityKey,
+    KeyStore, Rng, UserId,
 };
 use indexmap::IndexSet;
 use policy_vm::{ActionContext, CommandContext};
@@ -40,7 +40,7 @@ use crate::{
 };
 
 /// Encodes a [`EncryptionPublicKey`].
-fn encode_enc_pk<E: Engine>(pk: &EncryptionPublicKey<E>) -> Vec<u8> {
+fn encode_enc_pk<CS: CipherSuite>(pk: &EncryptionPublicKey<CS>) -> Vec<u8> {
     postcard::to_allocvec(pk).expect("should be able to encode an `EncryptionPublicKey`")
 }
 
@@ -189,9 +189,9 @@ pub trait TestImpl: Sized {
     /// The [`Engine`] to use.
     type Engine: Engine;
     /// The [`ApsState`] to use.
-    type Aps: ApsState<Engine = Self::Engine>;
+    type Aps: ApsState<CipherSuite = <Self::Engine as Engine>::CS>;
     /// The [`AranyaState`] to use.
-    type Aranya: AranyaState<Engine = Self::Engine>;
+    type Aranya: AranyaState<CipherSuite = <Self::Engine as Engine>::CS>;
     /// The [`KeyStore`] to use.
     type Store: KeyStore + Clone;
 
@@ -223,7 +223,7 @@ pub struct User<T: TestImpl> {
 impl<T: TestImpl> User<T> {
     /// Creates a new [`User`].
     pub fn new(mut eng: T::Engine, aps: T::Aps, aranya: T::Aranya, mut store: T::Store) -> Self {
-        let user_id = IdentityKey::<T::Engine>::new(&mut eng).id();
+        let user_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&mut eng).id();
 
         let enc_sk = EncryptionKey::new(&mut eng);
         let enc_key_id = enc_sk.id();
@@ -326,8 +326,8 @@ impl<T: TestImpl> User<T> {
 ///
 /// impl TestImpl for DefaultImpl {
 ///     type Engine = DefaultEngine<Rng, DefaultCipherSuite>;
-///     type Aps = State<Self::Engine>;
-///     type Aranya = State<Self::Engine>;
+///     type Aps = State<DefaultCipherSuite>;
+///     type Aranya = State<DefaultCipherSuite>;
 ///     type Store = MemStore;
 ///
 ///     fn new() -> User<Self> {
@@ -371,11 +371,17 @@ where
     (
         <<T as TestImpl>::Aranya as AranyaState>::SealKey,
         <<T as TestImpl>::Aranya as AranyaState>::OpenKey,
-    ): for<'a> Transform<(&'a BidiChannel<'a, T::Engine>, BidiAuthorSecret<T::Engine>)>,
+    ): for<'a> Transform<(
+        &'a BidiChannel<'a, <T::Engine as Engine>::CS>,
+        BidiAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
     (
         <<T as TestImpl>::Aranya as AranyaState>::SealKey,
         <<T as TestImpl>::Aranya as AranyaState>::OpenKey,
-    ): for<'a> Transform<(&'a BidiChannel<'a, T::Engine>, BidiPeerEncap<T::Engine>)>,
+    ): for<'a> Transform<(
+        &'a BidiChannel<'a, <T::Engine as Engine>::CS>,
+        BidiPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
 {
     let mut author = T::new();
     let mut peer = T::new();
@@ -466,14 +472,22 @@ where
 /// where the author is seal-only.
 pub fn test_create_seal_only_uni_channel<T: TestImpl>()
 where
-    <T::Aranya as AranyaState>::SealKey:
-        for<'a> Transform<(&'a UniChannel<'a, T::Engine>, UniAuthorSecret<T::Engine>)>,
-    <T::Aranya as AranyaState>::OpenKey:
-        for<'a> Transform<(&'a UniChannel<'a, T::Engine>, UniAuthorSecret<T::Engine>)>,
-    <T::Aranya as AranyaState>::SealKey:
-        for<'a> Transform<(&'a UniChannel<'a, T::Engine>, UniPeerEncap<T::Engine>)>,
-    <T::Aranya as AranyaState>::OpenKey:
-        for<'a> Transform<(&'a UniChannel<'a, T::Engine>, UniPeerEncap<T::Engine>)>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
 {
     let mut author = T::new();
     let mut peer = T::new();
@@ -566,14 +580,22 @@ where
 /// where the author is open only.
 pub fn test_create_open_only_uni_channel<T: TestImpl>()
 where
-    <T::Aranya as AranyaState>::SealKey:
-        for<'a> Transform<(&'a UniChannel<'a, T::Engine>, UniAuthorSecret<T::Engine>)>,
-    <T::Aranya as AranyaState>::OpenKey:
-        for<'a> Transform<(&'a UniChannel<'a, T::Engine>, UniAuthorSecret<T::Engine>)>,
-    <T::Aranya as AranyaState>::SealKey:
-        for<'a> Transform<(&'a UniChannel<'a, T::Engine>, UniPeerEncap<T::Engine>)>,
-    <T::Aranya as AranyaState>::OpenKey:
-        for<'a> Transform<(&'a UniChannel<'a, T::Engine>, UniPeerEncap<T::Engine>)>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniAuthorSecret<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::SealKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
+    <T::Aranya as AranyaState>::OpenKey: for<'a> Transform<(
+        &'a UniChannel<'a, <T::Engine as Engine>::CS>,
+        UniPeerEncap<<T::Engine as Engine>::CS>,
+    )>,
 {
     let mut author = T::new(); // open only
     let mut peer = T::new(); // seal only

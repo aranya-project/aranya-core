@@ -7,42 +7,41 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{
     ciphersuite::{CipherSuite, SuiteIds},
-    engine::Engine,
     id::Id,
     keys::PublicKey,
     signer::{Signature, Signer},
 };
 
 // Shorthand for lots::of::turbo::fish.
-pub(crate) type SigData<E> = <<<E as CipherSuite>::Signer as Signer>::Signature as Signature<
-    <E as CipherSuite>::Signer,
+pub(crate) type SigData<CS> = <<<CS as CipherSuite>::Signer as Signer>::Signature as Signature<
+    <CS as CipherSuite>::Signer,
 >>::Data;
 
 // A fixed-size ciphertext.
 macro_rules! ciphertext {
     ($name:ident, $size:ty, $doc:expr) => {
         #[doc = $doc]
-        pub struct $name<E>(
+        pub struct $name<CS>(
             pub(crate)  ::generic_array::GenericArray<
                 u8,
-                ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
+                ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
             >,
         )
         where
-            E: $crate::engine::Engine,
-            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+            CS: $crate::CipherSuite,
+            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength;
 
-        impl<E> $name<E>
+        impl<CS> $name<CS>
         where
-            E: $crate::engine::Engine,
-            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+            CS: $crate::CipherSuite,
+            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
         {
             /// The size in bytes of the ciphertext.
-            pub const SIZE: usize = <$size as ::typenum::Unsigned>::USIZE + E::Aead::OVERHEAD;
+            pub const SIZE: usize = <$size as ::typenum::Unsigned>::USIZE + CS::Aead::OVERHEAD;
 
             /// Encodes itself as bytes.
             pub fn as_bytes(&self) -> &[u8] {
@@ -63,25 +62,25 @@ macro_rules! ciphertext {
             }
         }
 
-        impl<E> ::core::convert::TryFrom<&[u8]> for $name<E>
+        impl<CS> ::core::convert::TryFrom<&[u8]> for $name<CS>
         where
-            E: $crate::engine::Engine,
-            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+            CS: $crate::CipherSuite,
+            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
         {
             type Error = $crate::import::InvalidSizeError;
 
             fn try_from(data: &[u8]) -> ::core::result::Result<Self, Self::Error> {
-                $name::<E>::from_bytes(data)
+                $name::<CS>::from_bytes(data)
             }
         }
 
-        impl<E> ::core::clone::Clone for $name<E>
+        impl<CS> ::core::clone::Clone for $name<CS>
         where
-            E: $crate::engine::Engine,
-            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+            CS: $crate::CipherSuite,
+            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
         {
             fn clone(&self) -> Self {
@@ -89,51 +88,51 @@ macro_rules! ciphertext {
             }
         }
 
-        impl<E> ::postcard::experimental::max_size::MaxSize for $name<E>
+        impl<CS> ::postcard::experimental::max_size::MaxSize for $name<CS>
         where
-            E: $crate::engine::Engine,
-            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+            CS: $crate::CipherSuite,
+            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
             ::generic_array::GenericArray<
                 u8,
-                ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
+                ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
             >: ::postcard::experimental::max_size::MaxSize,
         {
             const POSTCARD_MAX_SIZE: usize = <::generic_array::GenericArray<
                 u8,
-                ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
+                ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
             > as ::postcard::experimental::max_size::MaxSize>::POSTCARD_MAX_SIZE;
         }
 
-        impl<E>
+        impl<CS>
             ::core::convert::From<
                 ::generic_array::GenericArray<
                     u8,
-                    ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
+                    ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
                 >,
-            > for $name<E>
+            > for $name<CS>
         where
-            E: $crate::engine::Engine,
-            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+            CS: $crate::CipherSuite,
+            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
         {
             fn from(
                 buf: ::generic_array::GenericArray<
                     u8,
-                    ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>,
+                    ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
                 >,
             ) -> Self {
                 Self(buf)
             }
         }
 
-        impl<E> ::serde::Serialize for $name<E>
+        impl<CS> ::serde::Serialize for $name<CS>
         where
-            E: $crate::engine::Engine,
-            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+            CS: $crate::CipherSuite,
+            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
         {
             fn serialize<S>(&self, s: S) -> ::core::result::Result<S::Ok, S::Error>
@@ -144,21 +143,21 @@ macro_rules! ciphertext {
             }
         }
 
-        impl<'de, E> ::serde::Deserialize<'de> for $name<E>
+        impl<'de, CS> ::serde::Deserialize<'de> for $name<CS>
         where
-            E: $crate::engine::Engine,
-            <E::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<E::Aead as $crate::aead::Aead>::Overhead, $size>:
+            CS: $crate::CipherSuite,
+            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
+            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
                 ::generic_array::ArrayLength,
         {
             fn deserialize<D>(d: D) -> ::core::result::Result<Self, D::Error>
             where
                 D: ::serde::Deserializer<'de>,
             {
-                struct CiphertextVisitor<G>(::core::marker::PhantomData<G>);
+                struct CiphertextVisitor<G: ?Sized>(::core::marker::PhantomData<G>);
                 impl<'de, G> ::serde::de::Visitor<'de> for CiphertextVisitor<G>
                 where
-                    G: $crate::engine::Engine,
+                    G: $crate::CipherSuite,
                     <G::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
                     ::typenum::Sum<<G::Aead as $crate::aead::Aead>::Overhead, $size>:
                         ::generic_array::ArrayLength,
@@ -211,7 +210,7 @@ macro_rules! sk_misc {
             pub struct $id;
         }
 
-        impl<E: $crate::engine::Engine> $name<E> {
+        impl<CS: $crate::CipherSuite> $name<CS> {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
             #[doc = ::core::concat!("Two `", ::core::stringify!($name), "s` with the same ID are the same secret.")]
             #[inline]
@@ -219,7 +218,7 @@ macro_rules! sk_misc {
                 const CONTEXT: &'static str = ::core::stringify!($sk);
 
                 let pk = $crate::keys::PublicKey::export(&self.0.public());
-                let id = $crate::id::Id::new::<E>(
+                let id = $crate::id::Id::new::<CS>(
                     ::core::borrow::Borrow::borrow(&pk),
                     CONTEXT.as_bytes(),
                 );
@@ -237,7 +236,7 @@ macro_rules! sk_misc {
             pub struct $id;
         }
 
-        impl<E: $crate::engine::Engine> $name<E> {
+        impl<CS: $crate::CipherSuite> $name<CS> {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             #[inline]
@@ -247,7 +246,7 @@ macro_rules! sk_misc {
 
             /// Returns the public half of the key.
             #[inline]
-            pub fn public(&self) -> $pk<E> {
+            pub fn public(&self) -> $pk<CS> {
                 $pk(self.0.public())
             }
         }
@@ -259,20 +258,20 @@ pub(crate) use sk_misc;
 
 macro_rules! sk_misc_inner {
     ($name:ident, $id:ident) => {
-        impl<E: $crate::engine::Engine> ::core::clone::Clone for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::clone::Clone for $name<CS> {
             #[inline]
             fn clone(&self) -> Self {
                 Self(::core::clone::Clone::clone(&self.0))
             }
         }
 
-        impl<E: $crate::engine::Engine> ::core::fmt::Display for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::fmt::Display for $name<CS> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(f, "{}", self.id())
             }
         }
 
-        impl<E: $crate::engine::Engine> ::core::fmt::Debug for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::fmt::Debug for $name<CS> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(
                     f,
@@ -282,7 +281,7 @@ macro_rules! sk_misc_inner {
             }
         }
 
-        impl<E: $crate::engine::Engine> $crate::id::Identified for $name<E> {
+        impl<CS: $crate::CipherSuite> $crate::id::Identified for $name<CS> {
             type Id = $id;
 
             #[inline]
@@ -297,57 +296,57 @@ pub(crate) use sk_misc_inner;
 /// Public key misc. impls.
 macro_rules! pk_misc {
     ($name:ident, $sk:expr, $id:ident) => {
-        impl<E: $crate::engine::Engine> $name<E> {
+        impl<CS: $crate::CipherSuite> $name<CS> {
             #[doc = ::core::concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             pub fn id(&self) -> $id {
-                $id($crate::id::Id::new::<E>(
+                $id($crate::id::Id::new::<CS>(
                     self.0.export().borrow(),
                     $sk.as_bytes(),
                 ))
             }
         }
 
-        impl<E: $crate::engine::Engine> ::core::clone::Clone for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::clone::Clone for $name<CS> {
             #[inline]
             fn clone(&self) -> Self {
                 Self(self.0.clone())
             }
         }
 
-        impl<E: $crate::engine::Engine> ::core::convert::AsRef<$name<E>> for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::convert::AsRef<$name<CS>> for $name<CS> {
             #[inline]
             fn as_ref(&self) -> &Self {
                 self
             }
         }
 
-        impl<E: $crate::engine::Engine> ::core::cmp::Eq for $name<E> {}
-        impl<E: $crate::engine::Engine> ::core::cmp::PartialEq for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::cmp::Eq for $name<CS> {}
+        impl<CS: $crate::CipherSuite> ::core::cmp::PartialEq for $name<CS> {
             #[inline]
             fn eq(&self, other: &Self) -> bool {
                 self.id() == other.id()
             }
         }
 
-        impl<E: $crate::engine::Engine> ::core::fmt::Display for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::fmt::Display for $name<CS> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(f, "{}", self.id())
             }
         }
 
-        impl<E: $crate::engine::Engine> ::core::fmt::Debug for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::fmt::Debug for $name<CS> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 ::core::write!(f, ::core::concat!(stringify!($name), " {}"), self.id())
             }
         }
 
-        impl<E: $crate::engine::Engine> ::serde::Serialize for $name<E> {
+        impl<CS: $crate::CipherSuite> ::serde::Serialize for $name<CS> {
             fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
             where
                 S: ::serde::Serializer,
             {
-                $crate::misc::ExportedData::from_key::<E>(
+                $crate::misc::ExportedData::from_key::<CS>(
                     &self.0,
                     $crate::misc::ExportedDataType::$name,
                 )
@@ -355,7 +354,7 @@ macro_rules! pk_misc {
             }
         }
 
-        impl<'de, E: $crate::engine::Engine> ::serde::Deserialize<'de> for $name<E> {
+        impl<'de, CS: $crate::CipherSuite> ::serde::Deserialize<'de> for $name<CS> {
             fn deserialize<D>(deserializer: D) -> ::core::result::Result<Self, D::Error>
             where
                 D: ::serde::Deserializer<'de>,
@@ -364,7 +363,7 @@ macro_rules! pk_misc {
                     $crate::misc::ExportedData::<$crate::misc::SerdeOwnedKey<_>>::deserialize(
                         deserializer,
                     )?;
-                if !data.valid_context::<E>($crate::misc::ExportedDataType::$name) {
+                if !data.valid_context::<CS>($crate::misc::ExportedDataType::$name) {
                     Err(::serde::de::Error::custom(ImportError::InvalidContext))
                 } else {
                     Ok(Self(data.data.0))
@@ -372,7 +371,7 @@ macro_rules! pk_misc {
             }
         }
 
-        impl<E: $crate::engine::Engine> $crate::id::Identified for $name<E> {
+        impl<CS: $crate::CipherSuite> $crate::id::Identified for $name<CS> {
             type Id = $id;
 
             #[inline]
@@ -412,16 +411,16 @@ pub(crate) struct ExportedData<T> {
 }
 
 impl<T> ExportedData<T> {
-    pub(crate) fn valid_context<E: Engine>(&self, name: ExportedDataType) -> bool {
-        self.eng_id == E::ID && self.suite_id == SuiteIds::from_suite::<E>() && self.name == name
+    pub(crate) fn valid_context<CS: CipherSuite>(&self, name: ExportedDataType) -> bool {
+        self.eng_id == CS::ID && self.suite_id == SuiteIds::from_suite::<CS>() && self.name == name
     }
 }
 
 impl<'a, K: PublicKey> ExportedData<SerdeBorrowedKey<'a, K>> {
-    pub(crate) fn from_key<E: Engine>(pk: &'a K, name: ExportedDataType) -> Self {
+    pub(crate) fn from_key<CS: CipherSuite>(pk: &'a K, name: ExportedDataType) -> Self {
         Self {
-            eng_id: E::ID,
-            suite_id: SuiteIds::from_suite::<E>(),
+            eng_id: CS::ID,
+            suite_id: SuiteIds::from_suite::<CS>(),
             name,
             data: SerdeBorrowedKey(pk),
         }

@@ -61,7 +61,7 @@ function derive_enc_key_id(
         _eng: &mut E,
         enc_pk: Vec<u8>,
     ) -> Result<Id, Error> {
-        let pk: EncryptionPublicKey<E> = postcard::from_bytes(&enc_pk)?;
+        let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&enc_pk)?;
         Ok(pk.id().into())
     }
 
@@ -78,7 +78,7 @@ function derive_sign_key_id(
         _eng: &mut E,
         sign_pk: Vec<u8>,
     ) -> Result<Id, Error> {
-        let pk: VerifyingKey<E> = postcard::from_bytes(&sign_pk)?;
+        let pk: VerifyingKey<E::CS> = postcard::from_bytes(&sign_pk)?;
         Ok(pk.id().into())
     }
 
@@ -95,7 +95,7 @@ function derive_user_id(
         _eng: &mut E,
         ident_pk: Vec<u8>,
     ) -> Result<Id, Error> {
-        let pk: IdentityVerifyingKey<E> = postcard::from_bytes(&ident_pk)?;
+        let pk: IdentityVerifyingKey<E::CS> = postcard::from_bytes(&ident_pk)?;
         Ok(pk.id().into())
     }
 
@@ -133,11 +133,11 @@ function seal_group_key(
         peer_enc_pk: Vec<u8>,
         group_id: Id,
     ) -> Result<SealedGroupKey, Error> {
-        let group_key: GroupKey<E> = {
+        let group_key: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&wrapped_group_key)?;
             eng.unwrap(&wrapped)?
         };
-        let pk: EncryptionPublicKey<E> = postcard::from_bytes(&peer_enc_pk)?;
+        let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&peer_enc_pk)?;
         let (encap, ciphertext) = pk.seal_group_key(eng, &group_key, group_id)?;
         Ok(SealedGroupKey {
             encap: encap.as_bytes().to_vec(),
@@ -161,7 +161,7 @@ function open_group_key(
         our_enc_sk_id: Id,
         group_id: Id,
     ) -> Result<StoredGroupKey, Error> {
-        let sk: EncryptionKey<E> = {
+        let sk: EncryptionKey<E::CS> = {
             let wrapped = self
                 .store
                 .get::<E::WrappedKey>(&our_enc_sk_id)
@@ -172,8 +172,8 @@ function open_group_key(
         debug_assert_eq!(sk.id().into_id(), our_enc_sk_id);
 
         let group_key = {
-            let enc = Encap::<E>::from_bytes(&sealed_group_key.encap)?;
-            let ciphertext: EncryptedGroupKey<E> =
+            let enc = Encap::<E::CS>::from_bytes(&sealed_group_key.encap)?;
+            let ciphertext: EncryptedGroupKey<E::CS> =
                 postcard::from_bytes(&sealed_group_key.ciphertext)?;
             sk.open_group_key(&enc, ciphertext, group_id)?
         };
@@ -213,14 +213,14 @@ function encrypt_message(
             .into());
         };
 
-        let group_key: GroupKey<E> = {
+        let group_key: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&wrapped_group_key)?;
             eng.unwrap(&wrapped)?
         };
         // TODO(eric): instead, we should pass in
         // `our_sign_sk_id` and look it up in the keystore, then
         // call `public()`.
-        let author: &VerifyingKey<E> = &postcard::from_bytes(&our_sign_pk)?;
+        let author: &VerifyingKey<E::CS> = &postcard::from_bytes(&our_sign_pk)?;
 
         let ctx = Context {
             label: ctx.name,
@@ -230,7 +230,7 @@ function encrypt_message(
         let mut ciphertext = {
             let len = plaintext
                 .len()
-                .checked_add(GroupKey::<E>::OVERHEAD)
+                .checked_add(GroupKey::<E::CS>::OVERHEAD)
                 .ok_or_else(|| Error::new(ErrorKind::Alloc, AllocError::new()))?;
             vec![0u8; len]
         };
@@ -262,11 +262,11 @@ function decrypt_message(
             )
             .into());
         };
-        let group_key: GroupKey<E> = {
+        let group_key: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&wrapped_group_key)?;
             eng.unwrap(&wrapped)?
         };
-        let author: &VerifyingKey<E> = &postcard::from_bytes(&author_sign_pk)?;
+        let author: &VerifyingKey<E::CS> = &postcard::from_bytes(&author_sign_pk)?;
 
         let ctx = Context {
             label: ctx.name,
@@ -274,7 +274,7 @@ function decrypt_message(
             author,
         };
         let mut plaintext = {
-            let len = ciphertext.len().saturating_sub(GroupKey::<E>::OVERHEAD);
+            let len = ciphertext.len().saturating_sub(GroupKey::<E::CS>::OVERHEAD);
             vec![0u8; len]
         };
         group_key.open(&mut plaintext, &ciphertext, ctx)?;
@@ -296,7 +296,7 @@ function compute_change_id(
         current_change_id: Id,
     ) -> Result<Id, Error> {
         // ChangeID = H("ID-v1" || eng_id || suites || data || tag)
-        Ok(Id::new::<E>(
+        Ok(Id::new::<E::CS>(
             current_change_id.as_bytes(),
             new_cmd_id.as_bytes(),
         ))

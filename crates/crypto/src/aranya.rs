@@ -10,7 +10,7 @@ use crate::{
     aead::Tag,
     ciphersuite::SuiteIds,
     csprng::Csprng,
-    engine::{unwrapped, Engine},
+    engine::unwrapped,
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
     hash::tuple_hash,
@@ -22,17 +22,18 @@ use crate::{
     misc::{key_misc, SigData},
     policy::{self, Cmd, CmdId},
     signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+    CipherSuite,
 };
 
 /// A signature created by a signing key.
-pub struct Signature<E: Engine>(pub(crate) <E::Signer as Signer>::Signature);
+pub struct Signature<CS: CipherSuite>(pub(crate) <CS::Signer as Signer>::Signature);
 
-impl<E: Engine> Signature<E> {
+impl<CS: CipherSuite> Signature<CS> {
     /// Returns the raw signature.
     ///
     /// Should only be used in situations where contextual data
     /// is being merged in. Otherwise, use [`Serialize`].
-    pub(crate) fn raw_sig(&self) -> SigData<E> {
+    pub(crate) fn raw_sig(&self) -> SigData<CS> {
         signer::Signature::export(&self.0)
     }
 
@@ -43,24 +44,24 @@ impl<E: Engine> Signature<E> {
 
     /// Returns itself from its byte encoding.
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
-        let sig = <E::Signer as Signer>::Signature::import(data)?;
+        let sig = <CS::Signer as Signer>::Signature::import(data)?;
         Ok(Self(sig))
     }
 }
 
-impl<E: Engine> fmt::Debug for Signature<E> {
+impl<CS: CipherSuite> fmt::Debug for Signature<CS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Signature").field(&self.0).finish()
     }
 }
 
-impl<E: Engine> Clone for Signature<E> {
+impl<CS: CipherSuite> Clone for Signature<CS> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<E: Engine> Serialize for Signature<E> {
+impl<CS: CipherSuite> Serialize for Signature<CS> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -69,13 +70,13 @@ impl<E: Engine> Serialize for Signature<E> {
     }
 }
 
-impl<'de, E: Engine> Deserialize<'de> for Signature<E> {
+impl<'de, CS: CipherSuite> Deserialize<'de> for Signature<CS> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct SigVisitor<E>(PhantomData<E>);
-        impl<'de, G: Engine> de::Visitor<'de> for SigVisitor<G> {
+        struct SigVisitor<CS>(PhantomData<CS>);
+        impl<'de, G: CipherSuite> de::Visitor<'de> for SigVisitor<G> {
             type Value = Signature<G>;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -96,20 +97,20 @@ impl<'de, E: Engine> Deserialize<'de> for Signature<E> {
                 Signature::<G>::from_bytes(v).map_err(de::Error::custom)
             }
         }
-        let sig = deserializer.deserialize_bytes(SigVisitor::<E>(PhantomData))?;
+        let sig = deserializer.deserialize_bytes(SigVisitor::<CS>(PhantomData))?;
         Ok(sig)
     }
 }
 
 /// The private half of [`IdentityKey`].
-pub struct IdentityKey<E: Engine>(<E::Signer as Signer>::SigningKey);
+pub struct IdentityKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
 
 key_misc!(IdentityKey, IdentityVerifyingKey, UserId);
 
-impl<E: Engine> IdentityKey<E> {
+impl<CS: CipherSuite> IdentityKey<CS> {
     /// Creates an `IdentityKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <E::Signer as Signer>::SigningKey::new(rng);
+        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
         IdentityKey(sk)
     }
 
@@ -131,7 +132,7 @@ impl<E: Engine> IdentityKey<E> {
     ///     Rng,
     /// };
     ///
-    /// let sk = IdentityKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
+    /// let sk = IdentityKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
@@ -150,7 +151,7 @@ impl<E: Engine> IdentityKey<E> {
     ///     .expect_err("should fail");
     /// # }
     /// ```
-    pub fn sign(&self, msg: &[u8], context: &[u8]) -> Result<Signature<E>, Error> {
+    pub fn sign(&self, msg: &[u8], context: &[u8]) -> Result<Signature<CS>, Error> {
         // digest = H(
         //     "IdentityKey",
         //     suites,
@@ -158,9 +159,9 @@ impl<E: Engine> IdentityKey<E> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<E::Hash, _>([
+        let sum = tuple_hash::<CS::Hash, _>([
             "IdentityKey".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             self.id().as_bytes(),
             context,
             msg,
@@ -178,14 +179,14 @@ unwrapped! {
 }
 
 /// The public half of [`IdentityKey`].
-pub struct IdentityVerifyingKey<E: Engine>(<E::Signer as Signer>::VerifyingKey);
+pub struct IdentityVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
-impl<E: Engine> IdentityVerifyingKey<E> {
+impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
     /// Verifies the signature allegedly created over `msg` and
     /// bound to some `context`.
     ///
     /// `msg` must NOT be pre-hashed.
-    pub fn verify(&self, msg: &[u8], context: &[u8], sig: &Signature<E>) -> Result<(), Error> {
+    pub fn verify(&self, msg: &[u8], context: &[u8], sig: &Signature<CS>) -> Result<(), Error> {
         // digest = H(
         //     "IdentityKey",
         //     suites,
@@ -193,9 +194,9 @@ impl<E: Engine> IdentityVerifyingKey<E> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<E::Hash, _>([
+        let sum = tuple_hash::<CS::Hash, _>([
             "IdentityKey".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             self.id().as_bytes(),
             context,
             msg,
@@ -205,14 +206,14 @@ impl<E: Engine> IdentityVerifyingKey<E> {
 }
 
 /// The private half of [`SigningKey`].
-pub struct SigningKey<E: Engine>(<E::Signer as Signer>::SigningKey);
+pub struct SigningKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
 
 key_misc!(SigningKey, VerifyingKey, SigningKeyId);
 
-impl<E: Engine> SigningKey<E> {
+impl<CS: CipherSuite> SigningKey<CS> {
     /// Creates a `SigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <E::Signer as Signer>::SigningKey::new(rng);
+        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
         SigningKey(sk)
     }
 
@@ -234,7 +235,7 @@ impl<E: Engine> SigningKey<E> {
     ///     SigningKey,
     /// };
     ///
-    /// let sk = SigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
+    /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
@@ -253,7 +254,7 @@ impl<E: Engine> SigningKey<E> {
     ///     .expect_err("should fail");
     /// # }
     /// ```
-    pub fn sign(&self, msg: &[u8], context: &[u8]) -> Result<Signature<E>, Error> {
+    pub fn sign(&self, msg: &[u8], context: &[u8]) -> Result<Signature<CS>, Error> {
         // digest = H(
         //     "SigningKey",
         //     suites,
@@ -261,9 +262,9 @@ impl<E: Engine> SigningKey<E> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<E::Hash, _>([
+        let sum = tuple_hash::<CS::Hash, _>([
             "SigningKey".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             self.id().as_bytes(),
             context,
             msg,
@@ -290,7 +291,7 @@ impl<E: Engine> SigningKey<E> {
     ///     SigningKey,
     /// };
     ///
-    /// let sk = SigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
+    /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
     /// let data = b"... some command data ...";
     /// let name = "AddUser";
@@ -329,8 +330,8 @@ impl<E: Engine> SigningKey<E> {
     ///     .expect_err("should fail");
     /// # }
     /// ```
-    pub fn sign_cmd(&self, cmd: Cmd<'_>) -> Result<(Signature<E>, CmdId), Error> {
-        let digest = cmd.digest::<E>(&self.id());
+    pub fn sign_cmd(&self, cmd: Cmd<'_>) -> Result<(Signature<CS>, CmdId), Error> {
+        let digest = cmd.digest::<CS>(&self.id());
         let sig = Signature(self.0.sign(&digest)?);
         let id = policy::cmd_id(&digest, &sig);
         Ok((sig, id))
@@ -345,14 +346,14 @@ unwrapped! {
 }
 
 /// The public half of [`SigningKey`].
-pub struct VerifyingKey<E: Engine>(<E::Signer as Signer>::VerifyingKey);
+pub struct VerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
-impl<E: Engine> VerifyingKey<E> {
+impl<CS: CipherSuite> VerifyingKey<CS> {
     /// Verifies the signature allegedly created over `msg` and
     /// bound to some `context`.
     ///
     /// `msg` must NOT be pre-hashed.
-    pub fn verify(&self, msg: &[u8], context: &[u8], sig: &Signature<E>) -> Result<(), Error> {
+    pub fn verify(&self, msg: &[u8], context: &[u8], sig: &Signature<CS>) -> Result<(), Error> {
         // digest = H(
         //     "SigningKey",
         //     suites,
@@ -360,9 +361,9 @@ impl<E: Engine> VerifyingKey<E> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<E::Hash, _>([
+        let sum = tuple_hash::<CS::Hash, _>([
             "SigningKey".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             self.id().as_bytes(),
             context,
             msg,
@@ -372,8 +373,8 @@ impl<E: Engine> VerifyingKey<E> {
 
     /// Verifies the signature allegedly created over a policy
     /// command and returns its ID.
-    pub fn verify_cmd(&self, cmd: Cmd<'_>, sig: &Signature<E>) -> Result<CmdId, Error> {
-        let digest = cmd.digest::<E>(&self.id());
+    pub fn verify_cmd(&self, cmd: Cmd<'_>, sig: &Signature<CS>) -> Result<CmdId, Error> {
+        let digest = cmd.digest::<CS>(&self.id());
         self.0.verify(&digest, &sig.0)?;
         let id = policy::cmd_id(&digest, sig);
         Ok(id)
@@ -381,14 +382,14 @@ impl<E: Engine> VerifyingKey<E> {
 }
 
 /// The private half of [`EncryptionKey`].
-pub struct EncryptionKey<E: Engine>(pub(crate) <E::Kem as Kem>::DecapKey);
+pub struct EncryptionKey<CS: CipherSuite>(pub(crate) <CS::Kem as Kem>::DecapKey);
 
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
-impl<E: Engine> EncryptionKey<E> {
+impl<CS: CipherSuite> EncryptionKey<CS> {
     /// Creates a user's `EncryptionKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <E::Kem as Kem>::DecapKey::new(rng);
+        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
         EncryptionKey(sk)
     }
 
@@ -396,10 +397,10 @@ impl<E: Engine> EncryptionKey<E> {
     /// a peer.
     pub fn open_group_key(
         &self,
-        enc: &Encap<E>,
-        ciphertext: EncryptedGroupKey<E>,
+        enc: &Encap<CS>,
+        ciphertext: EncryptedGroupKey<CS>,
         group: Id,
-    ) -> Result<GroupKey<E>, Error> {
+    ) -> Result<GroupKey<CS>, Error> {
         let EncryptedGroupKey {
             mut ciphertext,
             tag,
@@ -411,14 +412,14 @@ impl<E: Engine> EncryptionKey<E> {
         //     engine_id,
         //     group,
         // )
-        let info = tuple_hash::<E::Hash, _>([
+        let info = tuple_hash::<CS::Hash, _>([
             "GroupKey".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            E::ID.as_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
+            CS::ID.as_bytes(),
             group.as_bytes(),
         ]);
         let mut ctx =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
+            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
         ctx.open_in_place(&mut ciphertext, &tag, &info)?;
         Ok(GroupKey::from_seed(ciphertext.into()))
     }
@@ -432,43 +433,43 @@ unwrapped! {
 }
 
 /// The public half of [`EncryptionKey`].
-pub struct EncryptionPublicKey<E: Engine>(pub(crate) <E::Kem as Kem>::EncapKey);
+pub struct EncryptionPublicKey<CS: CipherSuite>(pub(crate) <CS::Kem as Kem>::EncapKey);
 
-impl<E: Engine> EncryptionPublicKey<E> {
+impl<CS: CipherSuite> EncryptionPublicKey<CS> {
     /// Encrypts and authenticates the [`GroupKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`EncryptionPublicKey`].
     pub fn seal_group_key<R: Csprng>(
         &self,
         rng: &mut R,
-        key: &GroupKey<E>,
+        key: &GroupKey<CS>,
         group: Id,
-    ) -> Result<(Encap<E>, EncryptedGroupKey<E>), Error> {
+    ) -> Result<(Encap<CS>, EncryptedGroupKey<CS>), Error> {
         // info = H(
         //     "GroupKey",
         //     suite_id,
         //     engine_id,
         //     group,
         // )
-        let info = tuple_hash::<E::Hash, _>([
+        let info = tuple_hash::<CS::Hash, _>([
             "GroupKey".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            E::ID.as_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
+            CS::ID.as_bytes(),
             group.as_bytes(),
         ]);
         let (enc, mut ctx) =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
+            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
         let mut ciphertext = (*key.raw_seed()).into();
-        let mut tag = Tag::<E::Aead>::default();
+        let mut tag = Tag::<CS::Aead>::default();
         ctx.seal_in_place(&mut ciphertext, &mut tag, &info)?;
         Ok((Encap(enc), EncryptedGroupKey { ciphertext, tag }))
     }
 }
 
 /// An encapsulated symmetric key.
-pub struct Encap<E: Engine>(pub(crate) <E::Kem as Kem>::Encap);
+pub struct Encap<CS: CipherSuite>(pub(crate) <CS::Kem as Kem>::Encap);
 
-impl<E: Engine> Encap<E> {
+impl<CS: CipherSuite> Encap<CS> {
     /// Encodes itself as bytes.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
@@ -477,16 +478,19 @@ impl<E: Engine> Encap<E> {
 
     /// Returns itself from its byte encoding.
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
-        let enc = <E::Kem as Kem>::Encap::import(data)?;
+        let enc = <CS::Kem as Kem>::Encap::import(data)?;
         Ok(Self(enc))
     }
 
-    pub(crate) fn as_inner(&self) -> &<E::Kem as Kem>::Encap {
+    pub(crate) fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
         &self.0
     }
 }
 
-impl<E: Engine> Serialize for Encap<E> {
+impl<CS> Serialize for Encap<CS>
+where
+    CS: CipherSuite,
+{
     fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -495,15 +499,18 @@ impl<E: Engine> Serialize for Encap<E> {
     }
 }
 
-impl<'de, E: Engine> Deserialize<'de> for Encap<E> {
+impl<'de, CS> Deserialize<'de> for Encap<CS>
+where
+    CS: CipherSuite,
+{
     fn deserialize<D>(d: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct EncapVisitor<G>(PhantomData<G>);
+        struct EncapVisitor<G: ?Sized>(PhantomData<G>);
         impl<'de, G> de::Visitor<'de> for EncapVisitor<G>
         where
-            G: Engine,
+            G: CipherSuite,
         {
             type Value = Encap<G>;
 

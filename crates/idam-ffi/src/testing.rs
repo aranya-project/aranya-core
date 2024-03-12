@@ -126,7 +126,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let pk = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
         };
 
@@ -158,7 +158,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let pk = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
         };
 
@@ -202,7 +202,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let pk = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
         };
 
@@ -250,7 +250,7 @@ where
             .generate_group_key(&ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let sk = SigningKey::<E>::new(&mut eng);
+        let sk = SigningKey::<E::CS>::new(&mut eng);
         let pk =
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`");
 
@@ -300,7 +300,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let pk = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
         };
         let ciphertext = ffi
@@ -316,7 +316,7 @@ where
 
         // Create a new `pk`.
         let pk = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
         };
         let err = ffi
@@ -335,7 +335,7 @@ where
         // `Ffi`s.
 
         let (sk, pk) = {
-            let sk = EncryptionKey::<E>::new(&mut eng);
+            let sk = EncryptionKey::<E::CS>::new(&mut eng);
             let id = sk.id().into_id();
             let wrapped = eng
                 .wrap(sk.clone())
@@ -370,13 +370,13 @@ where
         assert_eq!(got.key_id, want.key_id);
 
         // Check the actual `GroupKey`s.
-        let want: GroupKey<E> = {
+        let want: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&want.wrapped)
                 .expect("should be able to decode wrapped `GroupKey`");
             eng.unwrap(&wrapped)
                 .expect("should be able to unwrap `GroupKey`")
         };
-        let got: GroupKey<E> = {
+        let got: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&got.wrapped)
                 .expect("should be able to decode wrapped `GroupKey`");
             eng.unwrap(&wrapped)
@@ -395,7 +395,7 @@ where
         // `Ffi`s.
 
         let (sk, pk) = {
-            let sk = EncryptionKey::<E>::new(&mut eng);
+            let sk = EncryptionKey::<E::CS>::new(&mut eng);
             let id = sk.id().into_id();
             let wrapped = eng
                 .wrap(sk.clone())
@@ -441,7 +441,7 @@ where
         // `Ffi`s.
 
         let (sk, pk) = {
-            let sk = EncryptionKey::<E>::new(&mut eng);
+            let sk = EncryptionKey::<E::CS>::new(&mut eng);
             let id = sk.id().into_id();
             let wrapped = eng
                 .wrap(sk.clone())
@@ -483,7 +483,7 @@ where
         // `Ffi`s.
 
         let (sk, pk) = {
-            let sk = EncryptionKey::<E>::new(&mut eng);
+            let sk = EncryptionKey::<E::CS>::new(&mut eng);
             let id = sk.id().into_id();
             let wrapped = eng
                 .wrap(sk.clone())
@@ -526,7 +526,7 @@ where
     /// Round trip tests `derive_enc_key_id`.
     pub fn test_derive_enc_key_id(mut eng: E, store: S) {
         let ffi = Ffi::new(store);
-        let sk = EncryptionKey::<E>::new(&mut eng);
+        let sk = EncryptionKey::<E::CS>::new(&mut eng);
         let want = sk.public().id().into_id();
         let enc_pk = postcard::to_allocvec(&sk.public())
             .expect("should be able to encode `EncryptionPublicKey`");
@@ -539,7 +539,7 @@ where
     /// Round trip tests `derive_sign_key_id`.
     pub fn test_derive_sign_key_id(mut eng: E, store: S) {
         let ffi = Ffi::new(store);
-        let sk = SigningKey::<E>::new(&mut eng);
+        let sk = SigningKey::<E::CS>::new(&mut eng);
         let want = sk.public().id().into_id();
         let sign_pk =
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`");
@@ -552,7 +552,7 @@ where
     /// Round trip tests `derive_user_id`.
     pub fn test_derive_user_id(mut eng: E, store: S) {
         let ffi = Ffi::new(store);
-        let sk = IdentityKey::<E>::new(&mut eng);
+        let sk = IdentityKey::<E::CS>::new(&mut eng);
         let want = sk.public().id().into_id();
         let ident_pk = postcard::to_allocvec(&sk.public())
             .expect("should be able to encode `IdentityVerifyingKey`");

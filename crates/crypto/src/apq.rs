@@ -17,7 +17,7 @@ use crate::{
     aranya::{Encap, Signature},
     ciphersuite::SuiteIds,
     csprng::{Csprng, Random},
-    engine::{unwrapped, Engine},
+    engine::unwrapped,
     error::Error,
     hash::tuple_hash,
     hex::ToHex,
@@ -31,14 +31,15 @@ use crate::{
     misc::{ciphertext, key_misc},
     signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
     zeroize::{Zeroize, ZeroizeOnDrop},
+    CipherSuite,
 };
 
 /// A sender's identity.
-pub struct Sender<'a, E: Engine> {
+pub struct Sender<'a, CS: CipherSuite> {
     /// The sender's public key.
-    pub enc_key: &'a SenderPublicKey<E>,
+    pub enc_key: &'a SenderPublicKey<CS>,
     /// The sender's verifying key.
-    pub sign_key: &'a SenderVerifyingKey<E>,
+    pub sign_key: &'a SenderVerifyingKey<CS>,
 }
 
 /// The current APQ version.
@@ -118,7 +119,7 @@ custom_id! {
 /// a particular topic.
 ///
 /// [symmetric key]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#topickey
-pub struct TopicKey<E: Engine> {
+pub struct TopicKey<CS: CipherSuite> {
     // TopicKey is quite similar to GroupKey. However, unlike
     // GroupKey, we do not compute the key from the seed each
     // time we encrypt some data. Instead, we compute the key
@@ -132,18 +133,18 @@ pub struct TopicKey<E: Engine> {
     // memory alongside the key in case we need to send the seed
     // to a receiver. So, each TopicKey ends up being ~twice as
     // large and we have to handle two pieces of key material.
-    key: <E::Aead as Aead>::Key,
+    key: <CS::Aead as Aead>::Key,
     seed: [u8; 64],
 }
 
-impl<E: Engine> ZeroizeOnDrop for TopicKey<E> {}
-impl<E: Engine> Drop for TopicKey<E> {
+impl<CS: CipherSuite> ZeroizeOnDrop for TopicKey<CS> {}
+impl<CS: CipherSuite> Drop for TopicKey<CS> {
     fn drop(&mut self) {
         self.seed.zeroize()
     }
 }
 
-impl<E: Engine> Clone for TopicKey<E> {
+impl<CS: CipherSuite> Clone for TopicKey<CS> {
     fn clone(&self) -> Self {
         Self {
             key: self.key.clone(),
@@ -152,7 +153,7 @@ impl<E: Engine> Clone for TopicKey<E> {
     }
 }
 
-impl<E: Engine> TopicKey<E> {
+impl<CS: CipherSuite> TopicKey<CS> {
     /// Creates a new, random `TopicKey`.
     pub fn new<R: Csprng>(rng: &mut R, version: Version, topic: &Topic) -> Result<Self, Error> {
         Self::from_seed(Random::random(rng), version, topic)
@@ -168,15 +169,15 @@ impl<E: Engine> TopicKey<E> {
         //     message="TopicKeyId-v1" || suite_id,
         //     outputBytes=64,
         // )
-        let mut h = Hmac::<E::Hash>::new(&self.seed);
+        let mut h = Hmac::<CS::Hash>::new(&self.seed);
         h.update(b"TopicKeyId-v1");
-        h.update(&SuiteIds::from_suite::<E>().into_bytes());
+        h.update(&SuiteIds::from_suite::<CS>().into_bytes());
         TopicKeyId(h.tag().into_array().into())
     }
 
     /// The size in bytes of the overhead added to plaintexts
     /// when encrypted.
-    pub const OVERHEAD: usize = E::Aead::NONCE_SIZE + E::Aead::OVERHEAD;
+    pub const OVERHEAD: usize = CS::Aead::NONCE_SIZE + CS::Aead::OVERHEAD;
 
     /// Returns the size in bytes of the overhead added to
     /// plaintexts when encrypted.
@@ -220,9 +221,9 @@ impl<E: Engine> TopicKey<E> {
     /// const MESSAGE: &[u8] = b"hello, world!";
     ///
     /// let ident = Sender {
-    ///     enc_key: &SenderSecretKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng)
+    ///     enc_key: &SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng)
     ///         .public(),
-    ///     sign_key: &SenderSigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng)
+    ///     sign_key: &SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng)
     ///         .public(),
     /// };
     ///
@@ -262,7 +263,7 @@ impl<E: Engine> TopicKey<E> {
         plaintext: &[u8],
         version: Version,
         topic: &Topic,
-        ident: &Sender<'_, E>,
+        ident: &Sender<'_, CS>,
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
@@ -277,16 +278,16 @@ impl<E: Engine> TopicKey<E> {
         //     hash(pk(SenderKey)),
         //     hash(pk(SenderSigningKey)),
         // )
-        let ad = tuple_hash::<E::Hash, _>([
+        let ad = tuple_hash::<CS::Hash, _>([
             &version.to_be_bytes()[..],
             &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             ident.enc_key.id().as_bytes(),
             ident.sign_key.id().as_bytes(),
         ]);
-        let (nonce, out) = dst.split_at_mut(E::Aead::NONCE_SIZE);
+        let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
         rng.fill_bytes(nonce);
-        Ok(E::Aead::new(&self.key).seal(out, nonce, plaintext, &ad)?)
+        Ok(CS::Aead::new(&self.key).seal(out, nonce, plaintext, &ad)?)
     }
 
     /// Decrypts and authenticates `ciphertext`.
@@ -301,28 +302,28 @@ impl<E: Engine> TopicKey<E> {
         ciphertext: &[u8],
         version: Version,
         topic: &Topic,
-        ident: &Sender<'_, E>,
+        ident: &Sender<'_, CS>,
     ) -> Result<(), Error> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
             // invalid.
             return Err(OpenError::Authentication.into());
         }
-        let (nonce, ciphertext) = ciphertext.split_at(E::Aead::NONCE_SIZE);
+        let (nonce, ciphertext) = ciphertext.split_at(CS::Aead::NONCE_SIZE);
         // ad = concat(
         //     i2osp(version, 4),
         //     topic,
         //     suite_id,
         //     hash(pk(SenderSigningKey)),
         // )
-        let ad = tuple_hash::<E::Hash, _>([
+        let ad = tuple_hash::<CS::Hash, _>([
             &version.to_be_bytes()[..],
             &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             ident.enc_key.id().as_bytes(),
             ident.sign_key.id().as_bytes(),
         ]);
-        Ok(E::Aead::new(&self.key).open(dst, nonce, ciphertext, &ad)?)
+        Ok(CS::Aead::new(&self.key).open(dst, nonce, ciphertext, &ad)?)
     }
 
     fn from_seed(seed: [u8; 64], version: Version, topic: &Topic) -> Result<Self, Error> {
@@ -332,7 +333,7 @@ impl<E: Engine> TopicKey<E> {
 
     const KDF_CTX: Context = Context {
         domain: "APQ-v1",
-        suite_ids: &SuiteIds::from_suite::<E>().into_bytes(),
+        suite_ids: &SuiteIds::from_suite::<CS>().into_bytes(),
     };
 
     /// Derives a key for [`Self::open`] and [`Self::seal`].
@@ -342,21 +343,21 @@ impl<E: Engine> TopicKey<E> {
         seed: &[u8; 64],
         version: Version,
         topic: &Topic,
-    ) -> Result<<E::Aead as Aead>::Key, Error> {
+    ) -> Result<<CS::Aead as Aead>::Key, Error> {
         // prk = LabeledExtract({0}^512, seed, "topic_key_prk")
-        let prk = Self::KDF_CTX.labeled_extract::<E::Kdf>(&[], "topic_key_prk", seed);
+        let prk = Self::KDF_CTX.labeled_extract::<CS::Kdf>(&[], "topic_key_prk", seed);
         // info = concat(
         //     i2osp(version, 4),
         //     topic,
         // )
         // key = LabeledExpand(prk, "topic_key_key", info, L)
-        let key = Self::KDF_CTX.labeled_expand::<E::Kdf, KeyData<E::Aead>>(
+        let key = Self::KDF_CTX.labeled_expand::<CS::Kdf, KeyData<CS::Aead>>(
             &prk,
             "topic_key_key",
             &[&version.to_be_bytes(), &topic.as_bytes()[..]],
         )?;
 
-        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(
+        Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
             key.as_bytes(),
         )?)
     }
@@ -367,14 +368,14 @@ ciphertext!(EncryptedTopicKey, U64, "An encrypted [`TopicKey`].");
 /// The private half of a [SenderSigningKey].
 ///
 /// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
-pub struct SenderSigningKey<E: Engine>(<E::Signer as Signer>::SigningKey);
+pub struct SenderSigningKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
 
 key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
 
-impl<E: Engine> SenderSigningKey<E> {
+impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// Creates a `SenderSigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <E::Signer as Signer>::SigningKey::new(rng);
+        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
         SenderSigningKey(sk)
     }
 
@@ -398,7 +399,7 @@ impl<E: Engine> SenderSigningKey<E> {
     /// let topic = Topic::new("SomeTopic");
     /// const RECORD: &[u8] = b"an encoded record";
     ///
-    /// let sk = SenderSigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
+    /// let sk = SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
     /// let sig = sk.sign(VERSION, &topic, RECORD)
     ///     .expect("should not fail");
@@ -431,7 +432,7 @@ impl<E: Engine> SenderSigningKey<E> {
         version: Version,
         topic: &Topic,
         record: &[u8],
-    ) -> Result<Signature<E>, Error> {
+    ) -> Result<Signature<CS>, Error> {
         // message = concat(
         //     i2osp(version, 4),
         //     topic,
@@ -439,10 +440,10 @@ impl<E: Engine> SenderSigningKey<E> {
         //     pk(SenderSigningKey),
         //     encode(record),
         // )
-        let msg = tuple_hash::<E::Hash, _>([
+        let msg = tuple_hash::<CS::Hash, _>([
             &version.to_be_bytes(),
             &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             self.public().id().as_bytes(),
             record,
         ]);
@@ -461,9 +462,9 @@ unwrapped! {
 /// The public half of a [SenderSigningKey].
 ///
 /// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
-pub struct SenderVerifyingKey<E: Engine>(<E::Signer as Signer>::VerifyingKey);
+pub struct SenderVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
-impl<E: Engine> SenderVerifyingKey<E> {
+impl<CS: CipherSuite> SenderVerifyingKey<CS> {
     /// Verifies the signature allegedly created over an encoded
     /// record.
     pub fn verify(
@@ -471,7 +472,7 @@ impl<E: Engine> SenderVerifyingKey<E> {
         version: Version,
         topic: &Topic,
         record: &[u8],
-        sig: &Signature<E>,
+        sig: &Signature<CS>,
     ) -> Result<(), Error> {
         // message = concat(
         //     i2osp(version, 4),
@@ -481,10 +482,10 @@ impl<E: Engine> SenderVerifyingKey<E> {
         //     context,
         //     encode(record),
         // )
-        let msg = tuple_hash::<E::Hash, _>([
+        let msg = tuple_hash::<CS::Hash, _>([
             &version.to_be_bytes(),
             &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             self.id().as_bytes(),
             record,
         ]);
@@ -495,14 +496,14 @@ impl<E: Engine> SenderVerifyingKey<E> {
 /// The private half of a [SenderKey].
 ///
 /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
-pub struct SenderSecretKey<E: Engine>(<E::Kem as Kem>::DecapKey);
+pub struct SenderSecretKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
 
-impl<E: Engine> SenderSecretKey<E> {
+impl<CS: CipherSuite> SenderSecretKey<CS> {
     /// Creates a `SenderSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <E::Kem as Kem>::DecapKey::new(rng);
+        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
         SenderSecretKey(sk)
     }
 }
@@ -517,19 +518,19 @@ unwrapped! {
 /// The public half of a [SenderKey].
 ///
 /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
-pub struct SenderPublicKey<E: Engine>(<E::Kem as Kem>::EncapKey);
+pub struct SenderPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
 
 /// The private half of a [ReceiverKey].
 ///
 /// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
-pub struct ReceiverSecretKey<E: Engine>(<E::Kem as Kem>::DecapKey);
+pub struct ReceiverSecretKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 
-impl<E: Engine> ReceiverSecretKey<E> {
+impl<CS: CipherSuite> ReceiverSecretKey<CS> {
     /// Creates a `ReceiverSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <E::Kem as Kem>::DecapKey::new(rng);
+        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
         ReceiverSecretKey(sk)
     }
 
@@ -539,13 +540,13 @@ impl<E: Engine> ReceiverSecretKey<E> {
         &self,
         version: Version,
         topic: &Topic,
-        pk: &SenderPublicKey<E>,
-        enc: &Encap<E>,
-        ciphertext: &EncryptedTopicKey<E>,
-    ) -> Result<TopicKey<E>, Error>
+        pk: &SenderPublicKey<CS>,
+        enc: &Encap<CS>,
+        ciphertext: &EncryptedTopicKey<CS>,
+    ) -> Result<TopicKey<CS>, Error>
     where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
+        <CS::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
         //     i2osp(version, 4),
@@ -553,10 +554,10 @@ impl<E: Engine> ReceiverSecretKey<E> {
         //     suite_id,
         //     "TopicKeyRotation",
         // )
-        let ad = tuple_hash::<E::Hash, _>([
+        let ad = tuple_hash::<CS::Hash, _>([
             &version.to_be_bytes()[..],
             &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             b"TopicKeyRotation",
         ]);
         // ciphertext = HPKE_OneShotOpen(
@@ -568,8 +569,12 @@ impl<E: Engine> ReceiverSecretKey<E> {
         //     ciphertext=ciphertext,
         //     ad=ad,
         // )
-        let mut ctx =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(Mode::Auth(&pk.0), &enc.0, &self.0, &ad)?;
+        let mut ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
+            Mode::Auth(&pk.0),
+            &enc.0,
+            &self.0,
+            &ad,
+        )?;
         let mut seed = [0u8; 64];
         ctx.open(&mut seed, ciphertext.as_bytes(), &ad)?;
         TopicKey::from_seed(seed, version, topic)
@@ -586,9 +591,9 @@ unwrapped! {
 /// The public half of a [ReceiverKey].
 ///
 /// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
-pub struct ReceiverPublicKey<E: Engine>(<E::Kem as Kem>::EncapKey);
+pub struct ReceiverPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
 
-impl<E: Engine> ReceiverPublicKey<E> {
+impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// Encrypts and authenticates the [`TopicKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`ReceiverPublicKey`].
@@ -618,9 +623,9 @@ impl<E: Engine> ReceiverPublicKey<E> {
     /// const VERSION: Version = Version::new(1);
     /// let topic = Topic::new("SomeTopic");
     ///
-    /// let send_sk = SenderSecretKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
+    /// let send_sk = SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng);
     /// let send_pk = send_sk.public();
-    /// let recv_sk = ReceiverSecretKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng);
+    /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(&mut Rng);
     /// let recv_pk = recv_sk.public();
     ///
     /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
@@ -668,12 +673,12 @@ impl<E: Engine> ReceiverPublicKey<E> {
         rng: &mut R,
         version: Version,
         topic: &Topic,
-        sk: &SenderSecretKey<E>,
-        key: &TopicKey<E>,
-    ) -> Result<(Encap<E>, EncryptedTopicKey<E>), Error>
+        sk: &SenderSecretKey<CS>,
+        key: &TopicKey<CS>,
+    ) -> Result<(Encap<CS>, EncryptedTopicKey<CS>), Error>
     where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
+        <CS::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
         //     i2osp(version, 4),
@@ -681,10 +686,10 @@ impl<E: Engine> ReceiverPublicKey<E> {
         //     suite_id,
         //     "TopicKeyRotation",
         // )
-        let ad = tuple_hash::<E::Hash, _>([
+        let ad = tuple_hash::<CS::Hash, _>([
             &version.to_be_bytes()[..],
             &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             b"TopicKeyRotation",
         ]);
         // (enc, ciphertext) = HPKE_OneShotSeal(
@@ -696,7 +701,7 @@ impl<E: Engine> ReceiverPublicKey<E> {
         //     ad=ad,
         // )
         let (enc, mut ctx) =
-            Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send(rng, Mode::Auth(&sk.0), &self.0, &ad)?;
+            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Auth(&sk.0), &self.0, &ad)?;
         let mut dst = GenericArray::default();
         ctx.seal(&mut dst, &key.seed, &ad)?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))

@@ -29,6 +29,7 @@ use crate::{
     keys::{PublicKey, SecretKey, SecretKeyBytes},
     mac::{Mac, MacId},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
+    Id,
 };
 
 macro_rules! msg {
@@ -326,6 +327,7 @@ where
     M: Mac<KeySize = U64, TagSize = U64>,
     S: Signer,
 {
+    const ID: Id = Id::default();
     type Aead = A;
     type Hash = H;
     type Kdf = F;
@@ -365,7 +367,7 @@ macro_rules! test_engine {
             #[allow(unused_imports)]
             use super::*;
 
-            $crate::test_util::test_ciphersuite!(ciphersuite, $engine);
+            $crate::test_util::test_ciphersuite!(ciphersuite, <$engine as $crate::engine::Engine>::CS);
 
             macro_rules! test {
                 ($test:ident) => {
@@ -483,6 +485,7 @@ pub mod engine {
         error::Error,
         groupkey::{Context, EncryptedGroupKey, GroupKey},
         id::Id,
+        CipherSuite,
     };
 
     /// Simple test for [`UserSigningKey`].
@@ -490,7 +493,7 @@ pub mod engine {
         const MSG: &[u8] = b"hello, world!";
         const CONTEXT: &[u8] = b"test_simple_user_signing_key_sign";
 
-        let sign_key = UserSigningKey::<E>::new(eng);
+        let sign_key = UserSigningKey::<E::CS>::new(eng);
 
         let sig = sign_key
             .sign(MSG, CONTEXT)
@@ -519,7 +522,7 @@ pub mod engine {
     /// Simple positive test for encrypting/decrypting
     /// [`GroupKey`]s.
     pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
-        let enc_key = EncryptionKey::<E>::new(eng);
+        let enc_key = EncryptionKey::<E::CS>::new(eng);
 
         let group = Id::default();
         let want = GroupKey::new(eng);
@@ -543,7 +546,7 @@ pub mod engine {
         .expect("should be able to encode wrapped `GroupKey`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `GroupKey`");
-        let got: GroupKey<E> = eng
+        let got: GroupKey<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `GroupKey`");
         assert_eq!(want.id(), got.id());
@@ -559,7 +562,7 @@ pub mod engine {
         .expect("should be able to encode wrapped `IdentityKey`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `IdentityKey`");
-        let got: IdentityKey<E> = eng
+        let got: IdentityKey<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `IdentityKey`");
         assert_eq!(want.id(), got.id());
@@ -568,7 +571,7 @@ pub mod engine {
     /// Simple positive test for exporting the public half of
     /// [`IdentityKey`]s.
     pub fn test_simple_export_user_identity_key<E: Engine>(eng: &mut E) {
-        let want = IdentityKey::<E>::new(eng).public();
+        let want = IdentityKey::<E::CS>::new(eng).public();
         let bytes = postcard::to_allocvec(&want)
             .expect("should be able to encode an `IdentityVerifyingKey`");
         let got = postcard::from_bytes(&bytes)
@@ -580,7 +583,7 @@ pub mod engine {
     /// Creates a signature over `msg` bound to some `context`.
     /// `msg` must NOT be pre-hashed.
     pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
-        let sign_key = IdentityKey::<E>::new(eng);
+        let sign_key = IdentityKey::<E::CS>::new(eng);
 
         const MESSAGE: &[u8] = b"hello, world!";
         const CONTEXT: &[u8] = b"test_simple_identity_key_sign";
@@ -619,7 +622,7 @@ pub mod engine {
         .expect("should be able to encode wrapped `UserSigningKey`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `UserSigningKey`");
-        let got: UserSigningKey<E> = eng
+        let got: UserSigningKey<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `UserSigningKey`");
         assert_eq!(want.id(), got.id());
@@ -628,7 +631,7 @@ pub mod engine {
     /// Simple positive test for exporting the public half of
     /// [`UserSigningKey`]s.
     pub fn test_simple_export_user_signing_key<E: Engine>(eng: &mut E) {
-        let want = UserSigningKey::<E>::new(eng).public();
+        let want = UserSigningKey::<E::CS>::new(eng).public();
         let bytes =
             postcard::to_allocvec(&want).expect("should be able to encode an `VerifyingKey`");
         let got = postcard::from_bytes(&bytes).expect("should be able to decode an `VerifyingKey`");
@@ -645,7 +648,7 @@ pub mod engine {
         .expect("should be able to encode wrapped `EncryptionKey`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `EncryptionKey`");
-        let got: EncryptionKey<E> = eng
+        let got: EncryptionKey<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `EncryptionKey`");
         assert_eq!(want.id(), got.id());
@@ -654,7 +657,7 @@ pub mod engine {
     /// Simple positive test for exporting the public half of
     /// [`EncryptionKey`]s.
     pub fn test_simple_export_user_encryption_key<E: Engine>(eng: &mut E) {
-        let want = EncryptionKey::<E>::new(eng).public();
+        let want = EncryptionKey::<E::CS>::new(eng).public();
         let bytes = postcard::to_allocvec(&want)
             .expect("should be able to encode an `EncryptionPublicKey`");
         let got = postcard::from_bytes(&bytes)
@@ -666,7 +669,7 @@ pub mod engine {
     pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
         const INPUT: &[u8] = b"hello, world!";
 
-        let author = UserSigningKey::<E>::new(eng).public();
+        let author = UserSigningKey::<E::CS>::new(eng).public();
 
         let gk = GroupKey::new(eng);
         let ciphertext = {
@@ -705,7 +708,7 @@ pub mod engine {
     pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
         const INPUT: &[u8] = b"hello, world!";
 
-        let author = UserSigningKey::<E>::new(eng).public();
+        let author = UserSigningKey::<E::CS>::new(eng).public();
 
         let gk1 = GroupKey::new(eng);
         let gk2 = GroupKey::new(eng);
@@ -744,8 +747,8 @@ pub mod engine {
     pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
         const INPUT: &[u8] = b"hello, world!";
 
-        let author1 = UserSigningKey::<E>::new(eng).public();
-        let author2 = UserSigningKey::<E>::new(eng).public();
+        let author1 = UserSigningKey::<E::CS>::new(eng).public();
+        let author2 = UserSigningKey::<E::CS>::new(eng).public();
 
         let gk = GroupKey::new(eng);
         let ciphertext = {
@@ -803,7 +806,7 @@ pub mod engine {
     pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
         const INPUT: &[u8] = b"hello, world!";
 
-        let author = UserSigningKey::<E>::new(eng).public();
+        let author = UserSigningKey::<E::CS>::new(eng).public();
 
         let gk = GroupKey::new(eng);
         let mut ciphertext = {
@@ -842,10 +845,10 @@ pub mod engine {
     /// Test encoding/decoding [`EncryptedGroupKey`].
     pub fn test_encrypted_group_key_encode<E: Engine>(eng: &mut E)
     where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
+        <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
-        let enc_key = EncryptionKey::<E>::new(eng);
+        let enc_key = EncryptionKey::<E::CS>::new(eng);
 
         let group = Id::default();
         let want = GroupKey::new(eng);
@@ -853,8 +856,9 @@ pub mod engine {
             .public()
             .seal_group_key(eng, &want, group)
             .expect("unable to encrypt `GroupKey`");
-        let enc = Encap::<E>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
-        let ciphertext: EncryptedGroupKey<E> = postcard::from_bytes(
+        let enc =
+            Encap::<E::CS>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
+        let ciphertext: EncryptedGroupKey<E::CS> = postcard::from_bytes(
             &postcard::to_allocvec(&ciphertext)
                 .expect("should be able to encode `EncryptedGroupKey`"),
         )
@@ -869,15 +873,15 @@ pub mod engine {
     /// Creates a signature over an encoded record.
     pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &mut E)
     where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
+        <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         const RECORD: &[u8] = b"some encoded record";
 
         const VERSION: Version = Version::new(1);
         let topic = Topic::new("SomeTopic");
 
-        let sign_key = SenderSigningKey::<E>::new(eng);
+        let sign_key = SenderSigningKey::<E::CS>::new(eng);
         let sig = sign_key
             .sign(VERSION, &topic, RECORD)
             .expect("unable to create signature");
@@ -920,12 +924,12 @@ pub mod engine {
     /// [`TopicKey`]s.
     pub fn test_simple_seal_topic_key<E: Engine>(eng: &mut E)
     where
-        <E::Aead as Aead>::Overhead: Add<U64>,
-        Sum<<E::Aead as Aead>::Overhead, U64>: ArrayLength,
+        <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
+        Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
-        let send_sk = SenderSecretKey::<E>::new(eng);
+        let send_sk = SenderSecretKey::<E::CS>::new(eng);
         let send_pk = send_sk.public();
-        let recv_sk = ReceiverSecretKey::<E>::new(eng);
+        let recv_sk = ReceiverSecretKey::<E::CS>::new(eng);
         let recv_pk = recv_sk.public();
 
         const VERSION: Version = Version::new(1);
@@ -935,8 +939,9 @@ pub mod engine {
         let (enc, ciphertext) = recv_pk
             .seal_topic_key(eng, VERSION, &topic, &send_sk, &want)
             .expect("unable to encrypt `TopicKey`");
-        let enc = Encap::<E>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
-        let ciphertext = EncryptedTopicKey::<E>::from_bytes(ciphertext.as_bytes())
+        let enc =
+            Encap::<E::CS>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
+        let ciphertext = EncryptedTopicKey::<E::CS>::from_bytes(ciphertext.as_bytes())
             .expect("should be able to decode `EncryptedTopicKey`");
         let got = recv_sk
             .open_topic_key(VERSION, &topic, &send_pk, &enc, &ciphertext)
@@ -954,7 +959,7 @@ pub mod engine {
         .expect("should be able to encode wrapped `SenderSecretKey`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `SenderSecretKey`");
-        let got: SenderSecretKey<E> = eng
+        let got: SenderSecretKey<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `SenderSecretKey`");
         assert_eq!(want.id(), got.id());
@@ -970,7 +975,7 @@ pub mod engine {
         .expect("should be able to encode wrapped `SenderSigningKey`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `SenderSigningKey`");
-        let got: SenderSigningKey<E> = eng
+        let got: SenderSigningKey<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `SenderSigningKey`");
         assert_eq!(want.id(), got.id());
@@ -986,7 +991,7 @@ pub mod engine {
         .expect("should be able to encode wrapped `ReceiverSecretKey`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `ReceiverSecretKey`");
-        let got: ReceiverSecretKey<E> = eng
+        let got: ReceiverSecretKey<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `ReceiverSecretKey`");
         assert_eq!(want.id(), got.id());
@@ -997,8 +1002,8 @@ pub mod engine {
         const INPUT: &[u8] = b"hello, world!";
 
         let ident = Sender {
-            enc_key: &SenderSecretKey::<E>::new(eng).public(),
-            sign_key: &SenderSigningKey::<E>::new(eng).public(),
+            enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
+            sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
         };
 
         const VERSION: Version = Version::new(1);
@@ -1025,8 +1030,8 @@ pub mod engine {
         const INPUT: &[u8] = b"hello, world!";
 
         let ident = Sender {
-            enc_key: &SenderSecretKey::<E>::new(eng).public(),
-            sign_key: &SenderSigningKey::<E>::new(eng).public(),
+            enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
+            sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
         };
 
         const VERSION: Version = Version::new(1);
@@ -1053,12 +1058,12 @@ pub mod engine {
         const INPUT: &[u8] = b"hello, world!";
 
         let ident = Sender {
-            enc_key: &SenderSecretKey::<E>::new(eng).public(),
-            sign_key: &SenderSigningKey::<E>::new(eng).public(),
+            enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
+            sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
         };
         let wrong_ident = Sender {
-            enc_key: &SenderSecretKey::<E>::new(eng).public(),
-            sign_key: &SenderSigningKey::<E>::new(eng).public(),
+            enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
+            sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
         };
 
         const VERSION: Version = Version::new(1);
@@ -1096,8 +1101,8 @@ pub mod engine {
         const INPUT: &[u8] = b"hello, world!";
 
         let ident = Sender {
-            enc_key: &SenderSecretKey::<E>::new(eng).public(),
-            sign_key: &SenderSigningKey::<E>::new(eng).public(),
+            enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
+            sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
         };
 
         const VERSION: Version = Version::new(1);
@@ -1121,7 +1126,7 @@ pub mod engine {
     }
 
     /// Checks that `open` can decrypt ciphertexts from `seal`.
-    fn assert_same_aps_keys<E: Engine>(seal: &mut SealKey<E>, open: &OpenKey<E>) {
+    fn assert_same_aps_keys<CS: CipherSuite>(seal: &mut SealKey<CS>, open: &OpenKey<CS>) {
         const GOLDEN: &str = "hello, world!";
         const AD: AuthData = AuthData {
             version: 1,
@@ -1129,14 +1134,14 @@ pub mod engine {
         };
 
         let (ciphertext, seq) = {
-            let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+            let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
             let seq = seal
                 .seal(&mut dst, GOLDEN.as_bytes(), &AD)
                 .expect("should be able to encrypt plaintext");
             (dst, seq)
         };
 
-        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<CS>::OVERHEAD];
         open.open(&mut plaintext, &ciphertext, &AD, seq)
             .expect("decryption failed; keys differ");
 
@@ -1153,8 +1158,8 @@ pub mod engine {
     /// If `seal` is `None` then a random key will be used.
     fn assert_different_aps_keys<E: Engine>(
         eng: &mut E,
-        seal: Option<SealKey<E>>,
-        open: &OpenKey<E>,
+        seal: Option<SealKey<E::CS>>,
+        open: &OpenKey<E::CS>,
     ) {
         const GOLDEN: &str = "hello, world!";
         const AD: AuthData = AuthData {
@@ -1163,7 +1168,7 @@ pub mod engine {
         };
 
         let (ciphertext, seq) = {
-            let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+            let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E::CS>::OVERHEAD];
             let seq = seal
                 .unwrap_or_else(|| {
                     SealKey::from_raw(&Random::random(eng), Seq::ZERO)
@@ -1174,7 +1179,7 @@ pub mod engine {
             (dst, seq)
         };
 
-        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E::CS>::OVERHEAD];
         let err = open
             .open(&mut plaintext, &ciphertext, &AD, seq)
             .expect_err("should not be able to decrypt ciphertext with mismatched keys");
@@ -1187,10 +1192,11 @@ pub mod engine {
 
     /// A simple positive test for [`SealKey`] and [`OpenKey`].
     pub fn test_same_seal_key_open_key<E: Engine>(eng: &mut E) {
-        let raw: RawSealKey<E> = Random::random(eng);
-        let mut seal =
-            SealKey::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
-        let open = OpenKey::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
+        let raw: RawSealKey<E::CS> = Random::random(eng);
+        let mut seal = SealKey::<E::CS>::from_raw(&raw, Seq::ZERO)
+            .expect("should be able to create `SealKey`");
+        let open =
+            OpenKey::<E::CS>::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
         assert_same_aps_keys(&mut seal, &open);
     }
 
@@ -1207,7 +1213,7 @@ pub mod engine {
     /// Tests that [`SealKey`]'s sequence number monotonically
     /// advances by one each time.
     pub fn test_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
-        let mut seal = SealKey::<E>::from_raw(&Random::random(eng), Seq::ZERO)
+        let mut seal = SealKey::<E::CS>::from_raw(&Random::random(eng), Seq::ZERO)
             .expect("should be able to create `SealKey`");
 
         const GOLDEN: &str = "hello, world!";
@@ -1215,7 +1221,7 @@ pub mod engine {
             version: 1,
             label: 2,
         };
-        let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+        let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E::CS>::OVERHEAD];
         // The upper bound is arbitrary. We obviously cannot test
         // all 2^61-1 integers.
         for idx in 0..u16::MAX {
@@ -1229,10 +1235,10 @@ pub mod engine {
     /// Tests that [`SealKey`] refuses to encrypt when its
     /// sequence number has been exhausted.
     pub fn test_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
-        let max = Seq::max::<<E::Aead as Aead>::NonceSize>();
+        let max = Seq::max::<<<E::CS as CipherSuite>::Aead as Aead>::NonceSize>();
         // Start at one before the max.
         let start = Seq::new(max - 1);
-        let mut seal = SealKey::<E>::from_raw(&Random::random(eng), start)
+        let mut seal = SealKey::<E::CS>::from_raw(&Random::random(eng), start)
             .expect("should be able to create `SealKey`");
 
         const GOLDEN: &str = "hello, world!";
@@ -1240,7 +1246,7 @@ pub mod engine {
             version: 1,
             label: 2,
         };
-        let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+        let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E::CS>::OVERHEAD];
 
         // The first encryption should succeed since seq < max.
         let seq = seal
@@ -1259,9 +1265,9 @@ pub mod engine {
     /// Tests that [`OpenKey`] refuses to decrypt when the
     /// sequence number has been exhausted.
     pub fn test_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
-        let raw: RawSealKey<E> = Random::random(eng);
-        let mut seal =
-            SealKey::<E>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
+        let raw: RawSealKey<E::CS> = Random::random(eng);
+        let mut seal = SealKey::<E::CS>::from_raw(&raw, Seq::ZERO)
+            .expect("should be able to create `SealKey`");
         let open = OpenKey::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
         assert_same_aps_keys(&mut seal, &open);
 
@@ -1270,8 +1276,8 @@ pub mod engine {
             version: 1,
             label: 2,
         };
-        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
-        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E::CS>::OVERHEAD];
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E::CS>::OVERHEAD];
 
         // `OpenKey` should reject the sequence number before
         // attempting to decrypt the ciphertext, but start with
@@ -1279,7 +1285,8 @@ pub mod engine {
         seal.seal(&mut ciphertext, GOLDEN.as_bytes(), &AD)
             .expect("should be able to encrypt plaintext");
 
-        let exhausted_seq = Seq::new(Seq::max::<<E::Aead as Aead>::NonceSize>());
+        let exhausted_seq =
+            Seq::new(Seq::max::<<<E::CS as CipherSuite>::Aead as Aead>::NonceSize>());
         // Decryption should fail since seq >= max.
         let err = open
             .open(&mut plaintext, &ciphertext, &AD, exhausted_seq)
@@ -1294,9 +1301,9 @@ pub mod engine {
     /// Tests that [`OpenKey`]'s fails when the incorrect
     /// sequence number is provided.
     pub fn test_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
-        let raw: RawSealKey<E> = Random::random(eng);
-        let mut seal =
-            SealKey::<E>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
+        let raw: RawSealKey<E::CS> = Random::random(eng);
+        let mut seal = SealKey::<E::CS>::from_raw(&raw, Seq::ZERO)
+            .expect("should be able to create `SealKey`");
         let open = OpenKey::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
         assert_same_aps_keys(&mut seal, &open);
 
@@ -1305,8 +1312,8 @@ pub mod engine {
             version: 1,
             label: 2,
         };
-        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
-        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E::CS>::OVERHEAD];
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E::CS>::OVERHEAD];
         for _ in 0..100 {
             let seq = seal
                 .seal(&mut ciphertext, GOLDEN.as_bytes(), &AD)
@@ -1327,9 +1334,9 @@ pub mod engine {
     /// Tests that [`OpenKey`]'s fails when the incorrect
     /// [`AuthData`] is provided.
     pub fn test_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
-        let raw: RawSealKey<E> = Random::random(eng);
-        let mut seal =
-            SealKey::<E>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
+        let raw: RawSealKey<E::CS> = Random::random(eng);
+        let mut seal = SealKey::<E::CS>::from_raw(&raw, Seq::ZERO)
+            .expect("should be able to create `SealKey`");
         let open = OpenKey::from_raw(&raw.into()).expect("should be able to create `OpenKey`");
         assert_same_aps_keys(&mut seal, &open);
 
@@ -1343,12 +1350,12 @@ pub mod engine {
             label: 4,
         };
 
-        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+        let mut ciphertext = vec![0u8; GOLDEN.len() + SealKey::<E::CS>::OVERHEAD];
         let seq = seal
             .seal(&mut ciphertext, GOLDEN.as_bytes(), &GOOD_AD)
             .expect("should be able to encrypt plaintext");
 
-        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E>::OVERHEAD];
+        let mut plaintext = vec![0u8; ciphertext.len() - OpenKey::<E::CS>::OVERHEAD];
         let err = open
             .open(&mut plaintext, &ciphertext, &WRONG_AD, seq)
             .expect_err("should not be able to decrypt ciphertext with the wrong `AuthData`");
@@ -1362,7 +1369,7 @@ pub mod engine {
     /// Checks that `lhs` and `rhs` match; that is, `lhs`'s
     /// encryption key should match `rhs`'s decryption key and
     /// vice versa.
-    fn assert_bidi_keys_match<E: Engine>(lhs: BidiKeys<E>, rhs: BidiKeys<E>) {
+    fn assert_bidi_keys_match<CS: CipherSuite>(lhs: BidiKeys<CS>, rhs: BidiKeys<CS>) {
         // We should never generate duplicate keys.
         assert_ct_ne!(lhs.seal_key(), rhs.seal_key(), "duplicate `SealKey`");
         assert_ct_ne!(lhs.open_key(), rhs.open_key(), "duplicate `OpenKey`");
@@ -1389,7 +1396,11 @@ pub mod engine {
     }
 
     /// Checks that `lhs` and `rhs` do _not_ match.
-    fn assert_bidi_keys_mismatch<E: Engine>(eng: &mut E, lhs: BidiKeys<E>, rhs: BidiKeys<E>) {
+    fn assert_bidi_keys_mismatch<E: Engine>(
+        eng: &mut E,
+        lhs: BidiKeys<E::CS>,
+        rhs: BidiKeys<E::CS>,
+    ) {
         // We should never generate duplicate keys.
         assert_ct_ne!(lhs.seal_key(), rhs.seal_key(), "duplicate `SealKey`");
         assert_ct_ne!(lhs.open_key(), rhs.open_key(), "duplicate `OpenKey`");
@@ -1406,15 +1417,15 @@ pub mod engine {
 
     /// A simple positive test for deriving [`BidiKeys`].
     pub fn test_derive_bidi_keys<E: Engine>(eng: &mut E) {
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let label = 123;
         let ch1 = BidiChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            our_id: IdentityKey::<E>::new(eng).id(),
+            our_id: IdentityKey::<E::CS>::new(eng).id(),
             their_pk: &sk2.public(),
-            their_id: IdentityKey::<E>::new(eng).id(),
+            their_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let ch2 = BidiChannel {
@@ -1440,14 +1451,14 @@ pub mod engine {
 
     /// Different labels should create different [`BidiKeys`].
     pub fn test_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let ch1 = BidiChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            our_id: IdentityKey::<E>::new(eng).id(),
+            our_id: IdentityKey::<E::CS>::new(eng).id(),
             their_pk: &sk2.public(),
-            their_id: IdentityKey::<E>::new(eng).id(),
+            their_id: IdentityKey::<E::CS>::new(eng).id(),
             label: 123,
         };
         let ch2 = BidiChannel {
@@ -1477,14 +1488,14 @@ pub mod engine {
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
     pub fn test_derive_bidi_keys_different_user_ids<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let ch1 = BidiChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            our_id: IdentityKey::<E>::new(eng).id(),
+            our_id: IdentityKey::<E::CS>::new(eng).id(),
             their_pk: &sk2.public(),
-            their_id: IdentityKey::<E>::new(eng).id(),
+            their_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let ch2 = BidiChannel {
@@ -1513,14 +1524,14 @@ pub mod engine {
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
     pub fn test_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let ch1 = BidiChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            our_id: IdentityKey::<E>::new(eng).id(),
+            our_id: IdentityKey::<E::CS>::new(eng).id(),
             their_pk: &sk2.public(),
-            their_id: IdentityKey::<E>::new(eng).id(),
+            their_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let ch2 = BidiChannel {
@@ -1549,21 +1560,21 @@ pub mod engine {
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
     pub fn test_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let ch1 = BidiChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            our_id: IdentityKey::<E>::new(eng).id(),
+            our_id: IdentityKey::<E::CS>::new(eng).id(),
             their_pk: &sk2.public(),
-            their_id: IdentityKey::<E>::new(eng).id(),
+            their_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let ch2 = BidiChannel {
             parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
             our_id: ch1.their_id,
-            their_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
             their_id: ch1.our_id,
             label,
         };
@@ -1586,21 +1597,21 @@ pub mod engine {
     /// [`BidiKeys`].
     pub fn test_derive_bidi_keys_same_user_id<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let mut ch1 = BidiChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            our_id: IdentityKey::<E>::new(eng).id(),
+            our_id: IdentityKey::<E::CS>::new(eng).id(),
             their_pk: &sk2.public(),
-            their_id: IdentityKey::<E>::new(eng).id(),
+            their_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let mut ch2 = BidiChannel {
             parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
             our_id: ch1.their_id,
-            their_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
             their_id: ch1.our_id,
             label,
         };
@@ -1632,9 +1643,9 @@ pub mod engine {
         let ch = BidiChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
-            our_id: IdentityKey::<E>::new(eng).id(),
+            our_id: IdentityKey::<E::CS>::new(eng).id(),
             their_pk: &sk2.public(),
-            their_id: IdentityKey::<E>::new(eng).id(),
+            their_id: IdentityKey::<E::CS>::new(eng).id(),
             label: 123,
         };
 
@@ -1647,14 +1658,14 @@ pub mod engine {
         .expect("should be able to encode wrapped `BidiAuthorSecret`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `BidiAuthorSecret`");
-        let got: BidiAuthorSecret<E> = eng
+        let got: BidiAuthorSecret<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `BidiAuthorSecret`");
         assert_ct_eq!(want, got);
     }
 
     /// Checks that `seal` and `open` are the same key.
-    fn assert_same_uni_key<E: Engine>(seal: UniSealKey<E>, open: UniOpenKey<E>) {
+    fn assert_same_uni_key<CS: CipherSuite>(seal: UniSealKey<CS>, open: UniOpenKey<CS>) {
         // Simple test: they should have the same bytes.
         {
             let seal = seal.as_raw_key();
@@ -1670,7 +1681,11 @@ pub mod engine {
     }
 
     /// Checks that `seal` and `open` are different keys.
-    fn assert_different_uni_key<E: Engine>(eng: &mut E, seal: UniSealKey<E>, open: UniOpenKey<E>) {
+    fn assert_different_uni_key<E: Engine>(
+        eng: &mut E,
+        seal: UniSealKey<E::CS>,
+        open: UniOpenKey<E::CS>,
+    ) {
         // Simple test: they should not have the same bytes.
         {
             let seal = seal.as_raw_key();
@@ -1694,15 +1709,15 @@ pub mod engine {
     /// A simple positive test for deriving [`UniSealKey`] and
     /// [`UniOpenKey`].
     pub fn test_derive_uni_key<E: Engine>(eng: &mut E) {
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let label = 123;
         let ch1 = UniChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             their_pk: &sk2.public(),
-            seal_id: IdentityKey::<E>::new(eng).id(),
-            open_id: IdentityKey::<E>::new(eng).id(),
+            seal_id: IdentityKey::<E::CS>::new(eng).id(),
+            open_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let ch2 = UniChannel {
@@ -1728,14 +1743,14 @@ pub mod engine {
     /// Different labels should create different [`UniSealKey`]
     /// and [`UniOpenKey`]s.
     pub fn test_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let ch1 = UniChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             their_pk: &sk2.public(),
-            seal_id: IdentityKey::<E>::new(eng).id(),
-            open_id: IdentityKey::<E>::new(eng).id(),
+            seal_id: IdentityKey::<E::CS>::new(eng).id(),
+            open_id: IdentityKey::<E::CS>::new(eng).id(),
             label: 123,
         };
         let ch2 = UniChannel {
@@ -1764,14 +1779,14 @@ pub mod engine {
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
     pub fn test_derive_uni_key_different_user_ids<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let ch1 = UniChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             their_pk: &sk2.public(),
-            seal_id: IdentityKey::<E>::new(eng).id(),
-            open_id: IdentityKey::<E>::new(eng).id(),
+            seal_id: IdentityKey::<E::CS>::new(eng).id(),
+            open_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let ch2 = UniChannel {
@@ -1800,14 +1815,14 @@ pub mod engine {
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
     pub fn test_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let ch1 = UniChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             their_pk: &sk2.public(),
-            seal_id: IdentityKey::<E>::new(eng).id(),
-            open_id: IdentityKey::<E>::new(eng).id(),
+            seal_id: IdentityKey::<E::CS>::new(eng).id(),
+            open_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let ch2 = UniChannel {
@@ -1836,20 +1851,20 @@ pub mod engine {
     /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
     pub fn test_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let ch1 = UniChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             their_pk: &sk2.public(),
-            seal_id: IdentityKey::<E>::new(eng).id(),
-            open_id: IdentityKey::<E>::new(eng).id(),
+            seal_id: IdentityKey::<E::CS>::new(eng).id(),
+            open_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let ch2 = UniChannel {
             parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            their_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
             seal_id: ch1.seal_id,
             open_id: ch1.open_id,
             label,
@@ -1869,20 +1884,20 @@ pub mod engine {
     /// [`UniSealKey`]s.
     pub fn test_derive_uni_seal_key_same_user_id<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let mut ch1 = UniChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             their_pk: &sk2.public(),
-            seal_id: IdentityKey::<E>::new(eng).id(),
-            open_id: IdentityKey::<E>::new(eng).id(),
+            seal_id: IdentityKey::<E::CS>::new(eng).id(),
+            open_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let mut ch2 = UniChannel {
             parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            their_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
             seal_id: ch1.seal_id,
             open_id: ch1.open_id,
             label,
@@ -1913,20 +1928,20 @@ pub mod engine {
     /// [`UniOpenKey`]s.
     pub fn test_derive_uni_open_key_same_user_id<E: Engine>(eng: &mut E) {
         let label = 123;
-        let sk1 = EncryptionKey::<E>::new(eng);
-        let sk2 = EncryptionKey::<E>::new(eng);
+        let sk1 = EncryptionKey::<E::CS>::new(eng);
+        let sk2 = EncryptionKey::<E::CS>::new(eng);
         let mut ch1 = UniChannel {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             their_pk: &sk2.public(),
-            seal_id: IdentityKey::<E>::new(eng).id(),
-            open_id: IdentityKey::<E>::new(eng).id(),
+            seal_id: IdentityKey::<E::CS>::new(eng).id(),
+            open_id: IdentityKey::<E::CS>::new(eng).id(),
             label,
         };
         let mut ch2 = UniChannel {
             parent_cmd_id: ch1.parent_cmd_id,
             our_sk: &sk2,
-            their_pk: &EncryptionKey::<E>::new(eng).public(),
+            their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
             seal_id: ch1.seal_id,
             open_id: ch1.open_id,
             label,
@@ -1961,8 +1976,8 @@ pub mod engine {
             parent_cmd_id: Id::random(eng),
             our_sk: &sk1,
             their_pk: &sk2.public(),
-            seal_id: IdentityKey::<E>::new(eng).id(),
-            open_id: IdentityKey::<E>::new(eng).id(),
+            seal_id: IdentityKey::<E::CS>::new(eng).id(),
+            open_id: IdentityKey::<E::CS>::new(eng).id(),
             label: 123,
         };
 
@@ -1975,7 +1990,7 @@ pub mod engine {
         .expect("should be able to encode wrapped `UniAuthorSecret`");
         let wrapped = postcard::from_bytes(&bytes)
             .expect("should be able to decode encoded wrapped `UniAuthorSecret`");
-        let got: UniAuthorSecret<E> = eng
+        let got: UniAuthorSecret<E::CS> = eng
             .unwrap(&wrapped)
             .expect("should be able to unwrap `UniAuthorSecret`");
         assert_ct_eq!(want, got);

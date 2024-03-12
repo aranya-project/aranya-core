@@ -20,7 +20,7 @@ use serde::{
 use subtle::{Choice, ConstantTimeEq};
 use typenum::U64;
 
-use crate::{ciphersuite::SuiteIds, csprng::Csprng, engine::Engine, hash::tuple_hash};
+use crate::{ciphersuite::SuiteIds, csprng::Csprng, hash::tuple_hash, CipherSuite};
 
 /// A unique cryptographic ID.
 #[repr(C)]
@@ -29,12 +29,12 @@ pub struct Id([u8; 64]);
 
 impl Id {
     /// Derives an [`Id`] from the hash of some data.
-    pub fn new<E: Engine>(data: &[u8], tag: &[u8]) -> Id {
+    pub fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Id {
         // id = H("ID-v1" || eng_id || suites || data || tag)
-        tuple_hash::<E::Hash, _>([
+        tuple_hash::<CS::Hash, _>([
             "ID-v1".as_bytes(),
-            E::ID.as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            CS::ID.as_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             data,
             tag,
         ])

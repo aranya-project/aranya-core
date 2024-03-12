@@ -129,13 +129,13 @@ pub trait KeyStoreExt: KeyStore {
     fn get_key<E, K>(&self, eng: &mut E, id: &Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
-        K: UnwrappedKey<E>;
+        K: UnwrappedKey<E::CS>;
 
     /// Removes and unwraps the key.
     fn remove_key<E, K>(&mut self, eng: &mut E, id: &Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
-        K: UnwrappedKey<E>;
+        K: UnwrappedKey<E::CS>;
 }
 
 impl<T: KeyStore> KeyStoreExt for T {
@@ -143,7 +143,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     fn get_key<E, K>(&self, eng: &mut E, id: &Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
-        K: UnwrappedKey<E>,
+        K: UnwrappedKey<E::CS>,
     {
         if let Some(wrapped) = self.get(id)? {
             let sk = eng
@@ -159,7 +159,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     fn remove_key<E, K>(&mut self, eng: &mut E, id: &Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
-        K: UnwrappedKey<E>,
+        K: UnwrappedKey<E::CS>,
     {
         if let Some(wrapped) = self.remove(id)? {
             let sk = eng

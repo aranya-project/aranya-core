@@ -22,7 +22,7 @@ use crate::{
     aead::{Aead, AeadId, OpenError, SealError},
     ciphersuite::CipherSuite,
     csprng::Csprng,
-    id::{Id, Identified},
+    id::Identified,
     import::{ExportError, ImportError},
     kdf::{Kdf, KdfId, Prk},
     kem::{Kem, KemId},
@@ -31,9 +31,9 @@ use crate::{
 };
 
 /// The core trait used by the cryptography engine APIs.
-pub trait Engine: CipherSuite + Csprng + RawSecretWrap<Self> + Sized {
-    /// Uniquely identifies the [`Engine`].
-    const ID: Id;
+pub trait Engine: Csprng + RawSecretWrap<Self> + Sized {
+    /// The engine's [`CipherSuite`].
+    type CS: CipherSuite;
 
     /// An encrypted, authenticated key that can only be
     /// decrypted with [`Engine::unwrap`].
@@ -42,7 +42,7 @@ pub trait Engine: CipherSuite + Csprng + RawSecretWrap<Self> + Sized {
     /// Encrypts and authenticates an unwrapped key.
     fn wrap<T>(&mut self, key: T) -> Result<Self::WrappedKey, WrapError>
     where
-        T: UnwrappedKey<Self>,
+        T: UnwrappedKey<Self::CS>,
     {
         let id = key.id();
         let secret = key.into_secret();
@@ -52,7 +52,7 @@ pub trait Engine: CipherSuite + Csprng + RawSecretWrap<Self> + Sized {
     /// Decrypts and authenticates the wrapped key.
     fn unwrap<T>(&self, key: &Self::WrappedKey) -> Result<T, UnwrapError>
     where
-        T: UnwrappedKey<Self>,
+        T: UnwrappedKey<Self::CS>,
     {
         let secret = self.unwrap_secret::<T>(key)?;
         Ok(T::try_from_secret(UnwrappedSecret(secret))?)
@@ -75,26 +75,26 @@ pub trait Engine: CipherSuite + Csprng + RawSecretWrap<Self> + Sized {
 pub trait WrappedKey: Identified + Serialize + DeserializeOwned + Sized {}
 
 /// A key that an [`Engine`] can wrap.
-pub trait UnwrappedKey<E: Engine>: Sized + Identified {
+pub trait UnwrappedKey<CS: CipherSuite>: Sized + Identified {
     /// The key's algorithm identifier.
     const ID: AlgId;
 
     /// Converts itself into the underlying [`Secret`].
-    fn into_secret(self) -> Secret<E>;
+    fn into_secret(self) -> Secret<CS>;
 
     /// Converts itself from a [`UnwrappedSecret`].
-    fn try_from_secret(key: UnwrappedSecret<E>) -> Result<Self, WrongKeyType>;
+    fn try_from_secret(key: UnwrappedSecret<CS>) -> Result<Self, WrongKeyType>;
 }
 
 /// A cryptographic secret underlying an [`UnwrappedKey`].
 ///
 /// It is intentionally opaque; only [`Engine::wrap`] can access
 /// the internal [`RawSecret`].
-pub struct Secret<E: Engine>(RawSecret<E>);
+pub struct Secret<CS: CipherSuite>(RawSecret<CS>);
 
-impl<E: Engine> Secret<E> {
+impl<CS: CipherSuite> Secret<CS> {
     /// Creates a new [`Secret`].
-    pub const fn new(secret: RawSecret<E>) -> Self {
+    pub const fn new(secret: RawSecret<CS>) -> Self {
         Self(secret)
     }
 }
@@ -103,11 +103,11 @@ impl<E: Engine> Secret<E> {
 ///
 /// It is intentionally opaque; only [`Engine::unwrap`] can
 /// construct this type.
-pub struct UnwrappedSecret<E: Engine>(RawSecret<E>);
+pub struct UnwrappedSecret<CS: CipherSuite>(RawSecret<CS>);
 
-impl<E: Engine> UnwrappedSecret<E> {
+impl<CS: CipherSuite> UnwrappedSecret<CS> {
     /// Returns the underlying [`RawSecret`].
-    pub fn into_raw(self) -> RawSecret<E> {
+    pub fn into_raw(self) -> RawSecret<CS> {
         self.0
     }
 }
@@ -124,10 +124,10 @@ pub trait RawSecretWrap<E: Engine> {
     fn wrap_secret<T>(
         &mut self,
         id: &<T as Identified>::Id,
-        secret: RawSecret<E>,
+        secret: RawSecret<E::CS>,
     ) -> Result<E::WrappedKey, WrapError>
     where
-        T: UnwrappedKey<E>;
+        T: UnwrappedKey<E::CS>;
 
     /// Decrypts and authenticates the wrapped key.
     ///
@@ -135,28 +135,28 @@ pub trait RawSecretWrap<E: Engine> {
     ///
     /// This method is used by [`Engine::unwrap`] and should not
     /// be called manually.
-    fn unwrap_secret<T>(&self, key: &E::WrappedKey) -> Result<RawSecret<E>, UnwrapError>
+    fn unwrap_secret<T>(&self, key: &E::WrappedKey) -> Result<RawSecret<E::CS>, UnwrapError>
     where
-        T: UnwrappedKey<E>;
+        T: UnwrappedKey<E::CS>;
 }
 
 /// A raw, unwrapped secret.
-pub enum RawSecret<E: Engine> {
+pub enum RawSecret<CS: CipherSuite> {
     /// A symmetric AEAD key.
-    Aead(<E::Aead as Aead>::Key),
+    Aead(<CS::Aead as Aead>::Key),
     /// An asymmetric decapsulation key.
-    Decap(<E::Kem as Kem>::DecapKey),
+    Decap(<CS::Kem as Kem>::DecapKey),
     /// A MAC key.
-    Mac(<E::Mac as Mac>::Key),
+    Mac(<CS::Mac as Mac>::Key),
     /// A PRK.
-    Prk(Prk<<E::Kdf as Kdf>::PrkSize>),
+    Prk(Prk<<CS::Kdf as Kdf>::PrkSize>),
     /// Cryptographic seeds.
     Seed([u8; 64]),
     /// An asymmetric signing key.
-    Signing(<E::Signer as Signer>::SigningKey),
+    Signing(<CS::Signer as Signer>::SigningKey),
 }
 
-impl<E: Engine> RawSecret<E> {
+impl<CS: CipherSuite> RawSecret<CS> {
     /// Returns the string name of the key.
     pub const fn name(&self) -> &'static str {
         self.alg_id().name()
@@ -165,12 +165,12 @@ impl<E: Engine> RawSecret<E> {
     /// Returns the secret's algorithm identifier.
     pub const fn alg_id(&self) -> AlgId {
         match self {
-            Self::Aead(_) => AlgId::Aead(<E::Aead as Aead>::ID),
-            Self::Decap(_) => AlgId::Decap(<E::Kem as Kem>::ID),
-            Self::Mac(_) => AlgId::Mac(<E::Mac as Mac>::ID),
-            Self::Prk(_) => AlgId::Prk(<E::Kdf as Kdf>::ID),
+            Self::Aead(_) => AlgId::Aead(<CS::Aead as Aead>::ID),
+            Self::Decap(_) => AlgId::Decap(<CS::Kem as Kem>::ID),
+            Self::Mac(_) => AlgId::Mac(<CS::Mac as Mac>::ID),
+            Self::Prk(_) => AlgId::Prk(<CS::Kdf as Kdf>::ID),
             Self::Seed(_) => AlgId::Seed(()),
-            Self::Signing(_) => AlgId::Signing(<E::Signer as Signer>::ID),
+            Self::Signing(_) => AlgId::Signing(<CS::Signer as Signer>::ID),
         }
     }
 }
@@ -217,22 +217,22 @@ impl AlgId {
 #[macro_export]
 macro_rules! unwrapped {
     { name: $name:ident; type: Aead; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Aead, <E::Aead as $crate::aead::Aead>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Aead, <CS::Aead as $crate::aead::Aead>::ID, $name, $into, $from);
     };
     { name: $name:ident; type: Decap; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Decap, <E::Kem as $crate::kem::Kem>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Decap, <CS::Kem as $crate::kem::Kem>::ID, $name, $into, $from);
     };
     { name: $name:ident; type: Mac; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Mac, <E::Mac as $crate::mac::Mac>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Mac, <CS::Mac as $crate::mac::Mac>::ID, $name, $into, $from);
     };
     { name: $name:ident; type: Prk; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Prk, <E::Kdf as $crate::kdf::Kdf>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Prk, <CS::Kdf as $crate::kdf::Kdf>::ID, $name, $into, $from);
     };
     { name: $name:ident; type: Seed; into: $into:expr; from: $from:expr $(;)? } => {
         $crate::engine::__unwrapped_inner!(Seed, (), $name, $into, $from);
     };
     { name: $name:ident; type: Signing; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Signing, <E::Signer as $crate::signer::Signer>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Signing, <CS::Signer as $crate::signer::Signer>::ID, $name, $into, $from);
     };
     ($($fallthrough:tt)*) => {
         ::core::compile_error!("unknown variant");
@@ -243,11 +243,11 @@ pub(crate) use unwrapped;
 #[doc(hidden)]
 macro_rules! __unwrapped_inner {
     ($enum:ident, $id:expr, $name:ident, $into:expr, $from:expr) => {
-        impl<E: $crate::engine::Engine> $crate::engine::UnwrappedKey<E> for $name<E> {
+        impl<CS: $crate::CipherSuite> $crate::engine::UnwrappedKey<CS> for $name<CS> {
             const ID: $crate::engine::AlgId = $crate::engine::AlgId::$enum($id);
 
             #[inline]
-            fn into_secret(self) -> $crate::engine::Secret<E> {
+            fn into_secret(self) -> $crate::engine::Secret<CS> {
                 $crate::engine::Secret::new($crate::engine::RawSecret::$enum(
                     #[allow(clippy::redundant_closure_call)]
                     $into(self),
@@ -256,7 +256,7 @@ macro_rules! __unwrapped_inner {
 
             #[inline]
             fn try_from_secret(
-                key: $crate::engine::UnwrappedSecret<E>,
+                key: $crate::engine::UnwrappedSecret<CS>,
             ) -> ::core::result::Result<Self, $crate::engine::WrongKeyType> {
                 match key.into_raw() {
                     $crate::engine::RawSecret::$enum(key) => ::core::result::Result::Ok(

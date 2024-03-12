@@ -10,7 +10,7 @@ use crate::{
     aranya::{Encap, EncryptionKey, EncryptionPublicKey, UserId},
     ciphersuite::SuiteIds,
     csprng::Random,
-    engine::{unwrapped, Engine},
+    engine::unwrapped,
     error::Error,
     hash::{tuple_hash, Digest, Hash},
     hpke::{Hpke, Mode},
@@ -18,6 +18,7 @@ use crate::{
     import::ImportError,
     kem::Kem,
     misc::sk_misc,
+    CipherSuite, Engine,
 };
 
 /// Contextual information for a unidirectional APS channel.
@@ -60,19 +61,19 @@ use crate::{
 ///     }
 /// };
 ///
-/// fn key_from_author<E: Engine>(
-///     ch: &UniChannel<'_, E>,
-///     secret: UniAuthorSecret<E>,
-/// ) -> SealKey<E> {
+/// fn key_from_author<CS: CipherSuite>(
+///     ch: &UniChannel<'_, CS>,
+///     secret: UniAuthorSecret<CS>,
+/// ) -> SealKey<CS> {
 ///     let key = UniSealKey::from_author_secret(ch, secret)
 ///         .expect("should be able to decapsulate author secret");
 ///     key.into_key().expect("should be able to create `SealKey`")
 /// }
 ///
-/// fn key_from_peer<E: Engine>(
-///     ch: &UniChannel<'_, E>,
-///     encap: UniPeerEncap<E>,
-/// ) -> OpenKey<E>{
+/// fn key_from_peer<CS: CipherSuite>(
+///     ch: &UniChannel<'_, CS>,
+///     encap: UniPeerEncap<CS>,
+/// ) -> OpenKey<CS>{
 ///     let key = UniOpenKey::from_peer_encap(ch, encap)
 ///         .expect("should be able to decapsulate peer key");
 ///     key.into_key().expect("should be able to create `OpenKey`")
@@ -84,11 +85,11 @@ use crate::{
 /// let parent_cmd_id = Id::random(&mut eng);
 /// let label = 42u32;
 ///
-/// let user1_sk = EncryptionKey::<E>::new(&mut eng);
-/// let user1_id = IdentityKey::<E>::new(&mut eng).id();
+/// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
+/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id();
 ///
-/// let user2_sk = EncryptionKey::<E>::new(&mut eng);
-/// let user2_id = IdentityKey::<E>::new(&mut eng).id();
+/// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
+/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id();
 ///
 /// // user1 creates the channel keys and sends the encapsulation
 /// // to user2...
@@ -116,14 +117,14 @@ use crate::{
 /// };
 /// let user2 = key_from_peer(&user2_ch, peer);
 ///
-/// fn test<E: Engine>(seal: &mut SealKey<E>, open: &OpenKey<E>) {
+/// fn test<CS: CipherSuite>(seal: &mut SealKey<CS>, open: &OpenKey<CS>) {
 ///     const GOLDEN: &[u8] = b"hello, world!";
 ///     const ADDITIONAL_DATA: &[u8] = b"authenticated, but not encrypted data";
 ///
 ///     let version = 4;
 ///     let label = 1234;
 ///     let (ciphertext, seq) = {
-///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
 ///         let ad = AuthData { version, label };
 ///         let seq = seal.seal(&mut dst, GOLDEN, &ad)
 ///             .expect("should be able to encrypt plaintext");
@@ -134,7 +135,7 @@ use crate::{
 ///         let ad = AuthData { version, label };
 ///         open.open(&mut dst, &ciphertext, &ad, seq)
 ///             .expect("should be able to decrypt ciphertext");
-///         dst.truncate(ciphertext.len() - OpenKey::<E>::OVERHEAD);
+///         dst.truncate(ciphertext.len() - OpenKey::<CS>::OVERHEAD);
 ///         dst
 ///     };
 ///     assert_eq!(&plaintext, GOLDEN);
@@ -142,13 +143,13 @@ use crate::{
 /// test(&mut user1, &user2); // user1 -> user2
 /// # }
 /// ```
-pub struct UniChannel<'a, E: Engine> {
+pub struct UniChannel<'a, CS: CipherSuite> {
     /// The ID of the parent command.
     pub parent_cmd_id: Id,
     /// Our secret encryption key.
-    pub our_sk: &'a EncryptionKey<E>,
+    pub our_sk: &'a EncryptionKey<CS>,
     /// Their public encryption key.
-    pub their_pk: &'a EncryptionPublicKey<E>,
+    pub their_pk: &'a EncryptionPublicKey<CS>,
     /// The user that is permitted to encrypt messages.
     pub seal_id: UserId,
     /// The user that is permitted to decrypt messages.
@@ -157,8 +158,8 @@ pub struct UniChannel<'a, E: Engine> {
     pub label: u32,
 }
 
-impl<E: Engine> UniChannel<'_, E> {
-    pub(crate) fn info(&self) -> Digest<<E::Hash as Hash>::DigestSize> {
+impl<CS: CipherSuite> UniChannel<'_, CS> {
+    pub(crate) fn info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
         // info = H(
         //     "ApsUnidirectionalKey",
         //     suite_id,
@@ -168,10 +169,10 @@ impl<E: Engine> UniChannel<'_, E> {
         //     open_id,
         //     i2osp(label, 4),
         // )
-        tuple_hash::<E::Hash, _>([
+        tuple_hash::<CS::Hash, _>([
             "ApsUnidirectionalKey".as_bytes(),
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            E::ID.as_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
+            CS::ID.as_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.seal_id.as_bytes(),
             self.open_id.as_bytes(),
@@ -181,11 +182,11 @@ impl<E: Engine> UniChannel<'_, E> {
 }
 
 /// A unirectional channel author's secret.
-pub struct UniAuthorSecret<E: Engine>(RootChannelKey<E>);
+pub struct UniAuthorSecret<CS: CipherSuite>(RootChannelKey<CS>);
 
 sk_misc!(UniAuthorSecret, UniAuthorSecretId);
 
-impl<E: Engine> ConstantTimeEq for UniAuthorSecret<E> {
+impl<CS: CipherSuite> ConstantTimeEq for UniAuthorSecret<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
@@ -204,13 +205,13 @@ unwrapped! {
 /// This should be freely shared with the channel peer.
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct UniPeerEncap<E: Engine>(Encap<E>);
+pub struct UniPeerEncap<CS: CipherSuite>(Encap<CS>);
 
-impl<E: Engine> UniPeerEncap<E> {
+impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        UniChannelId(Id::new::<E>(self.as_bytes(), b"UniChannelId"))
+        UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId"))
     }
 
     /// Encodes itself as bytes.
@@ -225,7 +226,7 @@ impl<E: Engine> UniPeerEncap<E> {
         Ok(Self(Encap::from_bytes(data)?))
     }
 
-    fn as_inner(&self) -> &<E::Kem as Kem>::Encap {
+    fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
         self.0.as_inner()
     }
 }
@@ -236,17 +237,17 @@ custom_id! {
 }
 
 /// The secrets for a unirectional channel.
-pub struct UniSecrets<E: Engine> {
+pub struct UniSecrets<CS: CipherSuite> {
     /// The author's secret.
-    pub author: UniAuthorSecret<E>,
+    pub author: UniAuthorSecret<CS>,
     /// The peer's encapsulation.
-    pub peer: UniPeerEncap<E>,
+    pub peer: UniPeerEncap<CS>,
 }
 
-impl<E: Engine> UniSecrets<E> {
+impl<CS: CipherSuite> UniSecrets<CS> {
     /// Creates a new set of encapsulated secrets for the
     /// unidirectional channel.
-    pub fn new(eng: &mut E, ch: &UniChannel<'_, E>) -> Result<Self, Error> {
+    pub fn new<E: Engine<CS = CS>>(eng: &mut E, ch: &UniChannel<'_, CS>) -> Result<Self, Error> {
         // Only the channel author calls this function.
         let author_sk = ch.our_sk;
         let peer_pk = ch.their_pk;
@@ -257,7 +258,7 @@ impl<E: Engine> UniSecrets<E> {
 
         let root_sk = RootChannelKey::random(eng);
         let peer = {
-            let (enc, _) = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send_deterministically(
+            let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
                 Mode::Auth(&author_sk.0),
                 &peer_pk.0,
                 &ch.info(),
@@ -281,14 +282,14 @@ impl<E: Engine> UniSecrets<E> {
 macro_rules! uni_key {
     ($name:ident, $inner:ident, $doc:expr $(,)?) => {
         #[doc = $doc]
-        pub struct $name<E: Engine>($inner<E>);
+        pub struct $name<CS: CipherSuite>($inner<CS>);
 
-        impl<E: Engine> $name<E> {
+        impl<CS: CipherSuite> $name<CS> {
             /// Creates the channel author's unidirectional
             /// channel key.
             pub fn from_author_secret(
-                ch: &UniChannel<'_, E>,
-                secret: UniAuthorSecret<E>,
+                ch: &UniChannel<'_, CS>,
+                secret: UniAuthorSecret<CS>,
             ) -> Result<Self, Error> {
                 // Only the channel author calls this function.
                 let author_sk = ch.our_sk;
@@ -298,7 +299,7 @@ macro_rules! uni_key {
                     return Err(Error::same_user_id());
                 }
 
-                let (_, ctx) = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send_deterministically(
+                let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
                     Mode::Auth(&author_sk.0),
                     &peer_pk.0,
                     &ch.info(),
@@ -319,8 +320,8 @@ macro_rules! uni_key {
             /// Decrypts and authenticates an encapsulated key
             /// received from a peer.
             pub fn from_peer_encap(
-                ch: &UniChannel<'_, E>,
-                enc: UniPeerEncap<E>,
+                ch: &UniChannel<'_, CS>,
+                enc: UniPeerEncap<CS>,
             ) -> Result<Self, Error> {
                 // Only the channel peer calls this function.
                 let peer_sk = ch.our_sk;
@@ -331,7 +332,7 @@ macro_rules! uni_key {
                 }
 
                 let info = ch.info();
-                let ctx = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(
+                let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
                     Mode::Auth(&author_pk.0),
                     enc.as_inner(),
                     &peer_sk.0,
@@ -350,13 +351,13 @@ macro_rules! uni_key {
             }
 
             /// Returns the raw key material.
-            pub fn into_raw_key(self) -> $inner<E> {
+            pub fn into_raw_key(self) -> $inner<CS> {
                 self.0
             }
 
             /// Returns the raw key material.
             #[cfg(any(test, feature = "test_util"))]
-            pub(crate) fn as_raw_key(&self) -> &$inner<E> {
+            pub(crate) fn as_raw_key(&self) -> &$inner<CS> {
                 &self.0
             }
         }
@@ -368,9 +369,9 @@ uni_key!(
     "A unidirectional channel encryption key.",
 );
 
-impl<E: Engine> UniSealKey<E> {
+impl<CS: CipherSuite> UniSealKey<CS> {
     /// Returns the channel key.
-    pub fn into_key(self) -> Result<SealKey<E>, Error> {
+    pub fn into_key(self) -> Result<SealKey<CS>, Error> {
         let seal = SealKey::from_raw(&self.0, Seq::ZERO)?;
         Ok(seal)
     }
@@ -382,9 +383,9 @@ uni_key!(
     "A unidirectional channel decryption key.",
 );
 
-impl<E: Engine> UniOpenKey<E> {
+impl<CS: CipherSuite> UniOpenKey<CS> {
     /// Returns the channel key.
-    pub fn into_key(self) -> Result<OpenKey<E>, Error> {
+    pub fn into_key(self) -> Result<OpenKey<CS>, Error> {
         let open = OpenKey::from_raw(&self.0)?;
         Ok(open)
     }

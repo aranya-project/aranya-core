@@ -10,7 +10,7 @@ use crate::{
     aranya::{Encap, EncryptionKey, EncryptionPublicKey, UserId},
     ciphersuite::SuiteIds,
     csprng::Random,
-    engine::{unwrapped, Engine},
+    engine::unwrapped,
     error::Error,
     hash::{tuple_hash, Digest, Hash},
     hpke::{Hpke, Mode},
@@ -18,6 +18,7 @@ use crate::{
     import::ImportError,
     kem::Kem,
     misc::sk_misc,
+    CipherSuite, Engine,
 };
 
 /// Contextual information for a bidirectional APS channel.
@@ -58,15 +59,15 @@ use crate::{
 ///     }
 /// };
 ///
-/// struct Keys<E: Engine> {
-///     seal: SealKey<E>,
-///     open: OpenKey<E>,
+/// struct Keys<CS: CipherSuite> {
+///     seal: SealKey<CS>,
+///     open: OpenKey<CS>,
 /// }
 ///
-/// impl<E: Engine> Keys<E> {
+/// impl<CS: CipherSuite> Keys<CS> {
 ///     fn from_author(
-///         ch: &BidiChannel<'_, E>,
-///         secret: BidiAuthorSecret<E>,
+///         ch: &BidiChannel<'_, CS>,
+///         secret: BidiAuthorSecret<CS>,
 ///     ) -> Self {
 ///         let keys = BidiKeys::from_author_secret(ch, secret)
 ///             .expect("should be able to create author keys");
@@ -76,8 +77,8 @@ use crate::{
 ///     }
 ///
 ///     fn from_peer(
-///         ch: &BidiChannel<'_, E>,
-///         encap: BidiPeerEncap<E>,
+///         ch: &BidiChannel<'_, CS>,
+///         encap: BidiPeerEncap<CS>,
 ///     ) -> Self {
 ///         let keys = BidiKeys::from_peer_encap(ch, encap)
 ///             .expect("should be able to decapsulate peer keys");
@@ -93,11 +94,11 @@ use crate::{
 /// let parent_cmd_id = Id::random(&mut eng);
 /// let label = 42u32;
 ///
-/// let user1_sk = EncryptionKey::<E>::new(&mut eng);
-/// let user1_id = IdentityKey::<E>::new(&mut eng).id();
+/// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
+/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id();
 ///
-/// let user2_sk = EncryptionKey::<E>::new(&mut eng);
-/// let user2_id = IdentityKey::<E>::new(&mut eng).id();
+/// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
+/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id();
 ///
 /// // user1 creates the channel keys and sends the encapsulation
 /// // to user2...
@@ -125,14 +126,14 @@ use crate::{
 /// };
 /// let mut user2 = Keys::from_peer(&user2_ch, peer);
 ///
-/// fn test<E: Engine>(a: &mut Keys<E>, b: &Keys<E>) {
+/// fn test<CS: CipherSuite>(a: &mut Keys<CS>, b: &Keys<CS>) {
 ///     const GOLDEN: &[u8] = b"hello, world!";
 ///     const ADDITIONAL_DATA: &[u8] = b"authenticated, but not encrypted data";
 ///
 ///     let version = 4;
 ///     let label = 1234;
 ///     let (ciphertext, seq) = {
-///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<E>::OVERHEAD];
+///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
 ///         let ad = AuthData { version, label };
 ///         let seq = a.seal.seal(&mut dst, GOLDEN, &ad)
 ///             .expect("should be able to encrypt plaintext");
@@ -143,7 +144,7 @@ use crate::{
 ///         let ad = AuthData { version, label };
 ///         b.open.open(&mut dst, &ciphertext, &ad, seq)
 ///             .expect("should be able to decrypt ciphertext");
-///         dst.truncate(ciphertext.len() - OpenKey::<E>::OVERHEAD);
+///         dst.truncate(ciphertext.len() - OpenKey::<CS>::OVERHEAD);
 ///         dst
 ///     };
 ///     assert_eq!(&plaintext, GOLDEN);
@@ -152,26 +153,26 @@ use crate::{
 /// test(&mut user2, &user1); // user2 -> user1
 /// # }
 /// ```
-pub struct BidiChannel<'a, E: Engine> {
+pub struct BidiChannel<'a, CS: CipherSuite> {
     /// The ID of the parent command.
     pub parent_cmd_id: Id,
     /// Our secret encryption key.
-    pub our_sk: &'a EncryptionKey<E>,
+    pub our_sk: &'a EncryptionKey<CS>,
     /// Our UserID.
     pub our_id: UserId,
     /// Their public encryption key.
-    pub their_pk: &'a EncryptionPublicKey<E>,
+    pub their_pk: &'a EncryptionPublicKey<CS>,
     /// Their UserID.
     pub their_id: UserId,
     /// The policy label applied to the channel.
     pub label: u32,
 }
 
-impl<E: Engine> BidiChannel<'_, E> {
+impl<CS: CipherSuite> BidiChannel<'_, CS> {
     const LABEL: &'static [u8] = b"ApsChannelKeys";
 
     /// The author's `info` parameter.
-    pub(crate) fn author_info(&self) -> Digest<<E::Hash as Hash>::DigestSize> {
+    pub(crate) fn author_info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
         // info = H(
         //     "ApsChannelKeys",
         //     suite_id,
@@ -181,10 +182,10 @@ impl<E: Engine> BidiChannel<'_, E> {
         //     peer_id,
         //     i2osp(label, 4),
         // )
-        tuple_hash::<E::Hash, _>([
+        tuple_hash::<CS::Hash, _>([
             Self::LABEL,
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            E::ID.as_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
+            CS::ID.as_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.our_id.as_bytes(),
             self.their_id.as_bytes(),
@@ -193,14 +194,14 @@ impl<E: Engine> BidiChannel<'_, E> {
     }
 
     /// The peer's `info` parameter.
-    pub(crate) fn peer_info(&self) -> Digest<<E::Hash as Hash>::DigestSize> {
+    pub(crate) fn peer_info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
         // Same as the author's info, except that we're computing
         // it from the peer's perspective, so `our_id` and
         // `their_id` are reversed.
-        tuple_hash::<E::Hash, _>([
+        tuple_hash::<CS::Hash, _>([
             Self::LABEL,
-            &SuiteIds::from_suite::<E>().into_bytes(),
-            E::ID.as_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
+            CS::ID.as_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.their_id.as_bytes(),
             self.our_id.as_bytes(),
@@ -210,11 +211,11 @@ impl<E: Engine> BidiChannel<'_, E> {
 }
 
 /// A bidirectional channel author's secret.
-pub struct BidiAuthorSecret<E: Engine>(RootChannelKey<E>);
+pub struct BidiAuthorSecret<CS: CipherSuite>(RootChannelKey<CS>);
 
 sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
 
-impl<E: Engine> ConstantTimeEq for BidiAuthorSecret<E> {
+impl<CS: CipherSuite> ConstantTimeEq for BidiAuthorSecret<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
@@ -233,13 +234,13 @@ unwrapped! {
 /// This should be freely shared with the channel peer.
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct BidiPeerEncap<E: Engine>(Encap<E>);
+pub struct BidiPeerEncap<CS: CipherSuite>(Encap<CS>);
 
-impl<E: Engine> BidiPeerEncap<E> {
+impl<CS: CipherSuite> BidiPeerEncap<CS> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
-        BidiChannelId(Id::new::<E>(self.as_bytes(), b"BidiChannelId"))
+        BidiChannelId(Id::new::<CS>(self.as_bytes(), b"BidiChannelId"))
     }
 
     /// Encodes itself as bytes.
@@ -254,7 +255,7 @@ impl<E: Engine> BidiPeerEncap<E> {
         Ok(Self(Encap::from_bytes(data)?))
     }
 
-    fn as_inner(&self) -> &<E::Kem as Kem>::Encap {
+    fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
         self.0.as_inner()
     }
 }
@@ -265,17 +266,17 @@ custom_id! {
 }
 
 /// The secrets for a bidirectional channel.
-pub struct BidiSecrets<E: Engine> {
+pub struct BidiSecrets<CS: CipherSuite> {
     /// The author's secret.
-    pub author: BidiAuthorSecret<E>,
+    pub author: BidiAuthorSecret<CS>,
     /// The peer's encapsulated secret.
-    pub peer: BidiPeerEncap<E>,
+    pub peer: BidiPeerEncap<CS>,
 }
 
-impl<E: Engine> BidiSecrets<E> {
+impl<CS: CipherSuite> BidiSecrets<CS> {
     /// Creates a new set of encapsulated secrets for the
     /// bidirectional channel.
-    pub fn new(eng: &mut E, ch: &BidiChannel<'_, E>) -> Result<Self, Error> {
+    pub fn new<E: Engine<CS = CS>>(eng: &mut E, ch: &BidiChannel<'_, CS>) -> Result<Self, Error> {
         // Only the channel author calls this function.
         let author_id = ch.our_id;
         let author_sk = ch.our_sk;
@@ -288,7 +289,7 @@ impl<E: Engine> BidiSecrets<E> {
 
         let root_sk = RootChannelKey::random(eng);
         let peer = {
-            let (enc, _) = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send_deterministically(
+            let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
                 Mode::Auth(&author_sk.0),
                 &peer_pk.0,
                 &ch.author_info(),
@@ -310,16 +311,16 @@ impl<E: Engine> BidiSecrets<E> {
 }
 
 /// Bidirectional channel encryption keys.
-pub struct BidiKeys<E: Engine> {
-    seal: RawSealKey<E>,
-    open: RawOpenKey<E>,
+pub struct BidiKeys<CS: CipherSuite> {
+    seal: RawSealKey<CS>,
+    open: RawOpenKey<CS>,
 }
 
-impl<E: Engine> BidiKeys<E> {
+impl<CS: CipherSuite> BidiKeys<CS> {
     /// Creates the channel author's bidirectional channel keys.
     pub fn from_author_secret(
-        ch: &BidiChannel<'_, E>,
-        secret: BidiAuthorSecret<E>,
+        ch: &BidiChannel<'_, CS>,
+        secret: BidiAuthorSecret<CS>,
     ) -> Result<Self, Error> {
         // Only the channel author calls this function.
         let author_id = ch.our_id;
@@ -331,7 +332,7 @@ impl<E: Engine> BidiKeys<E> {
             return Err(Error::same_user_id());
         }
 
-        let (_, ctx) = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_send_deterministically(
+        let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
             Mode::Auth(&author_sk.0),
             &peer_pk.0,
             &ch.author_info(),
@@ -357,7 +358,10 @@ impl<E: Engine> BidiKeys<E> {
 
     /// Decapsulates the encapsulated channel keys received from
     /// the channel author and creates the peer's channel keys.
-    pub fn from_peer_encap(ch: &BidiChannel<'_, E>, enc: BidiPeerEncap<E>) -> Result<Self, Error> {
+    pub fn from_peer_encap(
+        ch: &BidiChannel<'_, CS>,
+        enc: BidiPeerEncap<CS>,
+    ) -> Result<Self, Error> {
         // Only the channel peer calls this function.
         let peer_id = ch.our_id;
         let peer_sk = ch.our_sk;
@@ -368,7 +372,7 @@ impl<E: Engine> BidiKeys<E> {
             return Err(Error::same_user_id());
         }
 
-        let ctx = Hpke::<E::Kem, E::Kdf, E::Aead>::setup_recv(
+        let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
             Mode::Auth(&author_pk.0),
             enc.as_inner(),
             &peer_sk.0,
@@ -393,31 +397,31 @@ impl<E: Engine> BidiKeys<E> {
     }
 
     /// Returns the channel keys.
-    pub fn into_keys(self) -> Result<(SealKey<E>, OpenKey<E>), Error> {
+    pub fn into_keys(self) -> Result<(SealKey<CS>, OpenKey<CS>), Error> {
         let seal = SealKey::from_raw(&self.seal, Seq::ZERO)?;
         let open = OpenKey::from_raw(&self.open)?;
         Ok((seal, open))
     }
 
     /// Returns the raw channel keys.
-    pub fn into_raw_keys(self) -> (RawSealKey<E>, RawOpenKey<E>) {
+    pub fn into_raw_keys(self) -> (RawSealKey<CS>, RawOpenKey<CS>) {
         (self.seal, self.open)
     }
 
     /// Returns the raw channel keys.
     #[cfg(any(test, feature = "test_util"))]
-    pub(crate) fn as_raw_keys(&self) -> (&RawSealKey<E>, &RawOpenKey<E>) {
+    pub(crate) fn as_raw_keys(&self) -> (&RawSealKey<CS>, &RawOpenKey<CS>) {
         (&self.seal, &self.open)
     }
 }
 
 #[cfg(any(test, feature = "test_util"))]
-impl<E: Engine> BidiKeys<E> {
-    pub(crate) fn seal_key(&self) -> &RawSealKey<E> {
+impl<CS: CipherSuite> BidiKeys<CS> {
+    pub(crate) fn seal_key(&self) -> &RawSealKey<CS> {
         &self.seal
     }
 
-    pub(crate) fn open_key(&self) -> &RawOpenKey<E> {
+    pub(crate) fn open_key(&self) -> &RawOpenKey<CS> {
         &self.open
     }
 }
@@ -427,24 +431,25 @@ mod tests {
     use super::*;
     use crate::{
         aranya::{EncryptionKey, IdentityKey},
-        default::{DefaultEngine, Rng},
+        default::{DefaultCipherSuite, DefaultEngine, Rng},
         id::Id,
     };
 
     #[test]
     fn test_info_positive() {
         type E = DefaultEngine<Rng>;
+        type CS = DefaultCipherSuite;
         let (mut eng, _) = E::from_entropy(Rng);
         let parent_cmd_id = Id::random(&mut eng);
-        let sk1 = EncryptionKey::<E>::new(&mut eng);
-        let sk2 = EncryptionKey::<E>::new(&mut eng);
+        let sk1 = EncryptionKey::<CS>::new(&mut eng);
+        let sk2 = EncryptionKey::<CS>::new(&mut eng);
         let label = 123;
         let ch1 = BidiChannel {
             parent_cmd_id,
             our_sk: &sk1,
-            our_id: IdentityKey::<E>::new(&mut eng).id(),
+            our_id: IdentityKey::<CS>::new(&mut eng).id(),
             their_pk: &sk2.public(),
-            their_id: IdentityKey::<E>::new(&mut eng).id(),
+            their_id: IdentityKey::<CS>::new(&mut eng).id(),
             label,
         };
         let ch2 = BidiChannel {
@@ -462,13 +467,14 @@ mod tests {
     #[test]
     fn test_info_negative() {
         type E = DefaultEngine<Rng>;
+        type CS = DefaultCipherSuite;
         let (mut eng, _) = E::from_entropy(Rng);
 
-        let sk1 = EncryptionKey::<E>::new(&mut eng);
-        let user1_id = IdentityKey::<E>::new(&mut eng).id();
+        let sk1 = EncryptionKey::<CS>::new(&mut eng);
+        let user1_id = IdentityKey::<CS>::new(&mut eng).id();
 
-        let sk2 = EncryptionKey::<E>::new(&mut eng);
-        let user2_id = IdentityKey::<E>::new(&mut eng).id();
+        let sk2 = EncryptionKey::<CS>::new(&mut eng);
+        let user2_id = IdentityKey::<CS>::new(&mut eng).id();
 
         let label = 123;
 
@@ -505,7 +511,7 @@ mod tests {
                 BidiChannel {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
-                    our_id: IdentityKey::<E>::new(&mut eng).id(),
+                    our_id: IdentityKey::<CS>::new(&mut eng).id(),
                     their_pk: &sk1.public(),
                     their_id: user1_id,
                     label,
@@ -526,7 +532,7 @@ mod tests {
                     our_sk: &sk2,
                     our_id: user2_id,
                     their_pk: &sk1.public(),
-                    their_id: IdentityKey::<E>::new(&mut eng).id(),
+                    their_id: IdentityKey::<CS>::new(&mut eng).id(),
                     label,
                 },
             ),

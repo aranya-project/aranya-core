@@ -180,14 +180,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        default::{DefaultEngine, Rng},
+        default::DefaultCipherSuite,
         id::{Id, Identified},
     };
 
     macro_rules! id {
         ($id:expr) => {{
             let data = ($id as u64).to_le_bytes();
-            Id::new::<DefaultEngine<Rng>>(&data, b"TestKey")
+            Id::new::<DefaultCipherSuite>(&data, b"TestKey")
         }};
     }
 

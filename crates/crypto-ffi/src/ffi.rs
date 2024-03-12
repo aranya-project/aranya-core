@@ -120,7 +120,7 @@ function sign(
             return Err(WrongContext("`crypto::sign` used outside of a `seal` block").into());
         };
 
-        let sk: SigningKey<E> = {
+        let sk: SigningKey<E::CS> = {
             let wrapped = self
                 .store
                 .get(&our_sign_sk_id)
@@ -166,8 +166,8 @@ function verify(
             return Err(WrongContext("`crypto::verify` used outside of an `open` block").into());
         };
 
-        let pk: VerifyingKey<E> = postcard::from_bytes(&author_sign_pk)?;
-        let signature = Signature::<E>::from_bytes(&signature)?;
+        let pk: VerifyingKey<E::CS> = postcard::from_bytes(&author_sign_pk)?;
+        let signature = Signature::<E::CS>::from_bytes(&signature)?;
 
         let cmd = Cmd {
             data: &command,

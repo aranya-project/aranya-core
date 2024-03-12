@@ -59,6 +59,8 @@ impl Csprng for HsmEngine {
 }
 
 impl CipherSuite for HsmEngine {
+    const ID: Id = Id::default();
+
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha512;
     type Kdf = rust::HkdfSha512;
@@ -71,7 +73,7 @@ impl CipherSuite for HsmEngine {
 }
 
 impl Engine for HsmEngine {
-    const ID: Id = Id::default();
+    type CS = Self;
 
     type WrappedKey = WrappedKey;
 }
@@ -145,16 +147,16 @@ impl RawSecretWrap<Self> for HsmEngine {
 /// Simplifies the code inside [`HsmEngine::unwrap`].
 ///
 /// See [`RawSecret`].
-enum RawSecretBytes<E: Engine> {
-    Aead(SecretKeyBytes<<<E::Aead as Aead>::Key as SecretKey>::Size>),
-    Decap(SecretKeyBytes<<<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
-    Mac(SecretKeyBytes<<<E::Mac as Mac>::Key as SecretKey>::Size>),
-    Prk(Prk<<E::Kdf as Kdf>::PrkSize>),
+enum RawSecretBytes<CS: CipherSuite> {
+    Aead(SecretKeyBytes<<<CS::Aead as Aead>::Key as SecretKey>::Size>),
+    Decap(SecretKeyBytes<<<CS::Kem as Kem>::DecapKey as SecretKey>::Size>),
+    Mac(SecretKeyBytes<<<CS::Mac as Mac>::Key as SecretKey>::Size>),
+    Prk(Prk<<CS::Kdf as Kdf>::PrkSize>),
     Seed([u8; 64]),
     // Signing is not needed since it's stored inside the HSM.
 }
 
-impl<E: Engine> RawSecretBytes<E> {
+impl<CS: CipherSuite> RawSecretBytes<CS> {
     fn as_bytes(&self) -> &[u8] {
         match self {
             Self::Aead(v) => v.as_bytes(),

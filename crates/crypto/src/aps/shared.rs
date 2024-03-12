@@ -2,65 +2,65 @@ use subtle::{Choice, ConstantTimeEq};
 
 use crate::{
     csprng::{Csprng, Random},
-    engine::Engine,
     import::{ExportError, Import, ImportError},
     kem::{DecapKey, Kem},
     keys::{SecretKey, SecretKeyBytes},
     zeroize::ZeroizeOnDrop,
+    CipherSuite,
 };
 
 /// The root key material for a channel.
-pub(crate) struct RootChannelKey<E: Engine>(<E::Kem as Kem>::DecapKey);
+pub(crate) struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
-impl<E: Engine> RootChannelKey<E> {
-    pub(super) fn new(sk: <E::Kem as Kem>::DecapKey) -> Self {
+impl<CS: CipherSuite> RootChannelKey<CS> {
+    pub(super) fn new(sk: <CS::Kem as Kem>::DecapKey) -> Self {
         Self(sk)
     }
 
-    pub(super) fn public(&self) -> <E::Kem as Kem>::EncapKey {
+    pub(super) fn public(&self) -> <CS::Kem as Kem>::EncapKey {
         self.0.public()
     }
 
-    pub(super) fn into_inner(self) -> <E::Kem as Kem>::DecapKey {
+    pub(super) fn into_inner(self) -> <CS::Kem as Kem>::DecapKey {
         self.0
     }
 }
 
-impl<E: Engine> Clone for RootChannelKey<E> {
+impl<CS: CipherSuite> Clone for RootChannelKey<CS> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<E: Engine> ConstantTimeEq for RootChannelKey<E> {
+impl<CS: CipherSuite> ConstantTimeEq for RootChannelKey<CS> {
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
     }
 }
 
-impl<E: Engine> Random for RootChannelKey<E> {
+impl<CS: CipherSuite> Random for RootChannelKey<CS> {
     fn random<R: Csprng>(rng: &mut R) -> Self {
-        Self(<<E::Kem as Kem>::DecapKey as SecretKey>::new(rng))
+        Self(<<CS::Kem as Kem>::DecapKey as SecretKey>::new(rng))
     }
 }
 
-impl<E: Engine> SecretKey for RootChannelKey<E> {
+impl<CS: CipherSuite> SecretKey for RootChannelKey<CS> {
     fn new<R: Csprng>(rng: &mut R) -> Self {
         Random::random(rng)
     }
 
-    type Size = <<E::Kem as Kem>::DecapKey as SecretKey>::Size;
+    type Size = <<CS::Kem as Kem>::DecapKey as SecretKey>::Size;
 
     fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
         self.0.try_export_secret()
     }
 }
 
-impl<E: Engine> ZeroizeOnDrop for RootChannelKey<E> {
+impl<CS: CipherSuite> ZeroizeOnDrop for RootChannelKey<CS> {
     // The only field is `DecapKey`, which is `ZeroizeOnDrop`.
 }
 
-impl<'a, E: Engine> Import<&'a [u8]> for RootChannelKey<E> {
+impl<'a, CS: CipherSuite> Import<&'a [u8]> for RootChannelKey<CS> {
     fn import(key: &'a [u8]) -> Result<Self, ImportError> {
         Ok(Self(Import::import(key)?))
     }
@@ -70,14 +70,14 @@ macro_rules! raw_key {
     ($name:ident, $doc:expr $(,)?) => {
         #[doc = $doc]
         #[repr(C)]
-        pub struct $name<E: $crate::engine::Engine> {
+        pub struct $name<CS: $crate::CipherSuite> {
             /// The key data.
-            pub key: $crate::aead::KeyData<E::Aead>,
+            pub key: $crate::aead::KeyData<CS::Aead>,
             /// The base nonce.
-            pub base_nonce: $crate::aead::Nonce<<E::Aead as $crate::aead::Aead>::NonceSize>,
+            pub base_nonce: $crate::aead::Nonce<<CS::Aead as $crate::aead::Aead>::NonceSize>,
         }
 
-        impl<E: $crate::engine::Engine> $crate::subtle::ConstantTimeEq for $name<E> {
+        impl<CS: $crate::CipherSuite> $crate::subtle::ConstantTimeEq for $name<CS> {
             #[inline]
             fn ct_eq(&self, other: &Self) -> Choice {
                 let key = $crate::subtle::ConstantTimeEq::ct_eq(&self.key, &other.key);
@@ -87,14 +87,14 @@ macro_rules! raw_key {
             }
         }
 
-        impl<E: $crate::engine::Engine> $crate::subtle::ConstantTimeEq for &$name<E> {
+        impl<CS: $crate::CipherSuite> $crate::subtle::ConstantTimeEq for &$name<CS> {
             #[inline]
             fn ct_eq(&self, other: &Self) -> Choice {
                 $crate::subtle::ConstantTimeEq::ct_eq(*self, other)
             }
         }
 
-        impl<E: $crate::engine::Engine> ::core::clone::Clone for $name<E> {
+        impl<CS: $crate::CipherSuite> ::core::clone::Clone for $name<CS> {
             #[inline]
             fn clone(&self) -> Self {
                 Self {
@@ -104,7 +104,7 @@ macro_rules! raw_key {
             }
         }
 
-        impl<E: $crate::engine::Engine> $crate::csprng::Random for $name<E> {
+        impl<CS: $crate::CipherSuite> $crate::csprng::Random for $name<CS> {
             fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
                 Self {
                     key: $crate::csprng::Random::random(rng),
@@ -129,7 +129,7 @@ mod test_misc {
         "Unifies `RawSealKey` and `RawOpenKey` for testing.",
     );
 
-    impl<E: Engine> fmt::Debug for TestingKey<E> {
+    impl<CS: CipherSuite> fmt::Debug for TestingKey<CS> {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
             f.debug_struct("TestingKey")
                 .field("key", &self.key.as_bytes())
@@ -138,8 +138,8 @@ mod test_misc {
         }
     }
 
-    impl<E: Engine> RawSealKey<E> {
-        pub(crate) fn to_testing_key(&self) -> TestingKey<E> {
+    impl<CS: CipherSuite> RawSealKey<CS> {
+        pub(crate) fn to_testing_key(&self) -> TestingKey<CS> {
             TestingKey {
                 key: self.key.clone(),
                 base_nonce: self.base_nonce.clone(),
@@ -147,8 +147,8 @@ mod test_misc {
         }
     }
 
-    impl<E: Engine> RawOpenKey<E> {
-        pub(crate) fn to_testing_key(&self) -> TestingKey<E> {
+    impl<CS: CipherSuite> RawOpenKey<CS> {
+        pub(crate) fn to_testing_key(&self) -> TestingKey<CS> {
             TestingKey {
                 key: self.key.clone(),
                 base_nonce: self.base_nonce.clone(),
@@ -156,8 +156,8 @@ mod test_misc {
         }
     }
 
-    impl<E: Engine> From<RawSealKey<E>> for RawOpenKey<E> {
-        fn from(key: RawSealKey<E>) -> Self {
+    impl<CS: CipherSuite> From<RawSealKey<CS>> for RawOpenKey<CS> {
+        fn from(key: RawSealKey<CS>) -> Self {
             Self {
                 key: key.key.clone(),
                 base_nonce: key.base_nonce.clone(),
@@ -165,8 +165,8 @@ mod test_misc {
         }
     }
 
-    impl<E: Engine> From<RawOpenKey<E>> for RawSealKey<E> {
-        fn from(key: RawOpenKey<E>) -> Self {
+    impl<CS: CipherSuite> From<RawOpenKey<CS>> for RawSealKey<CS> {
+        fn from(key: RawOpenKey<CS>) -> Self {
             Self {
                 key: key.key.clone(),
                 base_nonce: key.base_nonce.clone(),

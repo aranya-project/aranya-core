@@ -135,6 +135,8 @@ impl RngCore for Rng {
 pub struct DefaultCipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
+    const ID: Id = Id::default();
+
     type Aead = crate::rust::Aes256Gcm;
     type Hash = crate::rust::Sha512;
     type Kdf = crate::rust::HkdfSha512;
@@ -148,7 +150,7 @@ impl CipherSuite for DefaultCipherSuite {
 ///
 /// # Notes
 ///
-/// It's mostly useful for tests as its [`Engine::ID`]
+/// It's mostly useful for tests as its [`CipherSuite::ID`]
 /// constant is all zeros and the user must store the root
 /// encryption key somewhere.
 pub struct DefaultEngine<R: Csprng = Rng, S: CipherSuite = DefaultCipherSuite> {
@@ -192,15 +194,6 @@ impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
     }
 }
 
-impl<R: Csprng, S: CipherSuite> CipherSuite for DefaultEngine<R, S> {
-    type Aead = S::Aead;
-    type Hash = S::Hash;
-    type Kdf = S::Kdf;
-    type Kem = S::Kem;
-    type Mac = S::Mac;
-    type Signer = S::Signer;
-}
-
 /// Contextual binding for wrapped keys.
 // TODO(eric): include a `purpose` field. The trick is that it
 // has to be a fixed size so that we can use `heapless`.
@@ -215,19 +208,19 @@ struct AuthData {
 }
 
 impl<R: Csprng, S: CipherSuite> Engine for DefaultEngine<R, S> {
-    const ID: Id = Id::default();
+    type CS = S;
 
-    type WrappedKey = WrappedKey<Self>;
+    type WrappedKey = WrappedKey<S>;
 }
 
 impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
     fn wrap_secret<T>(
         &mut self,
         id: &<T as Identified>::Id,
-        secret: RawSecret<Self>,
+        secret: RawSecret<S>,
     ) -> Result<<Self as Engine>::WrappedKey, WrapError>
     where
-        T: UnwrappedKey<Self>,
+        T: UnwrappedKey<S>,
     {
         let id = (*id).into();
         let mut tag = Tag::<S::Aead>::default();
@@ -235,7 +228,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
         // repeat nonces.
         let nonce = Nonce::<_>::random(&mut self.rng);
         let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
-            eng_id: Self::ID,
+            eng_id: S::ID,
             alg_id: T::ID,
             key_id: id,
         })
@@ -264,13 +257,13 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
     fn unwrap_secret<T>(
         &self,
         key: &<Self as Engine>::WrappedKey,
-    ) -> Result<RawSecret<Self>, UnwrapError>
+    ) -> Result<RawSecret<S>, UnwrapError>
     where
-        T: UnwrappedKey<Self>,
+        T: UnwrappedKey<S>,
     {
         let mut data = key.ciphertext.clone();
         let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
-            eng_id: Self::ID,
+            eng_id: S::ID,
             alg_id: T::ID,
             key_id: key.id,
         })
@@ -314,35 +307,35 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
 /// Encrypted [`RawSecret`] bytes.
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-enum Ciphertext<E: Engine> {
-    Aead(GenericArray<u8, <<E::Aead as Aead>::Key as SecretKey>::Size>),
-    Decap(GenericArray<u8, <<E::Kem as Kem>::DecapKey as SecretKey>::Size>),
-    Mac(GenericArray<u8, <<E::Mac as Mac>::Key as SecretKey>::Size>),
-    Prk(GenericArray<u8, <E::Kdf as Kdf>::PrkSize>),
+enum Ciphertext<CS: CipherSuite> {
+    Aead(GenericArray<u8, <<CS::Aead as Aead>::Key as SecretKey>::Size>),
+    Decap(GenericArray<u8, <<CS::Kem as Kem>::DecapKey as SecretKey>::Size>),
+    Mac(GenericArray<u8, <<CS::Mac as Mac>::Key as SecretKey>::Size>),
+    Prk(GenericArray<u8, <CS::Kdf as Kdf>::PrkSize>),
     // NB: not `[u8; 64]` because serde only supports arrays up
     // to 32 elements without additional gymnastics.
     Seed(GenericArray<u8, U64>),
-    Signing(GenericArray<u8, <<E::Signer as Signer>::SigningKey as SecretKey>::Size>),
+    Signing(GenericArray<u8, <<CS::Signer as Signer>::SigningKey as SecretKey>::Size>),
 }
 
-impl<E: Engine> Ciphertext<E> {
+impl<CS: CipherSuite> Ciphertext<CS> {
     const fn name(&self) -> &'static str {
         self.alg_id().name()
     }
 
     const fn alg_id(&self) -> AlgId {
         match self {
-            Self::Aead(_) => AlgId::Aead(<E::Aead as Aead>::ID),
-            Self::Decap(_) => AlgId::Decap(<E::Kem as Kem>::ID),
-            Self::Mac(_) => AlgId::Mac(<E::Mac as Mac>::ID),
-            Self::Prk(_) => AlgId::Prk(<E::Kdf as Kdf>::ID),
+            Self::Aead(_) => AlgId::Aead(<CS::Aead as Aead>::ID),
+            Self::Decap(_) => AlgId::Decap(<CS::Kem as Kem>::ID),
+            Self::Mac(_) => AlgId::Mac(<CS::Mac as Mac>::ID),
+            Self::Prk(_) => AlgId::Prk(<CS::Kdf as Kdf>::ID),
             Self::Seed(_) => AlgId::Seed(()),
-            Self::Signing(_) => AlgId::Signing(<E::Signer as Signer>::ID),
+            Self::Signing(_) => AlgId::Signing(<CS::Signer as Signer>::ID),
         }
     }
 }
 
-impl<E: Engine> Clone for Ciphertext<E> {
+impl<CS: CipherSuite> Clone for Ciphertext<CS> {
     fn clone(&self) -> Self {
         match self {
             Self::Aead(v) => Self::Aead(v.clone()),
@@ -355,7 +348,7 @@ impl<E: Engine> Clone for Ciphertext<E> {
     }
 }
 
-impl<E: Engine> Ciphertext<E> {
+impl<CS: CipherSuite> Ciphertext<CS> {
     fn as_bytes_mut(&mut self) -> &mut [u8] {
         match self {
             Self::Aead(v) => v.as_mut_slice(),
@@ -371,14 +364,14 @@ impl<E: Engine> Ciphertext<E> {
 /// A key wrapped by [`DefaultEngine`].
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
-pub struct WrappedKey<E: Engine> {
+pub struct WrappedKey<CS: CipherSuite> {
     id: Id,
-    nonce: Nonce<<E::Aead as Aead>::NonceSize>,
-    ciphertext: Ciphertext<E>,
-    tag: Tag<E::Aead>,
+    nonce: Nonce<<CS::Aead as Aead>::NonceSize>,
+    ciphertext: Ciphertext<CS>,
+    tag: Tag<CS::Aead>,
 }
 
-impl<E: Engine> Clone for WrappedKey<E> {
+impl<CS: CipherSuite> Clone for WrappedKey<CS> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
@@ -389,9 +382,9 @@ impl<E: Engine> Clone for WrappedKey<E> {
     }
 }
 
-impl<E: Engine> engine::WrappedKey for WrappedKey<E> {}
+impl<CS: CipherSuite> engine::WrappedKey for WrappedKey<CS> {}
 
-impl<E: Engine> Identified for WrappedKey<E> {
+impl<CS: CipherSuite> Identified for WrappedKey<CS> {
     type Id = Id;
 
     fn id(&self) -> Self::Id {
@@ -408,7 +401,7 @@ mod test {
     test_engine!(
         default_engine,
         || -> DefaultEngine<Rng, DefaultCipherSuite> {
-            let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
+            let (eng, _) = DefaultEngine::<Rng>::from_entropy(Rng);
             eng
         }
     );

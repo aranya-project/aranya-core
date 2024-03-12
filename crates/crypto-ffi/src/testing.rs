@@ -82,7 +82,7 @@ where
     /// Test that we can verify valid signatures.
     pub fn test_sign_verify(mut eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public())
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -126,7 +126,7 @@ where
     /// with.
     pub fn test_verify_reject_modified_sig(mut eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public())
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -176,7 +176,7 @@ where
     /// command (or where the command was modified).
     pub fn test_verify_reject_modified_command(mut eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public())
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -236,7 +236,7 @@ where
         const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext { name: "bar" });
 
         let (sk, pk) = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public())
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -280,7 +280,7 @@ where
     /// parent command ID.
     pub fn test_verify_reject_different_parent_cmd_id(mut eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public())
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -330,10 +330,10 @@ where
     /// [`SigningKey`].
     pub fn test_verify_reject_different_signing_key(mut eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = {
                 // NB: different `SigningKey`.
-                let sk = SigningKey::<E>::new(&mut eng);
+                let sk = SigningKey::<E::CS>::new(&mut eng);
                 postcard::to_allocvec(&sk.public())
                     .expect("should be able to encode `VerifyingKey`")
             };
@@ -382,7 +382,7 @@ where
     /// of a `seal` block.
     pub fn test_seal_reject_wrong_context(mut eng: E, mut store: S) {
         let sk = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             let wrapped = eng
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
@@ -427,7 +427,7 @@ where
     /// of an `open` block.
     pub fn test_verify_reject_wrong_context(mut eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public())
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng

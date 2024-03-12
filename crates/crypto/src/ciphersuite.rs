@@ -29,6 +29,7 @@ use crate::{
     kem::{Kem, KemId},
     mac::{Mac, MacId},
     signer::{Signer, SignerId},
+    Id,
 };
 
 /// The cryptographic primitives used by the cryptography engine.
@@ -51,6 +52,9 @@ use crate::{
 /// Additionally, please test your implementation using the
 /// `test_util` module.
 pub trait CipherSuite {
+    /// Uniquely identifies the [`CipherSuite`].
+    const ID: Id;
+
     /// See [`Aead`] for more information.
     type Aead: Aead + IndCca2;
     /// See [`Hash`] for more information.
@@ -99,7 +103,7 @@ impl SuiteIds {
         ]
     }
 
-    pub const fn from_suite<S: CipherSuite + ?Sized>() -> Self {
+    pub const fn from_suite<S: CipherSuite>() -> Self {
         Self {
             aead: S::Aead::ID,
             hash: S::Hash::ID,

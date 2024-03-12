@@ -3,9 +3,9 @@ use core::borrow::Borrow;
 use crate::{
     aranya::{Signature, SigningKeyId},
     ciphersuite::SuiteIds,
-    engine::Engine,
     hash::{tuple_hash, Digest, Hash},
     id::{custom_id, Id},
+    CipherSuite,
 };
 
 custom_id! {
@@ -14,16 +14,16 @@ custom_id! {
 }
 
 /// Computes the command's unique ID.
-pub(crate) fn cmd_id<E: Engine>(
-    cmd: &Digest<<E::Hash as Hash>::DigestSize>,
-    sig: &Signature<E>,
+pub(crate) fn cmd_id<CS: CipherSuite>(
+    cmd: &Digest<<CS::Hash as Hash>::DigestSize>,
+    sig: &Signature<CS>,
 ) -> CmdId {
     // id = H(
     //     "PolicyCommandId-v1",
     //     command,
     //     signature,
     // )
-    tuple_hash::<E::Hash, _>([
+    tuple_hash::<CS::Hash, _>([
         "PolicyCommandId-v1".as_bytes(),
         cmd.as_bytes(),
         sig.raw_sig().borrow(),
@@ -48,10 +48,10 @@ pub struct Cmd<'a> {
 impl<'a> Cmd<'a> {
     /// Returns the digest of the command and its contextual
     /// binding.
-    pub(crate) fn digest<E: Engine>(
+    pub(crate) fn digest<CS: CipherSuite>(
         &self,
         author: &SigningKeyId,
-    ) -> Digest<<E::Hash as Hash>::DigestSize> {
+    ) -> Digest<<CS::Hash as Hash>::DigestSize> {
         // digest = H(
         //     "SignPolicyCommand-v1",
         //     suites,
@@ -60,11 +60,11 @@ impl<'a> Cmd<'a> {
         //     parent_id,
         //     msg,
         // )
-        tuple_hash::<E::Hash, _>([
+        tuple_hash::<CS::Hash, _>([
             // Domain separation.
             "SignPolicyCommand-v1".as_bytes(),
             // Bind the signature to the current cipher suite,
-            &SuiteIds::from_suite::<E>().into_bytes(),
+            &SuiteIds::from_suite::<CS>().into_bytes(),
             // and to the author's public key,
             author.as_bytes(),
             // and to the type of command being signed,

@@ -140,7 +140,7 @@ checksum = "5ad32ce52e4161730f7098c077cd2ed6229b5804ccf99e5366be1ab72a98b4e1"
 [[package]]
 name = "aps"
 version = "0.1.0"
-source = "git+https://git.spideroak-inc.com/spideroak-inc/aps.git?branch=main#fe0774511f3504e93c58039194c8ae44cf1601e5"
+source = "git+https://git.spideroak-inc.com/spideroak-inc/aps.git?branch=ciphersuite#b75eedc16c198bbbc63d2f1fad23b726fa5e61fc"
 dependencies = [
  "buggy",
  "byteorder",

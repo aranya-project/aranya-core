@@ -11,8 +11,8 @@ use core::{fmt, result::Result};
 use crypto::{
     self,
     aps::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore, KeyStoreExt,
-    UnwrapError, UserId, WrapError,
+    CipherSuite, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
+    KeyStoreExt, UnwrapError, UserId, WrapError,
 };
 use policy_vm::{ffi::ffi, CommandContext, MachineError, MachineErrorType, MachineIOError, Value};
 
@@ -36,7 +36,7 @@ impl<S: KeyStore> Ffi<S> {
     }
 
     /// Decodes a [`EncryptionPublicKey`].
-    fn decode_enc_pk<E: Engine>(bytes: &[u8]) -> Result<EncryptionPublicKey<E>, FfiError> {
+    fn decode_enc_pk<CS: CipherSuite>(bytes: &[u8]) -> Result<EncryptionPublicKey<CS>, FfiError> {
         decode_enc_pk(bytes).map_err(|err| {
             error!("unable to decode `EncryptionPublicKey`: {err}");
             FfiError::Encoding
@@ -88,7 +88,7 @@ function create_bidi_channel(
             .get_key(eng, &our_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
-        let their_pk = &Self::decode_enc_pk::<E>(&their_enc_pk)?;
+        let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
         let ch = BidiChannel {
             parent_cmd_id,
             our_sk,
@@ -141,7 +141,7 @@ function create_uni_channel(
             .get_key(eng, &author_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
-        let their_pk = &Self::decode_enc_pk::<E>(&their_pk)?;
+        let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
         let ch = UniChannel {
             parent_cmd_id,
             our_sk,

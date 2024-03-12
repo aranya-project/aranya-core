@@ -7,7 +7,7 @@ use crypto::{
     aps::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
-    EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt, UserId,
+    CipherSuite, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt, UserId,
 };
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
@@ -46,7 +46,7 @@ impl<S: KeyStore> Handler<S> {
     ) -> Result<BidiKeys<SK, OK>, Error>
     where
         E: Engine,
-        (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E>, BidiAuthorSecret<E>)>,
+        (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E::CS>, BidiAuthorSecret<E::CS>)>,
     {
         if self.user_id != effect.author_id {
             return Err(Error::NotAuthor);
@@ -92,7 +92,7 @@ impl<S: KeyStore> Handler<S> {
     ) -> Result<BidiKeys<SK, OK>, Error>
     where
         E: Engine,
-        (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E>, BidiPeerEncap<E>)>,
+        (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E::CS>, BidiPeerEncap<E::CS>)>,
     {
         if self.user_id != effect.peer_id {
             return Err(Error::NotRecipient);
@@ -205,8 +205,8 @@ impl<S: KeyStore> Handler<S> {
     ) -> Result<UniKey<SK, OK>, Error>
     where
         E: Engine,
-        SK: for<'a> Transform<(&'a UniChannel<'a, E>, UniAuthorSecret<E>)>,
-        OK: for<'a> Transform<(&'a UniChannel<'a, E>, UniAuthorSecret<E>)>,
+        SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
+        OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
     {
         if (self.user_id != effect.seal_id && self.user_id != effect.open_id)
             || self.user_id != effect.author_id
@@ -254,8 +254,8 @@ impl<S: KeyStore> Handler<S> {
     ) -> Result<UniKey<SK, OK>, Error>
     where
         E: Engine,
-        SK: for<'a> Transform<(&'a UniChannel<'a, E>, UniPeerEncap<E>)>,
-        OK: for<'a> Transform<(&'a UniChannel<'a, E>, UniPeerEncap<E>)>,
+        SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
+        OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
     {
         if (self.user_id != effect.seal_id && self.user_id != effect.open_id)
             || self.user_id == effect.author_id
@@ -356,11 +356,11 @@ pub enum UniKey<S, O> {
 }
 
 impl<S, O> UniKey<S, O> {
-    fn new<E, F, K, V>(ch: &UniChannel<'_, E>, value: V, f: F) -> Result<Self, Error>
+    fn new<CS, F, K, V>(ch: &UniChannel<'_, CS>, value: V, f: F) -> Result<Self, Error>
     where
-        E: Engine,
+        CS: CipherSuite,
         F: FnOnce(K) -> Self,
-        K: for<'a> Transform<(&'a UniChannel<'a, E>, V)>,
+        K: for<'a> Transform<(&'a UniChannel<'a, CS>, V)>,
     {
         let key = Transform::transform((ch, value)).map_err(|err| {
             error!("unable to transform key: {err}");

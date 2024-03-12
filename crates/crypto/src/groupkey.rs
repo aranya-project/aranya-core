@@ -12,7 +12,7 @@ use crate::{
     aranya::VerifyingKey,
     ciphersuite::SuiteIds,
     csprng::{Csprng, Random},
-    engine::{unwrapped, Engine},
+    engine::unwrapped,
     error::Error,
     hash::{tuple_hash, Digest, Hash},
     hmac::Hmac,
@@ -20,22 +20,23 @@ use crate::{
     import::Import,
     kdf,
     zeroize::{Zeroize, ZeroizeOnDrop},
+    CipherSuite,
 };
 
 /// Key material used to derive per-event encryption keys.
-pub struct GroupKey<E> {
+pub struct GroupKey<CS> {
     seed: [u8; 64],
-    _cs: PhantomData<E>,
+    _cs: PhantomData<CS>,
 }
 
-impl<E> ZeroizeOnDrop for GroupKey<E> {}
-impl<E> Drop for GroupKey<E> {
+impl<CS> ZeroizeOnDrop for GroupKey<CS> {}
+impl<CS> Drop for GroupKey<CS> {
     fn drop(&mut self) {
         self.seed.zeroize()
     }
 }
 
-impl<E: Engine> Clone for GroupKey<E> {
+impl<CS> Clone for GroupKey<CS> {
     fn clone(&self) -> Self {
         Self {
             seed: self.seed,
@@ -44,9 +45,9 @@ impl<E: Engine> Clone for GroupKey<E> {
     }
 }
 
-impl<E: Engine> GroupKey<E> {
+impl<CS: CipherSuite> GroupKey<CS> {
     /// Creates a new, random `GroupKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> GroupKey<E> {
+    pub fn new<R: Csprng>(rng: &mut R) -> GroupKey<CS> {
         Self::from_seed(Random::random(rng))
     }
 
@@ -60,15 +61,15 @@ impl<E: Engine> GroupKey<E> {
         //     message="GroupKeyId-v1" || suite_id,
         //     outputBytes=64,
         // )
-        let mut h = Hmac::<E::Hash>::new(&self.seed);
+        let mut h = Hmac::<CS::Hash>::new(&self.seed);
         h.update(b"GroupKeyId-v1");
-        h.update(&SuiteIds::from_suite::<E>().into_bytes());
+        h.update(&SuiteIds::from_suite::<CS>().into_bytes());
         GroupKeyId(h.tag().into_array().into())
     }
 
     /// The size in bytes of the overhead added to plaintexts
     /// encrypted with [`seal`][Self::seal].
-    pub const OVERHEAD: usize = E::Aead::NONCE_SIZE + E::Aead::OVERHEAD;
+    pub const OVERHEAD: usize = CS::Aead::NONCE_SIZE + CS::Aead::OVERHEAD;
 
     /// Returns the size in bytes of the overhead added to
     /// plaintexts encrypted with [`seal`][Self::seal].
@@ -105,7 +106,7 @@ impl<E: Engine> GroupKey<E> {
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
     /// const PARENT: Id = Id::default();
-    /// let author = SigningKey::<DefaultEngine<Rng, DefaultCipherSuite>>::new(&mut Rng).public();
+    /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public();
     ///
     /// let key = GroupKey::new(&mut Rng);
     ///
@@ -135,7 +136,7 @@ impl<E: Engine> GroupKey<E> {
         rng: &mut R,
         dst: &mut [u8],
         plaintext: &[u8],
-        ctx: Context<'_, E>,
+        ctx: Context<'_, CS>,
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
@@ -143,11 +144,11 @@ impl<E: Engine> GroupKey<E> {
                 Some(self.overhead() + plaintext.len()),
             ))));
         }
-        let (nonce, out) = dst.split_at_mut(E::Aead::NONCE_SIZE);
+        let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
         rng.fill_bytes(nonce);
         let info = ctx.to_bytes();
         let key = self.derive_key(&info)?;
-        Ok(E::Aead::new(&key).seal(out, nonce, plaintext, &info)?)
+        Ok(CS::Aead::new(&key).seal(out, nonce, plaintext, &info)?)
     }
 
     /// Decrypts and authenticates `ciphertext` in a particular
@@ -161,31 +162,31 @@ impl<E: Engine> GroupKey<E> {
         &self,
         dst: &mut [u8],
         ciphertext: &[u8],
-        ctx: Context<'_, E>,
+        ctx: Context<'_, CS>,
     ) -> Result<(), Error> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
             // invalid.
             return Err(OpenError::Authentication.into());
         }
-        let (nonce, ciphertext) = ciphertext.split_at(E::Aead::NONCE_SIZE);
+        let (nonce, ciphertext) = ciphertext.split_at(CS::Aead::NONCE_SIZE);
         let info = ctx.to_bytes();
         let key = self.derive_key(&info)?;
-        Ok(E::Aead::new(&key).open(dst, nonce, ciphertext, &info)?)
+        Ok(CS::Aead::new(&key).open(dst, nonce, ciphertext, &info)?)
     }
 
     const EXTRACT_CTX: kdf::Context = kdf::Context {
         domain: "kdf-ext-v1",
-        suite_ids: &SuiteIds::from_suite::<E>().into_bytes(),
+        suite_ids: &SuiteIds::from_suite::<CS>().into_bytes(),
     };
 
     const EXPAND_CTX: kdf::Context = kdf::Context {
         domain: "kdf-exp-v1",
-        suite_ids: &SuiteIds::from_suite::<E>().into_bytes(),
+        suite_ids: &SuiteIds::from_suite::<CS>().into_bytes(),
     };
 
     /// Derives a key for [`Self::open`] and [`Self::seal`].
-    fn derive_key(&self, info: &[u8]) -> Result<<E::Aead as Aead>::Key, Error> {
+    fn derive_key(&self, info: &[u8]) -> Result<<CS::Aead as Aead>::Key, Error> {
         // GroupKey = KDF(
         //     key={0,1}^512,
         //     salt={0}^512,
@@ -198,13 +199,13 @@ impl<E: Engine> GroupKey<E> {
         //     ),
         //     outputBytes=64,
         // )
-        let prk = Self::EXTRACT_CTX.labeled_extract::<E::Kdf>(&[], "EventKey_prk", &self.seed);
-        let key = Self::EXPAND_CTX.labeled_expand::<E::Kdf, KeyData<E::Aead>>(
+        let prk = Self::EXTRACT_CTX.labeled_extract::<CS::Kdf>(&[], "EventKey_prk", &self.seed);
+        let key = Self::EXPAND_CTX.labeled_expand::<CS::Kdf, KeyData<CS::Aead>>(
             &prk,
             "EventKey_key",
             &[info],
         )?;
-        Ok(<<E::Aead as Aead>::Key as Import<_>>::import(
+        Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
             key.as_bytes(),
         )?)
     }
@@ -232,7 +233,7 @@ unwrapped! {
     from: |seed: [u8;64] | { Self::from_seed(seed) };
 }
 
-impl<E: Engine> Identified for GroupKey<E> {
+impl<CS: CipherSuite> Identified for GroupKey<CS> {
     type Id = GroupKeyId;
 
     #[inline]
@@ -241,7 +242,7 @@ impl<E: Engine> Identified for GroupKey<E> {
     }
 }
 
-impl<E: Engine> ConstantTimeEq for GroupKey<E> {
+impl<CS: CipherSuite> ConstantTimeEq for GroupKey<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.seed.ct_eq(&other.seed)
@@ -250,7 +251,7 @@ impl<E: Engine> ConstantTimeEq for GroupKey<E> {
 
 /// Contextual binding for [`GroupKey::seal`] and
 /// [`GroupKey::open`].
-pub struct Context<'a, E: Engine> {
+pub struct Context<'a, CS: CipherSuite> {
     /// Describes what is being encrypted.
     ///
     /// For example, it could be an event name.
@@ -258,12 +259,12 @@ pub struct Context<'a, E: Engine> {
     /// The stable ID of the parent event.
     pub parent: Id,
     /// The public key of the author of the encrypted data.
-    pub author: &'a VerifyingKey<E>,
+    pub author: &'a VerifyingKey<CS>,
 }
 
-impl<E: Engine> Context<'_, E> {
+impl<CS: CipherSuite> Context<'_, CS> {
     /// Converts the [`Context`] to its byte representation.
-    fn to_bytes(&self) -> Digest<<E::Hash as Hash>::DigestSize> {
+    fn to_bytes(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
         // Ideally, this would simple be the actual concatenation
         // of `Context`'s fields. However, we need to be
         // `no_alloc` and without `const_generic_exprs` it's
@@ -273,7 +274,7 @@ impl<E: Engine> Context<'_, E> {
         // So, we instead hash the fields into a fixed-size
         // buffer. We use `tuple_hash` out of paranoia, but
         // a regular hash should also suffice.
-        tuple_hash::<E::Hash, _>([
+        tuple_hash::<CS::Hash, _>([
             self.label.as_bytes(),
             self.parent.as_ref(),
             self.author.id().as_bytes(),
@@ -288,12 +289,12 @@ custom_id! {
 
 /// An encrypted [`GroupKey`].
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EncryptedGroupKey<E: Engine> {
+pub struct EncryptedGroupKey<CS: CipherSuite> {
     pub(crate) ciphertext: GenericArray<u8, U64>,
-    pub(crate) tag: Tag<E::Aead>,
+    pub(crate) tag: Tag<CS::Aead>,
 }
 
-impl<E: Engine> Clone for EncryptedGroupKey<E> {
+impl<CS: CipherSuite> Clone for EncryptedGroupKey<CS> {
     #[inline]
     fn clone(&self) -> Self {
         Self {

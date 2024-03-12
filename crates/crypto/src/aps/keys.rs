@@ -7,9 +7,9 @@ pub use hpke::MessageLimitReached;
 use super::shared::{RawOpenKey, RawSealKey};
 use crate::{
     aead,
-    engine::Engine,
     hpke::{self, HpkeError, OpenCtx, SealCtx},
     import::ImportError,
+    CipherSuite,
 };
 
 /// A sequence number.
@@ -86,16 +86,16 @@ impl AuthData {
 }
 
 /// An encryption key.
-pub struct SealKey<E: Engine> {
-    ctx: SealCtx<E::Aead>,
+pub struct SealKey<CS: CipherSuite> {
+    ctx: SealCtx<CS::Aead>,
 }
 
-impl<E: Engine> SealKey<E> {
+impl<CS: CipherSuite> SealKey<CS> {
     /// The size in bytes of the overhead added to the plaintext.
-    pub const OVERHEAD: usize = SealCtx::<E::Aead>::OVERHEAD;
+    pub const OVERHEAD: usize = SealCtx::<CS::Aead>::OVERHEAD;
 
     /// Creates an encryption key from its raw parts.
-    pub fn from_raw(key: &RawSealKey<E>, seq: Seq) -> Result<Self, ImportError> {
+    pub fn from_raw(key: &RawSealKey<CS>, seq: Seq) -> Result<Self, ImportError> {
         let RawSealKey { key, base_nonce } = key;
         let ctx = SealCtx::new(key, base_nonce, seq.0)?;
         Ok(Self { ctx })
@@ -183,16 +183,16 @@ impl From<HpkeError> for SealError {
 }
 
 /// A decryption key.
-pub struct OpenKey<E: Engine> {
-    ctx: OpenCtx<E::Aead>,
+pub struct OpenKey<CS: CipherSuite> {
+    ctx: OpenCtx<CS::Aead>,
 }
 
-impl<E: Engine> OpenKey<E> {
+impl<CS: CipherSuite> OpenKey<CS> {
     /// The size in bytes of the overhead added to the plaintext.
-    pub const OVERHEAD: usize = OpenCtx::<E::Aead>::OVERHEAD;
+    pub const OVERHEAD: usize = OpenCtx::<CS::Aead>::OVERHEAD;
 
     /// Creates decryption key from a raw key.
-    pub fn from_raw(key: &RawOpenKey<E>) -> Result<Self, ImportError> {
+    pub fn from_raw(key: &RawOpenKey<CS>) -> Result<Self, ImportError> {
         let RawOpenKey { key, base_nonce } = key;
         // We unconditionally set the sequence number to zero
         // because `OpenKey` only supports decrypting with an
