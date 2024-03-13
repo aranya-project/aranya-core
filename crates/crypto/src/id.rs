@@ -179,7 +179,7 @@ impl<'de> Deserialize<'de> for Id {
                 write!(f, "a base58 string")
             }
 
-            fn visit_borrowed_str<E: de::Error>(self, v: &'de str) -> Result<Self::Value, E> {
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
                 v.parse().map_err(|e| match e {
                     DecodeError::BadInput => {
                         E::invalid_value(de::Unexpected::Str(v), &"a base58 string")
