@@ -1,0 +1,30 @@
+* @elagergren @jdygert
+
+/canaries @jdygert @elagergren
+
+/crates/aps-util @elagergren @jdygert
+/crates/base58 @elagergren @jdygert
+/crates/buggy @jdygert @elagergren
+/crates/crypto @elagergren @ycarmy
+/crates/crypto-derive @elagergren @ycarmy
+/crates/crypto-ffi @elagergren @ycarmy
+/crates/device-ffi @rfraser @chip
+/crates/envelope-ffi @elagergren @ycarmy
+/crates/idam-ffi @elagergren @ycarmy
+/crates/model @smckeon @jdygert
+/crates/perspective-ffi @apetkov @chip
+/crates/policy-ast @chip @apetkov
+/crates/policy-derive @elagergren @chip
+/crates/policy-ifgen @jdygert @elagergren
+/crates/policy-ifgen-core @jdygert @elagergren
+/crates/policy-ifgen-macro @jdygert @elagergren
+/crates/policy-lang @chip @apetkov
+/crates/policy-vm @chip @apetkov
+/crates/policy-vm-explorer @chip @apetkov
+/crates/quic-syncer @bzimmerman @jdygert
+/crates/rtrack @elagergren @jdygert
+/crates/rtrack-derive @elagergren @jdygert
+/crates/runtime @jdygert @elagergren
+/crates/trouble @jdygert @elagergren
+
+/.github @elagergren @jdygert
