@@ -30,7 +30,7 @@ testing = [
 ]
 
 [dependencies]
-aps = { git = "https://git.spideroak-inc.com/spideroak-inc/aps.git", branch = "ciphersuite", default-features = false, features = ["alloc"] }
+aps = { git = "https://git.spideroak-inc.com/spideroak-inc/aps.git", branch = "main", default-features = false, features = ["alloc"] }
 cfg-if = { workspace = true, default-features = false }
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 indexmap = { version = "2.1", default-features = false, optional = true }
@@ -43,7 +43,7 @@ tracing = { workspace = true }
 trouble = { path = "../trouble", default-features = false }
 
 [dev-dependencies]
-aps = { git = "https://git.spideroak-inc.com/spideroak-inc/aps.git", branch = "ciphersuite", default-features = false, features = ["memory", "std"] }
+aps = { git = "https://git.spideroak-inc.com/spideroak-inc/aps.git", branch = "main", default-features = false, features = ["memory", "std"] }
 # A little bit of a hack: always certain features for tests and
 # examples.
 aps-util = { path = ".", features = ["testing"] }
