@@ -195,8 +195,9 @@ check_statement = { origin_modifier? ~ "check" ~ expression }
 // The match statement matches on an expression and executes one of its
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).
+match_arm_expression = { expression ~ ("|" ~ expression)* }
 match_default = { "_" }
-match_arm = { (expression | match_default) ~ "=>" ~ statement_block }
+match_arm = { (match_arm_expression | match_default) ~ "=>" ~ statement_block }
 match_statement = { "match" ~ expression ~ "{" ~ match_arm* ~ "}" }
 // The when statement is like an "if" with no "else"
 when_statement = { "when" ~ expression ~ statement_block }

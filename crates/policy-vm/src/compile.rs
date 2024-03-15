@@ -5,7 +5,10 @@ mod tests;
 use alloc::{
     borrow::ToOwned,
     boxed::Box,
-    collections::{btree_map, BTreeMap},
+    collections::{
+        btree_map::{self},
+        BTreeMap,
+    },
     format,
     string::{String, ToString},
     vec,
@@ -14,7 +17,7 @@ use alloc::{
 use core::{fmt, ops::Range};
 
 pub use ast::Policy as AstPolicy;
-use ast::{Expression, FactDefinition, FactLiteral, FieldDefinition};
+use ast::{Expression, FactDefinition, FactLiteral, FieldDefinition, MatchPattern};
 use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
 
@@ -789,7 +792,15 @@ impl<'a> CompileState<'a> {
                 ) => {
                     // Ensure there are no duplicate arm values. Note that this is not completely reliable, because arm values are expressions, evaluated at runtime.
                     // Note: we don't check for zero arms, because that's syntactically invalid.
-                    if find_duplicate(&s.arms, |a| &a.value).is_some() {
+                    let all_values = s
+                        .arms
+                        .iter()
+                        .flat_map(|arm| match &arm.pattern {
+                            MatchPattern::Values(values) => values.as_slice(),
+                            MatchPattern::Default => &[],
+                        })
+                        .collect::<Vec<&Expression>>();
+                    if find_duplicate(&all_values, |v| v).is_some() {
                         return Err(CompileError::from_locator(
                             CompileErrorType::AlreadyDefined(String::from(
                                 "duplicate match arm value",
@@ -807,38 +818,39 @@ impl<'a> CompileState<'a> {
                     let mut arm_labels: Vec<Label> = vec![];
 
                     for arm in s.arms.iter() {
-                        self.append_instruction(Instruction::Dup(0));
-
                         let arm_label = self.anonymous_label();
                         arm_labels.push(arm_label.clone());
 
-                        // Normal arm value
-                        if let Some(value) = &arm.value {
-                            self.compile_expression(value)?;
+                        match &arm.pattern {
+                            MatchPattern::Values(values) => {
+                                for value in values.iter() {
+                                    self.append_instruction(Instruction::Dup(0));
+                                    self.compile_expression(value)?;
 
-                            // if value == target, jump to start-of-arm
-                            self.append_instruction(Instruction::Eq);
-                            self.append_instruction(Instruction::Branch(Target::Unresolved(
-                                arm_label.clone(),
-                            )));
-                        }
-                        // Default case
-                        else {
-                            self.append_instruction(Instruction::Jump(Target::Unresolved(
-                                arm_label.clone(),
-                            )));
-
-                            // Ensure this is the last case, and also that it's not the only case.
-                            if arm != s.arms.last().expect("last arm") {
-                                return Err(CompileError::new(CompileErrorType::Unknown(
-                                    String::from("Default match case must be last."),
+                                    // if value == target, jump to start-of-arm
+                                    self.append_instruction(Instruction::Eq);
+                                    self.append_instruction(Instruction::Branch(
+                                        Target::Unresolved(arm_label.clone()),
+                                    ));
+                                }
+                            }
+                            MatchPattern::Default => {
+                                self.append_instruction(Instruction::Jump(Target::Unresolved(
+                                    arm_label.clone(),
                                 )));
+
+                                // Ensure this is the last case, and also that it's not the only case.
+                                if arm != s.arms.last().expect("last arm") {
+                                    return Err(CompileError::new(CompileErrorType::Unknown(
+                                        String::from("Default match case must be last."),
+                                    )));
+                                }
                             }
                         }
                     }
 
                     // if no match, and no default case, panic
-                    if !s.arms.iter().any(|a| a.value.is_none()) {
+                    if !s.arms.iter().any(|a| a.pattern == MatchPattern::Default) {
                         self.append_instruction(Instruction::Exit(ExitReason::Panic));
                     }
 

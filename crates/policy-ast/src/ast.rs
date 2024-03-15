@@ -291,13 +291,22 @@ pub struct CheckStatement {
     pub expression: Expression,
 }
 
+/// Match arm pattern
+#[derive(Debug, Clone, PartialEq)]
+pub enum MatchPattern {
+    /// No values, default case
+    Default,
+    /// List of values to match
+    Values(Vec<Expression>),
+}
+
 /// One arm of a match statement
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchArm {
-    /// The value to check against. Matches any value if the option is None.
+    /// The values to check against. Matches any value if the option is None.
     // TODO(chip): Restrict this to only literal values so we can do
     // exhaustive range checks.
-    pub value: Option<Expression>,
+    pub pattern: MatchPattern,
     /// The statements to execute if the value matches
     pub statements: Vec<AstNode<Statement>>,
 }

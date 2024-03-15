@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use ast::{Expression, MatchPattern};
 use buggy::BugExt;
 use pest::{
     error::{InputLocation, LineColLocation},
@@ -96,7 +97,7 @@ impl<'a> PairContext<'a> {
 
     /// Consumes the next Pair out of this context and returns it as an
     /// [ast::Expression].
-    fn consume_expression(&self, pratt: &PrattParser<Rule>) -> Result<ast::Expression, ParseError> {
+    fn consume_expression(&self, pratt: &PrattParser<Rule>) -> Result<Expression, ParseError> {
         let token = self.consume_of_type(Rule::expression)?;
         parse_expression(token, pratt)
     }
@@ -334,7 +335,7 @@ fn parse_foreign_function_call(
 pub fn parse_expression(
     expr: Pair<'_, Rule>,
     pratt: &PrattParser<Rule>,
-) -> Result<ast::Expression, ParseError> {
+) -> Result<Expression, ParseError> {
     assert_eq!(expr.as_rule(), Rule::expression);
     let pairs = expr.into_inner();
 
@@ -580,7 +581,7 @@ pub fn parse_expression(
 fn parse_kv_literal_fields(
     fields: Pairs<'_, Rule>,
     pratt: &PrattParser<Rule>,
-) -> Result<Vec<(String, ast::Expression)>, ParseError> {
+) -> Result<Vec<(String, Expression)>, ParseError> {
     let mut out = vec![];
 
     for field in fields {
@@ -597,7 +598,7 @@ fn parse_kv_literal_fields(
 fn parse_emit_statement(
     item: Pair<'_, Rule>,
     pratt: &PrattParser<Rule>,
-) -> Result<ast::Expression, ParseError> {
+) -> Result<Expression, ParseError> {
     assert_eq!(item.as_rule(), Rule::emit_statement);
 
     let pc = descend(item);
@@ -676,11 +677,19 @@ fn parse_match_statement(
     let mut arms = vec![];
     for arm in pc.into_inner() {
         assert_eq!(arm.as_rule(), Rule::match_arm);
-        let pc = descend(arm);
+        let pc = descend(arm.to_owned());
         let token = pc.consume()?;
-        let value = match token.as_rule() {
-            Rule::match_default => None,
-            Rule::expression => Some(parse_expression(token, pratt)?),
+
+        let pattern = match token.as_rule() {
+            Rule::match_default => MatchPattern::Default,
+            Rule::match_arm_expression => {
+                // A `match_arm_expression` is a list of `expression`s.
+                let values = token
+                    .into_inner()
+                    .map(|token| parse_expression(token, pratt))
+                    .collect::<Result<Vec<Expression>, ParseError>>()?;
+                MatchPattern::Values(values)
+            }
             _ => {
                 return Err(ParseError::new(
                     ParseErrorKind::Unknown,
@@ -693,7 +702,10 @@ fn parse_match_statement(
         // Remaining tokens are policy statements
         let statements = parse_statement_list(pc.into_inner(), pratt, cc)?;
 
-        arms.push(ast::MatchArm { value, statements });
+        arms.push(ast::MatchArm {
+            pattern,
+            statements,
+        });
     }
 
     Ok(ast::MatchStatement { expression, arms })
@@ -755,7 +767,7 @@ fn parse_delete_statement(
 fn parse_effect_statement(
     item: Pair<'_, Rule>,
     pratt: &PrattParser<Rule>,
-) -> Result<ast::Expression, ParseError> {
+) -> Result<Expression, ParseError> {
     assert_eq!(item.as_rule(), Rule::effect_statement);
 
     let pc = descend(item);
@@ -779,7 +791,7 @@ fn parse_return_statement(
 fn parse_debug_assert_statement(
     item: Pair<'_, Rule>,
     pratt: &PrattParser<Rule>,
-) -> Result<ast::Expression, ParseError> {
+) -> Result<Expression, ParseError> {
     assert_eq!(item.as_rule(), Rule::debug_assert);
 
     let pc = descend(item);

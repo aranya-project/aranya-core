@@ -896,6 +896,76 @@ fn test_match_duplicate() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_match_alternation() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Result {
+            fields {
+                x int
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo(x int) {
+            match x {
+                0 | 1 => {
+                    check false
+                }
+                5 | 6 | 7 => {
+                    emit Result { x: x }
+                }
+            }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V3)?;
+    let machine = compile_from_policy(&policy, &[])?;
+    let mut io = TestIO::new();
+    let action_name = "foo";
+    let ctx = dummy_ctx_action(action_name);
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+    let res = rs.call_action(action_name, [Value::Int(6)])?;
+
+    assert_eq!(res, ExitReason::Normal);
+    assert_eq!(
+        io.emit_stack[0],
+        ("Result".to_string(), vec![KVPair::new("x", Value::Int(6)),])
+    );
+    Ok(())
+}
+
+#[test]
+fn test_match_alternation_duplicates() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Result {
+            fields {
+                x int
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo(x int) {
+            match x {
+                5 | 6 => {
+                    emit Result { x: x }
+                }
+                1 | 5 | 3  => {
+                    emit Result { x: x }
+                }
+            }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V3)?;
+    let result = compile_from_policy(&policy, &[]).expect_err("msg").err_type;
+    assert_eq!(
+        result,
+        CompileErrorType::AlreadyDefined(String::from("duplicate match arm value"))
+    );
+
+    Ok(())
+}
+
 const POLICY_IS: &str = r#"
     command Result {
         fields {
