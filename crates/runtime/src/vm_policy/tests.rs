@@ -2,7 +2,7 @@
 
 use alloc::borrow::Cow;
 
-use crypto::{default::DefaultEngine, Rng};
+use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
 use test_log::test;
@@ -12,7 +12,7 @@ use super::{error::VmPolicyError, VmPolicy};
 use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
     storage::{memory::MemStorageProvider, FactPerspective, Storage, StorageProvider},
-    vm_policy::ffi::TestFfiEnvelope,
+    vm_policy::testing::TestFfiEnvelope,
     ClientState,
 };
 
@@ -33,8 +33,8 @@ command Create {
         key int,
         value int,
     }
-    seal { return envelope::seal(this) }
-    open { return envelope::open(envelope) }
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
     policy {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
@@ -55,8 +55,8 @@ command Increment {
         key int,
         amount int,
     }
-    seal { return envelope::seal(this) }
-    open { return envelope::open(envelope) }
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         let new_y = stuff.y + this.amount
@@ -164,8 +164,14 @@ impl TestEngine {
         let machine =
             compile_from_policy(&ast, &[TestFfiEnvelope::SCHEMA]).unwrap_or_else(|e| panic!("{e}"));
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        let policy = VmPolicy::new(machine, eng, vec![Box::from(TestFfiEnvelope {})])
-            .expect("Could not load policy");
+        let policy = VmPolicy::new(
+            machine,
+            eng,
+            vec![Box::from(TestFfiEnvelope {
+                user: UserId::random(&mut Rng),
+            })],
+        )
+        .expect("Could not load policy");
         TestEngine { policy }
     }
 }

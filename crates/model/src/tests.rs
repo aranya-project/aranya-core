@@ -4,7 +4,7 @@ use alloc::{borrow::Cow, collections::BTreeMap, string::String, vec::Vec};
 use core::{cell::RefCell, matches, time::Duration};
 use std::time::Instant;
 
-use crypto::{default::DefaultEngine, Rng};
+use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
 use runtime::{
@@ -12,7 +12,7 @@ use runtime::{
     engine::Sink,
     metrics::{Metric, MetricError, Metrics},
     storage::memory::MemStorageProvider,
-    vm_policy::{ffi::TestFfiEnvelope, VmPolicy},
+    vm_policy::{testing::TestFfiEnvelope, VmPolicy},
     ClientState, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
 
@@ -38,8 +38,8 @@ command Create {
         key_b int,
         value int,
     }
-    seal { return envelope::seal(this) }
-    open { return envelope::open(envelope) }
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
     policy {
         finish {
             create Stuff[a: this.key_a, b: this.key_b]=>{x: this.value}
@@ -62,8 +62,8 @@ command Increment {
         key_b int,
         value int,
     }
-    seal { return envelope::seal(this) }
-    open { return envelope::open(envelope) }
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[a: this.key_a, b: this.key_b]=>{x: ?}
         let new_x = stuff.x + this.value
@@ -89,8 +89,8 @@ command Decrement {
         key_b int,
         value int,
     }
-    seal { return envelope::seal(this) }
-    open { return envelope::open(envelope) }
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[a: this.key_a, b: this.key_b]=>{x: ?}
         let new_x = stuff.x - value
@@ -260,8 +260,14 @@ impl Model for TestModel {
         let machine =
             compile_from_policy(&policy_ast, &[TestFfiEnvelope::SCHEMA]).expect("compile policy");
         let (eng, _) = DefaultEngine::from_entropy(Rng);
-        let policy = VmPolicy::new(machine, eng, vec![Box::from(TestFfiEnvelope {})])
-            .expect("Could not load policy");
+        let policy = VmPolicy::new(
+            machine,
+            eng,
+            vec![Box::from(TestFfiEnvelope {
+                user: UserId::random(&mut Rng),
+            })],
+        )
+        .expect("Could not load policy");
         let engine = ModelEngine::new(policy);
         let provider = MemStorageProvider::new();
         let cs = ClientState::new(engine, provider);

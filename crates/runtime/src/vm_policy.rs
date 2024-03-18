@@ -18,9 +18,10 @@ use crate::{
 
 mod error;
 mod facts;
-pub mod ffi;
 mod io;
 mod protocol;
+pub mod testing;
+
 pub use error::*;
 pub use facts::*;
 pub use io::*;

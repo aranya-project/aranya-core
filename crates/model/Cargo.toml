@@ -15,6 +15,7 @@ trouble = { path = "../trouble" }
 
 [dev-dependencies]
 policy-lang = { path = "../policy-lang" }
+runtime = { path = "../runtime", features = ["testing"] }
 
 
 [lints]
