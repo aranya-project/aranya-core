@@ -13,7 +13,6 @@ use policy_ast::{self as ast, Version};
 use policy_lang::lang::parse_policy_str;
 
 use crate::{
-    compile_from_policy,
     data::{
         CommandContext, Fact, FactKey, FactKeyList, FactValue, FactValueList, KVPair, Struct, Value,
     },
@@ -181,7 +180,7 @@ fn test_compile() -> anyhow::Result<()> {
         Version::V3,
     )?;
 
-    compile_from_policy(&policy, &[])?;
+    Compiler::new(&policy).compile()?;
 
     Ok(())
 }
@@ -255,7 +254,9 @@ fn test_action() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3)?;
 
     let name = "foo";
-    let mut machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let mut machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
 
@@ -271,7 +272,9 @@ fn test_command_policy() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3)?;
 
     let name = "Foo";
-    let mut machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let mut machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     let ctx = dummy_ctx_policy(name);
     let mut io = TestIO::new();
 
@@ -298,7 +301,9 @@ fn test_seal() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3)?;
 
     let name = "Foo";
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     let ctx = dummy_ctx_seal(name);
     let mut io = TestIO::new();
     let mut rs = machine.create_run_state(&mut io, &ctx);
@@ -325,7 +330,9 @@ fn test_open() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V3)?;
 
     let name = "Foo";
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     let ctx = dummy_ctx_open(name);
     let mut io = TestIO::new();
     let mut rs = RunState::new(&machine, &mut io, &ctx);
@@ -391,7 +398,9 @@ command Increment {
 fn test_fact_create_delete() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3)?;
 
-    let mut machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let mut machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     let mut io = TestIO::new();
 
     // We have to scope the RunState so that it and its mutable
@@ -423,7 +432,9 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
 fn test_fact_query() -> anyhow::Result<()> {
     let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V3)?;
 
-    let mut machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let mut machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     let mut io = TestIO::new();
 
     {
@@ -493,7 +504,9 @@ fn test_fact_exists() -> anyhow::Result<()> {
     let policy = parse_policy_str(text.trim(), Version::V3)?;
 
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     {
         let name = "setup";
@@ -529,7 +542,7 @@ fn test_not_operator() -> anyhow::Result<()> {
     let name = "test";
     let ctx = dummy_ctx_policy(name);
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
     let mut rs = RunState::new(&machine, &mut io, &ctx);
     let result = rs.run()?;
     assert_eq!(result, ExitReason::Normal);
@@ -750,7 +763,9 @@ fn test_when_true() -> anyhow::Result<()> {
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
     let result = rs.call_action(name, [true])?;
@@ -773,7 +788,9 @@ fn test_when_false() -> anyhow::Result<()> {
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
     let result = rs.call_action(name, [false])?;
@@ -809,7 +826,7 @@ fn test_match_first() -> anyhow::Result<()> {
     let policy = parse_policy_str(POLICY_MATCH, Version::V3)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
     let result = rs.call_action(name, [5])?;
@@ -827,7 +844,7 @@ fn test_match_first() -> anyhow::Result<()> {
 fn test_match_second() -> anyhow::Result<()> {
     let name = "foo";
     let policy = parse_policy_str(POLICY_MATCH, Version::V3)?;
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
 
@@ -847,7 +864,7 @@ fn test_match_second() -> anyhow::Result<()> {
 fn test_match_none() -> anyhow::Result<()> {
     let name = "foo";
     let policy = parse_policy_str(POLICY_MATCH, Version::V3)?;
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
 
@@ -884,7 +901,7 @@ fn test_match_duplicate() -> anyhow::Result<()> {
         }
     "#;
     let policy = parse_policy_str(policy_str, Version::V3)?;
-    let res = compile_from_policy(&policy, &[]);
+    let res = Compiler::new(&policy).compile();
     assert!(matches!(
         res,
         Err(CompileError {
@@ -919,7 +936,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
         }
     "#;
     let policy = parse_policy_str(policy_str, Version::V3)?;
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
     let mut io = TestIO::new();
     let action_name = "foo";
     let ctx = dummy_ctx_action(action_name);
@@ -957,7 +974,7 @@ fn test_match_alternation_duplicates() -> anyhow::Result<()> {
         }
     "#;
     let policy = parse_policy_str(policy_str, Version::V3)?;
-    let result = compile_from_policy(&policy, &[]).expect_err("msg").err_type;
+    let result = Compiler::new(&policy).compile().expect_err("msg").err_type;
     assert_eq!(
         result,
         CompileErrorType::AlreadyDefined(String::from("duplicate match arm value"))
@@ -988,7 +1005,7 @@ const POLICY_IS: &str = r#"
 fn test_is_some_statement() -> anyhow::Result<()> {
     let name = "check_none";
     let policy = parse_policy_str(POLICY_IS, Version::V3)?;
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
 
@@ -1009,7 +1026,7 @@ fn test_is_some_statement() -> anyhow::Result<()> {
 fn test_is_none_statement() -> anyhow::Result<()> {
     let name = "check_none";
     let policy = parse_policy_str(POLICY_IS, Version::V3)?;
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
 
@@ -1039,7 +1056,9 @@ fn test_negative_numeric_expression() -> anyhow::Result<()> {
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [-1])?;
@@ -1064,7 +1083,9 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [true, false])?;
@@ -1084,7 +1105,9 @@ fn test_negative_overflow_numeric_expression() -> anyhow::Result<()> {
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [i64::MIN]);
@@ -1118,7 +1141,7 @@ fn test_match_default() -> anyhow::Result<()> {
     "#;
     let name = "foo";
     let policy = parse_policy_str(policy_str, Version::V3)?;
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
     let mut rs = machine.create_run_state(&mut io, &ctx);
@@ -1159,7 +1182,7 @@ fn test_match_default_not_last() -> anyhow::Result<()> {
         }
     "#;
     let policy = parse_policy_str(policy_str, Version::V3)?;
-    let res = compile_from_policy(&policy, &[]);
+    let res = Compiler::new(&policy).compile();
     assert!(matches!(
         res,
         Err(CompileError {
@@ -1273,7 +1296,9 @@ fn test_bytes() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
     {
         let name = "foo";
         let ctx = dummy_ctx_action(name);
@@ -1328,7 +1353,9 @@ fn test_structs() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     assert_eq!(
         machine.struct_defs.get("Bar"),
@@ -1378,7 +1405,9 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     let err = {
         let name = "foo";
@@ -1556,7 +1585,9 @@ fn test_pure_function() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let mut machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let mut machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     {
         let name = "foo";
@@ -1601,7 +1632,9 @@ fn test_finish_function() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let mut machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let mut machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     {
         let name = "Foo";
@@ -1955,7 +1988,7 @@ fn test_bad_statements() -> anyhow::Result<()> {
 
     for text in texts {
         let policy = parse_policy_str(text, Version::V3)?;
-        let res = compile_from_policy(&policy, &[]);
+        let res = Compiler::new(&policy).compile();
         assert!(matches!(
             res,
             Err(CompileError {
@@ -2005,7 +2038,9 @@ fn test_fact_function_return() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     // Create fact through Foo
     {
@@ -2077,7 +2112,9 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     let name = "Foo";
     let this_bytes: Vec<u8> = {
@@ -2142,7 +2179,9 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, TestIO::FFI_SCHEMAS)?;
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
 
     {
         let cmd_name = "Setup";
@@ -2196,7 +2235,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V3)?;
     let mut io = TestIO::new();
-    let machine = compile_from_policy(&policy, &[])?;
+    let machine = Compiler::new(&policy).compile()?;
 
     {
         let name = "Foo";

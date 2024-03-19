@@ -4,7 +4,7 @@ use alloc::borrow::Cow;
 
 use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_lang::lang::parse_policy_document;
-use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
+use policy_vm::{ffi::FfiModule, Compiler, KVPair, Value};
 use test_log::test;
 use tracing::trace;
 
@@ -161,8 +161,10 @@ pub struct TestEngine {
 impl TestEngine {
     pub fn new(policy_doc: &str) -> TestEngine {
         let ast = parse_policy_document(policy_doc).unwrap_or_else(|e| panic!("{e}"));
-        let machine =
-            compile_from_policy(&ast, &[TestFfiEnvelope::SCHEMA]).unwrap_or_else(|e| panic!("{e}"));
+        let machine = Compiler::new(&ast)
+            .ffi_modules(&[TestFfiEnvelope::SCHEMA])
+            .compile()
+            .unwrap_or_else(|e| panic!("{e}"));
         let (eng, _) = DefaultEngine::from_entropy(Rng);
         let policy = VmPolicy::new(
             machine,

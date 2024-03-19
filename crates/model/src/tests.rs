@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_lang::lang::parse_policy_document;
-use policy_vm::{compile_from_policy, ffi::FfiModule, KVPair, Value};
+use policy_vm::{ffi::FfiModule, Compiler, KVPair, Value};
 use runtime::{
     command::Id,
     engine::Sink,
@@ -253,8 +253,10 @@ impl Model for TestModel {
         };
 
         let policy_ast = parse_policy_document(policy_doc).expect("parse policy document");
-        let machine =
-            compile_from_policy(&policy_ast, &[TestFfiEnvelope::SCHEMA]).expect("compile policy");
+        let machine = Compiler::new(&policy_ast)
+            .ffi_modules(&[TestFfiEnvelope::SCHEMA])
+            .compile()
+            .expect("compile policy");
         let (eng, _) = DefaultEngine::from_entropy(Rng);
         let policy = VmPolicy::new(
             machine,

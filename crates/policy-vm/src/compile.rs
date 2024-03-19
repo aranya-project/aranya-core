@@ -1347,14 +1347,6 @@ impl<'a> Compiler<'a> {
     }
 }
 
-/// Create a new Machine by compiling a policy AST.
-pub fn compile_from_policy(
-    policy: &AstPolicy,
-    ffi_modules: &[ModuleSchema<'_>],
-) -> Result<Machine, CompileError> {
-    Compiler::new(policy).ffi_modules(ffi_modules).compile()
-}
-
 /// Checks whether a vector has duplicate values, and returns the first one, if found.
 ///
 /// Not suitable for large vectors, because complexity is O(n^2).
