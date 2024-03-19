@@ -119,7 +119,7 @@ pub struct SyncCommand<'a> {
     data: &'a [u8],
 }
 
-impl<'a> Command<'a> for SyncCommand<'a> {
+impl<'a> Command for SyncCommand<'a> {
     fn priority(&self) -> Priority {
         self.priority.clone()
     }

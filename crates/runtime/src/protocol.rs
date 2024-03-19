@@ -63,7 +63,7 @@ pub struct TestProtocol<'a> {
     data: &'a [u8],
 }
 
-impl<'a> Command<'a> for TestProtocol<'a> {
+impl<'a> Command for TestProtocol<'a> {
     fn priority(&self) -> Priority {
         match &self.command {
             WireProtocol::Init(_) => Priority::Init,
@@ -283,16 +283,9 @@ impl Policy for TestPolicy {
         self.serial
     }
 
-    fn read_command<'a>(&self, _id: Id, data: &'a [u8]) -> Result<TestProtocol<'a>, EngineError> {
-        let id = Id::hash_for_testing_only(data);
-        let command = from_bytes(data)?;
-
-        Ok(TestProtocol::<'a> { id, command, data })
-    }
-
-    fn call_rule<'a>(
+    fn call_rule(
         &self,
-        command: &impl Command<'a>,
+        command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError> {

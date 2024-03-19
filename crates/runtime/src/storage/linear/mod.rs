@@ -776,7 +776,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         self.policy
     }
 
-    fn add_command<'a>(&mut self, command: &impl Command<'a>) -> Result<usize, StorageError> {
+    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
         self.commands.push(CommandData {
             id: command.id(),
             priority: command.priority(),
@@ -792,7 +792,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
     }
 }
 
-impl<'a> Command<'a> for LinearCommand<'a> {
+impl<'a> Command for LinearCommand<'a> {
     fn priority(&self) -> Priority {
         self.priority.clone()
     }

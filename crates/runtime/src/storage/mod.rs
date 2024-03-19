@@ -263,7 +263,7 @@ pub trait Storage {
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
     type FactIndex: FactIndex;
-    type Command<'a>: Command<'a>
+    type Command<'a>: Command
     where
         Self: 'a;
 
@@ -322,7 +322,7 @@ pub trait Perspective: FactPerspective {
 
     /// Adds the given command to the head of the perspective. The command's
     /// parent must be the head of the perspective.
-    fn add_command<'a>(&mut self, command: &impl Command<'a>) -> Result<usize, StorageError>;
+    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
 
     /// Returns true if the perspective contains a command with the given ID.
     fn includes(&self, id: &Id) -> bool;

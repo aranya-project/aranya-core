@@ -156,7 +156,7 @@ struct SessionCommand<'a> {
     data: &'a [u8],
 }
 
-impl<'sc, 'cmd> Command<'cmd> for SessionCommand<'sc> {
+impl<'sc> Command for SessionCommand<'sc> {
     fn priority(&self) -> Priority {
         Priority::Basic(self.priority)
     }
@@ -180,7 +180,7 @@ impl<'sc, 'cmd> Command<'cmd> for SessionCommand<'sc> {
 }
 
 impl<'sc> SessionCommand<'sc> {
-    fn from_cmd<'cmd>(storage_id: Id, command: &'sc impl Command<'cmd>) -> Result<Self, Bug> {
+    fn from_cmd(storage_id: Id, command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
             bug!("session command should have no policy")
         }
@@ -235,7 +235,7 @@ where
         self.policy
     }
 
-    fn add_command<'cmd>(&mut self, command: &impl Command<'cmd>) -> Result<usize, StorageError> {
+    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
         // TODO(jdygert): Shouldn't need to actually store the commands.
         // Currently needed so checkpoint is correct when reverting.
         self.perspective.add_command(command)?;

@@ -18,8 +18,8 @@ pub struct MemCommand {
     data: Box<[u8]>,
 }
 
-impl<'a, C: Command<'a>> From<&C> for MemCommand {
-    fn from(command: &C) -> Self {
+impl MemCommand {
+    fn from_cmd<C: Command>(command: &C) -> Self {
         let policy = command.policy().map(Box::from);
 
         MemCommand {
@@ -31,7 +31,7 @@ impl<'a, C: Command<'a>> From<&C> for MemCommand {
         }
     }
 }
-impl<'a> Command<'a> for MemCommand {
+impl Command for MemCommand {
     fn priority(&self) -> Priority {
         self.priority.clone()
     }
@@ -553,10 +553,10 @@ impl Revertable for MemPerspective {
 }
 
 impl Perspective for MemPerspective {
-    fn add_command<'b>(&mut self, command: &impl Command<'b>) -> Result<usize, StorageError> {
+    fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
         // TODO(jdygert): Ensure command points to previous?
         let entry = CommandData {
-            command: command.into(),
+            command: MemCommand::from_cmd(command),
             updates: core::mem::take(&mut self.current_updates),
         };
         self.commands.push(entry);

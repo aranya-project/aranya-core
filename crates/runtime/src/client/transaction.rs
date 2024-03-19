@@ -129,9 +129,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     /// Attempt to store the `command` in the graph with `storage_id`. Effects will be
     /// emitted to the `sink`. This interface is used when syncing with another device
     /// and integrating the new commands.
-    pub(super) fn add_commands<'a>(
+    pub(super) fn add_commands(
         &mut self,
-        commands: &[impl Command<'a>],
+        commands: &[impl Command],
         provider: &mut SP,
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
@@ -182,12 +182,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         Ok(true)
     }
 
-    fn add_single<'a>(
+    fn add_single(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
-        command: &impl Command<'a>,
+        command: &impl Command,
         parent: &Id,
     ) -> Result<(), ClientError> {
         let perspective = self.get_perspective(parent, storage)?;
@@ -211,12 +211,12 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         Ok(())
     }
 
-    fn add_merge<'a>(
+    fn add_merge(
         &mut self,
         storage: &mut <SP as StorageProvider>::Storage,
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
-        command: &impl Command<'a>,
+        command: &impl Command,
         left: Id,
         right: Id,
     ) -> Result<bool, ClientError> {
@@ -296,9 +296,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         Ok(p)
     }
 
-    fn init<'cmd, 'sp>(
+    fn init<'sp>(
         &mut self,
-        command: &impl Command<'cmd>,
+        command: &impl Command,
         engine: &mut E,
         provider: &'sp mut SP,
         sink: &mut impl Sink<E::Effect>,
@@ -444,9 +444,9 @@ mod test {
             0
         }
 
-        fn call_rule<'a>(
+        fn call_rule(
             &self,
-            command: &impl Command<'a>,
+            command: &impl Command,
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
         ) -> Result<bool, crate::EngineError> {
@@ -472,14 +472,6 @@ mod test {
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
         ) -> Result<bool, crate::EngineError> {
-            unimplemented!()
-        }
-
-        fn read_command<'a>(
-            &self,
-            _id: Id,
-            _data: &'a [u8],
-        ) -> Result<Self::Command<'a>, crate::EngineError> {
             unimplemented!()
         }
 
@@ -513,7 +505,7 @@ mod test {
         }
     }
 
-    impl<'cmd> Command<'cmd> for SeqCommand {
+    impl Command for SeqCommand {
         fn priority(&self) -> Priority {
             match self.prior {
                 Prior::None => Priority::Init,

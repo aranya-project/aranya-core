@@ -125,7 +125,7 @@ pub trait Policy {
     type Payload<'a>;
     type Action<'a>;
     type Effect;
-    type Command<'a>: Command<'a>;
+    type Command<'a>: Command;
 
     /// Policies have a serial number which can be used to order them.
     /// This is used to support inband policy upgrades.
@@ -135,9 +135,9 @@ pub trait Policy {
     /// effects may be emitted to the sink and facts may be written to the
     /// perspective. Returns true for an accepted command and false for a
     /// rejected command.
-    fn call_rule<'a>(
+    fn call_rule(
         &self,
-        command: &impl Command<'a>,
+        command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError>;
@@ -152,9 +152,6 @@ pub trait Policy {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
     ) -> Result<bool, EngineError>;
-
-    /// Deserialize a bytes in to a command
-    fn read_command<'a>(&self, id: Id, data: &'a [u8]) -> Result<Self::Command<'a>, EngineError>;
 
     /// Produces an init message serialized to target. The `struct` representing the
     /// Command is returned.

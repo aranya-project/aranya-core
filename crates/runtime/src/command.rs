@@ -81,7 +81,7 @@ pub enum Priority {
 /// returns a command implementation to update the stored graph. A
 /// policy will also emit effects once a command is verified,
 /// which are sent to the client.
-pub trait Command<'a> {
+pub trait Command {
     /// Return this command's [`Priority`], determining how this event is
     /// ordered amongst others it does not have a causal relationship with.
     fn priority(&self) -> Priority;
@@ -100,7 +100,7 @@ pub trait Command<'a> {
     fn bytes(&self) -> &[u8];
 }
 
-impl<'a, C: Command<'a>> Command<'a> for &'a C {
+impl<C: Command> Command for &C {
     fn priority(&self) -> Priority {
         (*self).priority()
     }

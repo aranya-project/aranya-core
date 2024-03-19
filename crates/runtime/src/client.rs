@@ -132,11 +132,11 @@ where
 
     /// Add commands to the transaction, writing the results to
     /// `sink`.
-    pub fn add_commands<'cmd>(
+    pub fn add_commands(
         &mut self,
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
-        commands: &[impl Command<'cmd>],
+        commands: &[impl Command],
     ) -> Result<(), ClientError> {
         trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
         Ok(())

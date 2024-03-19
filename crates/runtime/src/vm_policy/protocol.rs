@@ -47,7 +47,7 @@ impl<'a> VmProtocol<'a> {
     }
 }
 
-impl<'a> Command<'a> for VmProtocol<'a> {
+impl<'a> Command for VmProtocol<'a> {
     fn priority(&self) -> Priority {
         match &self.unpacked {
             VmProtocolData::Init { .. } => Priority::Init,
