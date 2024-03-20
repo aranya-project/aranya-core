@@ -2,7 +2,6 @@ extern crate alloc;
 
 use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
 
-use crypto::UserId;
 use policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     OpenContext, PolicyContext, RunState, SealContext, Struct, Value,
@@ -261,7 +260,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                 let ctx = CommandContext::Policy(PolicyContext {
                     name: &kind,
                     id: command.id().into(),
-                    author: UserId::default(),
+                    author: author_id,
                     version: Id::default().into(),
                 });
                 self.evaluate_rule(&kind, fields.as_slice(), envelope, facts, sink, &ctx)?
@@ -346,13 +345,13 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
             // policy... whatever this is for.
             policy: 0u64.to_le_bytes(),
         };
-        postcard::to_slice(&c, target).map_err(|e| {
+        let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
             EngineError::Write
         })?;
         // TODO(chip): calculate the proper ID including the signature
-        let id = Id::hash_for_testing_only(target);
-        Ok(VmProtocol::new(target, id, c))
+        let id = Id::hash_for_testing_only(data);
+        Ok(VmProtocol::new(data, id, c))
     }
 
     fn merge<'a>(
@@ -362,12 +361,12 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<Self::Command<'a>, EngineError> {
         let (left, right) = ids.into();
         let c = VmProtocolData::Merge { left, right };
-        postcard::to_slice(&c, target).map_err(|e| {
+        let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
             EngineError::Write
         })?;
-        let id = Id::hash_for_testing_only(target);
-        Ok(VmProtocol::new(target, id, c))
+        let id = Id::hash_for_testing_only(data);
+        Ok(VmProtocol::new(data, id, c))
     }
 }
 
