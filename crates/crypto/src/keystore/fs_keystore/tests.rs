@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use tempfile::tempdir;
 
-use super::Store;
+use super::{RootDeleted, Store};
 use crate::{
     default::DefaultCipherSuite,
     engine::WrappedKey,
@@ -123,6 +123,45 @@ fn test_get_cloned() {
 
     let store2 = store1.try_clone().expect("should be able to clone `Store`");
     let got = store2
+        .get::<TestKey64>(&id!(1))
+        .expect("`get` should not fail")
+        .expect("should be able to find key");
+    assert_eq!(got, want);
+}
+
+/// See issue/705.
+#[test]
+fn test_deleted_directory() {
+    let dir = tempdir().expect("should be able to create tempdir");
+    let mut store = Store::open(dir.path()).expect("should be able to create `Store`");
+
+    let want = TestKey64(1);
+    store
+        .try_insert(id!(1), want)
+        .expect("should be able to store key");
+
+    dir.close().expect("should be able to remove `TempDir`");
+
+    let err = store.get::<TestKey64>(&id!(1)).expect_err("`get` not fail");
+    assert!(err.downcast_ref::<RootDeleted>().is_some());
+}
+
+/// Tests that we do not leave empty files on disk when
+/// a [`VacantEntry`][super::VacantEntry] is dropped before its
+/// `insert` method is called.
+#[test]
+fn test_vacant_entry_no_insert() {
+    let dir = tempdir().expect("should be able to create tempdir");
+    let mut store = Store::open(dir.path()).expect("should be able to create `Store`");
+
+    let want = TestKey64(1);
+    store
+        .entry::<TestKey64>(id!(1))
+        .expect("should be able to get entry");
+    store
+        .try_insert(id!(1), want)
+        .expect("should be able to store key");
+    let got = store
         .get::<TestKey64>(&id!(1))
         .expect("`get` should not fail")
         .expect("should be able to find key");

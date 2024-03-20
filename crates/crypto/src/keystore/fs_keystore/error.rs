@@ -96,6 +96,12 @@ impl From<Bug> for Error {
     }
 }
 
+impl From<RootDeleted> for Error {
+    fn from(err: RootDeleted) -> Self {
+        <Self as keystore::Error>::other(err)
+    }
+}
+
 #[derive(Debug)]
 enum Repr {
     AlreadyExists,
@@ -104,6 +110,7 @@ enum Repr {
     Errno(Errno),
     Encode(cbor::ser::Error<Errno>),
     Decode(cbor::de::Error<Errno>),
+    RootDeleted(RootDeleted),
     Other,
 }
 
@@ -129,6 +136,8 @@ impl Repr {
             })
         } else if let Some(err) = err.downcast_ref::<Bug>() {
             Self::Bug(err.clone())
+        } else if let Some(err) = err.downcast_ref::<RootDeleted>() {
+            Self::RootDeleted(err.clone())
         } else {
             Self::Other
         }
@@ -142,6 +151,7 @@ impl Repr {
             Self::Encode(err) => downcast_ref(err),
             Self::Decode(err) => downcast_ref(err),
             Self::Bug(err) => downcast_ref(err),
+            Self::RootDeleted(err) => downcast_ref(err),
             Self::Other => None,
         }
     }
@@ -154,6 +164,7 @@ impl Repr {
             Self::Encode(err) => Some(Trouble::from(err)),
             Self::Decode(err) => Some(Trouble::from(err)),
             Self::Bug(err) => Some(err),
+            Self::RootDeleted(err) => Some(err),
             Self::Other => None,
         }
     }
@@ -168,6 +179,7 @@ impl fmt::Display for Repr {
             Self::Encode(err) => err.fmt(f),
             Self::Decode(err) => err.fmt(f),
             Self::Bug(err) => err.fmt(f),
+            Self::RootDeleted(err) => err.fmt(f),
             Self::Other => write!(f, "unknown error"),
         }
     }
@@ -223,6 +235,18 @@ impl<E> Deref for Trouble<E> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+/// The root keystore directory was deleted.
+#[derive(Clone, Debug)]
+pub struct RootDeleted(pub(crate) ());
+
+impl trouble::Error for RootDeleted {}
+
+impl fmt::Display for RootDeleted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("root keystore directory deleted")
     }
 }
 

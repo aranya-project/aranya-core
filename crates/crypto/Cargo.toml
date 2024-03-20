@@ -24,6 +24,7 @@ alloc = [
 	"der/alloc",
 	"ecdsa/alloc",
 	"postcard/alloc",
+	"rustix?/alloc",
 	"zeroize/alloc",
 ]
 

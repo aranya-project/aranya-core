@@ -4,6 +4,7 @@ use core::{any::Any, marker::PhantomData, ops::Deref};
 
 use base58::{String64, ToBase58};
 use buggy::BugExt;
+use cfg_if::cfg_if;
 use ciborium as cbor;
 use ciborium_io::{Read, Write};
 use rustix::{
@@ -13,7 +14,7 @@ use rustix::{
     path::Arg,
 };
 
-use super::error::{Error, UnexpectedEof};
+use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant},
@@ -27,7 +28,7 @@ pub struct Store {
 
 impl Store {
     /// Creates a key store rooted in `dir`.
-    pub const fn new(dir: OwnedFd) -> Self {
+    const fn new(dir: OwnedFd) -> Self {
         Self { root: dir }
     }
 
@@ -38,6 +39,7 @@ impl Store {
             OFlags::DIRECTORY | OFlags::RDONLY | OFlags::CLOEXEC,
             Mode::empty(),
         )?;
+        Self::init_canary(fd.as_fd())?;
         Ok(Self::new(fd))
     }
 
@@ -60,22 +62,58 @@ impl Store {
                 return Err(Errno::from_raw_os_error(err).into());
             }
         };
-        Ok(Self { root })
+        Self::init_canary(root.as_fd())?;
+        Ok(Self::new(root))
     }
 
     fn alias(&self, id: &Id) -> Alias {
         Alias(id.to_base58())
     }
+
+    /// Initializes the root directory canary. See
+    /// [`check_canary`][Self::check_canary].
+    fn init_canary(fd: BorrowedFd<'_>) -> Result<(), Error> {
+        if !cfg!(debug_assertions) {
+            return Ok(());
+        }
+        fs::openat(
+            fd,
+            "__canary",
+            OFlags::CREATE | OFlags::RDWR | OFlags::CLOEXEC,
+            Mode::RUSR | Mode::WUSR, // 0o600
+        )?;
+        Ok(())
+    }
+
+    /// Returns [`RootDeleted`] if the directory canary does not
+    /// exist.
+    ///
+    /// The directory canary is an empty file used to determine
+    /// whether the root directory was deleted. This usually
+    /// occurs during unit tests when `TempDir` is prematurely
+    /// dropped. See issue/705 for more information.
+    ///
+    /// It is not enabled in production as it adds significant
+    /// overhead.
+    fn check_canary(&self) -> Result<(), Error> {
+        if !cfg!(debug_assertions) {
+            return Ok(());
+        }
+        match fs::statat(&self.root, "__canary", AtFlags::empty()) {
+            Err(Errno::NOENT) => Err(RootDeleted(()).into()),
+            _ => Ok(()),
+        }
+    }
 }
 
 impl KeyStore for Store {
     type Error = Error;
-    type Vacant<'a, T: WrappedKey> = VacantEntry<T>;
+    type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
     fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error> {
         let alias = self.alias(&id);
-        // The loops is kinda dumb. Normally, we'd just call
+        // The loop is kinda dumb. Normally, we'd just call
         // `open(..., O_CREAT)`. But that doesn't tell us whether
         // or not we created the file. We *could* check the
         // length (0 == created), but then we're unconditionally
@@ -83,7 +121,7 @@ impl KeyStore for Store {
         // from the file, but that doesn't really work well with
         // `OccupiedEntry::get` because it returns `T` and not
         // `&T`. We could add a header before the CBOR that's set
-        // to 1 the first time the file is written to. But that's
+        // to 1 the first time the file is written to, but that's
         // way more complicated than this dumb loop.
         let entry = loop {
             match Exclusive::openat(&self.root, &*alias) {
@@ -96,8 +134,8 @@ impl KeyStore for Store {
                 Err(err) => return Err(err.into()),
             };
             match Exclusive::create_new(&self.root, &*alias) {
-                Ok(file) => {
-                    break Entry::Vacant(VacantEntry::new(file));
+                Ok(fd) => {
+                    break Entry::Vacant(VacantEntry::new(self.root.as_fd(), fd, alias));
                 }
                 Err(Errno::NOENT) => {
                     // Guess somebody created the file before we
@@ -112,7 +150,10 @@ impl KeyStore for Store {
     fn get<T: WrappedKey>(&self, id: &Id) -> Result<Option<T>, Self::Error> {
         match Shared::openat(&self.root, &*self.alias(id)) {
             Ok(fd) => Ok(cbor::from_reader(fd)?),
-            Err(Errno::NOENT) => Ok(None),
+            Err(Errno::NOENT) => {
+                self.check_canary()?;
+                Ok(None)
+            }
             Err(err) => Err(err.into()),
         }
     }
@@ -132,32 +173,51 @@ impl Deref for Alias {
 }
 
 /// A view into a vacant entry in [`Store`].
-pub struct VacantEntry<T> {
+pub struct VacantEntry<'a, T> {
+    root: BorrowedFd<'a>,
     fd: Exclusive,
+    alias: Alias,
+    dirty: bool,
     _t: PhantomData<T>,
 }
 
-impl<T> VacantEntry<T> {
-    const fn new(fd: Exclusive) -> Self {
+impl<'a, T> VacantEntry<'a, T> {
+    const fn new(root: BorrowedFd<'a>, fd: Exclusive, alias: Alias) -> Self {
         Self {
+            root,
             fd,
+            alias,
+            dirty: false,
             _t: PhantomData,
         }
     }
 }
 
-impl<T: WrappedKey> Vacant<T> for VacantEntry<T> {
+impl<T: WrappedKey> Vacant<T> for VacantEntry<'_, T> {
     type Error = Error;
 
-    fn insert(self, key: T) -> Result<(), Self::Error> {
+    fn insert(mut self, key: T) -> Result<(), Self::Error> {
         // The file should be empty.
-        #[cfg(debug_assertions)]
-        {
-            assert_eq!(self.fd.fstat()?.st_size, 0);
-        }
+        debug_assert_eq!(self.fd.fstat()?.st_size, 0);
 
-        cbor::into_writer(&key, self.fd)?;
+        cbor::into_writer(&key, &self.fd)?;
+        self.fd.fsync()?;
+
+        // Only set the dirty flag after a successful write.
+        self.dirty = true;
+
         Ok(())
+    }
+}
+
+impl<T> Drop for VacantEntry<'_, T> {
+    fn drop(&mut self) {
+        if !self.dirty {
+            // The entry isn't dirty, so the caller must've
+            // dropped it before calling `insert`. Don't leave
+            // the empty file around.
+            let _ = fs::unlinkat(self.root, &*self.alias, AtFlags::empty());
+        }
     }
 }
 
@@ -224,9 +284,19 @@ impl Exclusive {
         Ok(Self(fd))
     }
 
-    #[cfg(debug_assertions)]
     fn fstat(&self) -> io::Result<fs::Stat> {
         fs::fstat(&self.0)
+    }
+
+    fn fsync(&self) -> io::Result<()> {
+        cfg_if! {
+            if #[cfg(any(target_os = "macos", target_os = "ios"))] {
+                fs::fcntl_fullfsync(&self.0)?;
+            } else {
+                fs::fdatasync(&self.0)?;
+            }
+        }
+        Ok(())
     }
 }
 
