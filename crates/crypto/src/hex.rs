@@ -8,6 +8,7 @@ use core::{
     str,
 };
 
+use buggy::Bug;
 use generic_array::{functional::FunctionalSequence, ArrayLength, GenericArray};
 use subtle::{Choice, ConditionallySelectable};
 use typenum::{
@@ -113,8 +114,7 @@ where
         Double<N>: ArrayLength,
     {
         let mut out = GenericArray::default();
-        let n = ct_encode(&mut out, data.borrow()).expect("sizes should be correct");
-        assert_eq!(n, out.len(), "sizes should be exact");
+        ct_encode(&mut out, data.borrow()).expect("sizes should be correct");
         Self(out)
     }
 
@@ -178,7 +178,7 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Convert ASCII lowercase to uppercase.
-        let s = Self(self.0.clone().map(|c| c - 32));
+        let s = Self(self.0.clone().map(|c| c.wrapping_sub(32)));
         fmt::Display::fmt(&s, f)
     }
 }
@@ -191,6 +191,8 @@ pub enum Error {
     InvalidLength,
     /// The input was not a valid hexadecimal string.
     InvalidEncoding,
+    /// An implmentation error.
+    Bug(Bug),
 }
 
 impl fmt::Display for Error {
@@ -198,17 +200,24 @@ impl fmt::Display for Error {
         match self {
             Self::InvalidLength => write!(f, "invalid `dst` length"),
             Self::InvalidEncoding => write!(f, "invalid hexadecimal encoding"),
+            Self::Bug(bug) => write!(f, "implementation bug: {}", bug),
         }
     }
 }
 
 impl trouble::Error for Error {}
 
+impl From<Bug> for Error {
+    fn from(bug: Bug) -> Self {
+        Self::Bug(bug)
+    }
+}
+
 /// Encodes `src` into `dst` as hexadecimal in constant time and
 /// returns the number of bytes written.
 ///
 /// `dst` must be at least twice as long as `src`.
-pub fn ct_encode(dst: &mut [u8], src: &[u8]) -> Result<usize, Error> {
+pub fn ct_encode(dst: &mut [u8], src: &[u8]) -> Result<(), Error> {
     // The implementation is taken from
     // https://github.com/ericlagergren/subtle/blob/890d697da01053c79157a7fdfbed548317eeb0a6/hex/constant_time.go
 
@@ -219,7 +228,7 @@ pub fn ct_encode(dst: &mut [u8], src: &[u8]) -> Result<usize, Error> {
         chunk[0] = enc_nibble(v >> 4);
         chunk[1] = enc_nibble(v & 0x0f);
     }
-    Ok(src.len() * 2)
+    Ok(())
 }
 
 /// Encodes `src` to `dst` as hexadecimal in constant time and
@@ -243,7 +252,8 @@ where
 #[inline(always)]
 const fn enc_nibble(c: u8) -> u8 {
     let c = c as u16;
-    (87 + c + ((c.wrapping_sub(10) >> 8) & !38)) as u8
+    c.wrapping_add(87)
+        .wrapping_add((c.wrapping_sub(10) >> 8) & !38) as u8
 }
 
 /// Decodes `src` into `dst` from hexadecimal in constant time

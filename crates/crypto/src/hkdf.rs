@@ -13,6 +13,7 @@
 
 use core::marker::PhantomData;
 
+use buggy::BugExt;
 use generic_array::GenericArray;
 use typenum::{Prod, U255};
 
@@ -128,7 +129,8 @@ impl<H: Hash> Hkdf<H> {
             for s in info.clone() {
                 expander.update(s.as_ref());
             }
-            expander.update(&[(i + 1) as u8]);
+            let next = i.checked_add(1).assume("i + 1 must not wrap")?;
+            expander.update(&[next as u8]);
             let tag = expander.tag();
             chunk.copy_from_slice(&tag.as_bytes()[..chunk.len()]);
             prev = Some(tag);

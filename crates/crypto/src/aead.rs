@@ -17,7 +17,7 @@ use core::{
     result::Result,
 };
 
-use buggy::Bug;
+use buggy::{Bug, BugExt};
 use generic_array::{ArrayLength, GenericArray, IntoArrayLength};
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
@@ -445,10 +445,17 @@ pub trait Aead {
         additional_data: &[u8],
     ) -> Result<(), SealError> {
         check_seal_params::<Self>(dst, nonce, plaintext, additional_data)?;
-
-        let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
+        let end = plaintext
+            .len()
+            .checked_add(Self::OVERHEAD)
+            .assume("plaintext length + overhead must not wrap")?;
+        let out = &mut dst[..end];
         out[..plaintext.len()].copy_from_slice(plaintext);
-        let (out, overhead) = out.split_at_mut(out.len() - Self::OVERHEAD);
+        let tag_idx = out
+            .len()
+            .checked_sub(Self::OVERHEAD)
+            .assume("out length must be >= overhead")?;
+        let (out, overhead) = out.split_at_mut(tag_idx);
         self.seal_in_place(nonce, out, overhead, additional_data)
             // Encryption failed, make sure that we do not
             // release any invalid plaintext to the caller.
@@ -505,7 +512,9 @@ pub trait Aead {
     ) -> Result<(), OpenError> {
         check_open_params::<Self>(dst, nonce, ciphertext, additional_data)?;
 
-        let max = ciphertext.len() - Self::OVERHEAD;
+        let max = ciphertext.len().checked_sub(Self::OVERHEAD).assume(
+            "`ciphertext.len() >= Self::OVERHEAD` should be enforced by `check_open_params`",
+        )?;
         let (ciphertext, overhead) = ciphertext.split_at(max);
         let out = &mut dst[..max];
         out.copy_from_slice(ciphertext);
@@ -543,11 +552,12 @@ pub type KeyData<A> = SecretKeyBytes<<<A as Aead>::Key as SecretKey>::Size>;
 /// An authentication tag.
 pub type Tag<A> = GenericArray<u8, <A as Aead>::Overhead>;
 
+#[allow(clippy::arithmetic_side_effects)]
 const fn check_aead_params<A: Aead + ?Sized>() {
     debug_assert!(A::KEY_SIZE >= 16);
     debug_assert!(A::OVERHEAD >= 16);
     debug_assert!(A::MAX_PLAINTEXT_SIZE >= u32::MAX as u64);
-    debug_assert!(A::MAX_CIPHERTEXT_SIZE == A::MAX_PLAINTEXT_SIZE + A::OVERHEAD as u64);
+    debug_assert!(A::MAX_CIPHERTEXT_SIZE == A::MAX_PLAINTEXT_SIZE + (A::OVERHEAD as u64));
     debug_assert!(A::MAX_ADDITIONAL_DATA_SIZE >= u32::MAX as u64);
 }
 
@@ -652,7 +662,12 @@ pub const fn check_open_in_place_params<A: Aead + ?Sized>(
     if nonce.len() != A::NONCE_SIZE {
         return Err(OpenError::InvalidNonceSize(InvalidNonceSize));
     }
-    if data.len() as u64 > A::MAX_PLAINTEXT_SIZE - A::OVERHEAD as u64 {
+    let Some(max_len) = A::MAX_PLAINTEXT_SIZE.checked_sub(A::OVERHEAD as u64) else {
+        return Err(OpenError::Other(
+            "implementation bug: `Aead::MAX_PLAINTEXT_SIZE < Aead::OVERHEAD`",
+        ));
+    };
+    if data.len() as u64 > max_len {
         return Err(OpenError::PlaintextTooLong);
     }
     if overhead.len() > A::OVERHEAD {

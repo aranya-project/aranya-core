@@ -268,7 +268,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
             return Err(Error::Seal(SealError::BufferTooSmall(BufferTooSmallError(
-                Some(self.overhead() + plaintext.len()),
+                self.overhead().checked_add(plaintext.len()),
             ))));
         }
         // ad = concat(

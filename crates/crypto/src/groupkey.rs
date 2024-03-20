@@ -2,6 +2,7 @@
 
 use core::{marker::PhantomData, result::Result};
 
+use buggy::Bug;
 use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
@@ -140,8 +141,14 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
+            let required = self
+                .overhead()
+                .checked_add(plaintext.len())
+                .ok_or(Error::Bug(Bug::new(
+                    "overhead + plaintext length must not wrap",
+                )))?;
             return Err(Error::Seal(SealError::BufferTooSmall(BufferTooSmallError(
-                Some(self.overhead() + plaintext.len()),
+                Some(required),
             ))));
         }
         let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);

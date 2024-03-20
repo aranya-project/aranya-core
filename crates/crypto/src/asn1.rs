@@ -11,9 +11,11 @@ use core::{
     borrow::Borrow,
     fmt::{self, Debug},
     marker::PhantomData,
+    ops::Add,
     result::Result,
 };
 
+use buggy::{Bug, BugExt};
 use der::{asn1::UintRef, Decode, Encode, Header, Reader, SliceReader, SliceWriter, Tag};
 
 use crate::{
@@ -33,6 +35,8 @@ pub enum EncodingError {
     Der(der::Error),
     /// The input is too large.
     TooLarge,
+    /// An implementaion error.
+    Bug(Bug),
 }
 
 impl fmt::Display for EncodingError {
@@ -42,6 +46,7 @@ impl fmt::Display for EncodingError {
             Self::OutOfRange => write!(f, "integer out of range"),
             Self::Der(err) => write!(f, "{}", err),
             Self::TooLarge => write!(f, "DER input too large"),
+            Self::Bug(bug) => write!(f, "implementaion bug: {}", bug.msg()),
         }
     }
 }
@@ -57,6 +62,12 @@ impl From<der::Error> for EncodingError {
 impl From<EncodingError> for ImportError {
     fn from(_err: EncodingError) -> Self {
         Self::InvalidSyntax
+    }
+}
+
+impl From<Bug> for EncodingError {
+    fn from(bug: Bug) -> Self {
+        Self::Bug(bug)
     }
 }
 
@@ -131,7 +142,8 @@ impl<S: Signer + ?Sized, const N: usize> Sig<S, N> {
 
         let mut sig = [0u8; N];
         let mut w = SliceWriter::new(&mut sig);
-        w.sequence((r.encoded_len()? + s.encoded_len()?)?, |seq| {
+        // The Length type has an add method that is checked for overflow.
+        w.sequence((r.encoded_len()?.add(s.encoded_len()?))?, |seq| {
             seq.encode(&r)?;
             seq.encode(&s)
         })?;
@@ -286,8 +298,13 @@ impl<const N: usize> RawSig<N> {
             let mut raw = [0u8; N];
             // Left pad with zeros since these are big-endian
             // integers.
-            copy(&mut raw[(N / 2) - r.len()..], r);
-            copy(&mut raw[N - s.len()..], s);
+            let r_start = N
+                .checked_div(2)
+                .and_then(|half| half.checked_sub(r.len()))
+                .assume("N/2 >= r length")?;
+            copy(&mut raw[r_start..], r);
+            let s_start = N.checked_sub(s.len()).assume("N >= s length")?;
+            copy(&mut raw[s_start..], s);
             Ok(Self(raw))
         }
     }
@@ -307,13 +324,29 @@ impl<const N: usize> Default for RawSig<N> {
 pub const fn max_sig_len(bits: usize) -> usize {
     // Length of an integer
     //    tag || DER(len) || len
-    let n = 1 + der_len(bits + 1) + 1 + bits;
+    let Some(n) = bits.checked_add(1) else {
+        panic!("max_sig_len: bits too large")
+    };
+    let Some(n) = der_len(n).checked_add(2) else {
+        panic!("max_sig_len: bits too large")
+    };
+    let Some(n) = n.checked_add(bits) else {
+        panic!("max_sig_len: bits too large")
+    };
     // ECDSA signatures are two integers
     //    r || s
-    let v = 2 * n;
+    let Some(v) = n.checked_mul(2) else {
+        panic!("max_sig_len: bits too large")
+    };
     // DER header
     //    tag || DER(len) || len
-    1 + der_len(v) + v
+    let Some(result) = der_len(v).checked_add(v) else {
+        panic!("max_sig_len: bits too large")
+    };
+    let Some(result) = result.checked_add(1) else {
+        panic!("max_sig_len: bits too large")
+    };
+    result
 }
 
 /// Returns the number of bits necessary to DER encode `n`.
@@ -321,14 +354,17 @@ const fn der_len(n: usize) -> usize {
     if n < 0x80 {
         1
     } else {
-        ((n.ilog2() as usize) + 7) / 8
+        // The following expression can never wrap
+        (n.ilog2() as usize).wrapping_add(7) / 8
     }
 }
 
 /// Returns the maximum size in bytes of a 'raw' ECDSA signature
 /// for a curve with a `bits` long field element (scalar).
 pub const fn raw_sig_len(bits: usize) -> usize {
-    let bytes = (bits + 7) / 8;
+    let extra_byte = bits % 8 != 0;
+    // The following expressions can never wrap
+    let bytes = (bits / 8).wrapping_add(if extra_byte { 1 } else { 0 });
     // r || s
-    bytes * 2
+    bytes.wrapping_mul(2)
 }
