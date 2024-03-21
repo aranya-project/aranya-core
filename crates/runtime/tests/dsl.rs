@@ -644,10 +644,29 @@ mod memory {
     test_suite!(MemBackend);
 }
 
-#[cfg(feature = "rustix")]
-mod linear {
-    // TODO(jdygert): Add in-memory linear io manager
+mod linear_mem {
+    use runtime::linear;
 
+    use super::*;
+
+    struct LinearBackend;
+    impl StorageBackend for LinearBackend {
+        type StorageProvider = linear::LinearStorageProvider<linear::testing::Manager>;
+
+        fn new() -> Self {
+            Self
+        }
+
+        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+            linear::LinearStorageProvider::new(linear::testing::Manager)
+        }
+    }
+
+    test_suite!(LinearBackend);
+}
+
+#[cfg(feature = "rustix")]
+mod linear_rustix {
     use runtime::storage::linear::*;
     use tracing::info;
 

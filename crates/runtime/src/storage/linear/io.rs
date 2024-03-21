@@ -6,53 +6,45 @@
 //! example, accidentally running two instances of the program will cause
 //! issues.
 
-use buggy::BugExt;
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::{Id, StorageError};
+use crate::{Id, Location, StorageError};
 
-pub trait FileManager {
-    type File: Write;
-    /// Create new file for the id. Should error if already exists.
-    fn create(&mut self, id: Id) -> Result<Self::File, StorageError>;
-    /// Open existing file for the id.
-    fn open(&mut self, id: Id) -> Result<Option<Self::File>, StorageError>;
+/// IO manager for creating and opening writers for a graph.
+pub trait IoManager {
+    type Writer: Write;
+    /// Create new writer for the graph ID. Should error if already exists.
+    fn create(&mut self, id: Id) -> Result<Self::Writer, StorageError>;
+    /// Open existing writer for the graph ID.
+    fn open(&mut self, id: Id) -> Result<Option<Self::Writer>, StorageError>;
 }
 
+/// Exclusive writer for a linear storage graph.
 pub trait Write {
+    /// A `Read`er for this writer's shared data.
     type ReadOnly: Read;
+    /// Get a [`Read`]er for this writer's shared data.
     fn readonly(&self) -> Self::ReadOnly;
 
-    fn write_all(&mut self, offset: u64, buf: &[u8]) -> Result<(), StorageError>;
-    fn sync(&mut self) -> Result<(), StorageError>;
+    /// Get the commit head.
+    fn head(&self) -> Result<Location, StorageError>;
 
-    fn dump<T: Serialize>(&mut self, offset: u64, value: &T) -> Result<u64, StorageError> {
-        let bytes = postcard::to_allocvec(value).map_err(|_| StorageError::IoError)?;
-        let len: u32 = bytes
-            .len()
-            .try_into()
-            .assume("serialized objects should fit in u32")?;
-        self.write_all(offset, &len.to_be_bytes())?;
-        let offset2 = offset.checked_add(4).assume("offset not near u64::MAX")?;
-        self.write_all(offset2, &bytes)?;
-        Ok(offset2
-            .checked_add(u64::from(len))
-            .assume("offset valid after write")?)
-    }
+    /// Append an item (e.g. segment or fact-index) onto the writer.
+    ///
+    /// A function is used to allow the item to contain its offset.
+    fn append<F, T>(&mut self, builder: F) -> Result<T, StorageError>
+    where
+        F: FnOnce(usize) -> T,
+        T: Serialize;
+
+    /// Set the commit head.
+    fn commit(&mut self, head: Location) -> Result<(), StorageError>;
 }
 
+/// A share-able reader for a linear storage graph.
 pub trait Read: Clone {
-    fn read_exact(&self, offset: u64, buf: &mut [u8]) -> Result<(), StorageError>;
-
-    fn load<T: DeserializeOwned>(&self, offset: u64) -> Result<T, StorageError> {
-        let mut bytes = [0u8; 4];
-        self.read_exact(offset, &mut bytes)?;
-        let len = u32::from_be_bytes(bytes);
-        let mut bytes = alloc::vec![0u8; len as usize];
-        self.read_exact(
-            offset.checked_add(4).assume("offset not near u64::MAX")?,
-            &mut bytes,
-        )?;
-        postcard::from_bytes(&bytes).map_err(|_| StorageError::IoError)
-    }
+    /// Fetch an item written by `Write::append`.
+    fn fetch<T>(&self, offset: usize) -> Result<T, StorageError>
+    where
+        T: DeserializeOwned;
 }

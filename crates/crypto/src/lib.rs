@@ -102,5 +102,6 @@ pub use keystore::{KeyStore, KeyStoreExt};
 pub use mac::MacError;
 pub use policy::*;
 pub use signer::SignerError;
+pub use siphasher;
 pub use subtle;
 pub use typenum;

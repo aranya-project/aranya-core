@@ -24,10 +24,12 @@
 
 pub mod rustix;
 
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use core::cmp::Ordering;
+#[cfg(feature = "testing")]
+pub mod testing;
 
-use buggy::{bug, BugExt};
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+
+use buggy::BugExt;
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
@@ -39,35 +41,13 @@ use crate::{
 pub mod io;
 pub use io::*;
 
-const PAGE: u64 = 4096;
-
-pub struct LinearStorageProvider<FM: FileManager> {
+pub struct LinearStorageProvider<FM: IoManager> {
     manager: FM,
-    storage: BTreeMap<Id, LinearStorage<FM::File>>,
+    storage: BTreeMap<Id, LinearStorage<FM::Writer>>,
 }
 
 pub struct LinearStorage<W> {
     writer: W,
-    base: Base,
-    root: Root,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Base {
-    version: u64,
-    // We store two roots so at least one should be valid even during writing.
-    root_offset_a: u64,
-    root_offset_b: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Root {
-    /// Incremented each commit
-    generation: u64,
-    head: Location,
-    free_head: u64,
-    /// Used to ensure root is valid. Write could be interrupted or corrupted.
-    checksum: u64,
 }
 
 #[derive(Debug)]
@@ -84,7 +64,7 @@ struct SegmentRepr {
     parents: Prior<Id>,
     policy: PolicyId,
     /// Offset in file to associated fact index.
-    facts: u64,
+    facts: usize,
     commands: Vec1<CommandData>,
 }
 
@@ -122,8 +102,9 @@ pub struct LinearFactIndex<R> {
 #[derive(Debug, Serialize, Deserialize)]
 struct FactIndexRepr {
     /// Self offset in file.
-    offset: u64,
-    prior: Option<u64>,
+    offset: usize,
+    /// Offset of prior fact index.
+    prior: Option<usize>,
     /// Sorted key/value pairs, where `None` is a deleted fact.
     facts: Vec<(Bytes, Option<Bytes>)>,
 }
@@ -175,10 +156,10 @@ impl<R> LinearFactPerspective<R> {
 enum FactPerspectivePrior<R> {
     None,
     FactPerspective(Box<LinearFactPerspective<R>>),
-    FactIndex { offset: u64, reader: R },
+    FactIndex { offset: usize, reader: R },
 }
 
-impl<FM: FileManager> LinearStorageProvider<FM> {
+impl<FM: IoManager> LinearStorageProvider<FM> {
     pub fn new(manager: FM) -> Self {
         Self {
             manager,
@@ -187,10 +168,10 @@ impl<FM: FileManager> LinearStorageProvider<FM> {
     }
 }
 
-impl<FM: FileManager> StorageProvider for LinearStorageProvider<FM> {
-    type Perspective = LinearPerspective<<FM::File as Write>::ReadOnly>;
-    type Segment = LinearSegment<<FM::File as Write>::ReadOnly>;
-    type Storage = LinearStorage<FM::File>;
+impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
+    type Perspective = LinearPerspective<<FM::Writer as Write>::ReadOnly>;
+    type Segment = LinearSegment<<FM::Writer as Write>::ReadOnly>;
+    type Storage = LinearStorage<FM::Writer>;
 
     fn new_perspective(&mut self, policy_id: &PolicyId) -> Self::Perspective {
         LinearPerspective::new(
@@ -238,125 +219,45 @@ impl<W: Write> LinearStorage<W> {
         assert!(matches!(init.parents, Prior::None));
         assert!(matches!(init.facts.prior, FactPerspectivePrior::None));
 
-        let mut free_head = PAGE * 3;
-
-        let facts = {
-            let repr = FactIndexRepr {
-                offset: free_head,
+        let facts = writer
+            .append(|offset| FactIndexRepr {
+                offset,
                 prior: None,
                 facts: init.facts.map.into_iter().collect(),
-            };
-            free_head = writer.dump(free_head, &repr)?;
-            repr.offset
-        };
+            })?
+            .offset;
 
-        let segment = SegmentRepr {
-            offset: free_head.try_into().assume("first segment is in bounds")?,
+        let commands = init
+            .commands
+            .try_into()
+            .map_err(|_| StorageError::EmptyPerspective)?;
+        let segment = writer.append(|offset| SegmentRepr {
+            offset,
             prior: Prior::None,
             parents: Prior::None,
             policy: init.policy,
             facts,
-            commands: init
+            commands,
+        })?;
+
+        let head = Location::new(
+            segment.offset,
+            segment
                 .commands
-                .try_into()
-                .map_err(|_| StorageError::EmptyPerspective)?,
-        };
-        free_head = writer.dump(free_head, &segment)?;
+                .len()
+                .checked_sub(1)
+                .assume("vec1 length >= 1")?,
+        );
 
-        let base = Base {
-            version: 1,
-            root_offset_a: PAGE,
-            root_offset_b: PAGE * 2,
-        };
-        let mut root = Root {
-            generation: 1,
-            // vec1 length >= 1
-            #[allow(clippy::arithmetic_side_effects)]
-            head: Location::new(segment.offset, segment.commands.len() - 1),
-            free_head,
-            checksum: 0,
-        };
+        writer.commit(head)?;
 
-        root.checksum = root.calc_checksum();
-        writer.dump(base.root_offset_a, &root)?;
-        writer.dump(base.root_offset_b, &root)?;
-        writer.sync()?;
-
-        writer.dump(0, &base)?;
-        writer.sync()?;
-
-        let storage = Self { writer, base, root };
+        let storage = Self { writer };
 
         Ok(storage)
     }
 
-    fn open(mut writer: W) -> Result<Self, StorageError> {
-        let reader = writer.readonly();
-        let base: Base = reader.load(0)?;
-        assert_eq!(base.version, 1);
-
-        let (root, overwrite) = match (
-            reader.load(base.root_offset_a).and_then(Root::validate),
-            reader.load(base.root_offset_b).and_then(Root::validate),
-        ) {
-            (Ok(root_a), Ok(root_b)) => match root_a.generation.cmp(&root_b.generation) {
-                Ordering::Equal => (root_a, None),
-                Ordering::Greater => (root_a, Some(base.root_offset_b)),
-                Ordering::Less => (root_b, Some(base.root_offset_a)),
-            },
-            (Ok(root_a), Err(_)) => (root_a, Some(base.root_offset_b)),
-            (Err(_), Ok(root_b)) => (root_b, Some(base.root_offset_a)),
-            (Err(e), Err(_)) => return Err(e),
-        };
-
-        // Write other side if needed (corrupted or outdated)
-        if let Some(offset) = overwrite {
-            writer.dump(offset, &root)?;
-        }
-
-        let storage = Self { writer, base, root };
-
-        Ok(storage)
-    }
-
-    fn write_root(&mut self) -> Result<(), StorageError> {
-        self.root.generation = self
-            .root
-            .generation
-            .checked_add(1)
-            .assume("generation will not overflow u64")?;
-
-        for offset in [self.base.root_offset_a, self.base.root_offset_b] {
-            self.root.checksum = self.root.calc_checksum();
-            self.writer.dump(offset, &self.root)?;
-            self.writer.sync()?;
-        }
-
-        Ok(())
-    }
-}
-
-impl Root {
-    fn calc_checksum(&self) -> u64 {
-        // TODO(jdygert): Use cheaper hash or error correcting code
-        use crypto::hash::Hash;
-        let mut hash = crypto::rust::Sha256::new();
-        hash.update(&self.generation.to_be_bytes());
-        // FIXME(jdygert): u64
-        hash.update(&(self.head.segment as u64).to_be_bytes());
-        hash.update(&(self.head.command as u64).to_be_bytes());
-        hash.update(&self.free_head.to_be_bytes());
-        let mut bytes = [0u8; 8];
-        bytes.copy_from_slice(&hash.digest()[..8]);
-        u64::from_be_bytes(bytes)
-    }
-
-    fn validate(self) -> Result<Self, StorageError> {
-        if self.checksum != self.calc_checksum() {
-            // TODO(jdygert): Isn't really a bug.
-            bug!("invalid checksum");
-        }
-        Ok(self)
+    fn open(writer: W) -> Result<Self, StorageError> {
+        Ok(Self { writer })
     }
 }
 
@@ -490,28 +391,20 @@ impl<F: Write> Storage for LinearStorage<F> {
 
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
         let reader = self.writer.readonly();
-        let repr = reader.load(
-            location
-                .segment
-                .try_into()
-                .assume("segment usize fits into u64")?,
-        )?;
+        let repr = reader.fetch(location.segment)?;
         Ok(LinearSegment { repr, reader })
     }
 
     fn get_head(&self) -> Result<Location, StorageError> {
-        Ok(self.root.head)
+        self.writer.head()
     }
 
     fn commit(&mut self, segment: Self::Segment) -> Result<(), StorageError> {
-        if !self.is_ancestor(self.root.head, &segment)? {
+        if !self.is_ancestor(self.get_head()?, &segment)? {
             return Err(StorageError::HeadNotAncestor);
         }
 
-        self.root.head = segment.head_location();
-        self.write_root()?;
-
-        Ok(())
+        self.writer.commit(segment.head_location())
     }
 
     fn write(&mut self, perspective: Self::Perspective) -> Result<Self::Segment, StorageError> {
@@ -524,18 +417,14 @@ impl<F: Write> Storage for LinearStorage<F> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
 
-        let repr = SegmentRepr {
-            offset: self.root.free_head.try_into().assume("offset in bounds")?,
+        let repr = self.writer.append(|offset| SegmentRepr {
+            offset,
             prior: perspective.prior,
             parents: perspective.parents,
             policy: perspective.policy,
             facts,
             commands,
-        };
-
-        self.root.free_head = self
-            .writer
-            .dump(repr.offset.try_into().assume("usize fits in u64")?, &repr)?;
+        })?;
 
         Ok(LinearSegment {
             repr,
@@ -558,19 +447,18 @@ impl<F: Write> Storage for LinearStorage<F> {
             }
             FactPerspectivePrior::FactIndex { offset, reader } => {
                 if facts.map.is_empty() {
-                    let repr = reader.load(offset)?;
+                    let repr = reader.fetch(offset)?;
                     return Ok(LinearFactIndex { repr, reader });
                 }
                 Some(offset)
             }
         };
-        let repr = FactIndexRepr {
-            offset: self.root.free_head,
+        let facts = facts.map.into_iter().collect();
+        let repr = self.writer.append(|offset| FactIndexRepr {
+            offset,
             prior,
-            facts: facts.map.into_iter().collect(),
-        };
-
-        self.root.free_head = self.writer.dump(repr.offset, &repr)?;
+            facts,
+        })?;
 
         Ok(LinearFactIndex {
             repr,
@@ -670,7 +558,7 @@ impl<R: Read> Segment for LinearSegment<R> {
 
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
         Ok(LinearFactIndex {
-            repr: self.reader.load(self.repr.facts)?,
+            repr: self.reader.fetch(self.repr.facts)?,
             reader: self.reader.clone(),
         })
     }
@@ -685,7 +573,7 @@ impl<R: Read> FactIndex for LinearFactIndex<R> {
                 let (_, v) = &facts.facts[idx];
                 return Ok(v.as_ref().cloned());
             }
-            slot = facts.prior.map(|p| self.reader.load(p)).transpose()?;
+            slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
             prior = slot.as_ref();
         }
         Ok(None)
@@ -713,7 +601,7 @@ impl<R: Read> FactPerspective for LinearFactPerspective<R> {
             FactPerspectivePrior::None => Ok(None),
             FactPerspectivePrior::FactPerspective(prior) => prior.query(key),
             FactPerspectivePrior::FactIndex { offset, reader } => {
-                let repr: FactIndexRepr = reader.load(*offset)?;
+                let repr: FactIndexRepr = reader.fetch(*offset)?;
                 let prior = LinearFactIndex {
                     repr,
                     reader: reader.clone(),
