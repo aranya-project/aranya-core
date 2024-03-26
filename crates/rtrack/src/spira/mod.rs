@@ -164,7 +164,7 @@ fn init() {
 }
 
 thread_local! {
-    static RECORDER: RefCell<Option<Recorder>> = RefCell::new(None);
+    static RECORDER: RefCell<Option<Recorder>> = const { RefCell::new(None) };
 }
 
 /// Records the result of the test.
@@ -253,9 +253,7 @@ enum Needle<'a> {
 #[derive(Debug)]
 enum Match<'a> {
     /// Did not find a match.
-    ///
-    /// It returns the haystack.
-    None(&'a str),
+    None,
     /// Found a prefix match ([`Needle::Prefix`]).
     Prefix { prefix: &'a str, suffix: &'a str },
     /// Found a complete match ([`Needle::Complete`]).
@@ -280,7 +278,7 @@ where
             _ => continue,
         }
     }
-    Match::None(haystack)
+    Match::None
 }
 
 struct Recorder {

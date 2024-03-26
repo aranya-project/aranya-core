@@ -285,27 +285,3 @@ impl TryFrom<Value> for Label {
         ))
     }
 }
-
-/// For `optional int` in policy.
-pub(crate) struct OptionalLabel(Option<Label>);
-
-impl OptionalLabel {
-    const fn none() -> Self {
-        Self(None)
-    }
-
-    const fn some(label: Label) -> Self {
-        Self(Some(label))
-    }
-}
-
-impl TryFrom<Value> for OptionalLabel {
-    type Error = MachineErrorType;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        match value {
-            Value::None => Ok(OptionalLabel::none()),
-            v => Ok(OptionalLabel::some(v.try_into()?)),
-        }
-    }
-}

@@ -15,7 +15,7 @@ authors = ["SpiderOak, Inc."]
 edition = "2021"
 license = "UNLICENSED"
 publish = false
-rust-version = "1.76"
+rust-version = "1.77"
 
 [workspace.lints.rust]
 # missing_docs = "warn"

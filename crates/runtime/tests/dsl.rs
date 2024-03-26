@@ -109,6 +109,7 @@ impl Display for TestRule {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)] // fields used only via `Debug`
 enum TestError {
     Storage(StorageError),
     Client(ClientError),

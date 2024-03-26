@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 
 /// An error returned by [`Hsm`].
 #[derive(Debug)]
-pub(crate) enum HsmError {
+pub enum HsmError {
     /// Unable to authenticate the wrapped key.
     Authentication,
     /// The key was not found.
