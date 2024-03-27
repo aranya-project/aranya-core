@@ -11,7 +11,7 @@ use tracing::trace;
 use super::{error::VmPolicyError, VmPolicy};
 use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
-    storage::{memory::MemStorageProvider, FactPerspective, Storage, StorageProvider},
+    storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_policy::testing::TestFfiEnvelope,
     ClientState,
 };

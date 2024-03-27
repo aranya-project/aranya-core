@@ -310,10 +310,7 @@ pub trait Segment {
 }
 
 /// An index of facts in storage.
-pub trait FactIndex {
-    /// Look up a value associated to the given key.
-    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError>;
-}
+pub trait FactIndex: Query {}
 
 /// A perspective is essentially a mutable, in-memory version of a [`Segment`],
 /// with the same three types.
@@ -330,16 +327,7 @@ pub trait Perspective: FactPerspective {
 }
 
 /// A fact perspective is essentially a mutable, in-memory version of a [`FactIndex`].
-pub trait FactPerspective {
-    /// Look up a value associated to the given key.
-    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError>;
-
-    /// Insert a key/value pair.
-    fn insert(&mut self, key: &[u8], value: &[u8]);
-
-    /// Delete any value associated to the key.
-    fn delete(&mut self, key: &[u8]);
-}
+pub trait FactPerspective: QueryMut {}
 
 /// A revertable perspective can make checkpoints and be reverted such that the
 /// state of the perspective matches that when the checkpoint was created.
@@ -354,6 +342,35 @@ pub trait Revertable {
 /// A checkpoint used to revert perspectives.
 pub struct Checkpoint {
     index: usize,
+}
+
+/// Can be queried to look up facts.
+pub trait Query {
+    /// Look up a value associated to the given key.
+    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError>;
+
+    /// Yields all facts that begin with the prefix, in sorted key order.
+    fn query_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError>;
+}
+
+/// A fact with a key and value.
+pub struct Fact {
+    /// The bytes of the key.
+    pub key: Box<[u8]>,
+    /// The bytes of the value.
+    pub value: Box<[u8]>,
+}
+
+/// Can mutate facts by inserting and deleting them.
+pub trait QueryMut: Query {
+    /// Insert a key/value pair.
+    fn insert(&mut self, key: &[u8], value: &[u8]);
+
+    /// Delete any value associated to the key.
+    fn delete(&mut self, key: &[u8]);
 }
 
 // TODO: Fix and enable

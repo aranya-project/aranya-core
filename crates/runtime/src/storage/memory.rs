@@ -1,12 +1,12 @@
 use alloc::{boxed::Box, collections::BTreeMap, sync::Arc, vec::Vec};
-use core::ops::Deref;
+use core::ops::{Bound, Deref};
 
 use buggy::BugExt;
 use vec1::Vec1;
 
 use crate::{
-    Checkpoint, Command, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId, Prior,
-    Priority, Revertable, Segment, Storage, StorageError, StorageProvider,
+    Checkpoint, Command, Fact, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId,
+    Prior, Priority, Query, QueryMut, Revertable, Segment, Storage, StorageError, StorageProvider,
 };
 
 #[derive(Debug)]
@@ -330,7 +330,17 @@ pub struct MemFactsInner {
     prior: Option<MemFactIndex>,
 }
 
-impl FactIndex for MemFactIndex {
+pub(crate) fn find_prefixes<'m, 'p: 'm>(
+    map: &'m FactMap,
+    prefix: &'p [u8],
+) -> impl Iterator<Item = (&'m [u8], Option<&'m [u8]>)> + 'm {
+    map.range::<[u8], _>((Bound::Included(prefix), Bound::Unbounded))
+        .take_while(|(k, _)| k.starts_with(prefix))
+        .map(|(k, v)| (k.as_ref(), v.as_deref()))
+}
+
+impl FactIndex for MemFactIndex {}
+impl Query for MemFactIndex {
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         let mut prior = Some(self.deref());
         while let Some(facts) = prior {
@@ -340,6 +350,37 @@ impl FactIndex for MemFactIndex {
             prior = facts.prior.as_deref();
         }
         Ok(None)
+    }
+
+    fn query_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+        Ok(self
+            .query_prefix_inner(prefix)
+            .into_iter()
+            // remove deleted facts
+            .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))))
+    }
+}
+
+impl MemFactIndex {
+    fn query_prefix_inner(&self, prefix: &[u8]) -> FactMap {
+        let mut matches = BTreeMap::new();
+
+        let mut prior = Some(self.deref());
+        // walk backwards along fact indices
+        while let Some(facts) = prior {
+            for (k, v) in find_prefixes(&facts.map, prefix) {
+                // don't override, if we've already found the fact (including deletions)
+                if !matches.contains_key(k) {
+                    matches.insert(k.into(), v.map(Into::into));
+                }
+            }
+            prior = facts.prior.as_deref();
+        }
+
+        matches
     }
 }
 
@@ -572,11 +613,22 @@ impl Perspective for MemPerspective {
     }
 }
 
-impl FactPerspective for MemPerspective {
+impl FactPerspective for MemPerspective {}
+
+impl Query for MemPerspective {
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         self.facts.query(key)
     }
 
+    fn query_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+        self.facts.query_prefix(prefix)
+    }
+}
+
+impl QueryMut for MemPerspective {
     fn insert(&mut self, key: &[u8], value: &[u8]) {
         self.facts.insert(key, value);
         self.current_updates
@@ -589,7 +641,24 @@ impl FactPerspective for MemPerspective {
     }
 }
 
-impl FactPerspective for MemFactPerspective {
+impl MemFactPerspective {
+    fn query_prefix_inner(&self, prefix: &[u8]) -> BTreeMap<Box<[u8]>, Option<Box<[u8]>>> {
+        let mut matches = match &self.prior {
+            FactPerspectivePrior::None => BTreeMap::new(),
+            FactPerspectivePrior::FactPerspective(fp) => fp.query_prefix_inner(prefix),
+            FactPerspectivePrior::FactIndex(fi) => fi.query_prefix_inner(prefix),
+        };
+        for (k, v) in find_prefixes(&self.map, prefix) {
+            // overwrite "earlier" facts
+            matches.insert(k.into(), v.map(Into::into));
+        }
+        matches
+    }
+}
+
+impl FactPerspective for MemFactPerspective {}
+
+impl Query for MemFactPerspective {
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         if let Some(wrapped) = self.map.get(key) {
             return Ok(wrapped.as_deref().map(Box::from));
@@ -601,6 +670,19 @@ impl FactPerspective for MemFactPerspective {
         }
     }
 
+    fn query_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+        Ok(self
+            .query_prefix_inner(prefix)
+            .into_iter()
+            // remove deleted facts
+            .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))))
+    }
+}
+
+impl QueryMut for MemFactPerspective {
     fn insert(&mut self, key: &[u8], value: &[u8]) {
         self.map.insert(key.into(), Some(value.into()));
     }
@@ -758,5 +840,48 @@ pub mod graphviz {
                 File::create(format!(".ignore/{name}.dot")).unwrap(),
             )),
         );
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_query_prefix() {
+        let mut graph = MemStorage::new();
+        let mut fp = MemFactPerspective::new(FactPerspectivePrior::None);
+        let keys: &[&[u8]] = &[
+            b"asdf",
+            b"aardvark",
+            b"a",
+            b"bbb",
+            b"aaaa",
+            b"aa",
+            b"ab",
+            b"az",
+            b"aaa",
+            b"ax",
+            b"acc",
+        ];
+        for key in keys {
+            fp.insert(key, key);
+        }
+        let facts = graph.write_facts(fp).unwrap();
+
+        for prefix in keys.iter().copied().chain([&b""[..], b"zz", b"aaaaa"]) {
+            let found = facts.query_prefix(prefix).unwrap();
+            let mut expected: Vec<_> = keys
+                .iter()
+                .copied()
+                .filter(|k| k.starts_with(prefix))
+                .collect();
+            expected.sort();
+            for (a, b) in found.zip(expected) {
+                let a = a.unwrap();
+                assert_eq!(a.key.as_ref(), b);
+                assert_eq!(a.value.as_ref(), b);
+            }
+        }
     }
 }

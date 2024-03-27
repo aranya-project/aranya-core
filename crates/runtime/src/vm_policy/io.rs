@@ -9,7 +9,7 @@ use policy_vm::{
 };
 use tracing::error;
 
-use crate::{FactPerspective, Sink, StorageError, VmFactCursor};
+use crate::{FactPerspective, Query, QueryMut, Sink, StorageError, VmFactCursor};
 
 /// Object safe wrapper for [`FfiModule`].
 pub trait FfiCallable<E> {
@@ -159,12 +159,23 @@ where
 
 pub struct NullFacts;
 
-impl FactPerspective for NullFacts {
+impl Query for NullFacts {
     fn query(&self, _key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         Err(StorageError::IoError)
     }
 
-    fn insert(&mut self, _key: &[u8], _value: &[u8]) {}
+    fn query_prefix(
+        &self,
+        _prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<crate::storage::Fact, StorageError>>, StorageError>
+    {
+        Result::<core::iter::Empty<_>, _>::Err(StorageError::IoError)
+    }
+}
 
+impl QueryMut for NullFacts {
+    fn insert(&mut self, _key: &[u8], _value: &[u8]) {}
     fn delete(&mut self, _key: &[u8]) {}
 }
+
+impl FactPerspective for NullFacts {}

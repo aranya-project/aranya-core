@@ -28,14 +28,15 @@ pub mod rustix;
 pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use core::cmp::Ordering;
 
 use buggy::BugExt;
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Checkpoint, Command, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId, Prior,
-    Priority, Revertable, Segment, Storage, StorageError, StorageProvider,
+    Checkpoint, Command, Fact, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId,
+    Prior, Priority, Query, QueryMut, Revertable, Segment, Storage, StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -564,7 +565,9 @@ impl<R: Read> Segment for LinearSegment<R> {
     }
 }
 
-impl<R: Read> FactIndex for LinearFactIndex<R> {
+impl<R: Read> FactIndex for LinearFactIndex<R> {}
+
+impl<R: Read> Query for LinearFactIndex<R> {
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
@@ -578,6 +581,63 @@ impl<R: Read> FactIndex for LinearFactIndex<R> {
         }
         Ok(None)
     }
+
+    fn query_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+        Ok(self
+            .query_prefix_inner(prefix)?
+            .into_iter()
+            // remove deleted facts
+            .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))))
+    }
+}
+
+impl<R: Read> LinearFactIndex<R> {
+    fn query_prefix_inner(
+        &self,
+        prefix: &[u8],
+    ) -> Result<BTreeMap<Bytes, Option<Bytes>>, StorageError> {
+        let mut matches = BTreeMap::new();
+        let mut prior = Some(&self.repr);
+        let mut slot; // Need to store deserialized value.
+        while let Some(facts) = prior {
+            for (k, v) in find_prefixes(&facts.facts, prefix) {
+                // don't override, if we've already found the fact (including deletions)
+                if !matches.contains_key(k) {
+                    matches.insert(k.into(), v.map(Into::into));
+                }
+            }
+            slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
+            prior = slot.as_ref();
+        }
+        Ok(matches)
+    }
+}
+
+fn find_prefixes<'m, 'p: 'm>(
+    facts: &'m [(Bytes, Option<Bytes>)],
+    prefix: &'p [u8],
+) -> impl Iterator<Item = (&'m [u8], Option<&'m [u8]>)> + 'm {
+    fn join<T>(r: Result<T, T>) -> T {
+        r.unwrap_or_else(|x| x)
+    }
+
+    let start = join(facts.binary_search_by(|(k, _)| k.as_ref().cmp(prefix)));
+    let end = join(facts.binary_search_by(|(k, _)| {
+        if k.starts_with(prefix) {
+            Ordering::Greater
+        } else {
+            Ordering::Less
+        }
+    }));
+
+    facts
+        .get(start..end)
+        .into_iter()
+        .flatten()
+        .map(|(k, v)| (k.as_ref(), v.as_deref()))
 }
 
 impl<R> LinearFactPerspective<R> {
@@ -592,7 +652,9 @@ impl<R> LinearFactPerspective<R> {
     }
 }
 
-impl<R: Read> FactPerspective for LinearFactPerspective<R> {
+impl<R: Read> FactPerspective for LinearFactPerspective<R> {}
+
+impl<R: Read> Query for LinearFactPerspective<R> {
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         if let Some(wrapped) = self.map.get(key) {
             return Ok(wrapped.as_deref().map(Box::from));
@@ -611,6 +673,44 @@ impl<R: Read> FactPerspective for LinearFactPerspective<R> {
         }
     }
 
+    fn query_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+        Ok(self
+            .query_prefix_inner(prefix)?
+            .into_iter()
+            // remove deleted facts
+            .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))))
+    }
+}
+
+impl<R: Read> LinearFactPerspective<R> {
+    fn query_prefix_inner(
+        &self,
+        prefix: &[u8],
+    ) -> Result<BTreeMap<Bytes, Option<Bytes>>, StorageError> {
+        let mut matches = match &self.prior {
+            FactPerspectivePrior::None => BTreeMap::new(),
+            FactPerspectivePrior::FactPerspective(prior) => prior.query_prefix_inner(prefix)?,
+            FactPerspectivePrior::FactIndex { offset, reader } => {
+                let repr: FactIndexRepr = reader.fetch(*offset)?;
+                let prior = LinearFactIndex {
+                    repr,
+                    reader: reader.clone(),
+                };
+                prior.query_prefix_inner(prefix)?
+            }
+        };
+        for (k, v) in super::memory::find_prefixes(&self.map, prefix) {
+            // overwrite "earlier" facts
+            matches.insert(k.into(), v.map(Into::into));
+        }
+        Ok(matches)
+    }
+}
+
+impl<R: Read> QueryMut for LinearFactPerspective<R> {
     fn insert(&mut self, key: &[u8], value: &[u8]) {
         self.map.insert(key.into(), Some(value.into()));
     }
@@ -620,11 +720,22 @@ impl<R: Read> FactPerspective for LinearFactPerspective<R> {
     }
 }
 
-impl<R: Read> FactPerspective for LinearPerspective<R> {
+impl<R: Read> FactPerspective for LinearPerspective<R> {}
+
+impl<R: Read> Query for LinearPerspective<R> {
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         self.facts.query(key)
     }
 
+    fn query_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+        self.facts.query_prefix(prefix)
+    }
+}
+
+impl<R: Read> QueryMut for LinearPerspective<R> {
     fn insert(&mut self, key: &[u8], value: &[u8]) {
         self.facts.insert(key, value);
         self.current_updates.push(Update {
@@ -699,5 +810,43 @@ impl<'a> Command for LinearCommand<'a> {
 
     fn bytes(&self) -> &[u8] {
         self.data
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_find_prefixes() {
+        let keys: &[&[u8]] = &[
+            b"asdf",
+            b"aardvark",
+            b"a",
+            b"bbb",
+            b"aaaa",
+            b"aa",
+            b"ab",
+            b"az",
+            b"aaa",
+            b"ax",
+            b"acc",
+        ];
+        let mut facts: Vec<(Bytes, Option<Bytes>)> =
+            keys.iter().map(|&k| (k.into(), None)).collect();
+        facts.sort();
+
+        for prefix in keys.iter().copied().chain([&b""[..], b"zz", b"aaaaa"]) {
+            let found = find_prefixes(&facts, prefix);
+            let mut expected: Vec<_> = keys
+                .iter()
+                .copied()
+                .filter(|k| k.starts_with(prefix))
+                .collect();
+            expected.sort();
+            for ((k, _), b) in found.zip(expected) {
+                assert_eq!(k, b);
+            }
+        }
     }
 }

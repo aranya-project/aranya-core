@@ -11,9 +11,9 @@ use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClientError, ClientState, Command, Engine, FactPerspective, Id, Perspective, Policy, PolicyId,
-    Prior, Priority, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
-    MAX_COMMAND_LENGTH,
+    ClientError, ClientState, Command, Engine, Fact, FactPerspective, Id, Perspective, Policy,
+    PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError,
+    StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 /// Ephemeral session used to handle/generate off-graph commands.
@@ -209,14 +209,22 @@ struct SessionPerspective<'a, MS, P> {
     added: usize,
 }
 
-impl<'a, MS, P> FactPerspective for SessionPerspective<'a, MS, P>
-where
-    P: FactPerspective,
-{
+impl<'a, MS, P: FactPerspective> FactPerspective for SessionPerspective<'a, MS, P> {}
+
+impl<'a, MS, P: FactPerspective> Query for SessionPerspective<'a, MS, P> {
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         self.perspective.query(key)
     }
 
+    fn query_prefix(
+        &self,
+        prefix: &[u8],
+    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+        self.perspective.query_prefix(prefix)
+    }
+}
+
+impl<'a, MS, P: FactPerspective> QueryMut for SessionPerspective<'a, MS, P> {
     fn insert(&mut self, key: &[u8], value: &[u8]) {
         self.perspective.insert(key, value)
     }

@@ -667,7 +667,7 @@ mod test {
     }
 
     fn lookup(storage: &impl Storage, key: &[u8]) -> Option<Box<[u8]>> {
-        use crate::FactPerspective;
+        use crate::Query;
         let head = storage.get_head().unwrap();
         let p = storage.get_fact_perspective(head).unwrap();
         p.query(key).unwrap()
