@@ -13,10 +13,10 @@ action foo() {
 
     match x {
         5 => {
-            emit Result { x: x }
+            publish Result { x: x }
         }
         6 => {
-            emit Result { x: x }
+            publish Result { x: x }
         }
     }
 }

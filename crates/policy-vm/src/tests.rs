@@ -28,7 +28,7 @@ use crate::{
 
 struct TestIO {
     facts: BTreeMap<(String, FactKeyList), FactValueList>,
-    emit_stack: Vec<(String, Vec<KVPair>)>,
+    publish_stack: Vec<(String, Vec<KVPair>)>,
     effect_stack: Vec<(String, Vec<KVPair>)>,
     engine: DefaultEngine<Rng, DefaultCipherSuite>,
     print_ffi: PrintFfi,
@@ -39,7 +39,7 @@ impl fmt::Debug for TestIO {
         let module_names = ["print"];
         f.debug_struct("TestIO")
             .field("facts", &self.facts)
-            .field("emit_stack", &self.emit_stack)
+            .field("publish_stack", &self.publish_stack)
             .field("effect_stack", &self.effect_stack)
             .field("modules", &module_names)
             .finish()
@@ -51,7 +51,7 @@ impl TestIO {
         let (engine, _) = DefaultEngine::from_entropy(Rng);
         TestIO {
             facts: BTreeMap::new(),
-            emit_stack: vec![],
+            publish_stack: vec![],
             effect_stack: vec![],
             engine,
             print_ffi: PrintFfi {},
@@ -129,11 +129,11 @@ where
         Ok(Box::new(iter))
     }
 
-    fn emit(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
         let mut fields: Vec<_> = fields.into_iter().collect();
         fields.sort_by(|a, b| a.key().cmp(b.key()));
-        println!("emit {} {{{:?}}}", name, fields);
-        self.emit_stack.push((name, fields));
+        println!("publish {} {{{:?}}}", name, fields);
+        self.publish_stack.push((name, fields));
     }
 
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
@@ -200,7 +200,7 @@ command Foo {
     policy {
         let sum = this.a + this.b
         finish {
-            effect Bar{x: sum}
+            emit Bar{x: sum}
         }
     }
 }
@@ -211,7 +211,7 @@ action foo(b int) {
         a: x,
         b: 4
     }
-    emit y
+    publish y
 }
 "#;
 
@@ -262,7 +262,7 @@ fn test_action() -> anyhow::Result<()> {
 
     machine.call_action(name, [Value::from(3), Value::from("foo")], &mut io, &ctx)?;
 
-    println!("emit stack: {:?}", io.emit_stack);
+    println!("publish stack: {:?}", io.publish_stack);
 
     Ok(())
 }
@@ -362,7 +362,7 @@ command Set {
         let x = this.a
         finish {
             create Foo[]=>{x: x}
-            effect Update{value: x}
+            emit Update{value: x}
         }
     }
 }
@@ -387,7 +387,7 @@ command Increment {
         let new_x = r.x + 1
         finish {
             update Foo[]=>{x: r.x} to {x: new_x}
-            effect Update{value: new_x}
+            emit Update{value: new_x}
         }
     }
 }
@@ -811,10 +811,10 @@ const POLICY_MATCH: &str = r#"
         action foo(x int) {
             match x {
                 5 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
                 6 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
             }
         }
@@ -831,9 +831,9 @@ fn test_match_first() -> anyhow::Result<()> {
 
     let result = rs.call_action(name, [5])?;
     assert_eq!(result, ExitReason::Normal);
-    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::Int(5)),])
     );
 
@@ -851,9 +851,9 @@ fn test_match_second() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [6])?;
     assert_eq!(result, ExitReason::Normal);
-    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::Int(6)),])
     );
 
@@ -889,13 +889,13 @@ fn test_match_duplicate() -> anyhow::Result<()> {
         action foo(x int) {
             match x {
                 5 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
                 6=> {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
                 5 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
             }
         }
@@ -930,7 +930,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
                     check false
                 }
                 5 | 6 | 7 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
             }
         }
@@ -945,7 +945,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
 
     assert_eq!(res, ExitReason::Normal);
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::Int(6)),])
     );
     Ok(())
@@ -965,10 +965,10 @@ fn test_match_alternation_duplicates() -> anyhow::Result<()> {
         action foo(x int) {
             match x {
                 5 | 6 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
                 1 | 5 | 3  => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
             }
         }
@@ -993,10 +993,10 @@ const POLICY_IS: &str = r#"
     }
     action check_none(x int) {
         when x is None {
-            emit Result { x: None }
+            publish Result { x: None }
         }
         when x is Some {
-            emit Result { x: x }
+            publish Result { x: x }
         }
     }
 "#;
@@ -1013,9 +1013,9 @@ fn test_is_some_statement() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [Value::Int(10)])?;
     assert_eq!(result, ExitReason::Normal);
-    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::Int(10))])
     );
 
@@ -1034,9 +1034,9 @@ fn test_is_none_statement() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [Value::None])?;
     assert_eq!(result, ExitReason::Normal);
-    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::None)])
     );
 
@@ -1131,10 +1131,10 @@ fn test_match_default() -> anyhow::Result<()> {
         action foo(x int) {
             match x {
                 5 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
                 _ => {
-                    emit Result { x: 0 }
+                    publish Result { x: 0 }
                 }
             }
         }
@@ -1147,9 +1147,9 @@ fn test_match_default() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, &ctx);
     let result = rs.call_action(name, [Value::Int(6)])?;
     assert_eq!(result, ExitReason::Normal);
-    assert_eq!(io.emit_stack.len(), 1);
+    assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::Int(0)),])
     );
 
@@ -1170,13 +1170,13 @@ fn test_match_default_not_last() -> anyhow::Result<()> {
         action foo(x int) {
             match x {
                 5 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
                 _ => {
-                    emit Result { x: 0 }
+                    publish Result { x: 0 }
                 }
                 6 => {
-                    emit Result { x: x }
+                    publish Result { x: x }
                 }
             }
         }
@@ -1290,7 +1290,7 @@ fn test_bytes() -> anyhow::Result<()> {
         }
 
         action foo(id id, x bytes) {
-            emit Foo{id: id, x: x}
+            publish Foo{id: id, x: x}
         }
     "#;
 
@@ -1308,7 +1308,7 @@ fn test_bytes() -> anyhow::Result<()> {
     }
 
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         (
             "Foo".to_string(),
             vec![
@@ -1318,7 +1318,7 @@ fn test_bytes() -> anyhow::Result<()> {
         )
     );
     assert_eq!(
-        format!("{}", io.emit_stack[0].1[0]),
+        format!("{}", io.publish_stack[0].1[0]),
         "id: b:0A0B0C".to_string()
     );
 
@@ -1342,7 +1342,7 @@ fn test_structs() -> anyhow::Result<()> {
         }
 
         action foo(id id, x int) {
-            emit Foo{
+            publish Foo{
                 id: id,
                 bar: Bar {
                     x: x
@@ -1373,7 +1373,7 @@ fn test_structs() -> anyhow::Result<()> {
     }
 
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         (
             "Foo".to_string(),
             vec![
@@ -1579,7 +1579,7 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
 
         action foo(x int) {
-            emit Result { x: f(x) }
+            publish Result { x: f(x) }
         }
     "#;
 
@@ -1596,7 +1596,7 @@ fn test_pure_function() -> anyhow::Result<()> {
     }
 
     assert_eq!(
-        io.emit_stack[0],
+        io.publish_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::Int(4)),])
     );
 
@@ -1611,7 +1611,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         }
 
         finish function f(x int) {
-            effect Result { x: x + 1 }
+            emit Result { x: x + 1 }
         }
 
         command Foo {
@@ -1855,7 +1855,19 @@ fn test_errors() {
         MachineErrorType::InvalidFact,
     );
 
-    // InvalidSchema: Emit a command that was not defined
+    // InvalidSchema: Publish a command that was not defined
+    error_test_harness(
+        &[
+            Instruction::Const(Value::Struct(Struct {
+                name: x.clone(),
+                fields: BTreeMap::new(),
+            })),
+            Instruction::Publish,
+        ],
+        MachineErrorType::InvalidSchema,
+    );
+
+    // InvalidSchema: Emit an effect that was not defined
     error_test_harness(
         &[
             Instruction::Const(Value::Struct(Struct {
@@ -1863,18 +1875,6 @@ fn test_errors() {
                 fields: BTreeMap::new(),
             })),
             Instruction::Emit,
-        ],
-        MachineErrorType::InvalidSchema,
-    );
-
-    // InvalidSchema: Produce an effect that was not defined
-    error_test_harness(
-        &[
-            Instruction::Const(Value::Struct(Struct {
-                name: x.clone(),
-                fields: BTreeMap::new(),
-            })),
-            Instruction::Effect,
         ],
         MachineErrorType::InvalidSchema,
     );
@@ -1981,7 +1981,7 @@ fn test_bad_statements() -> anyhow::Result<()> {
         "#,
         r#"
             function foo(x int) int {
-                emit Bar{}
+                publish Bar{}
             }
         "#,
     ];
@@ -2030,7 +2030,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
             policy {
                 finish {
                     create Foo[a: this.a]=>{b: this.x}
-                    effect Result { x: get_foo(this.a) }
+                    emit Result { x: get_foo(this.a) }
                 }
             }
         }

@@ -43,7 +43,7 @@ where
 pub struct VmPolicyIO<'o, P, S, E, FFI> {
     facts: &'o mut P,
     sink: &'o mut S,
-    emit_stack: Vec<(String, Vec<KVPair>)>,
+    publish_stack: Vec<(String, Vec<KVPair>)>,
     engine: &'o mut E,
     ffis: &'o mut [FFI],
 }
@@ -62,15 +62,15 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
         VmPolicyIO {
             facts,
             sink,
-            emit_stack: vec![],
+            publish_stack: vec![],
             engine,
             ffis,
         }
     }
 
-    /// Consumes the `VmPolicyIO object and produces the emit stack.
+    /// Consumes the `VmPolicyIO object and produces the publish stack.
     pub fn into_emit_stack(self) -> Vec<(String, Vec<KVPair>)> {
-        self.emit_stack
+        self.publish_stack
     }
 }
 
@@ -131,9 +131,9 @@ where
         Ok(c)
     }
 
-    fn emit(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
         let fields: Vec<_> = fields.into_iter().collect();
-        self.emit_stack.push((name, fields));
+        self.publish_stack.push((name, fields));
     }
 
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {

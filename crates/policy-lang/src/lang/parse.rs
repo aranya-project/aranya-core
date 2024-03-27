@@ -577,7 +577,7 @@ pub fn parse_expression(
 /// Expression) pairs.
 ///
 /// This is used any place where something looks like a struct literal -
-/// fact key/values, emit, and effects.
+/// fact key/values, publish, and effects.
 fn parse_kv_literal_fields(
     fields: Pairs<'_, Rule>,
     pratt: &PrattParser<Rule>,
@@ -594,12 +594,12 @@ fn parse_kv_literal_fields(
     Ok(out)
 }
 
-/// Parse a Rule::emit_statement into an EmitStatement.
-fn parse_emit_statement(
+/// Parse a Rule::publish_statement into an PublishStatement.
+fn parse_publish_statement(
     item: Pair<'_, Rule>,
     pratt: &PrattParser<Rule>,
 ) -> Result<Expression, ParseError> {
-    assert_eq!(item.as_rule(), Rule::emit_statement);
+    assert_eq!(item.as_rule(), Rule::publish_statement);
 
     let pc = descend(item);
     let expression = pc.consume_expression(pratt)?;
@@ -763,12 +763,12 @@ fn parse_delete_statement(
     Ok(ast::DeleteStatement { fact })
 }
 
-/// Parse a Rule::effect_statement into an EffectStatement.
-fn parse_effect_statement(
+/// Parse a Rule::emit_statement into an EmitStatement.
+fn parse_emit_statement(
     item: Pair<'_, Rule>,
     pratt: &PrattParser<Rule>,
 ) -> Result<Expression, ParseError> {
-    assert_eq!(item.as_rule(), Rule::effect_statement);
+    assert_eq!(item.as_rule(), Rule::emit_statement);
 
     let pc = descend(item);
     let expression = pc.consume_expression(pratt)?;
@@ -817,7 +817,9 @@ fn parse_statement_list(
         let locator = cc.add_range(&statement)?;
         let ps = match statement.as_rule() {
             Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
-            Rule::emit_statement => ast::Statement::Emit(parse_emit_statement(statement, pratt)?),
+            Rule::publish_statement => {
+                ast::Statement::Publish(parse_publish_statement(statement, pratt)?)
+            }
             Rule::check_statement => {
                 ast::Statement::Check(parse_check_statement(statement, pratt)?)
             }
@@ -843,9 +845,7 @@ fn parse_statement_list(
             Rule::delete_statement => {
                 ast::Statement::Delete(parse_delete_statement(statement, pratt)?)
             }
-            Rule::effect_statement => {
-                ast::Statement::Effect(parse_effect_statement(statement, pratt)?)
-            }
+            Rule::emit_statement => ast::Statement::Emit(parse_emit_statement(statement, pratt)?),
             Rule::function_call => {
                 ast::Statement::FunctionCall(parse_function_call(statement, pratt)?)
             }

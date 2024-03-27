@@ -170,7 +170,7 @@ fn test_function_wrong_color_pure() -> anyhow::Result<()> {
 fn test_function_wrong_color_finish() -> anyhow::Result<()> {
     let text = r#"
         finish function f(x int) {
-            effect Foo {}
+            emit Foo {}
         }
 
         function g() int {

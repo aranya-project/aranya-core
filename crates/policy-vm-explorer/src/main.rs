@@ -112,7 +112,7 @@ fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
 
 struct MachExpIO {
     facts: HashMap<(String, FactKeyList), FactValueList>,
-    emits: Vec<(String, Vec<KVPair>)>,
+    commands: Vec<(String, Vec<KVPair>)>,
     effects: Vec<(String, Vec<KVPair>)>,
 }
 
@@ -120,7 +120,7 @@ impl MachExpIO {
     fn new() -> Self {
         MachExpIO {
             facts: HashMap::new(),
-            emits: vec![],
+            commands: vec![],
             effects: vec![],
         }
     }
@@ -194,9 +194,9 @@ where
         })
     }
 
-    fn emit(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
         let fields = fields.into_iter().collect();
-        self.emits.push((name, fields))
+        self.commands.push((name, fields))
     }
 
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
@@ -327,8 +327,8 @@ fn main() -> anyhow::Result<()> {
                 }
                 println!("  }}");
             }
-            println!("Emitted Commands:");
-            for (name, fields) in &io.emits {
+            println!("Published Commands:");
+            for (name, fields) in &io.commands {
                 println!("  {} {{", name);
                 for f in fields {
                     println!("    {}", f);

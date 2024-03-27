@@ -215,7 +215,7 @@ action create_ttc_team(
         sign_pk: sign_pk,
         enc_pk: enc_pk,
     }
-    emit cmd
+    publish cmd
 }
 
 effect TtcTeamCreated {
@@ -265,7 +265,7 @@ command CreateTtcTeam {
         finish {
             add_new_user(user)
 
-            effect TtcTeamCreated {
+            emit TtcTeamCreated {
                 name: this.ttc_team_name,
                 owner_id: author,
             }
@@ -294,7 +294,7 @@ action add_owner(
     enc_pk bytes,
 ) {
     let cmd = new_add_user_cmd(user, name, ident_pk, sign_pk, enc_pk, "Role_Owner")
-    emit cmd
+    publish cmd
 }
 
 // Adds a Admin to the TT&C Team.
@@ -306,7 +306,7 @@ action add_admin(
     enc_pk bytes,
 ) {
     let cmd = new_add_user_cmd(user, name, ident_pk, sign_pk, enc_pk, "Role_Admin")
-    emit cmd
+    publish cmd
 }
 
 // Adds a Operator to the TT&C Team.
@@ -318,7 +318,7 @@ action add_operator(
     enc_pk bytes,
 ) {
     let cmd = new_add_user_cmd(user, name, ident_pk, sign_pk, enc_pk, "Role_Operator")
-    emit cmd
+    publish cmd
 }
 
 // Adds a satellite to the TT&C Team.
@@ -330,7 +330,7 @@ action add_satellite(
     enc_pk bytes,
 ) {
     let cmd = new_add_user_cmd(user, name, ident_pk, sign_pk, enc_pk, "Role_Satellite")
-    emit cmd
+    publish cmd
 }
 
 // Creates an `AddUser` command.
@@ -489,7 +489,7 @@ command AddUser {
 
         finish {
             add_new_user(user)
-            effect add_user_effect
+            emit add_user_effect
         }
     }
 
@@ -518,25 +518,25 @@ respectively, from the TT&C Team.
 // Removes a Owner from the TT&C Team.
 action remove_owner(user_id id) {
     let cmd = new_remove_user_cmd(user)
-    emit cmd
+    publish cmd
 }
 
 // Removes a Admin from the TT&C Team.
 action remove_admin(user_id id) {
     let cmd = new_remove_user_cmd(user)
-    emit cmd
+    publish cmd
 }
 
 // Removes a Operator from the TT&C Team.
 action remove_operator(user_id id) {
     let cmd = new_remove_user_cmd(user)
-    emit cmd
+    publish cmd
 }
 
 // Removes a satellite from the TT&C Team.
 action remove_satellite(user_id id) {
     let cmd = new_remove_user_cmd(user)
-    emit cmd
+    publish cmd
 }
 
 // Creates a `RemoveUser` command.
@@ -600,7 +600,7 @@ command RemoveUser {
 
                 finish {
                     remove_user(user)
-                    effect OwnerRemoved {
+                    emit OwnerRemoved {
                         user_id: this.user_id,
                     }
                 }
@@ -611,7 +611,7 @@ command RemoveUser {
 
                 finish {
                     remove_user(user)
-                    effect AdminRemoved {
+                    emit AdminRemoved {
                         user_id: this.user_id,
                     }
                 }
@@ -624,7 +624,7 @@ command RemoveUser {
 
                 finish {
                     remove_user(user)
-                    effect OperatorRemoved {
+                    emit OperatorRemoved {
                         user_id: this.user_id,
                     }
                 }
@@ -637,7 +637,7 @@ command RemoveUser {
 
                 finish {
                     remove_user(user)
-                    effect SatelliteRemoved {
+                    emit SatelliteRemoved {
                         user_id: this.user_id,
                     }
                 }
@@ -683,7 +683,7 @@ action create_aps_label(name string, label int) {
         name: name,
         label: label,
     }
-    emit cmd
+    publish cmd
 }
 
 // Records that an APS label exists.
@@ -715,7 +715,7 @@ command CreateApsLabel {
         finish {
             create ApsLabel[label: this.label]=>{name: this.name}
 
-            effect ApsLabelCreated {
+            emit ApsLabelCreated {
                 name: this.name,
                 label: this.label,
             }
@@ -761,7 +761,7 @@ action assign_aps_label(user_id id, label int, op string) {
         label: label,
         op: op,
     }
-    emit cmd
+    publish cmd
 }
 
 effect ApsLabelAssigned {
@@ -837,7 +837,7 @@ command AssignApsLabel {
         finish {
             create AssignedApsLabel[user_id: this.user_id, label: this.label]=>{op: this.op}
 
-            effect ApsLabelAssigned {
+            emit ApsLabelAssigned {
                 user_id: this.user_id,
                 name: label.name,
                 label: this.label,
@@ -865,7 +865,7 @@ action revoke_aps_label(user_id id, label int) {
         user_id: user_id,
         label: label,
     }
-    emit cmd
+    publish cmd
 }
 
 effect ApsLabelRevoked {
@@ -898,7 +898,7 @@ command RevokeApsLabel {
         finish {
             delete AssignedApsLabel[user_id: this.user_id, label: this.label]
 
-            effect ApsLabelRevoked {
+            emit ApsLabelRevoked {
                 user_id: this.user_id,
                 label: this.label,
             }
@@ -985,7 +985,7 @@ command CreateApsBidiChannel {
                         this.encap,
                     )
 
-                    effect ApsBidiChannelCreated {
+                    emit ApsBidiChannelCreated {
                         user1: author,
                         user2: peer,
                     }
@@ -999,7 +999,7 @@ command CreateApsBidiChannel {
                         label: this.label,
                     ]=>{encap: encap}
 
-                    effect ApsBidiChannelCreated {
+                    emit ApsBidiChannelCreated {
                         user1: author.user_id,
                         user2: peer.user_id,
                     }
@@ -1043,7 +1043,7 @@ action create_aps_uni_channel(seal_id id, open_id id, label int) {
         label: label,
         encap: ch.encap,
     }
-    emit cmd
+    publish cmd
 
     // At this point, the command was successfully added to the
     // graph.
@@ -1148,7 +1148,7 @@ command CreateApsUniChannel {
                         this.label,
                         this.encap,
                     )
-                    effect ApsUniChannelCreated {
+                    emit ApsUniChannelCreated {
                         seal_id: this.seal_id,
                         open_id: this.open_id,
                         encap: encap,
@@ -1164,7 +1164,7 @@ command CreateApsUniChannel {
                         open_id: this.open_id,
                         label: this.label,
                     ]=>{encap: encap}
-                    effect ApsUniChannelCreated {
+                    emit ApsUniChannelCreated {
                         seal_id: this.seal_id,
                         open_id: this.open_id,
                         encap: encap,

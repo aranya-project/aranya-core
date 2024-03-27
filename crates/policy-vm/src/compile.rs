@@ -888,9 +888,9 @@ impl<'a> CompileState<'a> {
                     self.compile_statements(&s.statements)?;
                     self.define_label(end_label, self.wp)?;
                 }
-                (ast::Statement::Emit(s), StatementContext::Action) => {
+                (ast::Statement::Publish(s), StatementContext::Action) => {
                     self.compile_expression(s)?;
-                    self.append_instruction(Instruction::Emit);
+                    self.append_instruction(Instruction::Publish);
                 }
                 (ast::Statement::Return(s), StatementContext::PureFunction) => {
                     self.compile_expression(&s.expression)?;
@@ -963,9 +963,9 @@ impl<'a> CompileState<'a> {
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Delete);
                 }
-                (ast::Statement::Effect(s), StatementContext::Finish) => {
+                (ast::Statement::Emit(s), StatementContext::Finish) => {
                     self.compile_expression(s)?;
-                    self.append_instruction(Instruction::Effect);
+                    self.append_instruction(Instruction::Emit);
                 }
                 (ast::Statement::FunctionCall(f), StatementContext::Finish) => {
                     let signature = self.function_signatures.get(&f.identifier).ok_or(

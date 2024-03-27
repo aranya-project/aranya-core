@@ -24,7 +24,7 @@ action StartGame(profileX id, profileO id) {
         ProfileX: profileX,
         ProfileO: profileO,
     }
-    emit command
+    publish command
 }
 
 effect GameStart {
@@ -48,7 +48,7 @@ command Start {
             create PlayerProfile[gameID: gameID]=>{x: ProfileX, o: ProfileO}
             create NextPlayer[gameID: gameID]=>{p: "X"}
 
-            effect GameStart{
+            emit GameStart{
                 gameID: gameID,
                 x: ProfileX,
                 o: ProfileO,
@@ -63,7 +63,7 @@ action MakeMove(gameID id, x int, y int) {
         X: x,
         Y: y,
     }
-    emit command
+    publish command
 }
 
 effect GameUpdate {
@@ -128,7 +128,7 @@ command Move {
             create Field[gameID: gameID, x: X, y: Y]=>{p: p}
             set_next_player(gameID, nextp)
 
-            effect GameUpdate{
+            emit GameUpdate{
                 gameID: gameID,
                 player: player,
                 p: p,
@@ -183,7 +183,7 @@ command Move2 {
                     create Field[gameID: gameID, x: X, y: Y]=>{p: p}
                     delete NextPlayer[gameID: gameID]=>{p: p}
                     create GameOver[gameID: gameID]=>{}
-                    effect GameOver{
+                    emit GameOver{
                         gameID: gameID,
                         winner: player,
                         p: p,
@@ -194,7 +194,7 @@ command Move2 {
                 finish {
                     create Field[gameID: gameID, x: X, y: Y]=>{p: p}
                     set_next_player(gameID, op)
-                    effect GameUpdate{
+                    emit GameUpdate{
                         gameID: gameID,
                         player: player,
                         p: p,

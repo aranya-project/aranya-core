@@ -8,7 +8,7 @@ action StartGame(profileX id, profileO id) {
         ProfileX: profileX,
         ProfileO: profileO,
     }
-    emit command
+    publish command
 }
 
 effect GameStart {
@@ -23,7 +23,7 @@ action MakeMove(gameID id, x int, y int) {
         X: x,
         Y: y,
     }
-    emit command
+    publish command
 }
 
 effect GameUpdate {

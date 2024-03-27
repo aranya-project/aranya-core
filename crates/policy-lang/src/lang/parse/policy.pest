@@ -184,8 +184,8 @@ postfix_op = _{ is }
 expression = { prefix_op* ~ atom ~ postfix_op* ~ (infix_op ~ prefix_op* ~ atom ~ postfix_op*)* }
 
 // # Statements
-// The emit statement creates a command based on the given expression.
-emit_statement = { "emit" ~ expression }
+// The publish statement publishes the expression as a command.
+publish_statement = { "publish" ~ expression }
 // A let statement assigns a value to an identifier. Identifiers can
 // only be assigned once.
 let_statement = { "let" ~ identifier ~ "=" ~ expression }
@@ -211,8 +211,8 @@ create_statement = { "create" ~ fact_literal }
 update_statement = { "update" ~ fact_literal ~ "to" ~ fact_literal_value }
 // The delete statement deletes a fact.
 delete_statement = { "delete" ~ fact_literal }
-// The effect statement outputs an effect with the given expression.
-effect_statement = { "effect" ~ expression }
+// The emit statement outputs an effect with the given expression.
+emit_statement = { "emit" ~ expression }
 // The return statement returns from a function
 return_statement = { "return" ~ expression }
 // debug_assert() optionally runs the contained expression if the debug flag is enabled
@@ -220,7 +220,7 @@ debug_assert = { "debug_assert(" ~ expression ~ ")" }
 
 // ## All statements
 statements = _{
-    emit_statement |
+    publish_statement |
     let_statement |
     check_statement |
     match_statement |
@@ -229,7 +229,7 @@ statements = _{
     create_statement |
     update_statement |
     delete_statement |
-    effect_statement |
+    emit_statement |
     return_statement |
     debug_assert | // Note that debug_assert must take precendence over function_call due to the overlapping syntax
     function_call

@@ -177,9 +177,9 @@ fn parse_errors() -> Result<(), ParseError> {
         error_message: String::from(
             " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
                 |                            ^---\n  |\n  = expected function_call, \
-                emit_statement, let_statement, origin_modifier, match_statement, \
+                publish_statement, let_statement, origin_modifier, match_statement, \
                 when_statement, finish_statement, create_statement, update_statement, \
-                delete_statement, effect_statement, return_statement, or debug_assert",
+                delete_statement, emit_statement, return_statement, or debug_assert",
         ),
         rule: Rule::top_level_statement,
     }];
@@ -270,7 +270,7 @@ fn parse_fact() -> Result<(), PestError<Rule>> {
 fn parse_action() -> Result<(), PestError<Rule>> {
     let src = r#"
         action init(owner id) {
-            emit Init{
+            publish Init{
                 Owner: owner
             }
         }
@@ -386,7 +386,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             let obj = Add {
                 count: x,
             }
-            emit obj
+            publish obj
         }
 
         effect Added {
@@ -426,7 +426,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     create F[v: "hello"]=>{x: x, y: -x}
                     update F[]=>{x: x} to {x: new_x}
                     delete F[v: "hello"]
-                    effect Added {
+                    emit Added {
                         x: new_x,
                         y: count,
                     }
@@ -440,7 +440,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     create F[v: "hello"]=>{x: x, y: -x}
                     update F[]=>{x: x} to {x: new_x}
                     delete F[v: "hello"]
-                    effect Added {
+                    emit Added {
                         x: new_x,
                         y: count,
                     }
@@ -515,7 +515,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                         227,
                     ),
                     AstNode::new(
-                        ast::Statement::Emit(ast::Expression::Identifier(String::from("obj"))),
+                        ast::Statement::Publish(ast::Expression::Identifier(String::from("obj"))),
                         295,
                     ),
                 ],
@@ -541,7 +541,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     },
                 ],
             },
-            323,
+            326,
         )]
     );
     assert_eq!(
@@ -567,7 +567,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 ))]
                             },),
                         }),
-                        516,
+                        519,
                     ),
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
@@ -580,7 +580,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 ))]
                             },),
                         }),
-                        564,
+                        567,
                     ),
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
@@ -590,7 +590,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 Box::new(ast::Expression::Identifier(String::from("count"))),
                             ),
                         }),
-                        623,
+                        626,
                     ),
                     AstNode::new(
                         ast::Statement::Check(ast::CheckStatement {
@@ -606,7 +606,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 }),
                             ),
                         }),
-                        661,
+                        664,
                     ),
                     AstNode::new(
                         ast::Statement::Match(ast::MatchStatement {
@@ -630,7 +630,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                                 },
                                             ),
                                         }),
-                                        775,
+                                        778,
                                     )],
                                 },
                                 ast::MatchArm {
@@ -647,7 +647,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                                 },
                                             ),
                                         }),
-                                        875,
+                                        878,
                                     )],
                                 },
                                 ast::MatchArm {
@@ -656,7 +656,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 },
                             ],
                         }),
-                        714,
+                        717,
                     ),
                     AstNode::new(
                         ast::Statement::When(ast::WhenStatement {
@@ -674,10 +674,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         Box::new(ast::Expression::Int(10)),
                                     ),
                                 }),
-                                1044,
+                                1047,
                             )],
                         }),
-                        1010,
+                        1013,
                     ),
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
@@ -688,7 +688,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 arguments: vec![ast::Expression::Identifier(String::from("x"))],
                             }),
                         }),
-                        1096
+                        1099
                     ),
                     AstNode::new(
                         ast::Statement::Finish(vec![
@@ -714,7 +714,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         ]),
                                     },
                                 }),
-                                1167
+                                1170
                             ),
                             AstNode::new(
                                 ast::Statement::Update(ast::UpdateStatement {
@@ -731,7 +731,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         ast::Expression::Identifier(String::from("new_x")),
                                     )],
                                 }),
-                                1223
+                                1226
                             ),
                             AstNode::new(
                                 ast::Statement::Delete(ast::DeleteStatement {
@@ -744,10 +744,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         value_fields: None,
                                     },
                                 }),
-                                1276
+                                1279
                             ),
                             AstNode::new(
-                                ast::Statement::Effect(ast::Expression::NamedStruct(
+                                ast::Statement::Emit(ast::Expression::NamedStruct(
                                     ast::NamedStruct {
                                         identifier: String::from("Added"),
                                         fields: vec![
@@ -762,10 +762,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         ],
                                     },
                                 )),
-                                1317
+                                1320
                             ),
                         ]),
-                        1138,
+                        1141,
                     ),
                 ],
                 recall: vec![
@@ -780,7 +780,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 ))]
                             },),
                         }),
-                        1491,
+                        1492,
                     ),
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
@@ -793,7 +793,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 ))]
                             },),
                         }),
-                        1539,
+                        1540,
                     ),
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
@@ -803,7 +803,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 Box::new(ast::Expression::Identifier(String::from("count"))),
                             ),
                         }),
-                        1598,
+                        1599,
                     ),
                     AstNode::new(
                         ast::Statement::Finish(vec![
@@ -829,7 +829,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         ]),
                                     },
                                 }),
-                                1665
+                                1666
                             ),
                             AstNode::new(
                                 ast::Statement::Update(ast::UpdateStatement {
@@ -846,7 +846,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         ast::Expression::Identifier(String::from("new_x")),
                                     )],
                                 }),
-                                1721
+                                1722
                             ),
                             AstNode::new(
                                 ast::Statement::Delete(ast::DeleteStatement {
@@ -859,10 +859,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         value_fields: None,
                                     },
                                 }),
-                                1774
+                                1775
                             ),
                             AstNode::new(
-                                ast::Statement::Effect(ast::Expression::NamedStruct(
+                                ast::Statement::Emit(ast::Expression::NamedStruct(
                                     ast::NamedStruct {
                                         identifier: String::from("Added"),
                                         fields: vec![
@@ -877,14 +877,14 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         ],
                                     },
                                 )),
-                                1815
+                                1816
                             ),
                         ]),
-                        1636,
+                        1637,
                     ),
                 ],
             },
-            403,
+            406,
         )]
     );
     assert_eq!(
@@ -905,7 +905,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 ast::Expression::Identifier(String::from("v")),
                             )),
                         }),
-                        2024,
+                        2023,
                     ),
                     AstNode::new(
                         ast::Statement::Return(ast::ReturnStatement {
@@ -914,11 +914,11 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 Box::new(ast::Expression::Int(0)),
                             ),
                         }),
-                        2053,
+                        2052,
                     ),
                 ],
             },
-            1971,
+            1970,
         )]
     );
     assert_eq!(
@@ -938,17 +938,17 @@ fn parse_policy_test() -> Result<(), ParseError> {
                             value_fields: Some(vec![]),
                         },
                     }),
-                    2127
+                    2126
                 )],
             },
-            2085,
+            2084,
         )]
     );
 
     let (start, end) = *policy
         .ranges
         .iter()
-        .find(|(start, _)| *start == 623)
+        .find(|(start, _)| *start == 626)
         .expect("range not found");
     let text = &policy.text[start..end];
     assert_eq!(text.trim_end(), "let new_x = x + count");
@@ -1044,7 +1044,7 @@ fact NotAPolicyBlock[]=>{}
 
 ```policy
 action foo() {
-    emit SomeCommand{}
+    publish SomeCommand{}
 }
 ```
 "#;

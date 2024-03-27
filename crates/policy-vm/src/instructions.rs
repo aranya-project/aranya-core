@@ -80,16 +80,16 @@ pub enum Instruction {
     /// Get a member from the struct
     StructGet,
     // context-specific
-    /// Emit a struct
-    Emit,
+    /// Publish a struct as a command
+    Publish,
     /// Create a fact
     Create,
     /// Delete a fact
     Delete,
     /// Update a fact
     Update,
-    /// Produce an effect
-    Effect,
+    /// Emit an effect
+    Emit,
     /// Query for a fact
     Query,
     /// Serialize a command struct
@@ -134,11 +134,11 @@ impl Display for Instruction {
             Instruction::StructNew => write!(f, "struct.new"),
             Instruction::StructSet => write!(f, "struct.set"),
             Instruction::StructGet => write!(f, "struct.get"),
-            Instruction::Emit => write!(f, "emit"),
+            Instruction::Publish => write!(f, "publish"),
             Instruction::Create => write!(f, "create"),
             Instruction::Delete => write!(f, "delete"),
             Instruction::Update => write!(f, "update"),
-            Instruction::Effect => write!(f, "effect"),
+            Instruction::Emit => write!(f, "emit"),
             Instruction::Query => write!(f, "query"),
             Instruction::Serialize => write!(f, "serialize"),
             Instruction::Deserialize => write!(f, "deserialize"),

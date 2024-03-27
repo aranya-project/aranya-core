@@ -71,8 +71,8 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator<'_>, MachineIOError>;
 
-    /// Emit a command
-    fn emit(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
+    /// Publish a command
+    fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
 
     /// Create an effect
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);

@@ -38,13 +38,13 @@ command Create {
     policy {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
-            effect StuffHappened{x: this.key, y: this.value}
+            emit StuffHappened{x: this.key, y: this.value}
         }
     }
 }
 
 action create(v int) {
-    emit Create{
+    publish Create{
         key: 1,
         value: v,
     }
@@ -62,13 +62,13 @@ command Increment {
         let new_y = stuff.y + this.amount
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
-            effect StuffHappened{x: this.key, y: new_y}
+            emit StuffHappened{x: this.key, y: new_y}
         }
     }
 }
 
 action increment() {
-    emit Increment{
+    publish Increment{
         key: 1,
         amount: 1
     }
@@ -76,7 +76,7 @@ action increment() {
 
 action incrementFour(n int) {
     check n == 4
-    emit Increment {
+    publish Increment {
         key: 1,
         amount: n,
     }

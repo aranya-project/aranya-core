@@ -16,7 +16,7 @@ use runtime::{
 
 /// Model engine effect.
 ///
-/// An Effect is a struct used in policy `finish` and `recall` blocks to describe the shape of side effects produced from processed commands.
+/// An Effect is a struct used in policy `finish` and `recall` blocks to describe the shape of side effects emitted from processed commands.
 pub type ModelEffect = (String, Vec<KVPair>);
 
 /// Model engine.

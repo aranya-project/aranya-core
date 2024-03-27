@@ -655,13 +655,13 @@ where
                     .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(varname)))?;
                 self.ipush(v)?;
             }
-            Instruction::Emit => {
+            Instruction::Publish => {
                 let s: Struct = self.ipop()?;
                 self.validate_struct_schema(&s)?;
 
                 let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
 
-                self.io.emit(s.name, fields);
+                self.io.publish(s.name, fields);
             }
             Instruction::Create => {
                 let f: Fact = self.ipop()?;
@@ -683,7 +683,7 @@ where
                 self.io
                     .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
-            Instruction::Effect => {
+            Instruction::Emit => {
                 let s: Struct = self.ipop()?;
                 self.validate_struct_schema(&s)?;
                 let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));

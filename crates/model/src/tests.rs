@@ -43,13 +43,13 @@ command Create {
     policy {
         finish {
             create Stuff[a: this.key_a, b: this.key_b]=>{x: this.value}
-            effect StuffHappened{a: this.key_a, b: this.key_b, x: this.value}
+            emit StuffHappened{a: this.key_a, b: this.key_b, x: this.value}
         }
     }
 }
 
 action create(v int) {
-    emit Create{
+    publish Create{
         key_a: 1,
         key_b: 2,
         value: v,
@@ -70,13 +70,13 @@ command Increment {
         check new_x < 25
         finish {
             update Stuff[a: this.key_a, b: this.key_b]=>{x: stuff.x} to {x: new_x}
-            effect StuffHappened{a: this.key_a, b: this.key_b, x: new_x}
+            emit StuffHappened{a: this.key_a, b: this.key_b, x: new_x}
         }
     }
 }
 
 action increment(v int) {
-    emit Increment{
+    publish Increment{
         key_a: 1,
         key_b: 2,
         value: v,
@@ -96,13 +96,13 @@ command Decrement {
         let new_x = stuff.x - value
         finish {
             update Stuff[a: this.key_a, b: this.key_b]=>{x: stuff.x} to {x: new_x}
-            effect StuffHappened{a: this.key_a, b: this.key_b, x: new_x}
+            emit StuffHappened{a: this.key_a, b: this.key_b, x: new_x}
         }
     }
 }
 
 action decrement(v int) {
-    emit Decrement{
+    publish Decrement{
         key_a: 1,
         key_b: 2,
         value: v,

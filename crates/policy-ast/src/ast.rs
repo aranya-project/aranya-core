@@ -380,17 +380,17 @@ pub enum Statement {
     Finish(Vec<AstNode<Statement>>),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
-    /// Creates a new command based on an expression describing a
-    /// command. Valid only in actions.
-    Emit(Expression),
+    /// Publishes an expression describing a command.
+    /// Valid only in actions.
+    Publish(Expression),
     /// A [CreateStatement]
     Create(CreateStatement),
     /// An [UpdateStatement]
     Update(UpdateStatement),
     /// A [DeleteStatement]
     Delete(DeleteStatement),
-    /// An [Expression]
-    Effect(Expression),
+    /// An [Expression] shaped by an effect that's emitted
+    Emit(Expression),
     /// A function call (only valid as a statement for finish functions)
     FunctionCall(FunctionCall),
     /// A `debug_assert` expression for development purposes
