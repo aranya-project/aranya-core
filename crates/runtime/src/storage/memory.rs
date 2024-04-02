@@ -5,8 +5,9 @@ use buggy::BugExt;
 use vec1::Vec1;
 
 use crate::{
-    Checkpoint, Command, Fact, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId,
-    Prior, Priority, Query, QueryMut, Revertable, Segment, Storage, StorageError, StorageProvider,
+    Checkpoint, Command, Fact, FactIndex, FactPerspective, Id, Location, MaxCut, Perspective,
+    PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage, StorageError,
+    StorageProvider,
 };
 
 #[derive(Debug)]
@@ -16,6 +17,7 @@ pub struct MemCommand {
     parent: Prior<Id>,
     policy: Option<Box<[u8]>>,
     data: Box<[u8]>,
+    max_cut: usize,
 }
 
 impl MemCommand {
@@ -28,6 +30,7 @@ impl MemCommand {
             parent: command.parent(),
             policy,
             data: command.bytes().into(),
+            max_cut: 0,
         }
     }
 }
@@ -50,6 +53,12 @@ impl Command for MemCommand {
 
     fn bytes(&self) -> &[u8] {
         &self.data
+    }
+}
+
+impl MaxCut for MemCommand {
+    fn max_cut(&self) -> usize {
+        self.max_cut
     }
 }
 
@@ -127,10 +136,15 @@ impl MemStorage {
         &mut self,
         prior: Prior<Location>,
         policy: PolicyId,
-        commands: Vec1<CommandData>,
+        mut commands: Vec1<CommandData>,
         facts: MemFactIndex,
+        max_cut: usize,
     ) -> Result<MemSegment, StorageError> {
         let index = self.segments.len();
+
+        for (i, command) in commands.iter_mut().enumerate() {
+            command.command.max_cut = max_cut.checked_add(i).assume("must not overflow")?;
+        }
 
         let segment = MemSegmentInner {
             prior,
@@ -194,7 +208,14 @@ impl Storage for MemStorage {
         };
         let prior = Prior::Single(parent);
 
-        let perspective = MemPerspective::new(prior, policy, prior_facts);
+        let max_cut = self
+            .get_segment(parent)?
+            .get_command(parent)
+            .assume("location must exist")?
+            .max_cut()
+            .checked_add(1)
+            .assume("must not overflow")?;
+        let perspective = MemPerspective::new(prior, policy, prior_facts, max_cut);
 
         Ok(Some(perspective))
     }
@@ -227,16 +248,27 @@ impl Storage for MemStorage {
         // TODO(jdygert): ensure braid belongs to this storage.
         // TODO(jdygert): ensure braid ends at given command?
 
-        let left_policy_id = self.get_segment(left)?.policy;
-        let right_policy_id = self.get_segment(right)?.policy;
+        let left_segment = self.get_segment(left)?;
+        let left_policy_id = left_segment.policy;
+        let right_segment = self.get_segment(right)?;
+        let right_policy_id = right_segment.policy;
 
         if (policy_id != left_policy_id) && (policy_id != right_policy_id) {
             return Err(StorageError::PolicyMismatch);
         }
 
         let prior = Prior::Merge(left, right);
+        let left = left_segment
+            .get_command(left)
+            .assume("location must exist")?
+            .max_cut();
+        let right = right_segment
+            .get_command(right)
+            .assume("location must exist")?
+            .max_cut();
+        let max_cut = left.max(right).checked_add(1).assume("must not overflow")?;
 
-        let perspective = MemPerspective::new(prior, policy_id, braid.into());
+        let perspective = MemPerspective::new(prior, policy_id, braid.into(), max_cut);
 
         Ok(Some(perspective))
     }
@@ -268,7 +300,8 @@ impl Storage for MemStorage {
             self.commands.insert(data.command.id(), new_location);
         }
 
-        let segment = self.new_segment(update.prior, update.policy, commands, facts)?;
+        let segment =
+            self.new_segment(update.prior, update.policy, commands, facts, update.max_cut)?;
 
         Ok(segment)
     }
@@ -495,6 +528,7 @@ pub struct MemPerspective {
     facts: MemFactPerspective,
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
+    max_cut: usize,
 }
 
 #[derive(Debug)]
@@ -555,13 +589,19 @@ impl MemFactPerspective {
 }
 
 impl MemPerspective {
-    fn new(prior: Prior<Location>, policy: PolicyId, prior_facts: FactPerspectivePrior) -> Self {
+    fn new(
+        prior: Prior<Location>,
+        policy: PolicyId,
+        prior_facts: FactPerspectivePrior,
+        max_cut: usize,
+    ) -> Self {
         Self {
             prior,
             policy,
             facts: MemFactPerspective::new(prior_facts),
             commands: Vec::new(),
             current_updates: Vec::new(),
+            max_cut,
         }
     }
 
@@ -572,6 +612,7 @@ impl MemPerspective {
             facts: MemFactPerspective::new(FactPerspectivePrior::None),
             commands: Vec::new(),
             current_updates: Vec::new(),
+            max_cut: 0,
         }
     }
 }

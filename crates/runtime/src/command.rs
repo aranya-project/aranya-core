@@ -122,6 +122,19 @@ impl<C: Command> Command for &C {
     }
 }
 
+/// A Command with an associated max cut. Max cut is the maximum distance from
+/// the command to the init command.
+pub trait MaxCut {
+    /// Return this command's max cut. Max cut is the maximum distance to the init command.
+    fn max_cut(&self) -> usize;
+}
+
+impl<M: MaxCut> MaxCut for &M {
+    fn max_cut(&self) -> usize {
+        (*self).max_cut()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

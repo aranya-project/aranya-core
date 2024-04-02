@@ -11,7 +11,7 @@ use core::fmt;
 use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
-use crate::{Command, Id, PolicyId, Prior};
+use crate::{Command, Id, MaxCut, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
@@ -264,7 +264,7 @@ pub trait Storage {
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
     type FactIndex: FactIndex;
-    type Command<'a>: Command
+    type Command<'a>: Command + MaxCut
     where
         Self: 'a;
 

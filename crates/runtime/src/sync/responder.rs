@@ -9,7 +9,7 @@ use super::{
     COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, SEGMENT_BUFFER_MAX,
 };
 use crate::{
-    command::{Command, Id},
+    command::{Command, Id, MaxCut},
     storage::{Location, Segment, Storage, StorageProvider},
 };
 
@@ -345,6 +345,7 @@ impl SyncResponder {
                     parent: command.parent(),
                     policy_length: policy_length as u32,
                     length: bytes.len() as u32,
+                    max_cut: command.max_cut(),
                 };
 
                 // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.

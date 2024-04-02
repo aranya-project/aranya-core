@@ -35,8 +35,9 @@ use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Checkpoint, Command, Fact, FactIndex, FactPerspective, Id, Location, Perspective, PolicyId,
-    Prior, Priority, Query, QueryMut, Revertable, Segment, Storage, StorageError, StorageProvider,
+    Checkpoint, Command, Fact, FactIndex, FactPerspective, Id, Location, MaxCut, Perspective,
+    PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage, StorageError,
+    StorageProvider,
 };
 
 pub mod io;
@@ -67,6 +68,7 @@ struct SegmentRepr {
     /// Offset in file to associated fact index.
     facts: usize,
     commands: Vec1<CommandData>,
+    max_cut: usize,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -84,6 +86,7 @@ pub struct LinearCommand<'a> {
     priority: Priority,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
+    max_cut: usize,
 }
 
 type Bytes = Box<[u8]>;
@@ -118,6 +121,7 @@ pub struct LinearPerspective<R> {
     facts: LinearFactPerspective<R>,
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
+    max_cut: usize,
 }
 
 impl<R> LinearPerspective<R> {
@@ -126,6 +130,7 @@ impl<R> LinearPerspective<R> {
         parents: Prior<Id>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior<R>,
+        max_cut: usize,
     ) -> Self {
         Self {
             prior,
@@ -134,6 +139,7 @@ impl<R> LinearPerspective<R> {
             facts: LinearFactPerspective::new(prior_facts),
             commands: Vec::new(),
             current_updates: Vec::new(),
+            max_cut,
         }
     }
 }
@@ -180,6 +186,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
             Prior::None,
             *policy_id,
             FactPerspectivePrior::None,
+            0,
         )
     }
 
@@ -239,6 +246,7 @@ impl<W: Write> LinearStorage<W> {
             policy: init.policy,
             facts,
             commands,
+            max_cut: 0,
         })?;
 
         let head = Location::new(
@@ -281,10 +289,10 @@ impl<F: Write> Storage for LinearStorage<F> {
         parent: Location,
     ) -> Result<Option<Self::Perspective>, StorageError> {
         let segment = self.get_segment(parent)?;
-        let parent_id = segment
+        let command = segment
             .get_command(parent)
-            .ok_or(StorageError::CommandOutOfBounds(parent))?
-            .id();
+            .ok_or(StorageError::CommandOutOfBounds(parent))?;
+        let parent_id = command.id();
 
         let policy = segment.repr.policy;
         let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == segment.head_location() {
@@ -312,8 +320,16 @@ impl<F: Write> Storage for LinearStorage<F> {
         };
         let prior = Prior::Single(parent);
 
-        let perspective =
-            LinearPerspective::new(prior, Prior::Single(parent_id), policy, prior_facts);
+        let perspective = LinearPerspective::new(
+            prior,
+            Prior::Single(parent_id),
+            policy,
+            prior_facts,
+            command
+                .max_cut()
+                .checked_add(1)
+                .assume("must not overflow")?,
+        );
 
         Ok(Some(perspective))
     }
@@ -358,18 +374,15 @@ impl<F: Write> Storage for LinearStorage<F> {
         // TODO(jdygert): ensure braid belongs to this storage.
         // TODO(jdygert): ensure braid ends at given command?
         let left_segment = self.get_segment(left)?;
+        let left_command = left_segment
+            .get_command(left)
+            .ok_or(StorageError::CommandOutOfBounds(left))?;
         let right_segment = self.get_segment(right)?;
+        let right_command = right_segment
+            .get_command(right)
+            .ok_or(StorageError::CommandOutOfBounds(right))?;
 
-        let parent = Prior::Merge(
-            left_segment
-                .get_command(left)
-                .ok_or(StorageError::CommandOutOfBounds(left))?
-                .id(),
-            right_segment
-                .get_command(right)
-                .ok_or(StorageError::CommandOutOfBounds(right))?
-                .id(),
-        );
+        let parent = Prior::Merge(left_command.id(), right_command.id());
 
         if policy_id != left_segment.policy() && policy_id != right_segment.policy() {
             return Err(StorageError::PolicyMismatch);
@@ -385,6 +398,11 @@ impl<F: Write> Storage for LinearStorage<F> {
                 offset: braid.repr.offset,
                 reader: braid.reader,
             },
+            left_command
+                .max_cut()
+                .max(right_command.max_cut())
+                .checked_add(1)
+                .assume("must not overflow")?,
         );
 
         Ok(Some(perspective))
@@ -425,6 +443,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             policy: perspective.policy,
             facts,
             commands,
+            max_cut: perspective.max_cut,
         })?;
 
         Ok(LinearSegment {
@@ -485,6 +504,13 @@ impl<R: Read> Segment for LinearSegment<R> {
             priority: data.priority.clone(),
             policy: data.policy.as_deref(),
             data: &data.data,
+            max_cut: self
+                .repr
+                .max_cut
+                .checked_add(self.repr.commands.len())
+                .expect("must not overflow")
+                .checked_sub(1)
+                .expect("segment must not be empty"),
         }
     }
 
@@ -497,6 +523,7 @@ impl<R: Read> Segment for LinearSegment<R> {
             priority: data.priority.clone(),
             policy: data.policy.as_deref(),
             data: &data.data,
+            max_cut: self.repr.max_cut,
         }
     }
 
@@ -538,6 +565,11 @@ impl<R: Read> Segment for LinearSegment<R> {
             priority: data.priority.clone(),
             policy: data.policy.as_deref(),
             data: &data.data,
+            max_cut: self
+                .repr
+                .max_cut
+                .checked_add(location.command)
+                .expect("must not overflow"),
         })
     }
 
@@ -810,6 +842,12 @@ impl<'a> Command for LinearCommand<'a> {
 
     fn bytes(&self) -> &[u8] {
         self.data
+    }
+}
+
+impl<'a> MaxCut for LinearCommand<'a> {
+    fn max_cut(&self) -> usize {
+        self.max_cut
     }
 }
 

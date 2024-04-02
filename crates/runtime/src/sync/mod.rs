@@ -46,6 +46,7 @@ pub struct CommandMeta {
     parent: Prior<Id>,
     policy_length: u32,
     length: u32,
+    max_cut: usize,
 }
 
 /// Enum of all supported sync messages.
@@ -117,6 +118,7 @@ pub struct SyncCommand<'a> {
     parent: Prior<Id>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
+    max_cut: usize,
 }
 
 impl<'a> Command for SyncCommand<'a> {

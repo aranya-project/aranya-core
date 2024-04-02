@@ -64,7 +64,7 @@ impl<'a> Command for VmProtocol<'a> {
     fn parent(&self) -> Prior<Id> {
         match self.unpacked {
             VmProtocolData::Init { .. } => Prior::None,
-            VmProtocolData::Merge { left, right } => Prior::Merge(left, right),
+            VmProtocolData::Merge { left, right, .. } => Prior::Merge(left, right),
             VmProtocolData::Basic { parent, .. } => Prior::Single(parent),
         }
     }

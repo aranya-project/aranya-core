@@ -14,7 +14,7 @@ use crypto::Rng;
 use rand::Rng as RRng;
 use runtime::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    ClientError, ClientState, Command, EngineError, Id, Location, Prior, Segment, Storage,
+    ClientError, ClientState, Command, EngineError, Id, Location, MaxCut, Prior, Segment, Storage,
     StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, COMMAND_RESPONSE_MAX,
     MAX_SYNC_MESSAGE_SIZE,
 };
@@ -84,6 +84,11 @@ enum TestRule {
         clients: u64,
         graph: u64,
         policy: u64,
+    },
+    MaxCut {
+        client: u64,
+        graph: u64,
+        max_cut: usize,
     },
 }
 
@@ -464,6 +469,22 @@ fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
                 }
                 assert_eq!(equal, same);
             }
+            TestRule::MaxCut {
+                client,
+                graph,
+                max_cut,
+            } => {
+                let mut state = clients
+                    .get(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let storage = state.provider().get_storage(storage_id)?;
+                let head = storage.get_head()?;
+                let seg = storage.get_segment(head)?;
+                let command = seg.get_command(head).assume("command must exist")?;
+                assert_eq!(max_cut, command.max_cut());
+            }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
             _ => {}
         };
@@ -620,6 +641,7 @@ macro_rules! test_suite {
             duplicate_sync_causes_failure,
             missing_parent_after_sync,
             sync_graph_larger_than_command_max,
+            max_cut,
         }
     };
 }
