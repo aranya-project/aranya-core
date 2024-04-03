@@ -1,9 +1,11 @@
 use core::fmt::Display;
 
+use serde::{Deserialize, Serialize};
+
 use crate::{data::Value, ExitReason, Label};
 
 /// The target of a branch
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Target {
     /// An unresolved target with a symbolic name
     Unresolved(Label),
@@ -12,7 +14,7 @@ pub enum Target {
 }
 
 /// The machine instruction types
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum Instruction {
     // data
     /// Push a value onto the stack

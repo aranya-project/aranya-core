@@ -3,6 +3,8 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
 use core::fmt;
 
+use serde::{Deserialize, Serialize};
+
 /// An error for a range that doesn't exist. Used in [CodeMap].
 #[derive(Debug)]
 pub struct RangeError;
@@ -81,7 +83,7 @@ impl<'a> Span<'a> {
 
 /// The code map contains the original source and can map VM instructions to text ranges
 /// inside that source.
-#[derive(Debug)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CodeMap {
     /// The original policy source code
     text: String,

@@ -4,6 +4,7 @@ use alloc::{borrow::ToOwned, string::String};
 use core::{convert::Infallible, fmt};
 
 use buggy::Bug;
+use serde::{Deserialize, Serialize};
 
 use crate::{codemap::CodeMap, io::MachineIOError};
 
@@ -190,7 +191,7 @@ impl From<Bug> for MachineError {
 }
 
 /// Reason for ending execution.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ExitReason {
     /// Execution completed without errors.
     Normal,

@@ -6,7 +6,9 @@ use core::fmt::{self, Display};
 use ast::FactDefinition;
 use buggy::BugExt;
 use policy_ast as ast;
+use serde::{Deserialize, Serialize};
 
+use super::module::{Module, ModuleData, ModuleV0, UnsupportedVersion};
 use crate::{
     data::{Fact, HashableValue, KVPair, Struct, TryAsMut, Value},
     error::{MachineError, MachineErrorType},
@@ -110,7 +112,7 @@ impl Display for MachineStatus {
 }
 
 /// Types of Labels
-#[derive(Debug, Clone, PartialOrd, Ord, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
 pub enum LabelType {
     /// This label represents the entry point of an action
     Action,
@@ -141,7 +143,7 @@ impl Display for LabelType {
 }
 
 /// Labels are branch targets and execution entry points.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Label {
     /// The address of the label
     pub(crate) name: String,
@@ -174,6 +176,7 @@ impl Display for Label {
 /// This is the core policy machine type, which contains all of the state
 /// of the machine and associated facts.
 #[derive(Debug)]
+#[cfg_attr(test, derive(Clone, Eq, PartialEq))]
 pub struct Machine {
     // static state (things which do not change after compilation)
     /// The program memory
@@ -211,6 +214,32 @@ impl Machine {
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             codemap: Some(codemap),
+        }
+    }
+
+    /// Creates a `Machine` from a `Module`.
+    pub fn from_module(m: Module) -> Result<Self, UnsupportedVersion> {
+        match m.data {
+            ModuleData::V0(m) => Ok(Self {
+                progmem: m.progmem.into(),
+                labels: m.labels,
+                fact_defs: m.fact_defs,
+                struct_defs: m.struct_defs,
+                codemap: m.codemap,
+            }),
+        }
+    }
+
+    /// Converts the `Machine` into a `Module`.
+    pub fn into_module(self) -> Module {
+        Module {
+            data: ModuleData::V0(ModuleV0 {
+                progmem: self.progmem.into_boxed_slice(),
+                labels: self.labels,
+                fact_defs: self.fact_defs,
+                struct_defs: self.struct_defs,
+                codemap: self.codemap,
+            }),
         }
     }
 

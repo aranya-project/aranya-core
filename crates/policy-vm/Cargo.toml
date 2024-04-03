@@ -38,6 +38,7 @@ trouble = { path = "../trouble" }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+ciborium = { version = "0.2" }
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-lang = { path = "../policy-lang" }
 policy-vm = { path = ".", features = ["derive"] }

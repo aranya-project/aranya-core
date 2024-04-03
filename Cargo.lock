@@ -1926,6 +1926,7 @@ name = "policy-ast"
 version = "0.1.0"
 dependencies = [
  "cfg-if",
+ "serde",
  "trouble",
 ]
 
@@ -2007,6 +2008,7 @@ dependencies = [
  "anyhow",
  "buggy",
  "cfg-if",
+ "ciborium",
  "crypto",
  "policy-ast",
  "policy-derive",

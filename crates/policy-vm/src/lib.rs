@@ -18,6 +18,7 @@ pub mod ffi;
 mod instructions;
 mod io;
 mod machine;
+pub mod module;
 mod stack;
 mod tests;
 

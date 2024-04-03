@@ -22,6 +22,7 @@ std = [
 
 [dependencies]
 cfg-if = { workspace = true, default-features = false }
+serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 trouble = { path = "../trouble" }
 
 [package.metadata.docs.rs]

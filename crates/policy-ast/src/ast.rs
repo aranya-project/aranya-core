@@ -3,6 +3,8 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref, str::FromStr};
 
+use serde::{Deserialize, Serialize};
+
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug)]
@@ -73,7 +75,7 @@ impl<T> Deref for AstNode<T> {
 /// The type of a value
 ///
 /// It is not called `Type` because that conflicts with reserved keywords.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum VType {
     /// a character (UTF-8) string
     String,
@@ -109,7 +111,7 @@ impl fmt::Display for VType {
 ///
 /// Field definitions are used in Command fields, fact
 /// key/value fields, and action/function arguments.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
     /// the field's name
     pub identifier: String,
@@ -398,7 +400,7 @@ pub enum Statement {
 }
 
 /// A schema definition for a fact
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
