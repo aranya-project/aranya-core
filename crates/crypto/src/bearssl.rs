@@ -1148,7 +1148,7 @@ unsafe extern "C" fn rng_wrapper_generate(
     // equivalent to a pointer to its first field. Since
     // `RngWrapper` is #[repr(C)] and the first field is `*const
     // br_prng_class`, we can convert between the two.
-    let rng = &mut *(ctx as *mut RngWrapper<'_>);
+    let rng = unsafe { &mut *(ctx as *mut RngWrapper<'_>) };
     // SAFETY: we have to trust that the caller provided a valid
     // pointer and length.
     let dst = unsafe { slice::from_raw_parts_mut(out as *mut u8, len) };

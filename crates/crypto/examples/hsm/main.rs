@@ -31,7 +31,7 @@ use hsm::{Hsm, HsmError, KeyId};
 // Ignore this.
 #[cfg(feature = "moonshot")]
 #[no_mangle]
-unsafe extern "C" fn OS_hardware_rand() -> u32 {
+extern "C" fn OS_hardware_rand() -> u32 {
     use ::rand::RngCore;
     ::rand::rngs::OsRng.next_u32()
 }

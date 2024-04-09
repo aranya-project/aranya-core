@@ -20,6 +20,7 @@ rust-version = "1.77"
 [workspace.lints.rust]
 # missing_docs = "warn"
 rust_2018_idioms = "warn"
+unsafe_op_in_unsafe_fn = "warn"
 unused_lifetimes = "warn"
 unused_qualifications = "warn"
 

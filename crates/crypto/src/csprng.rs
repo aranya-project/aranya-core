@@ -121,13 +121,13 @@ pub(crate) mod moonshot {
     // If `std` is enabled, use a thread-local CSPRNG.
     #[cfg(feature = "std")]
     mod inner {
-        use std::{cell::UnsafeCell, rc::Rc};
+        use std::{cell::Cell, rc::Rc};
 
         use super::{random_key, AesCtrCsprng, Csprng, HkdfSha512, OsTrng};
 
         thread_local! {
-            static THREAD_RNG: Rc<UnsafeCell<[u8; 32]>> =
-                Rc::new(UnsafeCell::new(random_key::<_, HkdfSha512>(OsTrng)));
+            static THREAD_RNG: Rc<Cell<[u8; 32]>> =
+                Rc::new(Cell::new(random_key::<_, HkdfSha512>(OsTrng)));
         }
 
         pub fn thread_rng() -> ThreadRng {
@@ -138,15 +138,14 @@ pub(crate) mod moonshot {
         // See https://github.com/rust-random/rand/blob/f3dd0b885c4597b9617ca79987a0dd899ab29fcb/src/rngs/thread.rs
         #[derive(Clone)]
         pub struct ThreadRng {
-            key: Rc<UnsafeCell<[u8; 32]>>,
+            key: Rc<Cell<[u8; 32]>>,
         }
 
         impl Csprng for ThreadRng {
             fn fill_bytes(&mut self, dst: &mut [u8]) {
-                // SAFETY: See `rand::ThreadRng`.
-                let key = unsafe { &mut *self.key.get() };
-                let (mut rng, next) = AesCtrCsprng::new(*key);
-                *key = next;
+                let key = self.key.get();
+                let (mut rng, next) = AesCtrCsprng::new(key);
+                self.key.set(next);
                 rng.fill_bytes(dst)
             }
         }
@@ -313,7 +312,7 @@ pub(crate) mod moonshot {
         use crate::{csprng::Csprng, kdf::Kdf};
 
         #[no_mangle]
-        unsafe extern "C" fn OS_hardware_rand() -> u32 {
+        extern "C" fn OS_hardware_rand() -> u32 {
             OsRng.next_u32()
         }
 

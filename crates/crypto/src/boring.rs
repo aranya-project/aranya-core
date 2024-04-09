@@ -139,17 +139,17 @@ mod rust_alloc {
 
         #[no_mangle]
         unsafe extern "C" fn OPENSSL_memory_alloc(size: usize) -> *mut c_void {
-            mem_alloc(size)
+            unsafe { mem_alloc(size) }
         }
 
         #[no_mangle]
         unsafe extern "C" fn OPENSSL_memory_free(ptr: *mut c_void) {
-            mem_free(ptr)
+            unsafe { mem_free(ptr) }
         }
 
         #[no_mangle]
         unsafe extern "C" fn OPENSSL_memory_get_size(ptr: *mut c_void) -> usize {
-            mem_size(ptr)
+            unsafe { mem_size(ptr) }
         }
     }
 

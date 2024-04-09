@@ -1,4 +1,4 @@
-use core::{any::TypeId, fmt, ops::Deref};
+use core::{fmt, ops::Deref};
 
 use buggy::Bug;
 use ciborium as cbor;
@@ -188,19 +188,7 @@ impl fmt::Display for Repr {
 /// Downcasts `E` to `T`.
 #[inline(always)]
 fn downcast_ref<T: 'static, E: 'static>(err: &E) -> Option<&T> {
-    if same_type::<T, E>() {
-        // SAFETY: we've checked that `T` is the same type as `E`
-        // and `Self` has the same memory layout as `err`.
-        Some(unsafe { &*(err as *const E).cast() })
-    } else {
-        None
-    }
-}
-
-/// Reports whether `T` and `E` are the same type.
-#[inline(always)]
-fn same_type<T: 'static, E: 'static>() -> bool {
-    TypeId::of::<T>() == TypeId::of::<E>()
+    (err as &dyn core::any::Any).downcast_ref()
 }
 
 /// A wrapper around some error `E` so that it implements

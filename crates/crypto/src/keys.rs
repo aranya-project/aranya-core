@@ -65,9 +65,7 @@ impl<N: ArrayLength> SecretKeyBytes<N> {
     where
         Const<U>: IntoArrayLength<ArrayLength = N>,
     {
-        // SAFETY: `&self.0` and `&[u8; N]` have the same memory
-        // layout.
-        unsafe { mem::transmute(&self.0) }
+        self.0.as_ref()
     }
 
     /// Returns the secret key bytes as a byte slice.
