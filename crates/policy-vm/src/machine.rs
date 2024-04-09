@@ -19,25 +19,21 @@ use crate::{
 };
 
 /// Compares a fact's keys and values to its schema.
+/// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
 fn validate_fact_schema(fact: &Fact, schema: &FactDefinition) -> bool {
     if fact.name != schema.identifier {
         return false;
     }
 
-    if fact.keys.len() != schema.key.len() {
-        return false;
-    }
-
-    for (key, key_def) in fact.keys.iter().zip(schema.key.iter()) {
-        if key.identifier != key_def.identifier {
+    for key in fact.keys.iter() {
+        let Some(key_value) = schema.key.iter().find(|k| k.identifier == key.identifier) else {
             return false;
-        }
-        if key.value.vtype() != key_def.field_type {
+        };
+
+        if key.value.vtype() != key_value.field_type {
             return false;
         }
     }
-
-    // TODO Bind values are not included in the fact values (see compile_fact_literal), so we only compare existing fact values to the schema. (As opposed to expecting the fact to match all  schema values.)
 
     for value in fact.values.iter() {
         // Ensure named value exists in schema
@@ -64,25 +60,19 @@ fn validate_fact_schema(fact: &Fact, schema: &FactDefinition) -> bool {
 /// NOTE that Bind keys/values are not included in the fact literal (see compile_fact_literal), so we only compare key/value pairs with exact values.
 ///
 /// Returns true if all given keys and values match the fact.
-fn fact_match(fact: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
-    for fk in fact.keys.iter() {
-        if let Some(k) = keys.iter().find(|k| k.identifier == fk.identifier) {
-            // Keys don't match
-            if fk != k {
-                return false;
-            }
-        } else {
-            // Invalid key
-            return false;
-        }
+fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
+    if !keys.starts_with(&query.keys) {
+        return false;
     }
 
-    for fv in fact.values.iter() {
-        if let Some(v) = values.iter().find(|v| v.identifier == fv.identifier) {
-            if fv != v {
+    for qv in query.values.iter() {
+        if let Some(v) = values.iter().find(|v| v.identifier == qv.identifier) {
+            // value found, but types don't match
+            if v.value != qv.value {
                 return false;
             }
         } else {
+            // invalid value name
             return false;
         }
     }

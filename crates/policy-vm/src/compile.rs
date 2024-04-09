@@ -17,7 +17,7 @@ use alloc::{
 use core::{fmt, ops::Range};
 
 pub use ast::Policy as AstPolicy;
-use ast::{Expression, FactDefinition, FactLiteral, FieldDefinition, MatchPattern};
+use ast::{Expression, FactDefinition, FactField, FactLiteral, FieldDefinition, MatchPattern};
 use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
 
@@ -338,34 +338,39 @@ impl<'a> CompileState<'a> {
 
     /// Make sure fact literal matches its schema. Checks that:
     /// - a fact with this name was defined
-    /// - the keys and values all exist, and have the correct types
-    /// - there are no duplicate key or value names
+    /// - the keys and values defined in the schema are present, and have the correct types
+    /// - there are no duplicate keys or values
     fn verify_fact_against_schema(&self, fact: &FactLiteral) -> Result<(), CompileError> {
         // Fetch schema
         let fact_def = self.get_fact_def(&fact.identifier)?;
 
-        // Ensure there are no duplicate keys in the literal
-        if let Some(dup_key) = find_duplicate(&fact.key_fields, |k| &k.0) {
-            return Err(self.err(CompileErrorType::Unknown(format!(
-                "Duplicate key: {}",
-                dup_key
-            ))));
+        // Note: Bind values exist at compile time (as FactField::Bind), so we can expect the literal
+        // key/value sets to match the schema. E.g. given `fact Foo[i int, j int]` and `query Foo[i:1, j:?]`,
+        // we will get two sequences with the same number of items. If not, abort.
+
+        // key sets must have the same length
+        if fact.key_fields.len() != fact_def.key.len() {
+            return Err(CompileError::from_locator(
+                CompileErrorType::Unknown(String::from("Fact keys don't match definition")),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            ));
         }
 
         // Ensure the fact has all keys defined in the schema, and they have matching types.
-        // Key order doesn't matter.
-        for schema_key in fact_def.key.iter() {
-            let fact_key = fact
-                .key_fields
-                .iter()
-                .find(|k| k.0 == schema_key.identifier)
-                .ok_or(CompileError::from_locator(
-                    CompileErrorType::Missing(schema_key.identifier.clone()),
+        for (schema_key, lit_key) in fact_def.key.iter().zip(fact.key_fields.iter()) {
+            if schema_key.identifier != lit_key.0 {
+                return Err(CompileError::from_locator(
+                    CompileErrorType::Unknown(format!(
+                        "Invalid fact key: expected {}, got {}",
+                        schema_key.identifier, lit_key.0
+                    )),
                     self.last_locator,
                     self.m.codemap.as_ref(),
-                ))?;
+                ));
+            }
 
-            let Some(vtype) = expression_vtype(&fact_key.1) else {
+            let Some(vtype) = field_vtype(&lit_key.1) else {
                 // If the type cannot be determined, e.g. it's an expression or query, ignore it. The machine will verify the type at runtime.
                 // TODO should we allow expressions/queries for key values?
                 continue;
@@ -391,34 +396,27 @@ impl<'a> CompileState<'a> {
 
     fn verify_fact_values(
         &self,
-        values: &[(String, Expression)],
+        values: &[(String, FactField)],
         fact_def: &FactDefinition,
     ) -> Result<(), CompileError> {
-        // Ensure there are no duplicate values in the literal
-        if let Some(dup_value) = find_duplicate(values, |v| &v.0) {
-            return Err(self.err(CompileErrorType::Unknown(format!(
-                "Duplicate value: {}",
-                dup_value
-            ))));
-        }
-
         // Ensure values exist in schema, and have matching types
-        for lit_v in values.iter() {
-            let def_v = fact_def
-                .value
-                .iter()
-                .find(|v| v.identifier == lit_v.0)
-                .ok_or(CompileError::from_locator(
-                    CompileErrorType::NotDefined(lit_v.0.clone()),
+        for (lit_value, schema_value) in values.iter().zip(fact_def.value.iter()) {
+            if lit_value.0 != schema_value.identifier {
+                return Err(CompileError::from_locator(
+                    CompileErrorType::Unknown(format!(
+                        "Expected {}, got {}",
+                        schema_value.identifier, lit_value.0
+                    )),
                     self.last_locator,
                     self.m.codemap.as_ref(),
-                ))?;
+                ));
+            }
 
-            let Some(lit_type) = expression_vtype(&lit_v.1) else {
+            let Some(lit_type) = field_vtype(&lit_value.1) else {
                 // Let complex expressions through, the machine will resolve and verify them.
                 continue;
             };
-            if lit_type != def_v.field_type {
+            if lit_type != schema_value.field_type {
                 return Err(self.err(CompileErrorType::InvalidType));
             }
         }
@@ -431,22 +429,23 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Const(Value::String(f.identifier.clone())));
         self.append_instruction(Instruction::FactNew);
         for field in &f.key_fields {
-            if field.1 == ast::Expression::Bind {
-                return Err(self.err(CompileErrorType::BadArgument(String::from(
-                    "Partial fact key queries are not yet implemented",
-                ))));
+            if let FactField::Expression(e) = &field.1 {
+                self.compile_expression(e)?;
+            } else {
+                // Skip bind values
+                continue;
             }
-            self.compile_expression(&field.1)?;
             self.append_instruction(Instruction::Const(Value::String(field.0.clone())));
             self.append_instruction(Instruction::FactKeySet);
         }
         if let Some(value_fields) = &f.value_fields {
             for field in value_fields {
-                if field.1 == ast::Expression::Bind {
-                    // Bind expressions' values are unset
+                if let FactField::Expression(e) = &field.1 {
+                    self.compile_expression(e)?;
+                } else {
+                    // Skip bind values
                     continue;
                 }
-                self.compile_expression(&field.1)?;
                 self.append_instruction(Instruction::Const(Value::String(field.0.clone())));
                 self.append_instruction(Instruction::FactValueSet);
             }
@@ -472,13 +471,6 @@ impl<'a> CompileState<'a> {
             },
             ast::Expression::NamedStruct(s) => {
                 self.compile_struct_literal(s)?;
-            }
-            ast::Expression::Bind => {
-                return Err(CompileError::from_locator(
-                    CompileErrorType::InvalidExpression(expression.clone()),
-                    self.last_locator,
-                    self.m.codemap.as_ref(),
-                ));
             }
             ast::Expression::InternalFunction(f) => match f {
                 ast::InternalFunction::Query(f) => {
@@ -918,6 +910,22 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Exit(ExitReason::Normal));
                 }
                 (ast::Statement::Create(s), StatementContext::Finish) => {
+                    // Do not allow bind values during fact creation
+                    if s.fact.key_fields.iter().any(|f| f.1 == FactField::Bind)
+                        || s.fact
+                            .value_fields
+                            .as_ref()
+                            .is_some_and(|v| v.iter().any(|f| f.1 == FactField::Bind))
+                    {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::BadArgument(String::from(
+                                "Cannot create fact with bind values",
+                            )),
+                            statement.locator,
+                            self.m.codemap.as_ref(),
+                        ));
+                    }
+
                     self.verify_fact_against_schema(&s.fact)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Create);
@@ -942,17 +950,19 @@ impl<'a> CompileState<'a> {
                     self.verify_fact_values(&s.to, fact_def)?;
 
                     for (k, v) in &s.to {
-                        if *v == ast::Expression::Bind {
-                            // Cannot bind in the set statement
-                            return Err(CompileError::from_locator(
-                                CompileErrorType::BadArgument(String::from(
-                                    "cannot bind in the set clause of an `update`",
-                                )),
-                                statement.locator,
-                                self.m.codemap.as_ref(),
-                            ));
+                        match v {
+                            FactField::Bind => {
+                                // Cannot bind in the set statement
+                                return Err(CompileError::from_locator(
+                                    CompileErrorType::BadArgument(String::from(
+                                        "Cannot update fact to a bind value",
+                                    )),
+                                    statement.locator,
+                                    self.m.codemap.as_ref(),
+                                ));
+                            }
+                            FactField::Expression(e) => self.compile_expression(e)?,
                         }
-                        self.compile_expression(v)?;
                         self.append_instruction(Instruction::Const(Value::String(k.clone())));
                         self.append_instruction(Instruction::FactValueSet);
                     }
@@ -1370,20 +1380,26 @@ where
     None
 }
 
-/// Get expression type, e.g. Expression::Int => VType::Int
-fn expression_vtype(e: &Expression) -> Option<VType> {
-    match e {
-        ast::Expression::Int(_) => Some(VType::Int),
-        // ast::Expression::Bytes(_) => Ok(VType::Bytes), // TODO: Bytes expression not implemented
-        ast::Expression::Bool(_) => Some(VType::Bool),
-        ast::Expression::String(_) => Some(VType::String),
-        // We can't resolve var names to values at the moment, so we defer to the machine.
-        ast::Expression::Identifier(_) => None,
-        ast::Expression::NamedStruct(s) => Some(VType::Struct(s.identifier.clone())),
-        ast::Expression::Optional(Some(e)) => {
-            let interior_type = expression_vtype(e)?;
-            Some(VType::Optional(Box::new(interior_type)))
+/// Get the `VType` of a fact field. For values that cannot be represented as `VType`, including `Bind`, we return `None`.
+fn field_vtype(f: &FactField) -> Option<VType> {
+    match f {
+        FactField::Expression(e) => {
+            match e {
+                ast::Expression::Int(_) => Some(VType::Int),
+                // ast::Expression::Bytes(_) => Ok(VType::Bytes), // TODO: Bytes expression not implemented
+                ast::Expression::Bool(_) => Some(VType::Bool),
+                ast::Expression::String(_) => Some(VType::String),
+                // We can't resolve var names to values at the moment, so we defer to the machine.
+                ast::Expression::Identifier(_) => None,
+                ast::Expression::NamedStruct(s) => Some(VType::Struct(s.identifier.clone())),
+                ast::Expression::Optional(Some(expr)) => {
+                    let field_expr = FactField::Expression(expr.as_ref().to_owned());
+                    let interior_type = field_vtype(&field_expr)?;
+                    Some(VType::Optional(Box::new(interior_type)))
+                }
+                _ => None,
+            }
         }
-        _ => None,
+        FactField::Bind => None,
     }
 }

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use ast::{Expression, MatchPattern};
+use ast::{Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
     error::{InputLocation, LineColLocation},
@@ -493,7 +493,6 @@ pub fn parse_expression(
                 let subexpr = parse_expression(primary, pratt)?;
                 Ok(ast::Expression::Parentheses(Box::new(subexpr)))
             }
-            Rule::bind => Ok(ast::Expression::Bind),
             _ => Err(ParseError::new(
                 ParseErrorKind::Expression,
                 format!("bad atom: {:?}", primary.as_rule()),
@@ -594,6 +593,34 @@ fn parse_kv_literal_fields(
     Ok(out)
 }
 
+fn parse_fact_literal_fields(
+    fields: Pairs<'_, Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<Vec<(String, FactField)>, ParseError> {
+    let mut out = vec![];
+
+    for field in fields {
+        let pc = descend(field);
+        let identifier = pc.consume_string(Rule::identifier)?;
+
+        let token = pc.consume()?;
+        let field = match token.as_rule() {
+            Rule::expression => FactField::Expression(parse_expression(token, pratt)?),
+            Rule::bind => FactField::Bind,
+            _ => {
+                return Err(ParseError::new(
+                    ParseErrorKind::Unknown,
+                    String::from("invalid token in fact field"),
+                    Some(token.as_span()),
+                ))
+            }
+        };
+        out.push((identifier, field));
+    }
+
+    Ok(out)
+}
+
 /// Parse a Rule::publish_statement into an PublishStatement.
 fn parse_publish_statement(
     item: Pair<'_, Rule>,
@@ -616,11 +643,11 @@ fn parse_fact_literal(
     let identifier = pc.consume_string(Rule::identifier)?;
 
     let token = pc.consume_of_type(Rule::fact_literal_key)?;
-    let key_fields = parse_kv_literal_fields(token.into_inner(), pratt)?;
+    let key_fields = parse_fact_literal_fields(token.into_inner(), pratt)?;
 
     let value_fields = if pc.peek().is_some() {
         let token = pc.consume_of_type(Rule::fact_literal_value)?;
-        Some(parse_kv_literal_fields(token.into_inner(), pratt)?)
+        Some(parse_fact_literal_fields(token.into_inner(), pratt)?)
     } else {
         None
     };
@@ -743,11 +770,13 @@ fn parse_update_statement(
     item: Pair<'_, Rule>,
     pratt: &PrattParser<Rule>,
 ) -> Result<ast::UpdateStatement, ParseError> {
+    assert_eq!(item.as_rule(), Rule::update_statement);
+
     let pc = descend(item);
     let fact = pc.consume_fact(pratt)?;
 
     let token = pc.consume_of_type(Rule::fact_literal_value)?;
-    let to = parse_kv_literal_fields(token.into_inner(), pratt)?;
+    let to = parse_fact_literal_fields(token.into_inner(), pratt)?;
 
     Ok(ast::UpdateStatement { fact, to })
 }

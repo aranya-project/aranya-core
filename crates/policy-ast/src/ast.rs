@@ -143,6 +143,15 @@ impl From<&EffectFieldDefinition> for FieldDefinition {
     }
 }
 
+/// Value part of a key/value pair for a fact field.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FactField {
+    /// Expression
+    Expression(Expression),
+    /// Bind value, e.g. "?"
+    Bind,
+}
+
 /// A fact and its key/value field values.
 ///
 /// It is used to create, read, update, and delete facts.
@@ -151,9 +160,9 @@ pub struct FactLiteral {
     /// the fact's name
     pub identifier: String,
     /// values for the fields of the fact key
-    pub key_fields: Vec<(String, Expression)>,
+    pub key_fields: Vec<(String, FactField)>,
     /// values for the fields of the fact value, which can be absent
-    pub value_fields: Option<Vec<(String, Expression)>>,
+    pub value_fields: Option<Vec<(String, FactField)>>,
 }
 
 /// A function call with a list of arguments.
@@ -217,8 +226,6 @@ pub enum Expression {
     Optional(Option<Box<Expression>>),
     /// A named struct
     NamedStruct(NamedStruct),
-    /// A query bind marker
-    Bind,
     /// One of the [InternalFunction]s
     InternalFunction(InternalFunction),
     /// A function call
@@ -346,7 +353,7 @@ pub struct UpdateStatement {
     /// This fact has to exist as stated
     pub fact: FactLiteral,
     /// The value fields are updated to these values
-    pub to: Vec<(String, Expression)>,
+    pub to: Vec<(String, FactField)>,
 }
 
 /// Delete a fact

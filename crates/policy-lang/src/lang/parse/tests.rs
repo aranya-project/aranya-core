@@ -2,7 +2,7 @@
 
 use std::{fs::OpenOptions, io::Read};
 
-use ast::{ForeignFunctionCall, MatchPattern};
+use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
 use pest::{error::Error as PestError, iterators::Pair, Parser};
 
 use super::{
@@ -600,7 +600,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                     identifier: String::from("TestFact"),
                                     key_fields: vec![(
                                         String::from("v"),
-                                        ast::Expression::String(String::from("test")),
+                                        FactField::Expression(Expression::String(String::from(
+                                            "test"
+                                        ))),
                                     )],
                                     value_fields: Some(vec![]),
                                 }),
@@ -698,17 +700,23 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         identifier: String::from("F"),
                                         key_fields: vec![(
                                             String::from("v"),
-                                            ast::Expression::String(String::from("hello")),
+                                            FactField::Expression(Expression::String(
+                                                String::from("hello")
+                                            ),)
                                         )],
                                         value_fields: Some(vec![
                                             (
                                                 String::from("x"),
-                                                ast::Expression::Identifier(String::from("x")),
+                                                FactField::Expression(Expression::Identifier(
+                                                    String::from("x")
+                                                ),)
                                             ),
                                             (
                                                 String::from("y"),
-                                                ast::Expression::Negative(Box::new(
-                                                    ast::Expression::Identifier(String::from("x")),
+                                                FactField::Expression(Expression::Negative(
+                                                    Box::new(Expression::Identifier(String::from(
+                                                        "x"
+                                                    )),)
                                                 )),
                                             ),
                                         ]),
@@ -723,12 +731,16 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         key_fields: vec![],
                                         value_fields: Some(vec![(
                                             String::from("x"),
-                                            ast::Expression::Identifier(String::from("x")),
+                                            FactField::Expression(Expression::Identifier(
+                                                String::from("x")
+                                            ),)
                                         )]),
                                     },
                                     to: vec![(
                                         String::from("x"),
-                                        ast::Expression::Identifier(String::from("new_x")),
+                                        FactField::Expression(Expression::Identifier(
+                                            String::from("new_x")
+                                        ),)
                                     )],
                                 }),
                                 1226
@@ -739,7 +751,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         identifier: String::from("F"),
                                         key_fields: vec![(
                                             String::from("v"),
-                                            ast::Expression::String(String::from("hello")),
+                                            FactField::Expression(Expression::String(
+                                                String::from("hello")
+                                            ),)
                                         )],
                                         value_fields: None,
                                     },
@@ -813,17 +827,23 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         identifier: String::from("F"),
                                         key_fields: vec![(
                                             String::from("v"),
-                                            ast::Expression::String(String::from("hello")),
+                                            FactField::Expression(Expression::String(
+                                                String::from("hello")
+                                            )),
                                         )],
                                         value_fields: Some(vec![
                                             (
                                                 String::from("x"),
-                                                ast::Expression::Identifier(String::from("x")),
+                                                FactField::Expression(Expression::Identifier(
+                                                    String::from("x")
+                                                )),
                                             ),
                                             (
                                                 String::from("y"),
-                                                ast::Expression::Negative(Box::new(
-                                                    ast::Expression::Identifier(String::from("x")),
+                                                FactField::Expression(Expression::Negative(
+                                                    Box::new(Expression::Identifier(String::from(
+                                                        "x"
+                                                    )),)
                                                 )),
                                             ),
                                         ]),
@@ -838,12 +858,16 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         key_fields: vec![],
                                         value_fields: Some(vec![(
                                             String::from("x"),
-                                            ast::Expression::Identifier(String::from("x")),
+                                            FactField::Expression(Expression::Identifier(
+                                                String::from("x")
+                                            ),)
                                         )]),
                                     },
                                     to: vec![(
                                         String::from("x"),
-                                        ast::Expression::Identifier(String::from("new_x")),
+                                        FactField::Expression(Expression::Identifier(
+                                            String::from("new_x")
+                                        ),)
                                     )],
                                 }),
                                 1722
@@ -854,7 +878,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                         identifier: String::from("F"),
                                         key_fields: vec![(
                                             String::from("v"),
-                                            ast::Expression::String(String::from("hello")),
+                                            FactField::Expression(Expression::String(
+                                                String::from("hello")
+                                            ),)
                                         )],
                                         value_fields: None,
                                     },
@@ -1285,4 +1311,16 @@ fn parse_serialize_deserialize() {
             0
         )]
     );
+}
+
+#[test]
+fn test_fact_key_can_have_bind_value() -> anyhow::Result<()> {
+    let text = r#"
+        action test() {
+            let x = query A[i:1, j:?]
+        }
+    "#;
+    parse_policy_str(text, Version::V3)?;
+
+    Ok(())
 }

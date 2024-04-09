@@ -406,7 +406,10 @@ fn test_fact_invalid_key_name() -> anyhow::Result<()> {
         .compile()
         .expect_err("compilation should have failed")
         .err_type;
-    assert_eq!(err, CompileErrorType::Missing(String::from("i")));
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("Invalid fact key: expected i, got k"))
+    );
 
     Ok(())
 }
@@ -425,7 +428,32 @@ fn test_fact_incomplete_key() -> anyhow::Result<()> {
         .compile()
         .expect_err("compilation should have failed")
         .err_type;
-    assert_eq!(err, CompileErrorType::Missing(String::from("i")));
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("Fact keys don't match definition"))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_nonexistent_key() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int] => {a string}
+        action test() {
+            check exists Foo[i:0, j:1]
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let err = Compiler::new(&policy)
+        .compile()
+        .expect_err("compilation should have failed")
+        .err_type;
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("Fact keys don't match definition"))
+    );
 
     Ok(())
 }
@@ -465,7 +493,7 @@ fn test_fact_duplicate_key() -> anyhow::Result<()> {
         .err_type;
     assert_eq!(
         err,
-        CompileErrorType::Unknown(String::from("Duplicate key: i"))
+        CompileErrorType::Unknown(String::from("Invalid fact key: expected j, got i"))
     );
 
     Ok(())
@@ -485,7 +513,10 @@ fn test_fact_invalid_value_name() -> anyhow::Result<()> {
         .compile()
         .expect_err("compilation should have failed")
         .err_type;
-    assert_eq!(err, CompileErrorType::NotDefined(String::from("y")));
+    assert_eq!(
+        err,
+        CompileErrorType::Unknown(String::from("Expected x, got y"))
+    );
 
     Ok(())
 }
@@ -665,6 +696,91 @@ fn finish_block_should_exit() -> anyhow::Result<()> {
     assert_eq!(
         result,
         CompileErrorType::Unknown("`finish` must be the last statement in the block".to_owned())
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_should_not_allow_bind_key_in_fact_creation() -> anyhow::Result<()> {
+    let text = r#"
+        fact F[i int] => {s string}
+        
+        command CreateBindKey {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    create F[i:?] => {s: "abc"}
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+
+    assert_eq!(
+        result,
+        CompileErrorType::BadArgument("Cannot create fact with bind values".to_owned())
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_should_not_allow_bind_value_in_fact_creation() -> anyhow::Result<()> {
+    let text = r#"
+        fact F[i int] => {s string}
+        
+        command CreateBindValue {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    create F[i:1] => {s:?}
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+
+    assert_eq!(
+        result,
+        CompileErrorType::BadArgument("Cannot create fact with bind values".to_owned())
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_should_not_allow_bind_key_in_fact_update() -> anyhow::Result<()> {
+    let text = r#"
+        fact F[i int] => {s string}
+        
+        command CreateBindValue {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    create F[i:1] => {s: ""}
+                    update F[i:?] => {s: ""} to {s: ?}
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+
+    assert_eq!(
+        result,
+        CompileErrorType::BadArgument("Cannot update fact to a bind value".to_owned())
     );
 
     Ok(())

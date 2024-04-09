@@ -63,13 +63,8 @@ impl TestIO {
 }
 
 /// Calculates whether the k/v pairs in a exist in b
-fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
-    for entry in a {
-        if !b.iter().any(|e| entry == e) {
-            return false;
-        }
-    }
-    true
+fn prefix_key_match(fact: &[FactKey], query: &[FactKey]) -> bool {
+    fact.starts_with(query)
 }
 
 impl<S> MachineIO<S> for TestIO
@@ -123,7 +118,7 @@ where
             .facts
             .clone()
             .into_iter()
-            .filter(move |f| f.0 .0 == name && subset_key_match(&f.0 .1, &key))
+            .filter(move |f| f.0 .0 == name && prefix_key_match(&f.0 .1, &key))
             .map(|((_, k), v)| Ok::<(FactKeyList, FactValueList), MachineIOError>((k, v)));
 
         Ok(Box::new(iter))
@@ -479,25 +474,18 @@ fn test_fact_exists() -> anyhow::Result<()> {
         check exists Foo[]
         check exists Bar[i: 1] => {s: "abc", b: true}
 
-        // NOTE: expressions with bind (?) values are commented out because we don't allow Bind values at the moment.
-
-        // check exists Foo[] => {x: ?}
-        // check exists Bar[i: ?] => {s: ?, b: ?}
-
+        check exists Foo[] => {x: ?}
+        check exists Bar[i: ?] => {s: ?, b: true}
+        
         // Not-exists
 
-        // no values
-
-        // no such key
-        //check !exists Foo[i: ?]
-
         // incomplete values
-        // check !exists Bar[i: 0]=>{s: ?}
+        check !exists Bar[i: 0]=>{s: ?}
 
         // no fact with such values
         check !exists Bar[i:0] => {s:"ab", b:true}
         check !exists Bar[i:1] => {s:"", b:true}
-        // check !exists Bar[i: ?]=>{s: "ab", b: ?}
+        check !exists Bar[i: ?]=>{s: "ab", b: ?}
     }
     "#;
 
@@ -2167,8 +2155,10 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         }
 
         action test_existing() {
-            let f = check_unwrap query Foo[i: 1]=>{}
-            check f.i == 1
+            let f = check_unwrap query Foo[i: 1]
+            check f.x == 1
+            let f2 = check_unwrap query Foo[i: 1]=>{}
+            check f2.x == 1
         }
 
         action test_nonexistent() {
@@ -2210,6 +2200,87 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let status = rs.call_action(action_name, [Value::None])?;
         assert_eq!(status, ExitReason::Check);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_query_partial_key() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int, j int]=>{x int, s string}
+
+        command Setup {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    create Foo[i: 1, j: 1]=>{x: 1, s: "a"}
+                    create Foo[i: 2, j: 1]=>{x: 3, s: "b" }
+                }
+            }
+        }
+        
+        action test_query() {
+            let f = unwrap query Foo[i: 1, j: ?]
+            check f.x == 1
+            let f2 = unwrap query Foo[i: ?, j: ?]
+            check f2.x == 1
+            let f3 = unwrap query Foo[i:2, j:?]
+            check f3.x == 3
+
+            // bind value
+            let f4 = unwrap query Foo[i: 2, j: 1]=>{x: 3, s: ?}
+            check f4.x == 3
+            // bind key and value
+            let f5 = unwrap query Foo[i: ?, j: ?]=>{x: 3, s: ?}
+            check f5.x == 3
+        }
+
+        action test_nonexistent() {
+            let f = unwrap query Foo[i:?, j:?]=>{}
+        }
+
+        action test_exists() {
+            check exists Foo[i:1, j:?]
+            check exists Foo[i:-1, j:?] == false
+            check exists Foo[i:1, j:?] => {x:?}
+            check !exists Foo[i:1, j:?] => {x:-1}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let mut io = TestIO::new();
+    let machine = Compiler::new(&policy).compile()?;
+
+    {
+        let cmd_name = "Setup";
+        let this_data = Struct {
+            name: String::from(cmd_name),
+            fields: [].into(),
+        };
+
+        let ctx = dummy_ctx_open(cmd_name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let status = rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?;
+        assert_eq!(status, ExitReason::Normal);
+    }
+
+    {
+        let action_name = "test_query";
+        let ctx = dummy_ctx_open(action_name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let status = rs.call_action(action_name, [Value::None])?;
+        assert_eq!(status, ExitReason::Normal);
+    }
+
+    {
+        let action_name = "test_exists";
+        let ctx = dummy_ctx_open(action_name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let status = rs.call_action(action_name, [Value::None])?;
+        assert_eq!(status, ExitReason::Normal);
     }
 
     Ok(())

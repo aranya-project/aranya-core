@@ -12,7 +12,7 @@ use crate::lang::parse::Rule;
 ///
 /// If the case contains a String, it is a message describing the item
 /// affected or a general error message.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ParseErrorKind {
     /// An invalid type specifier was found. The string describes the type.
     InvalidType,
@@ -44,7 +44,7 @@ pub enum ParseErrorKind {
 
 #[derive(Debug, Clone)]
 pub struct ParseError {
-    kind: ParseErrorKind,
+    pub kind: ParseErrorKind,
     message: String,
 }
 

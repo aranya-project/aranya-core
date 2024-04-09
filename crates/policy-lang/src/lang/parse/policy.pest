@@ -83,11 +83,18 @@ fact_signature_value = { "{" ~ field_definition_list? ~ "}" }
 // A fact signature is made up of an identifier, a key definition, and
 // a value definition.
 fact_signature = { identifier ~ fact_signature_key ~ "=>" ~ fact_signature_value }
+// A bind value is only valid in fact literals inside a query
+// expression. It is used to mark values that the query returns.
+bind = { "?" }
+// key/value pair defining a fact field
+fact_literal_field = { identifier ~ ":" ~ (expression | bind) }
+// sequence of fact fields
+fact_literal_field_list = _{ fact_literal_field ~ ("," ~ fact_literal_field)* ~ ","? }
 // A fact literal key is just like a fact signature key except it
 // defines values with literal fields.
-fact_literal_key = { "[" ~ struct_literal_field_list? ~ "]" }
+fact_literal_key = { "[" ~ fact_literal_field_list? ~ "]" }
 // Ditto fact literal values.
-fact_literal_value = { "{" ~ struct_literal_field_list? ~ "}" }
+fact_literal_value = { "{" ~ fact_literal_field_list? ~ "}" }
 // A fact literal looks just like a fact definition except it defines
 // values for the keys an values.
 fact_literal = { identifier ~ fact_literal_key ~ ("=>" ~ fact_literal_value)? }
@@ -127,10 +134,6 @@ foreign_function_call = { identifier ~ "::" ~ function_call }
 none = { "None" }
 some = { "Some" }
 optional_literal = { none | (some ~ expression) }
-// A bind value is only valid in fact literals inside a query
-// expression, and only on the value side. It is used to mark values
-// that the query returns.
-bind = { "?" }
 // A query expression evaluates a fact literal, returning a result
 // object containing all of the value fields marked with the bind
 // token.
@@ -147,9 +150,9 @@ deserialize = { "deserialize(" ~ expression ~ ")" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{ query | exists | if_e | serialize | deserialize }
-// An atom is any of the literals, a bind marker, an internal function,
+// An atom is any of the literals, an internal function,
 // a function call, an identifier, or a parenthetical sub-expression.
-atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | bind | internal_function | function_call | foreign_function_call | identifier | "(" ~ expression ~ ")" }
+atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | internal_function | function_call | foreign_function_call | identifier | "(" ~ expression ~ ")" }
 
 // ## Infix operators
 add = { "+" }
