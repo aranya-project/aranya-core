@@ -212,7 +212,7 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     // the tests in protocol.rs. Here we
     let mut sink = TestSink::new();
 
-    // Create a new graph. This builds an Init event and returns an Id referencing the
+    // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
     let storage_id = cs
         .new_graph(&[0u8], Default::default(), &mut sink)
@@ -255,7 +255,7 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     // correctly. Direct access to the storage provider should not be necessary in normal
     // operation.
 
-    // Get the storage provider and get the storage associated with our storage Id to peek
+    // Get the storage provider and get the storage associated with our storage ID to peek
     // into its graph.
     let storage = cs.provider().get_storage(&storage_id)?;
     // Find the head Location.
@@ -271,7 +271,7 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
 
     // This is the value part of the fact that we expect to retrieve.
     let expected_value = vec![KVPair::new("y", Value::Int(4))];
-    // Get a perspective for the head Id we got earlier. It should contain the facts we
+    // Get a perspective for the head ID we got earlier. It should contain the facts we
     // seek.
     let perspective = storage.get_fact_perspective(head).expect("perspective");
     // Query the perspective using our key.
@@ -297,7 +297,7 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
 
     let mut sink = TestSink::new();
 
-    // Create a new graph. This builds an Init event and returns an Id referencing the
+    // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
     let storage_id = cs
         .new_graph(&[0u8], Default::default(), &mut sink)

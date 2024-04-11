@@ -11,27 +11,27 @@ use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClientError, ClientState, Command, Engine, Fact, FactPerspective, Id, Perspective, Policy,
-    PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError,
-    StorageProvider, MAX_COMMAND_LENGTH,
+    ClientError, ClientState, Command, CommandId, Engine, Fact, FactPerspective, GraphId,
+    Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Sink,
+    Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 /// Ephemeral session used to handle/generate off-graph commands.
 pub struct Session<SP: StorageProvider, E> {
     /// The ID of the associated storage
-    storage_id: Id,
+    storage_id: GraphId,
     /// Current working perspective
     perspective: <SP::Storage as Storage>::Perspective,
     /// Policy ID for session
     policy_id: PolicyId,
     /// Head of perspective
-    head: Id,
+    head: CommandId,
     /// Tag for associated engine
     _engine: PhantomData<E>,
 }
 
 impl<SP: StorageProvider, E> Session<SP, E> {
-    pub(super) fn new(provider: &mut SP, storage_id: Id) -> Result<Self, ClientError> {
+    pub(super) fn new(provider: &mut SP, storage_id: GraphId) -> Result<Self, ClientError> {
         let storage = provider.get_storage(&storage_id)?;
         let head_loc = storage.get_head()?;
         let seg = storage.get_segment(head_loc)?;
@@ -148,10 +148,10 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 #[derive(Serialize, Deserialize)]
 /// Used for serializing session commands
 struct SessionCommand<'a> {
-    storage_id: Id,
+    storage_id: GraphId,
     priority: u32, // Priority::Basic
-    id: Id,
-    parent: Id, // Prior::Single
+    id: CommandId,
+    parent: CommandId, // Prior::Single
     #[serde(borrow)]
     data: &'a [u8],
 }
@@ -161,11 +161,11 @@ impl<'sc> Command for SessionCommand<'sc> {
         Priority::Basic(self.priority)
     }
 
-    fn id(&self) -> Id {
+    fn id(&self) -> CommandId {
         self.id
     }
 
-    fn parent(&self) -> Prior<Id> {
+    fn parent(&self) -> Prior<CommandId> {
         Prior::Single(self.parent)
     }
 
@@ -180,7 +180,7 @@ impl<'sc> Command for SessionCommand<'sc> {
 }
 
 impl<'sc> SessionCommand<'sc> {
-    fn from_cmd(storage_id: Id, command: &'sc impl Command) -> Result<Self, Bug> {
+    fn from_cmd(storage_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
         if command.policy().is_some() {
             bug!("session command should have no policy")
         }
@@ -201,11 +201,11 @@ impl<'sc> SessionCommand<'sc> {
 }
 
 struct SessionPerspective<'a, MS, P> {
-    storage_id: Id,
+    storage_id: GraphId,
     message_sink: &'a mut MS,
     perspective: &'a mut P,
     policy: PolicyId,
-    head: Id,
+    head: CommandId,
     added: usize,
 }
 
@@ -259,7 +259,7 @@ where
         Ok(self.added)
     }
 
-    fn includes(&self, id: &Id) -> bool {
+    fn includes(&self, id: &CommandId) -> bool {
         self.perspective.includes(id)
     }
 }

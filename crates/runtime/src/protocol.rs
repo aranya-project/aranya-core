@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use tracing::trace;
 
 use super::{
-    alloc, Command, Engine, EngineError, FactPerspective, Id, Perspective, Policy, PolicyId, Prior,
-    Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
+    alloc, Command, CommandId, Engine, EngineError, FactPerspective, Perspective, Policy, PolicyId,
+    Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
 };
 use crate::MergeIds;
 
@@ -38,13 +38,13 @@ pub struct WireInit {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireMerge {
-    pub left: Id,
-    pub right: Id,
+    pub left: CommandId,
+    pub right: CommandId,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Ord, Eq, PartialOrd, PartialEq)]
 pub struct WireBasic {
-    pub parent: Id,
+    pub parent: CommandId,
     pub prority: u32,
     pub payload: (u64, u64),
 }
@@ -58,7 +58,7 @@ pub enum WireProtocol {
 
 #[derive(Debug, Clone)]
 pub struct TestProtocol<'a> {
-    id: Id,
+    id: CommandId,
     command: WireProtocol,
     data: &'a [u8],
 }
@@ -72,11 +72,11 @@ impl<'a> Command for TestProtocol<'a> {
         }
     }
 
-    fn id(&self) -> Id {
+    fn id(&self) -> CommandId {
         self.id
     }
 
-    fn parent(&self) -> Prior<Id> {
+    fn parent(&self) -> Prior<CommandId> {
         match &self.command {
             WireProtocol::Init(_) => Prior::None,
             WireProtocol::Basic(m) => Prior::Single(m.parent),
@@ -180,7 +180,7 @@ impl TestPolicy {
     fn basic<'a>(
         &self,
         target: &'a mut [u8],
-        parent: Id,
+        parent: CommandId,
         payload: <Self as Policy>::Payload<'_>,
     ) -> Result<TestProtocol<'a>, EngineError> {
         let prority = 0; //BUG
@@ -193,7 +193,7 @@ impl TestPolicy {
 
         let command = WireProtocol::Basic(message);
         let data = write(target, &command)?;
-        let id = Id::hash_for_testing_only(data);
+        let id = CommandId::hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -305,7 +305,7 @@ impl Policy for TestPolicy {
             policy_num: policy,
         });
         let data = write(target, &command)?;
-        let id = Id::hash_for_testing_only(data);
+        let id = CommandId::hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -318,14 +318,14 @@ impl Policy for TestPolicy {
         let (left, right) = ids.into();
         let command = WireProtocol::Merge(WireMerge { left, right });
         let data = write(target, &command)?;
-        let id = Id::hash_for_testing_only(data);
+        let id = CommandId::hash_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
 
     fn call_action(
         &self,
-        parent: &Id,
+        parent: &CommandId,
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,

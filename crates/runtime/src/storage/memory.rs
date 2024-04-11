@@ -5,16 +5,16 @@ use buggy::BugExt;
 use vec1::Vec1;
 
 use crate::{
-    Checkpoint, Command, Fact, FactIndex, FactPerspective, Id, Location, MaxCut, Perspective,
-    PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage, StorageError,
-    StorageProvider,
+    Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Location, MaxCut,
+    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
+    StorageError, StorageProvider,
 };
 
 #[derive(Debug)]
 pub struct MemCommand {
     priority: Priority,
-    id: Id,
-    parent: Prior<Id>,
+    id: CommandId,
+    parent: Prior<CommandId>,
     policy: Option<Box<[u8]>>,
     data: Box<[u8]>,
     max_cut: usize,
@@ -39,11 +39,11 @@ impl Command for MemCommand {
         self.priority.clone()
     }
 
-    fn id(&self) -> Id {
+    fn id(&self) -> CommandId {
         self.id
     }
 
-    fn parent(&self) -> Prior<Id> {
+    fn parent(&self) -> Prior<CommandId> {
         self.parent
     }
 
@@ -64,7 +64,7 @@ impl MaxCut for MemCommand {
 
 #[derive(Default)]
 pub struct MemStorageProvider {
-    storage: BTreeMap<Id, MemStorage>,
+    storage: BTreeMap<GraphId, MemStorage>,
 }
 
 impl MemStorageProvider {
@@ -86,11 +86,11 @@ impl StorageProvider for MemStorageProvider {
 
     fn new_storage<'a>(
         &'a mut self,
-        group: &Id,
+        graph: &GraphId,
         update: Self::Perspective,
     ) -> Result<&'a mut Self::Storage, StorageError> {
         use alloc::collections::btree_map::Entry;
-        let entry = match self.storage.entry(*group) {
+        let entry = match self.storage.entry(*graph) {
             Entry::Vacant(v) => v,
             Entry::Occupied(_) => return Err(StorageError::StorageExists),
         };
@@ -101,9 +101,12 @@ impl StorageProvider for MemStorageProvider {
         Ok(entry.insert(storage))
     }
 
-    fn get_storage<'a>(&'a mut self, group: &Id) -> Result<&'a mut Self::Storage, StorageError> {
+    fn get_storage<'a>(
+        &'a mut self,
+        graph: &GraphId,
+    ) -> Result<&'a mut Self::Storage, StorageError> {
         self.storage
-            .get_mut(group)
+            .get_mut(graph)
             .ok_or(StorageError::NoSuchStorage)
     }
 }
@@ -112,13 +115,13 @@ type FactMap = BTreeMap<Box<[u8]>, Option<Box<[u8]>>>;
 
 pub struct MemStorage {
     segments: Vec<MemSegment>,
-    commands: BTreeMap<Id, Location>,
+    commands: BTreeMap<CommandId, Location>,
     head: Option<Location>,
 }
 
 #[derive(Eq, PartialEq, Ord, PartialOrd)]
 struct Head {
-    id: Id,
+    id: CommandId,
     policy_id: PolicyId,
     segment_index: usize,
 }
@@ -175,7 +178,7 @@ impl Storage for MemStorage {
     type FactIndex = MemFactIndex;
     type FactPerspective = MemFactPerspective;
 
-    fn get_command_id(&self, location: Location) -> Result<Id, StorageError> {
+    fn get_command_id(&self, location: Location) -> Result<CommandId, StorageError> {
         let segment = self.get_segment(location)?;
         let command = segment
             .get_command(location)
@@ -649,7 +652,7 @@ impl Perspective for MemPerspective {
         self.policy
     }
 
-    fn includes(&self, id: &Id) -> bool {
+    fn includes(&self, id: &CommandId) -> bool {
         self.commands.iter().any(|cmd| cmd.command.id == *id)
     }
 }

@@ -9,7 +9,7 @@ use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{Command, Id},
+    command::{Command, CommandId},
     storage::{FactPerspective, Perspective},
 };
 
@@ -96,13 +96,13 @@ impl<E> Sink<E> for NullSink {
 /// The IDs to a merge command in sorted order.
 pub struct MergeIds {
     // left < right
-    left: Id,
-    right: Id,
+    left: CommandId,
+    right: CommandId,
 }
 
 impl MergeIds {
-    /// Create [`MergeIds`] by ordering two [`Id`]s and ensuring they are different.
-    pub fn new(a: Id, b: Id) -> Option<Self> {
+    /// Create [`MergeIds`] by ordering two [`CommandId`]s and ensuring they are different.
+    pub fn new(a: CommandId, b: CommandId) -> Option<Self> {
         use core::cmp::Ordering;
         match a.cmp(&b) {
             Ordering::Less => Some(Self { left: a, right: b }),
@@ -112,8 +112,8 @@ impl MergeIds {
     }
 }
 
-impl From<MergeIds> for (Id, Id) {
-    /// Convert [`MergeIds`] into an ordered pair of [`Id`]s.
+impl From<MergeIds> for (CommandId, CommandId) {
+    /// Convert [`MergeIds`] into an ordered pair of [`CommandId`]s.
     fn from(value: MergeIds) -> Self {
         (value.left, value.right)
     }
@@ -147,7 +147,7 @@ pub trait Policy {
     /// any emitted command is rejected no commands are added to the storage.
     fn call_action(
         &self,
-        parent_id: &Id,
+        parent_id: &CommandId,
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,

@@ -11,13 +11,18 @@ use core::fmt;
 use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
-use crate::{Command, Id, MaxCut, PolicyId, Prior};
+use crate::{Command, CommandId, MaxCut, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
 
 /// The maximum size of a serialized message
 pub const MAX_COMMAND_LENGTH: usize = 2048;
+
+crypto::custom_id! {
+    /// The ID of the graph, taken from initialization.
+    pub struct GraphId;
+}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct Location {
@@ -69,7 +74,7 @@ pub enum StorageError {
     CommandOutOfBounds(Location),
     IoError,
     NotMerge,
-    NoSuchId(Id),
+    NoSuchId(CommandId),
     PolicyMismatch,
     EmptyPerspective,
     HeadNotAncestor,
@@ -137,11 +142,11 @@ pub trait StorageProvider {
     ///
     /// # Arguments
     ///
-    /// * `group` - Id of the command that initializes the new graph.
+    /// * `graph` - ID of the graph, taken from the initialization command.
     /// * `init` - Contains the data necessary to initialize the new graph.
     fn new_storage<'a>(
         &'a mut self,
-        group: &Id,
+        graph: &GraphId,
         init: Self::Perspective,
     ) -> Result<&'a mut Self::Storage, StorageError>;
 
@@ -149,8 +154,11 @@ pub trait StorageProvider {
     ///
     /// # Arguments
     ///
-    /// * `group` - Id of the command that initialized the graph.
-    fn get_storage<'a>(&'a mut self, group: &Id) -> Result<&'a mut Self::Storage, StorageError>;
+    /// * `graph` - ID of the graph, taken from the initialization command.
+    fn get_storage<'a>(
+        &'a mut self,
+        graph: &GraphId,
+    ) -> Result<&'a mut Self::Storage, StorageError>;
 }
 
 /// Represents the runtime's graph; [`Command`]s in storage have been validated
@@ -163,7 +171,7 @@ pub trait Storage {
 
     /// Returns the location of Command with id if it has been stored by
     /// searching from the head.
-    fn get_location(&self, id: &Id) -> Result<Option<Location>, StorageError> {
+    fn get_location(&self, id: &CommandId) -> Result<Option<Location>, StorageError> {
         self.get_location_from(self.get_head()?, id)
     }
 
@@ -171,7 +179,7 @@ pub trait Storage {
     fn get_location_from(
         &self,
         start: Location,
-        id: &Id,
+        id: &CommandId,
     ) -> Result<Option<Location>, StorageError> {
         let mut queue = alloc::collections::VecDeque::new();
         queue.push_back(start);
@@ -191,8 +199,8 @@ pub trait Storage {
         Ok(None)
     }
 
-    /// Returns the ID of the command at the location.
-    fn get_command_id(&self, location: Location) -> Result<Id, StorageError>;
+    /// Returns the CommandId of the command at the location.
+    fn get_command_id(&self, location: Location) -> Result<CommandId, StorageError>;
 
     /// Returns a linear perspective at the given location.
     fn get_linear_perspective(
@@ -323,7 +331,7 @@ pub trait Perspective: FactPerspective {
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
 
     /// Returns true if the perspective contains a command with the given ID.
-    fn includes(&self, id: &Id) -> bool;
+    fn includes(&self, id: &CommandId) -> bool;
 }
 
 /// A fact perspective is essentially a mutable, in-memory version of a [`FactIndex`].

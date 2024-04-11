@@ -15,7 +15,7 @@ use rustix::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::error;
 
-use crate::{linear, Id, Location, StorageError};
+use crate::{linear, GraphId, Location, StorageError};
 
 #[derive(Debug)]
 pub struct FileManager {
@@ -37,7 +37,7 @@ impl FileManager {
 impl linear::io::IoManager for FileManager {
     type Writer = Writer;
 
-    fn create(&mut self, id: Id) -> Result<Self::Writer, StorageError> {
+    fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
         let name = id.to_string();
         let fd = fs::openat(
             &self.dir,
@@ -50,7 +50,7 @@ impl linear::io::IoManager for FileManager {
         Writer::create(fd)
     }
 
-    fn open(&mut self, id: Id) -> Result<Option<Self::Writer>, StorageError> {
+    fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
         let name = id.to_string();
         let fd = match fs::openat(&self.dir, name, OFlags::RDWR, Mode::empty()) {
             Ok(fd) => fd,

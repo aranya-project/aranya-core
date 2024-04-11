@@ -8,7 +8,7 @@ use policy_vm::{Struct, Value};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{Command, Id, Priority},
+    command::{Command, CommandId, Priority},
     Prior,
 };
 
@@ -19,11 +19,11 @@ pub enum VmProtocolData {
         policy: [u8; 8],
     },
     Merge {
-        left: Id,
-        right: Id,
+        left: CommandId,
+        right: CommandId,
     },
     Basic {
-        parent: Id,
+        parent: CommandId,
         author_id: UserId,
         kind: String,
         serialized_fields: Vec<u8>,
@@ -37,12 +37,12 @@ pub enum VmProtocolData {
 #[derive(Debug)]
 pub struct VmProtocol<'a> {
     data: &'a [u8],
-    id: Id,
+    id: CommandId,
     unpacked: VmProtocolData,
 }
 
 impl<'a> VmProtocol<'a> {
-    pub fn new(data: &'a [u8], id: Id, unpacked: VmProtocolData) -> VmProtocol<'_> {
+    pub fn new(data: &'a [u8], id: CommandId, unpacked: VmProtocolData) -> VmProtocol<'_> {
         VmProtocol { data, id, unpacked }
     }
 }
@@ -57,11 +57,11 @@ impl<'a> Command for VmProtocol<'a> {
         }
     }
 
-    fn id(&self) -> Id {
+    fn id(&self) -> CommandId {
         self.id
     }
 
-    fn parent(&self) -> Prior<Id> {
+    fn parent(&self) -> Prior<CommandId> {
         match self.unpacked {
             VmProtocolData::Init { .. } => Prior::None,
             VmProtocolData::Merge { left, right, .. } => Prior::Merge(left, right),
@@ -83,9 +83,9 @@ impl<'a> Command for VmProtocol<'a> {
 
 #[derive(Clone, Debug)]
 pub struct Envelope {
-    pub parent_id: Id,
+    pub parent_id: CommandId,
     pub author_id: UserId,
-    pub command_id: Id,
+    pub command_id: CommandId,
     pub payload: Vec<u8>,
     pub signature: Vec<u8>,
 }

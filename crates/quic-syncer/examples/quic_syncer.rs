@@ -21,7 +21,7 @@ use runtime::{
     engine::Sink,
     protocol::{TestActions, TestEffect, TestEngine},
     storage::memory::MemStorageProvider,
-    ClientState, Id, SyncRequester,
+    ClientState, GraphId, SyncRequester,
 };
 use tokio::sync::Mutex as TMutex;
 
@@ -57,7 +57,7 @@ struct Opt {
     peer: SocketAddr,
     /// whether to create a new graph
     #[clap(long = "storage")]
-    storage_id: Option<Id>,
+    storage_id: Option<GraphId>,
 }
 
 fn main() {
@@ -77,7 +77,7 @@ async fn sync_peer(
     client: &mut ClientState<TestEngine, MemStorageProvider>,
     syncer: &mut Syncer,
     sink: &mut PrintSink,
-    storage_id: Id,
+    storage_id: GraphId,
     server_addr: SocketAddr,
 ) {
     let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());

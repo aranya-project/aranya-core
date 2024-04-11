@@ -9,11 +9,11 @@ use crate::Prior;
 
 crypto::custom_id! {
     /// An ID constructed as a cryptographic hash of a serialized [`Command`].
-    pub struct Id;
+    pub struct CommandId;
 }
 
-impl Id {
-    /// Derives an [`Id`] from some data.
+impl CommandId {
+    /// Derives a [`CommandId`] from some data.
     ///
     /// This is for testing only. It's not `#[cfg(test)]` because
     /// (unfortunately) some code already depends on it.
@@ -34,24 +34,6 @@ impl Id {
         } else {
             trimmed.into()
         }
-    }
-}
-
-#[cfg(test)]
-impl From<u32> for Id {
-    fn from(init: u32) -> Self {
-        let mut value = [0u8; 64];
-        value[60..].copy_from_slice(&init.to_be_bytes());
-        Id(value.into())
-    }
-}
-
-#[cfg(test)]
-impl From<u64> for Id {
-    fn from(init: u64) -> Self {
-        let mut value = [0u8; 64];
-        value[56..].copy_from_slice(&init.to_be_bytes());
-        Id(value.into())
     }
 }
 
@@ -87,11 +69,11 @@ pub trait Command {
     fn priority(&self) -> Priority;
 
     /// Uniquely identifies the serialized command.
-    fn id(&self) -> Id;
+    fn id(&self) -> CommandId;
 
     /// Return this command's parents, or command(s) that immediately
     /// precede(s) this.
-    fn parent(&self) -> Prior<Id>;
+    fn parent(&self) -> Prior<CommandId>;
 
     /// Return this command's associated policy.
     fn policy(&self) -> Option<&[u8]>;
@@ -105,11 +87,11 @@ impl<C: Command> Command for &C {
         (*self).priority()
     }
 
-    fn id(&self) -> Id {
+    fn id(&self) -> CommandId {
         (*self).id()
     }
 
-    fn parent(&self) -> Prior<Id> {
+    fn parent(&self) -> Prior<CommandId> {
         (*self).parent()
     }
 

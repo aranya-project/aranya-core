@@ -4,8 +4,8 @@ use core::fmt;
 use buggy::{Bug, BugExt};
 
 use crate::{
-    Command, Engine, EngineError, Id, Location, Perspective, Policy, Prior, Priority, Segment,
-    Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    Command, CommandId, Engine, EngineError, GraphId, Location, Perspective, Policy, Prior,
+    Priority, Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 mod session;
@@ -16,7 +16,7 @@ pub use self::{session::Session, transaction::Transaction};
 /// An error returned by the runtime client.
 #[derive(Debug)]
 pub enum ClientError {
-    NoSuchParent(Id),
+    NoSuchParent(CommandId),
     EngineError(EngineError),
     StorageError(StorageError),
     InitError,
@@ -104,7 +104,7 @@ where
         policy_data: &[u8],
         payload: <E::Policy as Policy>::Payload<'_>,
         sink: &mut impl Sink<E::Effect>,
-    ) -> Result<Id, ClientError> {
+    ) -> Result<GraphId, ClientError> {
         let policy_id = self.engine.add_policy(policy_data)?;
         let policy = self.engine.get_policy(&policy_id)?;
 
@@ -112,7 +112,7 @@ where
         let target = buffer.as_mut_slice();
         let command = policy.init(target, policy_data, payload)?;
 
-        let storage_id = command.id();
+        let storage_id = GraphId::from(command.id().into_id());
 
         let mut trx = self.transaction(&storage_id);
         trx.add_commands(&[command], &mut self.provider, &mut self.engine, sink)?;
@@ -145,7 +145,7 @@ where
     /// Performs an `action`, writing the results to `sink`.
     pub fn action(
         &mut self,
-        storage_id: &Id,
+        storage_id: &GraphId,
         sink: &mut impl Sink<E::Effect>,
         action: <E::Policy as Policy>::Action<'_>,
     ) -> Result<(), ClientError> {
@@ -190,12 +190,12 @@ where
     SP: StorageProvider,
 {
     /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.
-    pub fn transaction(&mut self, storage_id: &Id) -> Transaction<SP, E> {
+    pub fn transaction(&mut self, storage_id: &GraphId) -> Transaction<SP, E> {
         Transaction::new(*storage_id)
     }
 
     /// Create an ephemeral [`Session`] associated with this client.
-    pub fn session(&mut self, storage_id: Id) -> Result<Session<SP, E>, ClientError> {
+    pub fn session(&mut self, storage_id: GraphId) -> Result<Session<SP, E>, ClientError> {
         Session::new(&mut self.provider, storage_id)
     }
 }
@@ -207,7 +207,7 @@ pub fn braid<S: Storage>(
     right: Location,
 ) -> Result<Vec<Location>, ClientError> {
     struct Strand<S> {
-        key: (Priority, Id),
+        key: (Priority, CommandId),
         next: Location,
         segment: S,
     }

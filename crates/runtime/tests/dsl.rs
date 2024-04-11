@@ -14,9 +14,9 @@ use crypto::Rng;
 use rand::Rng as RRng;
 use runtime::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    ClientError, ClientState, Command, EngineError, Id, Location, MaxCut, Prior, Segment, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, COMMAND_RESPONSE_MAX,
-    MAX_SYNC_MESSAGE_SIZE,
+    ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location, MaxCut, Prior,
+    Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder,
+    COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
 };
 use serde::{Deserialize, Serialize};
 use tracing::debug;
@@ -501,7 +501,7 @@ fn sync<SP: StorageProvider>(
     request_state: &mut ClientState<TestEngine, SP>,
     response_state: &mut ClientState<TestEngine, SP>,
     sink: &mut TestSink,
-    storage_id: &Id,
+    storage_id: &GraphId,
 ) -> Result<usize, TestError> {
     let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
     let mut response_syncer = SyncResponder::new();
@@ -536,7 +536,7 @@ fn sync<SP: StorageProvider>(
     Ok(count)
 }
 
-struct Parent(Prior<Id>);
+struct Parent(Prior<CommandId>);
 
 impl Display for Parent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -579,7 +579,7 @@ where
 }
 
 /// Walk the graph and yield all visited IDs.
-fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = Id> + '_ {
+fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CommandId> + '_ {
     let mut stack = vec![storage.get_head().unwrap()];
     let mut segment = None;
 

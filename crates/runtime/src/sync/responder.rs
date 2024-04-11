@@ -9,8 +9,8 @@ use super::{
     COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, SEGMENT_BUFFER_MAX,
 };
 use crate::{
-    command::{Command, Id, MaxCut},
-    storage::{Location, Segment, Storage, StorageProvider},
+    command::{Command, CommandId, MaxCut},
+    storage::{GraphId, Location, Segment, Storage, StorageProvider},
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -57,7 +57,7 @@ pub enum SyncResponseMessage {
         /// corresponding to the `session_id` in the initial `SyncRequest`.
         session_id: u128,
         /// Head of the branch the responder wishes to send.
-        head: Id,
+        head: CommandId,
     },
 
     /// Message sent by either requester or responder to indicate the session
@@ -95,11 +95,11 @@ impl Default for SyncResponderState {
 #[derive(Default)]
 pub struct SyncResponder {
     session_id: Option<u128>,
-    storage_id: Option<Id>,
+    storage_id: Option<GraphId>,
     state: SyncResponderState,
     bytes_sent: u64,
     next_send: usize,
-    has: Vec<Id, COMMAND_SAMPLE_MAX>,
+    has: Vec<CommandId, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
 }
 
@@ -213,7 +213,7 @@ impl SyncResponder {
     }
 
     fn find_needed_segments(
-        commands: &[Id],
+        commands: &[CommandId],
         storage: &impl Storage,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
         let mut have_locations = alloc::vec::Vec::new(); //BUG: not constant size

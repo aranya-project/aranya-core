@@ -8,15 +8,15 @@
 
 use serde::{de::DeserializeOwned, Serialize};
 
-use crate::{Id, Location, StorageError};
+use crate::{GraphId, Location, StorageError};
 
 /// IO manager for creating and opening writers for a graph.
 pub trait IoManager {
     type Writer: Write;
     /// Create new writer for the graph ID. Should error if already exists.
-    fn create(&mut self, id: Id) -> Result<Self::Writer, StorageError>;
+    fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError>;
     /// Open existing writer for the graph ID.
-    fn open(&mut self, id: Id) -> Result<Option<Self::Writer>, StorageError>;
+    fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError>;
 }
 
 /// Exclusive writer for a linear storage graph.

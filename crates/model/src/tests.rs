@@ -8,10 +8,9 @@ use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{ffi::FfiModule, Compiler, KVPair, Value};
 use runtime::{
-    command::Id,
     engine::Sink,
     metrics::{Metric, MetricError, Metrics},
-    storage::memory::MemStorageProvider,
+    storage::{memory::MemStorageProvider, GraphId},
     vm_policy::{testing::TestFfiEnvelope, VmPolicy},
     ClientState, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
@@ -197,7 +196,7 @@ impl Sink<ModelEffect> for TestSink<'_> {
 
 type GraphMetrics = BTreeMap<ProxyGraphID, TestMetrics>;
 type ClientMetrics = BTreeMap<ProxyClientID, GraphMetrics>;
-type ClientStorageIds = BTreeMap<ProxyGraphID, Id>;
+type ClientStorageIds = BTreeMap<ProxyGraphID, GraphId>;
 type Clients = BTreeMap<ProxyClientID, TestClient>;
 
 /// Test model.
@@ -409,7 +408,7 @@ impl Model for TestModel {
 }
 
 fn unidirectional_sync<E: crypto::Engine>(
-    storage_id: &Id,
+    storage_id: &GraphId,
     request_state: &mut ClientState<ModelEngine<E>, MemStorageProvider>,
     response_state: &mut ClientState<ModelEngine<E>, MemStorageProvider>,
     sink: &mut TestSink<'_>,

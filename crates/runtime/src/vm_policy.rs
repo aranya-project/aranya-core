@@ -10,7 +10,7 @@ use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
-    command::{Command, Id},
+    command::{Command, CommandId},
     engine::{EngineError, NullSink, Policy, Sink},
     FactPerspective, MergeIds, Perspective,
 };
@@ -144,7 +144,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         &self,
         name: &str,
         fields: impl IntoIterator<Item = impl Into<(String, Value)>>,
-        parent: &Id,
+        parent: &CommandId,
         facts: &mut impl FactPerspective,
     ) -> Result<Envelope, EngineError> {
         let mut sink = NullSink;
@@ -192,7 +192,11 @@ impl<E: crypto::Engine> VmPolicy<E> {
     }
 
     #[instrument(skip_all)]
-    fn read_command<'a>(&self, id: Id, data: &'a [u8]) -> Result<VmProtocol<'a>, EngineError> {
+    fn read_command<'a>(
+        &self,
+        id: CommandId,
+        data: &'a [u8],
+    ) -> Result<VmProtocol<'a>, EngineError> {
         let unpacked: VmProtocolData = postcard::from_bytes(data).map_err(|e| {
             error!("Could not deserialize: {e:?}");
             EngineError::Read
@@ -261,7 +265,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                     name: &kind,
                     id: command.id().into(),
                     author: author_id,
-                    version: Id::default().into(),
+                    version: CommandId::default().into(),
                 });
                 self.evaluate_rule(&kind, fields.as_slice(), envelope, facts, sink, &ctx)?
             }
@@ -273,7 +277,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
     #[instrument(skip_all, fields(name = name))]
     fn call_action(
         &self,
-        parent: &Id,
+        parent: &CommandId,
         (name, args): Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
@@ -350,7 +354,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
             EngineError::Write
         })?;
         // TODO(chip): calculate the proper ID including the signature
-        let id = Id::hash_for_testing_only(data);
+        let id = CommandId::hash_for_testing_only(data);
         Ok(VmProtocol::new(data, id, c))
     }
 
@@ -365,7 +369,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
             error!("{e}");
             EngineError::Write
         })?;
-        let id = Id::hash_for_testing_only(data);
+        let id = CommandId::hash_for_testing_only(data);
         Ok(VmProtocol::new(data, id, c))
     }
 }

@@ -4,8 +4,9 @@ use core::{marker::PhantomData, mem};
 use buggy::{bug, BugExt};
 
 use crate::{
-    ClientError, Command, Engine, Id, Location, MergeIds, Perspective, Policy, PolicyId, Prior,
-    Revertable, Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    ClientError, Command, CommandId, Engine, GraphId, Location, MergeIds, Perspective, Policy,
+    PolicyId, Prior, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
+    MAX_COMMAND_LENGTH,
 };
 
 /// Transaction used to receive many commands at once.
@@ -16,19 +17,19 @@ use crate::{
 /// result as the new storage head.
 pub struct Transaction<SP: StorageProvider, E> {
     /// The ID of the associated storage
-    storage_id: Id,
+    storage_id: GraphId,
     /// Current working perspective
     perspective: Option<SP::Perspective>,
     /// Head of the current perspective
-    phead: Option<Id>,
+    phead: Option<CommandId>,
     /// Written but not committed heads
-    heads: BTreeMap<Id, Location>,
+    heads: BTreeMap<CommandId, Location>,
     /// Tag for associated engine
     _engine: PhantomData<E>,
 }
 
 impl<SP: StorageProvider, E> Transaction<SP, E> {
-    pub(super) const fn new(storage_id: Id) -> Self {
+    pub(super) const fn new(storage_id: GraphId) -> Self {
         Self {
             storage_id,
             perspective: None,
@@ -43,7 +44,11 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     /// Find a given id if reachable within this transaction.
     ///
     /// Does not search `self.perspective`, which should be written out beforehand.
-    fn locate(&self, storage: &mut SP::Storage, id: &Id) -> Result<Option<Location>, ClientError> {
+    fn locate(
+        &self,
+        storage: &mut SP::Storage,
+        id: &CommandId,
+    ) -> Result<Option<Location>, ClientError> {
         // Search from committed head.
         if let Some(found) = storage.get_location(id)? {
             return Ok(Some(found));
@@ -164,7 +169,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             }
             match command.parent() {
                 Prior::None => {
-                    if command.id() == self.storage_id {
+                    if command.id().into_id() == self.storage_id.into_id() {
                         // Graph already initialized, extra init just spurious
                     } else {
                         bug!("init command does not belong in graph");
@@ -188,7 +193,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
         command: &impl Command,
-        parent: &Id,
+        parent: &CommandId,
     ) -> Result<(), ClientError> {
         let perspective = self.get_perspective(parent, storage)?;
 
@@ -217,8 +222,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
         command: &impl Command,
-        left: Id,
-        right: Id,
+        left: CommandId,
+        right: CommandId,
     ) -> Result<bool, ClientError> {
         // Must always start a new perspective for merges.
         if let Some(p) = self.perspective.take() {
@@ -261,7 +266,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     /// Otherwise, we must write out the perspective and get a new one.
     fn get_perspective(
         &mut self,
-        parent: &Id,
+        parent: &CommandId,
         storage: &mut <SP as StorageProvider>::Storage,
     ) -> Result<&mut <SP as StorageProvider>::Perspective, ClientError> {
         if self.phead == Some(*parent) {
@@ -304,7 +309,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
         // Storage ID is the id of the init command by definition.
-        if self.storage_id != command.id() {
+        if self.storage_id.into_id() != command.id().into_id() {
             return Err(ClientError::InitError);
         }
 
@@ -413,8 +418,8 @@ mod test {
     struct SeqPolicy;
 
     struct SeqCommand {
-        id: Id,
-        prior: Prior<Id>,
+        id: CommandId,
+        prior: Prior<CommandId>,
         data: Box<str>,
     }
 
@@ -467,7 +472,7 @@ mod test {
 
         fn call_action(
             &self,
-            _id: &Id,
+            _id: &CommandId,
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
@@ -493,13 +498,13 @@ mod test {
             let mut buf = [0u8; 128];
             buf[..64].copy_from_slice(left.as_bytes());
             buf[64..].copy_from_slice(right.as_bytes());
-            let id = Id::hash_for_testing_only(&buf);
+            let id = CommandId::hash_for_testing_only(&buf);
             Ok(SeqCommand::new(id, Prior::Merge(left, right)))
         }
     }
 
     impl SeqCommand {
-        fn new(id: Id, prior: Prior<Id>) -> Self {
+        fn new(id: CommandId, prior: Prior<CommandId>) -> Self {
             let data = id.short_b58().into_boxed_str();
             Self { id, prior, data }
         }
@@ -520,11 +525,11 @@ mod test {
             }
         }
 
-        fn id(&self) -> Id {
+        fn id(&self) -> CommandId {
             self.id
         }
 
-        fn parent(&self) -> Prior<Id> {
+        fn parent(&self) -> Prior<CommandId> {
             self.prior
         }
 
@@ -558,9 +563,9 @@ mod test {
     }
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
-        pub fn init(mut client: ClientState<SeqEngine, SP>, ids: &[Id]) -> Self {
-            let mut trx = Transaction::new(ids[0]);
-            let mut prior: Prior<Id> = Prior::None;
+        pub fn init(mut client: ClientState<SeqEngine, SP>, ids: &[CommandId]) -> Self {
+            let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
+            let mut prior: Prior<CommandId> = Prior::None;
             for &id in ids {
                 let cmd = SeqCommand::new(id, prior);
                 trx.add_commands(
@@ -575,7 +580,7 @@ mod test {
             Self { client, trx }
         }
 
-        pub fn line(&mut self, mut prev: Id, ids: &[Id]) {
+        pub fn line(&mut self, mut prev: CommandId, ids: &[CommandId]) {
             for &id in ids {
                 let cmd = SeqCommand::new(id, Prior::Single(prev));
                 self.trx
@@ -590,7 +595,7 @@ mod test {
             }
         }
 
-        pub fn merge(&mut self, (left, right): (Id, Id), ids: &[Id]) {
+        pub fn merge(&mut self, (left, right): (CommandId, CommandId), ids: &[CommandId]) {
             let mergecmd = SeqCommand::new(ids[0], Prior::Merge(left, right));
             self.trx
                 .add_commands(
@@ -638,7 +643,7 @@ mod test {
         }
     }
 
-    fn mkid(x: &str) -> Id {
+    fn mkid(x: &str) -> CommandId {
         x.parse().unwrap()
     }
 
@@ -685,7 +690,11 @@ mod test {
             "ma" "d" < "mb";
             commit;
         };
-        let g = gb.client.provider.get_storage(&mkid("a")).unwrap();
+        let g = gb
+            .client
+            .provider
+            .get_storage(&GraphId::from(mkid("a").into_id()))
+            .unwrap();
 
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "simple");
@@ -719,7 +728,11 @@ mod test {
             commit;
         };
 
-        let g = gb.client.provider.get_storage(&mkid("a")).unwrap();
+        let g = gb
+            .client
+            .provider
+            .get_storage(&GraphId::from(mkid("a").into_id()))
+            .unwrap();
 
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "complex");
@@ -752,7 +765,11 @@ mod test {
             commit;
         };
 
-        let g = gb.client.provider.get_storage(&mkid("a")).unwrap();
+        let g = gb
+            .client
+            .provider
+            .get_storage(&GraphId::from(mkid("a").into_id()))
+            .unwrap();
 
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "duplicates");

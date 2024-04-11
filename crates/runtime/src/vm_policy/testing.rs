@@ -7,7 +7,7 @@ use buggy::{bug, BugExt};
 use crypto::UserId;
 use policy_vm::{ffi::ffi, CommandContext, MachineError};
 
-use crate::Id;
+use crate::CommandId;
 
 pub struct TestFfiEnvelope {
     pub user: UserId,
@@ -41,7 +41,7 @@ impl TestFfiEnvelope {
     ) -> Result<Envelope, MachineError> {
         #[derive(serde::Serialize)]
         struct HashedFields<'a> {
-            parent_id: Id,
+            parent_id: CommandId,
             author_id: UserId,
             payload: &'a [u8],
         }
@@ -60,7 +60,7 @@ impl TestFfiEnvelope {
         })
         .assume("can serialize `HashedFields`")?;
 
-        let command_id = Id::hash_for_testing_only(&data);
+        let command_id = CommandId::hash_for_testing_only(&data);
 
         Ok(Envelope {
             parent_id: parent_id.into(),

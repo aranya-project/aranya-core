@@ -18,7 +18,7 @@ use quinn::{Endpoint, ServerConfig};
 use runtime::{
     memory::MemStorageProvider,
     protocol::{TestActions, TestEffect, TestEngine},
-    ClientState, Id, Sink, SyncRequester,
+    ClientState, GraphId, Sink, SyncRequester,
 };
 use tokio::{runtime::Runtime, sync::Mutex as TMutex};
 
@@ -66,7 +66,7 @@ fn create_client() -> ClientState<TestEngine, MemStorageProvider> {
 fn new_graph(
     client: &mut ClientState<TestEngine, MemStorageProvider>,
     sink: &mut CountSink,
-) -> Result<Id> {
+) -> Result<GraphId> {
     let policy_data = 0_u64.to_be_bytes();
     let payload = (0, 0);
     Ok(client
@@ -76,7 +76,7 @@ fn new_graph(
 
 fn add_commands(
     client: &mut ClientState<TestEngine, MemStorageProvider>,
-    storage_id: &Id,
+    storage_id: &GraphId,
     sink: &mut CountSink,
     n: u64,
 ) {

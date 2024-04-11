@@ -4,21 +4,21 @@ use buggy::BugExt;
 use spin::mutex::Mutex;
 
 use super::io;
-use crate::{Id, Location, StorageError};
+use crate::{GraphId, Location, StorageError};
 
 pub struct Manager;
 
 impl io::IoManager for Manager {
     type Writer = Writer;
 
-    fn create(&mut self, _id: Id) -> Result<Self::Writer, StorageError> {
+    fn create(&mut self, _id: GraphId) -> Result<Self::Writer, StorageError> {
         Ok(Writer {
             head: Mutex::default(),
             shared: Arc::default(),
         })
     }
 
-    fn open(&mut self, _id: Id) -> Result<Option<Self::Writer>, StorageError> {
+    fn open(&mut self, _id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
         Ok(None)
     }
 }

@@ -35,9 +35,9 @@ use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Checkpoint, Command, Fact, FactIndex, FactPerspective, Id, Location, MaxCut, Perspective,
-    PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage, StorageError,
-    StorageProvider,
+    Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Location, MaxCut,
+    Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
+    StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -45,7 +45,7 @@ pub use io::*;
 
 pub struct LinearStorageProvider<FM: IoManager> {
     manager: FM,
-    storage: BTreeMap<Id, LinearStorage<FM::Writer>>,
+    storage: BTreeMap<GraphId, LinearStorage<FM::Writer>>,
 }
 
 pub struct LinearStorage<W> {
@@ -63,7 +63,7 @@ struct SegmentRepr {
     /// Self offset in file.
     offset: usize,
     prior: Prior<Location>,
-    parents: Prior<Id>,
+    parents: Prior<CommandId>,
     policy: PolicyId,
     /// Offset in file to associated fact index.
     facts: usize,
@@ -73,7 +73,7 @@ struct SegmentRepr {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct CommandData {
-    id: Id,
+    id: CommandId,
     priority: Priority,
     policy: Option<Bytes>,
     data: Bytes,
@@ -81,8 +81,8 @@ struct CommandData {
 }
 
 pub struct LinearCommand<'a> {
-    id: &'a Id,
-    parent: Prior<&'a Id>,
+    id: &'a CommandId,
+    parent: Prior<&'a CommandId>,
     priority: Priority,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
@@ -116,7 +116,7 @@ struct FactIndexRepr {
 #[derive(Debug)]
 pub struct LinearPerspective<R> {
     prior: Prior<Location>,
-    parents: Prior<Id>,
+    parents: Prior<CommandId>,
     policy: PolicyId,
     facts: LinearFactPerspective<R>,
     commands: Vec<CommandData>,
@@ -127,7 +127,7 @@ pub struct LinearPerspective<R> {
 impl<R> LinearPerspective<R> {
     fn new(
         prior: Prior<Location>,
-        parents: Prior<Id>,
+        parents: Prior<CommandId>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior<R>,
         max_cut: usize,
@@ -192,30 +192,33 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
 
     fn new_storage<'a>(
         &'a mut self,
-        group: &Id,
+        graph: &GraphId,
         init: Self::Perspective,
     ) -> Result<&'a mut Self::Storage, StorageError> {
         use alloc::collections::btree_map::Entry;
 
-        let Entry::Vacant(entry) = self.storage.entry(*group) else {
+        let Entry::Vacant(entry) = self.storage.entry(*graph) else {
             return Err(StorageError::StorageExists);
         };
 
-        let file = self.manager.create(*group)?;
+        let file = self.manager.create(*graph)?;
         Ok(entry.insert(LinearStorage::create(file, init)?))
     }
 
-    fn get_storage<'a>(&'a mut self, group: &Id) -> Result<&'a mut Self::Storage, StorageError> {
+    fn get_storage<'a>(
+        &'a mut self,
+        graph: &GraphId,
+    ) -> Result<&'a mut Self::Storage, StorageError> {
         use alloc::collections::btree_map::Entry;
 
-        let entry = match self.storage.entry(*group) {
+        let entry = match self.storage.entry(*graph) {
             Entry::Vacant(v) => v,
             Entry::Occupied(o) => return Ok(o.into_mut()),
         };
 
         let file = self
             .manager
-            .open(*group)?
+            .open(*graph)?
             .ok_or(StorageError::NoSuchStorage)?;
         Ok(entry.insert(LinearStorage::open(file)?))
     }
@@ -276,7 +279,7 @@ impl<F: Write> Storage for LinearStorage<F> {
     type Segment = LinearSegment<F::ReadOnly>;
     type FactIndex = LinearFactIndex<F::ReadOnly>;
 
-    fn get_command_id(&self, location: Location) -> Result<Id, StorageError> {
+    fn get_command_id(&self, location: Location) -> Result<CommandId, StorageError> {
         let seg = self.get_segment(location)?;
         let cmd = seg
             .get_command(location)
@@ -818,7 +821,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         Ok(self.commands.len()) // FIXME(jdygert): Off by one?
     }
 
-    fn includes(&self, id: &Id) -> bool {
+    fn includes(&self, id: &CommandId) -> bool {
         self.commands.iter().any(|cmd| cmd.id == *id)
     }
 }
@@ -828,11 +831,11 @@ impl<'a> Command for LinearCommand<'a> {
         self.priority.clone()
     }
 
-    fn id(&self) -> Id {
+    fn id(&self) -> CommandId {
         *self.id
     }
 
-    fn parent(&self) -> Prior<Id> {
+    fn parent(&self) -> Prior<CommandId> {
         self.parent.copied()
     }
 

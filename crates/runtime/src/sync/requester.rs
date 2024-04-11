@@ -10,8 +10,8 @@ use super::{
     COMMAND_SAMPLE_MAX, REQUEST_MISSING_MAX,
 };
 use crate::{
-    command::{Command, Id},
-    storage::{Segment, Storage, StorageError, StorageProvider},
+    command::{Command, CommandId},
+    storage::{GraphId, Segment, Storage, StorageError, StorageProvider},
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -28,7 +28,7 @@ pub enum SyncRequestMessage {
         /// A new random value produced by a cryptographically secure RNG.
         session_id: u128,
         /// Specifies the graph to be synced.
-        storage_id: Id,
+        storage_id: GraphId,
         /// Specifies the maximum number of bytes worth of commands that
         /// the requester wishes to receive.
         max_bytes: u64,
@@ -36,7 +36,7 @@ pub enum SyncRequestMessage {
         /// respond with any commands that the requester may not have based on
         /// the provided sample. When sending commands ancestors must be sent
         /// before descendents.
-        commands: Vec<Id, COMMAND_SAMPLE_MAX>,
+        commands: Vec<CommandId, COMMAND_SAMPLE_MAX>,
     },
 
     /// Sent by the requester if it deduces a `SyncResponse` message has been
@@ -95,7 +95,7 @@ pub enum SyncRequesterState {
 const OOO_LEN: usize = 4;
 pub struct SyncRequester<'a> {
     session_id: u128,
-    storage_id: Id,
+    storage_id: GraphId,
     state: SyncRequesterState,
     max_bytes: u64,
     next_index: u64,
@@ -105,7 +105,7 @@ pub struct SyncRequester<'a> {
 
 impl SyncRequester<'_> {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(storage_id: Id, rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -323,7 +323,7 @@ impl SyncRequester<'_> {
         self.state = SyncRequesterState::Start;
         self.max_bytes = max_bytes;
 
-        let mut commands: Vec<Id, COMMAND_SAMPLE_MAX> = Vec::new();
+        let mut commands: Vec<CommandId, COMMAND_SAMPLE_MAX> = Vec::new();
 
         match provider.get_storage(&self.storage_id) {
             Err(StorageError::NoSuchStorage) => (),

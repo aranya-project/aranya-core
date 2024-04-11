@@ -7,9 +7,8 @@ use std::{
 
 use quinn::{ClientConfig, ConnectError, ConnectionError, Endpoint, ReadToEndError, WriteError};
 use runtime::{
-    command::Id,
     engine::{Engine, Sink},
-    storage::StorageProvider,
+    storage::{GraphId, StorageProvider},
     ClientError, ClientState, SyncError, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
 use tokio::sync::Mutex as TMutex;
@@ -128,7 +127,7 @@ impl Syncer {
         client: &mut ClientState<EN, SP>,
         mut syncer: SyncRequester<'_>,
         sink: &mut S,
-        storage_id: &Id,
+        storage_id: &GraphId,
         server_addr: SocketAddr,
     ) -> Result<usize, QuicSyncError>
     where

@@ -81,7 +81,7 @@ fn run(file: &str) -> Result<(),TestError> {
 
     let mut provider: MemStorageProvider<TestProtocol,u64,u64> = MemStorageProvider::new();
 
-    let mut storage_id: Id = 0.into();
+    let mut storage_id: GraphId = 0.into();
     let mut orphans = 0;
     let policy_id = 0;
     let group_id = 0;

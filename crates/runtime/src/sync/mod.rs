@@ -7,7 +7,7 @@ use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{Command, Id, Priority},
+    command::{Command, CommandId, Priority},
     storage::{StorageError, MAX_COMMAND_LENGTH},
     Prior,
 };
@@ -41,9 +41,9 @@ pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RES
 /// Represents high-level data of a command.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommandMeta {
-    id: Id,
+    id: CommandId,
     priority: Priority,
-    parent: Prior<Id>,
+    parent: Prior<CommandId>,
     policy_length: u32,
     length: u32,
     max_cut: usize,
@@ -114,8 +114,8 @@ impl From<PostcardError> for SyncError {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncCommand<'a> {
     priority: Priority,
-    id: Id,
-    parent: Prior<Id>,
+    id: CommandId,
+    parent: Prior<CommandId>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
     max_cut: usize,
@@ -126,11 +126,11 @@ impl<'a> Command for SyncCommand<'a> {
         self.priority.clone()
     }
 
-    fn id(&self) -> Id {
+    fn id(&self) -> CommandId {
         self.id
     }
 
-    fn parent(&self) -> Prior<Id> {
+    fn parent(&self) -> Prior<CommandId> {
         self.parent
     }
 
