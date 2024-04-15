@@ -1161,6 +1161,26 @@ fn parse_finish_function_definition(
     ))
 }
 
+/// Parse a `Rule::global_let_statement` into an [GlobalLetStatement](ast::GlobalLetStatement).
+fn parse_global_let_statement(
+    item: Pair<'_, Rule>,
+    pratt: &PrattParser<Rule>,
+    cc: &mut ChunkContext,
+) -> Result<AstNode<ast::GlobalLetStatement>, ParseError> {
+    let locator = cc.add_range(&item)?;
+    let pc = descend(item);
+    let identifier = pc.consume_string(Rule::identifier)?;
+    let expression = pc.consume_expression(pratt)?;
+
+    Ok(AstNode::new(
+        ast::GlobalLetStatement {
+            identifier,
+            expression,
+        },
+        locator,
+    ))
+}
+
 /// Parse a policy document string into an [Policy](ast::Policy) object.
 ///
 /// The version parameter asserts that the code conforms to that
@@ -1248,6 +1268,9 @@ pub fn parse_policy_chunk(
             Rule::finish_function_definition => policy
                 .finish_functions
                 .push(parse_finish_function_definition(item, &pratt, &mut cc)?),
+            Rule::global_let_statement => policy
+                .global_lets
+                .push(parse_global_let_statement(item, &pratt, &mut cc)?),
             Rule::EOI => (),
             _ => {
                 return Err(ParseError::new(

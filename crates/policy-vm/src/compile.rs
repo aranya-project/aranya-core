@@ -17,13 +17,16 @@ use alloc::{
 use core::{fmt, ops::Range};
 
 pub use ast::Policy as AstPolicy;
-use ast::{Expression, FactDefinition, FactField, FactLiteral, FieldDefinition, MatchPattern};
+use ast::{
+    Expression, FactDefinition, FactField, FactLiteral, FieldDefinition, MatchPattern, NamedStruct,
+};
 use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
 
 pub use self::error::{CallColor, CompileError, CompileErrorType};
 use crate::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Machine, Target, Value,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Machine, Struct, Target,
+    Value,
 };
 
 enum FunctionColor {
@@ -304,7 +307,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile instructions to construct a struct literal
-    fn compile_struct_literal(&mut self, s: &ast::NamedStruct) -> Result<(), CompileError> {
+    fn compile_struct_literal(&mut self, s: &NamedStruct) -> Result<(), CompileError> {
         if !self.m.struct_defs.contains_key(&s.identifier) {
             // Because structs are dynamically created, this is all we
             // can check at this point. Field validation has to happen
@@ -1126,6 +1129,38 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    /// Compile a globally scoped let statement
+    fn compile_global_let(
+        &mut self,
+        global_let: &AstNode<ast::GlobalLetStatement>,
+    ) -> Result<(), CompileError> {
+        let identifier = &global_let.inner.identifier;
+        let expression = &global_let.inner.expression;
+
+        let value = expression_value(expression).ok_or_else(|| {
+            CompileError::from_locator(
+                CompileErrorType::InvalidExpression(expression.clone()),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            )
+        })?;
+
+        match self.m.globals.entry(identifier.clone()) {
+            btree_map::Entry::Vacant(e) => {
+                e.insert(value);
+            }
+            btree_map::Entry::Occupied(_) => {
+                return Err(CompileError::from_locator(
+                    CompileErrorType::AlreadyDefined(identifier.clone()),
+                    self.last_locator,
+                    self.m.codemap.as_ref(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
     fn compile_unwrap(
         &mut self,
@@ -1352,6 +1387,12 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             is_debug: self.is_debug,
         };
+
+        // Compile global let statements
+        for global_let in &self.policy.global_lets {
+            cs.compile_global_let(global_let)?;
+        }
+
         cs.compile(self.policy)?;
         Ok(cs.into_machine())
     }
@@ -1401,5 +1442,28 @@ fn field_vtype(f: &FactField) -> Option<VType> {
             }
         }
         FactField::Bind => None,
+    }
+}
+
+/// Get expression value, e.g. Expression::Int => Value::Int
+fn expression_value(e: &Expression) -> Option<Value> {
+    match e {
+        Expression::Int(v) => Some(Value::Int(*v)),
+        Expression::Bool(v) => Some(Value::Bool(*v)),
+        Expression::String(v) => Some(Value::String(v.clone())),
+        Expression::NamedStruct(NamedStruct {
+            identifier: identfier,
+            fields,
+        }) => Some(Value::Struct(Struct {
+            name: identfier.clone(),
+            fields: {
+                let mut value_fields = BTreeMap::new();
+                for field in fields {
+                    value_fields.insert(field.0.clone(), expression_value(&field.1)?);
+                }
+                value_fields
+            },
+        })),
+        _ => None,
     }
 }

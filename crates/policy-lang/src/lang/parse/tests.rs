@@ -1314,6 +1314,118 @@ fn parse_serialize_deserialize() {
 }
 
 #[test]
+fn parse_global_let_statements() -> Result<(), ParseError> {
+    let policy_str = r#"
+        let x = 42
+        let y = "hello"
+        let z = true
+
+        action foo() {
+            let a = x + 1
+            let b = y + " world"
+            let c = !z
+            emit Bar {
+                a: a,
+                b: b,
+                c: c,
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(policy_str, Version::V3)?;
+
+    assert_eq!(
+        policy.global_lets,
+        vec![
+            AstNode::new(
+                ast::GlobalLetStatement {
+                    identifier: String::from("x"),
+                    expression: ast::Expression::Int(42),
+                },
+                9,
+            ),
+            AstNode::new(
+                ast::GlobalLetStatement {
+                    identifier: String::from("y"),
+                    expression: ast::Expression::String(String::from("hello")),
+                },
+                28,
+            ),
+            AstNode::new(
+                ast::GlobalLetStatement {
+                    identifier: String::from("z"),
+                    expression: ast::Expression::Bool(true),
+                },
+                52,
+            ),
+        ]
+    );
+
+    assert_eq!(
+        policy.actions,
+        vec![AstNode::new(
+            ast::ActionDefinition {
+                identifier: String::from("foo"),
+                arguments: vec![],
+                statements: vec![
+                    AstNode::new(
+                        ast::Statement::Let(ast::LetStatement {
+                            identifier: String::from("a"),
+                            expression: ast::Expression::Add(
+                                Box::new(ast::Expression::Identifier(String::from("x"))),
+                                Box::new(ast::Expression::Int(1)),
+                            ),
+                        }),
+                        101,
+                    ),
+                    AstNode::new(
+                        ast::Statement::Let(ast::LetStatement {
+                            identifier: String::from("b"),
+                            expression: ast::Expression::Add(
+                                Box::new(ast::Expression::Identifier(String::from("y"))),
+                                Box::new(ast::Expression::String(String::from(" world"))),
+                            ),
+                        }),
+                        127,
+                    ),
+                    AstNode::new(
+                        ast::Statement::Let(ast::LetStatement {
+                            identifier: String::from("c"),
+                            expression: ast::Expression::Not(Box::new(
+                                ast::Expression::Identifier(String::from("z")),
+                            )),
+                        }),
+                        160,
+                    ),
+                    AstNode::new(
+                        ast::Statement::Emit(ast::Expression::NamedStruct(ast::NamedStruct {
+                            identifier: String::from("Bar"),
+                            fields: vec![
+                                (
+                                    String::from("a"),
+                                    ast::Expression::Identifier(String::from("a")),
+                                ),
+                                (
+                                    String::from("b"),
+                                    ast::Expression::Identifier(String::from("b")),
+                                ),
+                                (
+                                    String::from("c"),
+                                    ast::Expression::Identifier(String::from("c")),
+                                ),
+                            ],
+                        })),
+                        183,
+                    ),
+                ],
+            },
+            74,
+        )]
+    );
+    Ok(())
+}
+
+#[test]
 fn test_fact_key_can_have_bind_value() -> anyhow::Result<()> {
     let text = r#"
         action test() {
@@ -1321,6 +1433,5 @@ fn test_fact_key_can_have_bind_value() -> anyhow::Result<()> {
         }
     "#;
     parse_policy_str(text, Version::V3)?;
-
     Ok(())
 }

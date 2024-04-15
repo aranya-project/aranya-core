@@ -2048,15 +2048,15 @@ fn test_fact_function_return() -> anyhow::Result<()> {
     assert_eq!(
         io.effect_stack[0],
         (
-            "Result".to_string(),
+            String::from("Result"),
             vec![KVPair::new(
                 "x",
                 Value::Struct(Struct {
-                    name: "Foo".to_string(),
+                    name: String::from("Foo"),
                     fields: {
                         let mut test_struct_map = BTreeMap::new();
-                        test_struct_map.insert("a".to_string(), Value::Int(1));
-                        test_struct_map.insert("b".to_string(), Value::Int(2));
+                        test_struct_map.insert(String::from("a"), Value::Int(1));
+                        test_struct_map.insert(String::from("b"), Value::Int(2));
                         test_struct_map
                     }
                 })
@@ -2417,6 +2417,231 @@ fn test_debug_assert() -> anyhow::Result<()> {
             run_action(&machine_no_debug, &mut io, test_name)?,
             ExitReason::Normal
         );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_global_let_statements() -> anyhow::Result<()> {
+    let text = r#"
+        let x = 42
+        let y = "hello world"
+        let z = true
+        
+        struct Far {
+            a int,
+        }
+
+        struct Bar {
+            a struct Far,
+            b string,
+            c bool,
+        }
+
+        let d = Bar { 
+            a: Far {
+                a: 3
+            },
+            b: "y",
+            c: false,
+        }
+
+        command Result {
+            fields {
+                a int,
+                b string,
+                c bool,
+                d struct Bar,
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo() {
+            let a = x + 1
+            let b = y
+            let c = !z
+            publish Result {
+                a: a,
+                b: b,
+                c: c,
+                d: d,
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let mut io = TestIO::new();
+    let machine = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+
+    // Check if the global variables are defined correctly in the machine
+    assert_eq!(machine.globals, {
+        BTreeMap::from([
+            (
+                String::from("d"),
+                Value::Struct(Struct {
+                    name: String::from("Bar"),
+                    fields: BTreeMap::from([
+                        (
+                            String::from("a"),
+                            Value::Struct(Struct {
+                                name: String::from("Far"),
+                                fields: BTreeMap::from([(String::from("a"), Value::Int(3))]),
+                            }),
+                        ),
+                        (String::from("b"), Value::String(String::from("y"))),
+                        (String::from("c"), Value::Bool(false)),
+                    ]),
+                }),
+            ),
+            (String::from("x"), Value::Int(42)),
+            (
+                String::from("y"),
+                Value::String(String::from("hello world")),
+            ),
+            (String::from("z"), Value::Bool(true)),
+        ])
+    });
+
+    let ctx = dummy_ctx_action("foo");
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+    let result = rs.call_action("foo", [Value::None])?;
+    assert_eq!(result, ExitReason::Normal);
+
+    // Check if the published struct is correct
+    assert_eq!(io.publish_stack.len(), 1);
+    assert_eq!(
+        io.publish_stack[0],
+        (
+            String::from("Result"),
+            vec![
+                KVPair::new("a", Value::Int(43)),
+                KVPair::new("b", Value::String(String::from("hello world"))),
+                KVPair::new("c", Value::Bool(false)),
+                KVPair::new(
+                    "d",
+                    Value::Struct(Struct {
+                        name: String::from("Bar"),
+                        fields: BTreeMap::from([
+                            (
+                                String::from("a"),
+                                Value::Struct(Struct {
+                                    name: String::from("Far"),
+                                    fields: BTreeMap::from([(String::from("a"), Value::Int(3))]),
+                                }),
+                            ),
+                            (String::from("b"), Value::String(String::from("y"))),
+                            (String::from("c"), Value::Bool(false)),
+                        ]),
+                    }),
+                ),
+            ]
+        )
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_global_let_duplicates() -> anyhow::Result<()> {
+    let text = r#"
+        let x = 10
+
+        command Result {
+            fields {
+                a int,
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo() {
+            let x = x + 15
+            publish Result {
+                a: x,
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let mut io = TestIO::new();
+    let machine = Compiler::new(&policy).compile()?;
+    let ctx = dummy_ctx_action("foo");
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+    let result = rs.call_action("foo", [Value::None]);
+
+    assert!(matches!(
+        result,
+        Err(MachineError {
+            err_type: MachineErrorType::AlreadyDefined(identifier),
+            ..
+        }) if identifier == "x"
+    ));
+
+    let text = r#"
+        let x = 10
+        let x = 5
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let res = Compiler::new(&policy).compile();
+    assert!(matches!(
+        res,
+        Err(CompileError {
+            err_type: CompileErrorType::AlreadyDefined(identifier),
+            ..
+        }) if identifier == "x"
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
+    let texts = &[
+        r#"
+            struct Bar {
+                a bool,
+            }
+            let x = serialize( Bar { a: true, } )
+        "#,
+        r#"
+            fact Foo[]=>{x int}
+            let x = Foo  
+        "#,
+        r#"
+            let x = envelope::author_id(envelope)
+        "#,
+        r#"
+            let x = None
+        "#,
+        r#"
+            // Globals cannot depend on other global variables
+            let x = 42
+            
+            struct Far {
+                a int,
+            }
+
+            let e = Far {
+                a: x
+            }
+        "#,
+    ];
+
+    for text in texts {
+        let policy = parse_policy_str(text, Version::V3)?;
+        let res = Compiler::new(&policy).compile();
+        assert!(matches!(
+            res,
+            Err(CompileError {
+                err_type: CompileErrorType::InvalidExpression(_),
+                ..
+            })
+        ));
     }
 
     Ok(())

@@ -491,6 +491,15 @@ pub struct FinishFunctionDefinition {
     pub statements: Vec<AstNode<Statement>>,
 }
 
+/// A globally scopped let statement
+#[derive(Debug, Clone, PartialEq)]
+pub struct GlobalLetStatement {
+    /// The variable's name
+    pub identifier: String,
+    /// The variable's value
+    pub expression: Expression,
+}
+
 /// A list of (position, size) pairs for text ranges
 pub type TextRanges = Vec<(usize, usize)>;
 
@@ -515,6 +524,8 @@ pub struct Policy {
     pub functions: Vec<AstNode<FunctionDefinition>>,
     /// The policy's finish function definitions.
     pub finish_functions: Vec<AstNode<FinishFunctionDefinition>>,
+    /// The policy's global let statements.
+    pub global_lets: Vec<AstNode<GlobalLetStatement>>,
     /// The source text
     pub text: String,
     /// Text ranges for various nodes (start, end)

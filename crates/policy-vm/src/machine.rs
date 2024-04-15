@@ -179,6 +179,8 @@ pub struct Machine {
     pub(crate) struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Mapping between program instructions and original code
     pub(crate) codemap: Option<CodeMap>,
+    /// Globally scoped variables
+    pub(crate) globals: BTreeMap<String, Value>,
 }
 
 impl Machine {
@@ -193,6 +195,7 @@ impl Machine {
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             codemap: None,
+            globals: BTreeMap::new(),
         }
     }
 
@@ -204,6 +207,7 @@ impl Machine {
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             codemap: Some(codemap),
+            globals: BTreeMap::new(),
         }
     }
 
@@ -216,6 +220,7 @@ impl Machine {
                 fact_defs: m.fact_defs,
                 struct_defs: m.struct_defs,
                 codemap: m.codemap,
+                globals: BTreeMap::new(),
             }),
         }
     }
@@ -480,16 +485,16 @@ where
             Instruction::Def => {
                 let key = self.ipop()?;
                 let value = self.ipop_value()?;
-                if self.defs.contains_key(&key) {
+                if self.defs.contains_key(&key) || self.machine.globals.contains_key(&key) {
                     return Err(self.err(MachineErrorType::AlreadyDefined(key)));
                 }
                 self.defs.insert(key, value);
             }
             Instruction::Get => {
                 let key: String = self.ipop()?;
-                let v = self
-                    .defs
-                    .get(&key)
+                let def_value = self.defs.get(&key);
+                let v = def_value
+                    .or_else(|| self.machine.globals.get(&key))
                     .ok_or_else(|| self.err(MachineErrorType::NotDefined(key)))?;
                 self.ipush(v.to_owned())?;
             }
