@@ -3,12 +3,7 @@
 //! The Aranya Model is a library which provides APIs to construct one or more clients, execute actions on the clients, sync between clients, and gather performance metrics about the operations performed.
 
 #![cfg_attr(docs, feature(doc_cfg))]
-#![deny(
-    clippy::arithmetic_side_effects,
-    rust_2018_idioms,
-    unused_lifetimes,
-    unused_qualifications
-)]
+#![warn(clippy::arithmetic_side_effects)]
 
 pub mod model;
 

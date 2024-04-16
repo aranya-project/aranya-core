@@ -40,12 +40,7 @@
 
 #![cfg_attr(docs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
-#![deny(
-    clippy::arithmetic_side_effects,
-    rust_2018_idioms,
-    unused_lifetimes,
-    unused_qualifications
-)]
+#![warn(clippy::arithmetic_side_effects)]
 
 extern crate alloc;
 

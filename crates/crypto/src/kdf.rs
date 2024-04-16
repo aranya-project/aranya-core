@@ -372,10 +372,7 @@ impl Context {
         prk: &Prk<K::PrkSize>,
         label: &'static str,
         info: &[&[u8]],
-    ) -> Result<(), KdfError>
-    where
-        K: Kdf,
-    {
+    ) -> Result<(), KdfError> {
         // def LabeledExpand(prk, label, info):
         //     labeled_info = concat(I2OSP(L, 2), domain, suite_ids,
         //                   label, info)

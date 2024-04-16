@@ -992,6 +992,12 @@ impl Stack for MachineStack {
     }
 }
 
+impl Default for MachineStack {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a, M> Display for RunState<'a, M>
 where
     M: MachineIO<MachineStack>,

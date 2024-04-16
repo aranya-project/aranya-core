@@ -119,13 +119,6 @@ pub struct MemStorage {
     head: Option<Location>,
 }
 
-#[derive(Eq, PartialEq, Ord, PartialOrd)]
-struct Head {
-    id: CommandId,
-    policy_id: PolicyId,
-    segment_index: usize,
-}
-
 impl MemStorage {
     fn new() -> Self {
         Self {

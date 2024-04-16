@@ -35,11 +35,7 @@
 //! ```
 
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
-#![deny(
-    clippy::arithmetic_side_effects,
-    clippy::wildcard_imports,
-    missing_docs
-)]
+#![warn(clippy::arithmetic_side_effects, missing_docs)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;

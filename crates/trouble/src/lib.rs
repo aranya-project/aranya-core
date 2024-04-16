@@ -1,8 +1,19 @@
-#![cfg_attr(not(feature = "std"), no_std)]
+//! This crate re-exports or redefines [`std::error::Error`] or
+//! [`core::error::Error`], based on `std` and nightly availability.
+//!
+//! If [`error_in_core`] is stabilized, this will no longer be needed.
+//!
+//! [`error_in_core`]: https://github.com/rust-lang/rust/issues/103765
+
+#![no_std]
 #![cfg_attr(error_in_core, feature(error_in_core))]
+#![warn(clippy::arithmetic_side_effects, missing_docs)]
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "std")] {
+    if #[cfg(any(doc, feature = "std"))] {
+        extern crate std;
+
+        #[doc(no_inline)]
         pub use std::error::Error;
     } else if #[cfg(error_in_core)] {
         pub use core::error::Error;

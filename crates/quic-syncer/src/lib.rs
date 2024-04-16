@@ -1,3 +1,5 @@
+#![warn(clippy::arithmetic_side_effects, missing_docs)]
+
 //! An implementation of the syncer using QUIC.
 
 use std::{
@@ -105,11 +107,13 @@ where
     Ok(())
 }
 
+/// A QUIC syncer client
 pub struct Syncer {
     endpoint: Endpoint,
 }
 
 impl Syncer {
+    /// Create a sync client with the given certificate chain.
     pub fn new(cert_chain: &[rustls::Certificate]) -> Result<Syncer, QuicSyncError> {
         let mut certs = rustls::RootCertStore::empty();
         for cert in cert_chain {
@@ -122,6 +126,9 @@ impl Syncer {
         Ok(Syncer { endpoint })
     }
 
+    /// Sync the specified graph with a peer at the given address.
+    ///
+    /// The sync will update your storage, not the peer's.
     pub async fn sync<S, EN, SP>(
         &self,
         client: &mut ClientState<EN, SP>,

@@ -5,11 +5,7 @@
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docs, feature(doc_cfg))]
-#![deny(
-    clippy::arithmetic_side_effects,
-    clippy::wildcard_imports,
-    missing_docs
-)]
+#![warn(clippy::arithmetic_side_effects, missing_docs)]
 
 mod attr;
 mod ffi;

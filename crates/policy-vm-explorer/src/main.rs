@@ -1,4 +1,4 @@
-#![deny(clippy::arithmetic_side_effects)]
+#![warn(clippy::arithmetic_side_effects)]
 
 use std::{
     collections::{hash_map, BTreeMap, HashMap},

@@ -1,8 +1,8 @@
 //! Base58 encoding.
 
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
-#![deny(unsafe_code)]
-#![deny(clippy::arithmetic_side_effects)]
+#![forbid(unsafe_code)]
+#![warn(clippy::arithmetic_side_effects)]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
