@@ -238,6 +238,24 @@ fn parse_expression_errors() -> Result<(), ParseError> {
 }
 
 #[test]
+fn parse_optional() {
+    let optional_types = &[
+        // (case, is valid)
+        ("optional string", true),
+        ("optional bytes", true),
+        ("optional int", true),
+        ("optional bool", true),
+        ("optional struct Foo", true),
+        ("optional optional bytes", false),
+        ("optional blargh", false),
+    ];
+    for (case, is_valid) in optional_types {
+        let r = PolicyParser::parse(Rule::optional_t, case);
+        assert!(*is_valid == r.is_ok(), "{}: {:?}", case, r)
+    }
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_field() -> Result<(), PestError<Rule>> {
     let mut pairs = PolicyParser::parse(Rule::field_definition, "bar int")?;

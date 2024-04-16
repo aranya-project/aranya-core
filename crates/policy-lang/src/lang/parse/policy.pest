@@ -29,7 +29,7 @@ bool_t = { "bool" }
 id_t = { "id" }
 // An optional type is any of the core types preceded by "optional"
 // (so no "optional optional" allowed).
-optional_t = { "optional" ~ (string_t | bytes_t | int_t | bool_t | id_t) }
+optional_t = { "optional" ~ !"optional" ~ vtype }
 // All structs have a name
 struct_t = { "struct" ~ identifier }
 // A vtype is any of the core types or an optional. (I can't call it
