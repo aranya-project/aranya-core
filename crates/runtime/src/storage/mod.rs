@@ -65,6 +65,12 @@ impl Location {
     }
 }
 
+impl fmt::Display for Location {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.segment, self.command)
+    }
+}
+
 /// An error returned by [`Storage`] or [`StorageProvider`].
 #[derive(Debug)]
 pub enum StorageError {

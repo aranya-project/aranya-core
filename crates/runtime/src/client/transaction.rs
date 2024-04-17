@@ -406,6 +406,8 @@ fn get_policy<'a, E: Engine>(
 
 #[cfg(test)]
 mod test {
+    use test_log::test;
+
     use super::*;
     use crate::{memory::MemStorageProvider, ClientState, MergeIds, Priority};
 
@@ -693,7 +695,7 @@ mod test {
         let g = gb
             .client
             .provider
-            .get_storage(&GraphId::from(mkid("a").into_id()))
+            .get_storage(&"a".parse().unwrap())
             .unwrap();
 
         #[cfg(feature = "graphviz")]
@@ -731,7 +733,7 @@ mod test {
         let g = gb
             .client
             .provider
-            .get_storage(&GraphId::from(mkid("a").into_id()))
+            .get_storage(&"a".parse().unwrap())
             .unwrap();
 
         #[cfg(feature = "graphviz")]
@@ -768,7 +770,7 @@ mod test {
         let g = gb
             .client
             .provider
-            .get_storage(&GraphId::from(mkid("a").into_id()))
+            .get_storage(&"a".parse().unwrap())
             .unwrap();
 
         #[cfg(feature = "graphviz")]
@@ -779,5 +781,59 @@ mod test {
         let seq = lookup(g, b"seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(seq, "a:b:c:d:e");
+    }
+
+    #[test]
+    fn test_mid_braid_1() {
+        let mut gb = graph! {
+            ClientState::new(SeqEngine, MemStorageProvider::new());
+            "a";
+            commit;
+            "a" < "b" "c" "d" "e" "f" "g";
+            "d" < "h" "i" "j";
+            commit;
+        };
+
+        let g = gb
+            .client
+            .provider
+            .get_storage(&"a".parse().unwrap())
+            .unwrap();
+
+        #[cfg(feature = "graphviz")]
+        crate::storage::memory::graphviz::dot(g, "mid_braid_1");
+
+        assert_eq!(g.get_head().unwrap(), Location::new(3, 0));
+
+        let seq = lookup(g, b"seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(seq, "a:b:c:d:h:i:j:e:f:g");
+    }
+
+    #[test]
+    fn test_mid_braid_2() {
+        let mut gb = graph! {
+            ClientState::new(SeqEngine, MemStorageProvider::new());
+            "a";
+            commit;
+            "a" < "b" "c" "d" "h" "i" "j";
+            "d" < "e" "f" "g";
+            commit;
+        };
+
+        let g = gb
+            .client
+            .provider
+            .get_storage(&"a".parse().unwrap())
+            .unwrap();
+
+        #[cfg(feature = "graphviz")]
+        crate::storage::memory::graphviz::dot(g, "mid_braid_2");
+
+        assert_eq!(g.get_head().unwrap(), Location::new(3, 0));
+
+        let seq = lookup(g, b"seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(seq, "a:b:c:d:h:i:j:e:f:g");
     }
 }

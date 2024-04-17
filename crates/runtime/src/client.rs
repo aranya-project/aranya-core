@@ -2,6 +2,7 @@ use alloc::{collections::BinaryHeap, vec::Vec};
 use core::fmt;
 
 use buggy::{Bug, BugExt};
+use tracing::trace;
 
 use crate::{
     Command, CommandId, Engine, EngineError, GraphId, Location, Perspective, Policy, Prior,
@@ -253,6 +254,8 @@ pub fn braid<S: Storage>(
 
     let mut strands = BinaryHeap::<Strand<S::Segment>>::new();
 
+    trace!(%left, %right, "braiding");
+
     for head in [left, right] {
         strands.push(Strand::new(storage, head)?);
     }
@@ -261,8 +264,6 @@ pub fn braid<S: Storage>(
 
     // Get latest command
     while let Some(strand) = strands.pop() {
-        braid.push(strand.next);
-
         // Consume another command off the strand
         let prior = if let Some(previous) = strand.next.previous() {
             Prior::Single(previous)
@@ -270,23 +271,32 @@ pub fn braid<S: Storage>(
             strand.segment.prior()
         };
         if matches!(prior, Prior::Merge(..)) {
-            // Skip merge commands
-            braid.pop();
+            trace!("skipping merge command");
+        } else {
+            trace!("adding {}", strand.next);
+            braid.push(strand.next);
         }
 
         // Continue processing prior if not accessible from other strands.
         'location: for location in prior {
             for other in &strands {
-                if storage.is_ancestor(location, &other.segment)? {
+                trace!("checking {}", other.next);
+                if (location.same_segment(other.next) && location.command <= other.next.command)
+                    || storage.is_ancestor(location, &other.segment)?
+                {
+                    trace!("found ancestor");
                     continue 'location;
                 }
             }
 
+            trace!("strand at {location}");
             strands.push(Strand::new(storage, location)?);
         }
         if strands.len() == 1 {
             // No concurrency left, done.
-            braid.push(strands.pop().assume("strands not empty")?.next);
+            let next = strands.pop().assume("strands not empty")?.next;
+            trace!("adding {}", strand.next);
+            braid.push(next);
             break;
         }
     }
