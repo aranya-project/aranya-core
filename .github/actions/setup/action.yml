@@ -116,7 +116,7 @@ runs:
       shell: bash
 
     - name: Install cargo-make
-      run: cargo install --version '0.37.9' --locked cargo-make
+      run: cargo install --version '0.37.11' --locked cargo-make
       shell: bash
 
     # BoringSSL uses Go.
