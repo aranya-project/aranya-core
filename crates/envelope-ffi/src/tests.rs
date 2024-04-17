@@ -1,4 +1,5 @@
 #![cfg(test)]
+#![allow(clippy::arithmetic_side_effects)]
 
 extern crate alloc;
 use alloc::vec::Vec;

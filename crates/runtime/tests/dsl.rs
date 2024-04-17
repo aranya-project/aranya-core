@@ -1,3 +1,4 @@
+#![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 
 use std::{

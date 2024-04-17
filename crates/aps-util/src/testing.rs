@@ -2,6 +2,7 @@
 
 #![cfg(any(test, feature = "testing"))]
 #![cfg_attr(docs, doc(cfg(feature = "testing")))]
+#![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::panic)]
 
 extern crate alloc;

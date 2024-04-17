@@ -1,4 +1,4 @@
-#![warn(clippy::arithmetic_side_effects, missing_docs)]
+#![warn(missing_docs)]
 
 //! An implementation of the syncer using QUIC.
 

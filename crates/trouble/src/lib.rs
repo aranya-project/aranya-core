@@ -7,7 +7,7 @@
 
 #![no_std]
 #![cfg_attr(error_in_core, feature(error_in_core))]
-#![warn(clippy::arithmetic_side_effects, missing_docs)]
+#![warn(missing_docs)]
 
 cfg_if::cfg_if! {
     if #[cfg(any(doc, feature = "std"))] {

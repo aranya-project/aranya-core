@@ -6,7 +6,7 @@
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docs, feature(doc_cfg))]
-#![warn(clippy::arithmetic_side_effects, missing_docs)]
+#![warn(missing_docs)]
 
 pub mod spira;
 

@@ -1,7 +1,9 @@
 //! This is a benchmark for syncing using the quic syncer. It benchmarks the amounts of time
 //! to sync a command.
 
-#![allow(clippy::panic, clippy::unwrap_used)]
+#![allow(clippy::arithmetic_side_effects)]
+#![allow(clippy::panic)]
+#![allow(clippy::unwrap_used)]
 
 use std::{
     net::{Ipv4Addr, SocketAddr},

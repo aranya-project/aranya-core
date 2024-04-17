@@ -20,7 +20,7 @@
 
 #![cfg_attr(docs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest)), no_std)]
-#![warn(clippy::arithmetic_side_effects, missing_docs)]
+#![warn(missing_docs)]
 
 mod error;
 mod ffi;

@@ -1,3 +1,5 @@
+#![allow(clippy::arithmetic_side_effects)]
+
 use std::{
     collections::btree_map::{BTreeMap, Entry},
     sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},

@@ -4,7 +4,8 @@
 //! If you implement any traits in this crate it is **very
 //! highly** recommended that you use these tests.
 
-#![allow(clippy::arithmetic_side_effects, clippy::panic)]
+#![allow(clippy::arithmetic_side_effects)]
+#![allow(clippy::panic)]
 #![cfg(any(test, feature = "test_util"))]
 #![cfg_attr(docs, doc(cfg(feature = "test_util")))]
 #![forbid(unsafe_code)]

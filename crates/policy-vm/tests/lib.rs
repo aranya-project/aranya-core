@@ -164,12 +164,12 @@ impl<'a, T, G> TestModule<'a, T, G> {
 
     #[ffi_export(def = "function sub(x int, y int) int")]
     fn sub<E: Engine>(
-        ctx: &CommandContext<'_>,
-        eng: &mut E,
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
         x: i64,
         y: i64,
     ) -> Result<i64, Overflow> {
-        Self::add::<E>(ctx, eng, x, -y)
+        x.checked_sub(y).ok_or(Overflow)
     }
 
     #[ffi_export(def = "function concat(a string, b string) string")]
