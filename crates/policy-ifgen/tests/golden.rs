@@ -2,7 +2,7 @@
 
 use std::{io::Write, path::Path};
 
-use policy_ifgen_core::generate_code;
+use policy_ifgen_build::generate_code;
 use policy_lang::lang::parse_policy_document;
 
 fn dotest(name: &str) {
@@ -13,12 +13,10 @@ fn dotest(name: &str) {
     let doc = std::fs::read_to_string(data.join(format!("{name}.md"))).unwrap();
     let doc = parse_policy_document(&doc).unwrap();
 
-    let code = generate_code(&doc);
-    let parsed = syn::parse2(code).unwrap();
-    let body = prettyplease::unparse(&parsed);
+    let rust_code = generate_code(&doc);
 
     let mut file = mint.new_goldenfile(format!("{name}.rs")).unwrap();
-    write!(file, "{body}").unwrap();
+    write!(file, "{rust_code}").unwrap();
 }
 
 #[test]

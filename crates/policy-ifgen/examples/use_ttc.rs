@@ -2,15 +2,15 @@
 #[path = "../tests/data/ttc.rs"]
 mod ttc;
 
-use policy_vm::Id;
-use ttc::Actor;
+use policy_ifgen::Id;
+use ttc::ActorExt;
 
 struct PrintClient;
-impl Actor for PrintClient {
+impl policy_ifgen::Actor for PrintClient {
     fn call_action(
         &mut self,
-        (name, args): ttc::VmActions<'_>,
-    ) -> Result<(), runtime::ClientError> {
+        (name, args): policy_ifgen::VmActions<'_>,
+    ) -> Result<(), policy_ifgen::ClientError> {
         println!("Called {name}({args:?})");
         Ok(())
     }

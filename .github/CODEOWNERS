@@ -15,9 +15,7 @@
 /crates/perspective-ffi @apetkov @chip
 /crates/policy-ast @chip @apetkov
 /crates/policy-derive @elagergren @chip
-/crates/policy-ifgen @jdygert @elagergren
-/crates/policy-ifgen-core @jdygert @elagergren
-/crates/policy-ifgen-macro @jdygert @elagergren
+/crates/policy-ifgen* @jdygert @elagergren
 /crates/policy-lang @chip @apetkov
 /crates/policy-vm @chip @apetkov
 /crates/policy-vm-explorer @chip @apetkov

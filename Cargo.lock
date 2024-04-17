@@ -1947,30 +1947,27 @@ dependencies = [
 name = "policy-ifgen"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "clap",
- "policy-ifgen-core",
- "policy-lang",
- "prettyplease",
- "syn 2.0.52",
-]
-
-[[package]]
-name = "policy-ifgen-core"
-version = "0.1.0"
-dependencies = [
  "goldenfile",
- "policy-ast",
+ "policy-ifgen-build",
  "policy-ifgen-macro",
  "policy-lang",
  "policy-vm",
+ "runtime",
+ "serde",
+ "trouble",
+]
+
+[[package]]
+name = "policy-ifgen-build"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "policy-ast",
+ "policy-lang",
  "prettyplease",
  "proc-macro2",
  "quote",
- "runtime",
- "serde",
  "syn 2.0.52",
- "trouble",
 ]
 
 [[package]]
@@ -1978,8 +1975,7 @@ name = "policy-ifgen-macro"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "policy-ifgen-core",
- "policy-lang",
+ "proc-macro2",
  "quote",
  "syn 2.0.52",
 ]

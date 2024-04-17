@@ -43,7 +43,6 @@ heapless = { version = "0.7", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
-prettyplease = { version = "0.2.15" }
 quinn = { version = "0.10.1" }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
@@ -56,6 +55,11 @@ tokio = { version = "1.28.1", default-features = false }
 tokio-util = { version = "0.7.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.18", default-features = false }
+
+prettyplease = "0.2"
+proc-macro2 = "1.0"
+syn = "2.0"
+quote = "1.0"
 
 [patch."https://git.spideroak-inc.com/spideroak-inc/flow3-rs"]
 trouble.path = "crates/trouble"

@@ -1,47 +1,44 @@
-use std::path::{Path, PathBuf};
+//! Proc macros used on policy structs, effects, and actions.
 
-use anyhow::Context;
-use policy_ifgen_core::generate_code;
-use policy_lang::lang::parse_policy_document;
-use quote::quote;
-use syn::LitStr;
+#![warn(
+    clippy::arithmetic_side_effects,
+    clippy::wildcard_imports,
+    // TODO(jdygert): missing_docs
+)]
 
-#[proc_macro]
-pub fn interface(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let path: LitStr = match syn::parse(input) {
-        Ok(v) => v,
-        Err(e) => return e.into_compile_error().into(),
-    };
+use proc_macro::TokenStream;
+use syn::Error;
 
-    let policy = match read_doc(path.value().as_ref()) {
-        Ok(v) => v,
-        Err(e) => {
-            return syn::Error::new(proc_macro::Span::call_site().into(), format!("{e:?}"))
-                .into_compile_error()
-                .into();
-        }
-    };
+mod actions;
+mod common;
+mod effect;
+mod effects;
+mod value;
 
-    let code = generate_code(&policy);
-
-    // Wrap in module so we can use `#![allow(...)]`
-    quote! {
-        pub use __interface::*;
-        mod __interface {
-            #code
-        }
-    }
-    .into()
+#[proc_macro_attribute]
+pub fn value(attr: TokenStream, item: TokenStream) -> TokenStream {
+    crate::value::parse(attr.into(), item.into())
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
 }
 
-fn read_doc(relpath: &Path) -> anyhow::Result<policy_lang::ast::Policy> {
-    let root = std::env::var_os("CARGO_MANIFEST_DIR").context("bad CARGO_MANIFEST_DIR")?;
-    let mut path = PathBuf::from(root);
-    path.push(relpath);
-    let path = path.as_path();
+#[proc_macro_attribute]
+pub fn effect(attr: TokenStream, item: TokenStream) -> TokenStream {
+    crate::effect::parse(attr.into(), item.into())
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
 
-    let doc = std::fs::read_to_string(path).with_context(|| format!("could not read {path:?}"))?;
-    let policy = parse_policy_document(&doc).context("error in policy doc")?;
+#[proc_macro_attribute]
+pub fn effects(attr: TokenStream, item: TokenStream) -> TokenStream {
+    crate::effects::parse(attr.into(), item.into())
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
+}
 
-    Ok(policy)
+#[proc_macro_attribute]
+pub fn actions(attr: TokenStream, item: TokenStream) -> TokenStream {
+    crate::actions::parse(attr.into(), item.into())
+        .unwrap_or_else(Error::into_compile_error)
+        .into()
 }

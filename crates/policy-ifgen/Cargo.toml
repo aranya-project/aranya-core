@@ -10,10 +10,19 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+serde = ["dep:serde", "policy-ifgen-macro/serde"]
+
 [dependencies]
-anyhow = { workspace = true }
-clap = { version = "4.4", features = ["derive"] }
-policy-ifgen-core = { path = "../policy-ifgen-core" }
+policy-ifgen-macro = { path = "../policy-ifgen-macro" }
+policy-vm = { path = "../policy-vm" }
+runtime = { path = "../runtime" }
+trouble = { path = "../trouble" }
+
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+goldenfile = "1.6.0"
+
+policy-ifgen-build = { path = "../policy-ifgen-build" }
 policy-lang = { path = "../policy-lang" }
-prettyplease = { workspace = true }
-syn = { version = "2.0", features = ["full"] }

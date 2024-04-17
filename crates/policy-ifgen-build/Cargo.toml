@@ -1,5 +1,5 @@
 [package]
-name = "policy-ifgen-macro"
+name = "policy-ifgen-build"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -10,14 +10,12 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
-[lib]
-proc-macro = true
-
-[features]
-serde = []
-
 [dependencies]
+policy-ast = { path = "../policy-ast" }
+policy-lang = { path = "../policy-lang" }
+
 anyhow = { workspace = true }
+prettyplease = { workspace = true }
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
-syn = { workspace = true, features = ["full"] }
+syn = { workspace = true }

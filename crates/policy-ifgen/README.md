@@ -2,19 +2,16 @@
 
 Generate typed Rust interface from policy code.
 
-## CLI Usage
-
-```sh
-cargo run --bin policy-ifgen -- src/policy.md src/policy.rs
-```
-
-## Build script usage
+## Quickstart
 
 ```toml
 # Cargo.toml
 
-[build-dependencies]
+[dependencies]
 policy-ifgen = { ... }
+
+[build-dependencies]
+policy-ifgen-build = { ... }
 ```
 
 ```rust
@@ -22,7 +19,7 @@ policy-ifgen = { ... }
 
 fn main() {
     println!("cargo:rerun-if-changed=src/policy.md");
-    policy_ifgen::generate("src/policy.md", "src/policy.rs").unwrap();
+    policy_ifgen_build::generate("src/policy.md", "src/policy.rs").unwrap();
 }
 ```
 
@@ -31,4 +28,11 @@ fn main() {
 
 #[rustfmt::skip]
 mod policy;
+
+impl policy_ifgen::Actor for MyActor { ... }
+
+fn do_the_thing(actor: &MyActor) -> Result<(), runtime::ClientError> {
+    use policy::ActorExt;
+    actor.some_action(42, "my string")
+}
 ```
