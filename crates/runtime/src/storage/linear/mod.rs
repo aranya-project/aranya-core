@@ -602,6 +602,29 @@ impl<R: Read> Segment for LinearSegment<R> {
 
 impl<R: Read> FactIndex for LinearFactIndex<R> {}
 
+type MapIter = alloc::collections::btree_map::IntoIter<Bytes, Option<Bytes>>;
+pub struct QueryIterator {
+    it: MapIter,
+}
+
+impl QueryIterator {
+    fn new(it: MapIter) -> Self {
+        Self { it }
+    }
+}
+
+impl Iterator for QueryIterator {
+    type Item = Result<Fact, StorageError>;
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            // filter out tombstones
+            if let (key, Some(value)) = self.it.next()? {
+                return Some(Ok(Fact { key, value }));
+            }
+        }
+    }
+}
+
 impl<R: Read> Query for LinearFactIndex<R> {
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
         let mut prior = Some(&self.repr);
@@ -617,15 +640,11 @@ impl<R: Read> Query for LinearFactIndex<R> {
         Ok(None)
     }
 
-    fn query_prefix(
-        &self,
-        prefix: &[u8],
-    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
-        Ok(self
-            .query_prefix_inner(prefix)?
-            .into_iter()
-            // remove deleted facts
-            .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))))
+    type QueryIterator<'a> = QueryIterator where R: 'a;
+    fn query_prefix(&self, prefix: &[u8]) -> Result<QueryIterator, StorageError> {
+        Ok(QueryIterator::new(
+            self.query_prefix_inner(prefix)?.into_iter(),
+        ))
     }
 }
 
@@ -708,15 +727,11 @@ impl<R: Read> Query for LinearFactPerspective<R> {
         }
     }
 
-    fn query_prefix(
-        &self,
-        prefix: &[u8],
-    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
-        Ok(self
-            .query_prefix_inner(prefix)?
-            .into_iter()
-            // remove deleted facts
-            .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))))
+    type QueryIterator<'a> = QueryIterator where R: 'a;
+    fn query_prefix(&self, prefix: &[u8]) -> Result<QueryIterator, StorageError> {
+        Ok(QueryIterator::new(
+            self.query_prefix_inner(prefix)?.into_iter(),
+        ))
     }
 }
 
@@ -762,10 +777,8 @@ impl<R: Read> Query for LinearPerspective<R> {
         self.facts.query(key)
     }
 
-    fn query_prefix(
-        &self,
-        prefix: &[u8],
-    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+    type QueryIterator<'a> = QueryIterator where R: 'a;
+    fn query_prefix(&self, prefix: &[u8]) -> Result<QueryIterator, StorageError> {
         self.facts.query_prefix(prefix)
     }
 }

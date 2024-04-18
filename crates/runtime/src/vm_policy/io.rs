@@ -124,11 +124,7 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator<'_>, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
-        let c = VmFactCursor::new(name, key, self.facts).map_err(|e| {
-            error!("fact_query: could not crate cursor: {e}");
-            MachineIOError::Internal
-        })?;
-        Ok(c)
+        VmFactCursor::new(name, key, self.facts)
     }
 
     fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
@@ -164,12 +160,9 @@ impl Query for NullFacts {
         Err(StorageError::IoError)
     }
 
-    fn query_prefix(
-        &self,
-        _prefix: &[u8],
-    ) -> Result<impl Iterator<Item = Result<crate::storage::Fact, StorageError>>, StorageError>
-    {
-        Result::<core::iter::Empty<_>, _>::Err(StorageError::IoError)
+    type QueryIterator<'a> = core::iter::Empty<Result<crate::storage::Fact, StorageError>>;
+    fn query_prefix(&self, _prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError> {
+        Err(StorageError::IoError)
     }
 }
 

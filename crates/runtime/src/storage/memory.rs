@@ -381,15 +381,14 @@ impl Query for MemFactIndex {
         Ok(None)
     }
 
-    fn query_prefix(
-        &self,
-        prefix: &[u8],
-    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
-        Ok(self
-            .query_prefix_inner(prefix)
-            .into_iter()
-            // remove deleted facts
-            .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))))
+    type QueryIterator<'a> = Box<dyn Iterator<Item = Result<Fact, StorageError>>>;
+    fn query_prefix(&self, prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError> {
+        Ok(Box::from(
+            self.query_prefix_inner(prefix)
+                .into_iter()
+                // remove deleted facts
+                .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))),
+        ))
     }
 }
 
@@ -657,10 +656,8 @@ impl Query for MemPerspective {
         self.facts.query(key)
     }
 
-    fn query_prefix(
-        &self,
-        prefix: &[u8],
-    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+    type QueryIterator<'a> = <MemFactPerspective as Query>::QueryIterator<'a>;
+    fn query_prefix(&self, prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError> {
         self.facts.query_prefix(prefix)
     }
 }
@@ -707,15 +704,14 @@ impl Query for MemFactPerspective {
         }
     }
 
-    fn query_prefix(
-        &self,
-        prefix: &[u8],
-    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
-        Ok(self
-            .query_prefix_inner(prefix)
-            .into_iter()
-            // remove deleted facts
-            .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))))
+    type QueryIterator<'a> = Box<dyn Iterator<Item = Result<Fact, StorageError>>>;
+    fn query_prefix(&self, prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError> {
+        Ok(Box::from(
+            self.query_prefix_inner(prefix)
+                .into_iter()
+                // remove deleted facts
+                .filter_map(|(key, value)| Some(Ok(Fact { key, value: value? }))),
+        ))
     }
 }
 

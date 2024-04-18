@@ -11,9 +11,9 @@ use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClientError, ClientState, Command, CommandId, Engine, Fact, FactPerspective, GraphId,
-    Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Sink,
-    Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    ClientError, ClientState, Command, CommandId, Engine, FactPerspective, GraphId, Perspective,
+    Policy, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Sink, Storage,
+    StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 /// Ephemeral session used to handle/generate off-graph commands.
@@ -216,10 +216,8 @@ impl<'a, MS, P: FactPerspective> Query for SessionPerspective<'a, MS, P> {
         self.perspective.query(key)
     }
 
-    fn query_prefix(
-        &self,
-        prefix: &[u8],
-    ) -> Result<impl Iterator<Item = Result<Fact, StorageError>>, StorageError> {
+    type QueryIterator<'q> = P::QueryIterator<'q> where Self: 'q;
+    fn query_prefix(&self, prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError> {
         self.perspective.query_prefix(prefix)
     }
 }

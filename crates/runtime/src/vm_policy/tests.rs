@@ -13,7 +13,7 @@ use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_policy::testing::TestFfiEnvelope,
-    ClientState,
+    ClientState, NullSink,
 };
 
 const TEST_POLICY_1: &str = r#"---
@@ -79,6 +79,14 @@ action incrementFour(n int) {
     publish Increment {
         key: 1,
         amount: n,
+    }
+}
+
+action lookup(k int, v int, expected bool) {
+    let f = query Stuff[x: k]=>{y: v}
+    match expected {
+        true => { check f is Some }
+        false => { check f is None }
     }
 }
 ```
@@ -283,6 +291,56 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     let value: Vec<_> = postcard::from_bytes(&result).expect("result deserialization");
     // And check that it matches the value we expect.
     assert_eq!(expected_value, value);
+
+    Ok(())
+}
+
+#[test]
+fn test_query_fact_value() -> Result<(), VmPolicyError> {
+    let engine = TestEngine::new(TEST_POLICY_1);
+    let provider = MemStorageProvider::new();
+    let mut cs = ClientState::new(engine, provider);
+
+    let graph = cs
+        .new_graph(&[0u8], Default::default(), &mut NullSink)
+        .expect("could not create graph");
+
+    cs.action(
+        &graph,
+        &mut NullSink,
+        ("create", [Value::Int(1)].as_slice().into()),
+    )
+    .expect("can create");
+
+    let mut session = cs.session(graph).unwrap();
+
+    session
+        .action(
+            &cs,
+            &mut NullSink,
+            &mut NullSink,
+            (
+                "lookup",
+                [Value::Int(1), Value::Int(1), Value::Bool(true)]
+                    .as_slice()
+                    .into(),
+            ),
+        )
+        .expect("should find 1,1");
+
+    session
+        .action(
+            &cs,
+            &mut NullSink,
+            &mut NullSink,
+            (
+                "lookup",
+                [Value::Int(1), Value::Int(2), Value::Bool(false)]
+                    .as_slice()
+                    .into(),
+            ),
+        )
+        .expect("should not find 1,2");
 
     Ok(())
 }
