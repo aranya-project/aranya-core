@@ -203,10 +203,10 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Try to run command, or revert if failed.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if !policy.call_rule(command, perspective, sink)? {
+        if let Err(e) = policy.call_rule(command, perspective, sink) {
             perspective.revert(checkpoint);
             sink.rollback();
-            return Err(ClientError::NotAuthorized);
+            return Err(e.into());
         }
         perspective.add_command(command)?;
         sink.commit();
@@ -329,14 +329,14 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Get an empty perspective and run the init command.
         let mut perspective = provider.new_perspective(&policy_id);
         sink.begin();
-        if !policy.call_rule(command, &mut perspective, sink)? {
+        if let Err(e) = policy.call_rule(command, &mut perspective, sink) {
             sink.rollback();
             // We don't need to revert perspective since we just drop it.
-            return Err(ClientError::NotAuthorized);
+            return Err(e.into());
         }
         perspective.add_command(command)?;
 
-        let storage = provider.new_storage(&self.storage_id, perspective)?;
+        let (_, storage) = provider.new_storage(perspective)?;
 
         // Wait to commit until we are absolutely sure we've initialized.
         sink.commit();
@@ -366,9 +366,9 @@ fn make_braid_segment<S: Storage, E: Engine>(
         let command = segment
             .get_command(location)
             .assume("braid only contains existing commands")?;
-        if !policy.call_rule(&command, &mut braid_perspective, sink)? {
+        if let Err(e) = policy.call_rule(&command, &mut braid_perspective, sink) {
             sink.rollback();
-            return Err(ClientError::NotAuthorized);
+            return Err(e.into());
         }
     }
 
@@ -456,7 +456,7 @@ mod test {
             command: &impl Command,
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
-        ) -> Result<bool, crate::EngineError> {
+        ) -> Result<(), crate::EngineError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges shouldn't be evaluated"
@@ -469,25 +469,15 @@ mod test {
             } else {
                 facts.insert(b"seq", data);
             };
-            Ok(true)
+            Ok(())
         }
 
         fn call_action(
             &self,
-            _id: &CommandId,
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-        ) -> Result<bool, crate::EngineError> {
-            unimplemented!()
-        }
-
-        fn init<'a>(
-            &self,
-            _target: &'a mut [u8],
-            _policy_data: &[u8],
-            _payload: Self::Payload<'_>,
-        ) -> Result<Self::Command<'a>, crate::EngineError> {
+        ) -> Result<(), crate::EngineError> {
             unimplemented!()
         }
 

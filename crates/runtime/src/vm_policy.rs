@@ -2,6 +2,7 @@ extern crate alloc;
 
 use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
 
+use buggy::bug;
 use policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     OpenContext, PolicyContext, RunState, SealContext, Struct, Value,
@@ -12,7 +13,7 @@ use tracing::{error, info, instrument};
 use crate::{
     command::{Command, CommandId},
     engine::{EngineError, NullSink, Policy, Sink},
-    FactPerspective, MergeIds, Perspective,
+    FactPerspective, MergeIds, Perspective, Prior,
 };
 
 mod error;
@@ -66,7 +67,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         facts: &'a mut P,
         sink: &'a mut impl Sink<(String, Vec<KVPair>)>,
         ctx: &CommandContext<'_>,
-    ) -> Result<bool, EngineError>
+    ) -> Result<(), EngineError>
     where
         P: FactPerspective,
     {
@@ -77,14 +78,14 @@ impl<E: crypto::Engine> VmPolicy<E> {
         let self_data = Struct::new(name, fields);
         match rs.call_command_policy(&self_data.name, &self_data, envelope.into()) {
             Ok(reason) => match reason {
-                ExitReason::Normal => Ok(true),
+                ExitReason::Normal => Ok(()),
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
-                    Ok(false)
+                    Err(EngineError::Check)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
-                    Ok(false)
+                    Err(EngineError::Panic)
                 }
             },
             Err(e) => {
@@ -144,7 +145,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         &self,
         name: &str,
         fields: impl IntoIterator<Item = impl Into<(String, Value)>>,
-        parent: &CommandId,
+        ctx_parent: CommandId,
         facts: &mut impl FactPerspective,
     ) -> Result<Envelope, EngineError> {
         let mut sink = NullSink;
@@ -153,7 +154,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
         let ctx = CommandContext::Seal(SealContext {
             name,
-            head_id: (*parent).into(),
+            head_id: ctx_parent.into(),
         });
         let mut rs = self.machine.create_run_state(&mut io, &ctx);
         let command_struct = Struct::new(name, fields);
@@ -181,7 +182,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Check)
+                    Err(EngineError::Panic)
                 }
             },
             Err(e) => {
@@ -231,16 +232,40 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-    ) -> Result<bool, EngineError> {
+    ) -> Result<(), EngineError> {
         let unpacked: VmProtocolData = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
             EngineError::Read
         })?;
-        let passed = match unpacked {
-            // Init always passes, since it is the root
-            VmProtocolData::Init { .. } => true,
-            // Merges always pass because they're an artifact of the graph
-            VmProtocolData::Merge { .. } => true,
+        match unpacked {
+            VmProtocolData::Init {
+                author_id,
+                kind,
+                serialized_fields,
+                signature,
+                ..
+            } => {
+                let envelope = Envelope {
+                    parent_id: CommandId::default(),
+                    author_id,
+                    command_id: command.id(),
+                    payload: serialized_fields,
+                    signature,
+                };
+                let command_struct = self.open_command(&kind, envelope.clone(), facts)?;
+                let fields: Vec<KVPair> = command_struct
+                    .fields
+                    .into_iter()
+                    .map(|(k, v)| KVPair::new(&k, v))
+                    .collect();
+                let ctx = CommandContext::Policy(PolicyContext {
+                    name: &kind,
+                    id: command.id().into(),
+                    author: author_id,
+                    version: CommandId::default().into(),
+                });
+                self.evaluate_rule(&kind, fields.as_slice(), envelope, facts, sink, &ctx)?
+            }
             VmProtocolData::Basic {
                 parent,
                 kind,
@@ -269,26 +294,36 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                 });
                 self.evaluate_rule(&kind, fields.as_slice(), envelope, facts, sink, &ctx)?
             }
-        };
+            // Merges always pass because they're an artifact of the graph
+            _ => (),
+        }
 
-        Ok(passed)
+        Ok(())
     }
 
     #[instrument(skip_all, fields(name = name))]
     fn call_action(
         &self,
-        parent: &CommandId,
         (name, args): Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-    ) -> Result<bool, EngineError> {
+    ) -> Result<(), EngineError> {
+        let parent = match facts.head_id() {
+            Prior::None => None,
+            Prior::Single(id) => Some(id),
+            Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
+        };
+        // FIXME(chip): This is kind of wrong, but it avoids having to
+        // plumb Option<Id> into the VM and FFI
+        let ctx_parent = parent.unwrap_or_default();
+
         let emit_stack = {
             let mut ffis = self.ffis.lock();
             let mut eng = self.engine.lock();
             let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
             let ctx = CommandContext::Action(ActionContext {
                 name,
-                head_id: (*parent).into(),
+                head_id: ctx_parent.into(),
             });
             let mut rs = self.machine.create_run_state(&mut io, &ctx);
             let exit_reason = match args {
@@ -303,59 +338,46 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                 ExitReason::Normal => {}
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
-                    return Ok(false);
+                    return Err(EngineError::Check);
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
-                    return Ok(false);
+                    return Err(EngineError::Panic);
                 }
             };
             io.into_emit_stack()
         };
+
         for (name, fields) in emit_stack {
-            let envelope = self.seal_command(&name, fields, parent, facts)?;
-            let wrapped = postcard::to_allocvec(&VmProtocolData::Basic {
-                author_id: envelope.author_id,
-                parent: *parent,
-                kind: name,
-                serialized_fields: envelope.payload,
-                signature: envelope.signature,
-            })?;
+            let envelope = self.seal_command(&name, fields, ctx_parent, facts)?;
+            let data = match parent {
+                None => VmProtocolData::Init {
+                    // TODO(chip): where does the policy value come from?
+                    policy: 0u64.to_le_bytes(),
+                    author_id: envelope.author_id,
+                    kind: name,
+                    serialized_fields: envelope.payload,
+                    signature: envelope.signature,
+                },
+                Some(parent) => VmProtocolData::Basic {
+                    author_id: envelope.author_id,
+                    parent,
+                    kind: name,
+                    serialized_fields: envelope.payload,
+                    signature: envelope.signature,
+                },
+            };
+            let wrapped = postcard::to_allocvec(&data)?;
             let new_command = self.read_command(envelope.command_id, &wrapped)?;
 
-            let passed = self.call_rule(&new_command, facts, sink)?;
-            if passed {
-                facts.add_command(&new_command).map_err(|e| {
-                    error!("{e}");
-                    EngineError::Write
-                })?;
-            } else {
-                // Should this early return on failure or continue the
-                // rest of the queued commands?
-                return Ok(false);
-            }
+            self.call_rule(&new_command, facts, sink)?;
+            facts.add_command(&new_command).map_err(|e| {
+                error!("{e}");
+                EngineError::Write
+            })?;
         }
-        Ok(true)
-    }
 
-    fn init<'a>(
-        &self,
-        target: &'a mut [u8],
-        _policy_data: &[u8],
-        _payload: Self::Payload<'_>,
-    ) -> Result<Self::Command<'a>, EngineError> {
-        let c = VmProtocolData::Init {
-            // TODO(chip): this is a placeholder and needs to be updated to a real
-            // policy... whatever this is for.
-            policy: 0u64.to_le_bytes(),
-        };
-        let data = postcard::to_slice(&c, target).map_err(|e| {
-            error!("{e}");
-            EngineError::Write
-        })?;
-        // TODO(chip): calculate the proper ID including the signature
-        let id = CommandId::hash_for_testing_only(data);
-        Ok(VmProtocol::new(data, id, c))
+        Ok(())
     }
 
     fn merge<'a>(

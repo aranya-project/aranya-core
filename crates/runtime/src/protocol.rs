@@ -2,6 +2,7 @@
 use alloc::vec::Vec;
 use core::convert::Infallible;
 
+use buggy::bug;
 use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
 use serde::{Deserialize, Serialize};
 use tracing::trace;
@@ -141,7 +142,7 @@ impl TestPolicy {
         &self,
         command: &WireBasic,
         facts: &mut impl FactPerspective,
-    ) -> Result<bool, EngineError> {
+    ) -> Result<(), EngineError> {
         let (group, count) = command.payload;
 
         let mut key = Vec::<u8>::new();
@@ -151,7 +152,7 @@ impl TestPolicy {
         value.extend_from_slice(&count.to_be_bytes());
 
         facts.insert(key.as_slice(), value.as_slice());
-        Ok(true)
+        Ok(())
     }
 
     fn call_rule_internal(
@@ -159,22 +160,27 @@ impl TestPolicy {
         policy_command: &WireProtocol,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<<TestPolicy as Policy>::Effect>,
-    ) -> Result<bool, EngineError> {
-        let passed = match &policy_command {
-            WireProtocol::Init(_) => true,
-            WireProtocol::Merge(_) => true,
-            WireProtocol::Basic(m) => {
-                let passed = self.origin_check_message(m, facts)?;
+    ) -> Result<(), EngineError> {
+        if let WireProtocol::Basic(m) = &policy_command {
+            self.origin_check_message(m, facts)?;
 
-                if passed {
-                    sink.consume(TestEffect::Got(m.payload.1));
-                }
+            sink.consume(TestEffect::Got(m.payload.1));
+        }
 
-                passed
-            }
+        Ok(())
+    }
+
+    fn init<'a>(&self, target: &'a mut [u8], nonce: u64) -> Result<TestProtocol<'a>, EngineError> {
+        let message = WireInit {
+            nonce: u128::from(nonce),
+            policy_num: nonce.to_le_bytes(),
         };
 
-        Ok(passed)
+        let command = WireProtocol::Init(message);
+        let data = write(target, &command)?;
+        let id = CommandId::hash_for_testing_only(data);
+
+        Ok(TestProtocol { id, command, data })
     }
 
     fn basic<'a>(
@@ -270,6 +276,7 @@ impl Sink<TestEffect> for TestSink {
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum TestActions {
+    Init(u64),
     SetValue(u64, u64),
 }
 
@@ -288,26 +295,9 @@ impl Policy for TestPolicy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-    ) -> Result<bool, EngineError> {
+    ) -> Result<(), EngineError> {
         let policy_command: WireProtocol = from_bytes(command.bytes())?;
         self.call_rule_internal(&policy_command, facts, sink)
-    }
-
-    fn init<'a>(
-        &self,
-        target: &'a mut [u8],
-        policy_data: &[u8],
-        _payload: Self::Payload<'_>,
-    ) -> Result<TestProtocol<'a>, EngineError> {
-        let policy: [u8; 8] = policy_data[0..8].try_into().expect("unable to load policy");
-        let command = WireProtocol::Init(WireInit {
-            nonce: 0,
-            policy_num: policy,
-        });
-        let data = write(target, &command)?;
-        let id = CommandId::hash_for_testing_only(data);
-
-        Ok(TestProtocol { id, command, data })
     }
 
     fn merge<'a>(
@@ -325,26 +315,38 @@ impl Policy for TestPolicy {
 
     fn call_action(
         &self,
-        parent: &CommandId,
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-    ) -> Result<bool, EngineError> {
+    ) -> Result<(), EngineError> {
+        let parent = match facts.head_id() {
+            Prior::None => CommandId::default(),
+            Prior::Single(id) => id,
+            Prior::Merge(_, _) => bug!("cannot get merge command in call_action"),
+        };
         match action {
+            TestActions::Init(nonce) => {
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let target = buffer.as_mut_slice();
+                let command = self.init(target, nonce)?;
+
+                self.call_rule_internal(&command.command, facts, sink)?;
+
+                facts.add_command(&command)?;
+            }
             TestActions::SetValue(key, value) => {
                 //let target = facts.get_target()?;
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let target = buffer.as_mut_slice();
                 let payload = (key, value);
-                let command = self.basic(target, *parent, payload)?;
+                let command = self.basic(target, parent, payload)?;
 
-                let passed = self.call_rule_internal(&command.command, facts, sink)?;
+                self.call_rule_internal(&command.command, facts, sink)?;
 
-                if passed {
-                    facts.add_command(&command)?;
-                }
-                Ok(passed)
+                facts.add_command(&command)?;
             }
         }
+
+        Ok(())
     }
 }

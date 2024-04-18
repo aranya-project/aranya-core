@@ -6,7 +6,7 @@ use tracing::trace;
 
 use crate::{
     Command, CommandId, Engine, EngineError, GraphId, Location, Perspective, Policy, Prior,
-    Priority, Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    Priority, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 mod session;
@@ -53,7 +53,10 @@ impl trouble::Error for ClientError {
 
 impl From<EngineError> for ClientError {
     fn from(error: EngineError) -> Self {
-        ClientError::EngineError(error)
+        match error {
+            EngineError::Check => Self::NotAuthorized,
+            _ => Self::EngineError(error),
+        }
     }
 }
 
@@ -103,23 +106,22 @@ where
     pub fn new_graph(
         &mut self,
         policy_data: &[u8],
-        payload: <E::Policy as Policy>::Payload<'_>,
+        action: <E::Policy as Policy>::Action<'_>,
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<GraphId, ClientError> {
         let policy_id = self.engine.add_policy(policy_data)?;
         let policy = self.engine.get_policy(&policy_id)?;
 
-        let mut buffer = [0u8; MAX_COMMAND_LENGTH];
-        let target = buffer.as_mut_slice();
-        let command = policy.init(target, policy_data, payload)?;
+        let mut perspective = self.provider.new_perspective(&policy_id);
+        sink.begin();
+        policy
+            .call_action(action, &mut perspective, sink)
+            .inspect_err(|_| sink.rollback())?;
+        sink.commit();
 
-        let storage_id = GraphId::from(command.id().into_id());
+        let (graph_id, _) = self.provider.new_storage(perspective)?;
 
-        let mut trx = self.transaction(&storage_id);
-        trx.add_commands(&[command], &mut self.provider, &mut self.engine, sink)?;
-        self.commit(&mut trx, sink)?;
-
-        Ok(storage_id)
+        Ok(graph_id)
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
@@ -154,8 +156,6 @@ where
 
         let head = storage.get_head()?;
 
-        let parent = storage.get_command_id(head)?;
-
         let mut perspective = storage
             .get_linear_perspective(head)?
             .assume("can always get perspective at head")?;
@@ -167,16 +167,12 @@ where
         // Must checkpoint once we add action transactions.
 
         sink.begin();
-        match policy.call_action(&parent, action, &mut perspective, sink) {
-            Ok(true) => {
+        match policy.call_action(action, &mut perspective, sink) {
+            Ok(_) => {
                 let segment = storage.write(perspective)?;
                 storage.commit(segment)?;
                 sink.commit();
                 Ok(())
-            }
-            Ok(false) => {
-                sink.rollback();
-                Err(ClientError::NotAuthorized)
             }
             Err(e) => {
                 sink.rollback();

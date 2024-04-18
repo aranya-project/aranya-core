@@ -24,8 +24,6 @@ pub struct Session<SP: StorageProvider, E> {
     perspective: <SP::Storage as Storage>::Perspective,
     /// Policy ID for session
     policy_id: PolicyId,
-    /// Head of perspective
-    head: CommandId,
     /// Tag for associated engine
     _engine: PhantomData<E>,
 }
@@ -35,7 +33,6 @@ impl<SP: StorageProvider, E> Session<SP, E> {
         let storage = provider.get_storage(&storage_id)?;
         let head_loc = storage.get_head()?;
         let seg = storage.get_segment(head_loc)?;
-        let head = seg.head().id();
         let perspective = storage
             .get_linear_perspective(head_loc)?
             .assume("can get perspective at head")?;
@@ -44,7 +41,6 @@ impl<SP: StorageProvider, E> Session<SP, E> {
             storage_id,
             perspective,
             policy_id: seg.policy(),
-            head,
             _engine: PhantomData,
         };
 
@@ -74,26 +70,17 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             message_sink,
             perspective: &mut self.perspective,
             policy: self.policy_id,
-            head: self.head,
             added: 0,
         };
         let checkpoint = perspective.perspective.checkpoint();
         effect_sink.begin();
 
         // Try to perform action.
-        match policy.call_action(&self.head, action, &mut perspective, effect_sink) {
-            Ok(true) => {
-                // Success, update head and commit effects
-                self.head = perspective.head;
+        match policy.call_action(action, &mut perspective, effect_sink) {
+            Ok(_) => {
+                // Success, commit effects
                 effect_sink.commit();
                 Ok(())
-            }
-            Ok(false) => {
-                // Rejected, revert all
-                perspective.perspective.revert(checkpoint);
-                perspective.message_sink.rollback();
-                effect_sink.rollback();
-                Err(ClientError::NotAuthorized)
             }
             Err(e) => {
                 // Other error, revert all? See #513.
@@ -125,20 +112,19 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         let policy = client.engine.get_policy(&self.policy_id)?;
 
         // Validate command parent information
-        if let Prior::Single(parent) = command.parent() {
-            if self.head != parent {
-                return Err(ClientError::Bug(Bug::new("parent not valid")));
-            }
+        if self.perspective.head_id() != Prior::Single(command.parent) {
+            bug!("parent not valid");
         }
 
         // Try to evaluate command.
         sink.begin();
         let checkpoint = self.perspective.checkpoint();
-        if !policy.call_rule(&command, &mut self.perspective, sink)? {
+        if let Err(e) = policy.call_rule(&command, &mut self.perspective, sink) {
             self.perspective.revert(checkpoint);
             sink.rollback();
-            return Err(ClientError::NotAuthorized);
+            return Err(e.into());
         }
+        self.perspective.add_command(&command)?;
         sink.commit();
 
         Ok(())
@@ -205,7 +191,6 @@ struct SessionPerspective<'a, MS, P> {
     message_sink: &'a mut MS,
     perspective: &'a mut P,
     policy: PolicyId,
-    head: CommandId,
     added: usize,
 }
 
@@ -259,5 +244,9 @@ where
 
     fn includes(&self, id: &CommandId) -> bool {
         self.perspective.includes(id)
+    }
+
+    fn head_id(&self) -> Prior<CommandId> {
+        self.perspective.head_id()
     }
 }

@@ -17,6 +17,10 @@ use crate::{
 pub enum VmProtocolData {
     Init {
         policy: [u8; 8],
+        author_id: UserId,
+        kind: String,
+        serialized_fields: Vec<u8>,
+        signature: Vec<u8>,
     },
     Merge {
         left: CommandId,
@@ -71,7 +75,7 @@ impl<'a> Command for VmProtocol<'a> {
 
     fn policy(&self) -> Option<&[u8]> {
         match self.unpacked {
-            VmProtocolData::Init { ref policy } => Some(policy),
+            VmProtocolData::Init { ref policy, .. } => Some(policy),
             _ => None,
         }
     }

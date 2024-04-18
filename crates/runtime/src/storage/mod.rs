@@ -150,11 +150,10 @@ pub trait StorageProvider {
     ///
     /// * `graph` - ID of the graph, taken from the initialization command.
     /// * `init` - Contains the data necessary to initialize the new graph.
-    fn new_storage<'a>(
-        &'a mut self,
-        graph: &GraphId,
+    fn new_storage(
+        &mut self,
         init: Self::Perspective,
-    ) -> Result<&'a mut Self::Storage, StorageError>;
+    ) -> Result<(GraphId, &mut Self::Storage), StorageError>;
 
     /// Get an existing graph.
     ///
@@ -338,6 +337,9 @@ pub trait Perspective: FactPerspective {
 
     /// Returns true if the perspective contains a command with the given ID.
     fn includes(&self, id: &CommandId) -> bool;
+
+    /// Returns the head ID in the perspective, if it exists
+    fn head_id(&self) -> Prior<CommandId>;
 }
 
 /// A fact perspective is essentially a mutable, in-memory version of a [`FactIndex`].

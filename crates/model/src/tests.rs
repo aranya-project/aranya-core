@@ -14,6 +14,7 @@ use runtime::{
     vm_policy::{testing::TestFfiEnvelope, VmPolicy},
     ClientState, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
+use test_log::test;
 
 use crate::{Model, ModelEffect, ModelEngine, ModelError, ProxyClientID, ProxyGraphID};
 
@@ -28,6 +29,26 @@ effect StuffHappened {
     a int,
     b int,
     x int,
+}
+
+command Init {
+    fields {
+        nonce int
+    }
+
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
+
+    policy {
+        check this.nonce > 0
+        finish {}
+    }
+}
+
+action init(nonce int) {
+    publish Init {
+        nonce: nonce,
+    }
 }
 
 command Create {
@@ -304,8 +325,14 @@ impl Model for TestModel {
             .state
             .borrow_mut();
 
+        let nonce =
+            i64::try_from(proxy_id).expect("proxy_id too big to be represented as Value::Int");
         let storage_id = state
-            .new_graph(&[0u8], Default::default(), &mut sink)
+            .new_graph(
+                &[0u8],
+                ("init", [Value::Int(nonce)].as_slice().into()),
+                &mut sink,
+            )
             .expect("could not create graph");
 
         self.storage_ids.insert(proxy_id, storage_id);

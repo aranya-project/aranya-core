@@ -35,8 +35,8 @@ pub enum MachineErrorType {
     /// Invalid fact - An attempt was made to use a fact in a way
     /// that does not match the Fact schema.
     InvalidFact,
-    /// Invalid schema - An attempt to emit a Command struct or produce
-    /// an effect that does not match its definition.
+    /// Invalid schema - An attempt to publish a Command struct or emit
+    /// an Effect that does not match its definition.
     InvalidSchema,
     /// Unresolved target - A branching instruction attempted to jump
     /// to a target whose address has not yet been resolved.

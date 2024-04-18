@@ -345,8 +345,8 @@ fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
-                let payload = (0, 0);
-                let storage_id = state.new_graph(policy_data.as_slice(), payload, &mut sink)?;
+                let storage_id =
+                    state.new_graph(policy_data.as_slice(), TestActions::Init(0), &mut sink)?;
 
                 graphs.insert(id, storage_id);
 

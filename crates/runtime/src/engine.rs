@@ -19,6 +19,7 @@ pub enum EngineError {
     Read,
     Write,
     Check,
+    Panic,
     InternalError,
     Bug(Bug),
 }
@@ -29,6 +30,7 @@ impl fmt::Display for EngineError {
             Self::Read => write!(f, "read error"),
             Self::Write => write!(f, "write error "),
             Self::Check => write!(f, "check error"),
+            Self::Panic => write!(f, "panic"),
             Self::InternalError => write!(f, "internal error"),
             Self::Bug(b) => write!(f, "{b}"),
         }
@@ -131,36 +133,27 @@ pub trait Policy {
     /// This is used to support inband policy upgrades.
     fn serial(&self) -> u32;
 
-    /// Evaluate a command at the given perspective. If the command is accepted,
-    /// effects may be emitted to the sink and facts may be written to the
-    /// perspective. Returns true for an accepted command and false for a
-    /// rejected command.
+    /// Evaluate a command at the given perspective. If the command is accepted, effects may
+    /// be emitted to the sink and facts may be written to the perspective. Returns an error
+    /// for a rejected command.
     fn call_rule(
         &self,
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
-    ) -> Result<bool, EngineError>;
+    ) -> Result<(), EngineError>;
 
     /// Process an action checking each emitted command against the policy and producing
-    /// effects to the sink. All emitted commands are handled transactionally where if
-    /// any emitted command is rejected no commands are added to the storage.
+    /// effects to the sink. All emitted commands are handled transactionally where if any
+    /// emitted command is rejected no commands are added to the storage. Returns the ID of
+    /// the first command emitted (if any), and error if the action or emitted commands
+    /// failed.
     fn call_action(
         &self,
-        parent_id: &CommandId,
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
-    ) -> Result<bool, EngineError>;
-
-    /// Produces an init message serialized to target. The `struct` representing the
-    /// Command is returned.
-    fn init<'a>(
-        &self,
-        target: &'a mut [u8],
-        policy_data: &[u8],
-        payload: Self::Payload<'_>,
-    ) -> Result<Self::Command<'a>, EngineError>;
+    ) -> Result<(), EngineError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
     /// Command is returned.

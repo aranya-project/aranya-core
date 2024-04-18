@@ -28,6 +28,23 @@ effect StuffHappened {
     y int,
 }
 
+command Init {
+    fields {
+        nonce int,
+    }
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
+    policy {
+        finish {}
+    }
+}
+
+action init(nonce int) {
+    publish Init {
+        nonce: nonce,
+    }
+}
+
 command Create {
     fields {
         key int,
@@ -223,7 +240,7 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
     let storage_id = cs
-        .new_graph(&[0u8], Default::default(), &mut sink)
+        .new_graph(&[0u8], ("init", Cow::Borrowed(&[0.into()])), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
@@ -302,7 +319,7 @@ fn test_query_fact_value() -> Result<(), VmPolicyError> {
     let mut cs = ClientState::new(engine, provider);
 
     let graph = cs
-        .new_graph(&[0u8], Default::default(), &mut NullSink)
+        .new_graph(&[0u8], ("init", Cow::Borrowed(&[0.into()])), &mut NullSink)
         .expect("could not create graph");
 
     cs.action(
@@ -358,7 +375,7 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
     // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
     let storage_id = cs
-        .new_graph(&[0u8], Default::default(), &mut sink)
+        .new_graph(&[0u8], ("init", Cow::Borrowed(&[0.into()])), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.

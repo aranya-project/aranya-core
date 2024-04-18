@@ -26,10 +26,11 @@ async fn test_sync() -> Result<()> {
     let client2 = make_client();
     let mut sink2 = TestSink::new();
 
-    let storage_id = client1
-        .lock()
-        .await
-        .new_graph(&0u64.to_be_bytes(), (0, 0), &mut sink1)?;
+    let storage_id =
+        client1
+            .lock()
+            .await
+            .new_graph(&0u64.to_be_bytes(), TestActions::Init(0), &mut sink1)?;
 
     let (key, cert) = certs()?;
 

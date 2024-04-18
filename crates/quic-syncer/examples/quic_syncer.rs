@@ -125,11 +125,10 @@ async fn run(options: Opt) -> Result<()> {
     let storage_id;
     if options.new_graph {
         let policy_data = 0_u64.to_be_bytes();
-        let payload = (0, 0);
         storage_id = client
             .lock()
             .await
-            .new_graph(policy_data.as_slice(), payload, &mut sink)
+            .new_graph(policy_data.as_slice(), TestActions::Init(0), &mut sink)
             .map_err(|e| SyncError {
                 error_msg: e.to_string(),
             })?;

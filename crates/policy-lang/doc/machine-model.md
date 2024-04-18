@@ -90,11 +90,11 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 ## context-specific
 ||||
 |-|-|-|
-|`emit`         | `( s -- )`           | emit a struct
+|`publish`      | `( s -- )`           | publish a command struct
 |`create`       | `( f -- )`           | create a fact
 |`delete`       | `( f -- )`           | delete a fact
 |`update`       | `( f f -- )`         | update a fact
-|`effect`       | `( s -- )`           | produce an effect
+|`emit`         | `( s -- )`           | emit an effect struct
 |`query`        | `( f -- s )`         | execute a fact query
 |`exists`       | `( f -- b )`         | determine whether or not the fact exists
 |`id`           | `( z -- i )`         | get the `id` of a command  

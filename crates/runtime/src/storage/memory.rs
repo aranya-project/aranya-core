@@ -84,13 +84,17 @@ impl StorageProvider for MemStorageProvider {
         MemPerspective::new_unrooted(policy_id)
     }
 
-    fn new_storage<'a>(
-        &'a mut self,
-        graph: &GraphId,
+    fn new_storage(
+        &mut self,
         update: Self::Perspective,
-    ) -> Result<&'a mut Self::Storage, StorageError> {
+    ) -> Result<(GraphId, &mut Self::Storage), StorageError> {
         use alloc::collections::btree_map::Entry;
-        let entry = match self.storage.entry(*graph) {
+
+        if update.commands.is_empty() {
+            return Err(StorageError::EmptyPerspective);
+        }
+        let graph_id = GraphId::from(update.commands[0].command.id.into_id());
+        let entry = match self.storage.entry(graph_id) {
             Entry::Vacant(v) => v,
             Entry::Occupied(_) => return Err(StorageError::StorageExists),
         };
@@ -98,7 +102,7 @@ impl StorageProvider for MemStorageProvider {
         let mut storage = MemStorage::new();
         let segment = storage.write(update)?;
         storage.commit(segment)?;
-        Ok(entry.insert(storage))
+        Ok((graph_id, entry.insert(storage)))
     }
 
     fn get_storage<'a>(
@@ -184,9 +188,10 @@ impl Storage for MemStorage {
         parent: Location,
     ) -> Result<Option<Self::Perspective>, StorageError> {
         let segment = self.get_segment(parent)?;
-        if !segment.contains(parent) {
-            return Err(StorageError::CommandOutOfBounds(parent));
-        }
+        let parent_id = segment
+            .get_command(parent)
+            .ok_or(StorageError::CommandOutOfBounds(parent))?
+            .id();
 
         let policy = segment.policy;
         let prior_facts: FactPerspectivePrior = if parent == segment.head_location() {
@@ -203,6 +208,7 @@ impl Storage for MemStorage {
             }
         };
         let prior = Prior::Single(parent);
+        let parents = Prior::Single(parent_id);
 
         let max_cut = self
             .get_segment(parent)?
@@ -211,7 +217,7 @@ impl Storage for MemStorage {
             .max_cut()
             .checked_add(1)
             .assume("must not overflow")?;
-        let perspective = MemPerspective::new(prior, policy, prior_facts, max_cut);
+        let perspective = MemPerspective::new(prior, parents, policy, prior_facts, max_cut);
 
         Ok(Some(perspective))
     }
@@ -254,17 +260,23 @@ impl Storage for MemStorage {
         }
 
         let prior = Prior::Merge(left, right);
-        let left = left_segment
-            .get_command(left)
-            .assume("location must exist")?
-            .max_cut();
-        let right = right_segment
-            .get_command(right)
-            .assume("location must exist")?
-            .max_cut();
-        let max_cut = left.max(right).checked_add(1).assume("must not overflow")?;
 
-        let perspective = MemPerspective::new(prior, policy_id, braid.into(), max_cut);
+        let left_command = left_segment
+            .get_command(left)
+            .ok_or(StorageError::CommandOutOfBounds(left))?;
+        let right_command = right_segment
+            .get_command(right)
+            .ok_or(StorageError::CommandOutOfBounds(right))?;
+        let parents = Prior::Merge(left_command.id(), right_command.id());
+
+        let left_distance = left_command.max_cut();
+        let right_distance = right_command.max_cut();
+        let max_cut = left_distance
+            .max(right_distance)
+            .checked_add(1)
+            .assume("must not overflow")?;
+
+        let perspective = MemPerspective::new(prior, parents, policy_id, braid.into(), max_cut);
 
         Ok(Some(perspective))
     }
@@ -519,6 +531,7 @@ pub enum Update {
 #[derive(Debug)]
 pub struct MemPerspective {
     prior: Prior<Location>,
+    parents: Prior<CommandId>,
     policy: PolicyId,
     facts: MemFactPerspective,
     commands: Vec<CommandData>,
@@ -586,12 +599,14 @@ impl MemFactPerspective {
 impl MemPerspective {
     fn new(
         prior: Prior<Location>,
+        parents: Prior<CommandId>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior,
         max_cut: usize,
     ) -> Self {
         Self {
             prior,
+            parents,
             policy,
             facts: MemFactPerspective::new(prior_facts),
             commands: Vec::new(),
@@ -603,6 +618,7 @@ impl MemPerspective {
     fn new_unrooted(policy: &PolicyId) -> Self {
         Self {
             prior: Prior::None,
+            parents: Prior::None,
             policy: *policy,
             facts: MemFactPerspective::new(FactPerspectivePrior::None),
             commands: Vec::new(),
@@ -646,6 +662,12 @@ impl Perspective for MemPerspective {
 
     fn includes(&self, id: &CommandId) -> bool {
         self.commands.iter().any(|cmd| cmd.command.id == *id)
+    }
+
+    fn head_id(&self) -> Prior<CommandId> {
+        self.commands
+            .last()
+            .map_or(self.parents, |c| Prior::Single(c.command.id))
     }
 }
 

@@ -190,19 +190,22 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
         )
     }
 
-    fn new_storage<'a>(
-        &'a mut self,
-        graph: &GraphId,
+    fn new_storage(
+        &mut self,
         init: Self::Perspective,
-    ) -> Result<&'a mut Self::Storage, StorageError> {
+    ) -> Result<(GraphId, &mut Self::Storage), StorageError> {
         use alloc::collections::btree_map::Entry;
 
-        let Entry::Vacant(entry) = self.storage.entry(*graph) else {
+        if init.commands.is_empty() {
+            return Err(StorageError::EmptyPerspective);
+        }
+        let graph_id = GraphId::from(init.commands[0].id.into_id());
+        let Entry::Vacant(entry) = self.storage.entry(graph_id) else {
             return Err(StorageError::StorageExists);
         };
 
-        let file = self.manager.create(*graph)?;
-        Ok(entry.insert(LinearStorage::create(file, init)?))
+        let file = self.manager.create(graph_id)?;
+        Ok((graph_id, entry.insert(LinearStorage::create(file, init)?)))
     }
 
     fn get_storage<'a>(
@@ -836,6 +839,12 @@ impl<R: Read> Perspective for LinearPerspective<R> {
 
     fn includes(&self, id: &CommandId) -> bool {
         self.commands.iter().any(|cmd| cmd.id == *id)
+    }
+
+    fn head_id(&self) -> Prior<CommandId> {
+        self.commands
+            .last()
+            .map_or(self.parents, |c| Prior::Single(c.id))
     }
 }
 
