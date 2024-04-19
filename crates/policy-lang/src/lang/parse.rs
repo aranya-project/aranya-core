@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use ast::{Expression, FactField, MatchPattern};
+use ast::{EnumDefinition, EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
     error::{InputLocation, LineColLocation},
@@ -164,6 +164,11 @@ fn parse_type(token: Pair<'_, Rule>) -> Result<ast::VType, ParseError> {
             let pc = descend(token);
             let name = pc.consume_string(Rule::identifier)?;
             Ok(ast::VType::Struct(name))
+        }
+        Rule::enum_t => {
+            let pc = descend(token);
+            let name = pc.consume_string(Rule::identifier)?;
+            Ok(ast::VType::Enum(name))
         }
         Rule::optional_t => {
             let mut pairs = token.clone().into_inner();
@@ -409,6 +414,7 @@ pub fn parse_expression(
             Rule::foreign_function_call => Ok(ast::Expression::ForeignFunctionCall(
                 parse_foreign_function_call(primary, pratt)?,
             )),
+            Rule::enum_reference => Ok(Expression::EnumReference(parse_enum_reference(primary)?)),
             Rule::query => {
                 let mut pairs = primary.clone().into_inner();
                 let token = pairs.next().ok_or(ParseError::new(
@@ -1014,6 +1020,33 @@ fn parse_struct_definition(
     ))
 }
 
+fn parse_enum_definition(
+    item: Pair<'_, Rule>,
+    cc: &mut ChunkContext,
+) -> Result<AstNode<EnumDefinition>, ParseError> {
+    assert_eq!(item.as_rule(), Rule::enum_definition);
+
+    let locator = cc.add_range(&item)?;
+    let pc = descend(item);
+    let identifier = pc.consume_string(Rule::identifier)?;
+    let mut values = Vec::<String>::new();
+    for value in pc.into_inner() {
+        let identifier = String::from(value.as_str());
+        values.push(identifier);
+    }
+
+    Ok(AstNode::new(EnumDefinition { identifier, values }, locator))
+}
+
+fn parse_enum_reference(item: Pair<'_, Rule>) -> Result<EnumReference, ParseError> {
+    assert_eq!(item.as_rule(), Rule::enum_reference);
+
+    let pc = descend(item);
+    let identifier = pc.consume_string(Rule::identifier)?;
+    let value = pc.consume_string(Rule::identifier)?;
+    Ok(EnumReference { identifier, value })
+}
+
 /// Parse a `Rule::command_definition` into an [CommandDefinition](ast::CommandDefinition).
 fn parse_command_definition(
     item: Pair<'_, Rule>,
@@ -1259,6 +1292,7 @@ pub fn parse_policy_chunk(
                 .push(parse_action_definition(item, &pratt, &mut cc)?),
             Rule::effect_definition => policy.effects.push(parse_effect_definition(item, &mut cc)?),
             Rule::struct_definition => policy.structs.push(parse_struct_definition(item, &mut cc)?),
+            Rule::enum_definition => policy.enums.push(parse_enum_definition(item, &mut cc)?),
             Rule::command_definition => policy
                 .commands
                 .push(parse_command_definition(item, &pratt, &mut cc)?),

@@ -102,6 +102,10 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
             let ident = format_ident!("{}", st);
             quote! { #ident }
         }
+        VType::Enum(st) => {
+            let ident = format_ident!("{}", st);
+            quote! { #ident }
+        }
         VType::Optional(opt) => {
             let inner = vtype_to_rtype(opt);
             quote! {

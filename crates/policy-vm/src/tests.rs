@@ -2646,3 +2646,57 @@ fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_enum_reference() -> anyhow::Result<()> {
+    let text = r#"
+        effect Effect { a string }
+
+        enum Drink {
+            Water, Coffee
+        }
+
+        command Test {
+            fields {
+                e string
+            }
+            open { return None }
+            seal { return None }
+            policy {
+                finish {
+                    emit Effect { e: this.e }
+                }
+            }
+        }
+
+        action test(type enum Drink) {
+            match type {
+                Drink::Water => {
+                    publish Test { e: "bleh" }
+                }
+                Drink::Coffee => {
+                    publish Test { e: "mmm" }
+                }
+            }
+        }
+
+        
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let mut io = TestIO::new();
+    let ctx = dummy_ctx_policy("test");
+    let machine = Compiler::new(&policy).compile()?;
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+    let reason = rs.call_action("test", [Value::from(1)])?;
+    assert_eq!(reason, ExitReason::Normal);
+    assert_eq!(
+        io.publish_stack[0],
+        (
+            String::from("Test"),
+            vec![KVPair::new("e", Value::from("mmm"))]
+        )
+    );
+
+    Ok(())
+}

@@ -89,6 +89,8 @@ pub enum VType {
     Id,
     /// A named struct
     Struct(String),
+    /// Named enumeration
+    Enum(String),
     /// an optional type of some other type
     Optional(Box<VType>),
 }
@@ -102,6 +104,7 @@ impl fmt::Display for VType {
             Self::Bool => write!(f, "bool"),
             Self::Id => write!(f, "id"),
             Self::Struct(name) => write!(f, "struct {name}"),
+            Self::Enum(name) => write!(f, "enum {name}"),
             Self::Optional(vtype) => write!(f, "optional {vtype}"),
         }
     }
@@ -185,6 +188,24 @@ pub struct NamedStruct {
     pub fields: Vec<(String, Expression)>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+/// Enumeration definition
+pub struct EnumDefinition {
+    /// enum name
+    pub identifier: String,
+    /// list of possible values
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+/// A reference to an enumeration, e.g. `Color::Red`.
+pub struct EnumReference {
+    /// enum name
+    pub identifier: String,
+    /// name of value inside enum
+    pub value: String,
+}
+
 /// Expression atoms with special rules or effects.
 #[derive(Debug, Clone, PartialEq)]
 pub enum InternalFunction {
@@ -234,6 +255,8 @@ pub enum Expression {
     ForeignFunctionCall(ForeignFunctionCall),
     /// A variable identifier
     Identifier(String),
+    /// Enum reference, e.g. `Color::Red`
+    EnumReference(EnumReference),
     /// `(expr)`
     Parentheses(Box<Expression>),
     /// `expr + expr`
@@ -518,6 +541,8 @@ pub struct Policy {
     pub effects: Vec<AstNode<EffectDefinition>>,
     /// The policy's struct definitions.
     pub structs: Vec<AstNode<StructDefinition>>,
+    /// The policy's enum definitions.
+    pub enums: Vec<AstNode<EnumDefinition>>,
     /// The policy's command definitions.
     pub commands: Vec<AstNode<CommandDefinition>>,
     /// The policy's function definitions.

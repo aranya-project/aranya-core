@@ -1171,6 +1171,50 @@ fn parse_struct() {
 }
 
 #[test]
+fn parse_enum_defininition() {
+    let text = r#"
+        enum Color {
+            Red,
+            Green,
+            Blue
+        }
+    "#
+    .trim();
+
+    let policy = parse_policy_str(text, Version::V3).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(
+        policy.enums,
+        vec![AstNode::new(
+            ast::EnumDefinition {
+                identifier: String::from("Color"),
+                values: vec![
+                    String::from("Red"),
+                    String::from("Green"),
+                    String::from("Blue")
+                ]
+            },
+            0
+        )]
+    );
+}
+
+#[test]
+#[allow(clippy::result_large_err)]
+fn parse_enum_reference() -> Result<(), PestError<Rule>> {
+    let mut pair = PolicyParser::parse(Rule::enum_reference, "Color::Red")?;
+    let token: Pair<'_, Rule> = pair.next().unwrap();
+    assert_eq!(token.as_rule(), Rule::enum_reference);
+
+    let mut parts = token.into_inner();
+    let enum_name = parts.next().unwrap().as_str();
+    assert_eq!(enum_name, "Color");
+    let enum_value = parts.next().unwrap().as_str();
+    assert_eq!(enum_value, "Red");
+
+    Ok(())
+}
+
+#[test]
 fn parse_ffi_decl() {
     let text = "function foo(x int, y struct bar) bool";
     let decl = super::parse_ffi_decl(text).expect("parse");

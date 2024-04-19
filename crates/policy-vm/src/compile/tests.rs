@@ -375,6 +375,101 @@ fn test_duplicate_struct_fact_names() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_enum_identifiers_are_unique() -> anyhow::Result<()> {
+    let text = r#"
+        enum Drink {
+            Water, Coffee
+        }
+
+        enum Drink {
+            Coke
+        }
+
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+
+    assert_eq!(
+        result,
+        CompileErrorType::AlreadyDefined(String::from("Drink"))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_enum_values_are_unique() -> anyhow::Result<()> {
+    let text = r#"
+        enum Drink {
+            Water, Tea, Water
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+
+    assert_eq!(
+        result,
+        CompileErrorType::AlreadyDefined(String::from("Drink::Water"))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_enum_reference_undefined_enum() -> anyhow::Result<()> {
+    let text = r#"
+        action test() {
+            let n = Drink::Coffee
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+
+    assert_eq!(result, CompileErrorType::NotDefined(String::from("Drink")));
+
+    Ok(())
+}
+
+#[test]
+fn test_enum_reference_undefined_value() -> anyhow::Result<()> {
+    let text = r#"
+        enum Drink { Water, Coffee }
+        action test() {
+            let n = Drink::Tea
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+
+    assert_eq!(
+        result,
+        CompileErrorType::NotDefined(String::from("Drink::Tea"))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_enum_reference() -> anyhow::Result<()> {
+    let text = r#"
+        enum Result { OK, Err }
+        action test() {
+            let ok = Result::OK
+            let err = Result::Err
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    Compiler::new(&policy).compile().expect("should compile");
+
+    Ok(())
+}
+
+#[test]
 fn test_undefined_fact() -> anyhow::Result<()> {
     let text = r#"
         action test() {

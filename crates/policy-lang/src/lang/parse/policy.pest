@@ -32,9 +32,11 @@ id_t = { "id" }
 optional_t = { "optional" ~ !"optional" ~ vtype }
 // All structs have a name
 struct_t = { "struct" ~ identifier }
+// enumeration type
+enum_t = { "enum" ~ identifier }
 // A vtype is any of the core types or an optional. (I can't call it
 // "type" because that's a reserved keyword in Rust)
-vtype = _{ string_t | bytes_t | int_t | bool_t | id_t | struct_t | optional_t }
+vtype = _{ string_t | bytes_t | int_t | bool_t | id_t | struct_t | enum_t | optional_t }
 
 // ## Fields
 // A field definition is an identifier followed by a type. Used in
@@ -127,6 +129,8 @@ function_call = { identifier ~ "(" ~ (expression ~ ("," ~ expression)* ~ ","?)? 
 // A foreign function call is an identifier followed by double-colons
 // and a function call.
 foreign_function_call = { identifier ~ "::" ~ function_call }
+// Split "Result::Ok" into enum name and value name in order to resolve value to integer
+enum_reference = { identifier ~ "::" ~ identifier }
 
 // Optional literals are "None" or "Some <x>", where <x> is any
 // expression. Note that the grammar allows the construction of
@@ -152,7 +156,7 @@ deserialize = { "deserialize(" ~ expression ~ ")" }
 internal_function = _{ query | exists | if_e | serialize | deserialize }
 // An atom is any of the literals, an internal function,
 // a function call, an identifier, or a parenthetical sub-expression.
-atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | internal_function | function_call | foreign_function_call | identifier | "(" ~ expression ~ ")" }
+atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | internal_function | function_call | foreign_function_call | enum_reference | identifier | "(" ~ expression ~ ")" }
 
 // ## Infix operators
 add = { "+" }
@@ -268,6 +272,8 @@ action_definition = { "action" ~ identifier ~ function_arguments ~ statement_blo
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 // struct Foo { bar id }
 struct_definition = { "struct" ~ identifier ~ struct_def }
+// enum Result { OK, Err }
+enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ "}" }
 // command Foo { ... }
 command_definition = { "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
 // function foo(a int) int { return a }
@@ -284,7 +290,8 @@ top_level_statement = _{
     fact_definition | 
     action_definition | 
     effect_definition | 
-    struct_definition | 
+    struct_definition |
+    enum_definition | 
     command_definition | 
     function_definition | 
     finish_function_definition | 

@@ -6,7 +6,7 @@ use alloc::{
     borrow::ToOwned,
     boxed::Box,
     collections::{
-        btree_map::{self},
+        btree_map::{self, Entry},
         BTreeMap,
     },
     format,
@@ -18,7 +18,8 @@ use core::{fmt, ops::Range};
 
 pub use ast::Policy as AstPolicy;
 use ast::{
-    Expression, FactDefinition, FactField, FactLiteral, FieldDefinition, MatchPattern, NamedStruct,
+    EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
+    MatchPattern, NamedStruct,
 };
 use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
@@ -82,7 +83,7 @@ pub struct CompileState<'a> {
     c: usize,
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
-    function_signatures: BTreeMap<String, FunctionSignature>,
+    function_signatures: BTreeMap<&'a str, FunctionSignature>,
     /// The last locator seen, for imprecise source locating.
     // TODO(chip): Push more precise source tracking further down into the AST.
     last_locator: usize,
@@ -91,7 +92,9 @@ pub struct CompileState<'a> {
     statement_context: Vec<StatementContext>,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
-    /// Determines if one compiles with debug functionality
+    /// name/value mappings for enums
+    enum_values: BTreeMap<&'a str, BTreeMap<&'a str, i64>>,
+    /// Determines if one compiles with debug functionality,
     is_debug: bool,
 }
 
@@ -107,6 +110,7 @@ impl<'a> CompileState<'a> {
             last_locator: 0,
             statement_context: vec![],
             ffi_modules,
+            enum_values: BTreeMap::new(),
             is_debug: false,
         }
     }
@@ -179,14 +183,48 @@ impl<'a> CompileState<'a> {
         }
     }
 
+    fn compile_enum_definition(
+        &mut self,
+        enum_def: &'a EnumDefinition,
+    ) -> Result<(), CompileError> {
+        let enum_name = enum_def.identifier.as_ref();
+        // ensure enum name is unique
+        if self.enum_values.contains_key(enum_name) {
+            return Err(CompileError::from_locator(
+                CompileErrorType::AlreadyDefined(enum_def.identifier.to_owned()),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            ));
+        }
+
+        // Map value names to integers
+        let mut map = BTreeMap::<&'a str, i64>::new();
+        for value_name in enum_def.values.iter() {
+            let value_name: &'a str = value_name.as_ref();
+            let num = i64::try_from(map.len()).expect("usize to i64 conversion failed");
+            match map.entry(value_name) {
+                Entry::Occupied(_) => Err(CompileError::from_locator(
+                    CompileErrorType::AlreadyDefined(format!("{}::{}", enum_name, value_name)),
+                    self.last_locator,
+                    self.m.codemap.as_ref(),
+                )),
+                Entry::Vacant(e) => Ok(e.insert(num)),
+            }?;
+        }
+
+        self.enum_values.insert(enum_name, map);
+
+        Ok(())
+    }
+
     /// Turn a [FunctionDefinition](ast::FunctionDefinition) into a
     /// [FunctionSignature].
     fn define_function_signature(
         &mut self,
-        function_node: &AstNode<ast::FunctionDefinition>,
+        function_node: &'a AstNode<ast::FunctionDefinition>,
     ) -> Result<&FunctionSignature, CompileError> {
         let def = &function_node.inner;
-        match self.function_signatures.entry(def.identifier.clone()) {
+        match self.function_signatures.entry(def.identifier.as_str()) {
             btree_map::Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
@@ -206,10 +244,10 @@ impl<'a> CompileState<'a> {
     /// into a [FunctionSignature].
     fn define_finish_function_signature(
         &mut self,
-        function_node: &AstNode<ast::FinishFunctionDefinition>,
+        function_node: &'a AstNode<ast::FinishFunctionDefinition>,
     ) -> Result<&FunctionSignature, CompileError> {
         let def = &function_node.inner;
-        match self.function_signatures.entry(def.identifier.clone()) {
+        match self.function_signatures.entry(def.identifier.as_str()) {
             btree_map::Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
@@ -528,7 +566,7 @@ impl<'a> CompileState<'a> {
                 }
             },
             ast::Expression::FunctionCall(f) => {
-                let signature = self.function_signatures.get(&f.identifier).ok_or(
+                let signature = self.function_signatures.get(&f.identifier.as_str()).ok_or(
                     CompileError::from_locator(
                         CompileErrorType::NotDefined(f.identifier.clone()),
                         self.last_locator,
@@ -611,6 +649,27 @@ impl<'a> CompileState<'a> {
             ast::Expression::Identifier(i) => {
                 self.append_instruction(Instruction::Const(Value::String(i.clone())));
                 self.append_instruction(Instruction::Get);
+            }
+            Expression::EnumReference(e) => {
+                // get enum by name
+                let enum_def = self.enum_values.get(e.identifier.as_str()).ok_or_else(|| {
+                    CompileError::from_locator(
+                        CompileErrorType::NotDefined(e.identifier.to_owned()),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    )
+                })?;
+
+                // get integer value of enum member
+                let num = enum_def.get(e.value.as_str()).ok_or_else(|| {
+                    CompileError::from_locator(
+                        CompileErrorType::NotDefined(format!("{}::{}", e.identifier, e.value)),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    )
+                })?;
+
+                self.append_instruction(Instruction::Const(Value::Int(*num)))
             }
             ast::Expression::Parentheses(e) => {
                 self.compile_expression(e)?;
@@ -981,7 +1040,7 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Emit);
                 }
                 (ast::Statement::FunctionCall(f), StatementContext::Finish) => {
-                    let signature = self.function_signatures.get(&f.identifier).ok_or(
+                    let signature = self.function_signatures.get(&f.identifier.as_str()).ok_or(
                         CompileError::from_locator(
                             CompileErrorType::NotDefined(f.identifier.clone()),
                             statement.locator,
@@ -1054,7 +1113,7 @@ impl<'a> CompileState<'a> {
     /// Compile a function
     fn compile_function(
         &mut self,
-        function_node: &AstNode<ast::FunctionDefinition>,
+        function_node: &'a AstNode<ast::FunctionDefinition>,
     ) -> Result<(), CompileError> {
         let function = &function_node.inner;
         self.define_label(Label::new_temp(&function.identifier), self.wp)?;
@@ -1091,7 +1150,7 @@ impl<'a> CompileState<'a> {
     /// Compile a finish function
     fn compile_finish_function(
         &mut self,
-        function_node: &AstNode<ast::FinishFunctionDefinition>,
+        function_node: &'a AstNode<ast::FinishFunctionDefinition>,
     ) -> Result<(), CompileError> {
         let function = &function_node.inner;
         self.define_label(Label::new_temp(&function.identifier), self.wp)?;
@@ -1285,7 +1344,7 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile a policy into instructions inside the given Machine.
-    pub fn compile(&mut self, policy: &AstPolicy) -> Result<(), CompileError> {
+    pub fn compile(&mut self, policy: &'a AstPolicy) -> Result<(), CompileError> {
         for effect in &policy.effects {
             let fields: Vec<FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
@@ -1294,6 +1353,11 @@ impl<'a> CompileState<'a> {
 
         for struct_def in &policy.structs {
             self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields)?;
+        }
+
+        // map enum names to constants
+        for enum_def in &policy.enums {
+            self.compile_enum_definition(enum_def)?;
         }
 
         for fact in &policy.facts {
@@ -1385,6 +1449,7 @@ impl<'a> Compiler<'a> {
             last_locator: 0,
             statement_context: vec![],
             ffi_modules: self.ffi_modules,
+            enum_values: BTreeMap::new(),
             is_debug: self.is_debug,
         };
 

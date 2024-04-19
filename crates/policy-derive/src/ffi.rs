@@ -613,6 +613,7 @@ impl ToTokens for VTypeTokens<'_> {
             VType::Bool => quote!(Bool),
             VType::Id => quote!(Id),
             VType::Struct(name) => quote!(Struct(#name)),
+            VType::Enum(name) => quote!(Enum(#name)),
             VType::Optional(vtype) => {
                 let vtype = VTypeTokens::new(vtype, vm);
                 quote!(Optional(&#vm::ffi::Type::#vtype))
@@ -654,6 +655,10 @@ impl ToTokens for TypeTokens<'_> {
             VType::Bool => quote!(bool),
             VType::Id => quote!(#crypto::Id),
             VType::Struct(name) => {
+                let ident = format_ident!("{name}");
+                quote!(#ident)
+            }
+            VType::Enum(name) => {
                 let ident = format_ident!("{name}");
                 quote!(#ident)
             }
