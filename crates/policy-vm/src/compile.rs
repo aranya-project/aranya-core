@@ -7,7 +7,7 @@ use alloc::{
     boxed::Box,
     collections::{
         btree_map::{self, Entry},
-        BTreeMap,
+        BTreeMap, BTreeSet,
     },
     format,
     string::{String, ToString},
@@ -156,6 +156,29 @@ impl<'a> CompileState<'a> {
             return Err(CompileError::new(CompileErrorType::AlreadyDefined(
                 fact.identifier.clone(),
             )));
+        }
+
+        // ensure key identifiers are unique
+        let mut identifiers = BTreeSet::new();
+        for key in fact.key.iter() {
+            if !identifiers.insert(key.identifier.as_str()) {
+                return Err(CompileError::from_locator(
+                    CompileErrorType::AlreadyDefined(key.identifier.to_owned()),
+                    self.last_locator,
+                    self.m.codemap.as_ref(),
+                ));
+            }
+        }
+
+        // ensure value identifiers are unique
+        for value in fact.value.iter() {
+            if !identifiers.insert(value.identifier.as_str()) {
+                return Err(CompileError::from_locator(
+                    CompileErrorType::AlreadyDefined(value.identifier.to_owned()),
+                    self.last_locator,
+                    self.m.codemap.as_ref(),
+                ));
+            }
         }
 
         self.m

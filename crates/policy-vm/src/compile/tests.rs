@@ -880,3 +880,21 @@ fn test_should_not_allow_bind_key_in_fact_update() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_fact_duplicate_field_names() -> anyhow::Result<()> {
+    let cases = [
+        ("i", "fact F[i int, i string] => {a string}"),
+        ("a", "fact F[i int] => {a int, a bool}"),
+        ("i", "fact F[i int] => {i int}"),
+    ];
+    for (identifier, case) in cases {
+        let policy = parse_policy_str(case, Version::V3)?;
+        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(
+            result,
+            CompileErrorType::AlreadyDefined(String::from(identifier))
+        );
+    }
+    Ok(())
+}
