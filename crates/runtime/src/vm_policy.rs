@@ -27,6 +27,51 @@ pub use facts::*;
 pub use io::*;
 pub use protocol::*;
 
+/// Creates a [`VmActions`].
+///
+/// This must be used directly to avoid lifetime issues, not assigned to a variable.
+///
+/// # Example
+///
+/// ```ignore
+/// let x = 42;
+/// let y = String::from("asdf");
+/// client.action(storage_id, sink, vm_action!(foobar(x, y)))
+/// ```
+#[macro_export]
+macro_rules! vm_action {
+    ($name:ident($($arg:expr),* $(,)?)) => {
+        (
+            stringify!($name),
+            [$(::policy_vm::Value::from($arg)),*].as_slice().into()
+        )
+    };
+}
+
+/// Creates a [`VmEffect`].
+///
+/// This is mostly useful for testing expected effects.
+///
+/// # Example
+///
+/// ```ignore
+/// let val = 3;
+/// sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: val }));
+///
+/// client.action(storage_id, sink, vm_action!(create(val)))
+/// ```
+#[macro_export]
+macro_rules! vm_effect {
+    ($name:ident { $($field:ident : $val:expr),* $(,)? }) => {
+        (
+            stringify!($name).into(),
+            vec![$(
+                ::policy_vm::KVPair::new(stringify!($field), $val.into())
+            ),*]
+        )
+    };
+}
+
 /// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<E> {
     machine: Machine,

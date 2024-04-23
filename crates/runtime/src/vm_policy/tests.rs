@@ -1,7 +1,5 @@
 #![allow(clippy::panic)]
 
-use alloc::borrow::Cow;
-
 use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{ffi::FfiModule, Compiler, KVPair, Value};
@@ -240,17 +238,11 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
     let storage_id = cs
-        .new_graph(&[0u8], ("init", Cow::Borrowed(&[0.into()])), &mut sink)
+        .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
-    sink.add_expectation((
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("x", Value::Int(1)),
-            KVPair::new("y", Value::Int(3)),
-        ],
-    ));
+    sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
     // Create and execute an action in the policy. The action type is defined by the Engine
     // and here it is a pair of action name and a Vec of arguments. This is mapped directly
@@ -258,22 +250,14 @@ fn test_vmpolicy() -> Result<(), VmPolicyError> {
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    let action = ("create", [Value::Int(3)].as_slice().into());
-    cs.action(&storage_id, &mut sink, action)
+    cs.action(&storage_id, &mut sink, vm_action!(create(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
-    sink.add_expectation((
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("x", Value::Int(1)),
-            KVPair::new("y", Value::Int(4)),
-        ],
-    ));
+    sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    let action = ("increment", [].as_slice().into());
-    cs.action(&storage_id, &mut sink, action)
+    cs.action(&storage_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
 
     // Everything past this point is validation that the facts exist and were created
@@ -319,15 +303,11 @@ fn test_query_fact_value() -> Result<(), VmPolicyError> {
     let mut cs = ClientState::new(engine, provider);
 
     let graph = cs
-        .new_graph(&[0u8], ("init", Cow::Borrowed(&[0.into()])), &mut NullSink)
+        .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
         .expect("could not create graph");
 
-    cs.action(
-        &graph,
-        &mut NullSink,
-        ("create", [Value::Int(1)].as_slice().into()),
-    )
-    .expect("can create");
+    cs.action(&graph, &mut NullSink, vm_action!(create(1)))
+        .expect("can create");
 
     let mut session = cs.session(graph).unwrap();
 
@@ -336,12 +316,7 @@ fn test_query_fact_value() -> Result<(), VmPolicyError> {
             &cs,
             &mut NullSink,
             &mut NullSink,
-            (
-                "lookup",
-                [Value::Int(1), Value::Int(1), Value::Bool(true)]
-                    .as_slice()
-                    .into(),
-            ),
+            vm_action!(lookup(1, 1, true)),
         )
         .expect("should find 1,1");
 
@@ -350,12 +325,7 @@ fn test_query_fact_value() -> Result<(), VmPolicyError> {
             &cs,
             &mut NullSink,
             &mut NullSink,
-            (
-                "lookup",
-                [Value::Int(1), Value::Int(2), Value::Bool(false)]
-                    .as_slice()
-                    .into(),
-            ),
+            vm_action!(lookup(1, 2, false)),
         )
         .expect("should not find 1,2");
 
@@ -375,17 +345,11 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
     // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
     let storage_id = cs
-        .new_graph(&[0u8], ("init", Cow::Borrowed(&[0.into()])), &mut sink)
+        .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
     // Add an expected effect from the create action.
-    sink.add_expectation((
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("x", Value::Int(1)),
-            KVPair::new("y", Value::Int(3)),
-        ],
-    ));
+    sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 3 }));
 
     // Create and execute an action in the policy. The action type is defined by the Engine
     // and here it is a pair of action name and a Vec of arguments. This is mapped directly
@@ -393,22 +357,14 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    let action = ("create", [Value::Int(3)].as_slice().into());
-    cs.action(&storage_id, &mut sink, action)
+    cs.action(&storage_id, &mut sink, vm_action!(create(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
-    sink.add_expectation((
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("x", Value::Int(1)),
-            KVPair::new("y", Value::Int(4)),
-        ],
-    ));
+    sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    let action = ("increment", [].as_slice().into());
-    cs.action(&storage_id, &mut sink, action)
+    cs.action(&storage_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
 
     {
@@ -417,42 +373,20 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
             let mut msg_sink = MsgSink::new();
 
             // increment
-            sink.add_expectation((
-                String::from("StuffHappened"),
-                vec![
-                    KVPair::new("x", Value::Int(1)),
-                    KVPair::new("y", Value::Int(5)),
-                ],
-            ));
+            sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
             session
-                .action(&cs, &mut sink, &mut msg_sink, ("increment", Cow::default()))
+                .action(&cs, &mut sink, &mut msg_sink, vm_action!(increment()))
                 .expect("failed session action");
 
             // reject incrementFour(33)
             session
-                .action(
-                    &cs,
-                    &mut sink,
-                    &mut msg_sink,
-                    ("incrementFour", Cow::Borrowed(&[33.into()])),
-                )
+                .action(&cs, &mut sink, &mut msg_sink, vm_action!(incrementFour(33)))
                 .expect_err("action should fail");
 
             // succeed incrementFour(4)
-            sink.add_expectation((
-                String::from("StuffHappened"),
-                vec![
-                    KVPair::new("x", Value::Int(1)),
-                    KVPair::new("y", Value::Int(9)),
-                ],
-            ));
+            sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 9 }));
             session
-                .action(
-                    &cs,
-                    &mut sink,
-                    &mut msg_sink,
-                    ("incrementFour", Cow::Borrowed(&[4.into()])),
-                )
+                .action(&cs, &mut sink, &mut msg_sink, vm_action!(incrementFour(4)))
                 .expect("failed session action");
 
             msg_sink.0
@@ -461,20 +395,8 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
         assert_eq!(msgs.len(), 2);
 
         {
-            sink.add_expectation((
-                String::from("StuffHappened"),
-                vec![
-                    KVPair::new("x", Value::Int(1)),
-                    KVPair::new("y", Value::Int(5)),
-                ],
-            ));
-            sink.add_expectation((
-                String::from("StuffHappened"),
-                vec![
-                    KVPair::new("x", Value::Int(1)),
-                    KVPair::new("y", Value::Int(9)),
-                ],
-            ));
+            sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
+            sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 9 }));
 
             // Receive the increment commands
             let mut session = cs.session(storage_id).expect("failed to create session");

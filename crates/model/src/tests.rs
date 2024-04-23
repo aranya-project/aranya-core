@@ -1,16 +1,17 @@
 extern crate alloc;
 
-use alloc::{borrow::Cow, collections::BTreeMap, string::String, vec::Vec};
+use alloc::{borrow::Cow, collections::BTreeMap, vec::Vec};
 use core::{cell::RefCell, matches, time::Duration};
 use std::time::Instant;
 
 use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_lang::lang::parse_policy_document;
-use policy_vm::{ffi::FfiModule, Compiler, KVPair, Value};
+use policy_vm::{ffi::FfiModule, Compiler, Value};
 use runtime::{
     engine::Sink,
     metrics::{Metric, MetricError, Metrics},
     storage::{memory::MemStorageProvider, GraphId},
+    vm_action, vm_effect,
     vm_policy::{testing::TestFfiEnvelope, VmPolicy},
     ClientState, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
 };
@@ -328,11 +329,7 @@ impl Model for TestModel {
         let nonce =
             i64::try_from(proxy_id).expect("proxy_id too big to be represented as Value::Int");
         let storage_id = state
-            .new_graph(
-                &[0u8],
-                ("init", [Value::Int(nonce)].as_slice().into()),
-                &mut sink,
-            )
+            .new_graph(&[0u8], vm_action!(init(nonce)), &mut sink)
             .expect("could not create graph");
 
         self.storage_ids.insert(proxy_id, storage_id);
@@ -493,49 +490,25 @@ fn should_create_client_and_add_commands() {
 
     test_model.new_graph(1, 1).expect("Should create a graph");
 
-    let action = ("create", [Value::Int(3)].as_slice().into());
     let effects = test_model
-        .action(1, 1, action)
+        .action(1, 1, vm_action!(create(3)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(3)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 3 })];
     assert_eq!(effects, expected);
 
-    let action = ("increment", [Value::Int(1)].as_slice().into());
     let effects = test_model
-        .action(1, 1, action)
+        .action(1, 1, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(4)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 4 })];
     assert_eq!(effects, expected);
 
-    let action = ("increment", [Value::Int(5)].as_slice().into());
     let effects = test_model
-        .action(1, 1, action)
+        .action(1, 1, vm_action!(increment(5)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(9)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 9 })];
     assert_eq!(effects, expected);
 }
 
@@ -594,22 +567,15 @@ fn should_sync_clients() {
     test_model.new_graph(1, 1).expect("Should create a graph");
 
     test_model
-        .action(1, 1, ("create", [Value::Int(3)].as_slice().into()))
+        .action(1, 1, vm_action!(create(3)))
         .expect("Should return effect");
 
     let effects = test_model
-        .action(1, 1, ("increment", [Value::Int(1)].as_slice().into()))
+        .action(1, 1, vm_action!(increment(1)))
         .expect("Should return effect");
 
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(4)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 4 })];
     assert_eq!(effects, expected);
 
     // Create client 2
@@ -622,31 +588,17 @@ fn should_sync_clients() {
 
     // Increment client 2 after syncing with client 1
     let effects = test_model
-        .action(2, 1, ("increment", [Value::Int(2)].as_slice().into()))
+        .action(2, 1, vm_action!(increment(2)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(6)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 6 })];
     assert_eq!(effects, expected);
 
     let effects = test_model
-        .action(2, 1, ("increment", [Value::Int(3)].as_slice().into()))
+        .action(2, 1, vm_action!(increment(3)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(9)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 9 })];
     assert_eq!(effects, expected);
 
     // Sync client 1 from client 2 (2 -> 1)
@@ -654,17 +606,10 @@ fn should_sync_clients() {
 
     // Increment client 2 after syncing with client 1
     let effects = test_model
-        .action(1, 1, ("increment", [Value::Int(4)].as_slice().into()))
+        .action(1, 1, vm_action!(increment(4)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(13)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 13 })];
     assert_eq!(effects, expected);
 
     // Sync client 2 with client 1 (1 -> 2)
@@ -672,17 +617,10 @@ fn should_sync_clients() {
 
     // Increment client 2 after syncing with client 1
     let effects = test_model
-        .action(2, 1, ("increment", [Value::Int(5)].as_slice().into()))
+        .action(2, 1, vm_action!(increment(5)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(18)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 18 })];
     assert_eq!(effects, expected);
 }
 
@@ -697,7 +635,7 @@ fn should_list_metrics() {
     test_model.new_graph(1, 1).expect("Should create a graph");
 
     test_model
-        .action(1, 1, ("create", [Value::Int(3)].as_slice().into()))
+        .action(1, 1, vm_action!(create(3)))
         .expect("Should return effect");
 
     // Query all the metric keys
@@ -715,7 +653,7 @@ fn should_list_metrics() {
     // Add failing action. The test policy has a check that rejects a command if
     // the value is greater than 25.
     test_model
-        .action(1, 1, ("increment", [Value::Int(30)].as_slice().into()))
+        .action(1, 1, vm_action!(increment(30)))
         .expect_err("Should return effect");
 
     let client_metrics_keys = test_model
@@ -735,13 +673,13 @@ fn should_get_metrics() {
     test_model.new_graph(1, 1).expect("Should create a graph");
 
     test_model
-        .action(1, 1, ("create", [Value::Int(3)].as_slice().into()))
+        .action(1, 1, vm_action!(create(3)))
         .expect("Should return effect");
 
     // Add failing action. The test policy has a check that rejects a command if
     // the value is greater than 25.
     test_model
-        .action(1, 1, ("increment", [Value::Int(30)].as_slice().into()))
+        .action(1, 1, vm_action!(increment(30)))
         .expect_err("Should return effect");
 
     // Should return metrics
@@ -777,7 +715,7 @@ fn should_gather_action_execution_time_metrics() {
     test_model.new_graph(1, 1).expect("Should create a graph");
 
     test_model
-        .action(1, 1, ("create", [Value::Int(3)].as_slice().into()))
+        .action(1, 1, vm_action!(create(3)))
         .expect("Should return effect");
 
     // Action execution time should be a Metric enum variant Duration
@@ -796,7 +734,7 @@ fn should_fail_to_update_incorrect_metric_type() {
     test_model.new_graph(1, 1).expect("Should create a graph");
 
     test_model
-        .action(1, 1, ("create", [Value::Int(3)].as_slice().into()))
+        .action(1, 1, vm_action!(create(3)))
         .expect("Should return effect");
 
     let metrics = test_model
@@ -833,11 +771,11 @@ fn should_gather_sync_metrics() {
     test_model.new_graph(1, 1).expect("Should create a graph");
 
     test_model
-        .action(1, 1, ("create", [Value::Int(3)].as_slice().into()))
+        .action(1, 1, vm_action!(create(3)))
         .expect("Should return effect");
 
     test_model
-        .action(1, 1, ("increment", [Value::Int(1)].as_slice().into()))
+        .action(1, 1, vm_action!(increment(1)))
         .expect("Should return effect");
 
     // Create client 2
@@ -870,11 +808,11 @@ fn should_gather_sync_metrics() {
 
     // Increment client 2 after syncing with client 1
     test_model
-        .action(2, 1, ("increment", [Value::Int(2)].as_slice().into()))
+        .action(2, 1, vm_action!(increment(2)))
         .expect("Should return effect");
 
     test_model
-        .action(2, 1, ("increment", [Value::Int(3)].as_slice().into()))
+        .action(2, 1, vm_action!(increment(3)))
         .expect("Should return effect");
 
     // Sync client 1 from client 2 (2 -> 1)
@@ -906,7 +844,7 @@ fn should_gather_sync_metrics() {
 
     // Increment client 2 after syncing with client 1
     test_model
-        .action(1, 1, ("increment", [Value::Int(4)].as_slice().into()))
+        .action(1, 1, vm_action!(increment(4)))
         .expect("Should return effect");
 
     // Sync client 2 with client 1 (1 -> 2)
@@ -914,7 +852,7 @@ fn should_gather_sync_metrics() {
 
     // Increment client 2 after syncing with client 1
     test_model
-        .action(2, 1, ("increment", [Value::Int(5)].as_slice().into()))
+        .action(2, 1, vm_action!(increment(5)))
         .expect("Should return effect");
 
     // Should return accepted command counts for client 1
@@ -936,64 +874,32 @@ fn should_sync_clients_with_duplicate_payloads() {
 
     test_model.new_graph(1, 1).expect("Should create a graph");
 
-    let action = ("create", [Value::Int(1)].as_slice().into());
     let effects = test_model
-        .action(1, 1, action)
+        .action(1, 1, vm_action!(create(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(1)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 1 })];
     assert_eq!(effects, expected);
 
-    let action = ("increment", [Value::Int(1)].as_slice().into());
     let effects = test_model
-        .action(1, 1, action)
+        .action(1, 1, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(2)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 2 })];
     assert_eq!(effects, expected);
 
-    let action = ("increment", [Value::Int(1)].as_slice().into());
     let effects = test_model
-        .action(1, 1, action)
+        .action(1, 1, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(3)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 3 })];
     assert_eq!(effects, expected);
 
-    let action = ("increment", [Value::Int(1)].as_slice().into());
     let effects = test_model
-        .action(1, 1, action)
+        .action(1, 1, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(4)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 4 })];
     assert_eq!(effects, expected);
 
     // Create client 2
@@ -1004,18 +910,10 @@ fn should_sync_clients_with_duplicate_payloads() {
     // Sync client 2 from client 1 (1 -> 2)
     test_model.sync(1, 1, 2).expect("Should sync clients");
 
-    let action = ("increment", [Value::Int(1)].as_slice().into());
     let effects = test_model
-        .action(2, 1, action)
+        .action(2, 1, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
-    let expected = vec![(
-        String::from("StuffHappened"),
-        vec![
-            KVPair::new("a", Value::Int(1)),
-            KVPair::new("b", Value::Int(2)),
-            KVPair::new("x", Value::Int(5)),
-        ],
-    )];
+    let expected = vec![vm_effect!(StuffHappened { a: 1, b: 2, x: 5 })];
     assert_eq!(effects, expected);
 }
