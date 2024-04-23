@@ -100,7 +100,7 @@ pub fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseEr
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;
     let tree = to_mdast(data, &parseoptions)
-        .map_err(|s| ParseError::new(ParseErrorKind::Unknown, s, None))?;
+        .map_err(|s| ParseError::new(ParseErrorKind::Unknown, s.to_string(), None))?;
     let (chunks, version) = extract_policy_from_markdown(&tree)?;
     Ok((chunks, version))
 }

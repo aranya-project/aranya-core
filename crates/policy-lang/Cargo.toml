@@ -19,7 +19,7 @@ buggy = { path = "../buggy", features = ["std"] }
 cfg-if = { version = "1" }
 clap = { version = "4.4", features = ["derive"] }
 crypto = { path = "../crypto" }
-markdown = { version = "1.0.0-alpha.5" }
+markdown = { version = "=1.0.0-alpha.17" }
 pest = { version = "2" }
 pest_derive = { version = "2" }
 # `std` is required because bin/parser-explorer uses `clap` which
