@@ -476,7 +476,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
 
         check exists Foo[] => {x: ?}
         check exists Bar[i: ?] => {s: ?, b: true}
-        
+
         // Not-exists
 
         // incomplete values
@@ -2221,7 +2221,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
                 }
             }
         }
-        
+
         action test_query() {
             let f = unwrap query Foo[i: 1, j: ?]
             check f.x == 1
@@ -2428,7 +2428,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         let x = 42
         let y = "hello world"
         let z = true
-        
+
         struct Far {
             a int,
         }
@@ -2439,7 +2439,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
             c bool,
         }
 
-        let d = Bar { 
+        let d = Bar {
             a: Far {
                 a: 3
             },
@@ -2610,7 +2610,7 @@ fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
         "#,
         r#"
             fact Foo[]=>{x int}
-            let x = Foo  
+            let x = Foo
         "#,
         r#"
             let x = envelope::author_id(envelope)
@@ -2621,7 +2621,7 @@ fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
         r#"
             // Globals cannot depend on other global variables
             let x = 42
-            
+
             struct Far {
                 a int,
             }
@@ -2680,7 +2680,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
             }
         }
 
-        
+
     "#;
 
     let policy = parse_policy_str(text, Version::V3)?;
@@ -2697,6 +2697,32 @@ fn test_enum_reference() -> anyhow::Result<()> {
             vec![KVPair::new("e", Value::from("mmm"))]
         )
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_match_return() -> anyhow::Result<()> {
+    let text = r#"
+        action foo(val int) {
+            check val == bar()
+        }
+
+        function bar() int {
+            match 0 {
+                0 => { return 42 }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V3)?;
+    let mut io = TestIO::new();
+    let machine = Compiler::new(&policy).compile()?;
+    let ctx = dummy_ctx_action("foo");
+    let mut rs = machine.create_run_state(&mut io, &ctx);
+    let result = rs.call_action("foo", [42]);
+
+    assert_eq!(result.unwrap(), ExitReason::Normal);
 
     Ok(())
 }

@@ -936,6 +936,9 @@ impl<'a> CompileState<'a> {
                         let arm_start = arm_labels[i].to_owned();
                         self.define_label(arm_start, self.wp)?;
 
+                        // Drop expression value (It's still around because of the Dup)
+                        self.append_instruction(Instruction::Pop);
+
                         self.compile_statements(&arm.statements)?;
 
                         // break out of match
@@ -945,9 +948,6 @@ impl<'a> CompileState<'a> {
                     }
 
                     self.define_label(end_label, self.wp)?;
-
-                    // Drop expression value (It's still around because of the Dup)
-                    self.append_instruction(Instruction::Pop);
                 }
                 (
                     ast::Statement::When(s),
