@@ -273,7 +273,7 @@ effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 // struct Foo { bar id }
 struct_definition = { "struct" ~ identifier ~ struct_def }
 // enum Result { OK, Err }
-enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ "}" }
+enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
 // command Foo { ... }
 command_definition = { "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
 // function foo(a int) int { return a }

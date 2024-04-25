@@ -1176,7 +1176,7 @@ fn parse_enum_defininition() {
         enum Color {
             Red,
             Green,
-            Blue
+            Blue,
         }
     "#
     .trim();
