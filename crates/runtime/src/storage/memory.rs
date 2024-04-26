@@ -925,14 +925,15 @@ mod test {
         let facts = graph.write_facts(fp).unwrap();
 
         for prefix in keys.iter().copied().chain([&b""[..], b"zz", b"aaaaa"]) {
-            let found = facts.query_prefix(prefix).unwrap();
+            let found: Vec<_> = facts.query_prefix(prefix).unwrap().collect();
             let mut expected: Vec<_> = keys
                 .iter()
                 .copied()
                 .filter(|k| k.starts_with(prefix))
                 .collect();
             expected.sort();
-            for (a, b) in found.zip(expected) {
+            assert_eq!(found.len(), expected.len());
+            for (a, b) in std::iter::zip(found, expected) {
                 let a = a.unwrap();
                 assert_eq!(a.key.as_ref(), b);
                 assert_eq!(a.value.as_ref(), b);

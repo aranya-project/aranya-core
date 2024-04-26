@@ -28,7 +28,6 @@ pub mod rustix;
 pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
-use core::cmp::Ordering;
 
 use buggy::BugExt;
 use serde::{Deserialize, Serialize};
@@ -682,19 +681,13 @@ fn find_prefixes<'m, 'p: 'm>(
     }
 
     let start = join(facts.binary_search_by(|(k, _)| k.as_ref().cmp(prefix)));
-    let end = join(facts.binary_search_by(|(k, _)| {
-        if k.starts_with(prefix) {
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        }
-    }));
 
     facts
-        .get(start..end)
+        .get(start..)
         .into_iter()
         .flatten()
         .map(|(k, v)| (k.as_ref(), v.as_deref()))
+        .take_while(|(k, _)| k.starts_with(prefix))
 }
 
 impl<R> LinearFactPerspective<R> {
@@ -900,16 +893,14 @@ mod test {
         facts.sort();
 
         for prefix in keys.iter().copied().chain([&b""[..], b"zz", b"aaaaa"]) {
-            let found = find_prefixes(&facts, prefix);
+            let found: Vec<_> = find_prefixes(&facts, prefix).map(|(k, _)| k).collect();
             let mut expected: Vec<_> = keys
                 .iter()
                 .copied()
                 .filter(|k| k.starts_with(prefix))
                 .collect();
             expected.sort();
-            for ((k, _), b) in found.zip(expected) {
-                assert_eq!(k, b);
-            }
+            assert_eq!(found, expected);
         }
     }
 }
