@@ -3,18 +3,20 @@ policy-version: 3
 ---
 
 ```policy
-action StartGame(profileX id, profileO id) {
-    let command = Start{
-        ProfileX: profileX,
-        ProfileO: profileO,
+struct Players {
+    X id,
+    O id,
+}
+
+action StartGame(players struct Players) {
+    publish Start {
+        players: players,
     }
-    publish command
 }
 
 effect GameStart {
     gameID id,
-    x id,
-    o id,
+    players struct Players,
 }
 
 action MakeMove(gameID id, x int, y int) {

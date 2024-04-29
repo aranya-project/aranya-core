@@ -9,24 +9,6 @@ use policy_ifgen::{
     macros::{actions, effect, effects, value},
     ClientError, Id, Value,
 };
-/// NewUser policy struct.
-#[value]
-pub struct NewUser {
-    pub user_id: Id,
-    pub sign_pk_id: Id,
-    pub sign_pk: Vec<u8>,
-    pub enc_pk_id: Id,
-    pub enc_pk: Vec<u8>,
-    pub role: String,
-}
-/// User policy struct.
-#[value]
-pub struct User {
-    pub user_id: Id,
-    pub sign_pk_id: Id,
-    pub enc_pk_id: Id,
-    pub role: String,
-}
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
 pub enum Effect {

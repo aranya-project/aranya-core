@@ -1,21 +1,17 @@
-use policy_ast::{Policy, VType};
-use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use std::collections::{HashMap, HashSet};
+
+use policy_ast::{FieldDefinition, Policy, VType};
+use proc_macro2::{Span, TokenStream};
+use quote::quote;
 
 /// Generate rust source code from a [`Policy`] AST.
 pub fn generate_code(policy: &Policy) -> String {
-    let structs = policy.structs.iter().map(|s| {
-        structify(
-            &s.identifier,
-            s.fields.iter().map(|f| f.identifier.as_str()),
-            s.fields.iter().map(|f| &f.field_type),
-        )
-    });
+    let structs = generate_structs(policy);
 
     let effects = policy.effects.iter().map(|s| {
         let doc = format!(" {} policy effect.", s.identifier);
-        let ident = format_ident!("{}", s.identifier);
-        let field_idents = s.fields.iter().map(|f| format_ident!("{}", f.identifier));
+        let ident = mk_ident(&s.identifier);
+        let field_idents = s.fields.iter().map(|f| mk_ident(&f.identifier));
         let field_types = s.fields.iter().map(|f| vtype_to_rtype(&f.field_type));
         quote! {
             #[doc = #doc]
@@ -27,10 +23,7 @@ pub fn generate_code(policy: &Policy) -> String {
     });
 
     let effect_enum = {
-        let idents = policy
-            .effects
-            .iter()
-            .map(|s| format_ident!("{}", s.identifier));
+        let idents = policy.effects.iter().map(|s| mk_ident(&s.identifier));
         quote! {
             #[effects]
             pub enum Effect {
@@ -43,11 +36,8 @@ pub fn generate_code(policy: &Policy) -> String {
 
     let actions = {
         let sigs = policy.actions.iter().map(|action| {
-            let ident = format_ident!("{}", action.identifier);
-            let argnames = action
-                .arguments
-                .iter()
-                .map(|arg| format_ident!("{}", arg.identifier));
+            let ident = mk_ident(&action.identifier);
+            let argnames = action.arguments.iter().map(|arg| mk_ident(&arg.identifier));
             let argtypes = action
                 .arguments
                 .iter()
@@ -81,7 +71,7 @@ pub fn generate_code(policy: &Policy) -> String {
             ClientError, Id, Value,
         };
 
-        #(#structs)*
+        #structs
 
         /// Enum of policy effects that can occur in response to a policy action.
         #effect_enum
@@ -99,11 +89,11 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
         VType::Bool => quote! { bool },
         VType::Id => quote! { Id },
         VType::Struct(st) => {
-            let ident = format_ident!("{}", st);
+            let ident = mk_ident(st);
             quote! { #ident }
         }
         VType::Enum(st) => {
-            let ident = format_ident!("{}", st);
+            let ident = mk_ident(st);
             quote! { #ident }
         }
         VType::Optional(opt) => {
@@ -115,14 +105,74 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
     }
 }
 
+fn generate_structs(policy: &Policy) -> TokenStream {
+    let reachable = collect_reachable_structs(policy);
+
+    policy
+        .structs
+        .iter()
+        .filter(|s| reachable.contains(s.identifier.as_str()))
+        .map(|s| {
+            structify(
+                &s.identifier,
+                s.fields.iter().map(|f| f.identifier.as_str()),
+                s.fields.iter().map(|f| &f.field_type),
+            )
+        })
+        .collect()
+}
+
+/// Returns the name of all structs reachable from actions or effects.
+fn collect_reachable_structs(policy: &Policy) -> HashSet<&str> {
+    fn visit<'a>(
+        struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
+        found: &mut HashSet<&'a str>,
+        ty: &'a VType,
+    ) {
+        match ty {
+            VType::Struct(s) => {
+                if found.insert(s.as_str()) {
+                    for field in struct_defs[s.as_str()] {
+                        visit(struct_defs, found, &field.field_type);
+                    }
+                }
+            }
+            VType::Optional(inner) => visit(struct_defs, found, inner),
+            _ => {}
+        }
+    }
+
+    let struct_defs = policy
+        .structs
+        .iter()
+        .map(|s| (s.identifier.as_str(), s.fields.as_slice()))
+        .collect::<HashMap<_, _>>();
+
+    let mut found = HashSet::new();
+
+    for action in &policy.actions {
+        for arg in &action.arguments {
+            visit(&struct_defs, &mut found, &arg.field_type);
+        }
+    }
+
+    for effect in &policy.effects {
+        for field in &effect.fields {
+            visit(&struct_defs, &mut found, &field.field_type);
+        }
+    }
+
+    found
+}
+
 fn structify<'a, N, T>(name: &str, names: N, types: T) -> TokenStream
 where
     N: IntoIterator<Item = &'a str>,
     T: IntoIterator<Item = &'a VType>,
 {
     let doc = format!(" {} policy struct.", name);
-    let name = format_ident!("{name}");
-    let names = names.into_iter().map(|n| format_ident!("{n}"));
+    let name = mk_ident(name);
+    let names = names.into_iter().map(mk_ident);
     let types = types.into_iter().map(vtype_to_rtype);
     quote! {
         #[doc = #doc]
@@ -130,5 +180,22 @@ where
         pub struct #name {
             #(pub #names: #types),*
         }
+    }
+}
+
+/// Makes an identifier from a string, using raw identifiers (`r#mod`) when necessary.
+fn mk_ident(string: &str) -> syn::Ident {
+    syn::parse_str::<syn::Ident>(string)
+        .unwrap_or_else(|_| syn::Ident::new_raw(string, Span::call_site()))
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_mk_ident() {
+        assert_eq!(mk_ident("foo").to_string(), "foo");
+        assert_eq!(mk_ident("mod").to_string(), "r#mod");
     }
 }

@@ -16,7 +16,7 @@ pub mod macros {
     pub use policy_ifgen_macro::{actions, effect, effects, value};
 }
 
-pub use policy_vm::{Id, KVPair, Value};
+pub use policy_vm::{Id, KVPair, Struct, Value};
 pub use runtime::{ClientError, VmActions, VmEffect};
 #[cfg(feature = "serde")]
 pub use serde;
@@ -54,6 +54,35 @@ impl fmt::Display for EffectsParseError {
             Self::MissingField => f.write_str("effect is missing an expected field"),
             Self::FieldTypeMismatch => f.write_str("effect has an unexpected field type"),
             Self::UnknownEffectName => f.write_str("effect has an unknown effect name"),
+        }
+    }
+}
+
+/// Possible errors when parsing a struct from a [`Value`].
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum StructParseError {
+    /// Struct has one or more extra fields.
+    ExtraFields,
+    /// Struct is missing an expected field.
+    MissingField,
+    /// Struct has unexpected field type.
+    FieldTypeMismatch,
+    /// Struct name does not match.
+    NameMismatch,
+    /// Value is not a struct.
+    InvalidType,
+}
+
+impl trouble::Error for StructParseError {}
+
+impl fmt::Display for StructParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ExtraFields => f.write_str("struct has one or more extra fields"),
+            Self::MissingField => f.write_str("struct is missing an expected field"),
+            Self::FieldTypeMismatch => f.write_str("struct has an unexpected field type"),
+            Self::NameMismatch => f.write_str("struct name does not match"),
+            Self::InvalidType => f.write_str("value is not a struct"),
         }
     }
 }

@@ -9,6 +9,12 @@ use policy_ifgen::{
     macros::{actions, effect, effects, value},
     ClientError, Id, Value,
 };
+/// Players policy struct.
+#[value]
+pub struct Players {
+    pub X: Id,
+    pub O: Id,
+}
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
 pub enum Effect {
@@ -20,8 +26,7 @@ pub enum Effect {
 #[effect]
 pub struct GameStart {
     pub gameID: Id,
-    pub x: Id,
-    pub o: Id,
+    pub players: Players,
 }
 /// GameUpdate policy effect.
 #[effect]
@@ -42,6 +47,6 @@ pub struct GameOver {
 /// Implements all supported policy actions.
 #[actions]
 pub trait ActorExt {
-    fn StartGame(&mut self, profileX: Id, profileO: Id) -> Result<(), ClientError>;
+    fn StartGame(&mut self, players: Players) -> Result<(), ClientError>;
     fn MakeMove(&mut self, gameID: Id, x: i64, y: i64) -> Result<(), ClientError>;
 }
