@@ -2703,6 +2703,8 @@ fn test_enum_reference() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_return() -> anyhow::Result<()> {
+    // See https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues/800
+
     let text = r#"
         action foo(val int) {
             check val == bar()
