@@ -165,8 +165,8 @@ impl Display for Label {
 
 /// This is the core policy machine type, which contains all of the state
 /// of the machine and associated facts.
-#[derive(Debug)]
-#[cfg_attr(test, derive(Clone, Eq, PartialEq))]
+#[derive(Clone, Debug)]
+#[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct Machine {
     // static state (things which do not change after compilation)
     /// The program memory

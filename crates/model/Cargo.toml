@@ -8,14 +8,22 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
+anyhow = { workspace = true }
+crypto = { path = "../crypto", default-features = false, features = ["alloc", "fs-keystore"] }
+policy-lang = { path = "../policy-lang" }
 policy-vm = { path = "../policy-vm" }
-runtime = { path = "../runtime" }
+runtime = { path = "../runtime", features = ["testing"] }
 trouble = { path = "../trouble" }
 
 [dev-dependencies]
-policy-lang = { path = "../policy-lang" }
-runtime = { path = "../runtime", features = ["testing"] }
+crypto-ffi = { path = "../crypto-ffi" }
+device-ffi = { path = "../device-ffi" }
+envelope-ffi = { path = "../envelope-ffi" }
+idam-ffi = { path = "../idam-ffi" }
+perspective-ffi = { path = "../perspective-ffi" }
+postcard = { workspace = true, features = ["alloc"] }
+serde = { workspace = true, features = ["derive"] }
+tempfile = { version = "3.8.1" }
 test-log = { workspace = true }
 
 [lints]
