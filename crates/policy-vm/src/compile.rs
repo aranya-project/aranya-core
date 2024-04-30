@@ -5,10 +5,7 @@ mod tests;
 use alloc::{
     borrow::ToOwned,
     boxed::Box,
-    collections::{
-        btree_map::{self, Entry},
-        BTreeMap, BTreeSet,
-    },
+    collections::{btree_map::Entry, BTreeMap, BTreeSet},
     format,
     string::{String, ToString},
     vec,
@@ -194,11 +191,11 @@ impl<'a> CompileState<'a> {
         fields: &[FieldDefinition],
     ) -> Result<(), CompileError> {
         match self.m.struct_defs.entry(identifier.to_string()) {
-            btree_map::Entry::Vacant(e) => {
+            Entry::Vacant(e) => {
                 e.insert(fields.to_vec());
                 Ok(())
             }
-            btree_map::Entry::Occupied(_) => Err(CompileError::from_locator(
+            Entry::Occupied(_) => Err(CompileError::from_locator(
                 CompileErrorType::AlreadyDefined(identifier.to_string()),
                 self.last_locator,
                 self.m.codemap.as_ref(),
@@ -248,14 +245,14 @@ impl<'a> CompileState<'a> {
     ) -> Result<&FunctionSignature, CompileError> {
         let def = &function_node.inner;
         match self.function_signatures.entry(def.identifier.as_str()) {
-            btree_map::Entry::Vacant(e) => {
+            Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
                     color: FunctionColor::Pure(def.return_type.clone()),
                 };
                 Ok(e.insert(signature))
             }
-            btree_map::Entry::Occupied(_) => Err(CompileError::from_locator(
+            Entry::Occupied(_) => Err(CompileError::from_locator(
                 CompileErrorType::AlreadyDefined(def.identifier.clone()),
                 function_node.locator,
                 self.m.codemap.as_ref(),
@@ -271,14 +268,14 @@ impl<'a> CompileState<'a> {
     ) -> Result<&FunctionSignature, CompileError> {
         let def = &function_node.inner;
         match self.function_signatures.entry(def.identifier.as_str()) {
-            btree_map::Entry::Vacant(e) => {
+            Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
                     color: FunctionColor::Finish,
                 };
                 Ok(e.insert(signature))
             }
-            btree_map::Entry::Occupied(_) => Err(CompileError::from_locator(
+            Entry::Occupied(_) => Err(CompileError::from_locator(
                 CompileErrorType::AlreadyDefined(def.identifier.clone()),
                 function_node.locator,
                 self.m.codemap.as_ref(),
@@ -289,11 +286,11 @@ impl<'a> CompileState<'a> {
     /// Define a named Label.
     pub fn define_label(&mut self, label: Label, addr: usize) -> Result<(), CompileError> {
         match self.m.labels.entry(label.clone()) {
-            btree_map::Entry::Vacant(e) => {
+            Entry::Vacant(e) => {
                 e.insert(addr);
                 Ok(())
             }
-            btree_map::Entry::Occupied(_) => Err(CompileError::from_locator(
+            Entry::Occupied(_) => Err(CompileError::from_locator(
                 CompileErrorType::AlreadyDefined(label.name),
                 self.last_locator,
                 self.m.codemap.as_ref(),
@@ -520,23 +517,21 @@ impl<'a> CompileState<'a> {
     /// Compile an expression
     fn compile_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
         match expression {
-            ast::Expression::Int(n) => self.append_instruction(Instruction::Const(Value::Int(*n))),
-            ast::Expression::String(s) => {
+            Expression::Int(n) => self.append_instruction(Instruction::Const(Value::Int(*n))),
+            Expression::String(s) => {
                 self.append_instruction(Instruction::Const(Value::String(s.clone())))
             }
-            ast::Expression::Bool(b) => {
-                self.append_instruction(Instruction::Const(Value::Bool(*b)))
-            }
-            ast::Expression::Optional(o) => match o {
+            Expression::Bool(b) => self.append_instruction(Instruction::Const(Value::Bool(*b))),
+            Expression::Optional(o) => match o {
                 None => self.append_instruction(Instruction::Const(Value::None)),
                 Some(v) => {
                     self.compile_expression(v)?;
                 }
             },
-            ast::Expression::NamedStruct(s) => {
+            Expression::NamedStruct(s) => {
                 self.compile_struct_literal(s)?;
             }
-            ast::Expression::InternalFunction(f) => match f {
+            Expression::InternalFunction(f) => match f {
                 ast::InternalFunction::Query(f) => {
                     self.verify_fact_against_schema(f)?;
                     self.compile_fact_literal(f)?;
@@ -588,7 +583,7 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Deserialize);
                 }
             },
-            ast::Expression::FunctionCall(f) => {
+            Expression::FunctionCall(f) => {
                 let signature = self.function_signatures.get(&f.identifier.as_str()).ok_or(
                     CompileError::from_locator(
                         CompileErrorType::NotDefined(f.identifier.clone()),
@@ -628,7 +623,7 @@ impl<'a> CompileState<'a> {
                     &f.identifier,
                 ))));
             }
-            ast::Expression::ForeignFunctionCall(f) => {
+            Expression::ForeignFunctionCall(f) => {
                 // find module by name
                 let (module_id, module) = self
                     .ffi_modules
@@ -669,7 +664,7 @@ impl<'a> CompileState<'a> {
 
                 self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
             }
-            ast::Expression::Identifier(i) => {
+            Expression::Identifier(i) => {
                 self.append_instruction(Instruction::Const(Value::String(i.clone())));
                 self.append_instruction(Instruction::Get);
             }
@@ -694,36 +689,36 @@ impl<'a> CompileState<'a> {
 
                 self.append_instruction(Instruction::Const(Value::Int(*num)))
             }
-            ast::Expression::Parentheses(e) => {
+            Expression::Parentheses(e) => {
                 self.compile_expression(e)?;
             }
-            ast::Expression::Dot(t, s) => {
+            Expression::Dot(t, s) => {
                 self.compile_expression(t)?;
                 let sr: &str = s.as_ref();
                 self.append_instruction(Instruction::Const(sr.into()));
                 self.append_instruction(Instruction::StructGet);
             }
-            ast::Expression::Add(a, b)
-            | ast::Expression::Subtract(a, b)
-            | ast::Expression::And(a, b)
-            | ast::Expression::Or(a, b)
-            | ast::Expression::Equal(a, b)
-            | ast::Expression::GreaterThan(a, b)
-            | ast::Expression::LessThan(a, b) => {
+            Expression::Add(a, b)
+            | Expression::Subtract(a, b)
+            | Expression::And(a, b)
+            | Expression::Or(a, b)
+            | Expression::Equal(a, b)
+            | Expression::GreaterThan(a, b)
+            | Expression::LessThan(a, b) => {
                 self.compile_expression(a)?;
                 self.compile_expression(b)?;
                 self.append_instruction(match expression {
-                    ast::Expression::Add(_, _) => Instruction::Add,
-                    ast::Expression::Subtract(_, _) => Instruction::Sub,
-                    ast::Expression::And(_, _) => Instruction::And,
-                    ast::Expression::Or(_, _) => Instruction::Or,
-                    ast::Expression::Equal(_, _) => Instruction::Eq,
-                    ast::Expression::GreaterThan(_, _) => Instruction::Gt,
-                    ast::Expression::LessThan(_, _) => Instruction::Lt,
+                    Expression::Add(_, _) => Instruction::Add,
+                    Expression::Subtract(_, _) => Instruction::Sub,
+                    Expression::And(_, _) => Instruction::And,
+                    Expression::Or(_, _) => Instruction::Or,
+                    Expression::Equal(_, _) => Instruction::Eq,
+                    Expression::GreaterThan(_, _) => Instruction::Gt,
+                    Expression::LessThan(_, _) => Instruction::Lt,
                     _ => unreachable!(),
                 });
             }
-            ast::Expression::GreaterThanOrEqual(a, b) | ast::Expression::LessThanOrEqual(a, b) => {
+            Expression::GreaterThanOrEqual(a, b) | Expression::LessThanOrEqual(a, b) => {
                 self.compile_expression(a)?;
                 self.compile_expression(b)?;
                 // At this point we will have the values for a and b on the stack.
@@ -746,22 +741,22 @@ impl<'a> CompileState<'a> {
                 // Then execute the other comparison on a and b - we'll call this d
                 // c d
                 self.append_instruction(match expression {
-                    ast::Expression::GreaterThanOrEqual(_, _) => Instruction::Gt,
-                    ast::Expression::LessThanOrEqual(_, _) => Instruction::Lt,
+                    Expression::GreaterThanOrEqual(_, _) => Instruction::Gt,
+                    Expression::LessThanOrEqual(_, _) => Instruction::Lt,
                     _ => unreachable!(),
                 });
                 // Now OR those two binary results together - call this e
                 // e
                 self.append_instruction(Instruction::Or);
             }
-            ast::Expression::NotEqual(a, b) => {
+            Expression::NotEqual(a, b) => {
                 self.compile_expression(a)?;
                 self.compile_expression(b)?;
                 self.append_instruction(Instruction::Eq);
                 self.append_instruction(Instruction::Not);
             }
-            ast::Expression::Negative(e) => {
-                if let ast::Expression::Int(value) = **e {
+            Expression::Negative(e) => {
+                if let Expression::Int(value) = **e {
                     // Return negative of the int
                     self.append_instruction(Instruction::Const(Value::Int(
                         value
@@ -784,20 +779,20 @@ impl<'a> CompileState<'a> {
                 // Subtract
                 self.append_instruction(Instruction::Sub);
             }
-            ast::Expression::Not(e) => {
+            Expression::Not(e) => {
                 // Evaluate the expression
                 self.compile_expression(e)?;
 
                 // Apply the logical NOT operation
                 self.append_instruction(Instruction::Not);
             }
-            ast::Expression::Unwrap(e) => {
+            Expression::Unwrap(e) => {
                 self.compile_unwrap(e, ExitReason::Panic)?;
             }
-            ast::Expression::CheckUnwrap(e) => {
+            Expression::CheckUnwrap(e) => {
                 self.compile_unwrap(e, ExitReason::Check)?;
             }
-            ast::Expression::Is(e, expr_is_some) => {
+            Expression::Is(e, expr_is_some) => {
                 // Evaluate the expression
                 self.compile_expression(e)?;
                 // Push a None to compare against
@@ -1228,10 +1223,10 @@ impl<'a> CompileState<'a> {
         })?;
 
         match self.m.globals.entry(identifier.clone()) {
-            btree_map::Entry::Vacant(e) => {
+            Entry::Vacant(e) => {
                 e.insert(value);
             }
-            btree_map::Entry::Occupied(_) => {
+            Entry::Occupied(_) => {
                 return Err(CompileError::from_locator(
                     CompileErrorType::AlreadyDefined(identifier.clone()),
                     self.last_locator,
@@ -1514,14 +1509,14 @@ fn field_vtype(f: &FactField) -> Option<VType> {
     match f {
         FactField::Expression(e) => {
             match e {
-                ast::Expression::Int(_) => Some(VType::Int),
-                // ast::Expression::Bytes(_) => Ok(VType::Bytes), // TODO: Bytes expression not implemented
-                ast::Expression::Bool(_) => Some(VType::Bool),
-                ast::Expression::String(_) => Some(VType::String),
+                Expression::Int(_) => Some(VType::Int),
+                // Expression::Bytes(_) => Ok(VType::Bytes), // TODO: Bytes expression not implemented
+                Expression::Bool(_) => Some(VType::Bool),
+                Expression::String(_) => Some(VType::String),
                 // We can't resolve var names to values at the moment, so we defer to the machine.
-                ast::Expression::Identifier(_) => None,
-                ast::Expression::NamedStruct(s) => Some(VType::Struct(s.identifier.clone())),
-                ast::Expression::Optional(Some(expr)) => {
+                Expression::Identifier(_) => None,
+                Expression::NamedStruct(s) => Some(VType::Struct(s.identifier.clone())),
+                Expression::Optional(Some(expr)) => {
                     let field_expr = FactField::Expression(expr.as_ref().to_owned());
                     let interior_type = field_vtype(&field_expr)?;
                     Some(VType::Optional(Box::new(interior_type)))

@@ -1,6 +1,6 @@
 #[rustfmt::skip]
 #[path = "../tests/data/ttc.rs"]
-mod ttc;
+pub mod ttc;
 
 use policy_ifgen::Id;
 use ttc::ActorExt;

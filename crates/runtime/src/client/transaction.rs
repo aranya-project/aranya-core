@@ -81,7 +81,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
         // Merge heads pairwise until single head left, then commit.
         // TODO(#370): Merge deterministically
-        let mut heads: VecDeque<_> = core::mem::take(&mut self.heads).into_iter().collect();
+        let mut heads: VecDeque<_> = mem::take(&mut self.heads).into_iter().collect();
         let mut merging_head = false;
         while let Some((left_id, mut left_loc)) = heads.pop_front() {
             if let Some((right_id, mut right_loc)) = heads.pop_front() {

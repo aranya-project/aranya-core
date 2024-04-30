@@ -354,11 +354,11 @@ pub fn parse_expression(
                         Some(primary.as_span()),
                     )
                 })?;
-                Ok(ast::Expression::Int(n))
+                Ok(Expression::Int(n))
             }
             Rule::string_literal => {
                 let s = parse_string_literal(primary)?;
-                Ok(ast::Expression::String(s))
+                Ok(Expression::String(s))
             }
             Rule::bool_literal => {
                 let mut pairs = primary.clone().into_inner();
@@ -368,8 +368,8 @@ pub fn parse_expression(
                     Some(primary.as_span()),
                 ))?;
                 match token.as_rule() {
-                    Rule::btrue => Ok(ast::Expression::Bool(true)),
-                    Rule::bfalse => Ok(ast::Expression::Bool(false)),
+                    Rule::btrue => Ok(Expression::Bool(true)),
+                    Rule::bfalse => Ok(Expression::Bool(false)),
                     t => Err(ParseError::new(
                         ParseErrorKind::Unknown,
                         format!("impossible token: {:?}", t),
@@ -384,7 +384,7 @@ pub fn parse_expression(
                     String::from("no token in optional literal"),
                     Some(primary.as_span()),
                 ))?;
-                Ok(ast::Expression::Optional(match token.as_rule() {
+                Ok(Expression::Optional(match token.as_rule() {
                     Rule::none => None,
                     Rule::some => {
                         let token = pairs.next().ok_or(ParseError::new(
@@ -406,12 +406,12 @@ pub fn parse_expression(
             }
             Rule::named_struct_literal => {
                 let ns = parse_named_struct_literal(primary, pratt)?;
-                Ok(ast::Expression::NamedStruct(ns))
+                Ok(Expression::NamedStruct(ns))
             }
-            Rule::function_call => Ok(ast::Expression::FunctionCall(parse_function_call(
+            Rule::function_call => Ok(Expression::FunctionCall(parse_function_call(
                 primary, pratt,
             )?)),
-            Rule::foreign_function_call => Ok(ast::Expression::ForeignFunctionCall(
+            Rule::foreign_function_call => Ok(Expression::ForeignFunctionCall(
                 parse_foreign_function_call(primary, pratt)?,
             )),
             Rule::enum_reference => Ok(Expression::EnumReference(parse_enum_reference(primary)?)),
@@ -423,9 +423,9 @@ pub fn parse_expression(
                     Some(primary.as_span()),
                 ))?;
                 let fact_literal = parse_fact_literal(token, pratt)?;
-                Ok(ast::Expression::InternalFunction(
-                    ast::InternalFunction::Query(fact_literal),
-                ))
+                Ok(Expression::InternalFunction(ast::InternalFunction::Query(
+                    fact_literal,
+                )))
             }
             Rule::exists => {
                 let mut pairs = primary.clone().into_inner();
@@ -435,9 +435,9 @@ pub fn parse_expression(
                     Some(primary.as_span()),
                 ))?;
                 let fact_literal = parse_fact_literal(token, pratt)?;
-                Ok(ast::Expression::InternalFunction(
-                    ast::InternalFunction::Exists(fact_literal),
-                ))
+                Ok(Expression::InternalFunction(ast::InternalFunction::Exists(
+                    fact_literal,
+                )))
             }
             Rule::if_e => {
                 let mut pairs = primary.clone().into_inner();
@@ -462,13 +462,11 @@ pub fn parse_expression(
                 ))?;
                 let else_expr = parse_expression(token, pratt)?;
 
-                Ok(ast::Expression::InternalFunction(
-                    ast::InternalFunction::If(
-                        Box::new(condition),
-                        Box::new(then_expr),
-                        Box::new(else_expr),
-                    ),
-                ))
+                Ok(Expression::InternalFunction(ast::InternalFunction::If(
+                    Box::new(condition),
+                    Box::new(then_expr),
+                    Box::new(else_expr),
+                )))
             }
             Rule::serialize => {
                 let mut pairs = primary.clone().into_inner();
@@ -478,7 +476,7 @@ pub fn parse_expression(
                     Some(primary.as_span()),
                 ))?;
                 let inner = parse_expression(token, pratt)?;
-                Ok(ast::Expression::InternalFunction(
+                Ok(Expression::InternalFunction(
                     ast::InternalFunction::Serialize(Box::new(inner)),
                 ))
             }
@@ -490,14 +488,14 @@ pub fn parse_expression(
                     Some(primary.as_span()),
                 ))?;
                 let inner = parse_expression(token, pratt)?;
-                Ok(ast::Expression::InternalFunction(
+                Ok(Expression::InternalFunction(
                     ast::InternalFunction::Deserialize(Box::new(inner)),
                 ))
             }
-            Rule::identifier => Ok(ast::Expression::Identifier(primary.as_str().to_owned())),
+            Rule::identifier => Ok(Expression::Identifier(primary.as_str().to_owned())),
             Rule::expression => {
                 let subexpr = parse_expression(primary, pratt)?;
-                Ok(ast::Expression::Parentheses(Box::new(subexpr)))
+                Ok(Expression::Parentheses(Box::new(subexpr)))
             }
             _ => Err(ParseError::new(
                 ParseErrorKind::Expression,
@@ -506,10 +504,10 @@ pub fn parse_expression(
             )),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
-            Rule::neg => Ok(ast::Expression::Negative(Box::new(rhs?))),
-            Rule::not => Ok(ast::Expression::Not(Box::new(rhs?))),
-            Rule::unwrap => Ok(ast::Expression::Unwrap(Box::new(rhs?))),
-            Rule::check_unwrap => Ok(ast::Expression::CheckUnwrap(Box::new(rhs?))),
+            Rule::neg => Ok(Expression::Negative(Box::new(rhs?))),
+            Rule::not => Ok(Expression::Not(Box::new(rhs?))),
+            Rule::unwrap => Ok(Expression::Unwrap(Box::new(rhs?))),
+            Rule::check_unwrap => Ok(Expression::CheckUnwrap(Box::new(rhs?))),
             _ => Err(ParseError::new(
                 ParseErrorKind::Expression,
                 format!("bad prefix: {:?}", op.as_rule()),
@@ -517,24 +515,23 @@ pub fn parse_expression(
             )),
         })
         .map_infix(|lhs, op, rhs| match op.as_rule() {
-            Rule::add => Ok(ast::Expression::Add(Box::new(lhs?), Box::new(rhs?))),
-            Rule::subtract => Ok(ast::Expression::Subtract(Box::new(lhs?), Box::new(rhs?))),
-            Rule::and => Ok(ast::Expression::And(Box::new(lhs?), Box::new(rhs?))),
-            Rule::or => Ok(ast::Expression::Or(Box::new(lhs?), Box::new(rhs?))),
-            Rule::equal => Ok(ast::Expression::Equal(Box::new(lhs?), Box::new(rhs?))),
-            Rule::not_equal => Ok(ast::Expression::NotEqual(Box::new(lhs?), Box::new(rhs?))),
-            Rule::greater_than => Ok(ast::Expression::GreaterThan(Box::new(lhs?), Box::new(rhs?))),
-            Rule::less_than => Ok(ast::Expression::LessThan(Box::new(lhs?), Box::new(rhs?))),
-            Rule::greater_than_or_equal => Ok(ast::Expression::GreaterThanOrEqual(
+            Rule::add => Ok(Expression::Add(Box::new(lhs?), Box::new(rhs?))),
+            Rule::subtract => Ok(Expression::Subtract(Box::new(lhs?), Box::new(rhs?))),
+            Rule::and => Ok(Expression::And(Box::new(lhs?), Box::new(rhs?))),
+            Rule::or => Ok(Expression::Or(Box::new(lhs?), Box::new(rhs?))),
+            Rule::equal => Ok(Expression::Equal(Box::new(lhs?), Box::new(rhs?))),
+            Rule::not_equal => Ok(Expression::NotEqual(Box::new(lhs?), Box::new(rhs?))),
+            Rule::greater_than => Ok(Expression::GreaterThan(Box::new(lhs?), Box::new(rhs?))),
+            Rule::less_than => Ok(Expression::LessThan(Box::new(lhs?), Box::new(rhs?))),
+            Rule::greater_than_or_equal => Ok(Expression::GreaterThanOrEqual(
                 Box::new(lhs?),
                 Box::new(rhs?),
             )),
-            Rule::less_than_or_equal => Ok(ast::Expression::LessThanOrEqual(
-                Box::new(lhs?),
-                Box::new(rhs?),
-            )),
+            Rule::less_than_or_equal => {
+                Ok(Expression::LessThanOrEqual(Box::new(lhs?), Box::new(rhs?)))
+            }
             Rule::dot => match rhs? {
-                ast::Expression::Identifier(s) => Ok(ast::Expression::Dot(Box::new(lhs?), s)),
+                Expression::Identifier(s) => Ok(Expression::Dot(Box::new(lhs?), s)),
                 e => Err(ParseError::new(
                     ParseErrorKind::InvalidMember,
                     format!("{:?}", e),
@@ -567,7 +564,7 @@ pub fn parse_expression(
                         ))
                     }
                 };
-                Ok(ast::Expression::Is(Box::new(lhs?), some))
+                Ok(Expression::Is(Box::new(lhs?), some))
             }
             _ => Err(ParseError::new(
                 ParseErrorKind::Expression,

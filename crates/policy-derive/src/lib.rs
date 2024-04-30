@@ -17,7 +17,7 @@ use syn::Error;
 #[proc_macro_attribute]
 #[allow(missing_docs)]
 pub fn ffi(attr: TokenStream, item: TokenStream) -> TokenStream {
-    crate::ffi::parse(attr.into(), item.into())
+    ffi::parse(attr.into(), item.into())
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }

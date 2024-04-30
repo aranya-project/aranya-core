@@ -147,15 +147,12 @@ fn parse_expression_pratt() -> Result<(), ParseError> {
     let expr_parsed = super::parse_expression(expr, &pratt)?;
     assert_eq!(
         expr_parsed,
-        ast::Expression::Unwrap(Box::new(ast::Expression::FunctionCall(ast::FunctionCall {
+        Expression::Unwrap(Box::new(Expression::FunctionCall(ast::FunctionCall {
             identifier: String::from("call"),
             arguments: vec![
-                ast::Expression::Add(
-                    Box::new(ast::Expression::Int(3)),
-                    Box::new(ast::Expression::Int(7))
-                ),
-                ast::Expression::Negative(Box::new(ast::Expression::Identifier(String::from("b")))),
-                ast::Expression::String(String::from("foo\x7b")),
+                Expression::Add(Box::new(Expression::Int(3)), Box::new(Expression::Int(7))),
+                Expression::Negative(Box::new(Expression::Identifier(String::from("b")))),
+                Expression::String(String::from("foo\x7b")),
             ]
         })))
     );
@@ -522,18 +519,18 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("obj"),
-                            expression: ast::Expression::NamedStruct(ast::NamedStruct {
+                            expression: Expression::NamedStruct(ast::NamedStruct {
                                 identifier: String::from("Add"),
                                 fields: vec![(
                                     String::from("count"),
-                                    ast::Expression::Identifier(String::from("x")),
+                                    Expression::Identifier(String::from("x")),
                                 )],
                             }),
                         }),
                         227,
                     ),
                     AstNode::new(
-                        ast::Statement::Publish(ast::Expression::Identifier(String::from("obj"))),
+                        ast::Statement::Publish(Expression::Identifier(String::from("obj"))),
                         295,
                     ),
                 ],
@@ -577,12 +574,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("id"),
-                            expression: ast::Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
                                 module: String::from("envelope"),
                                 identifier: String::from("id"),
-                                arguments: vec![ast::Expression::Identifier(String::from(
-                                    "envelope"
-                                ))]
+                                arguments: vec![Expression::Identifier(String::from("envelope"))]
                             },),
                         }),
                         519,
@@ -590,12 +585,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("author"),
-                            expression: ast::Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
                                 module: String::from("envelope"),
                                 identifier: String::from("author_id"),
-                                arguments: vec![ast::Expression::Identifier(String::from(
-                                    "envelope"
-                                ))]
+                                arguments: vec![Expression::Identifier(String::from("envelope"))]
                             },),
                         }),
                         567,
@@ -603,9 +596,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("new_x"),
-                            expression: ast::Expression::Add(
-                                Box::new(ast::Expression::Identifier(String::from("x"))),
-                                Box::new(ast::Expression::Identifier(String::from("count"))),
+                            expression: Expression::Add(
+                                Box::new(Expression::Identifier(String::from("x"))),
+                                Box::new(Expression::Identifier(String::from("count"))),
                             ),
                         }),
                         626,
@@ -613,7 +606,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Check(ast::CheckStatement {
                             origin: false,
-                            expression: ast::Expression::InternalFunction(
+                            expression: Expression::InternalFunction(
                                 ast::InternalFunction::Exists(ast::FactLiteral {
                                     identifier: String::from("TestFact"),
                                     key_fields: vec![(
@@ -630,23 +623,21 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     ),
                     AstNode::new(
                         ast::Statement::Match(ast::MatchStatement {
-                            expression: ast::Expression::Identifier(String::from("x")),
+                            expression: Expression::Identifier(String::from("x")),
                             arms: vec![
                                 ast::MatchArm {
-                                    pattern: MatchPattern::Values(vec![ast::Expression::Int(0)]),
+                                    pattern: MatchPattern::Values(vec![Expression::Int(0)]),
                                     statements: vec![AstNode::new(
                                         ast::Statement::Check(ast::CheckStatement {
                                             origin: false,
-                                            expression: ast::Expression::FunctionCall(
+                                            expression: Expression::FunctionCall(
                                                 ast::FunctionCall {
                                                     identifier: String::from("positive"),
-                                                    arguments: vec![ast::Expression::Optional(
-                                                        Some(Box::new(
-                                                            ast::Expression::Identifier(
-                                                                String::from("new_x"),
-                                                            ),
-                                                        )),
-                                                    )],
+                                                    arguments: vec![Expression::Optional(Some(
+                                                        Box::new(Expression::Identifier(
+                                                            String::from("new_x"),
+                                                        ),)
+                                                    ),)],
                                                 },
                                             ),
                                         }),
@@ -654,16 +645,14 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                     )],
                                 },
                                 ast::MatchArm {
-                                    pattern: MatchPattern::Values(vec!(ast::Expression::Int(1))),
+                                    pattern: MatchPattern::Values(vec!(Expression::Int(1))),
                                     statements: vec![AstNode::new(
                                         ast::Statement::Check(ast::CheckStatement {
                                             origin: true,
-                                            expression: ast::Expression::FunctionCall(
+                                            expression: Expression::FunctionCall(
                                                 ast::FunctionCall {
                                                     identifier: String::from("positive"),
-                                                    arguments: vec![ast::Expression::Optional(
-                                                        None,
-                                                    )],
+                                                    arguments: vec![Expression::Optional(None,)],
                                                 },
                                             ),
                                         }),
@@ -680,18 +669,16 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     ),
                     AstNode::new(
                         ast::Statement::When(ast::WhenStatement {
-                            expression: ast::Expression::Equal(
-                                Box::new(ast::Expression::Identifier(String::from("x"))),
-                                Box::new(ast::Expression::Int(3)),
+                            expression: Expression::Equal(
+                                Box::new(Expression::Identifier(String::from("x"))),
+                                Box::new(Expression::Int(3)),
                             ),
                             statements: vec![AstNode::new(
                                 ast::Statement::Check(ast::CheckStatement {
                                     origin: false,
-                                    expression: ast::Expression::LessThan(
-                                        Box::new(ast::Expression::Identifier(String::from(
-                                            "new_x",
-                                        ))),
-                                        Box::new(ast::Expression::Int(10)),
+                                    expression: Expression::LessThan(
+                                        Box::new(Expression::Identifier(String::from("new_x",))),
+                                        Box::new(Expression::Int(10)),
                                     ),
                                 }),
                                 1047,
@@ -702,10 +689,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("a"),
-                            expression: ast::Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
                                 module: String::from("foo"),
                                 identifier: String::from("ext_func"),
-                                arguments: vec![ast::Expression::Identifier(String::from("x"))],
+                                arguments: vec![Expression::Identifier(String::from("x"))],
                             }),
                         }),
                         1099
@@ -779,21 +766,19 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 1279
                             ),
                             AstNode::new(
-                                ast::Statement::Emit(ast::Expression::NamedStruct(
-                                    ast::NamedStruct {
-                                        identifier: String::from("Added"),
-                                        fields: vec![
-                                            (
-                                                String::from("x"),
-                                                ast::Expression::Identifier(String::from("new_x")),
-                                            ),
-                                            (
-                                                String::from("y"),
-                                                ast::Expression::Identifier(String::from("count")),
-                                            ),
-                                        ],
-                                    },
-                                )),
+                                ast::Statement::Emit(Expression::NamedStruct(ast::NamedStruct {
+                                    identifier: String::from("Added"),
+                                    fields: vec![
+                                        (
+                                            String::from("x"),
+                                            Expression::Identifier(String::from("new_x")),
+                                        ),
+                                        (
+                                            String::from("y"),
+                                            Expression::Identifier(String::from("count")),
+                                        ),
+                                    ],
+                                },)),
                                 1320
                             ),
                         ]),
@@ -804,12 +789,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("id"),
-                            expression: ast::Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
                                 module: String::from("envelope"),
                                 identifier: String::from("id"),
-                                arguments: vec![ast::Expression::Identifier(String::from(
-                                    "envelope"
-                                ))]
+                                arguments: vec![Expression::Identifier(String::from("envelope"))]
                             },),
                         }),
                         1492,
@@ -817,12 +800,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("author"),
-                            expression: ast::Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
                                 module: String::from("envelope"),
                                 identifier: String::from("author_id"),
-                                arguments: vec![ast::Expression::Identifier(String::from(
-                                    "envelope"
-                                ))]
+                                arguments: vec![Expression::Identifier(String::from("envelope"))]
                             },),
                         }),
                         1540,
@@ -830,9 +811,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("new_x"),
-                            expression: ast::Expression::Add(
-                                Box::new(ast::Expression::Identifier(String::from("x"))),
-                                Box::new(ast::Expression::Identifier(String::from("count"))),
+                            expression: Expression::Add(
+                                Box::new(Expression::Identifier(String::from("x"))),
+                                Box::new(Expression::Identifier(String::from("count"))),
                             ),
                         }),
                         1599,
@@ -906,21 +887,19 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                 1775
                             ),
                             AstNode::new(
-                                ast::Statement::Emit(ast::Expression::NamedStruct(
-                                    ast::NamedStruct {
-                                        identifier: String::from("Added"),
-                                        fields: vec![
-                                            (
-                                                String::from("x"),
-                                                ast::Expression::Identifier(String::from("new_x")),
-                                            ),
-                                            (
-                                                String::from("y"),
-                                                ast::Expression::Identifier(String::from("count")),
-                                            ),
-                                        ],
-                                    },
-                                )),
+                                ast::Statement::Emit(Expression::NamedStruct(ast::NamedStruct {
+                                    identifier: String::from("Added"),
+                                    fields: vec![
+                                        (
+                                            String::from("x"),
+                                            Expression::Identifier(String::from("new_x")),
+                                        ),
+                                        (
+                                            String::from("y"),
+                                            Expression::Identifier(String::from("count")),
+                                        ),
+                                    ],
+                                },)),
                                 1816
                             ),
                         ]),
@@ -945,17 +924,17 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("x"),
-                            expression: ast::Expression::Unwrap(Box::new(
-                                ast::Expression::Identifier(String::from("v")),
-                            )),
+                            expression: Expression::Unwrap(Box::new(Expression::Identifier(
+                                String::from("v")
+                            ),)),
                         }),
                         2023,
                     ),
                     AstNode::new(
                         ast::Statement::Return(ast::ReturnStatement {
-                            expression: ast::Expression::GreaterThan(
-                                Box::new(ast::Expression::Identifier(String::from("x"))),
-                                Box::new(ast::Expression::Int(0)),
+                            expression: Expression::GreaterThan(
+                                Box::new(Expression::Identifier(String::from("x"))),
+                                Box::new(Expression::Int(0)),
                             ),
                         }),
                         2052,
@@ -1151,12 +1130,12 @@ fn parse_struct() {
                 return_type: ast::VType::Struct(String::from("Bar")),
                 statements: vec![AstNode::new(
                     ast::Statement::Return(ast::ReturnStatement {
-                        expression: ast::Expression::NamedStruct(ast::NamedStruct {
+                        expression: Expression::NamedStruct(ast::NamedStruct {
                             identifier: String::from("Bar"),
                             fields: vec![(
                                 String::from("y"),
-                                ast::Expression::Dot(
-                                    Box::new(ast::Expression::Identifier(String::from("foo"))),
+                                Expression::Dot(
+                                    Box::new(Expression::Identifier(String::from("foo"))),
                                     String::from("x")
                                 )
                             )],
@@ -1304,18 +1283,18 @@ fn parse_seal_open() {
                 recall: vec![],
                 seal: vec![AstNode::new(
                     ast::Statement::Return(ast::ReturnStatement {
-                        expression: ast::Expression::FunctionCall(ast::FunctionCall {
+                        expression: Expression::FunctionCall(ast::FunctionCall {
                             identifier: String::from("bar"),
-                            arguments: vec![ast::Expression::Identifier(String::from("this"))]
+                            arguments: vec![Expression::Identifier(String::from("this"))]
                         })
                     }),
                     49
                 )],
                 open: vec![AstNode::new(
                     ast::Statement::Return(ast::ReturnStatement {
-                        expression: ast::Expression::FunctionCall(ast::FunctionCall {
+                        expression: Expression::FunctionCall(ast::FunctionCall {
                             identifier: String::from("baz"),
-                            arguments: vec![ast::Expression::Identifier(String::from("envelope"))]
+                            arguments: vec![Expression::Identifier(String::from("envelope"))]
                         })
                     }),
                     116
@@ -1351,20 +1330,18 @@ fn parse_serialize_deserialize() {
                 recall: vec![],
                 seal: vec![AstNode::new(
                     ast::Statement::Return(ast::ReturnStatement {
-                        expression: ast::Expression::InternalFunction(
-                            ast::InternalFunction::Serialize(Box::new(
-                                ast::Expression::Identifier(String::from("this"))
-                            ))
-                        )
+                        expression: Expression::InternalFunction(ast::InternalFunction::Serialize(
+                            Box::new(Expression::Identifier(String::from("this")))
+                        ))
                     }),
                     49
                 )],
                 open: vec![AstNode::new(
                     ast::Statement::Return(ast::ReturnStatement {
-                        expression: ast::Expression::InternalFunction(
-                            ast::InternalFunction::Deserialize(Box::new(
-                                ast::Expression::Identifier(String::from("envelope"))
-                            ))
+                        expression: Expression::InternalFunction(
+                            ast::InternalFunction::Deserialize(Box::new(Expression::Identifier(
+                                String::from("envelope")
+                            )))
                         )
                     }),
                     122
@@ -1402,21 +1379,21 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
             AstNode::new(
                 ast::GlobalLetStatement {
                     identifier: String::from("x"),
-                    expression: ast::Expression::Int(42),
+                    expression: Expression::Int(42),
                 },
                 9,
             ),
             AstNode::new(
                 ast::GlobalLetStatement {
                     identifier: String::from("y"),
-                    expression: ast::Expression::String(String::from("hello")),
+                    expression: Expression::String(String::from("hello")),
                 },
                 28,
             ),
             AstNode::new(
                 ast::GlobalLetStatement {
                     identifier: String::from("z"),
-                    expression: ast::Expression::Bool(true),
+                    expression: Expression::Bool(true),
                 },
                 52,
             ),
@@ -1433,9 +1410,9 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("a"),
-                            expression: ast::Expression::Add(
-                                Box::new(ast::Expression::Identifier(String::from("x"))),
-                                Box::new(ast::Expression::Int(1)),
+                            expression: Expression::Add(
+                                Box::new(Expression::Identifier(String::from("x"))),
+                                Box::new(Expression::Int(1)),
                             ),
                         }),
                         101,
@@ -1443,9 +1420,9 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("b"),
-                            expression: ast::Expression::Add(
-                                Box::new(ast::Expression::Identifier(String::from("y"))),
-                                Box::new(ast::Expression::String(String::from(" world"))),
+                            expression: Expression::Add(
+                                Box::new(Expression::Identifier(String::from("y"))),
+                                Box::new(Expression::String(String::from(" world"))),
                             ),
                         }),
                         127,
@@ -1453,28 +1430,19 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: String::from("c"),
-                            expression: ast::Expression::Not(Box::new(
-                                ast::Expression::Identifier(String::from("z")),
-                            )),
+                            expression: Expression::Not(Box::new(Expression::Identifier(
+                                String::from("z")
+                            ),)),
                         }),
                         160,
                     ),
                     AstNode::new(
-                        ast::Statement::Emit(ast::Expression::NamedStruct(ast::NamedStruct {
+                        ast::Statement::Emit(Expression::NamedStruct(ast::NamedStruct {
                             identifier: String::from("Bar"),
                             fields: vec![
-                                (
-                                    String::from("a"),
-                                    ast::Expression::Identifier(String::from("a")),
-                                ),
-                                (
-                                    String::from("b"),
-                                    ast::Expression::Identifier(String::from("b")),
-                                ),
-                                (
-                                    String::from("c"),
-                                    ast::Expression::Identifier(String::from("c")),
-                                ),
+                                (String::from("a"), Expression::Identifier(String::from("a")),),
+                                (String::from("b"), Expression::Identifier(String::from("b")),),
+                                (String::from("c"), Expression::Identifier(String::from("c")),),
                             ],
                         })),
                         183,

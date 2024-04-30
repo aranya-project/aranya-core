@@ -17,7 +17,7 @@ pub fn spira(
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     match option_env!("SPIRA_ENABLED") {
-        Some(_) => crate::spira::parse(attr.into(), item.into()).into(),
+        Some(_) => spira::parse(attr.into(), item.into()).into(),
         None => item,
     }
 }

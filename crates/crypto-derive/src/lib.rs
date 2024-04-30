@@ -14,7 +14,7 @@ use syn::Error;
 #[proc_macro_derive(AlgId, attributes(alg_id))]
 #[allow(missing_docs)]
 pub fn alg_id(item: TokenStream) -> TokenStream {
-    crate::alg_id::parse(item.into())
+    alg_id::parse(item.into())
         .unwrap_or_else(Error::into_compile_error)
         .into()
 }

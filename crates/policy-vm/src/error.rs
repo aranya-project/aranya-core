@@ -71,7 +71,7 @@ pub enum MachineErrorType {
 }
 
 impl fmt::Display for MachineErrorType {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MachineErrorType::StackUnderflow => write!(f, "stack underflow"),
             MachineErrorType::StackOverflow => write!(f, "stack overflow"),

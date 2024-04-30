@@ -284,7 +284,7 @@ impl TryAsMut<Fact> for Value {
 }
 
 impl fmt::Display for Value {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Int(i) => write!(f, "{}", i),
             Value::Bool(b) => write!(f, "{}", b),
@@ -357,7 +357,7 @@ impl From<HashableValue> for Value {
 }
 
 impl fmt::Display for HashableValue {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let real_value: Value = self.to_owned().into();
         write!(f, "{}", real_value)
     }
@@ -526,7 +526,7 @@ impl Fact {
 }
 
 impl fmt::Display for Fact {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}[", self.name)?;
         let mut i = false;
         for FactKey {
@@ -590,7 +590,7 @@ impl From<Struct> for (String, Vec<KVPair>) {
 }
 
 impl fmt::Display for Struct {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}{{", self.name)?;
         let mut i = false;
         for (k, v) in &self.fields {

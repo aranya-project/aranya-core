@@ -47,8 +47,8 @@ pub enum CompileErrorType {
     Unknown(String),
 }
 
-impl core::fmt::Display for CompileErrorType {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl fmt::Display for CompileErrorType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidStatement(c) => write!(f, "Invalid statement in {} context", c),
             Self::InvalidExpression(e) => write!(f, "Invalid expression: {:?}", e),

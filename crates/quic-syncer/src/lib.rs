@@ -69,7 +69,7 @@ where
     let connection = conn.await?;
     let stream = connection.accept_bi().await;
     let stream = match stream {
-        Err(quinn::ConnectionError::ApplicationClosed { .. }) => {
+        Err(ConnectionError::ApplicationClosed { .. }) => {
             return Ok(());
         }
         Err(e) => {

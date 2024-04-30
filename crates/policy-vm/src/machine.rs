@@ -93,7 +93,7 @@ pub enum MachineStatus {
 }
 
 impl Display for MachineStatus {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MachineStatus::Executing => write!(f, "Executing"),
             MachineStatus::Exited(reason) => write!(f, "Exited: {}", reason),
@@ -285,7 +285,7 @@ impl Machine {
 }
 
 impl Display for Machine {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Program memory:")?;
         for (addr, instr) in self.progmem.iter().enumerate() {
             writeln!(f, "  {:4}  {}", addr, instr)?;
@@ -1002,7 +1002,7 @@ impl<'a, M> Display for RunState<'a, M>
 where
     M: MachineIO<MachineStack>,
 {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "# Name table:")?;
         for (k, v) in &self.machine.labels {
             writeln!(f, "  {}: {:?}", k, v)?;

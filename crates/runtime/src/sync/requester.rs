@@ -340,7 +340,7 @@ impl SyncRequester<'_> {
                 // not the best strategy as if you are far enough ahead of
                 // the other client they will just send you everything they have.
                 while commands.len() < COMMAND_SAMPLE_MAX && !current.is_empty() {
-                    let mut next = alloc::vec::Vec::new(); //BUG not constant memory
+                    let mut next = vec::Vec::new(); //BUG not constant memory
 
                     'current: for &location in &current {
                         let segment = storage.get_segment(location)?;

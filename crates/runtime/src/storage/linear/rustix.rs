@@ -25,11 +25,7 @@ pub struct FileManager {
 impl FileManager {
     pub fn new<P: rustix::path::Arg>(dir: P) -> rustix::io::Result<Self> {
         Ok(Self {
-            dir: fs::open(
-                dir,
-                fs::OFlags::RDONLY | fs::OFlags::DIRECTORY,
-                fs::Mode::empty(),
-            )?,
+            dir: fs::open(dir, OFlags::RDONLY | OFlags::DIRECTORY, Mode::empty())?,
         })
     }
 }
@@ -54,7 +50,7 @@ impl linear::io::IoManager for FileManager {
         let name = id.to_string();
         let fd = match fs::openat(&self.dir, name, OFlags::RDWR, Mode::empty()) {
             Ok(fd) => fd,
-            Err(rustix::io::Errno::NOENT) => return Ok(None),
+            Err(Errno::NOENT) => return Ok(None),
             Err(e) => return Err(e.into()),
         };
         fs::flock(&fd, fs::FlockOperation::NonBlockingLockExclusive)?;
@@ -237,7 +233,7 @@ struct File {
 
 impl File {
     fn fallocate(&self, offset: u64, len: u64) -> Result<(), StorageError> {
-        Ok(rustix::fs::fallocate(
+        Ok(fs::fallocate(
             &self.fd,
             FallocateFlags::empty(),
             offset,
