@@ -126,7 +126,6 @@ impl<'a, T, G> TestModule<'a, T, G> {
     }
 
     const NO_ARGS_RESULT: i64 = 42;
-    const NO_RESULT_ARGS: (i64, i64, i64) = (1, 2, 3);
     const CUSTOM_TYPE_ARG: Label = Label(1234);
     const CUSTOM_TYPE_RESULT: Label = Label(4321);
 }
@@ -199,18 +198,6 @@ impl<'a, T, G> TestModule<'a, T, G> {
         _eng: &mut E,
     ) -> Result<i64, MachineError> {
         Ok(Self::NO_ARGS_RESULT)
-    }
-
-    #[ffi_export(def = "finish function no_result(a int, b int, c int)")]
-    fn no_result<E: Engine>(
-        &self,
-        _ctx: &CommandContext<'_>,
-        _eng: &mut E,
-        a: i64,
-        b: i64,
-        c: i64,
-    ) {
-        assert_eq!((a, b, c), Self::NO_RESULT_ARGS)
     }
 
     #[ffi_export(def = "function custom_type(label int) int")]
@@ -360,17 +347,6 @@ fn test_ffi_derive() {
         assert_eq!(state.len(), 1, "should be one item on the stack");
         let got = state.pop::<String>().expect("should have got a `String`");
         assert_eq!(got, "existing arg", "existing stack item is incorrect");
-    }
-
-    // Positive test for `no_result`.
-    {
-        state.push(TestModule::<(), ()>::NO_RESULT_ARGS.0);
-        state.push(TestModule::<(), ()>::NO_RESULT_ARGS.1);
-        state.push(TestModule::<(), ()>::NO_RESULT_ARGS.2);
-        state
-            .call("no_result")
-            .expect("`test::no_result` should not fail");
-        assert!(state.is_empty());
     }
 
     // Positive test for `custom_type`.

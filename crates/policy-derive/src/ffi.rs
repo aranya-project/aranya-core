@@ -186,28 +186,11 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 quote!(Self::#name)
             };
 
-            let inner = match &f.result {
-                (ReturnType::Default, Color::Finish) => quote! {
-                    #(#args);*;
-                    let _: () = #name(__ctx, __eng, #(#names),*);
-                    ::core::result::Result::Ok(())
-                },
-                // Rust returns `Result<(), E>`.
-                (ReturnType::Type(_, _), Color::Finish) => quote! {
-                    #(#args);*;
-                    let _: () = #name(__ctx, __eng, #(#names),*)?;
-                    ::core::result::Result::Ok(())
-                },
-                // Rust returns `Result<T, E>`.
-                (ReturnType::Type(_, _), Color::Pure(_)) => quote! {
-                    #(#args);*;
-                    let __result = #name(__ctx, __eng, #(#names),*)?;
-                    #vm::Stack::push(__stack, __result)?;
-                    ::core::result::Result::Ok(())
-                },
-                // These conditions should have been covered in
-                // `Func::from_ast`.
-                _ => unreachable!("invalid result"),
+            let inner = quote! {
+                #(#args);*;
+                let __result = #name(__ctx, __eng, #(#names),*)?;
+                #vm::Stack::push(__stack, __result)?;
+                ::core::result::Result::Ok(())
             };
             quote! {
                 __Func::#variant => { #inner }
@@ -222,20 +205,15 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             });
-            let color = match &f.result {
-                (ReturnType::Default, _) | (_, Color::Finish) => quote! {
-                    #vm::ffi::Color::Finish
-                },
-                (_, Color::Pure(vtype)) => {
-                    let vtype = VTypeTokens::new(vtype, &vm);
-                    quote!(#vm::ffi::Color::Pure(#vm::ffi::Type::#vtype))
-                }
+            let return_type = {
+                let vtype = VTypeTokens::new(&f.result, &vm);
+                quote!(#vm::ffi::Type::#vtype)
             };
             quote! {
                 #vm::ffi::Func {
                     name: #name,
                     args: &[#(#args),*],
-                    color: #color,
+                    return_type: #return_type,
                 }
             }
         });
@@ -476,7 +454,7 @@ struct Func {
     /// The function's arguments.
     args: Vec<Arg>,
     /// The function's result type.
-    result: (ReturnType, Color),
+    result: VType,
 }
 
 impl Func {
@@ -549,18 +527,14 @@ impl Func {
             })
             .collect::<syn::Result<Vec<_>>>()?;
 
-        let color = match attr.def.return_type.clone() {
-            Some(v) => Color::Pure(v),
-            None => Color::Finish,
+        let Some(vtype) = attr.def.return_type else {
+            return Err(Error::new(item.span(), "FFI function must be pure"));
         };
-        let result = match (&item.sig.output, color) {
-            (ReturnType::Default, Color::Pure(vtype)) => {
-                return Err(Error::new(
-                    item.span(),
-                    format!("Rust function returns `()`, but FFI function returns `{vtype}`"),
-                ));
+        let result = match &item.sig.output {
+            ReturnType::Default => {
+                return Err(Error::new(item.span(), "Rust function cannot return `()`"));
             }
-            (ty, color) => (ty.clone(), color),
+            _ => vtype.clone(),
         };
 
         Ok(Some(Self {
@@ -583,12 +557,6 @@ struct Arg {
     ident: Ident,
     ty: PatType,
     def: FieldDefinition,
-}
-
-#[derive(Clone, Debug)]
-enum Color {
-    Finish,
-    Pure(VType),
 }
 
 /// Implements [`ToTokens`] for `VType.`

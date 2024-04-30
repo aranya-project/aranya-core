@@ -13,8 +13,8 @@ pub struct Func<'a> {
     pub name: &'a str,
     /// The function's arguments.
     pub args: &'a [Arg<'a>],
-    /// The context in which the function can be called.
-    pub color: Color<'a>,
+    /// The return type of the function.
+    pub return_type: Type<'a>,
 }
 
 /// An argument to a foreign function.
@@ -141,17 +141,6 @@ pub enum Type<'a> {
     Struct(&'a str),
     /// An optional type of some other type.
     Optional(&'a Type<'a>),
-}
-
-/// Describes the context in which the function can be called.
-#[derive(Clone, Debug)]
-pub enum Color<'a> {
-    /// Function is valid outside of finish blocks, and returns
-    /// a value.
-    Pure(Type<'a>),
-    /// Function is valid inside finish blocks, and does not
-    /// return a value.
-    Finish,
 }
 
 /// Foreign-function module declaration.

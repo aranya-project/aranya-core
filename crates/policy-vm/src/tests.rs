@@ -1428,7 +1428,7 @@ impl FfiModule for PrintFfi {
                 name: "s",
                 vtype: ffi::Type::String,
             }],
-            color: ffi::Color::Pure(ffi::Type::String),
+            return_type: ffi::Type::String,
         }],
     };
 
