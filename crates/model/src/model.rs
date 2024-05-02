@@ -260,7 +260,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     type PublicKeys = CF::PublicKeys;
 
     fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError> {
-        if self.clients.get(&proxy_id).is_some() {
+        if self.clients.contains_key(&proxy_id) {
             return Err(ModelError::DuplicateClient);
         };
 
@@ -276,7 +276,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         client_proxy_id: ProxyClientID,
         action: Self::Action<'_>,
     ) -> Result<Self::Effect, ModelError> {
-        if self.storage_ids.get(&proxy_id).is_some() {
+        if self.storage_ids.contains_key(&proxy_id) {
             return Err(ModelError::DuplicateGraph);
         }
 
