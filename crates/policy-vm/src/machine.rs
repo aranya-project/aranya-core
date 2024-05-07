@@ -163,12 +163,13 @@ impl Display for Label {
     }
 }
 
-/// This is the core policy machine type, which contains all of the state
-/// of the machine and associated facts.
+/// This is the core policy VM type, which contains the static data for the VM -
+/// instructions, entry points, schemas, globally scoped static values, and optionally a
+/// mapping between instructions and source code locations. For the VM's runtime data, see
+/// [`create_run_state()`](Self::create_run_state) and [`RunState`].
 #[derive(Clone, Debug)]
 #[cfg_attr(test, derive(Eq, PartialEq))]
 pub struct Machine {
-    // static state (things which do not change after compilation)
     /// The program memory
     pub(crate) progmem: Vec<Instruction>,
     /// Mapping of Label names to addresses
@@ -312,9 +313,11 @@ struct CallState {
     defs: BTreeMap<String, Value>,
 }
 
-/// The "run state" of the machine. It's separated from the rest of
-/// the VM so that it can be managed independently and potentially in
-/// multiple simultaneous instances.
+/// The "run state" of the machine - variables, the stack, the call stack, the program
+/// counter, I/O, and the current execution context. Most commonly created from
+/// [`Machine::create_run_state()`]. It's separated from the rest of the
+/// VM so that it can be managed independently and potentially in multiple simultaneous
+/// instances.
 pub struct RunState<'a, M> {
     /// Reference to the underlying static machine data
     machine: &'a Machine,

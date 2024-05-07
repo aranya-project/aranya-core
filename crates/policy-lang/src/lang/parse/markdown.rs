@@ -87,6 +87,8 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
     }
 }
 
+/// Parses a Markdown policy document into an AST. This AST will likely be further processed
+/// by the [`Compiler`](../../policy_vm/struct.Compiler.html).
 pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     let (chunks, version) = extract_policy(data)?;
     let mut policy = ast::Policy::new(version, data);
@@ -96,6 +98,8 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     Ok(policy)
 }
 
+/// Extract the policy chunks from a Markdown policy document. Returns the chunks plus the
+/// policy version.
 pub fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;
