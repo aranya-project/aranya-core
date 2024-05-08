@@ -15,7 +15,7 @@ use crate::{
 };
 
 const TEST_POLICY_1: &str = r#"---
-policy-version: 3
+policy-version: 1
 ---
 
 ```policy

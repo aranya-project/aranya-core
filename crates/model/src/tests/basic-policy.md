@@ -1,5 +1,5 @@
 ---
-policy-version: 3
+policy-version: 1
 ---
 
 <!--

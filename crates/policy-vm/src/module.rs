@@ -140,7 +140,7 @@ command Increment {
 }
 "#
             .trim(),
-            ast::Version::V3,
+            ast::Version::V1,
         )
         .unwrap();
 

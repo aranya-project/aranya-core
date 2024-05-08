@@ -21,10 +21,10 @@ impl trouble::Error for InvalidVersion {}
 /// Policy language version
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub enum Version {
-    /// Version 3, the initial version of the "new" policy
+    /// Version 1, the initial version of the "new" policy
     /// language.
     #[default]
-    V3,
+    V1,
 }
 
 // This supports the command-line tools, allowing automatic
@@ -34,7 +34,7 @@ impl FromStr for Version {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
-            "v3" => Ok(Version::V3),
+            "v1" => Ok(Version::V1),
             _ => Err(InvalidVersion),
         }
     }
@@ -43,7 +43,7 @@ impl FromStr for Version {
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::V3 => write!(f, "v3"),
+            Self::V1 => write!(f, "v1"),
         }
     }
 }

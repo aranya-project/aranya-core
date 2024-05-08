@@ -10,7 +10,7 @@ You will find:
 
 - The skeletal C library under [src/](../src/) which includes [no_std support](../src/no_std.rs) and [memory management routines](../src/mmap.rs) for VxWorks.
 
-- The Policy Engine v3 compiler, which lives in its own crate under [policy-lang](../src/policy-lang/src/) and currently lives in the `4-policy-parser` branch.
+- The Policy Engine v1 compiler, which lives in its own crate under [policy-lang](../src/policy-lang/src/) and currently lives in the `4-policy-parser` branch.
 
 - The Weave Engine, which lives in [src/engine.rs](../src/engine.rs), its storage layer in [src/storage.rs](../src/storage.rs), and the memory storage implementation in [src/storage/mem_storage.rs](../src/storage/mem_storage.rs). All of this is currently in branch `moore_reference`.
 

@@ -16,7 +16,7 @@
 //!
 //! [IDAM crypto]: https://github.com/spideroak-inc/flow3-docs/blob/37bfddf39c37ae258615e8bf2617432aaf8d453a/idam_crypto.md
 //! [IDAM]: https://github.com/spideroak-inc/flow3-docs/blob/8bf06fdfdb4521f96892de9eff8c7b2908413ace/src/idam.md
-//! [policy lang]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/main/src/policy-v3.md
+//! [policy lang]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/main/src/policy-v1.md
 
 #![cfg_attr(docs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest)), no_std)]

@@ -29,7 +29,7 @@ enum Mode {
 #[command(group(ArgGroup::new("call").conflicts_with("compile").args(["action", "command"])))]
 struct Args {
     /// The policy version. If this is set the policy is treated as raw.
-    /// Valid values are v3.
+    /// Valid values are v1.
     #[arg(short, long)]
     raw_policy_version: Option<Version>,
     /// Execute the action or command and show the machine state.
