@@ -19,7 +19,10 @@ perspective-ffi = { path = "../perspective-ffi" }
 policy-vm = { path = "../policy-vm" }
 trouble = { path = "../trouble" }
 
+cfg-if = { workspace = true, default-features = false, optional = true }
 heapless = { workspace = true, features = ["serde"] }
+libc = { workspace = true, optional = true }
+memchr = { version = "2.7.2", default-features = false, optional = true }
 postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 spin = { workspace = true, features = ["spin_mutex"] }
@@ -45,9 +48,18 @@ tracing-subscriber = { workspace = true, default-features = true } # affects fea
 [features]
 default = []
 
+# Enable `libc`.
+libc = [
+	"dep:cfg-if",
+	"dep:libc",
+	"dep:memchr",
+]
+
 std = [
 	"buggy/std",
 	"crypto/std",
+	"libc?/std",
+	"memchr?/std",
 	"policy-vm/std",
 	"postcard/use-std",
 	"rustix?/std",

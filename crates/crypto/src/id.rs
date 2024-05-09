@@ -8,8 +8,7 @@ use core::{
     str::FromStr,
 };
 
-pub use base58::DecodeError;
-use base58::{String64, ToBase58};
+pub use base58::{DecodeError, String64, ToBase58};
 use generic_array::GenericArray;
 use postcard::experimental::max_size::MaxSize;
 use serde::{
@@ -350,6 +349,14 @@ macro_rules! custom_id {
         impl ::core::fmt::Debug for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 write!(f, concat!(stringify!($name), "({})"), self.0)
+            }
+        }
+
+        impl $crate::id::ToBase58 for $name {
+            type Output = $crate::id::String64;
+
+            fn to_base58(&self) -> Self::Output {
+                $crate::id::ToBase58::to_base58(&self.0)
             }
         }
     };

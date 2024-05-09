@@ -90,7 +90,7 @@ pub use error::*;
 pub use generic_array;
 pub use groupkey::*;
 pub use hpke::HpkeError;
-pub use id::*;
+pub use id::{Id, Identified};
 pub use import::{ExportError, ImportError};
 pub use kdf::KdfError;
 pub use kem::{EcdhError, KemError};

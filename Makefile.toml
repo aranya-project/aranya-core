@@ -23,7 +23,7 @@ script = "cargo make --quiet --list-all-steps --hide-uninteresting"
 category = "build"
 description = "Build Code"
 command = "cargo"
-args = ["build", "--verbose", "--release"]
+args = ["build", "--verbose", "--release", "${@}"]
 
 
 # Test
@@ -64,16 +64,16 @@ toolchain = "${NIGHTLY}"
 command = "cargo"
 args = [
     "build",
-    "-Zbuild-std=core",
+    "-Zbuild-std=core,alloc",
     "--target=powerpc-wrs-vxworks",
     "--release",
-    # For now, only try to build the `crypto` crate since it's
-    # the only crate that's used on VxWorks.
+    # Only try to build the crates that are used on VxWorks.
     "--package=crypto",
+    "--package=runtime",
     # Build the variant used by the Moonshot project since
     # it's currently our only use of VxWorks.
     "--no-default-features",
-    "--features=moonshot",
+    "--features=moonshot,libc",
     "${@}",
 ]
 dependencies = ["setup-vxworks-env"]

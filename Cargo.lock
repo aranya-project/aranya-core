@@ -2426,10 +2426,13 @@ name = "runtime"
 version = "0.1.0"
 dependencies = [
  "buggy",
+ "cfg-if",
  "crypto",
  "device-ffi",
  "dot-writer",
  "heapless",
+ "libc",
+ "memchr",
  "perspective-ffi",
  "policy-lang",
  "policy-vm",

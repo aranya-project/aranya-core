@@ -22,6 +22,7 @@
 //! committed, it may be overwritten and will become unreachable by intended
 //! means.
 
+pub mod libc;
 pub mod rustix;
 
 #[cfg(feature = "testing")]

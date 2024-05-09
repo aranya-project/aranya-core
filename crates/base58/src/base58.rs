@@ -114,9 +114,15 @@ macro_rules! encode_x {
             #[doc = concat!("A Base58-encoded ", stringify!($size), "-byte value.")]
             #[derive(Copy, Clone)]
             pub struct $name {
-                data: [u8; ($size*1375)/1000],
+                data: [u8; Self::MAX_SIZE],
                 /// Number of bytes used in `data`.
                 n: usize,
+            }
+
+            impl $name {
+                /// The maximum size in bytes of the encoded
+                /// value.
+                pub const MAX_SIZE: usize = ($size*1375)/1000;
             }
 
             impl fmt::Display for $name {
@@ -197,7 +203,7 @@ macro_rules! encode_x {
                 #[inline]
                 fn default() -> Self  {
                     Self {
-                        data: [49u8; ($size*1375)/1000],
+                        data: [49u8; Self::MAX_SIZE],
                         n: 0,
                     }
                 }
@@ -284,7 +290,7 @@ macro_rules! encode_x {
 
                 /// Encodes `b` as a Base58 string.
                 pub fn encode(b: &[u8; $size]) -> $name {
-                    let mut dst = [0u8; ($size*1375)/1000];
+                    let mut dst = [0u8; Self::MAX_SIZE];
                     let mut x = Uint::<{ $size/8 }, $size>::from_be_bytes(b);
 
                     let mut i = dst.len();

@@ -718,3 +718,35 @@ mod linear_rustix {
 
     test_suite!(LinearBackend);
 }
+
+#[cfg(feature = "libc")]
+mod linear_libc {
+    use std::fs;
+
+    use runtime::storage::linear::*;
+    use tracing::info;
+
+    use super::*;
+
+    struct LinearBackend {
+        tempdir: tempfile::TempDir,
+    }
+    impl StorageBackend for LinearBackend {
+        type StorageProvider = LinearStorageProvider<libc::FileManager>;
+
+        fn new() -> Self {
+            let tempdir = tempfile::tempdir().unwrap();
+            info!(path = ?tempdir.path(), "using tempdir");
+            Self { tempdir }
+        }
+
+        fn provider(&mut self, client_id: u64) -> Self::StorageProvider {
+            let dir = self.tempdir.path().join(client_id.to_string());
+            fs::create_dir(&dir).unwrap();
+            let manager = libc::FileManager::new(&dir).unwrap();
+            LinearStorageProvider::new(manager)
+        }
+    }
+
+    test_suite!(LinearBackend);
+}
