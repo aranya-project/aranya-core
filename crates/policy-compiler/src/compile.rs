@@ -1,17 +1,11 @@
-extern crate alloc;
-
 mod error;
-mod tests;
-use alloc::{
-    borrow::ToOwned,
-    boxed::Box,
+mod target;
+
+use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
-    format,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
+    fmt,
+    ops::Range,
 };
-use core::{fmt, ops::Range};
 
 pub use ast::Policy as AstPolicy;
 use ast::{
@@ -20,12 +14,13 @@ use ast::{
 };
 use buggy::BugExt;
 use policy_ast::{self as ast, AstNode, VType};
-
-pub use self::error::{CallColor, CompileError, CompileErrorType};
-use crate::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Machine, Struct, Target,
+use policy_module::{
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Module, Struct, Target,
     Value,
 };
+use target::CompileTarget;
+
+pub use self::error::{CallColor, CompileError, CompileErrorType};
 
 enum FunctionColor {
     /// Function has no side-effects and returns a value
@@ -71,9 +66,9 @@ impl fmt::Display for StatementContext {
 }
 
 /// The "compile state" of the machine.
-pub struct CompileState<'a> {
+struct CompileState<'a> {
     /// The underlying machine
-    m: Machine,
+    m: CompileTarget,
     /// The write pointer used while compiling instructions into memory
     wp: usize,
     /// A counter used to generate temporary labels
@@ -96,22 +91,6 @@ pub struct CompileState<'a> {
 }
 
 impl<'a> CompileState<'a> {
-    /// Create a new CompileState which compiles into the owned
-    /// machine.
-    pub fn new(m: Machine, ffi_modules: &'a [ModuleSchema<'a>]) -> Self {
-        CompileState {
-            m,
-            wp: 0,
-            c: 0,
-            function_signatures: BTreeMap::new(),
-            last_locator: 0,
-            statement_context: vec![],
-            ffi_modules,
-            enum_values: BTreeMap::new(),
-            is_debug: false,
-        }
-    }
-
     /// Begin parsing statements in this context
     fn enter_statement_context(&mut self, c: StatementContext) {
         self.statement_context.push(c);
@@ -1421,12 +1400,12 @@ impl<'a> CompileState<'a> {
     }
 
     /// Finish compilation; return the internal machine
-    pub fn into_machine(self) -> Machine {
-        self.m
+    pub fn into_module(self) -> Module {
+        self.m.into_module()
     }
 }
 
-/// A builder for creating an instance of [`Machine`]
+/// A builder for creating an instance of [`Module`]
 pub struct Compiler<'a> {
     policy: &'a AstPolicy,
     ffi_modules: &'a [ModuleSchema<'a>],
@@ -1434,7 +1413,7 @@ pub struct Compiler<'a> {
 }
 
 impl<'a> Compiler<'a> {
-    /// Creates a new an instance of [`Compiler`] which compiles into a [`Machine`]
+    /// Creates a new an instance of [`Compiler`] which compiles into a [`Module`]
     pub fn new(policy: &'a AstPolicy) -> Self {
         Self {
             policy,
@@ -1455,10 +1434,10 @@ impl<'a> Compiler<'a> {
         self
     }
 
-    /// Consumes the builder to create a [`Machine`]
-    pub fn compile(self) -> Result<Machine, CompileError> {
+    /// Consumes the builder to create a [`Module`]
+    pub fn compile(self) -> Result<Module, CompileError> {
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
-        let machine = Machine::from_codemap(codemap);
+        let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {
             m: machine,
             wp: 0,
@@ -1477,7 +1456,7 @@ impl<'a> Compiler<'a> {
         }
 
         cs.compile(self.policy)?;
-        Ok(cs.into_machine())
+        Ok(cs.into_module())
     }
 }
 

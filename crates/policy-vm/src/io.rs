@@ -3,9 +3,10 @@ extern crate alloc;
 use alloc::string::String;
 use core::fmt;
 
+use policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
+
 use super::Stack;
 use crate::{
-    data::{FactKey, FactKeyList, FactValue, FactValueList, KVPair},
     error::{MachineError, MachineErrorType},
     CommandContext,
 };

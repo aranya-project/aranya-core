@@ -14,10 +14,11 @@ use device_ffi::FfiDevice as DeviceFfi;
 use envelope_ffi::Ffi as EnvelopeFfi;
 use idam_ffi::Ffi as IdamFfi;
 use perspective_ffi::FfiPerspective as PerspectiveFfi;
+use policy_compiler::Compiler;
 use policy_lang::lang::parse_policy_document;
 use policy_vm::{
     ffi::{FfiModule, ModuleSchema},
-    Compiler, Machine,
+    Machine,
 };
 use runtime::{
     storage::memory::MemStorageProvider,
@@ -49,9 +50,10 @@ impl BasicClientFactory {
 
         let policy_ast = parse_policy_document(policy_doc)?;
         // Policy machine
-        let machine = Compiler::new(&policy_ast)
+        let module = Compiler::new(&policy_ast)
             .ffi_modules(ffi_schema)
             .compile()?;
+        let machine = Machine::from_module(module).expect("should be able to load compiled module");
 
         Ok(Self { machine })
     }
@@ -103,9 +105,10 @@ impl FfiClientFactory {
 
         let policy_ast = parse_policy_document(policy_doc)?;
         // Policy machine
-        let machine = Compiler::new(&policy_ast)
+        let module = Compiler::new(&policy_ast)
             .ffi_modules(ffi_schema)
             .compile()?;
+        let machine = Machine::from_module(module).expect("should be able to load compiled module");
 
         Ok(Self { machine })
     }

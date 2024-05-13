@@ -7,8 +7,9 @@
 //! [`Machine`], a [`crypto::Engine`], and a Vec of Boxed FFI implementations. The Machine
 //! will be created by either compiling a policy document (see
 //! [`parse_policy_document()`](../../policy_lang/lang/fn.parse_policy_document.html) and
-//! [`Compiler`](policy_vm::Compiler)), or loading a compiled policy module (see
-//! [`Machine::from_module()`]). The crypto engine comes from your favorite implementation
+//! [`Compiler`](../../policy_compiler/struct.Compiler.html)), or loading a compiled policy
+//! module (see [`Machine::from_module()`]). The crypto engine comes from your favorite
+//! implementation
 //! ([`DefaultEngine::from_entropy()`](crypto::default::DefaultEngine::from_entropy) is a
 //! good choice for testing). The list of FFIs is a list of things that implement
 //! [`FfiModule`](policy_vm::ffi::FfiModule), most likely via the [ffi attribute
@@ -541,6 +542,3 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         Ok(VmProtocol::new(data, id, c))
     }
 }
-
-#[cfg(test)]
-mod tests;

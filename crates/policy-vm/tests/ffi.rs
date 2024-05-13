@@ -8,6 +8,7 @@ use policy_vm::{
     self,
     ffi::{ffi, FfiModule},
     CommandContext, MachineError, MachineErrorType, MachineStack, PolicyContext, Stack, Value,
+    ValueConversionError,
 };
 
 #[derive(Debug, PartialEq)]
@@ -65,7 +66,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
 
     fn pop<V>(&mut self) -> Result<V, MachineErrorType>
     where
-        V: TryFrom<Value, Error = MachineErrorType>,
+        V: TryFrom<Value, Error = ValueConversionError>,
     {
         self.stack.pop()
     }
@@ -89,16 +90,16 @@ impl From<Label> for Value {
 }
 
 impl TryFrom<Value> for Label {
-    type Error = MachineErrorType;
+    type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let x = match value {
             Value::Int(x) => x,
-            _ => return Err(MachineErrorType::InvalidType),
+            _ => return Err(ValueConversionError::InvalidType),
         };
-        Ok(Label(u32::try_from(x).map_err(|_| {
-            MachineErrorType::Unknown("cannot create Label from Value".to_string())
-        })?))
+        Ok(Label(
+            u32::try_from(x).map_err(|_| ValueConversionError::OutOfRange)?,
+        ))
     }
 }
 

@@ -1,7 +1,6 @@
-use crate::{
-    data::{TryAsMut, Value},
-    error::MachineErrorType,
-};
+use policy_module::{TryAsMut, Value, ValueConversionError};
+
+use crate::error::MachineErrorType;
 
 /// A stack data structure.
 pub trait Stack {
@@ -26,17 +25,19 @@ pub trait Stack {
     /// Pop a value off of the stack.
     fn pop<V>(&mut self) -> Result<V, MachineErrorType>
     where
-        V: TryFrom<Value, Error = MachineErrorType>,
+        V: TryFrom<Value, Error = ValueConversionError>,
     {
-        self.pop_value().and_then(|v| v.try_into())
+        let raw = self.pop_value()?;
+        Ok(raw.try_into()?)
     }
 
     /// Get a reference to the value at the top of the stack
     fn peek<V>(&mut self) -> Result<&mut V, MachineErrorType>
     where
         V: ?Sized,
-        Value: TryAsMut<V, Error = MachineErrorType>,
+        Value: TryAsMut<V, Error = ValueConversionError>,
     {
-        self.peek_value().and_then(|v| v.try_as_mut())
+        let raw = self.peek_value()?;
+        Ok(raw.try_as_mut()?)
     }
 }

@@ -1,12 +1,10 @@
-extern crate alloc;
-
-use alloc::{borrow::ToOwned, string::String};
-use core::fmt;
+use std::fmt;
 
 use buggy::Bug;
 use policy_ast as ast;
+use policy_module::CodeMap;
 
-use crate::{compile::StatementContext, CodeMap};
+use crate::compile::StatementContext;
 
 /// Describes the call color in an [CompileErrorType::InvalidCallColor].
 #[derive(Debug, PartialEq)]

@@ -1,8 +1,29 @@
-use core::fmt::Display;
+use core::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{data::Value, ExitReason, Label};
+use crate::{data::Value, Label};
+
+/// Reason for ending execution.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum ExitReason {
+    /// Execution completed without errors.
+    Normal,
+    /// Execution was aborted gracefully, due an error.
+    Check,
+    /// Execution was aborted due to an unhandled error.
+    Panic,
+}
+
+impl Display for ExitReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Normal => f.write_str("Normal"),
+            Self::Check => f.write_str("Check"),
+            Self::Panic => f.write_str("Panic"),
+        }
+    }
+}
 
 /// The target of a branch
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -101,7 +122,7 @@ pub enum Instruction {
 }
 
 impl Display for Instruction {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Instruction::Const(v) => write!(f, "const {}", v),
             Instruction::Def => write!(f, "def"),

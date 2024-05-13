@@ -8,11 +8,12 @@ use std::{
 
 use clap::{arg, ArgGroup, Parser, ValueEnum};
 use crypto::Id;
+use policy_compiler::Compiler;
 use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use policy_vm::{
-    ActionContext, CommandContext, Compiler, ExitReason, FactKey, FactKeyList, FactValue,
-    FactValueList, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
-    MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
+    ActionContext, CommandContext, ExitReason, FactKey, FactKeyList, FactValue, FactValueList,
+    KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO, MachineIOError,
+    MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
@@ -237,7 +238,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     let machine: Machine = match Compiler::new(&policy).compile() {
-        Ok(m) => m,
+        Ok(m) => Machine::from_module(m)?,
         Err(e) => {
             println!("{}", e);
             anyhow::bail!("Compilation failed: {e}");

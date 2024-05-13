@@ -93,25 +93,25 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             }
             #[automatically_derived]
             impl ::core::convert::TryFrom<#vm::Value> for #name {
-                type Error = #vm::MachineErrorType;
+                type Error = #vm::ValueConversionError;
 
                 fn try_from(__value: #vm::Value) -> ::core::result::Result<Self, Self::Error> {
                     let #vm::Value::Struct(mut __struct) = __value else {
                         return ::core::result::Result::Err(
-                            #vm::MachineErrorType::InvalidType);
+                            #vm::ValueConversionError::InvalidType);
                     };
                     if __struct.name != ::core::stringify!(#name) {
                         return ::core::result::Result::Err(
-                            #vm::MachineErrorType::InvalidType);
+                            #vm::ValueConversionError::InvalidType);
                     }
                     #(
                         let #fields = __struct.fields.remove(::core::stringify!(#names))
-                            .ok_or(#vm::MachineErrorType::InvalidStructMember(
+                            .ok_or(#vm::ValueConversionError::InvalidStructMember(
                                     #alloc::string::String::from(::core::stringify!(#names)),
                             ))?;
                     )*
                     if !__struct.fields.is_empty() {
-                        return ::core::result::Result::Err(#vm::MachineErrorType::BadState);
+                        return ::core::result::Result::Err(#vm::ValueConversionError::BadState);
                     }
                     ::core::result::Result::Ok(#name {
                         #(

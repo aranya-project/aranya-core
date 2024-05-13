@@ -5,7 +5,7 @@
 
 extern crate alloc;
 
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use core::{fmt, result::Result};
 
 use crypto::{
@@ -14,7 +14,10 @@ use crypto::{
     CipherSuite, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
     KeyStoreExt, UnwrapError, UserId, WrapError,
 };
-use policy_vm::{ffi::ffi, CommandContext, MachineError, MachineErrorType, MachineIOError, Value};
+use policy_vm::{
+    ffi::ffi, CommandContext, MachineError, MachineErrorType, MachineIOError, Value,
+    ValueConversionError,
+};
 
 use crate::shared::decode_enc_pk;
 
@@ -274,14 +277,13 @@ impl From<aps::Label> for Label {
 }
 
 impl TryFrom<Value> for Label {
-    type Error = MachineErrorType;
+    type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let x: i64 = value.try_into()?;
         Ok(Label(
             // TODO(eric): better errors
-            u32::try_from(x)
-                .map_err(|_| MachineErrorType::Unknown(String::from("cannot create Label")))?,
+            u32::try_from(x).map_err(|_| ValueConversionError::OutOfRange)?,
         ))
     }
 }

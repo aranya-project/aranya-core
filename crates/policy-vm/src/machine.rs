@@ -6,16 +6,17 @@ use core::fmt::{self, Display};
 use ast::FactDefinition;
 use buggy::BugExt;
 use policy_ast as ast;
-use serde::{Deserialize, Serialize};
+use policy_module::{
+    CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
+    LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
+    ValueConversionError,
+};
 
-use super::module::{Module, ModuleData, ModuleV0, UnsupportedVersion};
 use crate::{
-    data::{Fact, HashableValue, KVPair, Struct, TryAsMut, Value},
     error::{MachineError, MachineErrorType},
-    instructions::{Instruction, Target},
     io::MachineIO,
     stack::Stack,
-    CodeMap, CommandContext, ExitReason, FactKey, FactValue, OpenContext, SealContext,
+    CommandContext, OpenContext, SealContext,
 };
 
 /// Compares a fact's keys and values to its schema.
@@ -101,87 +102,24 @@ impl Display for MachineStatus {
     }
 }
 
-/// Types of Labels
-#[derive(Debug, Clone, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
-pub enum LabelType {
-    /// This label represents the entry point of an action
-    Action,
-    /// This label represents the entry point of a command policy block
-    CommandPolicy,
-    /// This label represents the entry point of a command recall block
-    CommandRecall,
-    /// A command seal block
-    CommandSeal,
-    /// A command open block
-    CommandOpen,
-    /// This label is a temporary destination for implementing
-    /// branching constructs.
-    Temporary,
-}
-
-impl Display for LabelType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            LabelType::Action => write!(f, "action"),
-            LabelType::CommandPolicy => write!(f, "policy"),
-            LabelType::CommandRecall => write!(f, "recall"),
-            LabelType::CommandSeal => write!(f, "seal"),
-            LabelType::CommandOpen => write!(f, "open"),
-            LabelType::Temporary => write!(f, "temp"),
-        }
-    }
-}
-
-/// Labels are branch targets and execution entry points.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Label {
-    /// The address of the label
-    pub(crate) name: String,
-    /// The type of the label
-    pub(crate) ltype: LabelType,
-}
-
-impl Label {
-    pub(crate) fn new(name: &str, ltype: LabelType) -> Label {
-        Label {
-            name: name.to_owned(),
-            ltype,
-        }
-    }
-
-    pub(crate) fn new_temp(name: &str) -> Label {
-        Label {
-            name: name.to_owned(),
-            ltype: LabelType::Temporary,
-        }
-    }
-}
-
-impl Display for Label {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", self.ltype, self.name)
-    }
-}
-
 /// This is the core policy VM type, which contains the static data for the VM -
 /// instructions, entry points, schemas, globally scoped static values, and optionally a
 /// mapping between instructions and source code locations. For the VM's runtime data, see
 /// [`create_run_state()`](Self::create_run_state) and [`RunState`].
-#[derive(Clone, Debug)]
-#[cfg_attr(test, derive(Eq, PartialEq))]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Machine {
     /// The program memory
-    pub(crate) progmem: Vec<Instruction>,
+    pub progmem: Vec<Instruction>,
     /// Mapping of Label names to addresses
-    pub(crate) labels: BTreeMap<Label, usize>,
+    pub labels: BTreeMap<Label, usize>,
     /// Fact schemas
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct schemas
-    pub(crate) struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Mapping between program instructions and original code
-    pub(crate) codemap: Option<CodeMap>,
+    pub codemap: Option<CodeMap>,
     /// Globally scoped variables
-    pub(crate) globals: BTreeMap<String, Value>,
+    pub globals: BTreeMap<String, Value>,
 }
 
 impl Machine {
@@ -201,7 +139,7 @@ impl Machine {
     }
 
     /// Creates an empty `Machine` with a given codemap. Used by the compiler.
-    pub(crate) fn from_codemap(codemap: CodeMap) -> Self {
+    pub fn from_codemap(codemap: CodeMap) -> Self {
         Machine {
             progmem: vec![],
             labels: BTreeMap::new(),
@@ -221,7 +159,7 @@ impl Machine {
                 fact_defs: m.fact_defs,
                 struct_defs: m.struct_defs,
                 codemap: m.codemap,
-                globals: BTreeMap::new(),
+                globals: m.globals,
             }),
         }
     }
@@ -235,6 +173,7 @@ impl Machine {
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 codemap: self.codemap,
+                globals: self.globals,
             }),
         }
     }
@@ -324,7 +263,7 @@ pub struct RunState<'a, M> {
     /// Named value definitions ("variables")
     defs: BTreeMap<String, Value>,
     /// The stack
-    pub(crate) stack: MachineStack,
+    pub stack: MachineStack,
     /// The call state stack - stores return addresses and previous
     /// definitions when a function is called
     call_state: Vec<CallState>,
@@ -411,7 +350,7 @@ where
     /// [StackError] into [MachineError] with location information.
     fn ipop<V>(&mut self) -> Result<V, MachineError>
     where
-        V: TryFrom<Value, Error = MachineErrorType>,
+        V: TryFrom<Value, Error = ValueConversionError>,
     {
         self.stack.pop().map_err(|e| self.err(e))
     }
@@ -427,7 +366,7 @@ where
     fn ipeek<V>(&mut self) -> Result<&mut V, MachineError>
     where
         V: ?Sized,
-        Value: TryAsMut<V, Error = MachineErrorType>,
+        Value: TryAsMut<V, Error = ValueConversionError>,
     {
         // A little bit of chicanery - copy the PC now so we don't
         // borrow from self when creating the error (as self.err()
@@ -977,6 +916,11 @@ impl MachineStack {
 
     fn clear(&mut self) {
         self.0.clear();
+    }
+
+    /// Turn a Stack into a Vec of Values.
+    pub fn into_vec(self) -> Vec<Value> {
+        self.0
     }
 }
 

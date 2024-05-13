@@ -1,0 +1,26 @@
+[package]
+name = "policy-compiler"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+anyhow = { workspace = true }
+buggy = { path = "../buggy", features = ["std"] }
+cfg-if = { version = "1" }
+ciborium = { version = "0.2" }
+clap = { version = "4.4", features = ["derive"] }
+policy-ast = { path = "../policy-ast" }
+policy-lang = { path = "../policy-lang" }
+policy-module = { path = "../policy-module", features = ["std"] }
+serde = { workspace = true, default-features = false, features = ["derive"] }
+trouble = { path = "../trouble" }

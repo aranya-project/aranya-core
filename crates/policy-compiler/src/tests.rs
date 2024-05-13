@@ -1,13 +1,38 @@
 #![cfg(test)]
+
 use std::collections::BTreeMap;
 
 use policy_ast::{FieldDefinition, VType, Version};
 use policy_lang::lang::parse_policy_str;
+use policy_module::{Label, LabelType, ModuleData};
 
-use crate::{
-    compile::{error::CallColor, Compiler},
-    CompileError, CompileErrorType, Label, LabelType,
-};
+use crate::{CallColor, CompileError, CompileErrorType, Compiler};
+
+#[test]
+fn test_compile() -> anyhow::Result<()> {
+    let policy = parse_policy_str(
+        r#"
+        command Foo {
+            fields {}
+            seal { return None }
+            open { return None }
+        }
+        action foo(b int) {
+            let x = if b == 0 then 4+i else 3
+            let y = Foo{
+                a: x,
+                b: 4
+            }
+        }
+    "#
+        .trim(),
+        Version::V1,
+    )?;
+
+    Compiler::new(&policy).compile()?;
+
+    Ok(())
+}
 
 #[test]
 fn test_undefined_struct() -> anyhow::Result<()> {
@@ -204,13 +229,14 @@ fn test_seal_open_command() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V1)?;
-    let machine = Compiler::new(&policy).compile()?;
+    let module = Compiler::new(&policy).compile()?;
+    let ModuleData::V0(module) = module.data;
 
-    assert!(machine
+    assert!(module
         .labels
         .iter()
         .any(|l| *l.0 == Label::new("Foo", LabelType::CommandSeal)));
-    assert!(machine
+    assert!(module
         .labels
         .iter()
         .any(|l| *l.0 == Label::new("Foo", LabelType::CommandOpen)));
@@ -323,8 +349,9 @@ fn test_autodefine_struct() -> anyhow::Result<()> {
 
     let policy = parse_policy_str(text, Version::V1)?;
     let result = Compiler::new(&policy).compile()?;
+    let ModuleData::V0(module) = result.data;
 
-    assert_eq!(result.struct_defs, {
+    assert_eq!(module.struct_defs, {
         let mut test_struct_map = BTreeMap::new();
         test_struct_map.insert(
             "Foo".to_string(),
@@ -896,5 +923,197 @@ fn test_fact_duplicate_field_names() -> anyhow::Result<()> {
             CompileErrorType::AlreadyDefined(String::from(identifier))
         );
     }
+    Ok(())
+}
+
+#[test]
+fn test_match_duplicate() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Result {
+            fields {
+                x int
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo(x int) {
+            match x {
+                5 => {
+                    publish Result { x: x }
+                }
+                6=> {
+                    publish Result { x: x }
+                }
+                5 => {
+                    publish Result { x: x }
+                }
+            }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let res = Compiler::new(&policy).compile();
+    assert!(matches!(
+        res,
+        Err(CompileError {
+            err_type: CompileErrorType::AlreadyDefined(_),
+            ..
+        })
+    ));
+
+    Ok(())
+}
+
+#[test]
+fn test_match_alternation_duplicates() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Result {
+            fields {
+                x int
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo(x int) {
+            match x {
+                5 | 6 => {
+                    publish Result { x: x }
+                }
+                1 | 5 | 3  => {
+                    publish Result { x: x }
+                }
+            }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let result = Compiler::new(&policy).compile().expect_err("msg").err_type;
+    assert_eq!(
+        result,
+        CompileErrorType::AlreadyDefined(String::from("duplicate match arm value"))
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_match_default_not_last() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Result {
+            fields {
+                x int
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo(x int) {
+            match x {
+                5 => {
+                    publish Result { x: x }
+                }
+                _ => {
+                    publish Result { x: 0 }
+                }
+                6 => {
+                    publish Result { x: x }
+                }
+            }
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let res = Compiler::new(&policy).compile();
+    assert!(matches!(
+        res,
+        Err(CompileError {
+            err_type: CompileErrorType::Unknown(_),
+            ..
+        })
+    ));
+
+    Ok(())
+}
+
+// Note: this test is not exhaustive
+#[test]
+fn test_bad_statements() -> anyhow::Result<()> {
+    let texts = &[
+        r#"
+            action foo() {
+                create Foo[]=>{}
+            }
+        "#,
+        r#"
+            finish function foo() {
+                let x = 3
+            }
+        "#,
+        r#"
+            function foo(x int) int {
+                publish Bar{}
+            }
+        "#,
+    ];
+
+    for text in texts {
+        let policy = parse_policy_str(text, Version::V1)?;
+        let res = Compiler::new(&policy).compile();
+        assert!(matches!(
+            res,
+            Err(CompileError {
+                err_type: CompileErrorType::InvalidStatement(_),
+                ..
+            })
+        ));
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
+    let texts = &[
+        r#"
+            struct Bar {
+                a bool,
+            }
+            let x = serialize( Bar { a: true, } )
+        "#,
+        r#"
+            fact Foo[]=>{x int}
+            let x = Foo
+        "#,
+        r#"
+            let x = envelope::author_id(envelope)
+        "#,
+        r#"
+            let x = None
+        "#,
+        r#"
+            // Globals cannot depend on other global variables
+            let x = 42
+
+            struct Far {
+                a int,
+            }
+
+            let e = Far {
+                a: x
+            }
+        "#,
+    ];
+
+    for text in texts {
+        let policy = parse_policy_str(text, Version::V1)?;
+        let res = Compiler::new(&policy).compile();
+        assert!(matches!(
+            res,
+            Err(CompileError {
+                err_type: CompileErrorType::InvalidExpression(_),
+                ..
+            })
+        ));
+    }
+
     Ok(())
 }

@@ -1,18 +1,19 @@
+#![cfg(test)]
 #![allow(clippy::panic)]
 
 use crypto::{default::DefaultEngine, Rng, UserId};
+use policy_compiler::Compiler;
 use policy_lang::lang::parse_policy_document;
-use policy_vm::{ffi::FfiModule, Compiler, KVPair, Value};
-use test_log::test;
-use tracing::trace;
-
-use super::{error::VmPolicyError, VmPolicy};
-use crate::{
+use policy_vm::{ffi::FfiModule, KVPair, Machine, Value};
+use runtime::{
     engine::{Engine, EngineError, PolicyId, Sink},
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
+    vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
-    ClientState, NullSink,
+    ClientState, NullSink, VmPolicy, VmPolicyError,
 };
+use test_log::test;
+use tracing::trace;
 
 const TEST_POLICY_1: &str = r#"---
 policy-version: 1
@@ -108,7 +109,7 @@ action lookup(k int, v int, expected bool) {
 "#;
 
 type TestEffect = (String, Vec<KVPair>);
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TestSink {
     expect: Vec<TestEffect>,
 }
@@ -184,10 +185,12 @@ pub struct TestEngine {
 impl TestEngine {
     pub fn new(policy_doc: &str) -> TestEngine {
         let ast = parse_policy_document(policy_doc).unwrap_or_else(|e| panic!("{e}"));
-        let machine = Compiler::new(&ast)
+        let module = Compiler::new(&ast)
             .ffi_modules(&[TestFfiEnvelope::SCHEMA])
             .compile()
             .unwrap_or_else(|e| panic!("{e}"));
+        let machine = Machine::from_module(module).expect("could not load compiled module");
+
         let (eng, _) = DefaultEngine::from_entropy(Rng);
         let policy = VmPolicy::new(
             machine,

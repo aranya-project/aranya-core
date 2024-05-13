@@ -4,9 +4,9 @@ use alloc::{borrow::ToOwned, string::String};
 use core::{convert::Infallible, fmt};
 
 use buggy::Bug;
-use serde::{Deserialize, Serialize};
+use policy_module::{CodeMap, ValueConversionError};
 
-use crate::{codemap::CodeMap, io::MachineIOError};
+use crate::io::MachineIOError;
 
 /// Possible machine errors.
 // TODO(chip): These should be elaborated with additional data, and/or
@@ -108,6 +108,19 @@ impl From<Infallible> for MachineErrorType {
     }
 }
 
+impl From<ValueConversionError> for MachineErrorType {
+    fn from(value: ValueConversionError) -> Self {
+        match value {
+            ValueConversionError::InvalidType => MachineErrorType::InvalidType,
+            ValueConversionError::InvalidStructMember(s) => {
+                MachineErrorType::InvalidStructMember(s)
+            }
+            ValueConversionError::OutOfRange => MachineErrorType::InvalidType,
+            ValueConversionError::BadState => MachineErrorType::BadState,
+        }
+    }
+}
+
 /// The source location and text of an error
 #[derive(Debug, PartialEq)]
 struct MachineErrorSource {
@@ -187,26 +200,5 @@ impl From<Infallible> for MachineError {
 impl From<Bug> for MachineError {
     fn from(bug: Bug) -> Self {
         MachineError::new(MachineErrorType::Bug(bug))
-    }
-}
-
-/// Reason for ending execution.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum ExitReason {
-    /// Execution completed without errors.
-    Normal,
-    /// Execution was aborted gracefully, due an error.
-    Check,
-    /// Execution was aborted due to an unhandled error.
-    Panic,
-}
-
-impl fmt::Display for ExitReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Normal => f.write_str("Normal"),
-            Self::Check => f.write_str("Check"),
-            Self::Panic => f.write_str("Panic"),
-        }
     }
 }

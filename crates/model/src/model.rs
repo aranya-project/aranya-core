@@ -10,8 +10,9 @@ use core::{
 };
 
 use crypto::Rng;
+use policy_compiler::CompileError;
 use policy_lang::lang::ParseError;
-use policy_vm::{CompileError, KVPair};
+use policy_vm::KVPair;
 use runtime::{
     engine::{Engine, EngineError, Policy, PolicyId, Sink},
     storage::GraphId,
