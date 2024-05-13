@@ -24,6 +24,8 @@ alloc = [
 	"der/alloc",
 	"ecdsa/alloc",
 	"postcard/alloc",
+	"rand?/alloc",
+	"rand_core/alloc",
 	"rustix?/alloc",
 	"zeroize/alloc",
 ]
@@ -83,6 +85,8 @@ fs-keystore = [
 # NB: `getrandom` does not support VxWorks < 7.
 getrandom = [
 	"dep:getrandom",
+
+	"rand_core/getrandom",
 ]
 
 # Build for Project Moonshot.
@@ -92,9 +96,9 @@ moonshot = [
 	"dep:spin",
 ]
 
-# Makes `OsRng` implement `Csprng`.
-rand_core = [
-	"rand_core/getrandom",
+# Enable compat with the `rand`, `rand_core`, etc. crates.
+rand_compat = [
+	"dep:rand",
 ]
 
 # Use std.
@@ -103,9 +107,8 @@ std = [
 	# If we're already using `std`, we might as well enable
 	# `Csprng` support for `OsRng`. Doing this makes the
 	# `#[cfg(...)]` blocks easier to manage.
-	"rand_core",
-	# We only pull in `rand` when `std` is enabled since we only
-	# use it for `ThreadRng`.
+	"getrandom",
+	# Pull in `rand` for `ThreadRng`.
 	"dep:rand",
 
 	"aes-gcm/std",
@@ -124,6 +127,8 @@ std = [
 	"p256/std",
 	"p384/std",
 	"postcard/use-std",
+	"rand?/std",
+	"rand?/std_rng",
 	"rand_core/std",
 	"rustix?/std",
 	"serde/std",
@@ -168,9 +173,7 @@ more-asserts = { version = "0.3", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
-# `rand` is only pulled in when `std` is enabled. It's only used
-# to add trait impls for `ThreadRng`.
-rand = { workspace = true, features = ["std", "std_rng"], optional = true }
+rand = { workspace = true, default-features = false, optional = true }
 # `rand_core` is required by the `rust` backend.
 rand_core = { workspace = true, default-features = false }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
@@ -218,7 +221,7 @@ always_include_features = [
 	"ed25519_batch",
 	"fs-keystore",
 	"getrandom",
-	"rand_core",
+	"rand_compat",
 	"std",
 	"test_util",
 ]

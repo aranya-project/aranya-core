@@ -1,0 +1,37 @@
+[
+  {
+    "AddClient": {
+      "id": 0
+    }
+  },
+  {
+    "AddClient": {
+      "id": 1
+    }
+  },
+  {
+    "NewGraph": {
+      "client": 0,
+      "id": 0,
+      "policy": 0
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  }
+]

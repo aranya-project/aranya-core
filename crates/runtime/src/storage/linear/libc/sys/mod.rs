@@ -19,6 +19,8 @@ cfg_if! {
         use linux as imp;
     } else if #[cfg(target_os = "macos")] {
         use macos as imp;
+    } else {
+        compile_error!("unsupported OS");
     }
 }
 

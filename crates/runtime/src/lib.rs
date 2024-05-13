@@ -52,9 +52,9 @@ mod prior;
 pub mod protocol;
 pub mod storage;
 pub mod sync;
+pub mod testing;
+pub mod vm_policy;
 
 pub use crate::{
     client::*, command::*, engine::*, prior::Prior, storage::*, sync::*, vm_policy::*,
 };
-
-pub mod vm_policy;

@@ -1,0 +1,18 @@
+[
+  {
+    "SetupClientsAndGraph": {
+      "clients": 3,
+      "graph": 0,
+      "policy": 0
+    }
+  },
+  {
+    "GenerateGraph": {
+      "clients": 3,
+      "graph": 0,
+      "commands": 100,
+      "add_command_chance": 90,
+      "sync_chance": 10
+    }
+  }
+]

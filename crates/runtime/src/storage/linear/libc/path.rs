@@ -1,6 +1,6 @@
 //! Null-terminated path handling.
 
-#[cfg(any(test, feature = "testing", feature = "std"))]
+#[cfg(any(test, feature = "std"))]
 extern crate std;
 
 extern crate alloc;
@@ -294,14 +294,14 @@ impl AsRef<Path> for Path {
     }
 }
 
-#[cfg(any(test, feature = "testing", feature = "std"))]
+#[cfg(any(test, feature = "std"))]
 impl AsRef<Path> for std::path::PathBuf {
     fn as_ref(&self) -> &Path {
         self.as_path().as_ref()
     }
 }
 
-#[cfg(any(test, feature = "testing", feature = "std"))]
+#[cfg(any(test, feature = "std"))]
 impl AsRef<Path> for std::path::Path {
     fn as_ref(&self) -> &Path {
         // NB: as of Rust 1.77, `OsStr::as_encoded_bytes` returns

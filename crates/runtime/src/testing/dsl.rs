@@ -1,26 +1,74 @@
+//! DSL tests.
+//!
+//! # Example
+//!
+//! If you're writing unit tests, the [`test_suite`] macro
+//! expands to a bunch of Rust unit tests.
+//!
+//! ```
+//! use runtime::{
+//!     storage::memory::MemStorageProvider,
+//!     testing::dsl::{test_suite, StorageBackend},
+//! };
+//!
+//! struct MemBackend;
+//! impl StorageBackend for MemBackend {
+//!     type StorageProvider = MemStorageProvider;
+//!
+//!     fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+//!         MemStorageProvider::new()
+//!     }
+//! }
+//! test_suite!(|| MemBackend);
+//! ```
+//!
+//! Otherwise, if you're writing integration tests, use
+//! [`vectors::run_all`].
+//!
+//! ```
+//! use runtime::{
+//!     storage::memory::MemStorageProvider,
+//!     testing::dsl::{StorageBackend, vectors},
+//! };
+//!
+//! struct MemBackend;
+//! impl StorageBackend for MemBackend {
+//!     type StorageProvider = MemStorageProvider;
+//!
+//!     fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+//!         MemStorageProvider::new()
+//!     }
+//! }
+//! vectors::run_all(|| MemBackend).unwrap();
+//! ```
+
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 
-use std::{
+extern crate alloc;
+
+use alloc::{collections::BTreeMap, vec, vec::Vec};
+use core::{
     cell::RefCell,
-    collections::{BTreeMap, BTreeSet},
     fmt::{self, Display},
-    fs::File,
     iter,
-    time::Instant,
 };
+#[cfg(any(test, feature = "std"))]
+use std::{collections::BTreeSet, time::Instant};
 
 use buggy::{Bug, BugExt};
-use crypto::Rng;
-use rand::Rng as RRng;
-use runtime::{
-    protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location, MaxCut, Prior,
-    Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder,
-    COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
-};
+use crypto::{csprng::rand::Rng as RRng, Csprng, Rng};
 use serde::{Deserialize, Serialize};
-use tracing::debug;
+use tracing::{debug, error};
+
+use crate::{
+    protocol::{TestActions, TestEffect, TestEngine, TestSink},
+    ClientError, ClientState, Command, CommandId, EngineError, GraphId, MaxCut, Segment, Storage,
+    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, COMMAND_RESPONSE_MAX,
+    MAX_SYNC_MESSAGE_SIZE,
+};
+#[cfg(any(test, feature = "std"))]
+use crate::{Location, Prior};
 
 fn default_repeat() -> u64 {
     1
@@ -31,7 +79,7 @@ fn default_max_syncs() -> u64 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-enum TestRule {
+pub enum TestRule {
     AddClient {
         id: u64,
     },
@@ -114,15 +162,15 @@ impl Display for TestRule {
     }
 }
 
+/// An error result from a test.
 #[derive(Debug)]
 #[allow(dead_code)] // fields used only via `Debug`
-enum TestError {
+pub enum TestError {
     Storage(StorageError),
     Client(ClientError),
     Engine(EngineError),
     Sync(SyncError),
-    Io(std::io::Error),
-    SerdeYaml(serde_yaml::Error),
+    SerdeJson(serde_json::Error),
     MissingClient,
     MissingGraph(u64),
     Bug(Bug),
@@ -152,15 +200,9 @@ impl From<SyncError> for TestError {
     }
 }
 
-impl From<std::io::Error> for TestError {
-    fn from(err: std::io::Error) -> Self {
-        TestError::Io(err)
-    }
-}
-
-impl From<serde_yaml::Error> for TestError {
-    fn from(err: serde_yaml::Error) -> Self {
-        TestError::SerdeYaml(err)
+impl From<serde_json::Error> for TestError {
+    fn from(err: serde_json::Error) -> Self {
+        TestError::SerdeJson(err)
     }
 }
 
@@ -170,25 +212,25 @@ impl From<EngineError> for TestError {
     }
 }
 
-fn read(file: &str) -> Result<Vec<TestRule>, TestError> {
-    let file = File::open(file)?;
-    let actions: Vec<TestRule> = serde_yaml::from_reader(file)?;
-    Ok(actions)
-}
-
 /// Provides [`StorageProvider`] impls for testing.
 ///
 /// This will probably end up replaced by the model work.
-trait StorageBackend {
+pub trait StorageBackend {
+    /// The [`StorageProvider`].
     type StorageProvider: StorageProvider;
-    fn new() -> Self;
+    /// Returns the provider for `client_id`.
     fn provider(&mut self, client_id: u64) -> Self::StorageProvider;
 }
 
-fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
-    let mut rng = rand::thread_rng();
-    let actions: Vec<_> = read(file)?
-        .into_iter()
+/// Runs a particular test.
+pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError>
+where
+    SB: StorageBackend,
+{
+    let mut rng = &mut Rng as &mut dyn Csprng;
+    let actions: Vec<_> = rules
+        .iter()
+        .cloned()
         .flat_map(|rule| {
             match rule {
                 TestRule::GenerateGraph {
@@ -320,8 +362,6 @@ fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
         })
         .collect();
 
-    let mut backend = SB::new();
-
     let mut graphs = BTreeMap::new();
     let mut clients = BTreeMap::new();
 
@@ -329,8 +369,10 @@ fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
 
     for rule in actions {
         debug!(?rule);
-        println!("{}", rule);
+
+        #[cfg(any(test, feature = "std"))]
         let start = Instant::now();
+
         match rule {
             TestRule::AddClient { id } => {
                 let engine = TestEngine::new();
@@ -426,6 +468,7 @@ fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
                 assert_eq!(0, sink.count());
             }
 
+            #[cfg(any(test, feature = "std"))]
             TestRule::PrintGraph { client, graph } => {
                 let state = clients
                     .get_mut(&client)
@@ -436,6 +479,12 @@ fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
                 let storage = state.provider().get_storage(storage_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
+            }
+
+            #[cfg(not(any(test, feature = "std")))]
+            TestRule::PrintGraph { .. } => {
+                // TODO(eric): add a fallback that uses libc or
+                // something.
             }
 
             TestRule::CompareGraphs {
@@ -458,11 +507,12 @@ fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
 
                 let storage_a = state_a.provider().get_storage(storage_id)?;
                 let storage_b = state_b.provider().get_storage(storage_id)?;
-                let head_a = storage_a.get_head()?;
-                let head_b = storage_b.get_head()?;
 
                 let same = graph_eq(storage_a, storage_b);
+                #[cfg(any(test, feature = "std"))]
                 if same != equal {
+                    let head_a = storage_a.get_head()?;
+                    let head_b = storage_b.get_head()?;
                     println!("Graph A");
                     print_graph(storage_a, head_a)?;
                     println!("Graph B");
@@ -490,8 +540,11 @@ fn run<SB: StorageBackend>(file: &str) -> Result<(), TestError> {
             _ => {}
         };
         if false {
-            let duration = start.elapsed();
-            println!("Time elapsed in rule {:?} is: {:?}", rule, duration);
+            #[cfg(any(test, feature = "std"))]
+            {
+                let duration = start.elapsed();
+                println!("Time elapsed in rule {:?} is: {:?}", rule, duration);
+            }
         }
     }
 
@@ -504,7 +557,7 @@ fn sync<SP: StorageProvider>(
     sink: &mut TestSink,
     storage_id: &GraphId,
 ) -> Result<usize, TestError> {
-    let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
+    let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng);
     let mut response_syncer = SyncResponder::new();
     assert!(request_syncer.ready());
 
@@ -537,10 +590,12 @@ fn sync<SP: StorageProvider>(
     Ok(count)
 }
 
+#[cfg(any(test, feature = "std"))]
 struct Parent(Prior<CommandId>);
 
+#[cfg(any(test, feature = "std"))]
 impl Display for Parent {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
             Prior::Merge(a, b) => {
                 write!(f, "Merge({}, {})", &a.short_b58(), &b.short_b58())
@@ -551,6 +606,7 @@ impl Display for Parent {
     }
 }
 
+#[cfg(any(test, feature = "std"))]
 fn print_graph<S>(storage: &S, location: Location) -> Result<(), StorageError>
 where
     S: Storage,
@@ -606,30 +662,91 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CommandId> + '_ {
 fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
     for (a, b) in iter::zip(walk(storage_a), walk(storage_b)) {
         if a != b {
-            eprintln!("{} != {}", a.short_b58(), b.short_b58());
+            error!(a = %a.short_b58(), b = %b.short_b58(), "graph mismatch");
             return false;
         }
     }
     true
 }
 
-macro_rules! yaml_test {
-    ($backend:ident @ $($name:ident,)*) => {
-    $(
-        #[test_log::test]
-        fn $name() -> Result<(),TestError> {
-            let test_path = format!("{}/tests/dsl/{}.test", env!("CARGO_MANIFEST_DIR"), stringify!($name));
-            run::<$backend>( &test_path )?;
-            Ok(())
+macro_rules! test_vectors {
+    ($($name:ident),+ $(,)?) => {
+        /// The current test vectors.
+        pub mod vectors {
+            use super::*;
+
+            /// Runs all of the test vectors.
+            pub fn run_all<SB, F>(mut f: F) -> Result<(), TestError>
+            where
+                SB: StorageBackend,
+                F: FnMut() -> SB,
+            {
+                $(
+                    $name(|| f())?;
+                )+
+                Ok(())
+            }
+
+            $(
+                #[doc = concat!("Runs ", stringify!($name), ".")]
+                pub fn $name<SB, F>(f: F) -> Result<(), TestError>
+                where
+                    SB: StorageBackend,
+                    F: FnOnce() -> SB,
+                {
+                    const DATA: &str = include_str!(concat!(
+                        env!("CARGO_MANIFEST_DIR"),
+                        "/src/testing/testdata/",
+                        stringify!($name),
+                        ".test",
+                    ));
+                    let rules: Vec<TestRule> = serde_json::from_str(DATA)?;
+                    run_test::<SB>(f(), &rules)
+                }
+            )+
         }
-    )*
-    }
+    };
 }
 
+test_vectors! {
+    empty_sync,
+    two_client_merge,
+    two_client_sync,
+    three_client_sync,
+    two_client_branch,
+    three_client_branch,
+    large_sync,
+    three_client_compare_graphs,
+    generate_graph,
+    duplicate_sync_causes_failure,
+    missing_parent_after_sync,
+    sync_graph_larger_than_command_max,
+    max_cut,
+}
+
+/// Used by [`test_suite`].
+#[macro_export]
+#[doc(hidden)]
+macro_rules! test_vector {
+    ($backend:expr ; $($name:ident),+ $(,)?) => {
+        $(
+            #[test]
+            fn $name() -> ::core::result::Result<(), $crate::testing::dsl::TestError> {
+                $crate::testing::dsl::vectors::$name($backend)
+            }
+        )*
+    };
+}
+pub use test_vector;
+
+/// Add all of the test vectors as Rust tests.
+///
+/// `$backend` should be a `FnMut() -> impl StorageBackend`.
+#[macro_export]
 macro_rules! test_suite {
-    ($backend:ident) => {
-        yaml_test! {
-            $backend @
+    ($backend:expr) => {
+        $crate::testing::dsl::test_vector! {
+            $backend ;
             empty_sync,
             two_client_merge,
             two_client_sync,
@@ -646,107 +763,4 @@ macro_rules! test_suite {
         }
     };
 }
-
-mod memory {
-    use runtime::memory::MemStorageProvider;
-
-    use super::*;
-
-    struct MemBackend;
-    impl StorageBackend for MemBackend {
-        type StorageProvider = MemStorageProvider;
-
-        fn new() -> Self {
-            Self
-        }
-
-        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-            MemStorageProvider::new()
-        }
-    }
-
-    test_suite!(MemBackend);
-}
-
-mod linear_mem {
-    use runtime::linear;
-
-    use super::*;
-
-    struct LinearBackend;
-    impl StorageBackend for LinearBackend {
-        type StorageProvider = linear::LinearStorageProvider<linear::testing::Manager>;
-
-        fn new() -> Self {
-            Self
-        }
-
-        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-            linear::LinearStorageProvider::new(linear::testing::Manager)
-        }
-    }
-
-    test_suite!(LinearBackend);
-}
-
-#[cfg(feature = "rustix")]
-mod linear_rustix {
-    use runtime::storage::linear::*;
-    use tracing::info;
-
-    use super::*;
-
-    struct LinearBackend {
-        tempdir: tempfile::TempDir,
-    }
-    impl StorageBackend for LinearBackend {
-        type StorageProvider = LinearStorageProvider<rustix::FileManager>;
-
-        fn new() -> Self {
-            let tempdir = tempfile::tempdir().unwrap();
-            info!(path = ?tempdir.path(), "using tempdir");
-            Self { tempdir }
-        }
-
-        fn provider(&mut self, client_id: u64) -> Self::StorageProvider {
-            let dir = self.tempdir.path().join(client_id.to_string());
-            std::fs::create_dir(&dir).unwrap();
-            let manager = rustix::FileManager::new(&dir).unwrap();
-            LinearStorageProvider::new(manager)
-        }
-    }
-
-    test_suite!(LinearBackend);
-}
-
-#[cfg(feature = "libc")]
-mod linear_libc {
-    use std::fs;
-
-    use runtime::storage::linear::*;
-    use tracing::info;
-
-    use super::*;
-
-    struct LinearBackend {
-        tempdir: tempfile::TempDir,
-    }
-    impl StorageBackend for LinearBackend {
-        type StorageProvider = LinearStorageProvider<libc::FileManager>;
-
-        fn new() -> Self {
-            let tempdir = tempfile::tempdir().unwrap();
-            info!(path = ?tempdir.path(), "using tempdir");
-            Self { tempdir }
-        }
-
-        fn provider(&mut self, client_id: u64) -> Self::StorageProvider {
-            let dir = self.tempdir.path().join(client_id.to_string());
-            fs::create_dir(&dir).unwrap();
-            let manager = libc::FileManager::new(&dir).unwrap();
-            LinearStorageProvider::new(manager)
-        }
-    }
-
-    test_suite!(LinearBackend);
-}
+pub use test_suite;

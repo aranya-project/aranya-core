@@ -8,6 +8,9 @@
 use generic_array::{ArrayLength, GenericArray};
 #[cfg(all(feature = "getrandom", not(target_os = "vxworks")))]
 pub use getrandom;
+#[cfg(feature = "rand_compat")]
+#[cfg_attr(docs, doc(cfg(feature = "rand_compat")))]
+pub use rand;
 
 /// A cryptographically secure pseudorandom number generator
 /// (CSPRNG).
@@ -42,8 +45,14 @@ pub trait Csprng {
     }
 }
 
-#[cfg(feature = "rand_core")]
-#[cfg_attr(docs, doc(cfg(feature = "rand_core")))]
+impl<R: Csprng + ?Sized> Csprng for &mut R {
+    fn fill_bytes(&mut self, dst: &mut [u8]) {
+        (**self).fill_bytes(dst)
+    }
+}
+
+#[cfg(feature = "getrandom")]
+#[cfg_attr(docs, doc(cfg(feature = "getrandom")))]
 impl Csprng for rand_core::OsRng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         rand_core::RngCore::fill_bytes(self, dst)
@@ -55,6 +64,29 @@ impl Csprng for rand_core::OsRng {
 impl Csprng for rand::rngs::ThreadRng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         rand_core::RngCore::fill_bytes(self, dst)
+    }
+}
+
+#[cfg(feature = "rand_compat")]
+impl rand_core::CryptoRng for &mut dyn Csprng {}
+
+#[cfg(feature = "rand_compat")]
+impl rand_core::RngCore for &mut dyn Csprng {
+    fn next_u32(&mut self) -> u32 {
+        rand_core::impls::next_u32_via_fill(self)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        rand_core::impls::next_u64_via_fill(self)
+    }
+
+    fn fill_bytes(&mut self, dst: &mut [u8]) {
+        Csprng::fill_bytes(self, dst);
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), rand_core::Error> {
+        Csprng::fill_bytes(self, dst);
+        Ok(())
     }
 }
 
@@ -270,10 +302,7 @@ pub(crate) mod moonshot {
 
             // Erase the current key.
             for chunk in key.chunks_exact_mut(16) {
-                cipher.encrypt_block_b2b(
-                    block.as_ref().into(),
-                    chunk.try_into().expect("should be exactly 16 bytes"),
-                );
+                cipher.encrypt_block_b2b(block.as_ref().into(), chunk.into());
                 ctr = ctr.checked_add(1).expect("rng counter wrapped");
                 block[..8].copy_from_slice(&ctr.to_le_bytes())
             }
@@ -287,10 +316,8 @@ pub(crate) mod moonshot {
             // Read whole chunks
             let mut dst = dst.chunks_exact_mut(16);
             for chunk in dst.by_ref() {
-                self.cipher.encrypt_block_b2b(
-                    self.block.as_ref().into(),
-                    chunk.try_into().expect("`chunk` should be 16 bytes"),
-                );
+                self.cipher
+                    .encrypt_block_b2b(self.block.as_ref().into(), chunk.into());
                 self.ctr = self.ctr.checked_add(1).expect("rng counter wrapped");
                 self.block[..8].copy_from_slice(&self.ctr.to_le_bytes())
             }

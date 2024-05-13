@@ -32,7 +32,7 @@ category = "test"
 description = "Run Unit Tests"
 workspace = true
 command = "cargo"
-args = ["--verbose", "test-all-features"]
+args = ["--verbose", "test-all-features", "${@}"]
 dependencies = ["install-cargo-all-features"]
 
 

@@ -901,6 +901,7 @@ pub mod graphviz {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::testing::dsl::{test_suite, StorageBackend};
 
     #[test]
     fn test_query_prefix() {
@@ -940,4 +941,14 @@ mod test {
             }
         }
     }
+
+    struct MemBackend;
+    impl StorageBackend for MemBackend {
+        type StorageProvider = MemStorageProvider;
+
+        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+            MemStorageProvider::new()
+        }
+    }
+    test_suite!(|| MemBackend);
 }

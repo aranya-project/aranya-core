@@ -19,5 +19,6 @@ idam-ffi = { path = "../../crates/idam-ffi", features = ["alloc"] }
 perspective-ffi = { path = "../../crates/perspective-ffi", features = ["alloc"] }
 policy-ast = { path = "../../crates/policy-ast" }
 policy-vm = { path = "../../crates/policy-vm" }
-runtime = { path = "../../crates/runtime" }
+# These features must also be no-std.
+runtime = { path = "../../crates/runtime", features = ["testing"] }
 trouble = { path = "../../crates/trouble" }

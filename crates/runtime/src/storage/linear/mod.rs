@@ -872,7 +872,10 @@ impl<'a> MaxCut for LinearCommand<'a> {
 
 #[cfg(test)]
 mod test {
+    use testing::Manager;
+
     use super::*;
+    use crate::testing::dsl::{test_suite, StorageBackend};
 
     #[test]
     fn test_find_prefixes() {
@@ -904,4 +907,14 @@ mod test {
             assert_eq!(found, expected);
         }
     }
+
+    struct LinearBackend;
+    impl StorageBackend for LinearBackend {
+        type StorageProvider = LinearStorageProvider<Manager>;
+
+        fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
+            LinearStorageProvider::new(Manager)
+        }
+    }
+    test_suite!(|| LinearBackend);
 }

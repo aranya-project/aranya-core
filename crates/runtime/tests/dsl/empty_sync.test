@@ -1,7 +1,0 @@
-- !AddClient { id: 0 }
-- !AddClient { id: 1 }
-
-- !NewGraph {client: 0, id: 0, policy: 0}
-
-- !Sync {client: 1, graph: 0, from: 0}
-- !Sync {client: 1, graph: 0, from: 0}
