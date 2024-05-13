@@ -121,16 +121,6 @@ impl From<Bug> for StorageError {
     }
 }
 
-#[cfg(feature = "rustix")]
-#[cfg_attr(docs, doc(cfg(feature = "rustix")))]
-impl From<rustix::io::Errno> for StorageError {
-    fn from(err: rustix::io::Errno) -> Self {
-        tracing::error!(?err);
-        // TODO(jdygert): Add variant?
-        StorageError::IoError
-    }
-}
-
 /// Handle to storage implementations used by the runtime.
 pub trait StorageProvider {
     type Perspective: Perspective + Revertable;

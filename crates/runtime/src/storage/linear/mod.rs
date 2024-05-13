@@ -23,7 +23,6 @@
 //! means.
 
 pub mod libc;
-pub mod rustix;
 
 #[cfg(feature = "testing")]
 pub mod testing;

@@ -2438,7 +2438,6 @@ dependencies = [
  "policy-vm",
  "postcard",
  "runtime",
- "rustix",
  "serde",
  "serde_json",
  "spin 0.9.8",
