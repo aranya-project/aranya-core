@@ -10,7 +10,7 @@ use runtime::{
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
-    ClientState, NullSink, VmPolicy, VmPolicyError,
+    ClientState, NullSink, VmEffect, VmPolicy, VmPolicyError,
 };
 use test_log::test;
 use tracing::trace;
@@ -108,10 +108,9 @@ action lookup(k int, v int, expected bool) {
 ```
 "#;
 
-type TestEffect = (String, Vec<KVPair>);
 #[derive(Debug, Default)]
 pub struct TestSink {
-    expect: Vec<TestEffect>,
+    expect: Vec<VmEffect>,
 }
 
 impl TestSink {
@@ -119,18 +118,18 @@ impl TestSink {
         TestSink { expect: Vec::new() }
     }
 
-    pub fn add_expectation(&mut self, expect: TestEffect) {
+    pub fn add_expectation(&mut self, expect: VmEffect) {
         self.expect.push(expect);
     }
 }
 
-impl Sink<TestEffect> for TestSink {
+impl Sink<VmEffect> for TestSink {
     fn begin(&mut self) {
         // NOOP
         trace!("sink begin");
     }
 
-    fn consume(&mut self, effect: TestEffect) {
+    fn consume(&mut self, effect: VmEffect) {
         trace!(?effect, "sink consume");
         let expect = self.expect.remove(0);
         assert_eq!(effect, expect);
@@ -206,7 +205,7 @@ impl TestEngine {
 
 impl Engine for TestEngine {
     type Policy = VmPolicy<DefaultEngine<Rng>>;
-    type Effect = TestEffect;
+    type Effect = VmEffect;
 
     fn add_policy(&mut self, policy: &[u8]) -> Result<PolicyId, EngineError> {
         Ok(PolicyId::new(policy[0] as usize))

@@ -9,7 +9,7 @@ use policy_vm::{
 };
 use tracing::error;
 
-use crate::{FactPerspective, Query, QueryMut, Sink, StorageError, VmFactCursor};
+use crate::{FactPerspective, Query, QueryMut, Sink, StorageError, VmEffect, VmFactCursor};
 
 /// Object safe wrapper for [`FfiModule`].
 pub trait FfiCallable<E> {
@@ -68,8 +68,8 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
         }
     }
 
-    /// Consumes the `VmPolicyIO object and produces the publish stack.
-    pub fn into_emit_stack(self) -> Vec<(String, Vec<KVPair>)> {
+    /// Consumes the `VmPolicyIO` object and produces the publish stack.
+    pub fn into_publish_stack(self) -> Vec<(String, Vec<KVPair>)> {
         self.publish_stack
     }
 }
@@ -77,7 +77,7 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
 impl<'o, P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'o, P, S, E, FFI>
 where
     P: FactPerspective,
-    S: Sink<(String, Vec<KVPair>)>,
+    S: Sink<VmEffect>,
     E: crypto::Engine,
     FFI: DerefMut,
     <FFI as Deref>::Target: FfiCallable<E>,
@@ -134,7 +134,7 @@ where
 
     fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
         let fields: Vec<_> = fields.into_iter().collect();
-        self.sink.consume((name, fields));
+        self.sink.consume(VmEffect { name, fields });
     }
 
     fn call(

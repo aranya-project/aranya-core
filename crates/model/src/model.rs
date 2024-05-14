@@ -3,7 +3,7 @@
 //! The Aranya Model is a library which provides APIs to construct one or more clients, execute actions on the clients, sync between clients, and gather performance metrics about the operations performed.
 
 extern crate alloc;
-use alloc::{collections::BTreeMap, string::String, vec::Vec};
+use alloc::{collections::BTreeMap, vec::Vec};
 use core::{
     cell::RefCell,
     fmt::{self, Debug, Display},
@@ -12,11 +12,10 @@ use core::{
 use crypto::Rng;
 use policy_compiler::CompileError;
 use policy_lang::lang::ParseError;
-use policy_vm::KVPair;
 use runtime::{
     engine::{Engine, EngineError, Policy, PolicyId, Sink},
     storage::GraphId,
-    vm_policy::{VmPolicy, VmPolicyError},
+    vm_policy::{VmEffect, VmPolicy, VmPolicyError},
     ClientError, ClientState, StorageProvider, SyncError, SyncRequester, SyncResponder,
     MAX_SYNC_MESSAGE_SIZE,
 };
@@ -24,7 +23,7 @@ use runtime::{
 /// Model engine effect.
 ///
 /// An Effect is a struct used in policy `finish` and `recall` blocks to describe the shape of side effects emitted from processed commands.
-pub type ModelEffect = (String, Vec<KVPair>);
+pub type ModelEffect = VmEffect;
 
 /// Model engine.
 ///

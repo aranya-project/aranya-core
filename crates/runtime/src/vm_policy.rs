@@ -36,15 +36,14 @@
 //! ## Actions and Effects
 //!
 //! The VM represents actions as a kind of function, which has a name and a list of
-//! parameters. `VmPolicy` represents those actions as a tuple of `(&str, Cow<[Value]>)`
-//! (aka [`VmActions`]). Calling an action via [`call_action()`](VmPolicy::call_action)
-//! requires you to give it an action of that type. You can use the
-//! [`vm_action!()`](crate::vm_action) macro to create this more comfortably.
+//! parameters. [`VmPolicy`] represents those actions as [`VmAction`]. Calling an action
+//! via [`call_action()`](VmPolicy::call_action) requires you to give it an action of
+//! that type. You can use the [`vm_action!()`](crate::vm_action) macro to create this
+//! more comfortably.
 //!
 //! The VM represents effects as a named struct containing a set of fields. `VmPolicy`
-//! represents this as a tuple of `(String, Vec<KVPair>)` (see [`KVPair`]). Effects captured
-//! via [`Sink`]s will have this type. You can use the [`vm_effect!()`](crate::vm_effect)
-//! macro to create effects.
+//! represents this as [`VmEffect`]. Effects captured via [`Sink`]s will have this type.
+//! You can use the [`vm_effect!()`](crate::vm_effect) macro to create effects.
 //!
 //! ## The "init" command and action
 //!
@@ -103,6 +102,7 @@
 extern crate alloc;
 
 use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
+use core::fmt;
 
 use buggy::bug;
 use policy_vm::{
@@ -129,7 +129,7 @@ pub use facts::*;
 pub use io::*;
 pub use protocol::*;
 
-/// Creates a [`VmActions`].
+/// Creates a [`VmAction`].
 ///
 /// This must be used directly to avoid lifetime issues, not assigned to a variable.
 ///
@@ -143,10 +143,10 @@ pub use protocol::*;
 #[macro_export]
 macro_rules! vm_action {
     ($name:ident($($arg:expr),* $(,)?)) => {
-        (
-            stringify!($name),
-            [$(::policy_vm::Value::from($arg)),*].as_slice().into()
-        )
+        $crate::VmAction {
+            name: stringify!($name),
+            args: [$(::policy_vm::Value::from($arg)),*].as_slice().into(),
+        }
     };
 }
 
@@ -165,12 +165,12 @@ macro_rules! vm_action {
 #[macro_export]
 macro_rules! vm_effect {
     ($name:ident { $($field:ident : $val:expr),* $(,)? }) => {
-        (
-            stringify!($name).into(),
-            vec![$(
+        $crate::VmEffect {
+            name: stringify!($name).into(),
+            fields: vec![$(
                 ::policy_vm::KVPair::new(stringify!($field), $val.into())
-            ),*]
-        )
+            ),*],
+        }
     };
 }
 
@@ -212,7 +212,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         fields: &[KVPair],
         envelope: Envelope,
         facts: &'a mut P,
-        sink: &'a mut impl Sink<(String, Vec<KVPair>)>,
+        sink: &'a mut impl Sink<VmEffect>,
         ctx: &CommandContext<'_>,
     ) -> Result<(), EngineError>
     where
@@ -354,18 +354,26 @@ impl<E: crypto::Engine> VmPolicy<E> {
 }
 
 /// [`VmPolicy`]'s actions.
-pub type VmActions<'a> = (&'a str, Cow<'a, [Value]>);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VmAction<'a> {
+    /// The name of the action.
+    pub name: &'a str,
+    /// The arguments of the action.
+    pub args: Cow<'a, [Value]>,
+}
 
 /// [`VmPolicy`]'s effects.
-pub type VmEffect = (String, Vec<KVPair>);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VmEffect {
+    /// The name of the effect.
+    pub name: String,
+    /// The fields of the effect.
+    pub fields: Vec<KVPair>,
+}
 
 impl<E: crypto::Engine> Policy for VmPolicy<E> {
-    type Payload<'a> = (String, Vec<u8>);
-
-    type Action<'a> = VmActions<'a>;
-
+    type Action<'a> = VmAction<'a>;
     type Effect = VmEffect;
-
     type Command<'a> = VmProtocol<'a>;
 
     fn serial(&self) -> u32 {
@@ -448,13 +456,15 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(name = name))]
+    #[instrument(skip_all, fields(name = action.name))]
     fn call_action(
         &self,
-        (name, args): Self::Action<'_>,
+        action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
     ) -> Result<(), EngineError> {
+        let VmAction { name, args } = action;
+
         let parent = match facts.head_id() {
             Prior::None => None,
             Prior::Single(id) => Some(id),
@@ -464,7 +474,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         // plumb Option<Id> into the VM and FFI
         let ctx_parent = parent.unwrap_or_default();
 
-        let emit_stack = {
+        let publish_stack = {
             let mut ffis = self.ffis.lock();
             let mut eng = self.engine.lock();
             let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
@@ -492,10 +502,10 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                     return Err(EngineError::Panic);
                 }
             };
-            io.into_emit_stack()
+            io.into_publish_stack()
         };
 
-        for (name, fields) in emit_stack {
+        for (name, fields) in publish_stack {
             let envelope = self.seal_command(&name, fields, ctx_parent, facts)?;
             let data = match parent {
                 None => VmProtocolData::Init {
@@ -540,5 +550,34 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         })?;
         let id = CommandId::hash_for_testing_only(data);
         Ok(VmProtocol::new(data, id, c))
+    }
+}
+
+impl fmt::Display for VmAction<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut d = f.debug_tuple(self.name);
+        for arg in self.args.as_ref() {
+            d.field(&DebugViaDisplay(arg));
+        }
+        d.finish()
+    }
+}
+
+impl fmt::Display for VmEffect {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut d = f.debug_struct(&self.name);
+        for field in &self.fields {
+            d.field(field.key(), &DebugViaDisplay(field.value()));
+        }
+        d.finish()
+    }
+}
+
+/// Implements `Debug` via `T`'s `Display` impl.
+struct DebugViaDisplay<T>(T);
+
+impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }

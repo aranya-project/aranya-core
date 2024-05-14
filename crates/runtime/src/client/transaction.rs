@@ -442,7 +442,6 @@ mod test {
     }
 
     impl Policy for SeqPolicy {
-        type Payload<'a> = ();
         type Action<'a> = &'a str;
         type Effect = ();
         type Command<'a> = SeqCommand;

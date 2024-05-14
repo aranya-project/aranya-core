@@ -124,7 +124,6 @@ impl From<MergeIds> for (CommandId, CommandId) {
 /// [`Policy`] evaluates actions and [`Command`]s on the graph, emitting effects
 /// as a result.
 pub trait Policy {
-    type Payload<'a>;
     type Action<'a>;
     type Effect;
     type Command<'a>: Command;
@@ -143,11 +142,9 @@ pub trait Policy {
         sink: &mut impl Sink<Self::Effect>,
     ) -> Result<(), EngineError>;
 
-    /// Process an action checking each emitted command against the policy and producing
-    /// effects to the sink. All emitted commands are handled transactionally where if any
-    /// emitted command is rejected no commands are added to the storage. Returns the ID of
-    /// the first command emitted (if any), and error if the action or emitted commands
-    /// failed.
+    /// Process an action checking each published command against the policy and emitting
+    /// effects to the sink. All published commands are handled transactionally where if any
+    /// published command is rejected no commands are added to the storage.
     fn call_action(
         &self,
         action: Self::Action<'_>,

@@ -187,7 +187,7 @@ impl TestPolicy {
         &self,
         target: &'a mut [u8],
         parent: CommandId,
-        payload: <Self as Policy>::Payload<'_>,
+        payload: (u64, u64),
     ) -> Result<TestProtocol<'a>, EngineError> {
         let prority = 0; //BUG
 
@@ -281,7 +281,6 @@ pub enum TestActions {
 }
 
 impl Policy for TestPolicy {
-    type Payload<'a> = (u64, u64);
     type Effect = TestEffect;
     type Action<'a> = TestActions;
     type Command<'a> = TestProtocol<'a>;

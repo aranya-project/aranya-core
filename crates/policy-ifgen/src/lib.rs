@@ -17,7 +17,7 @@ pub mod macros {
 }
 
 pub use policy_vm::{Id, KVPair, Struct, Value};
-pub use runtime::{ClientError, VmActions, VmEffect};
+pub use runtime::{vm_action, vm_effect, ClientError, VmAction, VmEffect};
 #[cfg(feature = "serde")]
 pub use serde;
 
@@ -28,8 +28,8 @@ pub type FieldMap = BTreeMap<String, Value>;
 
 /// An actor which can call policy actions.
 pub trait Actor {
-    /// Call an "untyped" policy action ([`VmActions`]).
-    fn call_action(&mut self, action: VmActions<'_>) -> Result<(), ClientError>;
+    /// Call an "untyped" policy action ([`VmAction`]).
+    fn call_action(&mut self, action: VmAction<'_>) -> Result<(), ClientError>;
 }
 
 /// Possible errors from policy effect parsing.

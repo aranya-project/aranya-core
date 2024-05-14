@@ -16,19 +16,14 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
             };
 
             let sig = &func.sig;
-            let action_name = sig.ident.to_string();
+            let action_ident = &sig.ident;
             let arg_idents = get_args(sig)?;
 
             Ok(quote! {
                 #sig {
-                    self.call_action((
-                        #action_name,
-                        alloc::borrow::Cow::Owned(
-                            alloc::vec![
-                                #( ::policy_ifgen::Value::from(#arg_idents) ),*
-                            ]
-                        )
-                    ))
+                    self.call_action(::policy_ifgen::vm_action! {
+                        #action_ident( #(#arg_idents),* )
+                    })
                 }
             })
         })

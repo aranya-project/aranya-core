@@ -20,10 +20,10 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
 
         impl ::core::convert::TryFrom<::policy_ifgen::VmEffect> for #ident {
             type Error = ::policy_ifgen::EffectsParseError;
-            fn try_from((name, fields): ::policy_ifgen::VmEffect) -> ::core::result::Result<Self, Self::Error> {
-                match name.as_str() {
+            fn try_from(eff: ::policy_ifgen::VmEffect) -> ::core::result::Result<Self, Self::Error> {
+                match eff.name.as_str() {
                     #(
-                        #names => fields.try_into().map(Self::#idents),
+                        #names => eff.fields.try_into().map(Self::#idents),
                     )*
                     _ => ::core::result::Result::Err(::policy_ifgen::EffectsParseError::UnknownEffectName),
                 }
