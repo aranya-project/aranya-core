@@ -15,6 +15,12 @@ pub struct Players {
     pub X: Id,
     pub O: Id,
 }
+/// Player policy enum.
+#[value]
+pub enum Player {
+    X,
+    O,
+}
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
 pub enum Effect {
@@ -33,7 +39,7 @@ pub struct GameStart {
 pub struct GameUpdate {
     pub gameID: Id,
     pub player: Id,
-    pub p: String,
+    pub p: Player,
     pub X: i64,
     pub Y: i64,
 }
@@ -42,7 +48,7 @@ pub struct GameUpdate {
 pub struct GameOver {
     pub gameID: Id,
     pub winner: Id,
-    pub p: String,
+    pub p: Player,
 }
 /// Implements all supported policy actions.
 #[actions]

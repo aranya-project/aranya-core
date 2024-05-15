@@ -86,3 +86,23 @@ impl fmt::Display for StructParseError {
         }
     }
 }
+
+/// Possible errors when parsing an enum from a [`Value`].
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum EnumParseError {
+    /// Numeric value does not match any variant.
+    InvalidNumber,
+    /// Value is not a struct.
+    InvalidType,
+}
+
+impl trouble::Error for EnumParseError {}
+
+impl fmt::Display for EnumParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidNumber => f.write_str("numeric value does not match any variant"),
+            Self::InvalidType => f.write_str("value is not an enum"),
+        }
+    }
+}

@@ -6,7 +6,42 @@ use quote::quote;
 
 /// Generate rust source code from a [`Policy`] AST.
 pub fn generate_code(policy: &Policy) -> String {
-    let structs = generate_structs(policy);
+    let reachable = collect_reachable_types(policy);
+
+    let structs = policy
+        .structs
+        .iter()
+        .filter(|s| reachable.contains(s.identifier.as_str()))
+        .map(|s| {
+            let doc = format!(" {} policy struct.", s.identifier);
+            let name = mk_ident(&s.identifier);
+            let names = s.fields.iter().map(|f| mk_ident(&f.identifier));
+            let types = s.fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+            quote! {
+                #[doc = #doc]
+                #[value]
+                pub struct #name {
+                    #(pub #names: #types),*
+                }
+            }
+        });
+
+    let enums = policy
+        .enums
+        .iter()
+        .filter(|e| reachable.contains(e.identifier.as_str()))
+        .map(|e| {
+            let doc = format!(" {} policy enum.", e.identifier);
+            let name = mk_ident(&e.identifier);
+            let names = e.values.iter().map(|v| mk_ident(v));
+            quote! {
+                #[doc = #doc]
+                #[value]
+                pub enum #name {
+                    #(#names),*
+                }
+            }
+        });
 
     let effects = policy.effects.iter().map(|s| {
         let doc = format!(" {} policy effect.", s.identifier);
@@ -71,7 +106,8 @@ pub fn generate_code(policy: &Policy) -> String {
             ClientError, Id, Value,
         };
 
-        #structs
+        #(#structs)*
+        #(#enums)*
 
         /// Enum of policy effects that can occur in response to a policy action.
         #effect_enum
@@ -105,25 +141,8 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
     }
 }
 
-fn generate_structs(policy: &Policy) -> TokenStream {
-    let reachable = collect_reachable_structs(policy);
-
-    policy
-        .structs
-        .iter()
-        .filter(|s| reachable.contains(s.identifier.as_str()))
-        .map(|s| {
-            structify(
-                &s.identifier,
-                s.fields.iter().map(|f| f.identifier.as_str()),
-                s.fields.iter().map(|f| &f.field_type),
-            )
-        })
-        .collect()
-}
-
-/// Returns the name of all structs reachable from actions or effects.
-fn collect_reachable_structs(policy: &Policy) -> HashSet<&str> {
+/// Returns the name of all custom types reachable from actions or effects.
+fn collect_reachable_types(policy: &Policy) -> HashSet<&str> {
     fn visit<'a>(
         struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
         found: &mut HashSet<&'a str>,
@@ -136,6 +155,9 @@ fn collect_reachable_structs(policy: &Policy) -> HashSet<&str> {
                         visit(struct_defs, found, &field.field_type);
                     }
                 }
+            }
+            VType::Enum(s) => {
+                found.insert(s.as_str());
             }
             VType::Optional(inner) => visit(struct_defs, found, inner),
             _ => {}
@@ -163,24 +185,6 @@ fn collect_reachable_structs(policy: &Policy) -> HashSet<&str> {
     }
 
     found
-}
-
-fn structify<'a, N, T>(name: &str, names: N, types: T) -> TokenStream
-where
-    N: IntoIterator<Item = &'a str>,
-    T: IntoIterator<Item = &'a VType>,
-{
-    let doc = format!(" {} policy struct.", name);
-    let name = mk_ident(name);
-    let names = names.into_iter().map(mk_ident);
-    let types = types.into_iter().map(vtype_to_rtype);
-    quote! {
-        #[doc = #doc]
-        #[value]
-        pub struct #name {
-            #(pub #names: #types),*
-        }
-    }
 }
 
 /// Makes an identifier from a string, using raw identifiers (`r#mod`) when necessary.

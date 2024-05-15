@@ -8,6 +8,11 @@ struct Players {
     O id,
 }
 
+enum Player {
+    X,
+    O,
+}
+
 action StartGame(players struct Players) {
     publish Start {
         players: players,
@@ -33,7 +38,7 @@ effect GameUpdate {
     player id,
     // the "dynamic" keyword is an annotation used to indicate to the consumer
     // that this value is not based on static event data and may change.
-    p      string dynamic,
+    p      enum Player dynamic,
     X      int,
     Y      int,
 }
@@ -41,6 +46,6 @@ effect GameUpdate {
 effect GameOver {
     gameID id,
     winner id,
-    p string,
+    p enum Player,
 }
 ```

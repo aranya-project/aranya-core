@@ -1,13 +1,34 @@
-use policy_ifgen::{macros::effect, KVPair};
+use policy_ifgen::{macros::*, KVPair};
 
 #[effect]
-pub struct Thing {
+pub struct TestEffect {
     pub a: i64,
     pub b: String,
 }
 
+#[value]
+pub struct TestStruct {
+    _int: i64,
+    _bool: bool,
+    _string: String,
+    _bytes: Vec<u8>,
+    _struct: OtherStruct,
+    _enum: TestEnum,
+    // _optional: Option<i64>, // TODO(#764)
+}
+
+#[value]
+struct OtherStruct {}
+
+#[value]
+enum TestEnum {
+    A,
+    B,
+    C,
+}
+
 #[test]
-fn parse_effect() {
+fn test_parse_effect() {
     let a = 42;
     let b = String::from("b");
 
@@ -21,7 +42,7 @@ fn parse_effect() {
         KVPair::new("a", a.into()),
     ];
 
-    let parsed = Thing { a, b };
+    let parsed = TestEffect { a, b };
 
     assert_eq!(parsed, order1.try_into().unwrap());
 
@@ -30,10 +51,10 @@ fn parse_effect() {
 
 #[cfg(feature = "serde")]
 #[test]
-fn serde() {
+fn test_serde() {
     use serde::{Deserialize, Serialize};
 
     fn impl_serde<'de, T: Serialize + Deserialize<'de>>() {}
 
-    impl_serde::<Thing>();
+    impl_serde::<TestEffect>();
 }

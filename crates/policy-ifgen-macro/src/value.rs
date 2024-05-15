@@ -1,12 +1,18 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{spanned::Spanned, ItemStruct};
+use syn::{spanned::Spanned, Fields, Item, ItemEnum, ItemStruct};
 
 use crate::common::get_derive;
 
 pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let strukt: ItemStruct = syn::parse2(item)?;
+    match syn::parse2(item)? {
+        Item::Struct(strukt) => handle_struct(strukt),
+        Item::Enum(enumeration) => handle_enum(enumeration),
+        item => Err(syn::Error::new(item.span(), "expected struct or enum")),
+    }
+}
 
+fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
     let ident = &strukt.ident;
     let name = ident.to_string();
 
@@ -65,6 +71,57 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
                     name: #name.into(),
                     fields,
                 })
+            }
+        }
+    })
+}
+
+fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
+    let ident = &enumeration.ident;
+
+    for variant in &enumeration.variants {
+        if !matches!(variant.fields, Fields::Unit) {
+            return Err(syn::Error::new(
+                variant.fields.span(),
+                "enum variant fields not allowed",
+            ));
+        }
+    }
+
+    let len = i64::try_from(enumeration.variants.len()).expect("too many variants");
+
+    let var_idents: Vec<_> = enumeration.variants.iter().map(|f| &f.ident).collect();
+    let var_vals: Vec<_> = (0..len).collect();
+
+    let derive = get_derive();
+
+    Ok(quote! {
+        #derive
+        #enumeration
+
+        impl ::core::convert::TryFrom<::policy_ifgen::Value> for #ident {
+            type Error = ::policy_ifgen::EnumParseError;
+            fn try_from(value: ::policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
+                let ::policy_ifgen::Value::Int(val) = value else {
+                    return ::core::result::Result::Err(::policy_ifgen::EnumParseError::InvalidType);
+                };
+
+                match val {
+                    #(
+                        #var_vals => ::core::result::Result::Ok(Self::#var_idents),
+                    )*
+                    _ => ::core::result::Result::Err(::policy_ifgen::EnumParseError::InvalidNumber),
+                }
+            }
+        }
+
+        impl ::core::convert::From<#ident> for ::policy_ifgen::Value {
+            fn from(e: #ident) -> Self {
+                match e {
+                    #(
+                        #ident::#var_idents => ::policy_ifgen::Value::Int(#var_vals),
+                    )*
+                }
             }
         }
     })
