@@ -4,3 +4,4 @@
 #![cfg_attr(docs, doc(cfg(feature = "testing")))]
 
 pub mod dsl;
+pub mod vm;
