@@ -158,10 +158,11 @@ impl<T, E: fmt::Display> BugExt<T> for Result<T, E> {
 #[macro_export]
 macro_rules! bug {
     ($msg:expr) => {
-        return ::core::result::Result::Err($crate::Bug::new($msg).into())
+        return ::core::result::Result::Err($crate::Bug::new($msg).into()).into()
     };
     ($msg:expr, $source:expr) => {
         return ::core::result::Result::Err($crate::Bug::new_with_source($msg, $source).into())
+            .into()
     };
 }
 

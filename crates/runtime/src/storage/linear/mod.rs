@@ -820,6 +820,10 @@ impl<R: Read> Perspective for LinearPerspective<R> {
     }
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
+        if command.parent() != self.head_id() {
+            return Err(StorageError::PerspectiveHeadMismatch);
+        }
+
         self.commands.push(CommandData {
             id: command.id(),
             priority: command.priority(),
@@ -827,7 +831,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
             data: command.bytes().into(),
             updates: core::mem::take(&mut self.current_updates),
         });
-        Ok(self.commands.len()) // FIXME(jdygert): Off by one?
+        Ok(self.commands.len())
     }
 
     fn includes(&self, id: &CommandId) -> bool {

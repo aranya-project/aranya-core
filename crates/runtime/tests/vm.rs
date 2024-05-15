@@ -402,9 +402,29 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
 
             // Receive the increment commands
             let mut session = cs.session(storage_id).expect("failed to create session");
-            for msg in msgs {
+            for msg in &msgs {
                 session
-                    .receive(&cs, &mut sink, &msg)
+                    .receive(&cs, &mut sink, msg)
+                    .expect("failed session receive");
+            }
+        }
+
+        // Modify the graph to test against different head
+        sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
+
+        // Call the increment action
+        cs.action(&storage_id, &mut sink, vm_action!(increment()))
+            .expect("could not call action");
+
+        {
+            sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 6 }));
+            sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 10 }));
+
+            // Receive the increment commands
+            let mut session = cs.session(storage_id).expect("failed to create session");
+            for msg in &msgs {
+                session
+                    .receive(&cs, &mut sink, msg)
                     .expect("failed session receive");
             }
         }
@@ -421,7 +441,7 @@ fn test_aranya_session() -> Result<(), VmPolicyError> {
     ))
     .expect("key serialization");
 
-    let expected_value = vec![KVPair::new("y", Value::Int(4))];
+    let expected_value = vec![KVPair::new("y", Value::Int(5))];
     let perspective = storage.get_fact_perspective(head).expect("perspective");
     let result = perspective
         .query(&key_vec)

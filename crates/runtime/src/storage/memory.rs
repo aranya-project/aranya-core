@@ -647,13 +647,16 @@ impl Revertable for MemPerspective {
 
 impl Perspective for MemPerspective {
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        // TODO(jdygert): Ensure command points to previous?
+        if command.parent() != self.head_id() {
+            return Err(StorageError::PerspectiveHeadMismatch);
+        }
+
         let entry = CommandData {
             command: MemCommand::from_cmd(command),
             updates: core::mem::take(&mut self.current_updates),
         };
         self.commands.push(entry);
-        Ok(self.commands.len()) // FIXME(jdygert): Off by one?
+        Ok(self.commands.len())
     }
 
     fn policy(&self) -> PolicyId {

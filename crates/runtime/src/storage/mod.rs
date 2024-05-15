@@ -72,7 +72,7 @@ impl fmt::Display for Location {
 }
 
 /// An error returned by [`Storage`] or [`StorageProvider`].
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum StorageError {
     StorageExists,
     NoSuchStorage,
@@ -84,6 +84,7 @@ pub enum StorageError {
     PolicyMismatch,
     EmptyPerspective,
     HeadNotAncestor,
+    PerspectiveHeadMismatch,
     Bug(Bug),
 }
 
@@ -108,6 +109,9 @@ impl fmt::Display for StorageError {
             Self::HeadNotAncestor => {
                 write!(f, "segment must be a descendant of the head for commit")
             }
+            Self::PerspectiveHeadMismatch => {
+                write!(f, "command's parents do not match the perspective head")
+            }
             Self::Bug(bug) => write!(f, "{bug}"),
         }
     }
@@ -125,7 +129,11 @@ impl From<Bug> for StorageError {
 pub trait StorageProvider {
     type Perspective: Perspective + Revertable;
     type Segment: Segment;
-    type Storage: Storage<Segment = Self::Segment, Perspective = Self::Perspective>;
+    type Storage: Storage<
+        Segment = Self::Segment,
+        Perspective = Self::Perspective,
+        FactIndex = <Self::Segment as Segment>::FactIndex,
+    >;
 
     /// Create an unrooted perspective, intended for creating a new graph.
     ///
@@ -347,7 +355,8 @@ pub trait Revertable {
 
 /// A checkpoint used to revert perspectives.
 pub struct Checkpoint {
-    index: usize,
+    /// An index interpreted by a given `Revertable` implementation to revert to a prior point.
+    pub index: usize,
 }
 
 /// Can be queried to look up facts.
@@ -364,11 +373,21 @@ pub trait Query {
 }
 
 /// A fact with a key and value.
+#[derive(Debug, PartialEq, Eq)]
 pub struct Fact {
     /// The bytes of the key.
     pub key: Box<[u8]>,
     /// The bytes of the value.
     pub value: Box<[u8]>,
+}
+
+impl From<(&[u8], &[u8])> for Fact {
+    fn from((k, v): (&[u8], &[u8])) -> Self {
+        Self {
+            key: k.into(),
+            value: v.into(),
+        }
+    }
 }
 
 /// Can mutate facts by inserting and deleting them.

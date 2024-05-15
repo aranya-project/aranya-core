@@ -4,28 +4,44 @@
 //!
 //! Design discussion/docs: <https://git.spideroak-inc.com/spideroak-inc/flow3-docs/pull/53>
 
-use alloc::boxed::Box;
-use core::marker::PhantomData;
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, ops::Bound};
 
 use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ClientError, ClientState, Command, CommandId, Engine, FactPerspective, GraphId, Perspective,
-    Policy, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Sink, Storage,
-    StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    Checkpoint, ClientError, ClientState, Command, CommandId, Engine, Fact, FactPerspective,
+    GraphId, NullSink, Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut, Revertable,
+    Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
+
+type Bytes = Box<[u8]>;
 
 /// Ephemeral session used to handle/generate off-graph commands.
 pub struct Session<SP: StorageProvider, E> {
-    /// The ID of the associated storage
+    /// The ID of the associated storage.
     storage_id: GraphId,
-    /// Current working perspective
-    perspective: <SP::Storage as Storage>::Perspective,
-    /// Policy ID for session
+    /// The policy ID for the session.
     policy_id: PolicyId,
-    /// Tag for associated engine
+
+    /// Head of the session.
+    head_id: CommandId,
+
+    /// The prior facts from the graph head.
+    base_facts: <SP::Storage as Storage>::FactIndex,
+    /// The log of facts in insertion order.
+    fact_log: Vec<(Bytes, Option<Bytes>)>,
+    /// The current facts of the session, relative to `base_facts`.
+    current_facts: BTreeMap<Bytes, Option<Bytes>>,
+
+    /// Tag for associated engine.
     _engine: PhantomData<E>,
+}
+
+struct SessionPerspective<'a, SP: StorageProvider, E, MS> {
+    session: &'a mut Session<SP, E>,
+    message_sink: &'a mut MS,
 }
 
 impl<SP: StorageProvider, E> Session<SP, E> {
@@ -33,14 +49,15 @@ impl<SP: StorageProvider, E> Session<SP, E> {
         let storage = provider.get_storage(&storage_id)?;
         let head_loc = storage.get_head()?;
         let seg = storage.get_segment(head_loc)?;
-        let perspective = storage
-            .get_linear_perspective(head_loc)?
-            .assume("can get perspective at head")?;
+        let base_facts = seg.facts()?;
 
         let result = Self {
             storage_id,
-            perspective,
             policy_id: seg.policy(),
+            head_id: seg.head().id(),
+            base_facts,
+            fact_log: Vec::new(),
+            current_facts: BTreeMap::new(),
             _engine: PhantomData,
         };
 
@@ -66,13 +83,10 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
-            storage_id: self.storage_id,
             message_sink,
-            perspective: &mut self.perspective,
-            policy: self.policy_id,
-            added: 0,
+            session: self,
         };
-        let checkpoint = perspective.perspective.checkpoint();
+        let checkpoint = perspective.checkpoint();
         effect_sink.begin();
 
         // Try to perform action.
@@ -84,7 +98,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             }
             Err(e) => {
                 // Other error, revert all? See #513.
-                perspective.perspective.revert(checkpoint);
+                perspective.revert(checkpoint);
                 perspective.message_sink.rollback();
                 effect_sink.rollback();
                 Err(e.into())
@@ -111,20 +125,21 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 
         let policy = client.engine.get_policy(&self.policy_id)?;
 
-        // Validate command parent information
-        if self.perspective.head_id() != Prior::Single(command.parent) {
-            bug!("parent not valid");
-        }
+        // Use a special perspective which doesn't check the head
+        let mut perspective = SessionPerspective {
+            message_sink: &mut NullSink,
+            session: self,
+        };
 
         // Try to evaluate command.
         sink.begin();
-        let checkpoint = self.perspective.checkpoint();
-        if let Err(e) = policy.call_rule(&command, &mut self.perspective, sink) {
-            self.perspective.revert(checkpoint);
+        let checkpoint = perspective.checkpoint();
+        if let Err(e) = policy.call_rule(&command, &mut perspective, sink) {
+            perspective.revert(checkpoint);
             sink.rollback();
             return Err(e.into());
         }
-        self.perspective.add_command(&command)?;
+        self.head_id = command.id();
         sink.commit();
 
         Ok(())
@@ -186,67 +201,205 @@ impl<'sc> SessionCommand<'sc> {
     }
 }
 
-struct SessionPerspective<'a, MS, P> {
-    storage_id: GraphId,
-    message_sink: &'a mut MS,
-    perspective: &'a mut P,
-    policy: PolicyId,
-    added: usize,
+/// Query iterator for SessionPerspective which wraps an inner query iterator
+struct QueryIterator<I1: Iterator, I2: Iterator> {
+    prior: Peekable<I1>,
+    current: Peekable<I2>,
 }
 
-impl<'a, MS, P: FactPerspective> FactPerspective for SessionPerspective<'a, MS, P> {}
+impl<'q, I1, I2> QueryIterator<I1, I2>
+where
+    I1: Iterator<Item = Result<Fact, StorageError>>,
+    I2: Iterator<Item = (&'q [u8], Option<&'q [u8]>)>,
+{
+    fn new(prior: I1, current: I2) -> Self {
+        Self {
+            prior: prior.peekable(),
+            current: current.peekable(),
+        }
+    }
+}
 
-impl<'a, MS, P: FactPerspective> Query for SessionPerspective<'a, MS, P> {
+impl<'q, I1, I2> Iterator for QueryIterator<I1, I2>
+where
+    I1: Iterator<Item = Result<Fact, StorageError>>,
+    I2: Iterator<Item = (&'q [u8], Option<&'q [u8]>)>,
+{
+    type Item = Result<Fact, StorageError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // We find the next lowest item between the two iterators,
+        // while also ensuring that newer entries overwrite older.
+        // We loop so we can skip over deleted facts.
+
+        loop {
+            let Some(new) = self.current.peek() else {
+                // If current has run out, just use prior.
+                return self.prior.next();
+            };
+            if let Some(old) = self.prior.peek() {
+                let Ok(old) = old else {
+                    // Bubble up errors as soon as possible, instead of returning `new`.
+                    return self.prior.next();
+                };
+                match new.0.cmp(old.key.as_ref()) {
+                    Ordering::Equal => {
+                        // new overwrites old.
+                        let _ = self.prior.next();
+                    }
+                    Ordering::Greater => {
+                        // old comes next in sorted order.
+                        return self.prior.next();
+                    }
+                    Ordering::Less => {
+                        // new comes next in sorted order.
+                    }
+                }
+            }
+            let Some(slot) = self.current.next() else {
+                bug!("expected Some after peek")
+            };
+            if let (k, Some(v)) = slot {
+                return Some(Ok(Fact {
+                    key: k.into(),
+                    value: v.into(),
+                }));
+            }
+        }
+    }
+}
+
+impl<'a, SP, E, MS> FactPerspective for SessionPerspective<'a, SP, E, MS> where SP: StorageProvider {}
+
+impl<'a, SP, E, MS> Query for SessionPerspective<'a, SP, E, MS>
+where
+    SP: StorageProvider,
+{
     fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
-        self.perspective.query(key)
+        if let Some(slot) = self.session.current_facts.get(key) {
+            return Ok(slot.clone());
+        }
+        self.session.base_facts.query(key)
     }
 
-    type QueryIterator<'q> = P::QueryIterator<'q> where Self: 'q;
+    type QueryIterator<'q> = QueryIterator<
+        <<SP::Storage as Storage>::FactIndex as Query>::QueryIterator<'q>,
+        Box<dyn Iterator<Item = (&'q [u8], Option<&'q [u8]>)> + 'q>,
+    > where Self: 'q;
     fn query_prefix(&self, prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError> {
-        self.perspective.query_prefix(prefix)
+        let prior = self.session.base_facts.query_prefix(prefix)?;
+        let current = self
+            .session
+            .current_facts
+            .range::<[u8], _>((Bound::Included(prefix), Bound::Unbounded))
+            .take_while({
+                let prefix: Bytes = prefix.into();
+                move |(k, _)| k.starts_with(&prefix)
+            })
+            .map(|(k, v)| (k.as_ref(), v.as_deref()));
+        Ok(QueryIterator::new(prior, Box::from(current)))
     }
 }
 
-impl<'a, MS, P: FactPerspective> QueryMut for SessionPerspective<'a, MS, P> {
+impl<'a, SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'a, SP, E, MS> {
     fn insert(&mut self, key: &[u8], value: &[u8]) {
-        self.perspective.insert(key, value)
+        self.session.fact_log.push((key.into(), Some(value.into())));
+        self.session
+            .current_facts
+            .insert(key.into(), Some(value.into()));
     }
 
     fn delete(&mut self, key: &[u8]) {
-        self.perspective.delete(key)
+        self.session.fact_log.push((key.into(), None));
+        self.session.current_facts.insert(key.into(), None);
     }
 }
 
-impl<'s, MS, P> Perspective for SessionPerspective<'s, MS, P>
+impl<'a, SP, E, MS> Perspective for SessionPerspective<'a, SP, E, MS>
 where
+    SP: StorageProvider,
     MS: for<'b> Sink<&'b [u8]>,
-    P: Perspective,
 {
     fn policy(&self) -> PolicyId {
-        self.policy
+        self.session.policy_id
     }
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        // TODO(jdygert): Shouldn't need to actually store the commands.
-        // Currently needed so checkpoint is correct when reverting.
-        self.perspective.add_command(command)?;
-
-        let command = SessionCommand::from_cmd(self.storage_id, command)?;
+        let command = SessionCommand::from_cmd(self.session.storage_id, command)?;
         let mut buf = [0u8; MAX_COMMAND_LENGTH];
         let bytes = postcard::to_slice(&command, &mut buf).assume("can serialize")?;
         self.message_sink.consume(bytes);
-        self.added = self
-            .added
-            .checked_add(1)
-            .assume("will not add usize::MAX commands")?;
-        Ok(self.added)
+
+        Ok(0)
     }
 
-    fn includes(&self, id: &CommandId) -> bool {
-        self.perspective.includes(id)
+    fn includes(&self, _id: &CommandId) -> bool {
+        debug_assert!(false, "only used in transactions");
+
+        false
     }
 
     fn head_id(&self) -> Prior<CommandId> {
-        self.perspective.head_id()
+        Prior::Single(self.session.head_id)
+    }
+}
+
+impl<'a, SP, E, MS> Revertable for SessionPerspective<'a, SP, E, MS>
+where
+    SP: StorageProvider,
+{
+    fn checkpoint(&self) -> Checkpoint {
+        Checkpoint {
+            index: self.session.fact_log.len(),
+        }
+    }
+
+    fn revert(&mut self, checkpoint: Checkpoint) {
+        if checkpoint.index >= self.session.fact_log.len() {
+            return;
+        }
+        self.session.fact_log.truncate(checkpoint.index);
+        self.session.current_facts.clear();
+        for (k, v) in self.session.fact_log.iter().cloned() {
+            self.session.current_facts.insert(k, v);
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_query_iterator() {
+        let prior: Vec<Result<(&[u8], &[u8]), _>> = vec![
+            Ok((b"a", b"a0")),
+            Ok((b"c", b"c0")),
+            Ok((b"d", b"d0")),
+            Ok((b"f", b"f0")),
+            Err(StorageError::IoError),
+        ];
+        let current: Vec<(&[u8], Option<&[u8]>)> = vec![
+            (b"a", None),
+            (b"b", Some(b"b1")),
+            (b"e", None),
+            (b"j", None),
+        ];
+        let merged: Vec<Result<(&[u8], &[u8]), _>> = vec![
+            Ok((b"b", b"b1")),
+            Ok((b"c", b"c0")),
+            Ok((b"d", b"d0")),
+            Ok((b"f", b"f0")),
+            Err(StorageError::IoError),
+        ];
+
+        let got: Vec<_> = QueryIterator::new(
+            prior.into_iter().map(|r| r.map(Fact::from)),
+            current.into_iter(),
+        )
+        .collect();
+        let want: Vec<_> = merged.into_iter().map(|r| r.map(Fact::from)).collect();
+
+        assert_eq!(got, want);
     }
 }
