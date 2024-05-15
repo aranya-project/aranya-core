@@ -3,13 +3,21 @@ policy-version: 1
 ---
 
 <!--
-This policy facilitates the use of the `envelope_ffi`. To do that we need to
+This policy facilitates the full use of the `envelope_ffi`. To do that we need to
 introduce several supporting FFIs, `crypto_ffi`, `device_ffi`, `idam_ffi`,
 `perspective_ffi`. Together they give us the necessary functionality to satisfy
 the seal and open blocks. The key difference between this policy and the
 `basic-policy.md` is that the basic policy is setup to use the `TestFfiEnvelope`.
-Both policies however contain the same set of actions, Init, Create, Increment,
+Both policies however contain the same sets of on-graph actions, Init, Create, Increment,
 and Decrement.
+
+The policies also supply sample ephemeral commands, `CreateGreeting and
+`VerifyGreeting`. Ephemeral (session) commands are not added to the graph of
+commands and do not persist any changes to the factDB.
+
+It should be noted that there is no syntactic differences between on-graph and
+ephemeral commands currently. They could in theory be used interchangeably,
+however they are almost always created with a particular flavor in mind.
 -->
 
 ```policy
@@ -18,6 +26,20 @@ fact Stuff[a int]=>{x int}
 effect StuffHappened {
     a int,
     x int,
+}
+
+// `Message` is one of the facts we will interact with in the ephemeral sessions.
+fact Message[msg string]=>{value string}
+
+// `Greeting` is an effect we will emit from the `CreateGreeting` command.
+effect Greeting {
+    msg string,
+}
+
+// `Success` is a simple effect we can emit to our test to indicate that a command
+// has succeeded.
+effect Success {
+    value bool,
 }
 
 // A user's public SigningKey.
@@ -305,6 +327,72 @@ command Decrement {
             update Stuff[a: this.key_a]=>{x: stuff.x} to {x: new_x}
             emit StuffHappened{a: this.key_a, x: new_x}
         }
+    }
+}
+
+// `CreateGreeting` is an ephemeral command that creates a fact that lives for
+// the lifetime of the session it was called in.
+command CreateGreeting {
+    fields {
+        key string,
+        value string,
+    }
+
+    seal { return seal_basic_command(serialize(this)) }
+    open { return deserialize(open_basic_command(envelope)) }
+
+    policy {
+        finish {
+            // Write the Message fact to the session factDB
+            create Message[msg: this.key]=>{value: this.value}
+            // Return our value
+            emit Greeting{msg: this.value}
+        }
+    }
+}
+
+// The `create_greeting` action calls the command `CreateGreeting`. Passing in
+// the hardcoded greeting key and the message value.
+action create_greeting(v string) {
+    publish CreateGreeting {
+        key: "greeting",
+        value: v,
+    }
+}
+
+// `VerifyGreeting` is an ephemeral command that looks up the Message fact and
+// compares the contents with the value passed in. It is meant to be used in
+// conjunction with `CreateGreeting`, where CreateGreeting writes to the factDB
+// and VerifyGreeting checks it's contents.
+command VerifyGreeting {
+    fields {
+        key string,
+        value string,
+    }
+
+    seal { return seal_basic_command(serialize(this)) }
+    open { return deserialize(open_basic_command(envelope)) }
+
+    // A command can write to a temporary session fact that will be available
+    // within the same session. We can query the session factDB and do something
+    // with that data.
+    policy {
+        let greeting = unwrap query Message[msg: this.key]=>{value: ?}
+        // Check that the stored value in the Message fact we look up matches
+        // the value passed into the command.
+        check greeting.value == this.value
+        finish {
+            emit Success{value: true}
+        }
+    }
+}
+
+// The `verify_hello` action calls the command `VerifyGreeting` that will verify
+// the Message fact contains "hello".
+action verify_hello() {
+    publish VerifyGreeting {
+        key: "greeting",
+        value: "hello",
     }
 }
 ```

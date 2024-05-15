@@ -9,6 +9,7 @@ use core::{
     fmt::{self, Debug, Display},
 };
 
+use anyhow::Result;
 use crypto::Rng;
 use policy_compiler::CompileError;
 use policy_lang::lang::ParseError;
@@ -130,11 +131,13 @@ impl Display for ModelError {
 
 impl trouble::Error for ModelError {}
 
+/// Proxy ID for clients
 type ProxyClientID = u64;
 /// Proxy ID for graphs
 pub type ProxyGraphID = u64;
 
-/// The [`Model`] manages adding clients, graphs, actions, and syncing client state.
+/// The [`Model`] manages adding clients, graphs, actions, syncing client state,
+/// creating ephemeral actions, and processing ephemeral commands.
 pub trait Model {
     type Effect;
     type Action<'a>;
@@ -147,14 +150,14 @@ pub trait Model {
         proxy_id: ProxyGraphID,
         client_proxy_id: ProxyClientID,
         action: Self::Action<'_>,
-    ) -> Result<Self::Effect, ModelError>;
+    ) -> Result<Vec<Self::Effect>, ModelError>;
 
     fn action(
         &mut self,
         client_proxy_id: ProxyClientID,
         graph_proxy_id: ProxyGraphID,
         action: Self::Action<'_>,
-    ) -> Result<Self::Effect, ModelError>;
+    ) -> Result<Vec<Self::Effect>, ModelError>;
 
     fn sync(
         &mut self,
@@ -167,6 +170,20 @@ pub trait Model {
         &self,
         client_proxy_id: ProxyClientID,
     ) -> Result<&Self::PublicKeys, ModelError>;
+
+    fn session_actions<'a>(
+        &mut self,
+        client_proxy_id: ProxyClientID,
+        graph_proxy_id: ProxyGraphID,
+        actions: impl IntoIterator<Item = Self::Action<'a>>,
+    ) -> Result<SessionData<Self::Effect>>;
+
+    fn session_receive(
+        &mut self,
+        client_proxy_id: ProxyClientID,
+        graph_proxy_id: ProxyGraphID,
+        commands: impl IntoIterator<Item = Box<[u8]>>,
+    ) -> Result<Vec<Self::Effect>>;
 }
 
 /// Holds a collection of effect data.
@@ -198,6 +215,44 @@ impl<E> Sink<E> for VecSink<E> {
 
     fn consume(&mut self, effect: E) {
         self.effects.push(effect);
+    }
+
+    fn rollback(&mut self) {}
+
+    fn commit(&mut self) {}
+}
+
+type Msg = Box<[u8]>;
+type SessionData<E> = (Vec<Msg>, Vec<E>);
+
+/// Sink for graph commands.
+#[derive(Default)]
+pub struct MsgSink {
+    cmds: Vec<Msg>,
+}
+
+impl MsgSink {
+    /// Creates a `MsgSink`.
+    pub const fn new() -> Self {
+        Self { cmds: Vec::new() }
+    }
+
+    /// Returns the collected commands.
+    pub fn into_cmds(self) -> Vec<Msg> {
+        self.cmds
+    }
+
+    /// Returns an iterator over the collected commands.
+    pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+        self.cmds.iter().map(AsRef::as_ref)
+    }
+}
+
+impl Sink<&[u8]> for MsgSink {
+    fn begin(&mut self) {}
+
+    fn consume(&mut self, effect: &[u8]) {
+        self.cmds.push(effect.into())
     }
 
     fn rollback(&mut self) {}
@@ -255,10 +310,11 @@ where
 }
 
 impl<CF: ClientFactory> Model for RuntimeModel<CF> {
-    type Effect = Vec<<CF::Engine as Engine>::Effect>;
+    type Effect = <CF::Engine as Engine>::Effect;
     type Action<'a> = <<CF::Engine as Engine>::Policy as Policy>::Action<'a>;
     type PublicKeys = CF::PublicKeys;
 
+    // Add a client to the model
     fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError> {
         if self.clients.contains_key(&proxy_id) {
             return Err(ModelError::DuplicateClient);
@@ -270,12 +326,13 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok(())
     }
 
+    // Create a graph on a client
     fn new_graph(
         &mut self,
         proxy_id: ProxyGraphID,
         client_proxy_id: ProxyClientID,
         action: Self::Action<'_>,
-    ) -> Result<Self::Effect, ModelError> {
+    ) -> Result<Vec<Self::Effect>, ModelError> {
         if self.storage_ids.contains_key(&proxy_id) {
             return Err(ModelError::DuplicateGraph);
         }
@@ -296,12 +353,13 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok(sink.effects)
     }
 
+    // Preform an action on a client
     fn action(
         &mut self,
         client_proxy_id: ProxyClientID,
         graph_proxy_id: ProxyGraphID,
         action: Self::Action<'_>,
-    ) -> Result<Self::Effect, ModelError> {
+    ) -> Result<Vec<Self::Effect>, ModelError> {
         let storage_id = self
             .storage_ids
             .get(&(graph_proxy_id))
@@ -321,6 +379,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok(sink.effects)
     }
 
+    // Sync a graph between two clients
     fn sync(
         &mut self,
         graph_proxy_id: ProxyGraphID,
@@ -387,6 +446,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok(())
     }
 
+    // Retrieve public keys from a client
     fn get_public_keys(
         &self,
         client_proxy_id: ProxyClientID,
@@ -396,5 +456,66 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
             .get(&client_proxy_id)
             .ok_or(ModelError::ClientNotFound)?
             .public_keys)
+    }
+
+    /// Create ephemeral session commands and effects
+    fn session_actions<'a>(
+        &mut self,
+        client_proxy_id: ProxyClientID,
+        graph_proxy_id: ProxyGraphID,
+        actions: impl IntoIterator<Item = Self::Action<'a>>,
+    ) -> Result<SessionData<Self::Effect>> {
+        let state = self
+            .clients
+            .get_mut(&client_proxy_id)
+            .ok_or(ModelError::ClientNotFound)?
+            .state
+            .get_mut();
+
+        let storage_id = self
+            .storage_ids
+            .get(&(graph_proxy_id))
+            .ok_or(ModelError::GraphNotFound)?;
+
+        let mut effect_sink = VecSink::new();
+        let mut msg_sink = MsgSink::new();
+
+        let mut session = state.session(*storage_id)?;
+
+        for action in actions {
+            session.action(state, &mut effect_sink, &mut msg_sink, action)?;
+        }
+
+        let cmds = msg_sink.into_cmds();
+        let effects = effect_sink.collect()?;
+        Ok((cmds, effects))
+    }
+
+    // Process ephemeral session commands
+    fn session_receive(
+        &mut self,
+        client_proxy_id: ProxyClientID,
+        graph_proxy_id: ProxyGraphID,
+        commands: impl IntoIterator<Item = Box<[u8]>>,
+    ) -> Result<Vec<Self::Effect>> {
+        let state = self
+            .clients
+            .get_mut(&client_proxy_id)
+            .ok_or(ModelError::ClientNotFound)?
+            .state
+            .get_mut();
+
+        let storage_id = self
+            .storage_ids
+            .get(&(graph_proxy_id))
+            .ok_or(ModelError::GraphNotFound)?;
+
+        let mut sink = VecSink::new();
+
+        let mut session = state.session(*storage_id)?;
+        for cmd in commands {
+            session.receive(state, &mut sink, &cmd)?;
+        }
+        Ok(sink.collect()?)
     }
 }
