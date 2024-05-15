@@ -16,6 +16,46 @@ use crate::{
     keys::SecretKey,
 };
 
+/// Invokes `callback` for each HPKE test.
+///
+/// # Example
+///
+/// ```
+/// use crypto::{
+///     Rng,
+///     rust::{
+///         Aes256Gcm,
+///         DhKemP256HkdfSha256,
+///         HkdfSha256,
+///     },
+///     test_hpke,
+/// };
+///
+/// # crypto::__doctest_os_hardware_rand!();
+/// macro_rules! run_test {
+///     ($test:ident) => {
+///         crypto::test_util::hpke::$test::<
+///             DhKemP256HkdfSha256,
+///             HkdfSha256,
+///             Aes256Gcm,
+///             _,
+///         >(&mut Rng);
+///     };
+/// }
+/// crypto::for_each_hpke_test!(run_test);
+/// ```
+#[macro_export]
+macro_rules! for_each_hpke_test {
+    ($callback:ident) => {
+        $crate::__apply! {
+            $callback,
+            test_round_trip,
+            test_export,
+        }
+    };
+}
+pub use for_each_hpke_test;
+
 /// Performs all of the tests in this module.
 ///
 /// This macro expands into a bunch of individual `#[test]`
@@ -55,7 +95,15 @@ use crate::{
 #[macro_export]
 macro_rules! test_hpke {
     ($name:ident, $kem:ty, $kdf:ty, $aead:ty $(, HpkeTest::$vectors:ident)? $(,)?) => {
-        macro_rules! test {
+        mod $name {
+            #[allow(unused_imports)]
+            use super::*;
+
+            $crate::test_hpke!($kem, $kdf, $aead $(, HpkeTest::$vectors)?);
+        }
+    };
+    ($kem:ty, $kdf:ty, $aead:ty $(, HpkeTest::$vectors:ident)? $(,)?) => {
+        macro_rules! __hpke_test {
             ($test:ident) => {
                 #[test]
                 fn $test() {
@@ -65,23 +113,16 @@ macro_rules! test_hpke {
                 }
             };
         }
+        $crate::for_each_hpke_test!(__hpke_test);
 
-        mod $name {
-            #[allow(unused_imports)]
-            use super::*;
-
-            test!(test_round_trip);
-            test!(test_export);
-
-            $(
-                #[test]
-                fn vectors() {
-                    $crate::test_util::vectors::test_hpke::<$kem, $kdf, $aead>(
-                        $crate::test_util::vectors::HpkeTest::$vectors,
-                    );
-                }
-            )?
-        }
+        $(
+            #[test]
+            fn vectors() {
+                $crate::test_util::vectors::test_hpke::<$kem, $kdf, $aead>(
+                    $crate::test_util::vectors::HpkeTest::$vectors,
+                );
+            }
+        )?
     };
 }
 pub use test_hpke;

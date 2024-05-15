@@ -12,6 +12,37 @@ use crate::{
     signer::{Signer, SigningKey, VerifyingKey},
 };
 
+/// Invokes `callback` for each signer test.
+///
+/// # Example
+///
+/// ```
+/// use crypto::{Rng, rust::P256};
+///
+/// # crypto::__doctest_os_hardware_rand!();
+/// macro_rules! run_test {
+///     ($test:ident) => {
+///         crypto::test_util::signer::$test::<P256, _>(&mut Rng);
+///     };
+/// }
+/// crypto::for_each_signer_test!(run_test);
+/// ```
+#[macro_export]
+macro_rules! for_each_signer_test {
+    ($callback:ident) => {
+        $crate::__apply! {
+            $callback,
+            test_default,
+            test_pk_eq,
+            test_sk_ct_eq,
+            test_public,
+            test_batch_simple_good,
+            test_batch_simple_bad,
+        }
+    };
+}
+pub use for_each_signer_test;
+
 /// Performs all of the tests in this module.
 ///
 /// This macro expands into a bunch of individual `#[test]`
@@ -34,22 +65,8 @@ use crate::{
 /// ```
 #[macro_export]
 macro_rules! test_signer {
-    ($name:ident, $signer:ty) => {
-        $crate::__test_signer!($name, $signer);
-    };
-    ($name:ident, $signer:ty, EcdsaTest::$vectors:ident $(,)?) => {
-        $crate::__test_signer!($name, $signer, test_ecdsa, EcdsaTest, $vectors);
-    };
-    ($name:ident, $signer:ty, EddsaTest::$vectors:ident $(,)?) => {
-        $crate::__test_signer!($name, $signer, test_eddsa, EddsaTest, $vectors);
-    };
-}
-
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __test_signer {
-    ($name:ident, $signer:ty $(, $f:ident, $which:ident, $vectors:ident)? $(,)?) => {
-        macro_rules! test {
+    (@test $signer:ty $(, $f:ident, $which:ident, $vectors:ident)? $(,)?) => {
+        macro_rules! __signer_test {
             ($test:ident) => {
                 #[test]
                 fn $test() {
@@ -57,27 +74,49 @@ macro_rules! __test_signer {
                 }
             };
         }
+        $crate::for_each_signer_test!(__signer_test);
 
+        $(
+            #[test]
+            fn vectors() {
+                $crate::test_util::vectors::$f::<$signer>(
+                    $crate::test_util::vectors::$which::$vectors,
+                );
+            }
+        )?
+    };
+    ($name:ident, $signer:ty) => {
         mod $name {
             #[allow(unused_imports)]
             use super::*;
 
-            test!(test_default);
-            test!(test_pk_eq);
-            test!(test_sk_ct_eq);
-            test!(test_public);
-            test!(test_batch_simple_good);
-            test!(test_batch_simple_bad);
-
-            $(
-                #[test]
-                fn vectors() {
-                    $crate::test_util::vectors::$f::<$signer>(
-                        $crate::test_util::vectors::$which::$vectors,
-                    );
-                }
-            )?
+            $crate::test_signer!($signer);
         }
+    };
+    ($signer:ty) => {
+        $crate::test_signer!(@test $signer);
+    };
+    ($name:ident, $signer:ty, EcdsaTest::$vectors:ident $(,)?) => {
+        mod $name {
+            #[allow(unused_imports)]
+            use super::*;
+
+            $crate::test_signer!($signer, EcdsaTest::$vectors);
+        }
+    };
+    ($signer:ty, EcdsaTest::$vectors:ident $(,)?) => {
+        $crate::test_signer!(@test $signer, test_ecdsa, EcdsaTest, $vectors);
+    };
+    ($name:ident, $signer:ty, EddsaTest::$vectors:ident $(,)?) => {
+        mod $name {
+            #[allow(unused_imports)]
+            use super::*;
+
+            $crate::test_signer!($signer, EddsaTest::$vectors);
+        }
+    };
+    ($signer:ty, EddsaTest::$vectors:ident $(,)?) => {
+        $crate::test_signer!(@test $signer, test_eddsa, EddsaTest, $vectors);
     };
 }
 pub use test_signer;

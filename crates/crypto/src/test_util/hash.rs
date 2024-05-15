@@ -2,6 +2,31 @@
 
 use crate::hash::Hash;
 
+/// Invokes `callback` for each hash test.
+///
+/// # Example
+///
+/// ```
+/// use crypto::rust::Sha256;
+///
+/// macro_rules! run_test {
+///     ($test:ident) => {
+///         crypto::test_util::hash::$test::<Sha256>();
+///     };
+/// }
+/// crypto::for_each_hash_test!(run_test);
+/// ```
+#[macro_export]
+macro_rules! for_each_hash_test {
+    ($callback:ident) => {
+        $crate::__apply! {
+            $callback,
+            test_basic,
+        }
+    };
+}
+pub use for_each_hash_test;
+
 /// Performs all of the tests in this module.
 ///
 /// This macro expands into a bunch of individual `#[test]`
@@ -21,7 +46,15 @@ use crate::hash::Hash;
 #[macro_export]
 macro_rules! test_hash {
     ($name:ident, $hash:ty) => {
-        macro_rules! test {
+        mod $name {
+            #[allow(unused_imports)]
+            use super::*;
+
+            $crate::test_hash!($hash);
+        }
+    };
+    ($hash:ty) => {
+        macro_rules! __hash_test {
             ($test:ident) => {
                 #[test]
                 fn $test() {
@@ -29,13 +62,7 @@ macro_rules! test_hash {
                 }
             };
         }
-
-        mod $name {
-            #[allow(unused_imports)]
-            use super::*;
-
-            test!(test_basic);
-        }
+        $crate::for_each_hash_test!(__hash_test);
     };
 }
 pub use test_hash;

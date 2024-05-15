@@ -3,6 +3,35 @@
 use super::{assert_ct_eq, assert_ct_ne};
 use crate::{csprng::Csprng, keys::SecretKey, mac::Mac};
 
+/// Invokes `callback` for each MAC test.
+///
+/// # Example
+///
+/// ```
+/// use crypto::{Rng, rust::HmacSha256};
+///
+/// # crypto::__doctest_os_hardware_rand!();
+/// macro_rules! run_test {
+///     ($test:ident) => {
+///         crypto::test_util::mac::$test::<HmacSha256, _>(&mut Rng);
+///     }
+/// }
+/// crypto::for_each_mac_test!(run_test);
+/// ```
+#[macro_export]
+macro_rules! for_each_mac_test {
+    ($callback:ident) => {
+        $crate::__apply! {
+            $callback,
+            test_default,
+            test_update,
+            test_verify,
+            test_different_keys,
+            test_different_data,
+        }
+    };
+}
+
 /// Performs all of the tests in this module.
 ///
 /// This macro expands into a bunch of individual `#[test]`
@@ -26,7 +55,15 @@ use crate::{csprng::Csprng, keys::SecretKey, mac::Mac};
 #[macro_export]
 macro_rules! test_mac {
     ($name:ident, $mac:ty $(, MacTest::$vectors:ident)?) => {
-        macro_rules! test {
+        mod $name {
+            #[allow(unused_imports)]
+            use super::*;
+
+            $crate::test_mac!($mac $(, MacTest::$vectors)?);
+        }
+    };
+    ($mac:ty $(, MacTest::$vectors:ident)?) => {
+        macro_rules! __mac_test {
             ($test:ident) => {
                 #[test]
                 fn $test() {
@@ -34,26 +71,16 @@ macro_rules! test_mac {
                 }
             };
         }
+        $crate::for_each_mac_test!(__mac_test);
 
-        mod $name {
-            #[allow(unused_imports)]
-            use super::*;
-
-            test!(test_default);
-            test!(test_update);
-            test!(test_verify);
-            test!(test_different_keys);
-            test!(test_different_data);
-
-            $(
-                #[test]
-                fn vectors() {
-                    $crate::test_util::vectors::test_mac::<$mac>(
-                        $crate::test_util::vectors::MacTest::$vectors,
-                    );
-                }
-            )?
-        }
+        $(
+            #[test]
+            fn vectors() {
+                $crate::test_util::vectors::test_mac::<$mac>(
+                    $crate::test_util::vectors::MacTest::$vectors,
+                );
+            }
+        )?
     };
 }
 pub use test_mac;

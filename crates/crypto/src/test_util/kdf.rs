@@ -9,6 +9,31 @@ use more_asserts::assert_ge;
 use super::assert_ct_eq;
 use crate::kdf::{Kdf, KdfError};
 
+/// Invokes `callback` for each KDF test.
+///
+/// # Example
+///
+/// ```
+/// use crypto::rust::HkdfSha256;
+///
+/// macro_rules! run_test {
+///     ($test:ident) => {
+///         crypto::test_util::kdf::$test::<HkdfSha256>();
+///     }
+/// }
+/// crypto::for_each_kdf_test!(run_test);
+/// ```
+#[macro_export]
+macro_rules! for_each_kdf_test {
+    ($callback:ident) => {
+        $crate::__apply! {
+            $callback,
+            test_arbitrary_len,
+            test_max_output,
+        }
+    };
+}
+
 /// Performs all of the tests in this module.
 ///
 /// This macro expands into a bunch of individual `#[test]`
@@ -32,7 +57,15 @@ use crate::kdf::{Kdf, KdfError};
 #[macro_export]
 macro_rules! test_kdf {
     ($name:ident, $kdf:ty $(, HkdfTest::$vectors:ident)?) => {
-        macro_rules! test {
+        mod $name {
+            #[allow(unused_imports)]
+            use super::*;
+
+            $crate::test_kdf!($kdf $(, HkdfTest::$vectors)?);
+        }
+    };
+    ($kdf:ty $(, HkdfTest::$vectors:ident)?) => {
+        macro_rules! __kdf_test {
             ($test:ident) => {
                 #[test]
                 fn $test() {
@@ -40,23 +73,16 @@ macro_rules! test_kdf {
                 }
             };
         }
+        $crate::for_each_kdf_test!(__kdf_test);
 
-        mod $name {
-            #[allow(unused_imports)]
-            use super::*;
-
-            test!(test_arbitrary_len);
-            test!(test_max_output);
-
-            $(
-                #[test]
-                fn vectors() {
-                    $crate::test_util::vectors::test_hkdf::<$kdf>(
-                        $crate::test_util::vectors::HkdfTest::$vectors,
-                    );
-                }
-            )?
-        }
+        $(
+            #[test]
+            fn vectors() {
+                $crate::test_util::vectors::test_hkdf::<$kdf>(
+                    $crate::test_util::vectors::HkdfTest::$vectors,
+                );
+            }
+        )?
     };
 }
 pub use test_kdf;

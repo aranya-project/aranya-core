@@ -28,6 +28,103 @@ use crate::{
     CipherSuite,
 };
 
+/// Invokes `callback` for each Engine test.
+///
+/// # Example
+///
+/// ```
+/// use crypto::{
+///     default::{
+///         DefaultCipherSuite,
+///         DefaultEngine,
+///     },
+///     Rng,
+///     test_engine,
+/// };
+///
+/// # crypto::__doctest_os_hardware_rand!();
+/// macro_rules! run_test {
+///     ($test:ident) => {
+///         crypto::test_util::engine::$test(&mut {
+///             let (eng, _) = DefaultEngine::<_, DefaultCipherSuite>::from_entropy(Rng);
+///             eng
+///         });
+///     };
+/// }
+/// crypto::for_each_engine_test!(run_test);
+/// ```
+#[macro_export]
+macro_rules! for_each_engine_test {
+    ($callback:ident) => {
+        $crate::__apply! {
+            $callback,
+
+            // Aranya
+
+            test_simple_user_signing_key_sign,
+
+            test_simple_seal_group_key,
+            test_simple_wrap_group_key,
+            test_simple_wrap_user_identity_key,
+            test_simple_export_user_identity_key,
+            test_simple_identity_key_sign,
+            test_simple_wrap_user_signing_key,
+            test_simple_export_user_signing_key,
+            test_simple_wrap_user_encryption_key,
+            test_simple_export_user_encryption_key,
+
+            test_group_key_seal,
+            test_group_key_open_wrong_key,
+            test_group_key_open_wrong_context,
+            test_group_key_open_bad_ciphertext,
+
+            test_encrypted_group_key_encode,
+
+            // APQ
+
+            test_simple_sender_signing_key_sign,
+
+            test_simple_seal_topic_key,
+            test_simple_wrap_user_sender_secret_key,
+            test_simple_wrap_user_sender_signing_key,
+            test_simple_wrap_user_receiver_secret_key,
+
+            test_topic_key_seal,
+            test_topic_key_open_wrong_key,
+            test_topic_key_open_wrong_context,
+            test_topic_key_open_bad_ciphertext,
+
+            // APS
+
+            test_same_seal_key_open_key,
+            test_different_seal_key_open_key,
+            test_seal_key_monotonic_seq_number,
+            test_seal_key_seq_number_exhausted,
+            test_open_key_seq_number_exhausted,
+            test_open_key_wrong_seq_number,
+            test_open_key_wrong_auth_data,
+
+            test_derive_bidi_keys,
+            test_derive_bidi_keys_different_labels,
+            test_derive_bidi_keys_different_user_ids,
+            test_derive_bidi_keys_different_cmd_ids,
+            test_derive_bidi_keys_different_keys,
+            test_derive_bidi_keys_same_user_id,
+            test_wrap_bidi_author_secret,
+
+            test_derive_uni_key,
+            test_derive_uni_key_different_labels,
+            test_derive_uni_key_different_user_ids,
+            test_derive_uni_key_different_cmd_ids,
+            test_derive_uni_key_different_keys,
+            test_derive_uni_seal_key_same_user_id,
+            test_derive_uni_open_key_same_user_id,
+            test_wrap_uni_author_secret,
+        }
+    };
+}
+pub use for_each_engine_test;
+
 /// Performs all of the tests inside this module.
 ///
 /// This macro expands into a bunch of individual `#[test]`
@@ -60,94 +157,21 @@ macro_rules! test_engine {
             #[allow(unused_imports)]
             use super::*;
 
-            $crate::test_util::test_ciphersuite!(ciphersuite, <$engine as $crate::engine::Engine>::CS);
-
-            macro_rules! test {
-                ($test:ident) => {
-                    #[test]
-                    fn $test() {
-                        $crate::test_util::engine::$test(&mut { $($args)+ });
-                    }
-                };
-            }
-
-            mod aranya {
-                #[allow(unused_imports)]
-                use super::*;
-
-                test!(test_simple_user_signing_key_sign);
-
-                test!(test_simple_seal_group_key);
-                test!(test_simple_wrap_group_key);
-                test!(test_simple_wrap_user_identity_key);
-                test!(test_simple_export_user_identity_key);
-                test!(test_simple_identity_key_sign);
-                test!(test_simple_wrap_user_signing_key);
-                test!(test_simple_export_user_signing_key);
-                test!(test_simple_wrap_user_encryption_key);
-                test!(test_simple_export_user_encryption_key);
-
-                test!(test_group_key_seal);
-                test!(test_group_key_open_wrong_key);
-                test!(test_group_key_open_wrong_context);
-                test!(test_group_key_open_bad_ciphertext);
-
-                test!(test_encrypted_group_key_encode);
-            }
-            #[allow(unused_imports)]
-            pub use aranya::*;
-
-            mod apq {
-                #[allow(unused_imports)]
-                use super::*;
-
-                test!(test_simple_sender_signing_key_sign);
-
-                test!(test_simple_seal_topic_key);
-                test!(test_simple_wrap_user_sender_secret_key);
-                test!(test_simple_wrap_user_sender_signing_key);
-                test!(test_simple_wrap_user_receiver_secret_key);
-
-                test!(test_topic_key_seal);
-                test!(test_topic_key_open_wrong_key);
-                test!(test_topic_key_open_wrong_context);
-                test!(test_topic_key_open_bad_ciphertext);
-            }
-            #[allow(unused_imports)]
-            pub use apq::*;
-
-            mod aps {
-                #[allow(unused_imports)]
-                use super::*;
-
-                test!(test_same_seal_key_open_key);
-                test!(test_different_seal_key_open_key);
-                test!(test_seal_key_monotonic_seq_number);
-                test!(test_seal_key_seq_number_exhausted);
-                test!(test_open_key_seq_number_exhausted);
-                test!(test_open_key_wrong_seq_number);
-                test!(test_open_key_wrong_auth_data);
-
-                test!(test_derive_bidi_keys);
-                test!(test_derive_bidi_keys_different_labels);
-                test!(test_derive_bidi_keys_different_user_ids);
-                test!(test_derive_bidi_keys_different_cmd_ids);
-                test!(test_derive_bidi_keys_different_keys);
-                test!(test_derive_bidi_keys_same_user_id);
-                test!(test_wrap_bidi_author_secret);
-
-                test!(test_derive_uni_key);
-                test!(test_derive_uni_key_different_labels);
-                test!(test_derive_uni_key_different_user_ids);
-                test!(test_derive_uni_key_different_cmd_ids);
-                test!(test_derive_uni_key_different_keys);
-                test!(test_derive_uni_seal_key_same_user_id);
-                test!(test_derive_uni_open_key_same_user_id);
-                test!(test_wrap_uni_author_secret);
-            }
-            #[allow(unused_imports)]
-            pub use aps::*;
+            $crate::test_engine!(|| -> $engine { $($args)+ });
         }
+    };
+    (|| -> $engine:ty { $($args:tt)+ }) => {
+        $crate::test_util::test_ciphersuite!(ciphersuite, <$engine as $crate::engine::Engine>::CS);
+
+        macro_rules! __engine_test {
+            ($test:ident) => {
+                #[test]
+                fn $test() {
+                    $crate::test_util::engine::$test(&mut { $($args)+ });
+                }
+            };
+        }
+        $crate::for_each_engine_test!(__engine_test);
     };
 }
 pub use test_engine;

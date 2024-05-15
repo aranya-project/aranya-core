@@ -13,6 +13,40 @@ use crate::{
     keys::SecretKey,
 };
 
+/// Invokes `callback` for each AEAD test.
+///
+/// # Example
+///
+/// ```
+/// use crypto::{Rng, rust::Aes256Gcm};
+///
+/// # crypto::__doctest_os_hardware_rand!();
+/// macro_rules! run_test {
+///     ($test:ident) => {
+///         crypto::test_util::aead::$test::<Aes256Gcm, _>(&mut Rng);
+///     };
+/// }
+/// crypto::for_each_aead_test!(run_test);
+/// ```
+#[macro_export]
+macro_rules! for_each_aead_test {
+    ($callback:ident) => {
+        $crate::__apply! {
+            $callback,
+            test_basic,
+            test_new_key,
+            test_round_trip,
+            test_in_place_round_trip,
+            test_bad_key,
+            test_bad_nonce,
+            test_bad_ciphertext,
+            test_bad_ad,
+            test_bad_tag,
+        }
+    };
+}
+pub use for_each_aead_test;
+
 /// Performs all of the tests in this module.
 ///
 /// This macro expands into a bunch of individual `#[test]`
@@ -36,41 +70,35 @@ use crate::{
 #[macro_export]
 macro_rules! test_aead {
     ($name:ident, $aead:ty $(, AeadTest::$vectors:ident)?) => {
-        macro_rules! test {
+        mod $name {
+            #[allow(unused_imports)]
+            use super::*;
+
+            $crate::test_aead!($aead $(, AeadTest::$vectors)?);
+        }
+    };
+    ($aead:ty $(, AeadTest::$vectors:ident)?) => {
+        macro_rules! __aead_test {
             ($test:ident) => {
                 #[test]
                 fn $test() {
                     $crate::test_util::aead::$test::<$aead, _>(&mut $crate::Rng)
                 }
-            };
+            }
         }
+        $crate::for_each_aead_test!(__aead_test);
 
-        mod $name {
-            #[allow(unused_imports)]
-            use super::*;
+        // TODO(eric): add tests for boundaries. E.g., nonce is
+        // too long, tag is too short, etc.
 
-            test!(test_basic);
-            test!(test_new_key);
-            test!(test_round_trip);
-            test!(test_in_place_round_trip);
-            test!(test_bad_key);
-            test!(test_bad_nonce);
-            test!(test_bad_ciphertext);
-            test!(test_bad_ad);
-            test!(test_bad_tag);
-
-            // TODO(eric): add tests for boundaries. E.g., nonce is
-            // too long, tag is too short, etc.
-
-            $(
-                #[test]
-                fn vectors() {
-                    $crate::test_util::vectors::test_aead::<$aead>(
-                        $crate::test_util::vectors::AeadTest::$vectors,
-                    );
-                }
-            )?
-        }
+        $(
+            #[test]
+            fn vectors() {
+                $crate::test_util::vectors::test_aead::<$aead>(
+                    $crate::test_util::vectors::AeadTest::$vectors,
+                );
+            }
+        )?
     };
 }
 pub use test_aead;
@@ -78,7 +106,7 @@ pub use test_aead;
 const GOLDEN: &[u8] = b"hello, world!";
 const AD: &[u8] = b"some additional data";
 
-/// Tests basic
+/// A basic positive test.
 pub fn test_basic<A: Aead, R: Csprng>(_rng: &mut R) {
     // The minimum key size is 128 bits.
     assert_ge!(A::KEY_SIZE, 16);

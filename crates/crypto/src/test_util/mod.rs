@@ -51,6 +51,17 @@ use crate::{
     Id,
 };
 
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __apply {
+    ($callback:ident, $($tt:tt),* $(,)?) => {
+        $(
+            $callback!($tt);
+        )*
+    };
+}
+pub use __apply;
+
 /// Like [`assert_eq!`], but for [`Choice`].
 #[macro_export]
 macro_rules! assert_ct_eq {
@@ -91,6 +102,20 @@ macro_rules! assert_all_zero {
     };
 }
 pub(super) use assert_all_zero;
+
+/// A shim that declares `OS_hardware_rand` for doctests.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __doctest_os_hardware_rand {
+    () => {
+        #[cfg(feature = "moonshot")]
+        #[no_mangle]
+        extern "C" fn OS_hardware_rand() -> u32 {
+            use rand::RngCore;
+            rand::rngs::OsRng.next_u32()
+        }
+    };
+}
 
 /// An [`Aead`] that that uses the default trait methods.
 pub struct AeadWithDefaults<T>(T);
