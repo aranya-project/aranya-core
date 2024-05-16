@@ -804,6 +804,7 @@ where
     /// Call a command policy loaded into the VM by name. Accepts a
     /// `Struct` containing the Command's data. Returns a Vec of effect
     /// structs or a MachineError.
+    /// If the command check-exits, its recall block will be executed.
     pub fn call_command_policy(
         &mut self,
         name: &str,

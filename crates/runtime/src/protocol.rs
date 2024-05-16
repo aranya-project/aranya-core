@@ -11,7 +11,7 @@ use super::{
     alloc, Command, CommandId, Engine, EngineError, FactPerspective, Perspective, Policy, PolicyId,
     Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
 };
-use crate::{Keys, MergeIds};
+use crate::{CommandRecall, Keys, MergeIds};
 
 impl From<StorageError> for EngineError {
     fn from(_: StorageError) -> Self {
@@ -291,6 +291,7 @@ impl Policy for TestPolicy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
+        _recall: CommandRecall,
     ) -> Result<(), EngineError> {
         let policy_command: WireProtocol = from_bytes(command.bytes())?;
         self.call_rule_internal(&policy_command, facts, sink)

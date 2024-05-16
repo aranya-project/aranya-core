@@ -4,9 +4,9 @@ use core::{marker::PhantomData, mem};
 use buggy::{bug, BugExt};
 
 use crate::{
-    ClientError, Command, CommandId, Engine, GraphId, Location, MergeIds, Perspective, Policy,
-    PolicyId, Prior, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
-    MAX_COMMAND_LENGTH,
+    ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId, Location,
+    MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink, Storage,
+    StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 /// Transaction used to receive many commands at once.
@@ -203,7 +203,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Try to run command, or revert if failed.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(command, perspective, sink) {
+        if let Err(e) = policy.call_rule(command, perspective, sink, CommandRecall::None) {
             perspective.revert(checkpoint);
             sink.rollback();
             return Err(e.into());
@@ -329,7 +329,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         // Get an empty perspective and run the init command.
         let mut perspective = provider.new_perspective(&policy_id);
         sink.begin();
-        if let Err(e) = policy.call_rule(command, &mut perspective, sink) {
+        if let Err(e) = policy.call_rule(command, &mut perspective, sink, CommandRecall::None) {
             sink.rollback();
             // We don't need to revert perspective since we just drop it.
             return Err(e.into());
@@ -366,9 +366,20 @@ fn make_braid_segment<S: Storage, E: Engine>(
         let command = segment
             .get_command(location)
             .assume("braid only contains existing commands")?;
-        if let Err(e) = policy.call_rule(&command, &mut braid_perspective, sink) {
-            sink.rollback();
-            return Err(e.into());
+
+        let result = policy.call_rule(
+            &command,
+            &mut braid_perspective,
+            sink,
+            CommandRecall::OnCheck,
+        );
+
+        // If the command failed in an uncontrolled way, rollback
+        if let Err(e) = result {
+            if e != EngineError::Check {
+                sink.rollback();
+                return Err(e.into());
+            }
         }
     }
 
@@ -429,14 +440,11 @@ mod test {
         type Policy = SeqPolicy;
         type Effect = ();
 
-        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, crate::EngineError> {
+        fn add_policy(&mut self, _policy: &[u8]) -> Result<PolicyId, EngineError> {
             Ok(PolicyId::new(0))
         }
 
-        fn get_policy<'a>(
-            &'a self,
-            _id: &PolicyId,
-        ) -> Result<&'a Self::Policy, crate::EngineError> {
+        fn get_policy<'a>(&'a self, _id: &PolicyId) -> Result<&'a Self::Policy, EngineError> {
             Ok(&SeqPolicy)
         }
     }
@@ -455,7 +463,8 @@ mod test {
             command: &impl Command,
             facts: &mut impl crate::FactPerspective,
             _sink: &mut impl Sink<Self::Effect>,
-        ) -> Result<(), crate::EngineError> {
+            _recall: CommandRecall,
+        ) -> Result<(), EngineError> {
             assert!(
                 !matches!(command.parent(), Prior::Merge { .. }),
                 "merges shouldn't be evaluated"
@@ -480,7 +489,7 @@ mod test {
             _action: Self::Action<'_>,
             _facts: &mut impl Perspective,
             _sink: &mut impl Sink<Self::Effect>,
-        ) -> Result<(), crate::EngineError> {
+        ) -> Result<(), EngineError> {
             unimplemented!()
         }
 
@@ -488,7 +497,7 @@ mod test {
             &self,
             _target: &'a mut [u8],
             ids: MergeIds,
-        ) -> Result<Self::Command<'a>, crate::EngineError> {
+        ) -> Result<Self::Command<'a>, EngineError> {
             let (left, right) = ids.into();
             let mut buf = [0u8; 128];
             buf[..64].copy_from_slice(left.as_bytes());

@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// An error returned by the runtime engine.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum EngineError {
     Read,
     Write,
@@ -121,6 +121,14 @@ impl From<MergeIds> for (CommandId, CommandId) {
     }
 }
 
+/// Whether to execute a command's recall block on command failure
+pub enum CommandRecall {
+    /// Don't recall command
+    None,
+    /// Recall if the command fails with a [`policy_vm::ExitReason::Check`]
+    OnCheck,
+}
+
 /// [`Policy`] evaluates actions and [`Command`]s on the graph, emitting effects
 /// as a result.
 pub trait Policy {
@@ -140,6 +148,7 @@ pub trait Policy {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
+        recall: CommandRecall,
     ) -> Result<(), EngineError>;
 
     /// Process an action checking each published command against the policy and emitting

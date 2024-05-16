@@ -115,7 +115,7 @@ use tracing::{error, info, instrument};
 use crate::{
     command::{Command, CommandId},
     engine::{EngineError, NullSink, Policy, Sink},
-    FactPerspective, MergeIds, Perspective, Prior,
+    CommandRecall, FactPerspective, MergeIds, Perspective, Prior,
 };
 
 mod error;
@@ -203,6 +203,7 @@ impl<E> VmPolicy<E> {
 }
 
 impl<E: crypto::Engine> VmPolicy<E> {
+    #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all, fields(name = name))]
     fn evaluate_rule<'a, P>(
         &self,
@@ -212,6 +213,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
         ctx: &CommandContext<'_>,
+        recall: CommandRecall,
     ) -> Result<(), EngineError>
     where
         P: FactPerspective,
@@ -221,12 +223,12 @@ impl<E: crypto::Engine> VmPolicy<E> {
         let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let self_data = Struct::new(name, fields);
-        match rs.call_command_policy(&self_data.name, &self_data, envelope.into()) {
+        match rs.call_command_policy(&self_data.name, &self_data, envelope.clone().into()) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
-                    Err(EngineError::Check)
+                    self.recall_internal(recall, &mut rs, name, &self_data, envelope)
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
@@ -236,6 +238,35 @@ impl<E: crypto::Engine> VmPolicy<E> {
             Err(e) => {
                 error!("\n{e}");
                 Err(EngineError::InternalError)
+            }
+        }
+    }
+
+    fn recall_internal<M>(
+        &self,
+        recall: CommandRecall,
+        rs: &mut RunState<'_, M>,
+        name: &str,
+        self_data: &Struct,
+        envelope: Envelope,
+    ) -> Result<(), EngineError>
+    where
+        M: MachineIO<MachineStack>,
+    {
+        match recall {
+            CommandRecall::None => Err(EngineError::Check),
+            CommandRecall::OnCheck => {
+                match rs.call_command_recall(name, self_data, envelope.into()) {
+                    Ok(ExitReason::Normal) => Err(EngineError::Check),
+                    Ok(ExitReason::Check) => {
+                        info!("Recall failed: {}", self.source_location(rs));
+                        Err(EngineError::Check)
+                    }
+                    Ok(ExitReason::Panic) | Err(_) => {
+                        info!("Recall panicked: {}", self.source_location(rs));
+                        Err(EngineError::Panic)
+                    }
+                }
             }
         }
     }
@@ -385,6 +416,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         command: &impl Command,
         facts: &mut impl FactPerspective,
         sink: &mut impl Sink<Self::Effect>,
+        recall: CommandRecall,
     ) -> Result<(), EngineError> {
         let unpacked: VmProtocolData = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
@@ -417,7 +449,15 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                     author: author_id,
                     version: CommandId::default().into(),
                 });
-                self.evaluate_rule(&kind, fields.as_slice(), envelope, facts, sink, &ctx)?
+                self.evaluate_rule(
+                    &kind,
+                    fields.as_slice(),
+                    envelope,
+                    facts,
+                    sink,
+                    &ctx,
+                    recall,
+                )?
             }
             VmProtocolData::Basic {
                 parent,
@@ -445,7 +485,15 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                     author: author_id,
                     version: CommandId::default().into(),
                 });
-                self.evaluate_rule(&kind, fields.as_slice(), envelope, facts, sink, &ctx)?
+                self.evaluate_rule(
+                    &kind,
+                    fields.as_slice(),
+                    envelope,
+                    facts,
+                    sink,
+                    &ctx,
+                    recall,
+                )?
             }
             // Merges always pass because they're an artifact of the graph
             _ => (),
@@ -525,7 +573,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
             let wrapped = postcard::to_allocvec(&data)?;
             let new_command = self.read_command(envelope.command_id, &wrapped)?;
 
-            self.call_rule(&new_command, facts, sink)?;
+            self.call_rule(&new_command, facts, sink, CommandRecall::None)?;
             facts.add_command(&new_command).map_err(|e| {
                 error!("{e}");
                 EngineError::Write

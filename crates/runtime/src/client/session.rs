@@ -11,9 +11,10 @@ use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Checkpoint, ClientError, ClientState, Command, CommandId, Engine, Fact, FactPerspective,
-    GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut,
-    Revertable, Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    Checkpoint, ClientError, ClientState, Command, CommandId, CommandRecall, Engine, Fact,
+    FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
+    Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
+    MAX_COMMAND_LENGTH,
 };
 
 type Bytes = Box<[u8]>;
@@ -134,7 +135,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         // Try to evaluate command.
         sink.begin();
         let checkpoint = perspective.checkpoint();
-        if let Err(e) = policy.call_rule(&command, &mut perspective, sink) {
+        if let Err(e) = policy.call_rule(&command, &mut perspective, sink, CommandRecall::None) {
             perspective.revert(checkpoint);
             sink.rollback();
             return Err(e.into());
