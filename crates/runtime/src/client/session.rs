@@ -4,7 +4,7 @@
 //!
 //! Design discussion/docs: <https://git.spideroak-inc.com/spideroak-inc/flow3-docs/pull/53>
 
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, string::String, vec::Vec};
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, ops::Bound};
 
 use buggy::{bug, Bug, BugExt};
@@ -12,8 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Checkpoint, ClientError, ClientState, Command, CommandId, Engine, Fact, FactPerspective,
-    GraphId, NullSink, Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut, Revertable,
-    Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority, Query, QueryMut,
+    Revertable, Segment, Sink, Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 type Bytes = Box<[u8]>;
@@ -31,9 +31,9 @@ pub struct Session<SP: StorageProvider, E> {
     /// The prior facts from the graph head.
     base_facts: <SP::Storage as Storage>::FactIndex,
     /// The log of facts in insertion order.
-    fact_log: Vec<(Bytes, Option<Bytes>)>,
+    fact_log: Vec<(String, Keys, Option<Bytes>)>,
     /// The current facts of the session, relative to `base_facts`.
-    current_facts: BTreeMap<Bytes, Option<Bytes>>,
+    current_facts: BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>,
 
     /// Tag for associated engine.
     _engine: PhantomData<E>,
@@ -210,7 +210,7 @@ struct QueryIterator<I1: Iterator, I2: Iterator> {
 impl<'q, I1, I2> QueryIterator<I1, I2>
 where
     I1: Iterator<Item = Result<Fact, StorageError>>,
-    I2: Iterator<Item = (&'q [u8], Option<&'q [u8]>)>,
+    I2: Iterator<Item = (&'q [Box<[u8]>], Option<&'q [u8]>)>,
 {
     fn new(prior: I1, current: I2) -> Self {
         Self {
@@ -223,7 +223,7 @@ where
 impl<'q, I1, I2> Iterator for QueryIterator<I1, I2>
 where
     I1: Iterator<Item = Result<Fact, StorageError>>,
-    I2: Iterator<Item = (&'q [u8], Option<&'q [u8]>)>,
+    I2: Iterator<Item = (&'q [Box<[u8]>], Option<&'q [u8]>)>,
 {
     type Item = Result<Fact, StorageError>;
 
@@ -261,7 +261,7 @@ where
             };
             if let (k, Some(v)) = slot {
                 return Some(Ok(Fact {
-                    key: k.into(),
+                    key: k.iter().cloned().collect(),
                     value: v.into(),
                 }));
             }
@@ -275,43 +275,68 @@ impl<'a, SP, E, MS> Query for SessionPerspective<'a, SP, E, MS>
 where
     SP: StorageProvider,
 {
-    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
-        if let Some(slot) = self.session.current_facts.get(key) {
+    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
+        if let Some(slot) = self
+            .session
+            .current_facts
+            .get(name)
+            .and_then(|m| m.get(keys))
+        {
             return Ok(slot.clone());
         }
-        self.session.base_facts.query(key)
+        self.session.base_facts.query(name, keys)
     }
 
     type QueryIterator<'q> = QueryIterator<
         <<SP::Storage as Storage>::FactIndex as Query>::QueryIterator<'q>,
-        Box<dyn Iterator<Item = (&'q [u8], Option<&'q [u8]>)> + 'q>,
+        Box<dyn Iterator<Item = (&'q [Box<[u8]>], Option<&'q [u8]>)> + 'q>,
     > where Self: 'q;
-    fn query_prefix(&self, prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError> {
-        let prior = self.session.base_facts.query_prefix(prefix)?;
-        let current = self
-            .session
-            .current_facts
-            .range::<[u8], _>((Bound::Included(prefix), Bound::Unbounded))
-            .take_while({
-                let prefix: Bytes = prefix.into();
-                move |(k, _)| k.starts_with(&prefix)
-            })
-            .map(|(k, v)| (k.as_ref(), v.as_deref()));
-        Ok(QueryIterator::new(prior, Box::from(current)))
+    fn query_prefix(
+        &self,
+        name: &str,
+        prefix: &[Box<[u8]>],
+    ) -> Result<Self::QueryIterator<'_>, StorageError> {
+        let prior = self.session.base_facts.query_prefix(name, prefix)?;
+        let current: Box<dyn Iterator<Item = _>> =
+            self.session
+                .current_facts
+                .get(name)
+                .map_or(Box::new(core::iter::empty()), |facts| {
+                    Box::new(
+                        facts
+                            .range::<[Box<[u8]>], _>((Bound::Included(prefix), Bound::Unbounded))
+                            .take_while({
+                                let prefix: Keys = prefix.iter().cloned().collect();
+                                move |(k, _)| k.starts_with(&prefix)
+                            })
+                            .map(|(k, v)| (k.as_ref(), v.as_deref())),
+                    )
+                });
+        Ok(QueryIterator::new(prior, current))
     }
 }
 
 impl<'a, SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'a, SP, E, MS> {
-    fn insert(&mut self, key: &[u8], value: &[u8]) {
-        self.session.fact_log.push((key.into(), Some(value.into())));
+    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) {
+        self.session
+            .fact_log
+            .push((name.clone(), keys.clone(), Some(value.clone())));
         self.session
             .current_facts
-            .insert(key.into(), Some(value.into()));
+            .entry(name)
+            .or_default()
+            .insert(keys, Some(value));
     }
 
-    fn delete(&mut self, key: &[u8]) {
-        self.session.fact_log.push((key.into(), None));
-        self.session.current_facts.insert(key.into(), None);
+    fn delete(&mut self, name: String, keys: Keys) {
+        self.session
+            .fact_log
+            .push((name.clone(), keys.clone(), None));
+        self.session
+            .current_facts
+            .entry(name)
+            .or_default()
+            .insert(keys, None);
     }
 }
 
@@ -360,8 +385,12 @@ where
         }
         self.session.fact_log.truncate(checkpoint.index);
         self.session.current_facts.clear();
-        for (k, v) in self.session.fact_log.iter().cloned() {
-            self.session.current_facts.insert(k, v);
+        for (n, k, v) in self.session.fact_log.iter().cloned() {
+            self.session
+                .current_facts
+                .entry(n)
+                .or_default()
+                .insert(k, v);
         }
     }
 }
@@ -372,33 +401,48 @@ mod test {
 
     #[test]
     fn test_query_iterator() {
-        let prior: Vec<Result<(&[u8], &[u8]), _>> = vec![
-            Ok((b"a", b"a0")),
-            Ok((b"c", b"c0")),
-            Ok((b"d", b"d0")),
-            Ok((b"f", b"f0")),
+        #![allow(clippy::type_complexity)]
+
+        let prior: Vec<Result<(&[&[u8]], &[u8]), _>> = vec![
+            Ok((&[b"a"], b"a0")),
+            Ok((&[b"c"], b"c0")),
+            Ok((&[b"d"], b"d0")),
+            Ok((&[b"f"], b"f0")),
             Err(StorageError::IoError),
         ];
-        let current: Vec<(&[u8], Option<&[u8]>)> = vec![
-            (b"a", None),
-            (b"b", Some(b"b1")),
-            (b"e", None),
-            (b"j", None),
+        let current: Vec<([Box<[u8]>; 1], Option<&[u8]>)> = vec![
+            ([Box::new(*b"a")], None),
+            ([Box::new(*b"b")], Some(b"b1")),
+            ([Box::new(*b"e")], None),
+            ([Box::new(*b"j")], None),
         ];
-        let merged: Vec<Result<(&[u8], &[u8]), _>> = vec![
-            Ok((b"b", b"b1")),
-            Ok((b"c", b"c0")),
-            Ok((b"d", b"d0")),
-            Ok((b"f", b"f0")),
+        let merged: Vec<Result<(&[&[u8]], &[u8]), _>> = vec![
+            Ok((&[b"b"], b"b1")),
+            Ok((&[b"c"], b"c0")),
+            Ok((&[b"d"], b"d0")),
+            Ok((&[b"f"], b"f0")),
             Err(StorageError::IoError),
         ];
 
         let got: Vec<_> = QueryIterator::new(
-            prior.into_iter().map(|r| r.map(Fact::from)),
-            current.into_iter(),
+            prior.into_iter().map(|r| {
+                r.map(|(k, v)| Fact {
+                    key: k.into(),
+                    value: v.into(),
+                })
+            }),
+            current.iter().map(|(k, v)| (k.as_slice(), *v)),
         )
         .collect();
-        let want: Vec<_> = merged.into_iter().map(|r| r.map(Fact::from)).collect();
+        let want: Vec<_> = merged
+            .into_iter()
+            .map(|r| {
+                r.map(|(k, v)| Fact {
+                    key: k.into(),
+                    value: v.into(),
+                })
+            })
+            .collect();
 
         assert_eq!(got, want);
     }

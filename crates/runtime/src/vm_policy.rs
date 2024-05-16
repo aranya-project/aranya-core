@@ -119,13 +119,11 @@ use crate::{
 };
 
 mod error;
-mod facts;
 mod io;
 mod protocol;
 pub mod testing;
 
 pub use error::*;
-pub use facts::*;
 pub use io::*;
 pub use protocol::*;
 

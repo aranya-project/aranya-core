@@ -9,7 +9,7 @@ use policy_vm::{
 };
 use tracing::error;
 
-use crate::{FactPerspective, Query, QueryMut, Sink, StorageError, VmEffect, VmFactCursor};
+use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 
 /// Object safe wrapper for [`FfiModule`].
 pub trait FfiCallable<E> {
@@ -90,17 +90,9 @@ where
         key: impl IntoIterator<Item = FactKey>,
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
-        let key: Vec<_> = key.into_iter().collect();
-        let key_vec = postcard::to_allocvec(&(name, key)).map_err(|e| {
-            error!("fact_insert: could not serialize key: {e}");
-            MachineIOError::Internal
-        })?;
-        let value: Vec<_> = value.into_iter().collect();
-        let value_vec = postcard::to_allocvec(&value).map_err(|e| {
-            error!("fact_insert: could not serialize value: {e}");
-            MachineIOError::Internal
-        })?;
-        self.facts.insert(&key_vec, &value_vec);
+        let keys = ser_keys(key)?;
+        let value = ser_values(value)?;
+        self.facts.insert(name, keys, value);
         Ok(())
     }
 
@@ -109,12 +101,8 @@ where
         name: String,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
-        let key: Vec<_> = key.into_iter().collect();
-        let key_vec = postcard::to_allocvec(&(name, key)).map_err(|e| {
-            error!("fact_delete: could not serialize key: {e}");
-            MachineIOError::Internal
-        })?;
-        self.facts.delete(&key_vec);
+        let keys = ser_keys(key)?;
+        self.facts.delete(name, keys);
         Ok(())
     }
 
@@ -123,8 +111,12 @@ where
         name: String,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator<'_>, MachineIOError> {
-        let key: Vec<_> = key.into_iter().collect();
-        VmFactCursor::new(name, key, self.facts)
+        let keys = ser_keys(key)?;
+        let iter = self.facts.query_prefix(&name, &keys).map_err(|e| {
+            error!("query failed: {e}");
+            MachineIOError::Internal
+        })?;
+        Ok(VmFactCursor { iter })
     }
 
     fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
@@ -153,22 +145,61 @@ where
     }
 }
 
-pub struct NullFacts;
-
-impl Query for NullFacts {
-    fn query(&self, _key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError> {
-        Err(StorageError::IoError)
-    }
-
-    type QueryIterator<'a> = core::iter::Empty<Result<crate::storage::Fact, StorageError>>;
-    fn query_prefix(&self, _prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError> {
-        Err(StorageError::IoError)
-    }
+fn ser_keys(key: impl IntoIterator<Item = FactKey>) -> Result<Keys, MachineIOError> {
+    key.into_iter()
+        .map(|k| postcard::to_allocvec(&k))
+        .collect::<Result<Keys, _>>()
+        .map_err(|e| {
+            error!("could not serialize key: {e}");
+            MachineIOError::Internal
+        })
 }
 
-impl QueryMut for NullFacts {
-    fn insert(&mut self, _key: &[u8], _value: &[u8]) {}
-    fn delete(&mut self, _key: &[u8]) {}
+fn deser_keys(keys: Keys) -> Result<Vec<FactKey>, MachineIOError> {
+    keys.as_ref()
+        .iter()
+        .map(|k| postcard::from_bytes(k))
+        .collect::<Result<_, _>>()
+        .map_err(|e| {
+            error!("could not deserialize key: {e}");
+            MachineIOError::Internal
+        })
 }
 
-impl FactPerspective for NullFacts {}
+fn ser_values(value: impl IntoIterator<Item = FactValue>) -> Result<Box<[u8]>, MachineIOError> {
+    let value: Vec<_> = value.into_iter().collect();
+    let bytes = postcard::to_allocvec(&value).map_err(|e| {
+        error!("fact_insert: could not serialize value: {e}");
+        MachineIOError::Internal
+    })?;
+    Ok(bytes.into())
+}
+
+fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
+    postcard::from_bytes(&value).map_err(|e| {
+        error!("could not deserialize values: {e}");
+        MachineIOError::Internal
+    })
+}
+
+/// An Iterator that returns a sequence of matching facts from a query. It is produced by
+/// the [VmPolicyIO](super::VmPolicyIO) when a query is made by the VM.
+pub struct VmFactCursor<'o, P: Query + 'o> {
+    iter: P::QueryIterator<'o>,
+}
+
+impl<'o, P: Query> Iterator for VmFactCursor<'o, P> {
+    type Item = Result<(Vec<FactKey>, Vec<FactValue>), MachineIOError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next().map(|b| -> Self::Item {
+            let b = b.map_err(|e| {
+                error!("error during query: {e}");
+                MachineIOError::Internal
+            })?;
+            let k = deser_keys(b.key)?;
+            let v = deser_values(b.value)?;
+            Ok((k, v))
+        })
+    }
+}

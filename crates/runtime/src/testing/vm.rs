@@ -267,13 +267,16 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
     // Find the head Location.
     let head = storage.get_head()?;
 
-    // Serialize an object that represents the key of the fact we created/updated in the
-    // previous actions.
-    let key_vec: Vec<u8> = postcard::to_allocvec(&(
-        String::from("Stuff"),
-        vec![(String::from("x"), Value::Int(1))],
-    ))
-    .expect("key serialization");
+    // Serialize the keys of the fact we created/updated in the previous actions.
+    let fact_name = "Stuff";
+    let fact_keys: crate::storage::Keys = [(String::from("x"), Value::Int(1))]
+        .into_iter()
+        .map(|k| {
+            postcard::to_allocvec(&k)
+                .expect("key serialization")
+                .into_boxed_slice()
+        })
+        .collect();
 
     // This is the value part of the fact that we expect to retrieve.
     let expected_value = vec![KVPair::new("y", Value::Int(4))];
@@ -282,7 +285,7 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
     let perspective = storage.get_fact_perspective(head).expect("perspective");
     // Query the perspective using our key.
     let result = perspective
-        .query(&key_vec)
+        .query(fact_name, &fact_keys)
         .expect("query")
         .expect("key does not exist");
     // Deserialize the value.
@@ -433,16 +436,20 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     let storage = cs.provider().get_storage(&storage_id)?;
     let head = storage.get_head()?;
 
-    let key_vec = postcard::to_allocvec(&(
-        String::from("Stuff"),
-        vec![(String::from("x"), Value::Int(1))],
-    ))
-    .expect("key serialization");
+    let fact_name = "Stuff";
+    let fact_keys: crate::storage::Keys = [(String::from("x"), Value::Int(1))]
+        .into_iter()
+        .map(|k| {
+            postcard::to_allocvec(&k)
+                .expect("key serialization")
+                .into_boxed_slice()
+        })
+        .collect();
 
     let expected_value = vec![KVPair::new("y", Value::Int(5))];
     let perspective = storage.get_fact_perspective(head).expect("perspective");
     let result = perspective
-        .query(&key_vec)
+        .query(fact_name, &fact_keys)
         .expect("query")
         .expect("key does not exist");
     let value: Vec<_> = postcard::from_bytes(&result).expect("result deserialization");

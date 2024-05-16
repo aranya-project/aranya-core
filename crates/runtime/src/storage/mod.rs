@@ -5,8 +5,8 @@
 //! its [`Command`]s into [`Segment`]s. Updating the graph is possible using
 //! [`Perspective`]s, which represent a slice of state.
 
-use alloc::{boxed::Box, vec::Vec};
-use core::fmt;
+use alloc::{boxed::Box, string::String, vec::Vec};
+use core::{fmt, ops::Deref};
 
 use buggy::Bug;
 use serde::{Deserialize, Serialize};
@@ -360,43 +360,92 @@ pub struct Checkpoint {
 }
 
 /// Can be queried to look up facts.
+///
+/// Facts are labeled by a name, which are generally a bounded set of human-readable strings determined in advance.
+///
+/// Within a name, facts are an association of compound keys to values. The facts are keyed by a compound key
+/// `(k_1, k_2, ..., k_n)`, where each `k` is a sequence of bytes. The fact value is also a sequence of bytes.
 pub trait Query {
-    /// Look up a value associated to the given key.
-    fn query(&self, key: &[u8]) -> Result<Option<Box<[u8]>>, StorageError>;
+    /// Look up a named fact by an exact match of the compound key.
+    fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError>;
 
     /// Iterator for [`Query::query_prefix`].
     type QueryIterator<'a>: Iterator<Item = Result<Fact, StorageError>>
     where
         Self: 'a;
-    /// Yields all facts that begin with the prefix, in sorted key order.
-    fn query_prefix(&self, prefix: &[u8]) -> Result<Self::QueryIterator<'_>, StorageError>;
+
+    /// Look up all named facts that begin with the prefix of keys, in sorted key order.
+    ///
+    /// The `prefix` is a partial compound key `(k_1, k_2, ..., k_n)`, where each `k` is a sequence of bytes.
+    /// This returns all facts under the name with keys such that `prefix` is equal to a prefix of the fact's keys.
+    fn query_prefix(
+        &self,
+        name: &str,
+        prefix: &[Box<[u8]>],
+    ) -> Result<Self::QueryIterator<'_>, StorageError>;
 }
 
 /// A fact with a key and value.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Fact {
-    /// The bytes of the key.
-    pub key: Box<[u8]>,
+    /// The sequence of keys.
+    pub key: Keys,
     /// The bytes of the value.
     pub value: Box<[u8]>,
 }
 
-impl From<(&[u8], &[u8])> for Fact {
-    fn from((k, v): (&[u8], &[u8])) -> Self {
-        Self {
-            key: k.into(),
-            value: v.into(),
-        }
+/// Can mutate facts by inserting and deleting them.
+///
+/// See [`Query`] for details on the nature of facts.
+pub trait QueryMut: Query {
+    /// Insert a fact labeled by a name, with a given compound key and a value.
+    ///
+    /// This fact can later be looked up by [`Query`] methods, using the name and keys.
+    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>);
+
+    /// Delete any fact associated to the compound key, under the given name.
+    fn delete(&mut self, name: String, keys: Keys);
+}
+
+/// A sequence of byte-based keys, used for facts.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct Keys(Box<[Box<[u8]>]>);
+
+impl Deref for Keys {
+    type Target = [Box<[u8]>];
+    fn deref(&self) -> &[Box<[u8]>] {
+        self.0.as_ref()
     }
 }
 
-/// Can mutate facts by inserting and deleting them.
-pub trait QueryMut: Query {
-    /// Insert a key/value pair.
-    fn insert(&mut self, key: &[u8], value: &[u8]);
+impl AsRef<[Box<[u8]>]> for Keys {
+    fn as_ref(&self) -> &[Box<[u8]>] {
+        self.0.as_ref()
+    }
+}
 
-    /// Delete any value associated to the key.
-    fn delete(&mut self, key: &[u8]);
+impl core::borrow::Borrow<[Box<[u8]>]> for Keys {
+    fn borrow(&self) -> &[Box<[u8]>] {
+        self.0.as_ref()
+    }
+}
+
+impl From<&[&[u8]]> for Keys {
+    fn from(value: &[&[u8]]) -> Self {
+        value.iter().copied().collect()
+    }
+}
+
+impl Keys {
+    fn starts_with(&self, prefix: &[Box<[u8]>]) -> bool {
+        self.as_ref().starts_with(prefix)
+    }
+}
+
+impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
+    fn from_iter<T: IntoIterator<Item = B>>(iter: T) -> Self {
+        Self(iter.into_iter().map(Into::into).collect())
+    }
 }
 
 // TODO: Fix and enable

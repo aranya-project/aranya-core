@@ -409,7 +409,7 @@ mod test {
     use test_log::test;
 
     use super::*;
-    use crate::{memory::MemStorageProvider, ClientState, MergeIds, Priority};
+    use crate::{memory::MemStorageProvider, ClientState, Keys, MergeIds, Priority};
 
     struct SeqEngine;
 
@@ -463,10 +463,14 @@ mod test {
 
             // For init and basic commands, append the id to the seq fact.
             let data = command.bytes();
-            if let Some(seq) = facts.query(b"seq")?.as_deref() {
-                facts.insert(b"seq", &[seq, b":", data].concat());
+            if let Some(seq) = facts.query("seq", &Keys::default())?.as_deref() {
+                facts.insert(
+                    "seq".into(),
+                    Keys::default(),
+                    [seq, b":", data].concat().into(),
+                );
             } else {
-                facts.insert(b"seq", data);
+                facts.insert("seq".into(), Keys::default(), data.into());
             };
             Ok(())
         }
@@ -662,11 +666,11 @@ mod test {
         };
     }
 
-    fn lookup(storage: &impl Storage, key: &[u8]) -> Option<Box<[u8]>> {
+    fn lookup(storage: &impl Storage, name: &str) -> Option<Box<[u8]>> {
         use crate::Query;
         let head = storage.get_head().unwrap();
         let p = storage.get_fact_perspective(head).unwrap();
-        p.query(key).unwrap()
+        p.query(name, &Keys::default()).unwrap()
     }
 
     #[test]
@@ -692,7 +696,7 @@ mod test {
 
         assert_eq!(g.get_head().unwrap(), Location::new(5, 0));
 
-        let seq = lookup(g, b"seq").unwrap();
+        let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(seq, "a:b:d:c");
 
@@ -730,7 +734,7 @@ mod test {
 
         assert_eq!(g.get_head().unwrap(), Location::new(15, 0));
 
-        let seq = lookup(g, b"seq").unwrap();
+        let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(
             seq,
@@ -767,7 +771,7 @@ mod test {
 
         assert_eq!(g.get_head().unwrap(), Location::new(2, 0));
 
-        let seq = lookup(g, b"seq").unwrap();
+        let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(seq, "a:b:c:d:e");
     }
@@ -794,7 +798,7 @@ mod test {
 
         assert_eq!(g.get_head().unwrap(), Location::new(3, 0));
 
-        let seq = lookup(g, b"seq").unwrap();
+        let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(seq, "a:b:c:d:h:i:j:e:f:g");
     }
@@ -821,7 +825,7 @@ mod test {
 
         assert_eq!(g.get_head().unwrap(), Location::new(3, 0));
 
-        let seq = lookup(g, b"seq").unwrap();
+        let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(seq, "a:b:c:d:h:i:j:e:f:g");
     }

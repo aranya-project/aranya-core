@@ -11,7 +11,7 @@ use super::{
     alloc, Command, CommandId, Engine, EngineError, FactPerspective, Perspective, Policy, PolicyId,
     Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
 };
-use crate::MergeIds;
+use crate::{Keys, MergeIds};
 
 impl From<StorageError> for EngineError {
     fn from(_: StorageError) -> Self {
@@ -145,13 +145,10 @@ impl TestPolicy {
     ) -> Result<(), EngineError> {
         let (group, count) = command.payload;
 
-        let mut key = Vec::<u8>::new();
-        key.extend_from_slice(&group.to_be_bytes());
+        let key = group.to_be_bytes();
+        let value = count.to_be_bytes();
 
-        let mut value = Vec::<u8>::new();
-        value.extend_from_slice(&count.to_be_bytes());
-
-        facts.insert(key.as_slice(), value.as_slice());
+        facts.insert("payload".into(), Keys::from_iter([key]), value.into());
         Ok(())
     }
 
