@@ -72,7 +72,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let storage = provider.get_storage(&self.storage_id)?;
 
         // Write out current perspective.
-        if let Some(p) = self.perspective.take() {
+        if let Some(p) = Option::take(&mut self.perspective) {
             self.phead = None;
             let segment = storage.write(p)?;
             self.heads
@@ -226,7 +226,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         right: CommandId,
     ) -> Result<bool, ClientError> {
         // Must always start a new perspective for merges.
-        if let Some(p) = self.perspective.take() {
+        if let Some(p) = Option::take(&mut self.perspective) {
             let seg = storage.write(p)?;
             self.heads.insert(seg.head().id(), seg.head_location());
         }
@@ -278,8 +278,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         }
 
         // Write out the current perspective.
-        if let Some(p) = self.perspective.take() {
-            self.phead.take();
+        if let Some(p) = Option::take(&mut self.perspective) {
+            self.phead = None;
             let seg = storage.write(p)?;
             self.heads.insert(seg.head().id(), seg.head_location());
         }
@@ -623,8 +623,8 @@ mod test {
         }
 
         pub fn flush(&mut self) {
-            if let Some(p) = self.trx.perspective.take() {
-                self.trx.phead.take();
+            if let Some(p) = Option::take(&mut self.trx.perspective) {
+                self.trx.phead = None;
                 let seg = self
                     .client
                     .provider
