@@ -4,7 +4,7 @@ CARGO_MAKE_WORKSPACE_SKIP_MEMBERS = "canaries/*"
 RUSTDOCFLAGS = { value = "", condition = { env_not_set = ["RUSTDOCFLAGS"] } }
 NIGHTLY = { script = ["cat rust-nightly.txt"], condition = { env_not_set = ["NIGHTLY"] } }
 
-RUSTFLAGS = { value = "-Dwarnings", condition = { env_set = ["CARGO_MAKE_CI"] } }
+RUSTFLAGS = { value = "-Dwarnings", condition = { env_true = ["CARGO_MAKE_CI"] } }
 
 [config]
 default_to_workspace = false
@@ -83,12 +83,12 @@ dependencies = ["setup-vxworks-env"]
 [tasks.correctness]
 category = "correctness"
 description = "Run correctness checks"
-dependencies = [
+run_task = { name = [
     "fmt",
     "check-features",
     "clippy",
     "check-canaries",
-]
+] }
 
 [tasks.check-fmt]
 dependencies = ["check-fmt-rust", "check-fmt-toml"]
