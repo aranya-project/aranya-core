@@ -898,6 +898,16 @@ fn parse_statement_list(
     Ok(statements)
 }
 
+fn parse_use_definition(
+    field: Pair<'_, Rule>,
+    cc: &mut ChunkContext,
+) -> Result<AstNode<String>, ParseError> {
+    let locator = cc.add_range(&field)?;
+    let pc = descend(field);
+    let identifier = pc.consume_string(Rule::identifier)?;
+    Ok(AstNode::new(identifier, locator))
+}
+
 /// Parse a Rule::fact_definition into a FactDefinition.
 fn parse_fact_definition(
     field: Pair<'_, Rule>,
@@ -1283,6 +1293,9 @@ pub fn parse_policy_chunk(
 
     for item in chunk {
         match item.as_rule() {
+            Rule::use_definition => policy
+                .ffi_imports
+                .push(parse_use_definition(item, &mut cc)?.to_string()),
             Rule::fact_definition => policy.facts.push(parse_fact_definition(item, &mut cc)?),
             Rule::action_definition => policy
                 .actions

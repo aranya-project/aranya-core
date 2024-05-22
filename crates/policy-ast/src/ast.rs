@@ -533,6 +533,8 @@ pub type TextRanges = Vec<(usize, usize)>;
 pub struct Policy {
     /// The policy version.
     pub version: Version,
+    /// FFI imports
+    pub ffi_imports: Vec<String>,
     /// The policy's fact definitions.
     pub facts: Vec<AstNode<FactDefinition>>,
     /// The policy's action definitions.

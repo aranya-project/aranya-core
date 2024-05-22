@@ -19,6 +19,8 @@ however they are almost always created with a particular flavor in mind.
 -->
 
 ```policy
+use envelope
+
 // `Stuff` is the fact we will interact with in the on-graph commands. It writes
 // a simple fact to the factDB.
 fact Stuff[a int]=>{x int}

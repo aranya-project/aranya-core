@@ -22,6 +22,8 @@ policy-version: 1
 ---
 
 ```policy
+use envelope
+
 fact Stuff[x int]=>{y int}
 
 effect StuffHappened {

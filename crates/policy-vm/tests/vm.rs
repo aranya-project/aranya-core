@@ -1636,3 +1636,23 @@ policy {
     assert_eq!(got, want);
     assert_eq!(Machine::from_module(got), machine);
 }
+
+#[test]
+fn test_ffi_fail_without_use() -> anyhow::Result<()> {
+    let text = r#"
+        function test() int {
+            let head_id = print::print("hi")
+            return 0
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    let result = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()
+        .expect_err("")
+        .err_type;
+    assert_eq!(result, CompileErrorType::NotDefined(String::from("print")));
+
+    Ok(())
+}

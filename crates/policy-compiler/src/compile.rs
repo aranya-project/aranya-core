@@ -67,6 +67,8 @@ impl fmt::Display for StatementContext {
 
 /// The "compile state" of the machine.
 struct CompileState<'a> {
+    /// Policy being compiled
+    policy: &'a AstPolicy,
     /// The underlying machine
     m: CompileTarget,
     /// The write pointer used while compiling instructions into memory
@@ -603,6 +605,15 @@ impl<'a> CompileState<'a> {
                 ))));
             }
             Expression::ForeignFunctionCall(f) => {
+                // If the policy hasn't imported this module, don't allow using it
+                if !self.policy.ffi_imports.contains(&f.module) {
+                    return Err(CompileError::from_locator(
+                        CompileErrorType::NotDefined(f.module.to_owned()),
+                        self.last_locator,
+                        self.m.codemap.as_ref(),
+                    ));
+                }
+
                 // find module by name
                 let (module_id, module) = self
                     .ffi_modules
@@ -1341,23 +1352,23 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile a policy into instructions inside the given Machine.
-    pub fn compile(&mut self, policy: &'a AstPolicy) -> Result<(), CompileError> {
-        for effect in &policy.effects {
+    pub fn compile(&mut self) -> Result<(), CompileError> {
+        for effect in &self.policy.effects {
             let fields: Vec<FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
             self.define_struct(&effect.inner.identifier, &fields)?;
         }
 
-        for struct_def in &policy.structs {
+        for struct_def in &self.policy.structs {
             self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields)?;
         }
 
         // map enum names to constants
-        for enum_def in &policy.enums {
+        for enum_def in &self.policy.enums {
             self.compile_enum_definition(enum_def)?;
         }
 
-        for fact in &policy.facts {
+        for fact in &self.policy.facts {
             let FactDefinition { key, value, .. } = &fact.inner;
 
             let fields: Vec<FieldDefinition> = key.iter().chain(value.iter()).cloned().collect();
@@ -1367,29 +1378,29 @@ impl<'a> CompileState<'a> {
         }
 
         // Define command structs before compiling functions
-        for command in &policy.commands {
+        for command in &self.policy.commands {
             self.define_struct(&command.identifier, &command.fields)?;
         }
 
         self.enter_statement_context(StatementContext::PureFunction);
-        for function_def in &policy.functions {
+        for function_def in &self.policy.functions {
             self.compile_function(function_def)?;
         }
         self.exit_statement_context();
 
         self.enter_statement_context(StatementContext::Finish);
-        for function_def in &policy.finish_functions {
+        for function_def in &self.policy.finish_functions {
             self.compile_finish_function(function_def)?;
         }
         self.exit_statement_context();
 
         // Commands have several sub-contexts, so `compile_command` handles those.
-        for command in &policy.commands {
+        for command in &self.policy.commands {
             self.compile_command(command)?;
         }
 
         self.enter_statement_context(StatementContext::Action);
-        for action in &policy.actions {
+        for action in &self.policy.actions {
             self.compile_action(action)?;
         }
         self.exit_statement_context();
@@ -1439,6 +1450,7 @@ impl<'a> Compiler<'a> {
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {
+            policy: self.policy,
             m: machine,
             wp: 0,
             c: 0,
@@ -1455,7 +1467,7 @@ impl<'a> Compiler<'a> {
             cs.compile_global_let(global_let)?;
         }
 
-        cs.compile(self.policy)?;
+        cs.compile()?;
         Ok(cs.into_module())
     }
 }

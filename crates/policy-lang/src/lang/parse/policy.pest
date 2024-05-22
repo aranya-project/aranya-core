@@ -265,6 +265,7 @@ command_blocks = _{ fields_block | seal_block | open_block | policy_block | reca
 // # Top-level Statements
 // fact Foo[]=>{}
 immutable_modifier = { "immutable" }
+use_definition = { "use" ~ identifier }
 fact_definition = { immutable_modifier? ~ "fact" ~ fact_signature }
 // action foo(a int) { ... }
 action_definition = { "action" ~ identifier ~ function_arguments ~ statement_block }
@@ -286,7 +287,8 @@ finish_function_definition = { finish_function_decl ~ statement_block }
 // global let statements are overwritten by local ones.
 global_let_statement = { "let" ~ identifier ~ "=" ~ expression }
 
-top_level_statement = _{ 
+top_level_statement = _{
+    use_definition |
     fact_definition | 
     action_definition | 
     effect_definition | 

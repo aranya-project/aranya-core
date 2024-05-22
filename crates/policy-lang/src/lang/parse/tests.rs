@@ -9,6 +9,7 @@ use super::{
     ast, ast::AstNode, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError,
     PolicyParser, Rule, Version,
 };
+use crate::lang::ParseErrorKind;
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -1463,5 +1464,31 @@ fn test_fact_key_can_have_bind_value() -> anyhow::Result<()> {
         }
     "#;
     parse_policy_str(text, Version::V1)?;
+    Ok(())
+}
+
+#[test]
+fn test_ffi_use() -> anyhow::Result<()> {
+    let text = r#"
+        use crypto
+        use perspective
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    assert_eq!(policy.ffi_imports.len(), 2);
+    assert_eq!(policy.ffi_imports[0], "crypto".to_string());
+    assert_eq!(policy.ffi_imports[1], "perspective".to_string());
+    Ok(())
+}
+
+#[test]
+fn test_ffi_use_bad_identifier() -> anyhow::Result<()> {
+    let texts = vec!["use one, two", "use _"];
+
+    for text in texts {
+        let err = parse_policy_str(text, Version::V1).unwrap_err().kind;
+        assert_eq!(err, ParseErrorKind::Syntax);
+    }
+
     Ok(())
 }

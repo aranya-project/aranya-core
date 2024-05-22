@@ -21,6 +21,12 @@ however they are almost always created with a particular flavor in mind.
 -->
 
 ```policy
+use idam
+use perspective
+use device
+use crypto
+use envelope
+
 fact Stuff[a int]=>{x int}
 
 effect StuffHappened {
