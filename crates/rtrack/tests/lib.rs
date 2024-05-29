@@ -5,7 +5,7 @@ fn test_default() {
     assert_eq!(1 + 1, 2);
 }
 
-#[cfg_attr(docs, doc(cfg(feature = "spira")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "spira")))]
 #[cfg(feature = "spira")]
 mod spira {
     use core::result::Result;

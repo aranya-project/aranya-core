@@ -38,7 +38,7 @@
 //! [IDAM]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/8bf06fdfdb4521f96892de9eff8c7b2908413ace/src/idam.md
 
 #![allow(unstable_name_collisions)]
-#![cfg_attr(docs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 

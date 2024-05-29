@@ -39,7 +39,7 @@ impl Signer for Ed25519 {
     type VerifyingKey = VerifyingKey;
     type Signature = Signature;
 
-    #[cfg_attr(docs, doc(cfg(feature = "ed25519_batch")))]
+    #[cfg_attr(docsrs, doc(cfg(feature = "ed25519_batch")))]
     #[cfg(feature = "ed25519_batch")]
     fn verify_batch(
         msgs: &[&[u8]],

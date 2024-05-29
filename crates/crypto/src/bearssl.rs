@@ -7,10 +7,10 @@
 //!
 //! [BearSSL]: https://bearssl.org/
 
-#![cfg_attr(docs, doc(cfg(feature = "bearssl")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
 #![cfg(feature = "bearssl")]
 #![cfg(not(fips))]
-#![cfg_attr(docs, doc(cfg(not(fips))))]
+#![cfg_attr(docsrs, doc(cfg(not(fips))))]
 
 use core::{
     borrow::Borrow,

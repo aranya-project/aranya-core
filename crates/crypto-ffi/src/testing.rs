@@ -2,7 +2,7 @@
 //! [`KeyStore`]s.
 
 #![cfg(any(test, feature = "testing"))]
-#![cfg_attr(docs, doc(cfg(feature = "testing")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 
 use core::marker::PhantomData;
 

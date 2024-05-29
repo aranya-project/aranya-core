@@ -8,7 +8,7 @@
 //! [RustCrypto]: https://github.com/RustCrypto
 
 #![cfg(not(fips))]
-#![cfg_attr(docs, doc(cfg(not(fips))))]
+#![cfg_attr(docsrs, doc(cfg(not(fips))))]
 
 use core::{borrow::Borrow, fmt, result::Result};
 

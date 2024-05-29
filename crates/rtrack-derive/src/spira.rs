@@ -1,4 +1,4 @@
-#![cfg_attr(docs, doc(cfg(feature = "spira")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "spira")))]
 #![cfg(feature = "spira")]
 
 use std::ops::Deref;

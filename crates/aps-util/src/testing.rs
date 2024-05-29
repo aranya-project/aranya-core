@@ -1,7 +1,7 @@
 //! Utilities for testing [`Handler`] and [`Ffi`].
 
 #![cfg(any(test, feature = "testing"))]
-#![cfg_attr(docs, doc(cfg(feature = "testing")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::panic)]
 

@@ -1033,7 +1033,7 @@ mod committing {
     macro_rules! utc_aead {
         ($name:ident, $inner:ty, $cipher:ty, $doc:expr) => {
             #[doc = $doc]
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             pub struct $name {
                 key: <$inner as $crate::aead::Aead>::Key,
             }
@@ -1043,13 +1043,13 @@ mod committing {
                                                                         ::typenum::Unsigned>::USIZE;
             }
 
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::CommittingAead for $name {}
 
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Cmt1Aead for $name {}
 
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Aead for $name {
                 const ID: $crate::aead::AeadId = $crate::aead::AeadId::$name;
                 const LIFETIME: $crate::aead::Lifetime = <$inner as $crate::aead::Aead>::LIFETIME;
@@ -1283,7 +1283,7 @@ mod committing {
     macro_rules! hte_aead {
         ($name:ident, $inner:ty, $hash:ty, $doc:expr) => {
             #[doc = $doc]
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             pub struct $name {
                 key: <$inner as $crate::aead::Aead>::Key,
             }
@@ -1324,19 +1324,19 @@ mod committing {
 
             // The `where` bound is important as it enforces the
             // requirement that `$inner` be a CMT-1 AEAD.
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::CommittingAead for $name where $inner: $crate::aead::Cmt1Aead {}
 
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Cmt1Aead for $name {}
 
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Cmt3Aead for $name {}
 
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Cmt4Aead for $name where $inner: $crate::aead::Cmt1Aead {}
 
-            #[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Aead for $name {
                 const ID: $crate::aead::AeadId = $crate::aead::AeadId::$name;
                 const LIFETIME: $crate::aead::Lifetime = <$inner as $crate::aead::Aead>::LIFETIME;
@@ -1455,5 +1455,5 @@ mod committing {
     pub(crate) use hte_aead;
 }
 #[cfg(feature = "committing-aead")]
-#[cfg_attr(docs, doc(cfg(feature = "committing-aead")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
 pub use committing::*;

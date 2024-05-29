@@ -5,7 +5,7 @@
 //! * Inflectra SpiraTest ([`spira`][mod@spira])
 
 #![allow(unstable_name_collisions)]
-#![cfg_attr(docs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 
 pub mod spira;

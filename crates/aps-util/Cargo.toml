@@ -20,6 +20,19 @@ default = [
 # Enable allocations.
 alloc = []
 
+std = [
+	"aps/std",
+	"crypto/std",
+	"indexmap?/std",
+	"policy-vm/std",
+	"postcard/use-std",
+	"serde/std",
+	"siphasher?/std",
+	"spin?/std",
+	"tracing/std",
+	"trouble/std",
+]
+
 # Enable the `testing` module.
 testing = [
 	"alloc",

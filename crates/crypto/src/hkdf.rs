@@ -8,7 +8,7 @@
 //! [RFC 5869]: https://www.rfc-editor.org/rfc/rfc5869
 
 #![forbid(unsafe_code)]
-#![cfg_attr(docs, doc(cfg(not(fips))))]
+#![cfg_attr(docsrs, doc(cfg(not(fips))))]
 #![cfg(not(fips))]
 
 use core::marker::PhantomData;

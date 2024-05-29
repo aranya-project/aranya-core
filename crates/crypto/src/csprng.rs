@@ -9,7 +9,7 @@ use generic_array::{ArrayLength, GenericArray};
 #[cfg(all(feature = "getrandom", not(target_os = "vxworks")))]
 pub use getrandom;
 #[cfg(feature = "rand_compat")]
-#[cfg_attr(docs, doc(cfg(feature = "rand_compat")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_compat")))]
 pub use rand;
 
 /// A cryptographically secure pseudorandom number generator
@@ -52,7 +52,7 @@ impl<R: Csprng + ?Sized> Csprng for &mut R {
 }
 
 #[cfg(feature = "getrandom")]
-#[cfg_attr(docs, doc(cfg(feature = "getrandom")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "getrandom")))]
 impl Csprng for rand_core::OsRng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         rand_core::RngCore::fill_bytes(self, dst)
@@ -60,7 +60,7 @@ impl Csprng for rand_core::OsRng {
 }
 
 #[cfg(feature = "std")]
-#[cfg_attr(docs, doc(cfg(feature = "std")))]
+#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
 impl Csprng for rand::rngs::ThreadRng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         rand_core::RngCore::fill_bytes(self, dst)

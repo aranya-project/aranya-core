@@ -8,7 +8,7 @@
 //! [FIPS PUB 198-1]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.198-1.pdf
 
 #![forbid(unsafe_code)]
-#![cfg_attr(docs, doc(cfg(not(fips))))]
+#![cfg_attr(docsrs, doc(cfg(not(fips))))]
 #![cfg(not(fips))]
 
 use core::{

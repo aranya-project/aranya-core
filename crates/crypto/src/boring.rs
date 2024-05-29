@@ -7,7 +7,7 @@
 //!
 //! [BoringSSL]: https://boringssl.googlesource.com/boringssl
 
-#![cfg_attr(docs, doc(cfg(feature = "boringssl")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "boringssl")))]
 #![cfg(feature = "boringssl")]
 
 extern crate alloc;
@@ -1588,7 +1588,7 @@ hash_impl!(
 // However, this module contains stuff that we *only* want to use
 // in FIPS mode. For example, we have our own implementations of
 // stuff (like HKDF) that perform better.
-#[cfg_attr(docs, doc(cfg(any(fips, test_fips))))]
+#[cfg_attr(docsrs, doc(cfg(any(fips, test_fips))))]
 #[cfg(any(fips, test_fips))]
 mod lame_crypto {
     #[allow(clippy::wildcard_imports)]
@@ -1900,7 +1900,7 @@ mod lame_crypto {
 //
 // This module contains stuff that we can only use while *not* in
 // FIPS mode.
-#[cfg_attr(docs, doc(cfg(not(fips))))]
+#[cfg_attr(docsrs, doc(cfg(not(fips))))]
 #[cfg(not(fips))]
 mod fun_crypto {
     #[allow(clippy::wildcard_imports)]
@@ -1922,7 +1922,7 @@ mod fun_crypto {
     // AES-256-GCM-SIV is disabled for x86-64 because it doesn't
     // currently support EVP_AEAD_CTX_open_gather.
 
-    #[cfg(any(docs, not(target_arch = "x86_64")))]
+    #[cfg(any(docsrs, not(target_arch = "x86_64")))]
     indcca2_aead_impl!(
         Aes256GcmSiv,
         "AES-256-GCM-SIV",

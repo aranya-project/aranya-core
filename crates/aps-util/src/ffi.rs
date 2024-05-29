@@ -1,7 +1,7 @@
 //! An FFI module for APS.
 
 #![cfg(feature = "alloc")]
-#![cfg_attr(docs, doc(cfg(feature = "alloc")))]
+#![cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 
 extern crate alloc;
 
