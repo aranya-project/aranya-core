@@ -493,10 +493,7 @@ pub fn parse_expression(
                 ))
             }
             Rule::identifier => Ok(Expression::Identifier(primary.as_str().to_owned())),
-            Rule::expression => {
-                let subexpr = parse_expression(primary, pratt)?;
-                Ok(Expression::Parentheses(Box::new(subexpr)))
-            }
+            Rule::expression => parse_expression(primary, pratt),
             _ => Err(ParseError::new(
                 ParseErrorKind::Expression,
                 format!("bad atom: {:?}", primary.as_rule()),

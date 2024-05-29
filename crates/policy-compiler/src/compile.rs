@@ -679,9 +679,6 @@ impl<'a> CompileState<'a> {
 
                 self.append_instruction(Instruction::Const(Value::Int(*num)))
             }
-            Expression::Parentheses(e) => {
-                self.compile_expression(e)?;
-            }
             Expression::Dot(t, s) => {
                 self.compile_expression(t)?;
                 let sr: &str = s.as_ref();

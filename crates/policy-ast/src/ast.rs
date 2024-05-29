@@ -257,8 +257,6 @@ pub enum Expression {
     Identifier(String),
     /// Enum reference, e.g. `Color::Red`
     EnumReference(EnumReference),
-    /// `(expr)`
-    Parentheses(Box<Expression>),
     /// `expr + expr`
     Add(Box<Expression>, Box<Expression>),
     /// `expr - expr`
