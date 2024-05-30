@@ -1117,3 +1117,28 @@ fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_invalid_finish_expressions() -> anyhow::Result<()> {
+    let invalid_expression = &r#"
+            fact Foo[]=>{x int}
+            command Test {
+                policy {
+                    finish {
+                        create Foo[]=>{x:1+2}
+                    }
+                }
+            }
+        "#;
+    let policy = parse_policy_str(invalid_expression, Version::V1)?;
+    let res = Compiler::new(&policy).compile();
+    assert!(matches!(
+        res,
+        Err(CompileError {
+            err_type: CompileErrorType::InvalidExpression(_),
+            ..
+        })
+    ));
+
+    Ok(())
+}

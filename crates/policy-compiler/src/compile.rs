@@ -497,6 +497,10 @@ impl<'a> CompileState<'a> {
 
     /// Compile an expression
     fn compile_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
+        if self.get_statement_context()? == StatementContext::Finish {
+            self.check_finish_expression(expression)?;
+        }
+
         match expression {
             Expression::Int(n) => self.append_instruction(Instruction::Const(Value::Int(*n))),
             Expression::String(s) => {
@@ -795,6 +799,25 @@ impl<'a> CompileState<'a> {
         }
 
         Ok(())
+    }
+
+    /// Check if finish blocks only use appropriate expressions
+    fn check_finish_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
+        match expression {
+            Expression::Int(_)
+            | Expression::String(_)
+            | Expression::Bool(_)
+            | Expression::Identifier(_)
+            | Expression::NamedStruct(_)
+            | Expression::Dot(_, _)
+            | Expression::Optional(_)
+            | Expression::EnumReference(_) => Ok(()),
+            _ => Err(CompileError::from_locator(
+                CompileErrorType::InvalidExpression(expression.clone()),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            )),
+        }
     }
 
     /// Compile policy statements

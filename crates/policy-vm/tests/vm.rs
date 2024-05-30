@@ -454,8 +454,8 @@ fn test_fact_function_return() -> anyhow::Result<()> {
             return foo
         }
 
-        // Foo creates and emmits the fact
-        command Bar {
+        // Set creates the fact
+        command Set {
             fields {
                 a int,
                 x int,
@@ -467,7 +467,23 @@ fn test_fact_function_return() -> anyhow::Result<()> {
             policy {
                 finish {
                     create Foo[a: this.a]=>{b: this.x}
-                    emit Result { x: get_foo(this.a) }
+                }
+            }
+        }
+
+        // Emit emmits the fact query from the function
+        command Emit {
+            fields {
+                a int
+            }
+
+            seal { return None }
+            open { return None }
+
+            policy {
+                let x = get_foo(this.a)
+                finish {
+                    emit Result { x: x }
                 }
             }
         }
@@ -480,19 +496,28 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         .compile()?;
     let machine = Machine::from_module(module)?;
 
-    // Create fact through Foo
+    let a = Value::Int(1);
+
+    // Create fact through Set
     {
-        let name = "Bar";
+        let name = "Set";
         let ctx = dummy_ctx_policy(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let self_struct = Struct::new(
             "Foo",
-            [
-                KVPair::new("a", Value::Int(1)),
-                KVPair::new("x", Value::Int(2)),
-            ],
+            [KVPair::new("a", a.clone()), KVPair::new("x", Value::Int(2))],
         );
         rs.call_command_policy(name, &self_struct, dummy_envelope())?;
+    }
+
+    // Emit fact through Bar
+    {
+        let cmd_name = "Emit";
+        let ctx = dummy_ctx_open(cmd_name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let self_struct = Struct::new("Bar", [KVPair::new("a", a)]);
+        let status = rs.call_command_policy(cmd_name, &self_struct, dummy_envelope())?;
+        assert_eq!(status, ExitReason::Normal);
     }
 
     assert_eq!(
@@ -1012,7 +1037,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         }
 
         finish function f(x int) {
-            emit Result { x: x + 1 }
+            emit Result { x: x }
         }
 
         command Foo {
@@ -1047,7 +1072,7 @@ fn test_finish_function() -> anyhow::Result<()> {
 
     assert_eq!(
         io.effect_stack[0],
-        ("Result".to_string(), vec![KVPair::new("x", Value::Int(4)),])
+        ("Result".to_string(), vec![KVPair::new("x", Value::Int(3)),])
     );
 
     Ok(())

@@ -722,6 +722,5 @@ fn test_errors() {
         ],
         MachineErrorType::IO(MachineIOError::FactExists),
     );
-
     // Unknown untested as it cannot be created
 }
