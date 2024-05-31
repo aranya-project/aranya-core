@@ -137,14 +137,16 @@ type ProxyClientID = u64;
 pub type ProxyGraphID = u64;
 
 /// The [`Model`] manages adding clients, graphs, actions, syncing client state,
-/// creating ephemeral actions, and processing ephemeral commands.
+/// creating sessions, and processing ephemeral commands.
 pub trait Model {
     type Effect;
     type Action<'a>;
     type PublicKeys;
 
+    /// Used to add a client to the model.
     fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError>;
 
+    /// Used to create a graph on a client.
     fn new_graph(
         &mut self,
         proxy_id: ProxyGraphID,
@@ -152,6 +154,7 @@ pub trait Model {
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError>;
 
+    /// Used for calling a single action that can emit only on-graph commands.
     fn action(
         &mut self,
         client_proxy_id: ProxyClientID,
@@ -159,6 +162,7 @@ pub trait Model {
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError>;
 
+    /// Used to sync state with a peer by requesting for new on-graph commands.
     fn sync(
         &mut self,
         graph_proxy_id: ProxyGraphID,
@@ -166,11 +170,13 @@ pub trait Model {
         dest_client_proxy_id: ProxyClientID,
     ) -> Result<(), ModelError>;
 
+    /// Used to retrieve the public keys associated with a client.
     fn get_public_keys(
         &self,
         client_proxy_id: ProxyClientID,
     ) -> Result<&Self::PublicKeys, ModelError>;
 
+    /// Used for calling a set of actions that emit only ephemeral commands.
     fn session_actions<'a>(
         &mut self,
         client_proxy_id: ProxyClientID,
@@ -178,6 +184,7 @@ pub trait Model {
         actions: impl IntoIterator<Item = Self::Action<'a>>,
     ) -> Result<SessionData<Self::Effect>>;
 
+    /// Used for processing externally received ephemeral commands.
     fn session_receive(
         &mut self,
         client_proxy_id: ProxyClientID,
@@ -314,7 +321,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     type Action<'a> = <<CF::Engine as Engine>::Policy as Policy>::Action<'a>;
     type PublicKeys = CF::PublicKeys;
 
-    // Add a client to the model
+    /// Add a client to the model
     fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError> {
         if self.clients.contains_key(&proxy_id) {
             return Err(ModelError::DuplicateClient);
@@ -326,7 +333,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok(())
     }
 
-    // Create a graph on a client
+    /// Create a graph on a client
     fn new_graph(
         &mut self,
         proxy_id: ProxyGraphID,
@@ -353,7 +360,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok(sink.effects)
     }
 
-    // Preform an action on a client
+    /// Preform an action on a client
     fn action(
         &mut self,
         client_proxy_id: ProxyClientID,
@@ -379,7 +386,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok(sink.effects)
     }
 
-    // Sync a graph between two clients
+    /// Sync a graph between two clients
     fn sync(
         &mut self,
         graph_proxy_id: ProxyGraphID,
@@ -446,7 +453,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok(())
     }
 
-    // Retrieve public keys from a client
+    /// Retrieve public keys from a client
     fn get_public_keys(
         &self,
         client_proxy_id: ProxyClientID,
@@ -491,7 +498,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         Ok((cmds, effects))
     }
 
-    // Process ephemeral session commands
+    /// Process ephemeral session commands
     fn session_receive(
         &mut self,
         client_proxy_id: ProxyClientID,

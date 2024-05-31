@@ -2,23 +2,22 @@
 policy-version: 1
 ---
 
-<!--
 This policy facilitates the full use of the `envelope_ffi`. To do that we need to
 introduce several supporting FFIs, `crypto_ffi`, `device_ffi`, `idam_ffi`,
 `perspective_ffi`. Together they give us the necessary functionality to satisfy
 the seal and open blocks. The key difference between this policy and the
 `basic-policy.md` is that the basic policy is setup to use the `TestFfiEnvelope`.
-Both policies however contain the same sets of on-graph actions, Init, Create, Increment,
+Both policies however contain the same sets of on-graph commands, Init, Create, Increment,
 and Decrement.
 
-The policies also supply sample ephemeral commands, `CreateGreeting and
+This policy also supplies sample ephemeral commands, `CreateGreeting` and
 `VerifyGreeting`. Ephemeral (session) commands are not added to the graph of
-commands and do not persist any changes to the factDB.
+commands and do not persist any changes to the factDB. Hence, they are also not
+delivered through syncs and should be transmitted via some other mechanism.
 
-It should be noted that there is no syntactic differences between on-graph and
+It should be noted that there is no syntactic difference between on-graph and
 ephemeral commands currently. They could in theory be used interchangeably,
 however they are almost always created with a particular flavor in mind.
--->
 
 ```policy
 use idam
@@ -338,6 +337,15 @@ command Decrement {
     }
 }
 
+// The `create_greeting` action calls the command `CreateGreeting`. Passing in
+// the hardcoded greeting key and the message value.
+action create_greeting(v string) {
+    publish CreateGreeting {
+        key: "greeting",
+        value: v,
+    }
+}
+
 // `CreateGreeting` is an ephemeral command that creates a fact that lives for
 // the lifetime of the session it was called in.
 command CreateGreeting {
@@ -359,12 +367,12 @@ command CreateGreeting {
     }
 }
 
-// The `create_greeting` action calls the command `CreateGreeting`. Passing in
-// the hardcoded greeting key and the message value.
-action create_greeting(v string) {
-    publish CreateGreeting {
+// The `verify_hello` action calls the command `VerifyGreeting` that will verify
+// the Message fact contains "hello".
+action verify_hello() {
+    publish VerifyGreeting {
         key: "greeting",
-        value: v,
+        value: "hello",
     }
 }
 
@@ -392,15 +400,6 @@ command VerifyGreeting {
         finish {
             emit Success{value: true}
         }
-    }
-}
-
-// The `verify_hello` action calls the command `VerifyGreeting` that will verify
-// the Message fact contains "hello".
-action verify_hello() {
-    publish VerifyGreeting {
-        key: "greeting",
-        value: "hello",
     }
 }
 ```

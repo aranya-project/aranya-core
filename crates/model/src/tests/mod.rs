@@ -1056,19 +1056,18 @@ fn should_allow_access_to_fact_db_from_session() {
     assert_eq!(effects, expected);
 }
 
-// We want to test wether we can store our returned ephemeral command into the
-// on-graph FactDB, because our returned session command is just serialized data,
-// that is completely possible.
+// We want to test wether we can store our returned serialized ephemeral command
+// data into the on-graph FactDB, because our returned session command is just
+// serialized data, that is completely possible.
 #[test]
-fn should_add_session_command_to_graph() {
+fn should_store_session_data_to_graph() {
     // Create our client factory, this will be responsible for creating all our clients.
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
     // Create a new model with our client factory.
     let mut test_model = RuntimeModel::new(basic_clients);
 
-    // Create two clients, one will be used to create session commands and the
-    // other will used to receive the session command.
+    // Create client, this client will be used to create the session commands.
     test_model.add_client(1).expect("Should create a client");
 
     let nonce = 1;
@@ -1077,8 +1076,8 @@ fn should_add_session_command_to_graph() {
         .new_graph(1, 1, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
-    // The first half of the model session API is used to create session commands.
-    // Session actions will produce a collection of commands.
+    // `sessions_actions` is the portion of the session api responsible for
+    // creating session commands.
     let (commands, _effects) = test_model
         .session_actions(1, 1, vec![vm_action!(create_greeting("hello"))])
         .expect("Should return effect");
@@ -1094,13 +1093,13 @@ fn should_add_session_command_to_graph() {
         .into_vec();
 
     // Because these commands are just data, we can store it just like any other
-    // byte data, using it as the payload of an on-graph action, like
-    // `add_session_cmd_to_graph`.
+    // byte data, using it as the argument of an on-graph action, like
+    // `store_session_data`.
     let effects = test_model
         .action(
             1,
             1,
-            vm_action!(add_session_cmd_to_graph("say_hello", session_cmd)),
+            vm_action!(store_session_data("say_hello", session_cmd)),
         )
         .expect("Should return effect");
 
