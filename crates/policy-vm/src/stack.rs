@@ -1,4 +1,4 @@
-use policy_module::{TryAsMut, Value, ValueConversionError};
+use policy_module::{TryAsMut, TryFromValue, Value, ValueConversionError};
 
 use crate::error::MachineErrorType;
 
@@ -25,10 +25,10 @@ pub trait Stack {
     /// Pop a value off of the stack.
     fn pop<V>(&mut self) -> Result<V, MachineErrorType>
     where
-        V: TryFrom<Value, Error = ValueConversionError>,
+        V: TryFromValue,
     {
         let raw = self.pop_value()?;
-        Ok(raw.try_into()?)
+        Ok(TryFromValue::try_from_value(raw)?)
     }
 
     /// Get a reference to the value at the top of the stack

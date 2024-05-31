@@ -37,25 +37,27 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
         #strukt
 
         impl ::core::convert::TryFrom<::policy_ifgen::Value> for #ident {
-            type Error = ::policy_ifgen::StructParseError;
+            type Error = ::policy_ifgen::ValueConversionError;
             fn try_from(value: ::policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
                 let ::policy_ifgen::Value::Struct(mut s) = value else {
-                    return ::core::result::Result::Err(::policy_ifgen::StructParseError::InvalidType);
+                    return ::core::result::Result::Err(::policy_ifgen::ValueConversionError::InvalidType);
                 };
 
                 if s.name != #name {
-                    return ::core::result::Result::Err(::policy_ifgen::StructParseError::NameMismatch);
+                    return ::core::result::Result::Err(::policy_ifgen::ValueConversionError::InvalidType);
                 }
 
                 let parsed = Self { #(
                     #field_idents:
-                        s.fields.remove(#field_names)
-                            .ok_or(::policy_ifgen::StructParseError::MissingField)?
-                            .try_into()
-                            .map_err(|_| ::policy_ifgen::StructParseError::FieldTypeMismatch)?,
+                        ::policy_ifgen::TryFromValue::try_from_value(
+                            s.fields.remove(#field_names)
+                                .ok_or_else(|| ::policy_ifgen::ValueConversionError::InvalidStructMember(
+                                    #field_names.into(),
+                                ))?,
+                        )?,
                 )* };
-                if !s.fields.is_empty() {
-                    return ::core::result::Result::Err(::policy_ifgen::StructParseError::ExtraFields);
+                if let Some((key, _)) = s.fields.pop_first() {
+                    return ::core::result::Result::Err(::policy_ifgen::ValueConversionError::InvalidStructMember(key));
                 }
                 ::core::result::Result::Ok(parsed)
             }
@@ -100,17 +102,17 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
         #enumeration
 
         impl ::core::convert::TryFrom<::policy_ifgen::Value> for #ident {
-            type Error = ::policy_ifgen::EnumParseError;
+            type Error = ::policy_ifgen::ValueConversionError;
             fn try_from(value: ::policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
                 let ::policy_ifgen::Value::Int(val) = value else {
-                    return ::core::result::Result::Err(::policy_ifgen::EnumParseError::InvalidType);
+                    return ::core::result::Result::Err(::policy_ifgen::ValueConversionError::InvalidType);
                 };
 
                 match val {
                     #(
                         #var_vals => ::core::result::Result::Ok(Self::#var_idents),
                     )*
-                    _ => ::core::result::Result::Err(::policy_ifgen::EnumParseError::InvalidNumber),
+                    _ => ::core::result::Result::Err(::policy_ifgen::ValueConversionError::OutOfRange),
                 }
             }
         }

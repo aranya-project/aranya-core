@@ -115,7 +115,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     }
                     ::core::result::Result::Ok(#name {
                         #(
-                            #names: ::core::convert::TryFrom::<#vm::Value>::try_from(#fields)?
+                            #names: #vm::TryFromValue::try_from_value(#fields)?
                         ),*
                     })
                 }

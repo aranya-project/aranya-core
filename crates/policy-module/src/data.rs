@@ -57,6 +57,31 @@ pub enum Value {
     None,
 }
 
+/// Trait for converting from a [`Value`], similar to [`TryFrom<Value>`].
+///
+/// This trait allows us to add a blanket impl for `Option`, which we cannot
+/// do for `TryFrom<Value>` because of overlap and foreign type restrictions.
+pub trait TryFromValue: Sized {
+    /// Tries to convert a [`Value`] into `Self`.
+    fn try_from_value(value: Value) -> Result<Self, ValueConversionError>;
+}
+
+impl<T: TryFromValue> TryFromValue for Option<T> {
+    fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
+        if matches!(value, Value::None) {
+            Ok(None)
+        } else {
+            T::try_from_value(value).map(Some)
+        }
+    }
+}
+
+impl<T: TryFrom<Value, Error = ValueConversionError>> TryFromValue for T {
+    fn try_from_value(value: Value) -> Result<Self, ValueConversionError> {
+        Self::try_from(value)
+    }
+}
+
 /// Like `AsMut`, but fallible.
 pub trait TryAsMut<T: ?Sized> {
     /// The error result.
@@ -78,6 +103,12 @@ impl Value {
             Value::Id(_) => Some(VType::Id),
             _ => None,
         }
+    }
+}
+
+impl<T: Into<Value>> From<Option<T>> for Value {
+    fn from(value: Option<T>) -> Self {
+        value.map_or(Value::None, Into::into)
     }
 }
 

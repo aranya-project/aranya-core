@@ -1,4 +1,4 @@
-use policy_ifgen::{macros::*, KVPair};
+use policy_ifgen::{macros::*, ClientError, KVPair};
 
 #[effect]
 pub struct TestEffect {
@@ -6,25 +6,60 @@ pub struct TestEffect {
     pub b: String,
 }
 
-#[value]
-pub struct TestStruct {
+#[effect]
+pub struct TestEffectFields {
     _int: i64,
     _bool: bool,
     _string: String,
     _bytes: Vec<u8>,
     _struct: OtherStruct,
     _enum: TestEnum,
-    // _optional: Option<i64>, // TODO(#764)
+    _optional_int: Option<i64>,
+    _optional_struct: Option<TestStructFields>,
+    _optional_enum: Option<TestEnum>,
+    _optional_nested: Option<Option<Option<Option<i64>>>>,
 }
 
 #[value]
-struct OtherStruct {}
+pub struct TestStructFields {
+    _int: i64,
+    _bool: bool,
+    _string: String,
+    _bytes: Vec<u8>,
+    _struct: OtherStruct,
+    _enum: TestEnum,
+    _optional_int: Option<i64>,
+    _optional_struct: Option<OtherStruct>,
+    _optional_enum: Option<TestEnum>,
+    _optional_nested: Option<Option<Option<Option<i64>>>>,
+}
 
 #[value]
-enum TestEnum {
+pub struct OtherStruct {}
+
+#[value]
+pub enum TestEnum {
     A,
     B,
     C,
+}
+
+#[allow(clippy::too_many_arguments)]
+#[actions]
+pub trait TestActions {
+    fn act(
+        &mut self,
+        _int: i64,
+        _bool: bool,
+        _string: String,
+        _bytes: Vec<u8>,
+        _struct: TestStructFields,
+        _enum: TestEnum,
+        _optional_int: Option<i64>,
+        _optional_struct: Option<TestStructFields>,
+        _optional_enum: Option<TestEnum>,
+        _optional_nested: Option<Option<Option<Option<i64>>>>,
+    ) -> Result<(), ClientError>;
 }
 
 #[test]

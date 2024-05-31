@@ -35,10 +35,11 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
                     .collect::<::policy_ifgen::FieldMap>();
                 let parsed = Self { #(
                     #field_idents:
-                        fields.remove(#field_names)
-                            .ok_or(::policy_ifgen::EffectsParseError::MissingField)?
-                            .try_into()
-                            .map_err(|_| ::policy_ifgen::EffectsParseError::FieldTypeMismatch)?,
+                        ::policy_ifgen::TryFromValue::try_from_value(
+                            fields.remove(#field_names)
+                                .ok_or(::policy_ifgen::EffectsParseError::MissingField)?,
+                        )
+                        .map_err(|_| ::policy_ifgen::EffectsParseError::FieldTypeMismatch)?,
                 )* };
                 if !fields.is_empty() {
                     return ::core::result::Result::Err(::policy_ifgen::EffectsParseError::ExtraFields);

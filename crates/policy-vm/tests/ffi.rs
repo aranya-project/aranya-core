@@ -144,6 +144,7 @@ struct S1 {
     d bool,
     e id,
     f struct S0,
+    g optional int,
 }
 struct S2 {
     a struct S0,
@@ -209,6 +210,16 @@ impl<'a, T, G> TestModule<'a, T, G> {
     ) -> Result<Label, Infallible> {
         assert_eq!(label, Self::CUSTOM_TYPE_ARG);
         Ok(Self::CUSTOM_TYPE_RESULT)
+    }
+
+    #[ffi_export(def = "function custom_type_optional(label optional int) optional int")]
+    fn custom_type_optional<E: Engine>(
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
+        label: Option<Label>,
+    ) -> Result<Option<Label>, Infallible> {
+        assert_eq!(label, Some(Self::CUSTOM_TYPE_ARG));
+        Ok(Some(Self::CUSTOM_TYPE_RESULT))
     }
 
     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
@@ -389,6 +400,7 @@ fn test_ffi_derive() {
             d: true,
             e: Id::random(&mut Rng),
             f: S0 { x: 1234 },
+            g: Some(42),
         };
         state.push(a.clone());
         state.push(b.clone());
