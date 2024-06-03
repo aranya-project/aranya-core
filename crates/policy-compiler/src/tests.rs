@@ -530,7 +530,7 @@ fn test_fact_invalid_key_name() -> anyhow::Result<()> {
         .err_type;
     assert_eq!(
         err,
-        CompileErrorType::Unknown(String::from("Invalid fact key: expected i, got k"))
+        CompileErrorType::InvalidFactLiteral(String::from("Invalid key: expected i, got k"))
     );
 
     Ok(())
@@ -552,7 +552,7 @@ fn test_fact_incomplete_key() -> anyhow::Result<()> {
         .err_type;
     assert_eq!(
         err,
-        CompileErrorType::Unknown(String::from("Fact keys don't match definition"))
+        CompileErrorType::InvalidFactLiteral(String::from("Fact keys don't match definition"))
     );
 
     Ok(())
@@ -574,7 +574,7 @@ fn test_fact_nonexistent_key() -> anyhow::Result<()> {
         .err_type;
     assert_eq!(
         err,
-        CompileErrorType::Unknown(String::from("Fact keys don't match definition"))
+        CompileErrorType::InvalidFactLiteral(String::from("Fact keys don't match definition"))
     );
 
     Ok(())
@@ -615,7 +615,7 @@ fn test_fact_duplicate_key() -> anyhow::Result<()> {
         .err_type;
     assert_eq!(
         err,
-        CompileErrorType::Unknown(String::from("Invalid fact key: expected j, got i"))
+        CompileErrorType::InvalidFactLiteral(String::from("Invalid key: expected j, got i"))
     );
 
     Ok(())
@@ -637,7 +637,7 @@ fn test_fact_invalid_value_name() -> anyhow::Result<()> {
         .err_type;
     assert_eq!(
         err,
-        CompileErrorType::Unknown(String::from("Expected x, got y"))
+        CompileErrorType::InvalidFactLiteral(String::from("Expected value x, got y"))
     );
 
     Ok(())
@@ -802,10 +802,10 @@ fn finish_block_should_exit() -> anyhow::Result<()> {
             policy {
                 check true
                 finish {
-                    delete Blah[] => {}
+                    delete Blah[]
                 } // finish must be the last statement in policy
                 finish {
-                    delete Blah[] => {}
+                    delete Blah[]
                 }
                 let a = 5
             }
@@ -923,6 +923,70 @@ fn test_fact_duplicate_field_names() -> anyhow::Result<()> {
             CompileErrorType::AlreadyDefined(String::from(identifier))
         );
     }
+    Ok(())
+}
+
+#[test]
+fn test_fact_create_too_few_values() -> anyhow::Result<()> {
+    {
+        let policy = parse_policy_str(
+            r#"
+        fact User[id int]=>{name string, email string}
+
+        finish function too_few() {
+            create User[id:1]=>{name: "bob"}
+        }
+        "#,
+            Version::V1,
+        )?;
+        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+
+        assert_eq!(
+            result,
+            CompileErrorType::InvalidFactLiteral("incorrect number of values".to_owned())
+        );
+    }
+
+    {
+        let policy = parse_policy_str(
+            r#"
+        fact User[id int]=>{name string, email string}
+
+        finish function too_few() {
+            create User[id:1]
+        }
+        "#,
+            Version::V1,
+        )?;
+        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+
+        assert_eq!(
+            result,
+            CompileErrorType::InvalidFactLiteral("fact literal requires value".to_owned())
+        );
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_fact_create_too_many_values() -> anyhow::Result<()> {
+    let text = r#"
+        fact User[id int]=>{name string}
+
+        finish function too_many() {
+            create User[id:1]=>{name: "bob", email: "bob@email.com"}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+
+    assert_eq!(
+        result,
+        CompileErrorType::InvalidFactLiteral("incorrect number of values".to_owned())
+    );
+
     Ok(())
 }
 

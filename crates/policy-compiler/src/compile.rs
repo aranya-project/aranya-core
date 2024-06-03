@@ -382,7 +382,11 @@ impl<'a> CompileState<'a> {
     /// - a fact with this name was defined
     /// - the keys and values defined in the schema are present, and have the correct types
     /// - there are no duplicate keys or values
-    fn verify_fact_against_schema(&self, fact: &FactLiteral) -> Result<(), CompileError> {
+    fn verify_fact_against_schema(
+        &self,
+        fact: &FactLiteral,
+        require_value: bool,
+    ) -> Result<(), CompileError> {
         // Fetch schema
         let fact_def = self.get_fact_def(&fact.identifier)?;
 
@@ -393,7 +397,9 @@ impl<'a> CompileState<'a> {
         // key sets must have the same length
         if fact.key_fields.len() != fact_def.key.len() {
             return Err(CompileError::from_locator(
-                CompileErrorType::Unknown(String::from("Fact keys don't match definition")),
+                CompileErrorType::InvalidFactLiteral(String::from(
+                    "Fact keys don't match definition",
+                )),
                 self.last_locator,
                 self.m.codemap.as_ref(),
             ));
@@ -403,8 +409,8 @@ impl<'a> CompileState<'a> {
         for (schema_key, lit_key) in fact_def.key.iter().zip(fact.key_fields.iter()) {
             if schema_key.identifier != lit_key.0 {
                 return Err(CompileError::from_locator(
-                    CompileErrorType::Unknown(format!(
-                        "Invalid fact key: expected {}, got {}",
+                    CompileErrorType::InvalidFactLiteral(format!(
+                        "Invalid key: expected {}, got {}",
                         schema_key.identifier, lit_key.0
                     )),
                     self.last_locator,
@@ -429,11 +435,18 @@ impl<'a> CompileState<'a> {
             };
         }
 
-        if let Some(values) = &fact.value_fields {
-            self.verify_fact_values(values, fact_def)
-        } else {
-            Ok(())
+        match &fact.value_fields {
+            Some(values) => self.verify_fact_values(values, fact_def)?,
+            None => {
+                if require_value {
+                    return Err(self.err(CompileErrorType::InvalidFactLiteral(
+                        "fact literal requires value".to_string(),
+                    )));
+                }
+            }
         }
+
+        Ok(())
     }
 
     fn verify_fact_values(
@@ -441,12 +454,21 @@ impl<'a> CompileState<'a> {
         values: &[(String, FactField)],
         fact_def: &FactDefinition,
     ) -> Result<(), CompileError> {
+        // value block must have the same number of values as the schema
+        if values.len() != fact_def.value.len() {
+            return Err(CompileError::from_locator(
+                CompileErrorType::InvalidFactLiteral(String::from("incorrect number of values")),
+                self.last_locator,
+                self.m.codemap.as_ref(),
+            ));
+        }
+
         // Ensure values exist in schema, and have matching types
         for (lit_value, schema_value) in values.iter().zip(fact_def.value.iter()) {
             if lit_value.0 != schema_value.identifier {
                 return Err(CompileError::from_locator(
-                    CompileErrorType::Unknown(format!(
-                        "Expected {}, got {}",
+                    CompileErrorType::InvalidFactLiteral(format!(
+                        "Expected value {}, got {}",
                         schema_value.identifier, lit_value.0
                     )),
                     self.last_locator,
@@ -518,12 +540,12 @@ impl<'a> CompileState<'a> {
             }
             Expression::InternalFunction(f) => match f {
                 ast::InternalFunction::Query(f) => {
-                    self.verify_fact_against_schema(f)?;
+                    self.verify_fact_against_schema(f, false)?;
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
                 }
                 ast::InternalFunction::Exists(f) => {
-                    self.verify_fact_against_schema(f)?;
+                    self.verify_fact_against_schema(f, false)?;
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
                     self.append_instruction(Instruction::Const(Value::None));
@@ -1016,7 +1038,7 @@ impl<'a> CompileState<'a> {
                         ));
                     }
 
-                    self.verify_fact_against_schema(&s.fact)?;
+                    self.verify_fact_against_schema(&s.fact, true)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Create);
                 }
@@ -1031,7 +1053,7 @@ impl<'a> CompileState<'a> {
                         ));
                     }
 
-                    self.verify_fact_against_schema(&s.fact)?;
+                    self.verify_fact_against_schema(&s.fact, true)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Dup(0));
 
@@ -1059,7 +1081,7 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Update);
                 }
                 (ast::Statement::Delete(s), StatementContext::Finish) => {
-                    self.verify_fact_against_schema(&s.fact)?;
+                    self.verify_fact_against_schema(&s.fact, false)?;
                     self.compile_fact_literal(&s.fact)?;
                     self.append_instruction(Instruction::Delete);
                 }

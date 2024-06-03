@@ -401,9 +401,6 @@ fn test_fact_exists() -> anyhow::Result<()> {
 
         // Not-exists
 
-        // incomplete values
-        check !exists Bar[i: 0]=>{s: ?}
-
         // no fact with such values
         check !exists Bar[i:0] => {s:"ab", b:true}
         check !exists Bar[i:1] => {s:"", b:true}
@@ -576,14 +573,13 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
 
         action test_nonexistent() {
-            let f = unwrap query Foo[i:?, j:?]=>{}
+            let f = unwrap query Foo[i:?, j:?]
         }
 
         action test_exists() {
             check exists Foo[i:1, j:?]
             check exists Foo[i:-1, j:?] == false
-            check exists Foo[i:1, j:?] => {x:?}
-            check !exists Foo[i:1, j:?] => {x:-1}
+            check !exists Foo[i:1, j:?] => {x:-1, s:?}
         }
     "#;
 
@@ -1169,12 +1165,10 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         action test_existing() {
             let f = check_unwrap query Foo[i: 1]
             check f.x == 1
-            let f2 = check_unwrap query Foo[i: 1]=>{}
-            check f2.x == 1
         }
 
         action test_nonexistent() {
-            let f = check_unwrap query Foo[i: 0]=>{}
+            let f = check_unwrap query Foo[i: 0]
             check false // would exit(panic), but check_unwrap should exit(check) first
         }
     "#;

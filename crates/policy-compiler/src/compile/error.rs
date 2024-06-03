@@ -37,6 +37,8 @@ pub enum CompileErrorType {
     AlreadyDefined(String),
     /// Expected value was missing
     Missing(String),
+    /// Fact literal doesn't match definition
+    InvalidFactLiteral(String),
     /// A pure function has no return statement
     NoReturn,
     /// An implementation bug
@@ -60,6 +62,7 @@ impl fmt::Display for CompileErrorType {
             Self::NotDefined(s) => write!(f, "Not defined: {}", s),
             Self::AlreadyDefined(s) => write!(f, "Already defined: {}", s),
             Self::Missing(s) => write!(f, "Missing: {}", s),
+            Self::InvalidFactLiteral(s) => write!(f, "Fact literal does not match definition: {s}"),
             Self::NoReturn => write!(f, "Function has no return statement"),
             Self::Bug(bug) => write!(f, "Bug: {}", bug),
             Self::Unknown(s) => write!(f, "Unknown error: {}", s),
