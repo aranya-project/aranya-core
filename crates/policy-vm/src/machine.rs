@@ -659,25 +659,7 @@ where
                 let qf: Fact = self.ipop()?;
 
                 // Before we spend time fetching facts from storage, make sure the given fact literal is valid.
-                if self
-                    .machine
-                    .fact_defs
-                    .get(&qf.name)
-                    .and_then(|schema| {
-                        if validate_fact_schema(&qf, schema) {
-                            Some(true)
-                        } else {
-                            None
-                        }
-                    })
-                    .is_none()
-                {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::InvalidSchema,
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
-                }
+                self.validate_fact_literal(&qf)?;
 
                 let result = {
                     let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
@@ -704,6 +686,34 @@ where
                     }
                     None => self.ipush(Value::None)?,
                 }
+            }
+            Instruction::FactCount => {
+                let limit: i64 = self.ipop()?;
+                let fact: Fact = self.ipop()?;
+                self.validate_fact_literal(&fact)?;
+
+                let mut count = 0;
+                {
+                    let mut iter = self
+                        .io
+                        .fact_query(fact.name.to_owned(), fact.keys.to_owned())?;
+
+                    while count < limit {
+                        let Some(r) = iter.next() else { break };
+                        match r {
+                            Ok(f) => {
+                                if fact_match(&fact, &f.0, &f.1) {
+                                    count = count
+                                        .checked_add(1)
+                                        .assume("should be able to increment fact counter")?;
+                                }
+                            }
+                            Err(e) => return Err(self.err(MachineErrorType::IO(e))),
+                        }
+                    }
+                }
+
+                self.ipush(Value::Int(count))?;
             }
             Instruction::Serialize => {
                 let CommandContext::Seal(SealContext { name, .. }) = self.ctx else {
@@ -893,6 +903,22 @@ where
         self.stack
             .pop_value()
             .map_err(|t| MachineError::from_position(t, self.pc, self.machine.codemap.as_ref()))
+    }
+
+    fn validate_fact_literal(&self, fact: &Fact) -> Result<(), MachineError> {
+        if !self
+            .machine
+            .fact_defs
+            .get(&fact.name)
+            .is_some_and(|schema| validate_fact_schema(fact, schema))
+        {
+            return Err(MachineError::from_position(
+                MachineErrorType::InvalidSchema,
+                self.pc,
+                self.machine.codemap.as_ref(),
+            ));
+        }
+        Ok(())
     }
 }
 

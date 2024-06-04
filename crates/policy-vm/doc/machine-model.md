@@ -97,6 +97,7 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 |`emit`         | `( s -- )`           | emit an effect struct
 |`query`        | `( f -- s )`         | execute a fact query
 |`exists`       | `( f -- b )`         | determine whether or not the fact exists
+|`fact_count`   | `( x f -- y )`       | count facts (up to a limit) matching a given query
 |`id`           | `( z -- i )`         | get the `id` of a command  
 |`author.id`    | `( z -- i )`         | get the `id` of the author of a command
 

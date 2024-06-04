@@ -115,6 +115,8 @@ pub enum Instruction {
     Emit,
     /// Query for a fact
     Query,
+    /// Count facts, up to a given limit
+    FactCount,
     /// Serialize a command struct
     Serialize,
     /// Deserialize a command struct
@@ -163,6 +165,7 @@ impl Display for Instruction {
             Instruction::Update => write!(f, "update"),
             Instruction::Emit => write!(f, "emit"),
             Instruction::Query => write!(f, "query"),
+            Instruction::FactCount => write!(f, "fact_count"),
             Instruction::Serialize => write!(f, "serialize"),
             Instruction::Deserialize => write!(f, "deserialize"),
         }

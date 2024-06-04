@@ -436,6 +436,70 @@ fn test_fact_exists() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_count_up_to() -> anyhow::Result<()> {
+    let text = r#"
+        fact Foo[i int]=>{}
+
+        command Setup {
+            fields {}
+            open { return None }
+            seal { return None }
+            policy {
+                finish {
+                    create Foo[i:1]=>{}
+                    create Foo[i:2]=>{}
+                    create Foo[i:3]=>{}
+                }
+            }
+        }
+
+        command Test {
+            fields {}
+            open { return None }
+            seal { return None }
+            policy {
+                let count_one = count_up_to 1 Foo[i:?]
+                check count_one == 1
+                let count_two = count_up_to 2 Foo[i:?]
+                check count_two == 2
+                let count_all = count_up_to 10 Foo[i:?]
+                check count_all == 3
+                let count_max = count_up_to 9223372036854775807 Foo[i:?]
+                check count_max == 3
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text.trim(), Version::V1)?;
+
+    let mut io = TestIO::new();
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+
+    {
+        let name = "Setup";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let self_struct = Struct::new(name, &[]);
+        let result = rs.call_command_policy(name, &self_struct, dummy_envelope())?;
+        assert_eq!(result, ExitReason::Normal);
+    }
+
+    {
+        let name = "Test";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let self_struct = Struct::new(name, &[]);
+        let result = rs.call_command_policy(name, &self_struct, dummy_envelope())?;
+        assert_eq!(result, ExitReason::Normal);
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_fact_function_return() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[a int]=>{b int}

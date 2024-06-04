@@ -552,6 +552,17 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
                 }
+                ast::InternalFunction::CountUpTo(limit, fact) => {
+                    if *limit <= 0 {
+                        return Err(self.err(CompileErrorType::BadArgument(
+                            "count limit must be greater than zero".to_string(),
+                        )));
+                    }
+                    self.verify_fact_against_schema(fact, false)?;
+                    self.compile_fact_literal(fact)?;
+                    self.append_instruction(Instruction::Const(Value::Int(*limit)));
+                    self.append_instruction(Instruction::FactCount);
+                }
                 ast::InternalFunction::If(e, t, f) => {
                     let else_name = self.anonymous_label();
                     let end_name = self.anonymous_label();

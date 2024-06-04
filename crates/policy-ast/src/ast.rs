@@ -213,6 +213,8 @@ pub enum InternalFunction {
     Query(FactLiteral),
     /// An `exists` fact query
     Exists(FactLiteral),
+    /// Counts the number of facts up to the given limit, and returns the lower of the two.
+    CountUpTo(i64, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Serialize function

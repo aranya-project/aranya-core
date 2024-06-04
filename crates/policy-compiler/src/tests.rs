@@ -1051,7 +1051,7 @@ fn test_match_alternation_duplicates() -> anyhow::Result<()> {
         }
     "#;
     let policy = parse_policy_str(policy_str, Version::V1)?;
-    let result = Compiler::new(&policy).compile().expect_err("msg").err_type;
+    let result = Compiler::new(&policy).compile().unwrap_err().err_type;
     assert_eq!(
         result,
         CompileErrorType::AlreadyDefined(String::from("duplicate match arm value"))
@@ -1203,6 +1203,26 @@ fn test_invalid_finish_expressions() -> anyhow::Result<()> {
             ..
         })
     ));
+
+    Ok(())
+}
+
+#[test]
+fn test_count_up_to() -> anyhow::Result<()> {
+    let test = r#"
+        fact Foo[i int]=>{}
+        function f() int {
+            let x = count_up_to 0 Foo[i:?]
+            return 0
+        }
+    "#;
+
+    let policy = parse_policy_str(test, Version::V1)?;
+    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    assert_eq!(
+        err,
+        CompileErrorType::BadArgument("count limit must be greater than zero".to_string())
+    );
 
     Ok(())
 }

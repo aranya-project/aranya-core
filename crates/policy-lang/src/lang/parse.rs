@@ -439,6 +439,30 @@ pub fn parse_expression(
                     fact_literal,
                 )))
             }
+            Rule::count_up_to => {
+                let mut pairs = primary.clone().into_inner();
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::Expression,
+                    "count_up_to requires count limit (int)".to_string(),
+                    Some(primary.as_span()),
+                ))?;
+                let limit = token.as_str().parse::<i64>().map_err(|e| {
+                    ParseError::new(
+                        ParseErrorKind::InvalidNumber,
+                        e.to_string(),
+                        Some(primary.as_span()),
+                    )
+                })?;
+                let token = pairs.next().ok_or(ParseError::new(
+                    ParseErrorKind::Expression,
+                    "count_up_to requires fact literal".to_string(),
+                    Some(primary.as_span()),
+                ))?;
+                let fact = parse_fact_literal(token, pratt)?;
+                Ok(Expression::InternalFunction(
+                    ast::InternalFunction::CountUpTo(limit, fact),
+                ))
+            }
             Rule::if_e => {
                 let mut pairs = primary.clone().into_inner();
                 let token = pairs.next().ok_or(ParseError::new(
