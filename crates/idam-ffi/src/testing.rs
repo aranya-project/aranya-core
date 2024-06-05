@@ -9,7 +9,7 @@ use crypto::{
     aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, EncryptionKey, Engine, GroupKey, Id,
     IdentityKey, KeyStore, SigningKey, UserId,
 };
-use policy_vm::{CommandContext, PolicyContext};
+use policy_vm::{ActionContext, CommandContext, PolicyContext};
 
 use crate::{
     error::ErrorKind,
@@ -117,28 +117,41 @@ where
     }
 
     /// Test that we can encrypt then decrypt data.
-    pub fn test_encrypt_decrypt_message(mut eng: E, store: S) {
-        let ffi = Ffi::new(store);
+    pub fn test_encrypt_decrypt_message(mut eng: E, mut store: S) {
+        let (pk, key_id) = {
+            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let id = sk.id();
+            let wrapped = eng
+                .wrap(sk.clone())
+                .expect("should be able to wrap `SigningKey`");
+            store
+                .try_insert(id.into_id(), wrapped)
+                .expect("should be able to insert `SigningKey`");
+            let pk = postcard::to_allocvec(&sk.public())
+                .expect("should be able to encode `VerifyingKey`");
+            (pk, id)
+        };
 
+        let ffi = Ffi::new(store);
+        let action_ctx = CommandContext::Action(ActionContext {
+            name: "dummy action",
+            head_id: Id::default(),
+        });
         let ctx = &Self::CTX;
+
         let StoredGroupKey { wrapped, .. } = ffi
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let pk = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
-            postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
-        };
-
         const WANT: &[u8] = b"hello, world!";
         let ciphertext = ffi
             .encrypt_message(
-                ctx,
+                &action_ctx,
                 &mut eng,
-                Id::default(),
                 WANT.to_vec(),
                 wrapped.clone(),
-                pk.clone(),
+                key_id.into(),
+                "dummy".into(),
             )
             .expect("should be able to encrypt message");
         let got = ffi
@@ -149,27 +162,40 @@ where
 
     /// Test that we reject messages that have been tampered
     /// with.
-    pub fn test_decrypt_message_tampered_with(mut eng: E, store: S) {
-        let ffi = Ffi::new(store);
+    pub fn test_decrypt_message_tampered_with(mut eng: E, mut store: S) {
+        let (pk, key_id) = {
+            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let id = sk.id();
+            let wrapped = eng
+                .wrap(sk.clone())
+                .expect("should be able to wrap `SigningKey`");
+            store
+                .try_insert(id.into_id(), wrapped)
+                .expect("should be able to insert `SigningKey`");
+            let pk = postcard::to_allocvec(&sk.public())
+                .expect("should be able to encode `VerifyingKey`");
+            (pk, id)
+        };
 
+        let ffi = Ffi::new(store);
         let ctx = &Self::CTX;
         let StoredGroupKey { wrapped, .. } = ffi
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let pk = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
-            postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
-        };
+        let action_ctx = CommandContext::Action(ActionContext {
+            name: "dummy action",
+            head_id: Id::default(),
+        });
 
         let mut ciphertext = ffi
             .encrypt_message(
-                ctx,
+                &action_ctx,
                 &mut eng,
-                Id::default(),
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                pk.clone(),
+                key_id.into(),
+                "dummy".into(),
             )
             .expect("should be able to encrypt message");
 
@@ -188,32 +214,39 @@ where
 
     /// Test that we reject messages that are encrypted with
     /// a different command name.
-    pub fn test_decrypt_message_different_cmd_name(mut eng: E, store: S) {
+    pub fn test_decrypt_message_different_cmd_name(mut eng: E, mut store: S) {
+        let (pk, key_id) = {
+            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let id = sk.id();
+            let wrapped = eng
+                .wrap(sk.clone())
+                .expect("should be able to wrap `SigningKey`");
+            store
+                .try_insert(id.into_id(), wrapped)
+                .expect("should be able to insert `SigningKey`");
+            let pk = postcard::to_allocvec(&sk.public())
+                .expect("should be able to encode `VerifyingKey`");
+            (pk, id)
+        };
         let ffi = Ffi::new(store);
 
-        let ctx = CommandContext::Policy(PolicyContext {
-            name: "ctx",
-            id: Id::default(),
-            author: UserId::default(),
-            version: Id::default(),
-        });
+        let ctx = &Self::CTX;
         let StoredGroupKey { wrapped, .. } = ffi
-            .generate_group_key(&ctx, &mut eng)
+            .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
-
-        let pk = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
-            postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
-        };
+        let action_ctx = CommandContext::Action(ActionContext {
+            name: "dummy action",
+            head_id: Id::default(),
+        });
 
         let ciphertext = ffi
             .encrypt_message(
-                &ctx,
+                &action_ctx,
                 &mut eng,
-                Id::default(),
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                pk.clone(),
+                key_id.into(),
+                "dummy".into(),
             )
             .expect("should be able to encrypt message");
 
@@ -237,43 +270,46 @@ where
 
     /// Test that we reject messages that are encrypted with
     /// a different parent command ID.
-    pub fn test_decrypt_message_different_parent_cmd_id(mut eng: E, store: S) {
+    pub fn test_decrypt_message_different_parent_cmd_id(mut eng: E, mut store: S) {
+        let (pk, key_id) = {
+            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let id = sk.id();
+            let wrapped = eng
+                .wrap(sk.clone())
+                .expect("should be able to wrap `SigningKey`");
+            store
+                .try_insert(id.into_id(), wrapped)
+                .expect("should be able to insert `SigningKey`");
+            let pk = postcard::to_allocvec(&sk.public())
+                .expect("should be able to encode `VerifyingKey`");
+            (pk, id)
+        };
+
         let ffi = Ffi::new(store);
 
-        let ctx = CommandContext::Policy(PolicyContext {
-            name: "ctx",
-            id: Id::default(),
-            author: UserId::default(),
-            version: Id::default(),
-        });
+        let ctx = &Self::CTX;
         let StoredGroupKey { wrapped, .. } = ffi
-            .generate_group_key(&ctx, &mut eng)
+            .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let sk = SigningKey::<E::CS>::new(&mut eng);
-        let pk =
-            postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`");
+        let action_ctx = CommandContext::Action(ActionContext {
+            name: "dummy action",
+            head_id: Id::random(&mut eng),
+        });
 
-        let random_parent_id = Id::random(&mut eng);
         let ciphertext = ffi
             .encrypt_message(
-                &ctx,
+                &action_ctx,
                 &mut eng,
-                random_parent_id,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                pk.clone(),
+                key_id.into(),
+                "dummy".into(),
             )
             .expect("should be able to encrypt message");
 
-        let ctx = CommandContext::Policy(PolicyContext {
-            name: "ctx",
-            id: Id::default(),
-            author: UserId::default(),
-            version: Id::default(),
-        });
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err(
                 "should not be able to decrypt message encrypted with different parent command ID",
             );
@@ -286,31 +322,38 @@ where
 
     /// Test that we reject messages that are encrypted with
     /// a different author.
-    pub fn test_decrypt_message_different_author(mut eng: E, store: S) {
-        let ffi = Ffi::new(store);
+    pub fn test_decrypt_message_different_author(mut eng: E, mut store: S) {
+        let key_id = {
+            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let id = sk.id();
+            let wrapped = eng
+                .wrap(sk.clone())
+                .expect("should be able to wrap `SigningKey`");
+            store
+                .try_insert(id.into_id(), wrapped)
+                .expect("should be able to insert `SigningKey`");
+            id
+        };
 
-        let ctx = CommandContext::Policy(PolicyContext {
-            name: "ctx",
-            id: Id::default(),
-            author: UserId::default(),
-            version: Id::default(),
-        });
+        let ffi = Ffi::new(store);
+        let ctx = &Self::CTX;
         let StoredGroupKey { wrapped, .. } = ffi
-            .generate_group_key(&ctx, &mut eng)
+            .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let pk = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
-            postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
-        };
+        let action_ctx = CommandContext::Action(ActionContext {
+            name: "dummy action",
+            head_id: Id::default(),
+        });
+
         let ciphertext = ffi
             .encrypt_message(
-                &ctx,
+                &action_ctx,
                 &mut eng,
-                Id::default(),
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                pk.clone(),
+                key_id.into(),
+                "dummy".into(),
             )
             .expect("should be able to encrypt message");
 
@@ -320,7 +363,7 @@ where
             postcard::to_allocvec(&sk.public()).expect("should be able to encode `VerifyingKey`")
         };
         let err = ffi
-            .decrypt_message(&ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
+            .decrypt_message(ctx, &mut eng, Id::default(), ciphertext, wrapped, pk)
             .expect_err("should not be able to decrypt message encrypted with different author");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(

@@ -116,7 +116,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///     key.seal(&mut Rng, &mut dst, MESSAGE, Context{
     ///         label: LABEL,
     ///         parent: PARENT,
-    ///         author: &author,
+    ///         author_sign_pk: &author,
     ///     }).expect("should not fail");
     ///     dst
     /// };
@@ -125,7 +125,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///     key.open(&mut dst, &ciphertext, Context{
     ///         label: LABEL,
     ///         parent: PARENT,
-    ///         author: &author,
+    ///         author_sign_pk: &author,
     ///     }).expect("should not fail");
     ///     dst
     /// };
@@ -266,7 +266,7 @@ pub struct Context<'a, CS: CipherSuite> {
     /// The stable ID of the parent event.
     pub parent: Id,
     /// The public key of the author of the encrypted data.
-    pub author: &'a VerifyingKey<CS>,
+    pub author_sign_pk: &'a VerifyingKey<CS>,
 }
 
 impl<CS: CipherSuite> Context<'_, CS> {
@@ -284,7 +284,7 @@ impl<CS: CipherSuite> Context<'_, CS> {
         tuple_hash::<CS::Hash, _>([
             self.label.as_bytes(),
             self.parent.as_ref(),
-            self.author.id().as_bytes(),
+            self.author_sign_pk.id().as_bytes(),
         ])
     }
 }

@@ -356,7 +356,7 @@ pub fn test_simple_export_user_encryption_key<E: Engine>(eng: &mut E) {
 pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author = UserSigningKey::<E::CS>::new(eng).public();
+    let author_sign_pk = UserSigningKey::<E::CS>::new(eng).public();
 
     let gk = GroupKey::new(eng);
     let ciphertext = {
@@ -368,7 +368,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
             Context {
                 label: "test_group_key_seal",
                 parent: Id::default(),
-                author: &author,
+                author_sign_pk: &author_sign_pk,
             },
         )
         .expect("should succeed");
@@ -382,7 +382,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
             Context {
                 label: "test_group_key_seal",
                 parent: Id::default(),
-                author: &author,
+                author_sign_pk: &author_sign_pk,
             },
         )
         .expect("should succeed");
@@ -395,7 +395,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author = UserSigningKey::<E::CS>::new(eng).public();
+    let author_sign_pk = UserSigningKey::<E::CS>::new(eng).public();
 
     let gk1 = GroupKey::new(eng);
     let gk2 = GroupKey::new(eng);
@@ -409,7 +409,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
             Context {
                 label: "some label",
                 parent: Id::default(),
-                author: &author,
+                author_sign_pk: &author_sign_pk,
             },
         )
         .expect("should succeed");
@@ -423,7 +423,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
             Context {
                 label: "some label",
                 parent: Id::default(),
-                author: &author,
+                author_sign_pk: &author_sign_pk,
             },
         )
         .expect_err("should have failed");
@@ -434,8 +434,8 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author1 = UserSigningKey::<E::CS>::new(eng).public();
-    let author2 = UserSigningKey::<E::CS>::new(eng).public();
+    let author_pk1 = UserSigningKey::<E::CS>::new(eng).public();
+    let author_pk2 = UserSigningKey::<E::CS>::new(eng).public();
 
     let gk = GroupKey::new(eng);
     let ciphertext = {
@@ -447,7 +447,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
             Context {
                 label: "some label",
                 parent: Id::default(),
-                author: &author1,
+                author_sign_pk: &author_pk1,
             },
         )
         .expect("should succeed");
@@ -468,7 +468,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
         Context {
             label: "wrong label",
             parent: Id::default(),
-            author: &author1,
+            author_sign_pk: &author_pk1,
         }
     );
     should_fail!(
@@ -476,7 +476,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
         Context {
             label: "some label",
             parent: [1u8; 64].into(),
-            author: &author1,
+            author_sign_pk: &author_pk1,
         }
     );
     should_fail!(
@@ -484,7 +484,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
         Context {
             label: "some label",
             parent: Id::default(),
-            author: &author2,
+            author_sign_pk: &author_pk2,
         }
     );
 }
@@ -493,7 +493,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author = UserSigningKey::<E::CS>::new(eng).public();
+    let author_sign_pk = UserSigningKey::<E::CS>::new(eng).public();
 
     let gk = GroupKey::new(eng);
     let mut ciphertext = {
@@ -505,7 +505,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
             Context {
                 label: "some label",
                 parent: Id::default(),
-                author: &author,
+                author_sign_pk: &author_sign_pk,
             },
         )
         .expect("should succeed");
@@ -522,7 +522,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
             Context {
                 label: "some label",
                 parent: Id::default(),
-                author: &author,
+                author_sign_pk: &author_sign_pk,
             },
         )
         .expect_err("should have failed");

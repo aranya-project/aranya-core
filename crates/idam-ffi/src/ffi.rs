@@ -1,10 +1,11 @@
 extern crate alloc;
 
-use alloc::{vec, vec::Vec};
+use alloc::{string::String, vec, vec::Vec};
 
 use crypto::{
     engine::Engine, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey, EncryptionKey,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, VerifyingKey,
+    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey,
+    VerifyingKey,
 };
 use policy_vm::{ffi::ffi, CommandContext};
 
@@ -161,14 +162,11 @@ function open_group_key(
         our_enc_sk_id: Id,
         group_id: Id,
     ) -> Result<StoredGroupKey, Error> {
-        let sk: EncryptionKey<E::CS> = {
-            let wrapped = self
-                .store
-                .get::<E::WrappedKey>(&our_enc_sk_id)
-                .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-                .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id)))?;
-            eng.unwrap(&wrapped)?
-        };
+        let sk: EncryptionKey<E::CS> = self
+            .store
+            .get_key(eng, &our_enc_sk_id)
+            .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
+            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id)))?;
         debug_assert_eq!(sk.id().into_id(), our_enc_sk_id);
 
         let group_key = {
@@ -189,43 +187,45 @@ function open_group_key(
     /// Encrypt a message using the [`GroupKey`].
     #[ffi_export(def = r#"
 function encrypt_message(
-    parent_id id,
     plaintext bytes,
     wrapped_group_key bytes,
-    our_sign_pk bytes,
+    our_sign_sk_id id,
+    // Name of the command that will carry the 
+    // encrypted message.
+    label string,
 ) bytes
 "#)]
     pub(crate) fn encrypt_message<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
         eng: &mut E,
-        parent_id: Id,
         plaintext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
-        our_sign_pk: Vec<u8>,
+        our_sign_sk_id: Id,
+        label: String,
     ) -> Result<Vec<u8>, Error> {
         let plaintext = Zeroizing::new(plaintext);
 
-        let CommandContext::Policy(ctx) = ctx else {
-            return Err(WrongContext(
-                "`crypto::encrypt_message` called outside of a `policy` block",
-            )
-            .into());
+        let CommandContext::Action(ctx) = ctx else {
+            return Err(WrongContext("`idam::encrypt_message` called outside of an action").into());
         };
 
         let group_key: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&wrapped_group_key)?;
             eng.unwrap(&wrapped)?
         };
-        // TODO(eric): instead, we should pass in
-        // `our_sign_sk_id` and look it up in the keystore, then
-        // call `public()`.
-        let author: &VerifyingKey<E::CS> = &postcard::from_bytes(&our_sign_pk)?;
+
+        let sk: SigningKey<E::CS> = self
+            .store
+            .get_key(eng, &our_sign_sk_id)
+            .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
+            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id)))?;
+        let our_sign_pk = sk.public();
 
         let ctx = Context {
-            label: ctx.name,
-            parent: parent_id,
-            author,
+            label: &label,
+            parent: ctx.head_id,
+            author_sign_pk: &our_sign_pk,
         };
         let mut ciphertext = {
             let len = plaintext
@@ -257,21 +257,20 @@ function decrypt_message(
         author_sign_pk: Vec<u8>,
     ) -> Result<Vec<u8>, Error> {
         let CommandContext::Policy(ctx) = ctx else {
-            return Err(WrongContext(
-                "`crypto::decrypt_message` called outside of a `policy` block",
-            )
-            .into());
+            return Err(
+                WrongContext("`idam::decrypt_message` called outside of a `policy` block").into(),
+            );
         };
         let group_key: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&wrapped_group_key)?;
             eng.unwrap(&wrapped)?
         };
-        let author: &VerifyingKey<E::CS> = &postcard::from_bytes(&author_sign_pk)?;
+        let author_pk: &VerifyingKey<E::CS> = &postcard::from_bytes(&author_sign_pk)?;
 
         let ctx = Context {
             label: ctx.name,
             parent: parent_id,
-            author,
+            author_sign_pk: author_pk,
         };
         let mut plaintext = {
             let len = ciphertext.len().saturating_sub(GroupKey::<E::CS>::OVERHEAD);
