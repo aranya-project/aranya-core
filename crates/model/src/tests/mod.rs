@@ -2,7 +2,7 @@ mod keygen;
 extern crate alloc;
 use alloc::vec::Vec;
 use core::cell::RefCell;
-use std::fs;
+use std::{fs, marker::PhantomData};
 
 use crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
@@ -24,13 +24,13 @@ use runtime::{
     storage::memory::MemStorageProvider,
     vm_action, vm_effect,
     vm_policy::{testing::TestFfiEnvelope, VmPolicy},
-    ClientState, FfiCallable,
+    ClientState, Engine, FfiCallable, StorageProvider,
 };
 use tempfile::tempdir;
 use test_log::test;
 
 use crate::{
-    tests::keygen::{KeyBundle, PublicKeys},
+    tests::keygen::{KeyBundle, MinKeyBundle, PublicKeys},
     ClientFactory, Model, ModelClient, ModelEngine, ModelError, RuntimeModel,
 };
 
@@ -71,8 +71,9 @@ impl ClientFactory for BasicClientFactory {
     type Engine = ModelEngine<DefaultEngine>;
     type StorageProvider = MemStorageProvider;
     type PublicKeys = EmptyKeys;
+    type Args = ();
 
-    fn create_client(&mut self) -> ModelClient<BasicClientFactory> {
+    fn create_client(&mut self, (): ()) -> ModelClient<BasicClientFactory> {
         let (eng, _) = DefaultEngine::from_entropy(Rng);
 
         // Configure testing FFIs
@@ -123,8 +124,9 @@ impl ClientFactory for FfiClientFactory {
     type Engine = ModelEngine<DefaultEngine>;
     type StorageProvider = MemStorageProvider;
     type PublicKeys = PublicKeys<DefaultCipherSuite>;
+    type Args = ();
 
-    fn create_client(&mut self) -> ModelClient<FfiClientFactory> {
+    fn create_client(&mut self, (): ()) -> ModelClient<FfiClientFactory> {
         // Setup keystore
         let temp_dir = tempdir().expect("should create temp directory");
         let root = temp_dir.into_path().join("client");
@@ -165,6 +167,24 @@ impl ClientFactory for FfiClientFactory {
             state: RefCell::new(ClientState::new(engine, provider)),
             public_keys,
         }
+    }
+}
+
+struct IdentityClientFactory<E, SP, PK>(PhantomData<(E, SP, PK)>);
+
+/// A client factory that just passes through a client.
+impl<E, SP, PK> ClientFactory for IdentityClientFactory<E, SP, PK>
+where
+    E: Engine,
+    SP: StorageProvider,
+{
+    type Engine = E;
+    type StorageProvider = SP;
+    type PublicKeys = PK;
+    type Args = ModelClient<Self>;
+
+    fn create_client(&mut self, client: Self::Args) -> ModelClient<Self> {
+        client
     }
 }
 
@@ -1106,5 +1126,185 @@ fn should_store_session_data_to_graph() {
     // Observe that it is successfully added to the graph.
     assert_eq!(effects.len(), 1);
     let expected = vec![vm_effect!(Success { value: true })];
+    assert_eq!(effects, expected);
+}
+
+// We want to test that we can create clients that use different key bundles, can
+// be synced, and can issue and receive ephemeral commands.
+#[test]
+fn should_create_clients_with_args() {
+    // Create our client factory, this will be responsible for creating all our
+    // clients.
+    let client_factory = IdentityClientFactory(PhantomData);
+    // Create a new model instance with our client factory.
+    let mut test_model = RuntimeModel::new(client_factory);
+
+    let ffi_schema: &[ModuleSchema<'static>] = &[
+        DeviceFfi::SCHEMA,
+        EnvelopeFfi::SCHEMA,
+        PerspectiveFfi::SCHEMA,
+        CryptoFfi::<Store>::SCHEMA,
+        IdamFfi::<Store>::SCHEMA,
+    ];
+
+    let policy_ast = parse_policy_document(FFI_POLICY).unwrap();
+    // Create policy machine
+    let module = Compiler::new(&policy_ast)
+        .ffi_modules(ffi_schema)
+        .compile()
+        .unwrap();
+    let machine = Machine::from_module(module).expect("should be able to load compiled module");
+
+    // We'll store the pub keys necessary for initializing and interacting with
+    // the graph.
+    let public_keys;
+
+    // Create first client with full key bundle (user_id and sign_id)
+    test_model
+        .add_client_with(1, {
+            // Setup keystore
+            let temp_dir = tempdir().expect("should create temp directory");
+            let root = temp_dir.into_path().join("client");
+            assert!(
+                !root.try_exists().expect("should create root path"),
+                "duplicate client name"
+            );
+            let mut store = {
+                let path = root.join("keystore");
+                fs::create_dir_all(&path).expect("should create directory");
+                Store::open(&path).expect("should create keystore")
+            };
+
+            let (mut eng, _) = DefaultEngine::from_entropy(Rng);
+            // Generate key bundle
+            let bundle =
+                KeyBundle::generate(&mut eng, &mut store).expect("unable to generate `KeyBundle`");
+
+            // Assign public keys to our variable
+            public_keys = bundle
+                .public_keys(&mut eng, &store)
+                .expect("unable to generate public keys");
+
+            // Configure FFIs
+            let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
+                Box::from(DeviceFfi::new(bundle.user_id)),
+                Box::from(EnvelopeFfi),
+                Box::from(PerspectiveFfi),
+                Box::from(CryptoFfi::new(
+                    store.try_clone().expect("should clone key store"),
+                )),
+                Box::from(IdamFfi::new(store)),
+            ];
+
+            let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
+            let engine = ModelEngine::new(policy);
+            let provider = MemStorageProvider::new();
+
+            ModelClient {
+                state: RefCell::new(ClientState::new(engine, provider)),
+                public_keys: EmptyKeys,
+            }
+        })
+        .expect("Should create a client");
+
+    // Pull off the public signing and identity key.
+    let client_sign_pk = postcard::to_allocvec(&public_keys.sign_pk).expect("should get sign pk");
+    let client_ident_pk =
+        postcard::to_allocvec(&public_keys.ident_pk).expect("should get ident pk");
+
+    let nonce = 1;
+    // Create a graph for client one. The init command in the ffi policy
+    // required the public signing key.
+    test_model
+        .new_graph(1, 1, vm_action!(init(nonce, client_sign_pk.clone())))
+        .expect("Should create a graph");
+
+    //  Add client keys to the fact db. Here we call the `add_user_keys` action
+    // that takes in as arguments the public identity key and public signing key.
+    test_model
+        .action(
+            1,
+            1,
+            vm_action!(add_user_keys(
+                client_ident_pk.clone(),
+                client_sign_pk.clone()
+            )),
+        )
+        .expect("should add user");
+
+    // Create second client with minimal key bundle (only user_id)
+    test_model
+        .add_client_with(2, {
+            // Setup keystore
+            let temp_dir = tempdir().expect("should create temp directory");
+            let root = temp_dir.into_path().join("client");
+            assert!(
+                !root.try_exists().expect("should create root path"),
+                "duplicate client name"
+            );
+            let mut store = {
+                let path = root.join("keystore");
+                fs::create_dir_all(&path).expect("should create directory");
+                Store::open(&path).expect("should create keystore")
+            };
+
+            let (mut eng, _) = DefaultEngine::from_entropy(Rng);
+            // Generate key bundle
+            let bundle = MinKeyBundle::generate(&mut eng, &mut store)
+                .expect("unable to generate `KeyBundle`");
+
+            // Configure FFIs
+            let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
+                Box::from(DeviceFfi::new(bundle.user_id)),
+                Box::from(EnvelopeFfi),
+                Box::from(PerspectiveFfi),
+                Box::from(CryptoFfi::new(
+                    store.try_clone().expect("should clone key store"),
+                )),
+                Box::from(IdamFfi::new(store)),
+            ];
+
+            let policy = VmPolicy::new(machine.clone(), eng, ffis).expect("should create policy");
+            let engine = ModelEngine::new(policy);
+            let provider = MemStorageProvider::new();
+
+            ModelClient {
+                state: RefCell::new(ClientState::new(engine, provider)),
+                public_keys: EmptyKeys,
+            }
+        })
+        .expect("Should create a client");
+
+    // Sync client two with client one (1 -> 2). Syncs are unidirectional, client
+    // two will receive all the new commands it doesn't yet know about from client
+    // one. At this stage of the test, that's the init, add_user_keys.
+    test_model.sync(1, 1, 2).expect("Should sync clients");
+
+    let (commands, _effects) = test_model
+        .session_actions(
+            1,
+            1,
+            vec![
+                vm_action!(create_greeting("hello")),
+                vm_action!(verify_hello()),
+            ],
+        )
+        .expect("Should return effect");
+
+    // Send commands to client two...
+
+    // `session_receive` is used to receive and process the ephemeral commands
+    // on a new client, in this case client two.
+    let effects = test_model
+        .session_receive(2, 1, commands)
+        .expect("should get effect");
+
+    // Observe that our create_greeting action and our verification action
+    // both succeeded.
+    assert_eq!(effects.len(), 2);
+    let expected = vec![
+        vm_effect!(Greeting { msg: "hello" }),
+        vm_effect!(Success { value: true }),
+    ];
     assert_eq!(effects, expected);
 }

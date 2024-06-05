@@ -14,6 +14,13 @@ pub struct KeyBundle {
     pub sign_id: SigningKeyId,
 }
 
+/// A minimum key bundle.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MinKeyBundle {
+    /// See [`IdentityKey`].
+    pub user_id: UserId,
+}
+
 /// Public keys from key bundle.
 #[derive(Debug)]
 pub struct PublicKeys<CS: CipherSuite> {
@@ -72,6 +79,38 @@ impl KeyBundle {
                 .context("unable to load `SigningKey`")?
                 .context("unable to find `SigningKey`")?
                 .public(),
+        })
+    }
+}
+
+impl MinKeyBundle {
+    /// Generates a minimum key bundle.
+    ///
+    /// The wrapped keys are stored inside of `store`.
+    pub fn generate<E, S>(eng: &mut E, store: &mut S) -> Result<Self>
+    where
+        E: Engine,
+        S: KeyStore,
+    {
+        macro_rules! gen {
+            ($key:ident) => {{
+                let sk = $key::<E::CS>::new(eng);
+                let id = sk.id();
+                let wrapped =
+                    eng.wrap(sk)
+                        .context(concat!("unable to wrap `", stringify!($key), "`"))?;
+
+                store.try_insert(id.into(), wrapped).context(concat!(
+                    "unable to insert wrapped `",
+                    stringify!($key),
+                    "`"
+                ))?;
+
+                id
+            }};
+        }
+        Ok(Self {
+            user_id: gen!(IdentityKey),
         })
     }
 }

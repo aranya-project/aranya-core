@@ -142,9 +142,22 @@ pub trait Model {
     type Effect;
     type Action<'a>;
     type PublicKeys;
+    type ClientArgs;
 
     /// Used to add a client to the model.
-    fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError>;
+    fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError>
+    where
+        Self::ClientArgs: Default,
+    {
+        self.add_client_with(proxy_id, Default::default())
+    }
+
+    /// Used to add a client to the model.
+    fn add_client_with(
+        &mut self,
+        proxy_id: ProxyClientID,
+        args: Self::ClientArgs,
+    ) -> Result<(), ModelError>;
 
     /// Used to create a graph on a client.
     fn new_graph(
@@ -284,8 +297,9 @@ pub trait ClientFactory {
     type Engine: Engine;
     type StorageProvider: StorageProvider;
     type PublicKeys;
+    type Args;
 
-    fn create_client(&mut self) -> ModelClient<Self>;
+    fn create_client(&mut self, args: Self::Args) -> ModelClient<Self>;
 }
 
 type ClientStorageIds = BTreeMap<ProxyGraphID, GraphId>;
@@ -320,15 +334,20 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     type Effect = <CF::Engine as Engine>::Effect;
     type Action<'a> = <<CF::Engine as Engine>::Policy as Policy>::Action<'a>;
     type PublicKeys = CF::PublicKeys;
+    type ClientArgs = CF::Args;
 
     /// Add a client to the model
-    fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError> {
+    fn add_client_with(
+        &mut self,
+        proxy_id: ProxyClientID,
+        args: Self::ClientArgs,
+    ) -> Result<(), ModelError> {
         if self.clients.contains_key(&proxy_id) {
             return Err(ModelError::DuplicateClient);
         };
 
         self.clients
-            .insert(proxy_id, self.client_factory.create_client());
+            .insert(proxy_id, self.client_factory.create_client(args));
 
         Ok(())
     }
