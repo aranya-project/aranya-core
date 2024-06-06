@@ -10,16 +10,26 @@ rust-version.workspace = true
 [dependencies]
 crypto = { path = "../crypto", default-features = false }
 policy-ast = { path = "../policy-ast" }
+proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
+proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 trouble = { path = "../trouble" }
 
 [features]
 default = []
 
+proptest = [
+	"crypto/proptest",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"std",
+]
+
 # Enable `std`.
 std = [
 	"crypto/std",
 	"policy-ast/std",
+	"proptest?/std",
 	"serde/std",
 	"trouble/std",
 ]

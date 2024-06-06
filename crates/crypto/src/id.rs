@@ -24,6 +24,7 @@ use crate::{ciphersuite::SuiteIds, csprng::Csprng, hash::tuple_hash, CipherSuite
 /// A unique cryptographic ID.
 #[repr(C)]
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
+#[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Id([u8; 64]);
 
 impl Id {

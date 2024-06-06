@@ -1,15 +1,16 @@
 //! VM tests.
 
 extern crate alloc;
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, vec, vec::Vec};
 
 use crypto::{default::DefaultEngine, Rng, UserId};
 use policy_module::Module;
-use policy_vm::{KVPair, Machine, Value};
+use policy_vm::{FactKey, HashableValue, KVPair, Machine, Value};
 use tracing::trace;
 
 use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
+    ser_keys,
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
@@ -271,14 +272,7 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Serialize the keys of the fact we created/updated in the previous actions.
     let fact_name = "Stuff";
-    let fact_keys: crate::storage::Keys = [(String::from("x"), Value::Int(1))]
-        .into_iter()
-        .map(|k| {
-            postcard::to_allocvec(&k)
-                .expect("key serialization")
-                .into_boxed_slice()
-        })
-        .collect();
+    let fact_keys = ser_keys([FactKey::new("x", HashableValue::Int(1))]);
 
     // This is the value part of the fact that we expect to retrieve.
     let expected_value = vec![KVPair::new("y", Value::Int(4))];
@@ -439,14 +433,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     let head = storage.get_head()?;
 
     let fact_name = "Stuff";
-    let fact_keys: crate::storage::Keys = [(String::from("x"), Value::Int(1))]
-        .into_iter()
-        .map(|k| {
-            postcard::to_allocvec(&k)
-                .expect("key serialization")
-                .into_boxed_slice()
-        })
-        .collect();
+    let fact_keys = ser_keys([FactKey::new("x", HashableValue::Int(1))]);
 
     let expected_value = vec![KVPair::new("y", Value::Int(5))];
     let perspective = storage.get_fact_perspective(head).expect("perspective");

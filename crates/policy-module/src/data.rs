@@ -364,6 +364,7 @@ impl Display for Value {
 /// The subset of Values that can be hashed. Only these types of values
 /// can be used in the key portion of a Fact.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub enum HashableValue {
     /// An integer.
     Int(i64),
@@ -423,6 +424,7 @@ impl Display for HashableValue {
 /// One labeled value in a fact key. A sequence of FactKeys mapped to
 /// a sequence of FactValues comprises a Fact.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct FactKey {
     /// key name
     pub identifier: String,

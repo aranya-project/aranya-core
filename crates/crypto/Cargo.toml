@@ -96,6 +96,9 @@ moonshot = [
 	"dep:spin",
 ]
 
+# Enable `proptest::arbitrary::Arbitrary` implemenations
+proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
+
 # Enable compat with the `rand`, `rand_core`, etc. crates.
 rand_compat = [
 	"dep:rand",
@@ -127,6 +130,7 @@ std = [
 	"p256/std",
 	"p384/std",
 	"postcard/use-std",
+	"proptest?/std",
 	"rand?/std",
 	"rand?/std_rng",
 	"rand_core/std",
@@ -144,6 +148,8 @@ std = [
 # Include testing utilities.
 test_util = [
 	"alloc",
+	"proptest",
+
 	"dep:serde_json",
 	"dep:serde_repr",
 	"dep:wycheproof",
@@ -173,6 +179,8 @@ more-asserts = { version = "0.3", default-features = false }
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
+proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
+proptest-derive = { workspace = true, optional = true }
 rand = { workspace = true, default-features = false, optional = true }
 # `rand_core` is required by the `rust` backend.
 rand_core = { workspace = true, default-features = false }

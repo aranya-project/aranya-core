@@ -41,6 +41,8 @@ runtime = { path = ".", features = ["testing", "libc"] }
 
 policy-compiler = { path = "../policy-compiler" }
 policy-lang = { path = "../policy-lang" }
+policy-module = { path = "../policy-module", features = ["proptest"] }
+proptest = { workspace = true, default-features = true }
 serde_json = { version = "1.0.117", default-features = false, features = ["alloc"] }
 tempfile = "3.9.0"
 test-log = { workspace = true }
