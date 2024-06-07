@@ -11,6 +11,9 @@ use core::{
 pub use base58::{DecodeError, String64, ToBase58};
 use generic_array::GenericArray;
 use postcard::experimental::max_size::MaxSize;
+#[cfg(feature = "proptest")]
+#[doc(hidden)]
+pub use proptest as __proptest;
 use serde::{
     de::{self, DeserializeOwned, SeqAccess, Visitor},
     ser::SerializeTuple,
@@ -360,9 +363,42 @@ macro_rules! custom_id {
                 $crate::id::ToBase58::to_base58(&self.0)
             }
         }
+
+        $crate::__custom_id_proptest!($name);
     };
 }
 pub(crate) use custom_id;
+
+#[cfg(feature = "proptest")]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __custom_id_proptest {
+    ($name:ident) => {
+        impl $crate::id::__proptest::arbitrary::Arbitrary for $name {
+            type Parameters =
+                <$crate::Id as $crate::id::__proptest::arbitrary::Arbitrary>::Parameters;
+            type Strategy = $crate::id::__proptest::strategy::Map<
+                <$crate::Id as $crate::id::__proptest::arbitrary::Arbitrary>::Strategy,
+                fn($crate::Id) -> Self,
+            >;
+            fn arbitrary_with(params: Self::Parameters) -> Self::Strategy {
+                {
+                    $crate::id::__proptest::strategy::Strategy::prop_map(
+                        $crate::id::__proptest::arbitrary::any_with::<$crate::Id>(params),
+                        Self,
+                    )
+                }
+            }
+        }
+    };
+}
+
+#[cfg(not(feature = "proptest"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __custom_id_proptest {
+    ($name:ident) => {};
+}
 
 /// An object with a unique identifier.
 pub trait Identified {
