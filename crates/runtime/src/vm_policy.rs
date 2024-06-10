@@ -367,19 +367,6 @@ impl<E: crypto::Engine> VmPolicy<E> {
             }
         }
     }
-
-    #[instrument(skip_all)]
-    fn read_command<'a>(
-        &self,
-        id: CommandId,
-        data: &'a [u8],
-    ) -> Result<VmProtocol<'a>, EngineError> {
-        let unpacked: VmProtocolData = postcard::from_bytes(data).map_err(|e| {
-            error!("Could not deserialize: {e:?}");
-            EngineError::Read
-        })?;
-        Ok(VmProtocol::new(data, id, unpacked))
-    }
 }
 
 /// [`VmPolicy`]'s actions.
@@ -571,7 +558,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                 },
             };
             let wrapped = postcard::to_allocvec(&data)?;
-            let new_command = self.read_command(envelope.command_id, &wrapped)?;
+            let new_command = VmProtocol::new(&wrapped, envelope.command_id, data);
 
             self.call_rule(&new_command, facts, sink, CommandRecall::None)?;
             facts.add_command(&new_command).map_err(|e| {
