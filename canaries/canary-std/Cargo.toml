@@ -12,13 +12,21 @@ rust-version.workspace = true
 base58 = { path = "../../crates/base58", features = ["alloc"] }
 buggy = { path = "../../crates/buggy", features = ["alloc"] }
 # `crypto` enables `getrandom` by default.
-crypto = { path = "../../crates/crypto", default-features = false, features = ["alloc"] }
+crypto = { path = "../../crates/crypto", default-features = false, features = [
+	"alloc",
+	"committing-aead",
+	"clone-aead",
+	"proptest",
+	"rand_compat",
+] }
 crypto-ffi = { path = "../../crates/crypto-ffi", features = ["alloc"] }
 device-ffi = { path = "../../crates/device-ffi", features = ["alloc"] }
+envelope-ffi = { path = "../../crates/envelope-ffi", features = ["alloc"] }
 idam-ffi = { path = "../../crates/idam-ffi", features = ["alloc"] }
 perspective-ffi = { path = "../../crates/perspective-ffi", features = ["alloc"] }
 policy-ast = { path = "../../crates/policy-ast" }
-policy-vm = { path = "../../crates/policy-vm" }
+policy-module = { path = "../../crates/policy-module" }
+policy-vm = { path = "../../crates/policy-vm", features = ["derive"] }
 # These features must also be no-std.
 runtime = { path = "../../crates/runtime", features = ["testing"] }
 trouble = { path = "../../crates/trouble" }

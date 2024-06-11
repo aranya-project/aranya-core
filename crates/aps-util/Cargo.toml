@@ -44,7 +44,6 @@ testing = [
 
 [dependencies]
 aps = { git = "https://git.spideroak-inc.com/spideroak-inc/aps.git", branch = "main", default-features = false, features = ["alloc"] }
-cfg-if = { workspace = true, default-features = false }
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 indexmap = { version = "2.1", default-features = false, optional = true }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }

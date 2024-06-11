@@ -14,8 +14,6 @@ workspace = true
 buggy = { path = "../buggy", features = ["alloc"] }
 # `crypto` enables `getrandom` by default.
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
-device-ffi = { path = "../device-ffi" }
-perspective-ffi = { path = "../perspective-ffi" }
 policy-vm = { path = "../policy-vm" }
 trouble = { path = "../trouble" }
 

@@ -14,13 +14,13 @@ workspace = true
 default = []
 
 [dependencies]
-anyhow = { workspace = true }
 buggy = { path = "../buggy", features = ["std"] }
-cfg-if = { version = "1" }
 ciborium = { version = "0.2" }
 clap = { version = "4.4", features = ["derive"] }
 policy-ast = { path = "../policy-ast" }
 policy-lang = { path = "../policy-lang" }
 policy-module = { path = "../policy-module", features = ["std"] }
-serde = { workspace = true, default-features = false, features = ["derive"] }
 trouble = { path = "../trouble" }
+
+[dev-dependencies]
+anyhow = { workspace = true }

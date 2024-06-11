@@ -44,7 +44,6 @@ testing = [
 #
 
 [dependencies]
-cfg-if = { workspace = true, default-features = false }
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }

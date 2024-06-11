@@ -10,7 +10,7 @@ rust-version.workspace = true
 [dependencies]
 crypto = { path = "../crypto", default-features = false }
 policy-ast = { path = "../policy-ast" }
-proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
+proptest = { workspace = true, default-features = false, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 trouble = { path = "../trouble" }
@@ -29,10 +29,15 @@ proptest = [
 std = [
 	"crypto/std",
 	"policy-ast/std",
-	"proptest?/std",
 	"serde/std",
 	"trouble/std",
 ]
 
 [lints]
 workspace = true
+
+[package.metadata.cargo-machete]
+ignored = [
+	# used in proptest-derive expansion
+	"proptest",
+]

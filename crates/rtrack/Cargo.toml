@@ -56,7 +56,6 @@ serde_repr = { version = "0.1", optional = true, default-features = false }
 [dev-dependencies]
 # This is a bit of a hack so that we run our integration tests
 # with the `spira` feature.
-itoa = { version = "1.0" }
 rtrack = { path = ".", features = ["spira"] }
 
 [build-dependencies]

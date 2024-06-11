@@ -28,13 +28,11 @@ std = [
 
 [dependencies]
 buggy = { path = "../buggy", features = ["alloc"] }
-cfg-if = { workspace = true, default-features = false }
 crypto = { path = "../crypto", default-features = false }
 policy-ast = { path = "../policy-ast" }
 policy-derive = { path = "../policy-derive" }
 policy-module = { path = "../policy-module" }
 postcard = { workspace = true, features = ["alloc"] }
-serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 trouble = { path = "../trouble" }
 
 [dev-dependencies]

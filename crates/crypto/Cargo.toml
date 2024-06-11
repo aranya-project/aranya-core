@@ -229,6 +229,7 @@ always_include_features = [
 	"ed25519_batch",
 	"fs-keystore",
 	"getrandom",
+	"proptest",
 	"rand_compat",
 	"std",
 	"test_util",

@@ -158,7 +158,6 @@ version = "0.1.0"
 dependencies = [
  "aps",
  "aps-util",
- "cfg-if",
  "crypto",
  "indexmap",
  "policy-vm",
@@ -373,9 +372,11 @@ dependencies = [
  "crypto",
  "crypto-ffi",
  "device-ffi",
+ "envelope-ffi",
  "idam-ffi",
  "perspective-ffi",
  "policy-ast",
+ "policy-module",
  "policy-vm",
  "runtime",
  "trouble",
@@ -761,8 +762,6 @@ dependencies = [
 name = "crypto-derive"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "log",
  "prettyplease",
  "proc-macro2",
  "quote",
@@ -773,7 +772,6 @@ dependencies = [
 name = "crypto-ffi"
 version = "0.1.0"
 dependencies = [
- "cfg-if",
  "crypto",
  "crypto-ffi",
  "policy-vm",
@@ -844,7 +842,6 @@ name = "device-ffi"
 version = "0.1.0"
 dependencies = [
  "crypto",
- "policy-lang",
  "policy-vm",
 ]
 
@@ -1397,7 +1394,6 @@ dependencies = [
 name = "idam-ffi"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "crypto",
  "idam-ffi",
  "policy-vm",
@@ -1851,7 +1847,6 @@ name = "perspective-ffi"
 version = "0.1.0"
 dependencies = [
  "crypto",
- "policy-lang",
  "policy-vm",
 ]
 
@@ -1966,7 +1961,6 @@ dependencies = [
 name = "policy-ast"
 version = "0.1.0"
 dependencies = [
- "cfg-if",
  "serde",
  "trouble",
 ]
@@ -1977,13 +1971,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "buggy",
- "cfg-if",
  "ciborium",
  "clap",
  "policy-ast",
  "policy-lang",
  "policy-module",
- "serde",
  "trouble",
 ]
 
@@ -1991,8 +1983,6 @@ dependencies = [
 name = "policy-derive"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "log",
  "policy-lang",
  "prettyplease",
  "proc-macro2",
@@ -2031,7 +2021,6 @@ dependencies = [
 name = "policy-ifgen-macro"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "proc-macro2",
  "quote",
  "syn 2.0.60",
@@ -2043,9 +2032,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "buggy",
- "cfg-if",
  "clap",
- "crypto",
  "markdown",
  "pest",
  "pest_derive",
@@ -2072,7 +2059,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "buggy",
- "cfg-if",
  "ciborium",
  "crypto",
  "policy-ast",
@@ -2082,7 +2068,6 @@ dependencies = [
  "policy-module",
  "policy-vm",
  "postcard",
- "serde",
  "trouble",
 ]
 
@@ -2501,7 +2486,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "itoa",
  "lazy_static",
  "log",
  "quote",
@@ -2530,12 +2514,10 @@ dependencies = [
  "buggy",
  "cfg-if",
  "crypto",
- "device-ffi",
  "dot-writer",
  "heapless",
  "libc",
  "memchr",
- "perspective-ffi",
  "policy-compiler",
  "policy-lang",
  "policy-module",

@@ -88,6 +88,7 @@ run_task = { name = [
     "check-features",
     "clippy",
     "check-canaries",
+    "machete",
 ] }
 
 [tasks.check-fmt]
@@ -171,6 +172,12 @@ dependencies = ["check-canary-alloc", "check-canary-std"]
 [tasks.install-no-std-target]
 private = true
 script = "rustup target add aarch64-unknown-none"
+
+[tasks.machete]
+command = "cargo"
+args = ["machete"]
+install_crate = { crate_name = "cargo-machete", version = "0.6.2", binary = "cargo-machete", test_arg = "--version" }
+
 
 # Docs
 [tasks.gen-docs-nightly]

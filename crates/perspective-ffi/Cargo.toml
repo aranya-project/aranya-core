@@ -33,7 +33,7 @@ crypto = { path = "../crypto", default-features = false }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
-policy-lang = { path = "../policy-lang" }
+crypto = { path = "../crypto", features = ["getrandom"] }
 
 [package.metadata.docs.rs]
 all-features = true
