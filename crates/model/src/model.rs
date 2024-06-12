@@ -7,6 +7,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use core::{
     cell::RefCell,
     fmt::{self, Debug, Display},
+    mem,
 };
 
 use anyhow::Result;
@@ -143,6 +144,9 @@ pub trait Model {
     type Action<'a>;
     type PublicKeys;
     type ClientArgs;
+    type Session<'a>
+    where
+        Self: 'a;
 
     /// Used to add a client to the model.
     fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError>
@@ -188,6 +192,15 @@ pub trait Model {
         &self,
         client_proxy_id: ProxyClientID,
     ) -> Result<&Self::PublicKeys, ModelError>;
+
+    /// Create a [`Model::Session`] to process ephemeral actions and commands.
+    ///
+    /// See [`Model::session_actions`] and [`Model::session_receive`] for convenience.
+    fn session(
+        &self,
+        client_proxy_id: ProxyClientID,
+        graph_proxy_id: ProxyGraphID,
+    ) -> Result<Self::Session<'_>>;
 
     /// Used for calling a set of actions that emit only ephemeral commands.
     fn session_actions<'a>(
@@ -335,6 +348,7 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     type Action<'a> = <<CF::Engine as Engine>::Policy as Policy>::Action<'a>;
     type PublicKeys = CF::PublicKeys;
     type ClientArgs = CF::Args;
+    type Session<'a> = Session<'a, CF::Engine, CF::StorageProvider> where CF: 'a;
 
     /// Add a client to the model
     fn add_client_with(
@@ -484,6 +498,32 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
             .public_keys)
     }
 
+    fn session(
+        &self,
+        client_proxy_id: ProxyClientID,
+        graph_proxy_id: ProxyGraphID,
+    ) -> Result<Self::Session<'_>> {
+        let storage_id = *self
+            .storage_ids
+            .get(&graph_proxy_id)
+            .ok_or(ModelError::GraphNotFound)?;
+
+        let client = &self
+            .clients
+            .get(&client_proxy_id)
+            .ok_or(ModelError::ClientNotFound)?
+            .state;
+
+        let session = client.borrow_mut().session(storage_id)?;
+
+        Ok(Session {
+            client,
+            session,
+            effects: VecSink::new(),
+            msgs: MsgSink::new(),
+        })
+    }
+
     /// Create ephemeral session commands and effects
     fn session_actions<'a>(
         &mut self,
@@ -491,30 +531,11 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         graph_proxy_id: ProxyGraphID,
         actions: impl IntoIterator<Item = Self::Action<'a>>,
     ) -> Result<SessionData<Self::Effect>> {
-        let state = self
-            .clients
-            .get_mut(&client_proxy_id)
-            .ok_or(ModelError::ClientNotFound)?
-            .state
-            .get_mut();
-
-        let storage_id = self
-            .storage_ids
-            .get(&(graph_proxy_id))
-            .ok_or(ModelError::GraphNotFound)?;
-
-        let mut effect_sink = VecSink::new();
-        let mut msg_sink = MsgSink::new();
-
-        let mut session = state.session(*storage_id)?;
-
+        let mut session = self.session(client_proxy_id, graph_proxy_id)?;
         for action in actions {
-            session.action(state, &mut effect_sink, &mut msg_sink, action)?;
+            session.action(action)?;
         }
-
-        let cmds = msg_sink.into_cmds();
-        let effects = effect_sink.collect()?;
-        Ok((cmds, effects))
+        Ok(session.observe())
     }
 
     /// Process ephemeral session commands
@@ -524,24 +545,46 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         graph_proxy_id: ProxyGraphID,
         commands: impl IntoIterator<Item = Box<[u8]>>,
     ) -> Result<Vec<Self::Effect>> {
-        let state = self
-            .clients
-            .get_mut(&client_proxy_id)
-            .ok_or(ModelError::ClientNotFound)?
-            .state
-            .get_mut();
-
-        let storage_id = self
-            .storage_ids
-            .get(&(graph_proxy_id))
-            .ok_or(ModelError::GraphNotFound)?;
-
-        let mut sink = VecSink::new();
-
-        let mut session = state.session(*storage_id)?;
-        for cmd in commands {
-            session.receive(state, &mut sink, &cmd)?;
+        let mut session = self.session(client_proxy_id, graph_proxy_id)?;
+        for command in commands {
+            session.receive(&command)?;
         }
-        Ok(sink.collect()?)
+        Ok(session.observe().1)
+    }
+}
+
+/// A wrapper around [`runtime::Session`] for processing ephemeral actions and commands.
+pub struct Session<'a, E: Engine, SP: StorageProvider> {
+    client: &'a RefCell<ClientState<E, SP>>,
+    session: runtime::Session<SP, E>,
+    effects: VecSink<<E as Engine>::Effect>,
+    msgs: MsgSink,
+}
+
+impl<E: Engine, SP: StorageProvider> Session<'_, E, SP> {
+    /// Process an ephemeral action.
+    pub fn action(&mut self, action: <<E as Engine>::Policy as Policy>::Action<'_>) -> Result<()> {
+        self.session.action(
+            &*self.client.borrow(),
+            &mut self.effects,
+            &mut self.msgs,
+            action,
+        )?;
+        Ok(())
+    }
+
+    /// Process a received ephemeral command.
+    pub fn receive(&mut self, command: &[u8]) -> Result<()> {
+        self.session
+            .receive(&*self.client.borrow(), &mut self.effects, command)?;
+        Ok(())
+    }
+
+    /// Observe and consume the produced effects and commands.
+    pub fn observe(&mut self) -> SessionData<<E as Engine>::Effect> {
+        (
+            mem::take(&mut self.msgs.cmds),
+            mem::take(&mut self.effects.effects),
+        )
     }
 }

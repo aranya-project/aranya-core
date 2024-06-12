@@ -1129,6 +1129,71 @@ fn should_store_session_data_to_graph() {
     assert_eq!(effects, expected);
 }
 
+#[test]
+fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
+    let basic_clients = BasicClientFactory::new(BASIC_POLICY)?;
+    let mut test_model = RuntimeModel::new(basic_clients);
+
+    // Create clients
+    test_model.add_client(1)?;
+    test_model.add_client(2)?;
+
+    // Create graph and sync
+    test_model.new_graph(1, 1, vm_action!(init(42)))?;
+    test_model.sync(1, 1, 2)?;
+
+    // Perform actions on client 1 session.
+    let (cmds, effects) = test_model.session_actions(
+        1,
+        1,
+        [vm_action!(create_action(5)), vm_action!(increment(3))],
+    )?;
+
+    assert_eq!(
+        effects,
+        [
+            vm_effect!(StuffHappened { a: 1, x: 5 }),
+            vm_effect!(StuffHappened { a: 1, x: 8 }),
+        ]
+    );
+
+    // Receive commands and perform action on client 2 session.
+    let mut session = test_model.session(2, 1)?;
+    for cmd in cmds {
+        session.receive(&cmd)?;
+    }
+    session.action(vm_action!(increment(7)))?;
+
+    let (cmds, effects) = session.observe();
+    assert_eq!(
+        effects,
+        [
+            vm_effect!(StuffHappened { a: 1, x: 5 }),
+            vm_effect!(StuffHappened { a: 1, x: 8 }),
+            vm_effect!(StuffHappened { a: 1, x: 15 }),
+        ]
+    );
+
+    // Receive commands from client 2 on a new session,
+    // and then perform an action afterward.
+    let mut session = test_model.session(1, 1)?;
+    session.action(vm_action!(create_action(2)))?;
+    for cmd in cmds {
+        session.receive(&cmd)?;
+    }
+
+    let (_cmds, effects) = session.observe();
+    assert_eq!(
+        effects,
+        [
+            vm_effect!(StuffHappened { a: 1, x: 2 }),
+            vm_effect!(StuffHappened { a: 1, x: 9 }),
+        ]
+    );
+
+    Ok(())
+}
+
 // We want to test that we can create clients that use different key bundles, can
 // be synced, and can issue and receive ephemeral commands.
 #[test]
