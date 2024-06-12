@@ -57,15 +57,15 @@ fn test_bytes() -> anyhow::Result<()> {
     let text = r#"
         command Foo {
             fields {
-                id id,
+                id_field id,
                 x bytes,
             }
             seal { return None }
             open { return None }
         }
 
-        action foo(id id, x bytes) {
-            publish Foo{id: id, x: x}
+        action foo(id_input id, x bytes) {
+            publish Foo{id_field: id_input, x: x}
         }
     "#;
 
@@ -88,14 +88,14 @@ fn test_bytes() -> anyhow::Result<()> {
         (
             "Foo".to_string(),
             vec![
-                KVPair::new("id", Value::Bytes(vec![0xa, 0xb, 0xc])),
+                KVPair::new("id_field", Value::Bytes(vec![0xa, 0xb, 0xc])),
                 KVPair::new("x", Value::Bytes(vec![0, 255, 42]))
             ]
         )
     );
     assert_eq!(
         format!("{}", io.publish_stack[0].1[0]),
-        "id: b:0A0B0C".to_string()
+        "id_field: b:0A0B0C".to_string()
     );
 
     Ok(())
@@ -110,16 +110,16 @@ fn test_structs() -> anyhow::Result<()> {
 
         command Foo {
             fields {
-                id id,
+                id_field id,
                 bar struct Bar,
             }
             seal { return None }
             open { return None }
         }
 
-        action foo(id id, x int) {
+        action foo(id_input id, x int) {
             publish Foo{
-                id: id,
+                id_field: id_input,
                 bar: Bar {
                     x: x
                 },
@@ -158,7 +158,7 @@ fn test_structs() -> anyhow::Result<()> {
                     "bar",
                     Value::Struct(Struct::new("Bar", [KVPair::new("x", Value::Int(3))]))
                 ),
-                KVPair::new("id", Value::Bytes(vec![0xa, 0xb, 0xc])),
+                KVPair::new("id_field", Value::Bytes(vec![0xa, 0xb, 0xc])),
             ]
         )
     );
@@ -173,7 +173,7 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
             x int
         }
 
-        action foo(id id, x int) {
+        action foo(id_input id, x int) {
             let v = Bar {
                 y: x
             }

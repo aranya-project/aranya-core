@@ -183,7 +183,7 @@ impl<'a, T, G> TestModule<'a, T, G> {
         Ok(a + b.as_str())
     }
 
-    #[ffi_export(def = "function renamed_identity(id id) id")]
+    #[ffi_export(def = "function renamed_identity(id_input id) id")]
     fn identity<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,

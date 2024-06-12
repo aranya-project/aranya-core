@@ -211,7 +211,7 @@ fn should_create_basic_client_and_add_commands() {
 
     // Issue our first action, it will create a fact in the FactDB.
     let effects = test_model
-        .action(1, 1, vm_action!(create(3)))
+        .action(1, 1, vm_action!(create_action(3)))
         .expect("Should return effect");
     // Observe that we get back a single effect.
     assert_eq!(effects.len(), 1);
@@ -300,7 +300,7 @@ fn should_create_client_with_ffi_and_add_commands() {
     // we pass in. Note that we no longer need to pass in the signing key, the ffi
     // policy commands will be responsible for looking up signing information.
     let effects = test_model
-        .action(1, 1, vm_action!(create(3)))
+        .action(1, 1, vm_action!(create_action(3)))
         .expect("Should return effect");
     // Observe that we get back a single effect.
     assert_eq!(effects.len(), 1);
@@ -455,7 +455,7 @@ fn should_sync_ffi_clients() {
     // we pass in. Note that we no longer need to pass in the signing key, the ffi
     // policy commands will be responsible for looking up signing information.
     test_model
-        .action(1, 1, vm_action!(create(3)))
+        .action(1, 1, vm_action!(create_action(3)))
         .expect("Should return effect");
 
     // Issue an action to increment the value by one.
@@ -571,7 +571,7 @@ fn should_sync_basic_clients() {
     // Issue the create action, it will create a fact in the FactDB with the value
     // we pass in.
     test_model
-        .action(1, 1, vm_action!(create(3)))
+        .action(1, 1, vm_action!(create_action(3)))
         .expect("Should return effect");
 
     // Issue an action to increment the value by one.
@@ -659,7 +659,7 @@ fn should_sync_clients_with_duplicate_payloads() {
 
     // Issue our first action, it will create a fact in the FactDB.
     let effects = test_model
-        .action(1, 1, vm_action!(create(1)))
+        .action(1, 1, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
     let expected = vec![vm_effect!(StuffHappened { a: 1, x: 1 })];
@@ -732,7 +732,7 @@ fn should_allow_multiple_instances_of_model() {
 
     // Issue a create action on the first model client.
     let effects = test_model_1
-        .action(1, 1, vm_action!(create(1)))
+        .action(1, 1, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
     let expected = vec![vm_effect!(StuffHappened { a: 1, x: 1 })];
@@ -746,7 +746,7 @@ fn should_allow_multiple_instances_of_model() {
 
     // Issue an action on the second model client
     let effects = test_model_2
-        .action(1, 1, vm_action!(create(1)))
+        .action(1, 1, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
     let expected = vec![vm_effect!(StuffHappened { a: 1, x: 1 })];
@@ -804,7 +804,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
 
     // Issue a create action on the first model client
     let effects = test_model_1
-        .action(1, 1, vm_action!(create(1)))
+        .action(1, 1, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
     let expected = vec![vm_effect!(StuffHappened { a: 1, x: 1 })];
@@ -846,7 +846,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
 
     // Issue an action on the second model client
     let effects = test_model_2
-        .action(1, 1, vm_action!(create(1)))
+        .action(1, 1, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects.len(), 1);
     let expected = vec![vm_effect!(StuffHappened { a: 1, x: 1 })];
@@ -1047,7 +1047,7 @@ fn should_allow_access_to_fact_db_from_session() {
 
     // Create an on-graph fact to later be queried from the session command.
     let _ = test_model
-        .action(1, 1, vm_action!(create(42)))
+        .action(1, 1, vm_action!(create_action(42)))
         .expect("Should return effect");
 
     // Sync graph with client two. Currently, ephemeral commands must be run on

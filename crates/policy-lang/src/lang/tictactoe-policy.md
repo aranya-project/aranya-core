@@ -15,16 +15,16 @@ function bounds(v int) bool {
 }
 // finish functions can only be used in finish blocks and can only contain
 // statements valid in finish blocks
-finish function set_next_player(gameID id, to string) {
-    update NextPlayer[gameID: gameID] to {p: to}
+finish function set_next_player(gameID id, to_input string) {
+    update NextPlayer[gameID: gameID] to {p: to_input}
 }
 
 action StartGame(profileX id, profileO id) {
-    let command = Start{
+    let start_command = Start{
         ProfileX: profileX,
         ProfileO: profileO,
     }
-    publish command
+    publish start_command
 }
 
 effect GameStart {
@@ -58,12 +58,12 @@ command Start {
 }
 
 action MakeMove(gameID id, x int, y int) {
-    let command = Move {
+    let move_command = Move {
         gameID: gameID,
         X: x,
         Y: y,
     }
-    publish command
+    publish move_command
 }
 
 effect GameUpdate {

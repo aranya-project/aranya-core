@@ -165,7 +165,7 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Insert a struct definition while preventing duplicates.
+    /// Insert a struct definition while preventing duplicates of the struct name and fields
     pub fn define_struct(
         &mut self,
         identifier: &str,
@@ -173,6 +173,17 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         match self.m.struct_defs.entry(identifier.to_string()) {
             Entry::Vacant(e) => {
+                let mut identifiers = BTreeSet::new();
+
+                for field in fields {
+                    if !identifiers.insert(field.identifier.as_str()) {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::AlreadyDefined(field.identifier.to_string()),
+                            self.last_locator,
+                            self.m.codemap.as_ref(),
+                        ));
+                    }
+                }
                 e.insert(fields.to_vec());
                 Ok(())
             }

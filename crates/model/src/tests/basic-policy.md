@@ -79,7 +79,7 @@ command Init {
 
 // The `create` action takes a value and passes it to the `Create` command. For
 // simplicity sake, the fact key is hard coded in all our examples.
-action create(v int) {
+action create_action(v int) {
     publish Create{
         key_a: 1,
         value: v,

@@ -35,6 +35,8 @@ pub enum CompileErrorType {
     NotDefined(String),
     /// A thing by that name has already been defined
     AlreadyDefined(String),
+    /// A keyword collision occurs with that identifier
+    ReservedIdentifier(String),
     /// Expected value was missing
     Missing(String),
     /// Fact literal doesn't match definition
@@ -61,6 +63,7 @@ impl fmt::Display for CompileErrorType {
             Self::BadArgument(s) => write!(f, "Bad argument: {}", s),
             Self::NotDefined(s) => write!(f, "Not defined: {}", s),
             Self::AlreadyDefined(s) => write!(f, "Already defined: {}", s),
+            Self::ReservedIdentifier(s) => write!(f, "Reserved identifier: {}", s),
             Self::Missing(s) => write!(f, "Missing: {}", s),
             Self::InvalidFactLiteral(s) => write!(f, "Fact literal does not match definition: {s}"),
             Self::NoReturn => write!(f, "Function has no return statement"),

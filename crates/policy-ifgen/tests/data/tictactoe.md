@@ -25,12 +25,12 @@ effect GameStart {
 }
 
 action MakeMove(gameID id, x int, y int) {
-    let command = Move {
+    let move_command = Move {
         gameID: gameID,
         X: x,
         Y: y,
     }
-    publish command
+    publish move_command
 }
 
 effect GameUpdate {

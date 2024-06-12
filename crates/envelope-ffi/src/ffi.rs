@@ -95,7 +95,7 @@ struct Envelope {
 impl Ffi {
     /// Returns the envelope's `parent_id` field.
     #[ffi_export(def = r#"
-function parent_id(envelope struct Envelope) id
+function parent_id(envelope_input struct Envelope) id
 "#)]
     pub(crate) fn parent_id<E: Engine>(
         &self,
@@ -115,7 +115,7 @@ function parent_id(envelope struct Envelope) id
     }
     /// Returns the envelope's `author_id` field.
     #[ffi_export(def = r#"
-function author_id(envelope struct Envelope) id
+function author_id(envelope_input struct Envelope) id
 "#)]
     pub(crate) fn author_id<E: Engine>(
         &self,
@@ -136,7 +136,7 @@ function author_id(envelope struct Envelope) id
 
     /// Returns the envelope's `command_id` field.
     #[ffi_export(def = r#"
-function command_id(envelope struct Envelope) id
+function command_id(envelope_input struct Envelope) id
 "#)]
     pub(crate) fn command_id<E: Engine>(
         &self,
@@ -157,7 +157,7 @@ function command_id(envelope struct Envelope) id
 
     /// Returns the envelope's `signature` field.
     #[ffi_export(def = r#"
-function signature(envelope struct Envelope) bytes
+function signature(envelope_input struct Envelope) bytes
 "#)]
     pub(crate) fn signature<E: Engine>(
         &self,
@@ -178,7 +178,7 @@ function signature(envelope struct Envelope) bytes
 
     /// Returns the envelope's `payload` field.
     #[ffi_export(def = r#"
-function payload(envelope struct Envelope) bytes
+function payload(envelope_input struct Envelope) bytes
 "#)]
     pub(crate) fn payload<E: Engine>(
         &self,

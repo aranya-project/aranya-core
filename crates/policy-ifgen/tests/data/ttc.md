@@ -127,12 +127,12 @@ struct User {
 
 // Returns a user.
 function get_user(user_id id) struct User {
-    let fact = unwrap query User[user_id: user_id]=>{role: ?, sign_pk_id: ?, enc_pk_id: ?}
+    let user_info = unwrap query User[user_id: user_id]=>{role: ?, sign_pk_id: ?, enc_pk_id: ?}
     let user = User {
         user_id: user_id,
-        sign_pk_id: fact.sign_pk_id,
-        enc_pk_id: fact.enc_pk_id,
-        role: fact.role,
+        sign_pk_id: user_info.sign_pk_id,
+        enc_pk_id: user_info.enc_pk_id,
+        role: user_info.role,
     }
     return user
 }
@@ -803,8 +803,8 @@ function can_create_uni_channel(send_id id, open_id id, label int) bool {
 
 // Returns the channel operation for a particular label.
 function get_allowed_op(user_id id, label int) string {
-    let fact = unwrap query AssignedApsLabel[user_id: user_id, label: label]=>{op: ?}
-    return fact.op
+    let user_info = unwrap query AssignedApsLabel[user_id: user_id, label: label]=>{op: ?}
+    return user_info.op
 }
 
 command AssignApsLabel {

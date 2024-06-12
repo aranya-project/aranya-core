@@ -16,6 +16,9 @@ mod markdown;
 pub use error::{ParseError, ParseErrorKind};
 pub use markdown::{extract_policy, parse_policy_document};
 
+mod keywords;
+use keywords::KEYWORDS;
+
 mod internal {
     // This is a hack to work around ambiguity between pest_derive::Parser and pest::Parser.
     use pest_derive::Parser;
@@ -107,6 +110,23 @@ impl<'a> PairContext<'a> {
     fn into_inner(self) -> Pairs<'a, Rule> {
         self.pairs.into_inner()
     }
+
+    /// Consumes the next Pair out of this context and returns it as a
+    /// string that is the identifier if it doesn't collide with a keyword.
+    fn consume_identifier(&self) -> Result<String, ParseError> {
+        let token = self.consume_of_type(Rule::identifier)?;
+        let identifier = token.as_str().to_owned();
+
+        if KEYWORDS.contains(&identifier.as_str()) {
+            return Err(ParseError::new(
+                ParseErrorKind::ReservedIdentifier,
+                format!("Reserved identifier: {}", identifier),
+                Some(token.as_span()),
+            ));
+        }
+
+        Ok(identifier)
+    }
 }
 
 /// Context information for partial parsing of a chunk of source
@@ -162,7 +182,7 @@ fn parse_type(token: Pair<'_, Rule>) -> Result<ast::VType, ParseError> {
         Rule::id_t => Ok(ast::VType::Id),
         Rule::struct_t => {
             let pc = descend(token);
-            let name = pc.consume_string(Rule::identifier)?;
+            let name = pc.consume_identifier()?;
             Ok(ast::VType::Struct(name))
         }
         Rule::enum_t => {
@@ -191,7 +211,7 @@ fn parse_type(token: Pair<'_, Rule>) -> Result<ast::VType, ParseError> {
 /// Parse a Rule::field_definition token into a FieldDefinition.
 fn parse_field_definition(field: Pair<'_, Rule>) -> Result<ast::FieldDefinition, ParseError> {
     let pc = descend(field);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
     let field_type = pc.consume_type()?;
 
     Ok(ast::FieldDefinition {
@@ -204,7 +224,7 @@ fn parse_effect_field_definition(
     field: Pair<'_, Rule>,
 ) -> Result<ast::EffectFieldDefinition, ParseError> {
     let pc = descend(field);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
     let field_type = pc.consume_type()?;
 
     let token = pc.next();
@@ -281,7 +301,7 @@ fn parse_named_struct_literal(
     pratt: &PrattParser<Rule>,
 ) -> Result<ast::NamedStruct, ParseError> {
     let pc = descend(named_struct);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
 
     // key/expression pairs follow the identifier
     let fields = parse_kv_literal_fields(pc.into_inner(), pratt)?;
@@ -609,7 +629,7 @@ fn parse_kv_literal_fields(
 
     for field in fields {
         let pc = descend(field);
-        let identifier = pc.consume_string(Rule::identifier)?;
+        let identifier = pc.consume_identifier()?;
         let expression = pc.consume_expression(pratt)?;
         out.push((identifier, expression));
     }
@@ -664,8 +684,7 @@ fn parse_fact_literal(
     pratt: &PrattParser<Rule>,
 ) -> Result<ast::FactLiteral, ParseError> {
     let pc = descend(fact);
-    let identifier = pc.consume_string(Rule::identifier)?;
-
+    let identifier = pc.consume_identifier()?;
     let token = pc.consume_of_type(Rule::fact_literal_key)?;
     let key_fields = parse_fact_literal_fields(token.into_inner(), pratt)?;
 
@@ -689,7 +708,7 @@ fn parse_let_statement(
     pratt: &PrattParser<Rule>,
 ) -> Result<ast::LetStatement, ParseError> {
     let pc = descend(item);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
     let expression = pc.consume_expression(pratt)?;
 
     Ok(ast::LetStatement {
@@ -945,8 +964,7 @@ fn parse_fact_definition(
     };
 
     let pc = descend(token);
-    let identifier = pc.consume_string(Rule::identifier)?;
-
+    let identifier = pc.consume_identifier()?;
     let token = pc.consume_of_type(Rule::fact_signature_key)?;
     let mut key = vec![];
     for field in token.into_inner() {
@@ -980,8 +998,7 @@ fn parse_action_definition(
 
     let locator = cc.add_range(&item)?;
     let pc = descend(item);
-    let identifier = pc.consume_string(Rule::identifier)?;
-
+    let identifier = pc.consume_identifier()?;
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
     for field in token.into_inner() {
@@ -1011,7 +1028,7 @@ fn parse_effect_definition(
 
     let locator = cc.add_range(&item)?;
     let pc = descend(item);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
 
     // All remaining tokens are fields
     let mut fields = vec![];
@@ -1034,7 +1051,7 @@ fn parse_struct_definition(
 
     let locator = cc.add_range(&item)?;
     let pc = descend(item);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
 
     // All remaining tokens are fields
     let mut fields = vec![];
@@ -1085,7 +1102,7 @@ fn parse_command_definition(
 
     let locator = cc.add_range(&item)?;
     let pc = descend(item);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
 
     let mut fields = vec![];
     let mut policy = vec![];
@@ -1150,7 +1167,7 @@ fn parse_function_decl(item: Pair<'_, Rule>) -> Result<ast::FunctionDecl, ParseE
     ));
 
     let pc = descend(item);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
 
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
@@ -1230,7 +1247,7 @@ fn parse_global_let_statement(
 ) -> Result<AstNode<ast::GlobalLetStatement>, ParseError> {
     let locator = cc.add_range(&item)?;
     let pc = descend(item);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
     let expression = pc.consume_expression(pratt)?;
 
     Ok(AstNode::new(
@@ -1361,7 +1378,33 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
         None,
     ))?;
 
-    let fn_decl = parse_function_decl(decl)?;
+    let rule = decl.as_rule();
+
+    assert!(matches!(
+        rule,
+        Rule::function_decl | Rule::finish_function_decl
+    ));
+
+    let pc = descend(decl);
+    let identifier = pc.consume_string(Rule::identifier)?;
+
+    let token = pc.consume_of_type(Rule::function_arguments)?;
+    let mut arguments = vec![];
+    for field in token.into_inner() {
+        arguments.push(parse_field_definition(field)?);
+    }
+
+    let return_type = if rule == Rule::function_decl {
+        Some(pc.consume_type()?)
+    } else {
+        None
+    };
+
+    let fn_decl = ast::FunctionDecl {
+        identifier,
+        arguments,
+        return_type,
+    };
 
     Ok(fn_decl)
 }

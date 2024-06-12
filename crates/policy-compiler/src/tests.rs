@@ -931,10 +931,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
     {
         let policy = parse_policy_str(
             r#"
-        fact User[id int]=>{name string, email string}
+        fact User[user_id int]=>{name string, email string}
 
         finish function too_few() {
-            create User[id:1]=>{name: "bob"}
+            create User[user_id:1]=>{name: "bob"}
         }
         "#,
             Version::V1,
@@ -950,10 +950,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
     {
         let policy = parse_policy_str(
             r#"
-        fact User[id int]=>{name string, email string}
+        fact User[user_id int]=>{name string, email string}
 
         finish function too_few() {
-            create User[id:1]
+            create User[user_id:1]
         }
         "#,
             Version::V1,
@@ -972,10 +972,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
 #[test]
 fn test_fact_create_too_many_values() -> anyhow::Result<()> {
     let text = r#"
-        fact User[id int]=>{name string}
+        fact User[user_id int]=>{name string}
 
         finish function too_many() {
-            create User[id:1]=>{name: "bob", email: "bob@email.com"}
+            create User[user_id:1]=>{name: "bob", email: "bob@email.com"}
         }
     "#;
 
@@ -1178,6 +1178,25 @@ fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
             })
         ));
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_field_collision() -> anyhow::Result<()> {
+    let text = r#"
+    struct Bar {
+        x int,
+        x int
+    }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    let machine = Compiler::new(&policy).compile();
+
+    assert!(machine.is_err_and(
+        |result| result.err_type == CompileErrorType::AlreadyDefined(String::from("x"))
+    ));
 
     Ok(())
 }

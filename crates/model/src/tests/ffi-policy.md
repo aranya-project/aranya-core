@@ -113,19 +113,19 @@ function seal_basic_command(payload bytes) struct Envelope {
 }
 
 // Opens a basic command from an envelope, using the author's stored signing key.
-function open_basic_command(envelope struct Envelope) bytes {
-    let author_id = envelope::author_id(envelope)
+function open_basic_command(envelope_input struct Envelope) bytes {
+    let author_id = envelope::author_id(envelope_input)
     let author_sign_pk = check_unwrap query UserSignKey[user_id: author_id]=>{key_id: ?, key: ?}
-    let parent_id = envelope::parent_id(envelope)
+    let parent_id = envelope::parent_id(envelope_input)
 
-    let command = crypto::verify(
+    let crypto_command = crypto::verify(
         author_sign_pk.key,
         parent_id,
-        envelope::payload(envelope),
-        envelope::command_id(envelope),
-        envelope::signature(envelope),
+        envelope::payload(envelope_input),
+        envelope::command_id(envelope_input),
+        envelope::signature(envelope_input),
     )
-    return command
+    return crypto_command
 }
 
 action init(nonce int, sign_pk bytes) {
@@ -169,14 +169,14 @@ command Init {
         let cmd = deserialize(payload)
         let author_sign_pk = cmd.sign_pk
 
-        let command = crypto::verify(
+        let crypto_command = crypto::verify(
             author_sign_pk,
             parent_id,
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
         )
-        return deserialize(command)
+        return deserialize(crypto_command)
     }
 
     policy {
@@ -226,14 +226,14 @@ command AddUserKeys {
         let cmd = deserialize(payload)
         let author_sign_pk = cmd.sign_pk
 
-        let command = crypto::verify(
+        let crypto_command = crypto::verify(
             author_sign_pk,
             parent_id,
             payload,
             envelope::command_id(envelope),
             envelope::signature(envelope),
         )
-        return deserialize(command)
+        return deserialize(crypto_command)
     }
 
     policy {
@@ -256,7 +256,7 @@ command AddUserKeys {
     }
 }
 
-action create(v int) {
+action create_action(v int) {
     publish Create{
         key_a: 1,
         value: v,

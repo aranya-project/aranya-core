@@ -72,7 +72,7 @@ impl TestFfiEnvelope {
         })
     }
 
-    #[ffi_export(def = "function open(envelope struct Envelope) bytes")]
+    #[ffi_export(def = "function open(envelope_input struct Envelope) bytes")]
     fn open<E>(
         &self,
         _ctx: &CommandContext<'_>,

@@ -36,6 +36,8 @@ pub enum ParseErrorKind {
     Syntax,
     /// There was some error in the YAML front matter.
     FrontMatter,
+    /// An identifier was shared with a keyword
+    ReservedIdentifier,
     /// An implementation bug
     Bug,
     /// Every other possible error.
@@ -78,6 +80,7 @@ impl Display for ParseError {
             ParseErrorKind::Expression => "Invalid expression",
             ParseErrorKind::Syntax => "Syntax error",
             ParseErrorKind::FrontMatter => "Front matter YAML parse error",
+            ParseErrorKind::ReservedIdentifier => "Reserved identifier",
             ParseErrorKind::Bug => "Bug",
             ParseErrorKind::Unknown => "Unknown error",
         };

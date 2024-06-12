@@ -106,7 +106,7 @@ impl<S: KeyStore> Ffi<S> {
     #[ffi_export(def = r#"
 function sign(
     our_sign_sk_id id,
-    command bytes,
+    command_bytes bytes,
 ) struct Seal
 "#)]
     pub(crate) fn sign<E: Engine>(
@@ -147,7 +147,7 @@ function sign(
 function verify(
     author_sign_pk bytes,
     parent_id id,
-    command bytes,
+    command_bytes bytes,
     command_id id,
     signature bytes,
 ) id

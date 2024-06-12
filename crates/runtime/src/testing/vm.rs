@@ -64,7 +64,7 @@ command Create {
     }
 }
 
-action create(v int) {
+action create_action(v int) {
     publish Create{
         key: 1,
         value: v,
@@ -250,7 +250,7 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(&storage_id, &mut sink, vm_action!(create(3)))
+    cs.action(&storage_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
@@ -304,7 +304,7 @@ pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
         .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
         .expect("could not create graph");
 
-    cs.action(&graph, &mut NullSink, vm_action!(create(1)))
+    cs.action(&graph, &mut NullSink, vm_action!(create_action(1)))
         .expect("can create");
 
     let mut session = cs.session(graph).expect("should be able to create session");
@@ -356,7 +356,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(&storage_id, &mut sink, vm_action!(create(3)))
+    cs.action(&storage_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
