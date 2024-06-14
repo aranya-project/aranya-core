@@ -1,10 +1,9 @@
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![no_std]
-#![warn(
-    clippy::arithmetic_side_effects,
-    clippy::wildcard_imports,
-    missing_docs
-)]
+#![allow(clippy::needless_doctest_main)]
+#![warn(clippy::arithmetic_side_effects)]
+#![warn(clippy::wildcard_imports)]
+#![warn(missing_docs)]
 
 extern crate alloc;
 

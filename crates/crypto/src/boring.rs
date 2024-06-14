@@ -429,12 +429,12 @@ macro_rules! indcca2_aead_impl {
             #[inline]
             fn seal(
                 &self,
-                dst: &mut [u8],
+                mut dst: &mut [u8],
                 nonce: &[u8],
                 plaintext: &[u8],
                 additional_data: &[u8],
             ) -> Result<(), SealError> {
-                check_seal_params::<Self>(dst, nonce, plaintext, additional_data)?;
+                check_seal_params::<Self>(&mut dst, nonce, plaintext, additional_data)?;
 
                 // SAFETY: FFI, no invariants.
                 let ret = unsafe {
@@ -838,7 +838,8 @@ macro_rules! ecdh_impl {
                 // 0 or 1, and `Choice` requires exactly that.
                 assert!(ret == 1 || ret == 0);
 
-                (ret as u8).into()
+                #[allow(clippy::cast_sign_loss)]
+                Choice::from(ret as u8)
             }
         }
 
@@ -1093,7 +1094,8 @@ macro_rules! ecdsa_impl {
                 };
                 assert!(ret == 1 || ret == 0);
 
-                (ret as u8).into()
+                #[allow(clippy::cast_sign_loss)]
+                Choice::from(ret as u8)
             }
         }
 

@@ -39,10 +39,6 @@ testing = [
 	"dep:serde",
 ]
 
-#
-# Nightly features
-#
-
 [dependencies]
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }

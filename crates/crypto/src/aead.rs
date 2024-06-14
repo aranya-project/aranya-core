@@ -383,7 +383,7 @@ pub trait Aead {
     ///
     /// For regular AEADs, this is the size of the authentication
     /// tag. For other AEADs, like [`CommittingAead`], this is
-    /// the size of the authentication tag and key committment.
+    /// the size of the authentication tag and key commitment.
     ///
     /// Must be at least 16 octets (128 bits).
     type Overhead: ArrayLength + IsGreaterOrEqual<U16> + 'static;
@@ -439,27 +439,22 @@ pub trait Aead {
     /// [`lifetime`][`Aead::LIFETIME`].
     fn seal(
         &self,
-        dst: &mut [u8],
+        mut dst: &mut [u8],
         nonce: &[u8],
         plaintext: &[u8],
         additional_data: &[u8],
     ) -> Result<(), SealError> {
-        check_seal_params::<Self>(dst, nonce, plaintext, additional_data)?;
-        let end = plaintext
-            .len()
-            .checked_add(Self::OVERHEAD)
-            .assume("plaintext length + overhead must not wrap")?;
-        let out = &mut dst[..end];
-        out[..plaintext.len()].copy_from_slice(plaintext);
-        let tag_idx = out
+        check_seal_params::<Self>(&mut dst, nonce, plaintext, additional_data)?;
+        dst[..plaintext.len()].copy_from_slice(plaintext);
+        let tag_idx = dst
             .len()
             .checked_sub(Self::OVERHEAD)
             .assume("out length must be >= overhead")?;
-        let (out, overhead) = out.split_at_mut(tag_idx);
-        self.seal_in_place(nonce, out, overhead, additional_data)
+        let (dst, overhead) = dst.split_at_mut(tag_idx);
+        self.seal_in_place(nonce, dst, overhead, additional_data)
             // Encryption failed, make sure that we do not
             // release any invalid plaintext to the caller.
-            .inspect_err(|_| out.zeroize())
+            .inspect_err(|_| dst.zeroize())
     }
 
     /// Encrypts and authenticates `data` in-place.
@@ -563,8 +558,10 @@ const fn check_aead_params<A: Aead + ?Sized>() {
 
 /// Checks that the parameters to [`Aead::seal`] have the correct
 /// lengths, etc.
-pub const fn check_seal_params<A: Aead + ?Sized>(
-    dst: &[u8],
+///
+/// Trims `dst` to `..plaintext.len() + A::OVERHEAD` if correctly sized.
+pub fn check_seal_params<A: Aead + ?Sized>(
+    dst: &mut &mut [u8],
     nonce: &[u8],
     plaintext: &[u8],
     additional_data: &[u8],
@@ -579,6 +576,8 @@ pub const fn check_seal_params<A: Aead + ?Sized>(
     if need > dst.len() {
         return Err(SealError::BufferTooSmall(BufferTooSmallError(Some(need))));
     }
+    *dst = &mut mem::take(dst)[..need];
+
     if nonce.len() != A::NONCE_SIZE {
         return Err(SealError::InvalidNonceSize(InvalidNonceSize));
     }
@@ -588,6 +587,7 @@ pub const fn check_seal_params<A: Aead + ?Sized>(
     if additional_data.len() as u64 > A::MAX_ADDITIONAL_DATA_SIZE {
         return Err(SealError::AdditionalDataTooLong);
     }
+
     Ok(())
 }
 
@@ -834,7 +834,7 @@ pub trait Cmt4Aead: Cmt3Aead {}
 
 #[cfg(feature = "committing-aead")]
 mod committing {
-    use core::{cmp, fmt, marker::PhantomData, num::NonZeroU64, result::Result};
+    use core::{fmt, marker::PhantomData, num::NonZeroU64, result::Result};
 
     use buggy::{Bug, BugExt};
     use generic_array::{ArrayLength, GenericArray};
@@ -907,7 +907,10 @@ mod committing {
             /// We let `i` be a `u64` since it's large enough to
             /// never overflow.
             #[inline(always)]
-            fn pad<C: BlockCipher>(m: &[u8], i: NonZeroU64) -> GenericArray<u8, C::BlockSize> {
+            fn pad<C: BlockCipher>(
+                m: &[u8],
+                i: NonZeroU64,
+            ) -> Result<GenericArray<u8, C::BlockSize>, Bug> {
                 // This is checked by `Self`'s generic bounds, but it
                 // doesn't hurt to double check.
                 debug_assert!(m.len() < C::BlockSize::USIZE);
@@ -915,9 +918,11 @@ mod committing {
                 let mut b = GenericArray::<u8, C::BlockSize>::default();
                 b[..m.len()].copy_from_slice(m);
                 let x = i.get().to_le_bytes();
-                let n = cmp::min(b.len() - m.len(), x.len());
+                let n = usize::checked_sub(b.len(), m.len())
+                    .assume("nonce size <= block size")?
+                    .min(x.len());
                 b[m.len()..].copy_from_slice(&x[..n]);
-                b
+                Ok(b)
             }
 
             let mut i = NonZeroU64::MIN;
@@ -926,7 +931,7 @@ mod committing {
 
             let v_1 = {
                 // X_i <- pad(M, i)
-                let x_1 = pad::<C>(nonce, i);
+                let x_1 = pad::<C>(nonce, i)?;
 
                 // V_i <- E_k(X_i);
                 let mut v_1 = {
@@ -957,7 +962,7 @@ mod committing {
                 // V_i <- E_k(X_i);
                 let v_i = {
                     // X_i <- pad(M, i)
-                    let mut x_i = pad::<C>(nonce, i);
+                    let mut x_i = pad::<C>(nonce, i)?;
                     cipher.encrypt_block(&mut x_i);
                     x_i
                 };
@@ -1075,32 +1080,31 @@ mod committing {
 
                 fn seal(
                     &self,
-                    dst: &mut [u8],
+                    mut dst: &mut [u8],
                     nonce: &[u8],
                     plaintext: &[u8],
                     additional_data: &[u8],
                 ) -> ::core::result::Result<(), $crate::aead::SealError> {
                     $crate::aead::check_seal_params::<Self>(
-                        dst,
+                        &mut dst,
                         nonce,
                         plaintext,
                         additional_data,
                     )?;
 
-                    let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
-                    let (out, cx) = out.split_at_mut(out.len() - $name::COMMITMENT_SIZE);
+                    let (dst, cx) = ::buggy::BugExt::assume(
+                        dst.split_last_chunk_mut::<{Self::COMMITMENT_SIZE}>(),
+                        "`COMMITMENT_SIZE` fits in `out`",
+                    )?;
                     let key_bytes = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit_into(
-                        ::buggy::BugExt::assume(
-                            cx.try_into(),
-                            "should be exactly `COMMITTMENT_SIZE`",
-                        )?,
+                        cx.into(),
                         &self.key,
                         &nonce.try_into()?,
                     )?;
                     let key = $crate::import::Import::<_>::import(key_bytes.as_bytes())
                         .map_err($crate::aead::UtcError::Import)?;
                     <$inner as $crate::aead::Aead>::new(&key).seal(
-                        out,
+                        dst,
                         nonce,
                         plaintext,
                         additional_data,
@@ -1121,12 +1125,12 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (tag, cx) = overhead.split_at_mut(overhead.len() - $name::COMMITMENT_SIZE);
+                    let (tag, cx) = ::buggy::BugExt::assume(
+                        overhead.split_last_chunk_mut::<{Self::COMMITMENT_SIZE}>(),
+                        "`COMMITMENT_SIZE` fits in `overhead`",
+                    )?;
                     let key_bytes = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit_into(
-                        ::buggy::BugExt::assume(
-                            cx.try_into(),
-                            "should be exactly `COMMITTMENT_SIZE`",
-                        )?,
+                        cx.into(),
                         &self.key,
                         &nonce.try_into()?,
                     )?;
@@ -1154,8 +1158,10 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (ciphertext, got_cx) =
-                        ciphertext.split_at(ciphertext.len() - $name::COMMITMENT_SIZE);
+                    let (ciphertext, got_cx) = ::buggy::BugExt::assume(
+                        ciphertext.split_last_chunk::<{Self::COMMITMENT_SIZE}>(),
+                        "`COMMITMENT_SIZE` fits in `ciphertext`",
+                    )?;
                     let (want_cx, key_bytes) = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit(
                         &self.key,
                         &nonce.try_into()?,
@@ -1191,8 +1197,10 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (overhead, got_cx) =
-                        overhead.split_at(overhead.len() - $name::COMMITMENT_SIZE);
+                    let (overhead, got_cx) = ::buggy::BugExt::assume(
+                        overhead.split_last_chunk::<{Self::COMMITMENT_SIZE}>(),
+                        "`COMMITMENT_SIZE` fits in `overhead`",
+                    )?;
                     let (want_cx, key_bytes) = $crate::aead::CtrThenXorPrf::<$inner, $cipher>::commit(
                         &self.key,
                         &nonce.try_into()?,
@@ -1359,22 +1367,21 @@ mod committing {
 
                 fn seal(
                     &self,
-                    dst: &mut [u8],
+                    mut dst: &mut [u8],
                     nonce: &[u8],
                     plaintext: &[u8],
                     additional_data: &[u8],
                 ) -> ::core::result::Result<(), $crate::aead::SealError> {
                     $crate::aead::check_seal_params::<Self>(
-                        dst,
+                        &mut dst,
                         nonce,
                         plaintext,
                         additional_data,
                     )?;
 
-                    let out = &mut dst[..plaintext.len() + Self::OVERHEAD];
                     let key = self.hash(nonce, additional_data)?;
                     <$inner as $crate::aead::Aead>::new(&key).seal(
-                        out,
+                        dst,
                         nonce,
                         plaintext,
                         additional_data,

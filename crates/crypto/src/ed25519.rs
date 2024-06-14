@@ -48,12 +48,10 @@ impl Signer for Ed25519 {
     ) -> Result<(), SignerError> {
         dalek::verify_batch(
             msgs,
-            // SAFETY: [`Signature`] has the same layout as
-            // [`dalek::Signature`].
-            unsafe { core::mem::transmute(sigs) },
-            // SAFETY: [`VerifyingKey`] has the same layout as
-            // [`dalek::VerifyingKey`].
-            unsafe { core::mem::transmute(pks) },
+            // SAFETY: [`Signature`] has the same layout as [`dalek::Signature`].
+            unsafe { core::mem::transmute::<&[Signature], &[ed25519_dalek::Signature]>(sigs) },
+            // SAFETY: [`VerifyingKey`] has the same layout as [`dalek::VerifyingKey`].
+            unsafe { core::mem::transmute::<&[VerifyingKey], &[ed25519_dalek::VerifyingKey]>(pks) },
         )
         .map_err(|_| SignerError::Verification)
     }

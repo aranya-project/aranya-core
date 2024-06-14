@@ -145,8 +145,9 @@ description = "Run clippy to lint code"
 workspace = true
 script = '''
 cargo clippy
-cargo clippy --tests --benches --examples
+cargo clippy --all-targets
 cargo clippy --no-default-features
+cargo clippy --all-targets --all-features
 '''
 install_crate = { rustup_component_name = "clippy" }
 

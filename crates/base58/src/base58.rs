@@ -278,7 +278,7 @@ macro_rules! encode_x {
                                 if v == 255 {
                                     Err(DecodeError::BadInput)
                                 } else {
-                                    Ok(acc.checked_mul(58).assume("doesn't wrap")?.checked_add(v as u64).assume("doesn't wrap")?)
+                                    Ok(acc.checked_mul(58).assume("doesn't wrap")?.checked_add(u64::from(v)).assume("doesn't wrap")?)
                                 }
                             })?;
                         if !x.fma(RADII[chunk.len()], total) {

@@ -1,10 +1,8 @@
 //! Generate typed policy interfaces from policy source code.
 
-#![warn(
-    clippy::arithmetic_side_effects,
-    clippy::wildcard_imports,
-    missing_docs
-)]
+#![warn(clippy::arithmetic_side_effects)]
+#![warn(clippy::wildcard_imports)]
+#![warn(missing_docs)]
 
 use std::{fs, path::Path};
 

@@ -24,10 +24,6 @@ std = []
 # Enable the `testing` module.
 testing = []
 
-#
-# Nightly features
-#
-
 [dependencies]
 crypto = { path = "../crypto", default-features = false }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
