@@ -912,7 +912,7 @@ macro_rules! ecdsa_impl {
         }
 
         #[doc = concat!($doc, " ECDSA signature.")]
-        pub type $sig = Sig<$curve, { max_sig_len($curve::SCALAR_SIZE * 8) }>;
+        pub type $sig = Sig<$curve, { max_sig_len::<{ $curve::SCALAR_SIZE * 8 }>() }>;
 
         impl Signer for $curve {
             const ID: SignerId = SignerId::$curve;

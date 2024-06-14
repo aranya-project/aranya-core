@@ -209,31 +209,27 @@ impl<'a, S: Signer + ?Sized, const N: usize> Import<&'a [u8]> for Sig<S, N> {
 pub struct RawSig<const N: usize>([u8; N]);
 
 impl<const N: usize> RawSig<N> {
-    const VALID_N: () = assert!(
-        // Obvious case.
-        N > 0  &&
-        // It is impossible to have an odd-length raw ECDSA
-        // signature since it would mean that the integers have
-        // different lengths.
-        N % 2 == 0  &&
-        // There aren't any curves with integers this short that
-        // also have at least 128 bits of security.
-        N/2 >= 32 &&
-        // This ensures that we can convert `r` and `s` to DER
-        // `INTEGER`s, which have an upper bound of 2^32 octets.
-        // There aren't any curves with integers this long, so it
-        // won't affect any implementations.
-        N / 2 <= (u32::MAX as usize),
-        "`N` is not a power of two in [2, 2^31]",
-    );
-
     /// Forces a compilation error when `N` is out of range.
-    ///
-    /// Associated constants are only evaluated when evaluated, so
-    /// `check` simply evaluates [`Self::VALID_N`].
-    #[allow(path_statements, clippy::no_effect)]
     const fn check() {
-        Self::VALID_N;
+        const {
+            assert!(
+                // Obvious case.
+                N > 0  &&
+                // It is impossible to have an odd-length raw ECDSA
+                // signature since it would mean that the integers have
+                // different lengths.
+                N % 2 == 0  &&
+                // There aren't any curves with integers this short that
+                // also have at least 128 bits of security.
+                N/2 >= 32 &&
+                // This ensures that we can convert `r` and `s` to DER
+                // `INTEGER`s, which have an upper bound of 2^32 octets.
+                // There aren't any curves with integers this long, so it
+                // won't affect any implementations.
+                N / 2 <= (u32::MAX as usize),
+                "`N` is not a power of two in [2, 2^31]",
+            );
+        }
     }
 
     #[cfg(any(feature = "bearssl", feature = "boringssl"))]
@@ -321,32 +317,18 @@ impl<const N: usize> Default for RawSig<N> {
 /// Returns the maximum size in bytes of a DER-encoded ECDSA
 /// signature for a curve with a `bits` long field element
 /// (scalar).
-pub const fn max_sig_len(bits: usize) -> usize {
-    // Length of an integer
-    //    tag || DER(len) || len
-    let Some(n) = bits.checked_add(1) else {
-        panic!("max_sig_len: bits too large")
-    };
-    let Some(n) = der_len(n).checked_add(2) else {
-        panic!("max_sig_len: bits too large")
-    };
-    let Some(n) = n.checked_add(bits) else {
-        panic!("max_sig_len: bits too large")
-    };
-    // ECDSA signatures are two integers
-    //    r || s
-    let Some(v) = n.checked_mul(2) else {
-        panic!("max_sig_len: bits too large")
-    };
-    // DER header
-    //    tag || DER(len) || len
-    let Some(result) = der_len(v).checked_add(v) else {
-        panic!("max_sig_len: bits too large")
-    };
-    let Some(result) = result.checked_add(1) else {
-        panic!("max_sig_len: bits too large")
-    };
-    result
+pub const fn max_sig_len<const BITS: usize>() -> usize {
+    const {
+        // Length of an integer
+        //    tag || DER(len) || len
+        let n = 1 + der_len(BITS + 1) + 1 + BITS;
+        // ECDSA signatures are two integers
+        //    r || s
+        let v = 2 * n;
+        // DER header
+        //    tag || DER(len) || len
+        1 + der_len(v) + v
+    }
 }
 
 /// Returns the number of bits necessary to DER encode `n`.

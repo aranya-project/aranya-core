@@ -547,13 +547,14 @@ pub type KeyData<A> = SecretKeyBytes<<<A as Aead>::Key as SecretKey>::Size>;
 /// An authentication tag.
 pub type Tag<A> = GenericArray<u8, <A as Aead>::Overhead>;
 
-#[allow(clippy::arithmetic_side_effects)]
 const fn check_aead_params<A: Aead + ?Sized>() {
-    debug_assert!(A::KEY_SIZE >= 16);
-    debug_assert!(A::OVERHEAD >= 16);
-    debug_assert!(A::MAX_PLAINTEXT_SIZE >= u32::MAX as u64);
-    debug_assert!(A::MAX_CIPHERTEXT_SIZE == A::MAX_PLAINTEXT_SIZE + (A::OVERHEAD as u64));
-    debug_assert!(A::MAX_ADDITIONAL_DATA_SIZE >= u32::MAX as u64);
+    const {
+        assert!(A::KEY_SIZE >= 16);
+        assert!(A::OVERHEAD >= 16);
+        assert!(A::MAX_PLAINTEXT_SIZE >= u32::MAX as u64);
+        assert!(A::MAX_CIPHERTEXT_SIZE == A::MAX_PLAINTEXT_SIZE + (A::OVERHEAD as u64));
+        assert!(A::MAX_ADDITIONAL_DATA_SIZE >= u32::MAX as u64);
+    }
 }
 
 /// Checks that the parameters to [`Aead::seal`] have the correct

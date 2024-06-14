@@ -593,10 +593,7 @@ mod committing {
     use typenum::{Unsigned, U16, U32};
 
     use super::{Aes256Gcm, Sha256};
-    use crate::{
-        aead::{AeadKey, BlockCipher},
-        util::const_assert,
-    };
+    use crate::aead::{AeadKey, BlockCipher};
 
     /// AES-256.
     #[doc(hidden)]
@@ -619,7 +616,9 @@ mod committing {
         }
 
         fn encrypt_block(&self, block: &mut GenericArray<u8, Self::BlockSize>) {
-            const_assert!(Aes256::BLOCK_SIZE == AES_BLOCK_SIZE as usize);
+            const {
+                assert!(Aes256::BLOCK_SIZE == AES_BLOCK_SIZE as usize);
+            }
 
             // SAFETY: FFI call, no invariants.
             unsafe { AES_encrypt(block.as_ptr(), block.as_mut_ptr(), ptr::addr_of!(self.0)) };
@@ -1007,7 +1006,7 @@ macro_rules! ecdsa_impl {
             #[inline]
             fn sign(&self, msg: &[u8]) -> Result<$sig, SignerError> {
                 let digest = $hash::hash(msg);
-                let mut sig = [0u8; max_sig_len($curve::SCALAR_SIZE * 8)];
+                let mut sig = [0u8; max_sig_len::<{ $curve::SCALAR_SIZE * 8 }>()];
                 let mut sig_len = sig.len() as u32;
                 // SAFETY: FFI call, no invariants.
                 let ret = unsafe {
@@ -1223,7 +1222,7 @@ macro_rules! ecdsa_impl {
         }
 
         #[doc = concat!($doc, " ECDSA signature.")]
-        pub type $sig = Sig<$curve, { max_sig_len($curve::SCALAR_SIZE * 8) }>;
+        pub type $sig = Sig<$curve, { max_sig_len::<{ $curve::SCALAR_SIZE * 8 }>() }>;
 
         impl Signer for $curve {
             const ID: SignerId = SignerId::$curve;
