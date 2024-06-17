@@ -53,6 +53,8 @@ pub enum Value {
     Fact(Fact),
     /// A unique identifier.
     Id(Id),
+    /// Enumeration value
+    Enum(String, String),
     /// Empty optional value
     None,
 }
@@ -101,6 +103,7 @@ impl Value {
             Value::String(_) => Some(VType::String),
             Value::Bytes(_) => Some(VType::Bytes),
             Value::Id(_) => Some(VType::Id),
+            Value::Enum(name, _) => Some(VType::Enum(name.to_owned())),
             _ => None,
         }
     }
@@ -356,6 +359,7 @@ impl Display for Value {
             Value::Struct(s) => s.fmt(f),
             Value::Fact(fa) => fa.fmt(f),
             Value::Id(id) => id.fmt(f),
+            Value::Enum(name, value) => write!(f, "{name}::{value}"),
             Value::None => write!(f, "None"),
         }
     }

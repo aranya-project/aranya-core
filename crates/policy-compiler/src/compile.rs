@@ -86,8 +86,8 @@ struct CompileState<'a> {
     statement_context: Vec<StatementContext>,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
-    /// name/value mappings for enums
-    enum_values: BTreeMap<&'a str, BTreeMap<&'a str, i64>>,
+    /// name/value mappings for enums, e.g. `"Color"->["Red", "Green"]`
+    enum_values: BTreeMap<&'a str, Vec<&'a str>>,
     /// Determines if one compiles with debug functionality,
     is_debug: bool,
 }
@@ -209,22 +209,20 @@ impl<'a> CompileState<'a> {
             ));
         }
 
-        // Map value names to integers
-        let mut map = BTreeMap::<&'a str, i64>::new();
+        // Add values to enum, checking for duplicates
+        let mut values = Vec::<&str>::new();
         for value_name in enum_def.values.iter() {
-            let value_name: &'a str = value_name.as_ref();
-            let num = i64::try_from(map.len()).expect("usize to i64 conversion failed");
-            match map.entry(value_name) {
-                Entry::Occupied(_) => Err(CompileError::from_locator(
+            if values.contains(&value_name.as_str()) {
+                return Err(CompileError::from_locator(
                     CompileErrorType::AlreadyDefined(format!("{}::{}", enum_name, value_name)),
                     self.last_locator,
                     self.m.codemap.as_ref(),
-                )),
-                Entry::Vacant(e) => Ok(e.insert(num)),
-            }?;
+                ));
+            }
+            values.push(value_name);
         }
 
-        self.enum_values.insert(enum_name, map);
+        self.enum_values.insert(enum_name, values);
 
         Ok(())
     }
@@ -716,16 +714,19 @@ impl<'a> CompileState<'a> {
                     )
                 })?;
 
-                // get integer value of enum member
-                let num = enum_def.get(e.value.as_str()).ok_or_else(|| {
-                    CompileError::from_locator(
+                // verify that the given name is a member of the enum
+                if !enum_def.contains(&e.value.as_str()) {
+                    return Err(CompileError::from_locator(
                         CompileErrorType::NotDefined(format!("{}::{}", e.identifier, e.value)),
                         self.last_locator,
                         self.m.codemap.as_ref(),
-                    )
-                })?;
+                    ));
+                }
 
-                self.append_instruction(Instruction::Const(Value::Int(*num)))
+                self.append_instruction(Instruction::Const(Value::Enum(
+                    e.identifier.to_owned(),
+                    e.value.to_owned(),
+                )))
             }
             Expression::Dot(t, s) => {
                 self.compile_expression(t)?;

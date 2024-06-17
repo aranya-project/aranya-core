@@ -376,8 +376,13 @@ fn test_fact_query() -> anyhow::Result<()> {
 #[test]
 fn test_fact_exists() -> anyhow::Result<()> {
     let text = r#"
+    enum Bool {
+        True,
+        False
+    }
+
     fact Foo[] => {x int}
-    fact Bar[i int] => {s string, b bool}
+    fact Bar[i int] => {s string, b enum Bool}
 
     command setup {
         fields {}
@@ -386,7 +391,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         policy {
             finish {
                 create Foo[] => {x: 3}
-                create Bar[i: 1] => {s: "abc", b: true}
+                create Bar[i: 1] => {s: "abc", b: Bool::True}
             }
         }
     }
@@ -394,16 +399,16 @@ fn test_fact_exists() -> anyhow::Result<()> {
     action testExists() {
         check exists Foo[] => {x: 3}
         check exists Foo[]
-        check exists Bar[i: 1] => {s: "abc", b: true}
+        check exists Bar[i: 1] => {s: "abc", b: Bool::True}
 
         check exists Foo[] => {x: ?}
-        check exists Bar[i: ?] => {s: ?, b: true}
+        check exists Bar[i: ?] => {s: ?, b: Bool::True}
 
         // Not-exists
 
         // no fact with such values
-        check !exists Bar[i:0] => {s:"ab", b:true}
-        check !exists Bar[i:1] => {s:"", b:true}
+        check !exists Bar[i:0] => {s:"ab", b:Bool::True}
+        check !exists Bar[i:1] => {s:"", b:Bool::True}
         check !exists Bar[i: ?]=>{s: "ab", b: ?}
     }
     "#;
@@ -1603,26 +1608,13 @@ fn test_enum_reference() -> anyhow::Result<()> {
             Water, Coffee
         }
 
-        command Test {
-            fields {
-                e string
-            }
-            open { return None }
-            seal { return None }
-            policy {
-                finish {
-                    emit Effect { e: this.e }
-                }
-            }
-        }
-
         action test(type enum Drink) {
             match type {
                 Drink::Water => {
-                    publish Test { e: "bleh" }
+                    publish Effect { a: "bleh" }
                 }
                 Drink::Coffee => {
-                    publish Test { e: "mmm" }
+                    publish Effect { a: "mmm" }
                 }
             }
         }
@@ -1631,18 +1623,21 @@ fn test_enum_reference() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V1)?;
-    let mut io = TestIO::new();
-    let ctx = dummy_ctx_policy("test");
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
+    let mut io = TestIO::new();
+    let ctx = dummy_ctx_policy("test");
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let reason = rs.call_action("test", [Value::from(1)])?;
+    let reason = rs.call_action(
+        "test",
+        [Value::Enum("Drink".to_owned(), "Coffee".to_owned())],
+    )?;
     assert_eq!(reason, ExitReason::Normal);
     assert_eq!(
         io.publish_stack[0],
         (
-            String::from("Test"),
-            vec![KVPair::new("e", Value::from("mmm"))]
+            String::from("Effect"),
+            vec![KVPair::new("a", Value::from("mmm"))]
         )
     );
 

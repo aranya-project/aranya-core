@@ -470,7 +470,7 @@ fn test_enum_reference_undefined_value() -> anyhow::Result<()> {
     "#;
 
     let policy = parse_policy_str(text, Version::V1)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
+    let result = Compiler::new(&policy).compile().unwrap_err().err_type;
 
     assert_eq!(
         result,
@@ -486,7 +486,13 @@ fn test_enum_reference() -> anyhow::Result<()> {
         enum Result { OK, Err }
         action test() {
             let ok = Result::OK
-            let err = Result::Err
+            check ok == Result::OK
+            check ok != Result::Err
+
+            match result {
+                Result::OK => {}
+                Result::Err => {}
+            }
         }
     "#;
 

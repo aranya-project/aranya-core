@@ -80,6 +80,7 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
 
 fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
     let ident = &enumeration.ident;
+    let enum_ident = ident.to_string();
 
     for variant in &enumeration.variants {
         if !matches!(variant.fields, Fields::Unit) {
@@ -90,10 +91,8 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
         }
     }
 
-    let len = i64::try_from(enumeration.variants.len()).expect("too many variants");
-
     let var_idents: Vec<_> = enumeration.variants.iter().map(|f| &f.ident).collect();
-    let var_vals: Vec<_> = (0..len).collect();
+    let var_vals: Vec<_> = var_idents.iter().map(|id| id.to_string()).collect();
 
     let derive = get_derive();
 
@@ -104,11 +103,15 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
         impl ::core::convert::TryFrom<::policy_ifgen::Value> for #ident {
             type Error = ::policy_ifgen::ValueConversionError;
             fn try_from(value: ::policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
-                let ::policy_ifgen::Value::Int(val) = value else {
+                let ::policy_ifgen::Value::Enum(name, val) = value else {
                     return ::core::result::Result::Err(::policy_ifgen::ValueConversionError::InvalidType);
                 };
 
-                match val {
+                if name != #enum_ident {
+                    return ::core::result::Result::Err(::policy_ifgen::ValueConversionError::InvalidType);
+                }
+
+                match val.as_str() {
                     #(
                         #var_vals => ::core::result::Result::Ok(Self::#var_idents),
                     )*
@@ -121,7 +124,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
             fn from(e: #ident) -> Self {
                 match e {
                     #(
-                        #ident::#var_idents => ::policy_ifgen::Value::Int(#var_vals),
+                        #ident::#var_idents => ::policy_ifgen::Value::Enum(#enum_ident.into(), #var_vals.into()),
                     )*
                 }
             }
