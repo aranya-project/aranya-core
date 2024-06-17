@@ -778,7 +778,10 @@ where
     /// with, or an error.
     pub fn run(&mut self) -> Result<ExitReason, MachineError> {
         loop {
-            match self.step()? {
+            match self
+                .step()
+                .map_err(|err| err.with_position(self.pc, self.machine.codemap.as_ref()))?
+            {
                 MachineStatus::Executing => continue,
                 MachineStatus::Exited(reason) => return Ok(reason),
             };
