@@ -24,9 +24,6 @@ unsafe_op_in_unsafe_fn = "warn"
 unused_lifetimes = "warn"
 unused_qualifications = "warn"
 
-# TODO(jdygert): Remove after proptest-derive release > 0.4.0
-non_local_definitions = "allow"
-
 [workspace.lints.clippy]
 arithmetic_side_effects = "warn"
 cast_lossless = "warn"
@@ -47,7 +44,7 @@ libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
 proptest = { version = "1.4", default-features = false, features = ["alloc"] }
-proptest-derive = { version = "0.4" }
+proptest-derive = { version = "0.5" }
 quinn = { version = "0.10.1" }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
