@@ -3,7 +3,7 @@
 
 mod bits;
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, iter};
 
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
@@ -708,7 +708,7 @@ fn test_not_operator() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.run()?;
+    let result = rs.call_action("test", iter::empty::<Value>())?;
     assert_eq!(result, ExitReason::Normal);
 
     Ok(())

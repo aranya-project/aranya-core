@@ -1418,6 +1418,9 @@ impl<'a> CompileState<'a> {
 
     /// Compile a policy into instructions inside the given Machine.
     pub fn compile(&mut self) -> Result<(), CompileError> {
+        // Panic when running a module without setup.
+        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+
         for effect in &self.policy.effects {
             let fields: Vec<FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
