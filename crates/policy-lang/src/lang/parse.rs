@@ -753,11 +753,28 @@ fn parse_match_statement(
         let pattern = match token.as_rule() {
             Rule::match_default => MatchPattern::Default,
             Rule::match_arm_expression => {
-                // A `match_arm_expression` is a list of `expression`s.
                 let values = token
                     .into_inner()
-                    .map(|token| parse_expression(token, pratt))
+                    .map(|token| {
+                        let expr = parse_expression(token.to_owned(), pratt)?;
+                        // Ensure expression values are all literals
+                        if !matches!(
+                            expr,
+                            Expression::Int(_)
+                                | Expression::String(_)
+                                | Expression::Bool(_)
+                                | Expression::EnumReference(_)
+                        ) {
+                            return Err(ParseError::new(
+                                ParseErrorKind::InvalidType,
+                                String::from("match arm value must be a literal"),
+                                Some(token.as_span()),
+                            ));
+                        }
+                        Ok(expr)
+                    })
                     .collect::<Result<Vec<Expression>, ParseError>>()?;
+
                 MatchPattern::Values(values)
             }
             _ => {

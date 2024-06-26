@@ -1151,7 +1151,7 @@ fn parse_struct() {
 }
 
 #[test]
-fn parse_enum_defininition() {
+fn parse_enum_definition() {
     let text = r#"
         enum Color {
             Red,
@@ -1192,6 +1192,33 @@ fn parse_enum_reference() -> Result<(), PestError<Rule>> {
     assert_eq!(enum_value, "Red");
 
     Ok(())
+}
+
+#[test]
+fn enum_arm_should_be_limited_to_literals() {
+    let policies = vec![
+        r#"
+            action foo(x int) {
+                match x {
+                    0 + 1 => {}
+                }
+            }
+        "#,
+        r#"
+        function f() int { return 0 }
+        action foo(x int) {
+            match x {
+                f() => {}
+            }
+        }
+        "#,
+        // TODO add test for negative numbers... depends on (#869)
+    ];
+
+    for text in policies {
+        let err = parse_policy_str(text, Version::V1).unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::InvalidType);
+    }
 }
 
 #[test]
