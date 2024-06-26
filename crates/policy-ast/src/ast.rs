@@ -317,8 +317,6 @@ pub struct LetStatement {
 /// Check that a boolean expression is true, and fail otherwise
 #[derive(Debug, Clone, PartialEq)]
 pub struct CheckStatement {
-    /// Is this an origin check?
-    pub origin: bool,
     /// The boolean expression being checked
     pub expression: Expression,
 }

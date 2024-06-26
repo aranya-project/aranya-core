@@ -199,8 +199,7 @@ publish_statement = { "publish" ~ expression }
 // only be assigned once.
 let_statement = { "let" ~ identifier ~ "=" ~ expression }
 // The check statement evaluates an expression and fails if it is false
-origin_modifier = { "origin" }
-check_statement = { origin_modifier? ~ "check" ~ expression }
+check_statement = { "check" ~ expression }
 // The match statement matches on an expression and executes one of its
 // arms if it matches. Matches must be specified exhaustively (which
 // means for anything other than bool you will have a default value).

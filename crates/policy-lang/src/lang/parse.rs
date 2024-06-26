@@ -724,14 +724,9 @@ fn parse_check_statement(
 ) -> Result<ast::CheckStatement, ParseError> {
     let pc = descend(item);
     let token = pc.consume()?;
-    let (origin, expression_token) = if token.as_rule() == Rule::origin_modifier {
-        (true, pc.consume_of_type(Rule::expression)?)
-    } else {
-        (false, token)
-    };
-    let expression = parse_expression(expression_token, pratt)?;
+    let expression = parse_expression(token, pratt)?;
 
-    Ok(ast::CheckStatement { origin, expression })
+    Ok(ast::CheckStatement { expression })
 }
 
 /// Parse a Rule::match_statement into a MatchStatement.
