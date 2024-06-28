@@ -9,6 +9,7 @@ use core::{
     fmt::{self, Debug, Display},
     mem,
 };
+use std::{collections::btree_map::Entry, marker::PhantomData};
 
 use anyhow::Result;
 use crypto::Rng;
@@ -133,9 +134,14 @@ impl Display for ModelError {
 impl trouble::Error for ModelError {}
 
 /// Proxy ID for clients
-type ProxyClientID = u64;
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProxyClientId(pub u64);
+
 /// Proxy ID for graphs
-pub type ProxyGraphID = u64;
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProxyGraphId(pub u64);
 
 /// The [`Model`] manages adding clients, graphs, actions, syncing client state,
 /// creating sessions, and processing ephemeral commands.
@@ -147,9 +153,11 @@ pub trait Model {
     type Session<'a>
     where
         Self: 'a;
+    type ClientId;
+    type GraphId;
 
     /// Used to add a client to the model.
-    fn add_client(&mut self, proxy_id: ProxyClientID) -> Result<(), ModelError>
+    fn add_client(&mut self, proxy_id: Self::ClientId) -> Result<(), ModelError>
     where
         Self::ClientArgs: Default,
     {
@@ -159,38 +167,38 @@ pub trait Model {
     /// Used to add a client to the model.
     fn add_client_with(
         &mut self,
-        proxy_id: ProxyClientID,
+        proxy_id: Self::ClientId,
         args: Self::ClientArgs,
     ) -> Result<(), ModelError>;
 
     /// Used to create a graph on a client.
     fn new_graph(
         &mut self,
-        proxy_id: ProxyGraphID,
-        client_proxy_id: ProxyClientID,
+        proxy_id: Self::GraphId,
+        client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError>;
 
     /// Used for calling a single action that can emit only on-graph commands.
     fn action(
         &mut self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
+        client_proxy_id: Self::ClientId,
+        graph_proxy_id: Self::GraphId,
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError>;
 
     /// Used to sync state with a peer by requesting for new on-graph commands.
     fn sync(
         &mut self,
-        graph_proxy_id: ProxyGraphID,
-        source_client_proxy_id: ProxyClientID,
-        dest_client_proxy_id: ProxyClientID,
+        graph_proxy_id: Self::GraphId,
+        source_client_proxy_id: Self::ClientId,
+        dest_client_proxy_id: Self::ClientId,
     ) -> Result<(), ModelError>;
 
     /// Used to retrieve the public keys associated with a client.
     fn get_public_keys(
         &self,
-        client_proxy_id: ProxyClientID,
+        client_proxy_id: Self::ClientId,
     ) -> Result<&Self::PublicKeys, ModelError>;
 
     /// Create a [`Model::Session`] to process ephemeral actions and commands.
@@ -198,23 +206,23 @@ pub trait Model {
     /// See [`Model::session_actions`] and [`Model::session_receive`] for convenience.
     fn session(
         &self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
+        client_proxy_id: Self::ClientId,
+        graph_proxy_id: Self::GraphId,
     ) -> Result<Self::Session<'_>>;
 
     /// Used for calling a set of actions that emit only ephemeral commands.
     fn session_actions<'a>(
         &mut self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
+        client_proxy_id: Self::ClientId,
+        graph_proxy_id: Self::GraphId,
         actions: impl IntoIterator<Item = Self::Action<'a>>,
     ) -> Result<SessionData<Self::Effect>>;
 
     /// Used for processing externally received ephemeral commands.
     fn session_receive(
         &mut self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
+        client_proxy_id: Self::ClientId,
+        graph_proxy_id: Self::GraphId,
         commands: impl IntoIterator<Item = Box<[u8]>>,
     ) -> Result<Vec<Self::Effect>>;
 }
@@ -315,21 +323,22 @@ pub trait ClientFactory {
     fn create_client(&mut self, args: Self::Args) -> ModelClient<Self>;
 }
 
-type ClientStorageIds = BTreeMap<ProxyGraphID, GraphId>;
-type Clients<C> = BTreeMap<ProxyClientID, C>;
+type ClientStorageIds = BTreeMap<ProxyGraphId, GraphId>;
+type Clients<C> = BTreeMap<ProxyClientId, C>;
 
 /// Runtime model.
 ///
 /// Holds a collection of [`ModelClient`] and Graph ID data.
-pub struct RuntimeModel<CF: ClientFactory> {
+pub struct RuntimeModel<CF: ClientFactory, CID, GID> {
     /// Holds a collection of clients.
     pub clients: Clients<ModelClient<CF>>,
-    /// Holds a collection of [`ProxyGraphID`]s and [`GraphId`]s
+    /// Holds a collection of [`ProxyGraphId`]s and [`GraphId`]s
     pub storage_ids: ClientStorageIds,
     client_factory: CF,
+    _ph: PhantomData<(CID, GID)>,
 }
 
-impl<CF> RuntimeModel<CF>
+impl<CF, CID, GID> RuntimeModel<CF, CID, GID>
 where
     CF: ClientFactory,
 {
@@ -339,56 +348,59 @@ where
             clients: BTreeMap::default(),
             storage_ids: BTreeMap::default(),
             client_factory,
+            _ph: PhantomData,
         }
     }
 }
 
-impl<CF: ClientFactory> Model for RuntimeModel<CF> {
+impl<CF, CID, GID> Model for RuntimeModel<CF, CID, GID>
+where
+    CF: ClientFactory,
+    CID: Into<ProxyClientId> + 'static,
+    GID: Into<ProxyGraphId> + 'static,
+{
     type Effect = <CF::Engine as Engine>::Effect;
     type Action<'a> = <<CF::Engine as Engine>::Policy as Policy>::Action<'a>;
     type PublicKeys = CF::PublicKeys;
     type ClientArgs = CF::Args;
     type Session<'a> = Session<'a, CF::Engine, CF::StorageProvider> where CF: 'a;
+    type ClientId = CID;
+    type GraphId = GID;
 
     /// Add a client to the model
     fn add_client_with(
         &mut self,
-        proxy_id: ProxyClientID,
+        proxy_id: Self::ClientId,
         args: Self::ClientArgs,
     ) -> Result<(), ModelError> {
-        if self.clients.contains_key(&proxy_id) {
+        let Entry::Vacant(e) = self.clients.entry(proxy_id.into()) else {
             return Err(ModelError::DuplicateClient);
         };
-
-        self.clients
-            .insert(proxy_id, self.client_factory.create_client(args));
-
+        e.insert(self.client_factory.create_client(args));
         Ok(())
     }
 
     /// Create a graph on a client
     fn new_graph(
         &mut self,
-        proxy_id: ProxyGraphID,
-        client_proxy_id: ProxyClientID,
+        proxy_id: Self::GraphId,
+        client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError> {
-        if self.storage_ids.contains_key(&proxy_id) {
+        let Entry::Vacant(storage_id) = self.storage_ids.entry(proxy_id.into()) else {
             return Err(ModelError::DuplicateGraph);
-        }
+        };
 
         let mut sink = VecSink::new();
 
         let mut state = self
             .clients
-            .get_mut(&client_proxy_id)
+            .get_mut(&client_proxy_id.into())
             .ok_or(ModelError::ClientNotFound)?
             .state
             .borrow_mut();
 
-        let storage_id = state.new_graph(&[0u8], action, &mut sink)?;
-
-        self.storage_ids.insert(proxy_id, storage_id);
+        storage_id.insert(state.new_graph(&[0u8], action, &mut sink)?);
 
         Ok(sink.effects)
     }
@@ -396,18 +408,18 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     /// Preform an action on a client
     fn action(
         &mut self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
+        client_proxy_id: Self::ClientId,
+        graph_proxy_id: Self::GraphId,
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError> {
         let storage_id = self
             .storage_ids
-            .get(&(graph_proxy_id))
+            .get(&graph_proxy_id.into())
             .ok_or(ModelError::GraphNotFound)?;
 
         let mut state = self
             .clients
-            .get_mut(&client_proxy_id)
+            .get_mut(&client_proxy_id.into())
             .ok_or(ModelError::ClientNotFound)?
             .state
             .borrow_mut();
@@ -422,14 +434,14 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     /// Sync a graph between two clients
     fn sync(
         &mut self,
-        graph_proxy_id: ProxyGraphID,
-        source_client_proxy_id: ProxyClientID,
-        dest_client_proxy_id: ProxyClientID,
+        graph_proxy_id: Self::GraphId,
+        source_client_proxy_id: Self::ClientId,
+        dest_client_proxy_id: Self::ClientId,
     ) -> Result<(), ModelError> {
         // Destination of the sync
         let mut request_state = self
             .clients
-            .get(&dest_client_proxy_id)
+            .get(&dest_client_proxy_id.into())
             .ok_or(ModelError::ClientNotFound)?
             .state
             .borrow_mut();
@@ -439,14 +451,14 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
         // Source of the sync
         let mut response_state = self
             .clients
-            .get(&source_client_proxy_id)
+            .get(&source_client_proxy_id.into())
             .ok_or(ModelError::ClientNotFound)?
             .state
             .borrow_mut();
 
         let storage_id = self
             .storage_ids
-            .get(&(graph_proxy_id))
+            .get(&graph_proxy_id.into())
             .ok_or(ModelError::GraphNotFound)?;
 
         let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
@@ -489,28 +501,28 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     /// Retrieve public keys from a client
     fn get_public_keys(
         &self,
-        client_proxy_id: ProxyClientID,
+        client_proxy_id: Self::ClientId,
     ) -> Result<&Self::PublicKeys, ModelError> {
         Ok(&self
             .clients
-            .get(&client_proxy_id)
+            .get(&client_proxy_id.into())
             .ok_or(ModelError::ClientNotFound)?
             .public_keys)
     }
 
     fn session(
         &self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
+        client_proxy_id: Self::ClientId,
+        graph_proxy_id: Self::GraphId,
     ) -> Result<Self::Session<'_>> {
         let storage_id = *self
             .storage_ids
-            .get(&graph_proxy_id)
+            .get(&graph_proxy_id.into())
             .ok_or(ModelError::GraphNotFound)?;
 
         let client = &self
             .clients
-            .get(&client_proxy_id)
+            .get(&client_proxy_id.into())
             .ok_or(ModelError::ClientNotFound)?
             .state;
 
@@ -527,8 +539,8 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     /// Create ephemeral session commands and effects
     fn session_actions<'a>(
         &mut self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
+        client_proxy_id: Self::ClientId,
+        graph_proxy_id: Self::GraphId,
         actions: impl IntoIterator<Item = Self::Action<'a>>,
     ) -> Result<SessionData<Self::Effect>> {
         let mut session = self.session(client_proxy_id, graph_proxy_id)?;
@@ -541,8 +553,8 @@ impl<CF: ClientFactory> Model for RuntimeModel<CF> {
     /// Process ephemeral session commands
     fn session_receive(
         &mut self,
-        client_proxy_id: ProxyClientID,
-        graph_proxy_id: ProxyGraphID,
+        client_proxy_id: Self::ClientId,
+        graph_proxy_id: Self::GraphId,
         commands: impl IntoIterator<Item = Box<[u8]>>,
     ) -> Result<Vec<Self::Effect>> {
         let mut session = self.session(client_proxy_id, graph_proxy_id)?;
