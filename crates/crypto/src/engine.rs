@@ -211,9 +211,9 @@ impl AlgId {
 ///
 /// - `$type` identifies which variant should be used.
 /// - `$into` is a function that takes `Self` and returns the
-/// inner value for the `$type` variant.
+///   inner value for the `$type` variant.
 /// - `$from` is a function that takes the inner value for the
-/// `$type` variant and returns `Self`.
+///   `$type` variant and returns `Self`.
 #[macro_export]
 macro_rules! unwrapped {
     { name: $name:ident; type: Aead; into: $into:expr; from: $from:expr $(;)? } => {

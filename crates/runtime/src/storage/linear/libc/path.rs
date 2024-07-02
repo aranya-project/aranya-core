@@ -92,10 +92,10 @@ impl Path {
     /// - `ptr` must not be null.
     /// - `ptr` must be null terminated.
     /// - `ptr` must be valid for reads up to the null
-    /// terminator.
+    ///   terminator.
     /// - `ptr` must not be mutated for the duration of `'a`.
     /// - The null terminator must be within `isize::MAX` bytes
-    /// from `ptr`.
+    ///   from `ptr`.
     pub unsafe fn from_ptr<'a>(ptr: *const c_char) -> &'a Self {
         debug_assert!(!ptr.is_null());
 

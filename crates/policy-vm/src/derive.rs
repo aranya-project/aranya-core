@@ -9,7 +9,7 @@
 /// It accepts the following arguments:
 ///
 /// - `name`: the name of the FFI module (e.g., everything before
-/// the `::` in `crypto::encrypt_data`).
+///   the `::` in `crypto::encrypt_data`).
 ///
 /// Methods and associated functions in the `impl` block with the
 /// `#[ffi_export]` attribute are included in the FFI module's

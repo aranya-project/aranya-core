@@ -92,7 +92,7 @@ pub use test_kdf;
 /// - invoking [`Kdf::extract`] twice results in the same PRK
 /// - invoking [`Kdf::expand`] twice results in the same key
 /// - [`Kdf::extract_and_expand`] is the same as invoking
-/// both [`Kdf::extract`] and [`Kdf::expand`].
+///   both [`Kdf::extract`] and [`Kdf::expand`].
 fn check<T: Kdf>(out1: &mut [u8], out2: &mut [u8], ikm: &[u8], salt: &[u8], info: &[u8]) {
     // extract should return the same output
     assert_ct_eq!(

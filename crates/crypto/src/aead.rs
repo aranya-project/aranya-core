@@ -12,7 +12,7 @@ use core::{
     cmp::{Eq, PartialEq},
     fmt::{self, Debug},
     iter::IntoIterator,
-    mem,
+    mem::{self, size_of},
     ops::{BitXor, Deref, DerefMut},
     result::Result,
 };
@@ -38,7 +38,7 @@ use crate::{
 // Some of the bounds for `Aead` are at least 32 bits, prevent
 // the crate from being built for, e.g., a 16-bit CPU. If we ever
 // need to support such a CPU we will need to revisit the API.
-const_assert!(mem::size_of::<usize>() >= 4);
+const_assert!(size_of::<usize>() >= 4);
 
 /// The output buffer is too small.
 ///

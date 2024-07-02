@@ -15,7 +15,7 @@ cfg_if::cfg_if! {
 
         #[doc(no_inline)]
         pub use std::error::Error;
-    } else if #[cfg(error_in_core)] {
+    } else if #[cfg(use_core_error)] {
         pub use core::error::Error;
     } else {
         use core::any::TypeId;

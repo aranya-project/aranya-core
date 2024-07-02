@@ -1,8 +1,8 @@
 //!  - `AEAD`: Authenticated Encryption with Additional
-//!  Authenticated Data.  See [AEAD] and [RFC 5116].
+//!    Authenticated Data.  See [AEAD] and [RFC 5116].
 //!  - `Digital signature`: See [Signature].
 //!  - `encapsulate`: To encrypt cryptographic key material,
-//!  typically for use with an asymmetric algorithm. See [KEM].
+//!    typically for use with an asymmetric algorithm. See [KEM].
 //!  - `HPKE`: Hybrid Public Key Encryption. See [HPKE].
 //!  - `KDF`: A Key Derivation Function. See [KDF].
 //!  - `KEM`: A Key Encapsulation Mechanism. See [KEM].

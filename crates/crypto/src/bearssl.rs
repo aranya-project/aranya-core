@@ -17,7 +17,7 @@ use core::{
     cmp,
     ffi::c_void,
     fmt::{self, Debug},
-    mem,
+    mem::size_of,
     ops::Range,
     pin::Pin,
     ptr,
@@ -1102,7 +1102,7 @@ impl Csprng for HmacDrbg {
 
 /// The vtable that lets BearSSL call [`RngWrapper`].
 static RNG_WRAPPER_VTABLE: br_prng_class = br_prng_class {
-    context_size: mem::size_of::<RngWrapper<'_>>(),
+    context_size: size_of::<RngWrapper<'_>>(),
     init: Some(rng_wrapper_init),
     generate: Some(rng_wrapper_generate),
     update: Some(rng_wrapper_update),

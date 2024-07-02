@@ -30,7 +30,7 @@ use crate::{
 ///
 /// - `moonshot`: Uses a CSPRNG specific to Project Moonshot.
 /// - `std`: Uses a thread-local CSPRNG seeded from the system
-/// CSPRNG.
+///   CSPRNG.
 /// - `boringssl`: Uses BoringSSL's CSPRNG.
 /// - `libc`: Uses the system CSPRNG.
 ///

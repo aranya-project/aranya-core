@@ -83,7 +83,8 @@ mod rust_alloc {
         super::*,
         alloc::alloc::{alloc, dealloc},
         core::{
-            mem, slice,
+            mem::{align_of, size_of},
+            slice,
             sync::atomic::{AtomicU32, Ordering},
         },
     };
@@ -155,12 +156,12 @@ mod rust_alloc {
 
     /// The number of bytes we reserve at the beginning of each
     /// memory allocation to stash the size.
-    const MALLOC_PREFIX: usize = mem::size_of::<usize>();
+    const MALLOC_PREFIX: usize = size_of::<usize>();
 
     /// Returns the layout for `size` aligned to `*mut c_void` or
     /// invokes [`oom`].
     fn layout(size: usize) -> Layout {
-        match Layout::from_size_align(size, mem::align_of::<*mut c_void>()) {
+        match Layout::from_size_align(size, align_of::<*mut c_void>()) {
             Ok(v) => v,
             Err(_) => oom(),
         }
