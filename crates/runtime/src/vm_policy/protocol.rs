@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{collections::BTreeMap, string::String, vec::Vec};
+use alloc::{borrow::Cow, collections::BTreeMap, string::String};
 use core::fmt;
 
 use crypto::UserId;
@@ -14,13 +14,16 @@ use crate::{
 
 /// The data inside a [VmProtocol]. It gets serialized and deserialized over the wire.
 #[derive(Debug, Serialize, Deserialize)]
-pub enum VmProtocolData {
+pub enum VmProtocolData<'a> {
     Init {
         policy: [u8; 8],
         author_id: UserId,
-        kind: String,
-        serialized_fields: Vec<u8>,
-        signature: Vec<u8>,
+        #[serde(borrow)]
+        kind: &'a str,
+        #[serde(borrow)]
+        serialized_fields: &'a [u8],
+        #[serde(borrow)]
+        signature: &'a [u8],
     },
     Merge {
         left: CommandId,
@@ -29,9 +32,12 @@ pub enum VmProtocolData {
     Basic {
         parent: CommandId,
         author_id: UserId,
-        kind: String,
-        serialized_fields: Vec<u8>,
-        signature: Vec<u8>,
+        #[serde(borrow)]
+        kind: &'a str,
+        #[serde(borrow)]
+        serialized_fields: &'a [u8],
+        #[serde(borrow)]
+        signature: &'a [u8],
     },
 }
 
@@ -42,11 +48,11 @@ pub enum VmProtocolData {
 pub struct VmProtocol<'a> {
     data: &'a [u8],
     id: CommandId,
-    unpacked: VmProtocolData,
+    unpacked: VmProtocolData<'a>,
 }
 
 impl<'a> VmProtocol<'a> {
-    pub fn new(data: &'a [u8], id: CommandId, unpacked: VmProtocolData) -> VmProtocol<'_> {
+    pub fn new(data: &'a [u8], id: CommandId, unpacked: VmProtocolData<'a>) -> VmProtocol<'a> {
         VmProtocol { data, id, unpacked }
     }
 }
@@ -86,30 +92,30 @@ impl<'a> Command for VmProtocol<'a> {
 }
 
 #[derive(Clone, Debug)]
-pub struct Envelope {
+pub struct Envelope<'a> {
     pub parent_id: CommandId,
     pub author_id: UserId,
     pub command_id: CommandId,
-    pub payload: Vec<u8>,
-    pub signature: Vec<u8>,
+    pub payload: Cow<'a, [u8]>,
+    pub signature: Cow<'a, [u8]>,
 }
 
-impl From<Envelope> for Struct {
-    fn from(e: Envelope) -> Self {
+impl From<Envelope<'_>> for Struct {
+    fn from(e: Envelope<'_>) -> Self {
         Self::new(
             "Envelope",
             [
                 ("parent_id".into(), e.parent_id.into_id().into()),
                 ("author_id".into(), e.author_id.into_id().into()),
                 ("command_id".into(), e.command_id.into_id().into()),
-                ("payload".into(), e.payload.into()),
-                ("signature".into(), e.signature.into()),
+                ("payload".into(), e.payload.into_owned().into()),
+                ("signature".into(), e.signature.into_owned().into()),
             ],
         )
     }
 }
 
-impl TryFrom<Struct> for Envelope {
+impl TryFrom<Struct> for Envelope<'_> {
     type Error = EnvelopeError;
 
     fn try_from(
@@ -126,8 +132,8 @@ impl TryFrom<Struct> for Envelope {
             parent_id: get::<crypto::Id>(fields, "parent_id")?.into(),
             author_id: get::<crypto::Id>(fields, "author_id")?.into(),
             command_id: get::<crypto::Id>(fields, "command_id")?.into(),
-            payload: get(fields, "payload")?,
-            signature: get(fields, "signature")?,
+            payload: Cow::Owned(get(fields, "payload")?),
+            signature: Cow::Owned(get(fields, "signature")?),
         })
     }
 }

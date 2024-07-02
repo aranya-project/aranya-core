@@ -209,7 +209,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         &self,
         name: &str,
         fields: &[KVPair],
-        envelope: Envelope,
+        envelope: Envelope<'_>,
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
         ctx: &CommandContext<'_>,
@@ -248,7 +248,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         rs: &mut RunState<'_, M>,
         name: &str,
         self_data: &Struct,
-        envelope: Envelope,
+        envelope: Envelope<'_>,
     ) -> Result<(), EngineError>
     where
         M: MachineIO<MachineStack>,
@@ -275,7 +275,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
     fn open_command<P>(
         &self,
         name: &str,
-        envelope: Envelope,
+        envelope: Envelope<'_>,
         facts: &mut P,
     ) -> Result<Struct, EngineError>
     where
@@ -323,7 +323,7 @@ impl<E: crypto::Engine> VmPolicy<E> {
         fields: impl IntoIterator<Item = impl Into<(String, Value)>>,
         ctx_parent: CommandId,
         facts: &mut impl FactPerspective,
-    ) -> Result<Envelope, EngineError> {
+    ) -> Result<Envelope<'static>, EngineError> {
         let mut sink = NullSink;
         let mut ffis = self.ffis.lock();
         let mut eng = self.engine.lock();
@@ -405,7 +405,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         sink: &mut impl Sink<Self::Effect>,
         recall: CommandRecall,
     ) -> Result<(), EngineError> {
-        let unpacked: VmProtocolData = postcard::from_bytes(command.bytes()).map_err(|e| {
+        let unpacked: VmProtocolData<'_> = postcard::from_bytes(command.bytes()).map_err(|e| {
             error!("Could not deserialize: {e:?}");
             EngineError::Read
         })?;
@@ -421,30 +421,22 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                     parent_id: CommandId::default(),
                     author_id,
                     command_id: command.id(),
-                    payload: serialized_fields,
-                    signature,
+                    payload: Cow::Borrowed(serialized_fields),
+                    signature: Cow::Borrowed(signature),
                 };
-                let command_struct = self.open_command(&kind, envelope.clone(), facts)?;
+                let command_struct = self.open_command(kind, envelope.clone(), facts)?;
                 let fields: Vec<KVPair> = command_struct
                     .fields
                     .into_iter()
                     .map(|(k, v)| KVPair::new(&k, v))
                     .collect();
                 let ctx = CommandContext::Policy(PolicyContext {
-                    name: &kind,
+                    name: kind,
                     id: command.id().into(),
                     author: author_id,
                     version: CommandId::default().into(),
                 });
-                self.evaluate_rule(
-                    &kind,
-                    fields.as_slice(),
-                    envelope,
-                    facts,
-                    sink,
-                    &ctx,
-                    recall,
-                )?
+                self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, &ctx, recall)?
             }
             VmProtocolData::Basic {
                 parent,
@@ -457,30 +449,22 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                     parent_id: parent,
                     author_id,
                     command_id: command.id(),
-                    payload: serialized_fields,
-                    signature,
+                    payload: Cow::Borrowed(serialized_fields),
+                    signature: Cow::Borrowed(signature),
                 };
-                let command_struct = self.open_command(&kind, envelope.clone(), facts)?;
+                let command_struct = self.open_command(kind, envelope.clone(), facts)?;
                 let fields: Vec<KVPair> = command_struct
                     .fields
                     .into_iter()
                     .map(|(k, v)| KVPair::new(&k, v))
                     .collect();
                 let ctx = CommandContext::Policy(PolicyContext {
-                    name: &kind,
+                    name: kind,
                     id: command.id().into(),
                     author: author_id,
                     version: CommandId::default().into(),
                 });
-                self.evaluate_rule(
-                    &kind,
-                    fields.as_slice(),
-                    envelope,
-                    facts,
-                    sink,
-                    &ctx,
-                    recall,
-                )?
+                self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, &ctx, recall)?
             }
             // Merges always pass because they're an artifact of the graph
             _ => (),
@@ -545,16 +529,16 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                     // TODO(chip): where does the policy value come from?
                     policy: 0u64.to_le_bytes(),
                     author_id: envelope.author_id,
-                    kind: name,
-                    serialized_fields: envelope.payload,
-                    signature: envelope.signature,
+                    kind: &name,
+                    serialized_fields: &envelope.payload,
+                    signature: &envelope.signature,
                 },
                 Some(parent) => VmProtocolData::Basic {
                     author_id: envelope.author_id,
                     parent,
-                    kind: name,
-                    serialized_fields: envelope.payload,
-                    signature: envelope.signature,
+                    kind: &name,
+                    serialized_fields: &envelope.payload,
+                    signature: &envelope.signature,
                 },
             };
             let wrapped = postcard::to_allocvec(&data)?;
