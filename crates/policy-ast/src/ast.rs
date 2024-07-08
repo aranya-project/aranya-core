@@ -472,6 +472,8 @@ pub struct StructDefinition {
 /// A command definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandDefinition {
+    /// Optional attributes
+    pub attributes: Vec<(String, Expression)>,
     /// The name of the command
     pub identifier: String,
     /// The fields of the command and their types

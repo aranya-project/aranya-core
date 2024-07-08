@@ -83,6 +83,8 @@ pub struct ModuleV0 {
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct definitions
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Command attributes
+    pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Code map
     pub codemap: Option<CodeMap>,
     /// Global static data

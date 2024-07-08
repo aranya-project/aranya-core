@@ -18,6 +18,8 @@ pub struct CompileTarget {
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Command attributes
+    pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -25,19 +27,20 @@ pub struct CompileTarget {
 }
 
 impl CompileTarget {
-    /// Creates an empty `Machine` with a given codemap. Used by the compiler.
+    /// Creates an empty `CompileTarget` with a given codemap. Used by the compiler.
     pub fn new(codemap: CodeMap) -> Self {
         CompileTarget {
             progmem: vec![],
             labels: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
+            command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
     }
 
-    /// Converts the `Machine` into a `Module`.
+    /// Converts the `CompileTarget` into a `Module`.
     pub fn into_module(self) -> Module {
         Module {
             data: ModuleData::V0(ModuleV0 {
@@ -45,6 +48,7 @@ impl CompileTarget {
                 labels: self.labels,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
+                command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,
             }),

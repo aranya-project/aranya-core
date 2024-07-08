@@ -245,6 +245,8 @@ statements = _{
 statement_block = _{ "{" ~ statements* ~ "}" }
 
 // ## Command blocks
+// Command attributes
+attributes_block = { "attributes" ~ struct_literal }
 // The fields statement defines the fields of a command with a struct
 // literal.
 fields_block = { "fields" ~ struct_def }
@@ -261,7 +263,7 @@ seal_block = { "seal" ~ statement_block }
 // parameter. It returns a command struct for the command it is part of.
 open_block = { "open" ~ statement_block }
 // Union of all command blocks
-command_blocks = _{ fields_block | seal_block | open_block | policy_block | recall_block }
+command_blocks = _{ attributes_block | fields_block | seal_block | open_block | policy_block | recall_block }
 
 // # Top-level Statements
 // fact Foo[]=>{}

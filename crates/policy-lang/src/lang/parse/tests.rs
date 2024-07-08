@@ -340,6 +340,23 @@ fn parse_command() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+fn parse_command_attributes() {
+    let src = r#"
+        command Foo {
+            attributes {
+                priority: "high",
+            }
+        }
+    "#;
+    let policy = parse_policy_str(src, Version::V1).expect("should parse");
+    let command_def = &policy.commands[0];
+
+    let (id, value) = &command_def.attributes[0];
+    assert_eq!(id, "priority");
+    assert_eq!(value, &Expression::String("high".to_string()));
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_function() -> Result<(), PestError<Rule>> {
     let src = r#"
@@ -564,6 +581,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
         policy.commands,
         vec![AstNode::new(
             ast::CommandDefinition {
+                attributes: vec![],
                 identifier: String::from("Add"),
                 fields: vec![ast::FieldDefinition {
                     identifier: String::from("count"),
@@ -1301,6 +1319,7 @@ fn parse_seal_open() {
         policy.commands,
         vec![AstNode::new(
             ast::CommandDefinition {
+                attributes: vec![],
                 identifier: String::from("Foo"),
                 fields: vec![],
                 policy: vec![],
@@ -1348,6 +1367,7 @@ fn parse_serialize_deserialize() {
         policy.commands,
         vec![AstNode::new(
             ast::CommandDefinition {
+                attributes: vec![],
                 identifier: String::from("Foo"),
                 fields: vec![],
                 policy: vec![],

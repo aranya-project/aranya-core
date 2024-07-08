@@ -3,7 +3,6 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
-use ast::FactDefinition;
 use buggy::BugExt;
 use policy_ast as ast;
 use policy_module::{
@@ -21,7 +20,7 @@ use crate::{
 
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
-fn validate_fact_schema(fact: &Fact, schema: &FactDefinition) -> bool {
+fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
     if fact.name != schema.identifier {
         return false;
     }
@@ -113,9 +112,11 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Fact schemas
-    pub fact_defs: BTreeMap<String, FactDefinition>,
+    pub fact_defs: BTreeMap<String, ast::FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Command attributes
+    pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
@@ -133,6 +134,7 @@ impl Machine {
             labels: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
+            command_attributes: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
         }
@@ -145,6 +147,7 @@ impl Machine {
             labels: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
+            command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
         }
@@ -158,6 +161,7 @@ impl Machine {
                 labels: m.labels,
                 fact_defs: m.fact_defs,
                 struct_defs: m.struct_defs,
+                command_attributes: m.command_attributes,
                 codemap: m.codemap,
                 globals: m.globals,
             }),
@@ -172,6 +176,7 @@ impl Machine {
                 labels: self.labels,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
+                command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,
             }),

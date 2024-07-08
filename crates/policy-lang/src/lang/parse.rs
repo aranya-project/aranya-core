@@ -1116,6 +1116,7 @@ fn parse_command_definition(
     let pc = descend(item);
     let identifier = pc.consume_identifier()?;
 
+    let mut attributes = vec![];
     let mut fields = vec![];
     let mut policy = vec![];
     let mut recall = vec![];
@@ -1123,6 +1124,15 @@ fn parse_command_definition(
     let mut open = vec![];
     for token in pc.into_inner() {
         match token.as_rule() {
+            Rule::attributes_block => {
+                let pairs = token.into_inner();
+                for field in pairs {
+                    let pc = descend(field);
+                    let identifier = pc.consume_identifier()?;
+                    let expr = pc.consume_expression(pratt)?;
+                    attributes.push((identifier, expr));
+                }
+            }
             Rule::fields_block => {
                 let pairs = token.into_inner();
                 for field in pairs {
@@ -1157,6 +1167,7 @@ fn parse_command_definition(
 
     Ok(AstNode::new(
         ast::CommandDefinition {
+            attributes,
             identifier,
             fields,
             seal,

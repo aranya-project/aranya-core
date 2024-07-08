@@ -1413,6 +1413,28 @@ impl<'a> CompileState<'a> {
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
+        // command attributes
+
+        let attr_map = self
+            .m
+            .command_attributes
+            .entry(command.identifier.to_owned())
+            .or_default();
+
+        for attr in &command.attributes {
+            match attr_map.entry(attr.0.clone()) {
+                Entry::Vacant(e) => {
+                    if let Some(value) = expression_value(&attr.1) {
+                        e.insert(value);
+                    } else {
+                        return Err(self.err(CompileErrorType::InvalidExpression(attr.1.clone())));
+                    }
+                }
+                Entry::Occupied(_) => {
+                    return Err(self.err(CompileErrorType::AlreadyDefined(attr.0.clone())));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -1606,6 +1628,7 @@ fn expression_value(e: &Expression) -> Option<Value> {
                 value_fields
             },
         })),
+        Expression::EnumReference(e) => Some(Value::Enum(e.identifier.clone(), e.value.clone())),
         _ => None,
     }
 }

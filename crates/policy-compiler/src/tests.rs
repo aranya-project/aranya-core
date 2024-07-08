@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use policy_ast::{FieldDefinition, VType, Version};
 use policy_lang::lang::parse_policy_str;
-use policy_module::{Label, LabelType, ModuleData};
+use policy_module::{Label, LabelType, ModuleData, Value};
 
 use crate::{CallColor, CompileError, CompileErrorType, Compiler};
 
@@ -333,6 +333,89 @@ fn test_command_with_no_return_in_open_block() -> anyhow::Result<()> {
     assert_eq!(err, CompileErrorType::NoReturn);
 
     Ok(())
+}
+
+#[test]
+fn test_command_attributes() {
+    let text = r#"
+        enum Priority { Low, High }
+        command A {
+            attributes {
+                i: 5,
+                s: "abc",
+                priority: Priority::High
+            }
+            seal { return None }
+            open { return None }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let m = Compiler::new(&policy).compile().expect("should compile");
+    match m.data {
+        ModuleData::V0(m) => {
+            let attrs = m
+                .command_attributes
+                .get("A")
+                .expect("should find command attribute map");
+            assert_eq!(attrs.len(), 3);
+            assert_eq!(
+                attrs.get("i").expect("should find 1st value"),
+                &Value::Int(5)
+            );
+            assert_eq!(
+                attrs.get("s").expect("should find 2nd value"),
+                &Value::String("abc".to_string())
+            );
+            assert_eq!(
+                attrs.get("priority").expect("should find 3nd value"),
+                &Value::Enum("Priority".to_string(), "High".to_string())
+            );
+        }
+    }
+}
+
+#[test]
+fn test_command_attributes_should_be_unique() {
+    let text = r#"
+    command F {
+        attributes {
+            a: 5,
+            a: "five"
+        }
+        open { return None }
+        seal { return None }
+    }
+    "#;
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let err_type = Compiler::new(&policy).compile().unwrap_err().err_type;
+    assert_eq!(err_type, CompileErrorType::AlreadyDefined("a".to_string()));
+}
+
+#[test]
+fn test_command_attributes_must_be_literals() {
+    let texts = [
+        r#"
+        command A {
+            attributes { i: 2 + 1 }
+            seal { return None }
+            open { return None }
+        }"#,
+        r#"
+        function f() int { return 3 }
+        command A {
+            attributes { i: f() }
+            seal { return None }
+            open { return None }
+        }
+    "#,
+    ];
+
+    for text in texts {
+        let policy = parse_policy_str(text, Version::V1).expect("should parse");
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert!(matches!(err, CompileErrorType::InvalidExpression(_)))
+    }
 }
 
 #[test]
