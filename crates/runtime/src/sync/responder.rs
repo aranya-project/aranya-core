@@ -9,7 +9,7 @@ use super::{
     COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, SEGMENT_BUFFER_MAX,
 };
 use crate::{
-    command::{Command, CommandId, MaxCut},
+    command::{Address, Command, CommandId},
     storage::{GraphId, Location, Segment, Storage, StorageProvider},
 };
 
@@ -99,7 +99,7 @@ pub struct SyncResponder {
     state: SyncResponderState,
     bytes_sent: u64,
     next_send: usize,
-    has: Vec<CommandId, COMMAND_SAMPLE_MAX>,
+    has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
 }
 
@@ -213,12 +213,12 @@ impl SyncResponder {
     }
 
     fn find_needed_segments(
-        commands: &[CommandId],
+        commands: &[Address],
         storage: &impl Storage,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
         let mut have_locations = alloc::vec::Vec::new(); //BUG: not constant size
-        for id in commands {
-            let Some(location) = storage.get_location(id)? else {
+        for &addr in commands {
+            let Some(location) = storage.get_location(addr)? else {
                 // Note: We could use things we don't
                 // have as a hint to know we should
                 // perform a sync request.
@@ -345,7 +345,7 @@ impl SyncResponder {
                     parent: command.parent(),
                     policy_length: policy_length as u32,
                     length: bytes.len() as u32,
-                    max_cut: command.max_cut(),
+                    max_cut: command.max_cut()?,
                 };
 
                 // FIXME(jdygert): Handle segments with more than COMMAND_RESPONSE_MAX commands.

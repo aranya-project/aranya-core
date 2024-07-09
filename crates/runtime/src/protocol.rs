@@ -11,7 +11,7 @@ use super::{
     alloc, Command, CommandId, Engine, EngineError, FactPerspective, Perspective, Policy, PolicyId,
     Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
 };
-use crate::{CommandRecall, Keys, MergeIds};
+use crate::{Address, CommandRecall, Keys, MergeIds};
 
 impl From<StorageError> for EngineError {
     fn from(_: StorageError) -> Self {
@@ -39,13 +39,13 @@ pub struct WireInit {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireMerge {
-    pub left: CommandId,
-    pub right: CommandId,
+    pub left: Address,
+    pub right: Address,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Ord, Eq, PartialOrd, PartialEq)]
 pub struct WireBasic {
-    pub parent: CommandId,
+    pub parent: Address,
     pub prority: u32,
     pub payload: (u64, u64),
 }
@@ -77,7 +77,7 @@ impl<'a> Command for TestProtocol<'a> {
         self.id
     }
 
-    fn parent(&self) -> Prior<CommandId> {
+    fn parent(&self) -> Prior<Address> {
         match &self.command {
             WireProtocol::Init(_) => Prior::None,
             WireProtocol::Basic(m) => Prior::Single(m.parent),
@@ -183,7 +183,7 @@ impl TestPolicy {
     fn basic<'a>(
         &self,
         target: &'a mut [u8],
-        parent: CommandId,
+        parent: Address,
         payload: (u64, u64),
     ) -> Result<TestProtocol<'a>, EngineError> {
         let prority = 0; //BUG
@@ -316,8 +316,11 @@ impl Policy for TestPolicy {
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
     ) -> Result<(), EngineError> {
-        let parent = match facts.head_id() {
-            Prior::None => CommandId::default(),
+        let parent = match facts.head_address()? {
+            Prior::None => Address {
+                id: CommandId::default(),
+                max_cut: 0,
+            },
             Prior::Single(id) => id,
             Prior::Merge(_, _) => bug!("cannot get merge command in call_action"),
         };

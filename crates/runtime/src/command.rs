@@ -3,6 +3,7 @@ use alloc::{
     string::{String, ToString},
 };
 
+use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;
@@ -71,15 +72,36 @@ pub trait Command {
     /// Uniquely identifies the serialized command.
     fn id(&self) -> CommandId;
 
-    /// Return this command's parents, or command(s) that immediately
+    /// Return this command's parents, or address(s) that immediately
     /// precede(s) this.
-    fn parent(&self) -> Prior<CommandId>;
+    fn parent(&self) -> Prior<Address>;
 
     /// Return this command's associated policy.
     fn policy(&self) -> Option<&[u8]>;
 
     /// Return this command's serialized data.
     fn bytes(&self) -> &[u8];
+
+    /// Return this command's max cut. Max cut is the maximum distance to the init command.
+    fn max_cut(&self) -> Result<usize, Bug> {
+        match self.parent() {
+            Prior::None => Ok(0),
+            Prior::Single(l) => Ok(l.max_cut.checked_add(1).assume("must not overflow")?),
+            Prior::Merge(l, r) => Ok(l
+                .max_cut
+                .max(r.max_cut)
+                .checked_add(1)
+                .assume("must not overflow")?),
+        }
+    }
+
+    /// Return this command's address.
+    fn address(&self) -> Result<Address, Bug> {
+        Ok(Address {
+            id: self.id(),
+            max_cut: self.max_cut()?,
+        })
+    }
 }
 
 impl<C: Command> Command for &C {
@@ -91,7 +113,7 @@ impl<C: Command> Command for &C {
         (*self).id()
     }
 
-    fn parent(&self) -> Prior<CommandId> {
+    fn parent(&self) -> Prior<Address> {
         (*self).parent()
     }
 
@@ -102,18 +124,39 @@ impl<C: Command> Command for &C {
     fn bytes(&self) -> &[u8] {
         (*self).bytes()
     }
-}
 
-/// A Command with an associated max cut. Max cut is the maximum distance from
-/// the command to the init command.
-pub trait MaxCut {
-    /// Return this command's max cut. Max cut is the maximum distance to the init command.
-    fn max_cut(&self) -> usize;
-}
-
-impl<M: MaxCut> MaxCut for &M {
-    fn max_cut(&self) -> usize {
+    fn max_cut(&self) -> Result<usize, Bug> {
         (*self).max_cut()
+    }
+
+    fn address(&self) -> Result<Address, Bug> {
+        (*self).address()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, Ord, PartialEq, PartialOrd, Eq, Default)]
+/// An address contains all of the information needed to find a command in
+/// another graph.
+///
+/// The command id identifies the command you're searching for and the
+/// max_cut allows that command to be found efficiently.
+pub struct Address {
+    pub id: CommandId,
+    pub max_cut: usize,
+}
+
+impl Prior<Address> {
+    /// Returns the max cut for the command that is after this prior.
+    pub fn next_max_cut(&self) -> Result<usize, Bug> {
+        Ok(match self {
+            Prior::None => 1,
+            Prior::Single(l) => l.max_cut.checked_add(1).assume("must not overflow")?,
+            Prior::Merge(l, r) => l
+                .max_cut
+                .max(r.max_cut)
+                .checked_add(1)
+                .assume("must not overflow")?,
+        })
     }
 }
 

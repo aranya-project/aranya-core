@@ -27,16 +27,17 @@ pub mod libc;
 #[cfg(feature = "testing")]
 pub mod testing;
 
-use alloc::{boxed::Box, collections::BTreeMap, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
-use buggy::BugExt;
+use buggy::{Bug, BugExt};
+use crypto::{csprng::rand::Rng as _, Csprng, Rng};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
 use crate::{
-    Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
-    StorageError, StorageProvider,
+    Address, Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Keys,
+    Location, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
+    Storage, StorageError, StorageProvider,
 };
 
 pub mod io;
@@ -62,12 +63,13 @@ struct SegmentRepr {
     /// Self offset in file.
     offset: usize,
     prior: Prior<Location>,
-    parents: Prior<CommandId>,
+    parents: Prior<Address>,
     policy: PolicyId,
     /// Offset in file to associated fact index.
     facts: usize,
     commands: Vec1<CommandData>,
     max_cut: usize,
+    skip_list: Vec<(Location, usize)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,7 +83,7 @@ struct CommandData {
 
 pub struct LinearCommand<'a> {
     id: &'a CommandId,
-    parent: Prior<&'a CommandId>,
+    parent: Prior<Address>,
     priority: Priority,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
@@ -113,21 +115,23 @@ struct FactIndexRepr {
 #[derive(Debug)]
 pub struct LinearPerspective<R> {
     prior: Prior<Location>,
-    parents: Prior<CommandId>,
+    parents: Prior<Address>,
     policy: PolicyId,
     facts: LinearFactPerspective<R>,
     commands: Vec<CommandData>,
     current_updates: Vec<Update>,
     max_cut: usize,
+    last_common_ancestor: Option<(Location, usize)>,
 }
 
 impl<R> LinearPerspective<R> {
     fn new(
         prior: Prior<Location>,
-        parents: Prior<CommandId>,
+        parents: Prior<Address>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior<R>,
         max_cut: usize,
+        last_common_ancestor: Option<(Location, usize)>,
     ) -> Self {
         Self {
             prior,
@@ -137,6 +141,7 @@ impl<R> LinearPerspective<R> {
             commands: Vec::new(),
             current_updates: Vec::new(),
             max_cut,
+            last_common_ancestor,
         }
     }
 }
@@ -184,6 +189,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
             *policy_id,
             FactPerspectivePrior::None,
             0,
+            None,
         )
     }
 
@@ -225,6 +231,40 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
 }
 
 impl<W: Write> LinearStorage<W> {
+    fn get_skip(
+        &self,
+        segment: <LinearStorage<W> as Storage>::Segment,
+        max_cut: usize,
+    ) -> Result<Option<(Location, usize)>, StorageError> {
+        let mut head = segment;
+        let mut current = None;
+        'outer: loop {
+            if max_cut > head.longest_max_cut()? {
+                return Ok(current);
+            }
+            current = Some((head.first_location(), head.shortest_max_cut()));
+            if max_cut >= head.shortest_max_cut() {
+                return Ok(current);
+            }
+            // Assumes skip list is sorted in ascending order.
+            // We always want to skip as close to the root as possible.
+            for (skip, skip_max_cut) in head.skip_list() {
+                if skip_max_cut <= &max_cut {
+                    head = self.get_segment(*skip)?;
+                    continue 'outer;
+                }
+            }
+            head = match head.prior() {
+                Prior::None | Prior::Merge(_, _) => {
+                    return Ok(current);
+                }
+                Prior::Single(l) => self.get_segment(l)?,
+            }
+        }
+    }
+}
+
+impl<W: Write> LinearStorage<W> {
     fn create(mut writer: W, init: LinearPerspective<W::ReadOnly>) -> Result<Self, StorageError> {
         assert!(matches!(init.prior, Prior::None));
         assert!(matches!(init.parents, Prior::None));
@@ -250,6 +290,7 @@ impl<W: Write> LinearStorage<W> {
             facts,
             commands,
             max_cut: 0,
+            skip_list: vec![],
         })?;
 
         let head = Location::new(
@@ -295,8 +336,6 @@ impl<F: Write> Storage for LinearStorage<F> {
         let command = segment
             .get_command(parent)
             .ok_or(StorageError::CommandOutOfBounds(parent))?;
-        let parent_id = command.id();
-
         let policy = segment.repr.policy;
         let prior_facts: FactPerspectivePrior<F::ReadOnly> = if parent == segment.head_location() {
             FactPerspectivePrior::FactIndex {
@@ -325,13 +364,14 @@ impl<F: Write> Storage for LinearStorage<F> {
 
         let perspective = LinearPerspective::new(
             prior,
-            Prior::Single(parent_id),
+            Prior::Single(command.address()?),
             policy,
             prior_facts,
             command
-                .max_cut()
+                .max_cut()?
                 .checked_add(1)
                 .assume("must not overflow")?,
+            None,
         );
 
         Ok(Some(perspective))
@@ -371,6 +411,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         &self,
         left: Location,
         right: Location,
+        last_common_ancestor: (Location, usize),
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError> {
@@ -385,7 +426,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             .get_command(right)
             .ok_or(StorageError::CommandOutOfBounds(right))?;
 
-        let parent = Prior::Merge(left_command.id(), right_command.id());
+        let parent = Prior::Merge(left_command.address()?, right_command.address()?);
 
         if policy_id != left_segment.policy() && policy_id != right_segment.policy() {
             return Err(StorageError::PolicyMismatch);
@@ -402,10 +443,11 @@ impl<F: Write> Storage for LinearStorage<F> {
                 reader: braid.reader,
             },
             left_command
-                .max_cut()
-                .max(right_command.max_cut())
+                .max_cut()?
+                .max(right_command.max_cut()?)
                 .checked_add(1)
                 .assume("must not overflow")?,
+            Some(last_common_ancestor),
         );
 
         Ok(Some(perspective))
@@ -414,7 +456,9 @@ impl<F: Write> Storage for LinearStorage<F> {
     fn get_segment(&self, location: Location) -> Result<Self::Segment, StorageError> {
         let reader = self.writer.readonly();
         let repr = reader.fetch(location.segment)?;
-        Ok(LinearSegment { repr, reader })
+        let seg = LinearSegment { repr, reader };
+
+        Ok(seg)
     }
 
     fn get_head(&self) -> Result<Location, StorageError> {
@@ -439,6 +483,47 @@ impl<F: Write> Storage for LinearStorage<F> {
             .try_into()
             .map_err(|_| StorageError::EmptyPerspective)?;
 
+        let get_skips =
+            |l: Location, count: usize| -> Result<Vec<(Location, usize)>, StorageError> {
+                let mut rng = &mut Rng as &mut dyn Csprng;
+                let mut skips = vec![];
+                for _ in 0..count {
+                    let segment = self.get_segment(l)?;
+                    let l_max_cut = segment
+                        .get_command(l)
+                        .assume("location must exist")?
+                        .max_cut;
+                    if l_max_cut > 0 {
+                        let max_cut = rng.gen_range(0..l_max_cut);
+                        if let Some(skip) = self.get_skip(segment, max_cut)? {
+                            if !skips.contains(&skip) {
+                                skips.push(skip);
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+                Ok(skips)
+            };
+
+        let skip_list = match perspective.prior {
+            Prior::None => vec![],
+            Prior::Merge(_, _) => {
+                let (lca, max_cut) = perspective.last_common_ancestor.assume("lca must exist")?;
+                let mut skips = get_skips(lca, 2)?;
+                if !skips.contains(&(lca, max_cut)) {
+                    skips.push((lca, max_cut));
+                }
+                skips.sort();
+                skips
+            }
+            Prior::Single(l) => {
+                let mut skips = get_skips(l, 3)?;
+                skips.sort();
+                skips
+            }
+        };
         let repr = self.writer.append(|offset| SegmentRepr {
             offset,
             prior: perspective.prior,
@@ -447,6 +532,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             facts,
             commands,
             max_cut: perspective.max_cut,
+            skip_list,
         })?;
 
         Ok(LinearSegment {
@@ -493,14 +579,21 @@ impl<R: Read> Segment for LinearSegment<R> {
     type FactIndex = LinearFactIndex<R>;
     type Command<'a> = LinearCommand<'a> where R: 'a;
 
-    fn head(&self) -> Self::Command<'_> {
+    fn head(&self) -> Result<Self::Command<'_>, StorageError> {
         let data = self.repr.commands.last();
         let parent = if let Some(prev) = usize::checked_sub(self.repr.commands.len(), 2) {
-            Prior::Single(&self.repr.commands[prev].id)
+            Prior::Single(Address {
+                id: self.repr.commands[prev].id,
+                max_cut: self
+                    .repr
+                    .max_cut
+                    .checked_add(prev)
+                    .assume("must not overflow")?,
+            })
         } else {
-            self.repr.parents.as_ref()
+            self.repr.parents
         };
-        LinearCommand {
+        Ok(LinearCommand {
             id: &data.id,
             parent,
             priority: data.priority.clone(),
@@ -510,18 +603,17 @@ impl<R: Read> Segment for LinearSegment<R> {
                 .repr
                 .max_cut
                 .checked_add(self.repr.commands.len())
-                .expect("must not overflow")
+                .assume("must not overflow")?
                 .checked_sub(1)
-                .expect("segment must not be empty"),
-        }
+                .assume("must not overflow")?,
+        })
     }
 
     fn first(&self) -> Self::Command<'_> {
         let data = self.repr.commands.first();
-        let parent = self.repr.parents.as_ref();
         LinearCommand {
             id: &data.id,
-            parent,
+            parent: self.repr.parents,
             priority: data.priority.clone(),
             policy: data.policy.as_deref(),
             data: &data.data,
@@ -557,22 +649,28 @@ impl<R: Read> Segment for LinearSegment<R> {
         }
         let data = self.repr.commands.get(location.command)?;
         let parent = if let Some(prev) = usize::checked_sub(location.command, 1) {
-            Prior::Single(&self.repr.commands[prev].id)
+            if let Some(max_cut) = self.repr.max_cut.checked_add(prev) {
+                Prior::Single(Address {
+                    id: self.repr.commands[prev].id,
+                    max_cut,
+                })
+            } else {
+                return None;
+            }
         } else {
-            self.repr.parents.as_ref()
+            self.repr.parents
         };
-        Some(LinearCommand {
-            id: &data.id,
-            parent,
-            priority: data.priority.clone(),
-            policy: data.policy.as_deref(),
-            data: &data.data,
-            max_cut: self
-                .repr
-                .max_cut
-                .checked_add(location.command)
-                .expect("must not overflow"),
-        })
+        self.repr
+            .max_cut
+            .checked_add(location.command)
+            .map(|max_cut| LinearCommand {
+                id: &data.id,
+                parent,
+                priority: data.priority.clone(),
+                policy: data.policy.as_deref(),
+                data: &data.data,
+                max_cut,
+            })
     }
 
     fn get_from(&self, location: Location) -> Vec<Self::Command<'_>> {
@@ -591,11 +689,48 @@ impl<R: Read> Segment for LinearSegment<R> {
             .collect()
     }
 
+    fn get_from_max_cut(&self, max_cut: usize) -> Result<Option<Location>, StorageError> {
+        if max_cut >= self.repr.max_cut
+            && max_cut
+                <= self
+                    .repr
+                    .max_cut
+                    .checked_add(self.repr.commands.len())
+                    .assume("must not overflow")?
+        {
+            return Ok(Some(Location::new(
+                self.repr.offset,
+                max_cut
+                    .checked_sub(self.repr.max_cut)
+                    .assume("must not overflow")?,
+            )));
+        }
+        Ok(None)
+    }
+
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
         Ok(LinearFactIndex {
             repr: self.reader.fetch(self.repr.facts)?,
             reader: self.reader.clone(),
         })
+    }
+
+    fn skip_list(&self) -> &[(Location, usize)] {
+        &self.repr.skip_list
+    }
+
+    fn shortest_max_cut(&self) -> usize {
+        self.repr.max_cut
+    }
+
+    fn longest_max_cut(&self) -> Result<usize, StorageError> {
+        Ok(self
+            .repr
+            .max_cut
+            .checked_add(self.repr.commands.len())
+            .assume("must not overflow")?
+            .checked_sub(1)
+            .assume("must not overflow")?)
     }
 }
 
@@ -815,7 +950,7 @@ impl<R: Read> Perspective for LinearPerspective<R> {
     }
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        if command.parent() != self.head_id() {
+        if command.parent() != self.head_address()? {
             return Err(StorageError::PerspectiveHeadMismatch);
         }
 
@@ -833,10 +968,30 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         self.commands.iter().any(|cmd| cmd.id == *id)
     }
 
-    fn head_id(&self) -> Prior<CommandId> {
-        self.commands
-            .last()
-            .map_or(self.parents, |c| Prior::Single(c.id))
+    fn head_address(&self) -> Result<Prior<Address>, Bug> {
+        Ok(if let Some(last) = self.commands.last() {
+            Prior::Single(Address {
+                id: last.id,
+                max_cut: self
+                    .max_cut
+                    .checked_add(self.commands.len())
+                    .assume("must not overflow")?
+                    .checked_sub(1)
+                    .assume("must not overflow")?,
+            })
+        } else {
+            self.parents
+        })
+    }
+}
+
+impl From<Prior<Address>> for Prior<CommandId> {
+    fn from(p: Prior<Address>) -> Self {
+        match p {
+            Prior::None => Prior::None,
+            Prior::Single(l) => Prior::Single(l.id),
+            Prior::Merge(l, r) => Prior::Merge(l.id, r.id),
+        }
     }
 }
 
@@ -849,8 +1004,8 @@ impl<'a> Command for LinearCommand<'a> {
         *self.id
     }
 
-    fn parent(&self) -> Prior<CommandId> {
-        self.parent.copied()
+    fn parent(&self) -> Prior<Address> {
+        self.parent
     }
 
     fn policy(&self) -> Option<&[u8]> {
@@ -860,11 +1015,9 @@ impl<'a> Command for LinearCommand<'a> {
     fn bytes(&self) -> &[u8] {
         self.data
     }
-}
 
-impl<'a> MaxCut for LinearCommand<'a> {
-    fn max_cut(&self) -> usize {
-        self.max_cut
+    fn max_cut(&self) -> Result<usize, Bug> {
+        Ok(self.max_cut)
     }
 }
 

@@ -11,10 +11,11 @@ use serde::{Deserialize, Serialize};
 use crate::{
     command::{Command, CommandId},
     storage::{FactPerspective, Perspective},
+    Address,
 };
 
 /// An error returned by the runtime engine.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum EngineError {
     Read,
     Write,
@@ -98,15 +99,15 @@ impl<E> Sink<E> for NullSink {
 /// The IDs to a merge command in sorted order.
 pub struct MergeIds {
     // left < right
-    left: CommandId,
-    right: CommandId,
+    left: Address,
+    right: Address,
 }
 
 impl MergeIds {
-    /// Create [`MergeIds`] by ordering two [`CommandId`]s and ensuring they are different.
-    pub fn new(a: CommandId, b: CommandId) -> Option<Self> {
+    /// Create [`MergeIds`] by ordering two [`Address`]s and ensuring they are different.
+    pub fn new(a: Address, b: Address) -> Option<Self> {
         use core::cmp::Ordering;
-        match a.cmp(&b) {
+        match a.id.cmp(&b.id) {
             Ordering::Less => Some(Self { left: a, right: b }),
             Ordering::Equal => None,
             Ordering::Greater => Some(Self { left: b, right: a }),
@@ -116,6 +117,13 @@ impl MergeIds {
 
 impl From<MergeIds> for (CommandId, CommandId) {
     /// Convert [`MergeIds`] into an ordered pair of [`CommandId`]s.
+    fn from(value: MergeIds) -> Self {
+        (value.left.id, value.right.id)
+    }
+}
+
+impl From<MergeIds> for (Address, Address) {
+    /// Convert [`MergeIds`] into an ordered pair of [`Address`]s.
     fn from(value: MergeIds) -> Self {
         (value.left, value.right)
     }

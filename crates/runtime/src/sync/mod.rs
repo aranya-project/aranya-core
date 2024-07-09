@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     command::{Command, CommandId, Priority},
     storage::{StorageError, MAX_COMMAND_LENGTH},
-    Prior,
+    Address, Prior,
 };
 
 mod requester;
@@ -43,7 +43,7 @@ pub const MAX_SYNC_MESSAGE_SIZE: usize = 1024 + MAX_COMMAND_LENGTH * COMMAND_RES
 pub struct CommandMeta {
     id: CommandId,
     priority: Priority,
-    parent: Prior<CommandId>,
+    parent: Prior<Address>,
     policy_length: u32,
     length: u32,
     max_cut: usize,
@@ -66,6 +66,7 @@ pub enum SyncError {
     StorageError,
     NotReady,
     SerilizeError,
+    CommandOverflow,
     Bug(Bug),
 }
 
@@ -79,6 +80,7 @@ impl fmt::Display for SyncError {
             Self::StorageError => write!(f, "storage error"),
             Self::NotReady => write!(f, "not ready"),
             Self::SerilizeError => write!(f, "serialize error"),
+            Self::CommandOverflow => write!(f, "too many commands sent"),
             Self::Bug(bug) => write!(f, "{bug}"),
         }
     }
@@ -115,7 +117,7 @@ impl From<PostcardError> for SyncError {
 pub struct SyncCommand<'a> {
     priority: Priority,
     id: CommandId,
-    parent: Prior<CommandId>,
+    parent: Prior<Address>,
     policy: Option<&'a [u8]>,
     data: &'a [u8],
     max_cut: usize,
@@ -130,7 +132,7 @@ impl<'a> Command for SyncCommand<'a> {
         self.id
     }
 
-    fn parent(&self) -> Prior<CommandId> {
+    fn parent(&self) -> Prior<Address> {
         self.parent
     }
 
@@ -140,5 +142,9 @@ impl<'a> Command for SyncCommand<'a> {
 
     fn bytes(&self) -> &'a [u8] {
         self.data
+    }
+
+    fn max_cut(&self) -> Result<usize, Bug> {
+        Ok(self.max_cut)
     }
 }

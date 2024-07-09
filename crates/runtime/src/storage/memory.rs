@@ -1,27 +1,27 @@
 use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::ops::{Bound, Deref};
 
-use buggy::BugExt;
+use buggy::{Bug, BugExt};
 use vec1::Vec1;
 
 use crate::{
-    Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Keys, Location,
-    MaxCut, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment, Storage,
-    StorageError, StorageProvider,
+    Address, Checkpoint, Command, CommandId, Fact, FactIndex, FactPerspective, GraphId, Keys,
+    Location, Perspective, PolicyId, Prior, Priority, Query, QueryMut, Revertable, Segment,
+    Storage, StorageError, StorageProvider,
 };
 
 #[derive(Debug)]
 pub struct MemCommand {
     priority: Priority,
     id: CommandId,
-    parent: Prior<CommandId>,
+    parent: Prior<Address>,
     policy: Option<Box<[u8]>>,
     data: Box<[u8]>,
     max_cut: usize,
 }
 
 impl MemCommand {
-    fn from_cmd<C: Command>(command: &C) -> Self {
+    fn from_cmd<C: Command>(command: &C, max_cut: usize) -> Self {
         let policy = command.policy().map(Box::from);
 
         MemCommand {
@@ -30,10 +30,11 @@ impl MemCommand {
             parent: command.parent(),
             policy,
             data: command.bytes().into(),
-            max_cut: 0,
+            max_cut,
         }
     }
 }
+
 impl Command for MemCommand {
     fn priority(&self) -> Priority {
         self.priority.clone()
@@ -43,7 +44,7 @@ impl Command for MemCommand {
         self.id
     }
 
-    fn parent(&self) -> Prior<CommandId> {
+    fn parent(&self) -> Prior<Address> {
         self.parent
     }
 
@@ -54,11 +55,9 @@ impl Command for MemCommand {
     fn bytes(&self) -> &[u8] {
         &self.data
     }
-}
 
-impl MaxCut for MemCommand {
-    fn max_cut(&self) -> usize {
-        self.max_cut
+    fn max_cut(&self) -> Result<usize, Bug> {
+        Ok(self.max_cut)
     }
 }
 
@@ -189,10 +188,10 @@ impl Storage for MemStorage {
         parent: Location,
     ) -> Result<Option<Self::Perspective>, StorageError> {
         let segment = self.get_segment(parent)?;
-        let parent_id = segment
+        let command = segment
             .get_command(parent)
-            .ok_or(StorageError::CommandOutOfBounds(parent))?
-            .id();
+            .ok_or(StorageError::CommandOutOfBounds(parent))?;
+        let parent_addr = command.address()?;
 
         let policy = segment.policy;
         let prior_facts: FactPerspectivePrior = if parent == segment.head_location() {
@@ -209,13 +208,13 @@ impl Storage for MemStorage {
             }
         };
         let prior = Prior::Single(parent);
-        let parents = Prior::Single(parent_id);
+        let parents = Prior::Single(parent_addr);
 
         let max_cut = self
             .get_segment(parent)?
             .get_command(parent)
             .assume("location must exist")?
-            .max_cut()
+            .max_cut()?
             .checked_add(1)
             .assume("must not overflow")?;
         let perspective = MemPerspective::new(prior, parents, policy, prior_facts, max_cut);
@@ -245,6 +244,7 @@ impl Storage for MemStorage {
         &self,
         left: Location,
         right: Location,
+        _last_common_ancestor: (Location, usize),
         policy_id: PolicyId,
         braid: MemFactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError> {
@@ -268,10 +268,10 @@ impl Storage for MemStorage {
         let right_command = right_segment
             .get_command(right)
             .ok_or(StorageError::CommandOutOfBounds(right))?;
-        let parents = Prior::Merge(left_command.id(), right_command.id());
+        let parents = Prior::Merge(left_command.address()?, right_command.address()?);
 
-        let left_distance = left_command.max_cut();
-        let right_distance = right_command.max_cut();
+        let left_distance = left_command.max_cut()?;
+        let right_distance = right_command.max_cut()?;
         let max_cut = left_distance
             .max(right_distance)
             .checked_add(1)
@@ -467,8 +467,8 @@ impl Segment for MemSegment {
     type FactIndex = MemFactIndex;
     type Command<'a> = &'a MemCommand;
 
-    fn head(&self) -> &MemCommand {
-        &self.commands.last().command
+    fn head(&self) -> Result<&MemCommand, StorageError> {
+        Ok(&self.commands.last().command)
     }
 
     fn first(&self) -> &MemCommand {
@@ -524,6 +524,30 @@ impl Segment for MemSegment {
             .collect()
     }
 
+    fn get_from_max_cut(&self, max_cut: usize) -> Result<Option<Location>, StorageError> {
+        for (i, command) in self.commands.iter().enumerate() {
+            if command.command.max_cut == max_cut {
+                return Ok(Some(Location {
+                    segment: self.index,
+                    command: i,
+                }));
+            }
+        }
+        Ok(None)
+    }
+
+    fn longest_max_cut(&self) -> Result<usize, StorageError> {
+        Ok(self.commands.last().command.max_cut)
+    }
+
+    fn shortest_max_cut(&self) -> usize {
+        self.commands[0].command.max_cut
+    }
+
+    fn skip_list(&self) -> &[(Location, usize)] {
+        &[]
+    }
+
     fn facts(&self) -> Result<Self::FactIndex, StorageError> {
         Ok(self.facts.clone())
     }
@@ -534,7 +558,7 @@ type Update = (String, Keys, Option<Box<[u8]>>);
 #[derive(Debug)]
 pub struct MemPerspective {
     prior: Prior<Location>,
-    parents: Prior<CommandId>,
+    parents: Prior<Address>,
     policy: PolicyId,
     facts: MemFactPerspective,
     commands: Vec<CommandData>,
@@ -598,7 +622,7 @@ impl MemFactPerspective {
 impl MemPerspective {
     fn new(
         prior: Prior<Location>,
-        parents: Prior<CommandId>,
+        parents: Prior<Address>,
         policy: PolicyId,
         prior_facts: FactPerspectivePrior,
         max_cut: usize,
@@ -646,12 +670,12 @@ impl Revertable for MemPerspective {
 
 impl Perspective for MemPerspective {
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
-        if command.parent() != self.head_id() {
+        if command.parent() != self.head_address()? {
             return Err(StorageError::PerspectiveHeadMismatch);
         }
 
         let entry = CommandData {
-            command: MemCommand::from_cmd(command),
+            command: MemCommand::from_cmd(command, self.head_address()?.next_max_cut()?),
             updates: core::mem::take(&mut self.current_updates),
         };
         self.commands.push(entry);
@@ -666,10 +690,12 @@ impl Perspective for MemPerspective {
         self.commands.iter().any(|cmd| cmd.command.id == *id)
     }
 
-    fn head_id(&self) -> Prior<CommandId> {
-        self.commands
-            .last()
-            .map_or(self.parents, |c| Prior::Single(c.command.id))
+    fn head_address(&self) -> Result<Prior<Address>, Bug> {
+        Ok(if let Some(last) = self.commands.last() {
+            Prior::Single(last.command.address()?)
+        } else {
+            self.parents
+        })
     }
 }
 

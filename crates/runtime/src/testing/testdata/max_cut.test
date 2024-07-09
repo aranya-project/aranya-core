@@ -26,12 +26,6 @@
     }
   },
   {
-    "PrintGraph": {
-      "client": 0,
-      "graph": 0
-    }
-  },
-  {
     "MaxCut": {
       "client": 0,
       "graph": 0,
@@ -48,12 +42,6 @@
       "key": 0,
       "value": 2,
       "repeat": 1
-    }
-  },
-  {
-    "PrintGraph": {
-      "client": 1,
-      "graph": 0
     }
   },
   {
@@ -76,12 +64,6 @@
     }
   },
   {
-    "PrintGraph": {
-      "client": 1,
-      "graph": 0
-    }
-  },
-  {
     "MaxCut": {
       "client": 1,
       "graph": 0,
@@ -92,7 +74,10 @@
     "AddExpectation": 1
   },
   {
-    "AddExpectation": 1
+    "AddExpectation": 2
+  },
+  {
+    "AddExpectation": 3
   },
   {
     "Sync": {
@@ -101,12 +86,6 @@
       "from": 0,
       "must_receive": null,
       "max_syncs": 1
-    }
-  },
-  {
-    "PrintGraph": {
-      "client": 1,
-      "graph": 0
     }
   },
   {

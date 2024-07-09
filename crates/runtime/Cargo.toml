@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 buggy = { path = "../buggy", features = ["alloc"] }
 # `crypto` enables `getrandom` by default.
-crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
+crypto = { path = "../crypto", default-features = false, features = ["alloc", "rand_compat"] }
 policy-vm = { path = "../policy-vm" }
 trouble = { path = "../trouble" }
 

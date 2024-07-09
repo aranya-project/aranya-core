@@ -446,7 +446,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                 signature,
             } => {
                 let envelope = Envelope {
-                    parent_id: parent,
+                    parent_id: parent.id,
                     author_id,
                     command_id: command.id(),
                     payload: Cow::Borrowed(serialized_fields),
@@ -482,7 +482,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<(), EngineError> {
         let VmAction { name, args } = action;
 
-        let parent = match facts.head_id() {
+        let parent = match facts.head_address()? {
             Prior::None => None,
             Prior::Single(id) => Some(id),
             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
@@ -497,7 +497,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
             let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
             let ctx = CommandContext::Action(ActionContext {
                 name,
-                head_id: ctx_parent.into(),
+                head_id: ctx_parent.id.into(),
             });
             let mut rs = self.machine.create_run_state(&mut io, &ctx);
             let exit_reason = match args {
@@ -523,7 +523,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
         };
 
         for (name, fields) in publish_stack {
-            let envelope = self.seal_command(&name, fields, ctx_parent, facts)?;
+            let envelope = self.seal_command(&name, fields, ctx_parent.id, facts)?;
             let data = match parent {
                 None => VmProtocolData::Init {
                     // TODO(chip): where does the policy value come from?

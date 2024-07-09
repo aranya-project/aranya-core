@@ -47,14 +47,18 @@
 
 extern crate alloc;
 
-use alloc::{collections::BTreeMap, vec, vec::Vec};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    vec,
+    vec::Vec,
+};
 use core::{
     cell::RefCell,
     fmt::{self, Display},
     iter,
 };
 #[cfg(any(test, feature = "std"))]
-use std::{collections::BTreeSet, time::Instant};
+use std::time::Instant;
 
 use buggy::{Bug, BugExt};
 use crypto::{csprng::rand::Rng as RRng, Csprng, Rng};
@@ -63,12 +67,10 @@ use tracing::{debug, error};
 
 use crate::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    ClientError, ClientState, Command, CommandId, EngineError, GraphId, MaxCut, Segment, Storage,
-    StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder, COMMAND_RESPONSE_MAX,
-    MAX_SYNC_MESSAGE_SIZE,
+    Address, ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location, Prior,
+    Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder,
+    COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
 };
-#[cfg(any(test, feature = "std"))]
-use crate::{Location, Prior};
 
 fn default_repeat() -> u64 {
     1
@@ -144,7 +146,7 @@ pub enum TestRule {
 impl Display for TestRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            &TestRule::Sync {
+            TestRule::Sync {
                 graph,
                 client,
                 from,
@@ -152,12 +154,95 @@ impl Display for TestRule {
                 max_syncs,
             } => write!(
                 f,
-                "- !Sync {{ graph: {}, client: {}, from: {}, max_syncs: {} }}",
+                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "max_syncs": {} }} }},"#,
                 graph, client, from, max_syncs,
             ),
-            _ => {
-                write!(f, "- !{:?}", self)
-            }
+            TestRule::Sync {
+                graph,
+                client,
+                from,
+                must_receive: Some(must_receive),
+                max_syncs,
+            } => write!(
+                f,
+                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
+                graph, client, from, must_receive, max_syncs,
+            ),
+            TestRule::ActionSet {
+                client,
+                graph,
+                key,
+                value,
+                repeat,
+            } => write!(
+                f,
+                r#"{{"ActionSet": {{ "graph": {}, "client": {}, "key": {}, "value": {}, "repeat": {} }} }},"#,
+                graph, client, key, value, repeat,
+            ),
+            TestRule::AddClient { id } => write!(f, r#"{{"AddClient": {{ "id": {} }} }},"#, id),
+            TestRule::AddExpectation(value) => write!(f, r#"{{"AddExpectation": {} }},"#, value),
+            TestRule::AddExpectations {
+                expectation,
+                repeat,
+            } => write!(
+                f,
+                r#"{{"AddExpectations": {{ "expectation": {}, "repeat": {} }} }},"#,
+                expectation, repeat,
+            ),
+            TestRule::CompareGraphs {
+                clienta,
+                clientb,
+                graph,
+                equal,
+            } => write!(
+                f,
+                r#"{{"CompareGraphs": {{ "clienta": {}, "clientb": {}, "graph": {}, "equal": {} }} }},"#,
+                clienta, clientb, graph, equal,
+            ),
+            TestRule::GenerateGraph {
+                clients,
+                graph,
+                commands,
+                add_command_chance,
+                sync_chance,
+            } => write!(
+                f,
+                r#"{{"GenerateGraph": {{ "clients": {}, "graph": {}, "commands": {}, "add_command_chance": {}, "sync_chance": {} }} }},"#,
+                clients, graph, commands, add_command_chance, sync_chance,
+            ),
+            TestRule::IgnoreExpectations { ignore } => write!(
+                f,
+                r#"{{"IgnoreExpectations": {{ "ignore": {} }} }},"#,
+                ignore,
+            ),
+            TestRule::MaxCut {
+                client,
+                graph,
+                max_cut,
+            } => write!(
+                f,
+                r#"{{"MaxCut": {{ "client": {}, "graph": {}, "max_cut": {} }} }},"#,
+                client, graph, max_cut,
+            ),
+            TestRule::NewGraph { client, id, policy } => write!(
+                f,
+                r#"{{"NewGraph": {{ "client": {}, "id": {}, "policy": {} }} }},"#,
+                client, id, policy,
+            ),
+            TestRule::PrintGraph { client, graph } => write!(
+                f,
+                r#"{{"PrintGraph": {{ "client": {}, "graph": {} }} }},"#,
+                client, graph,
+            ),
+            TestRule::SetupClientsAndGraph {
+                clients,
+                graph,
+                policy,
+            } => write!(
+                f,
+                r#"{{"SetupClientsAndGraph": {{ "clients": {}, "graph": {}, "policy": {} }} }},"#,
+                clients, graph, policy,
+            ),
         }
     }
 }
@@ -307,7 +392,7 @@ where
                         client: 0,
                         from: 1,
                         must_receive: None,
-                        max_syncs: (COMMAND_RESPONSE_MAX as u64 / commands) + 10,
+                        max_syncs: (commands / COMMAND_RESPONSE_MAX as u64) + 100,
                     });
                     // Sync other clients with client 0 so other clients have any extra merges
                     // created by client 0.
@@ -468,7 +553,6 @@ where
                 assert_eq!(0, sink.count());
             }
 
-            #[cfg(any(test, feature = "std"))]
             TestRule::PrintGraph { client, graph } => {
                 let state = clients
                     .get_mut(&client)
@@ -479,12 +563,6 @@ where
                 let storage = state.provider().get_storage(storage_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
-            }
-
-            #[cfg(not(any(test, feature = "std")))]
-            TestRule::PrintGraph { .. } => {
-                // TODO(eric): add a fallback that uses libc or
-                // something.
             }
 
             TestRule::CompareGraphs {
@@ -509,13 +587,12 @@ where
                 let storage_b = state_b.provider().get_storage(storage_id)?;
 
                 let same = graph_eq(storage_a, storage_b);
-                #[cfg(any(test, feature = "std"))]
                 if same != equal {
                     let head_a = storage_a.get_head()?;
                     let head_b = storage_b.get_head()?;
-                    println!("Graph A");
+                    debug!("Graph A");
                     print_graph(storage_a, head_a)?;
-                    println!("Graph B");
+                    debug!("Graph B");
                     print_graph(storage_b, head_b)?;
                 }
                 assert_eq!(equal, same);
@@ -534,16 +611,16 @@ where
                 let head = storage.get_head()?;
                 let seg = storage.get_segment(head)?;
                 let command = seg.get_command(head).assume("command must exist")?;
-                assert_eq!(max_cut, command.max_cut());
+                assert_eq!(max_cut, command.max_cut()?);
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
             _ => {}
         };
+        #[cfg(any(test, feature = "std"))]
         if false {
-            #[cfg(any(test, feature = "std"))]
             {
                 let duration = start.elapsed();
-                println!("Time elapsed in rule {:?} is: {:?}", rule, duration);
+                debug!("Time elapsed in rule {:?} is: {:?}", rule, duration);
             }
         }
     }
@@ -580,8 +657,7 @@ fn sync<SP: StorageProvider>(
         }
 
         if let Some(cmds) = request_syncer.receive(&buffer[..len])? {
-            count = cmds.len();
-            request_state.add_commands(&mut request_trx, sink, &cmds)?;
+            count = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         };
     }
 
@@ -590,24 +666,21 @@ fn sync<SP: StorageProvider>(
     Ok(count)
 }
 
-#[cfg(any(test, feature = "std"))]
-struct Parent(Prior<CommandId>);
+struct Parent(Prior<Address>);
 
-#[cfg(any(test, feature = "std"))]
 impl Display for Parent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
             Prior::Merge(a, b) => {
-                write!(f, "Merge({}, {})", &a.short_b58(), &b.short_b58())
+                write!(f, "Merge({}, {})", &a.id.short_b58(), &b.id.short_b58())
             }
-            Prior::Single(a) => write!(f, "Single({})", &a.short_b58()),
+            Prior::Single(a) => write!(f, "Single({})", &a.id.short_b58()),
             Prior::None => write!(f, "None"),
         }
     }
 }
 
-#[cfg(any(test, feature = "std"))]
-fn print_graph<S>(storage: &S, location: Location) -> Result<(), StorageError>
+pub fn print_graph<S>(storage: &S, location: Location) -> Result<(), StorageError>
 where
     S: Storage,
 {
@@ -621,12 +694,13 @@ where
         let segment = storage.get_segment(loc)?;
         let commands = segment.get_from(segment.first_location());
         for command in commands.iter().rev() {
-            println!(
-                "id: {} location {:?} parent: {}",
+            debug!(
+                "id: {} location {:?} max_cut: {} parent: {}",
                 &command.id().short_b58(),
                 storage
-                    .get_location(&command.id())?
+                    .get_location(command.address()?)?
                     .assume("location must exist"),
+                command.max_cut()?,
                 Parent(command.parent())
             );
         }
@@ -637,11 +711,16 @@ where
 
 /// Walk the graph and yield all visited IDs.
 fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CommandId> + '_ {
+    let mut visited = BTreeSet::new();
     let mut stack = vec![storage.get_head().unwrap()];
     let mut segment = None;
 
     iter::from_fn(move || {
         let loc = stack.pop()?;
+        if visited.contains(&loc) {
+            return None;
+        }
+        visited.insert(loc);
 
         let seg = segment.get_or_insert_with(|| storage.get_segment(loc).unwrap());
         let id = seg.get_command(loc).unwrap().id();
@@ -722,6 +801,8 @@ test_vectors! {
     missing_parent_after_sync,
     sync_graph_larger_than_command_max,
     max_cut,
+    skip_list,
+    many_branches,
 }
 
 /// Used by [`test_suite`].
@@ -760,6 +841,8 @@ macro_rules! test_suite {
             missing_parent_after_sync,
             sync_graph_larger_than_command_max,
             max_cut,
+            skip_list,
+            many_branches,
         }
     };
 }

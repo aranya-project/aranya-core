@@ -10,8 +10,8 @@ use super::{
     COMMAND_SAMPLE_MAX, REQUEST_MISSING_MAX,
 };
 use crate::{
-    command::{Command, CommandId},
-    storage::{GraphId, Segment, Storage, StorageError, StorageProvider},
+    storage::{Segment, Storage, StorageError, StorageProvider},
+    Address, Command, GraphId,
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -36,7 +36,7 @@ pub enum SyncRequestMessage {
         /// respond with any commands that the requester may not have based on
         /// the provided sample. When sending commands ancestors must be sent
         /// before descendents.
-        commands: Vec<CommandId, COMMAND_SAMPLE_MAX>,
+        commands: Vec<Address, COMMAND_SAMPLE_MAX>,
     },
 
     /// Sent by the requester if it deduces a `SyncResponse` message has been
@@ -323,7 +323,7 @@ impl SyncRequester<'_> {
         self.state = SyncRequesterState::Start;
         self.max_bytes = max_bytes;
 
-        let mut commands: Vec<CommandId, COMMAND_SAMPLE_MAX> = Vec::new();
+        let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
         match provider.get_storage(&self.storage_id) {
             Err(StorageError::NoSuchStorage) => (),
@@ -345,8 +345,10 @@ impl SyncRequester<'_> {
                     'current: for &location in &current {
                         let segment = storage.get_segment(location)?;
 
-                        let head = segment.head();
-                        commands.push(head.id()).assume("can push to commands")?;
+                        let head = segment.head()?;
+                        commands
+                            .push(head.address()?)
+                            .map_err(|_| SyncError::CommandOverflow)?;
                         next.extend(segment.prior());
                         if commands.len() >= COMMAND_SAMPLE_MAX {
                             break 'current;

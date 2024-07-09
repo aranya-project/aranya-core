@@ -4,8 +4,8 @@ use core::{marker::PhantomData, mem};
 use buggy::{bug, BugExt};
 
 use crate::{
-    ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId, Location,
-    MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink, Storage,
+    Address, ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId,
+    Location, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink, Storage,
     StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
@@ -23,7 +23,7 @@ pub struct Transaction<SP: StorageProvider, E> {
     /// Head of the current perspective
     phead: Option<CommandId>,
     /// Written but not committed heads
-    heads: BTreeMap<CommandId, Location>,
+    heads: BTreeMap<Address, Location>,
     /// Tag for associated engine
     _engine: PhantomData<E>,
 }
@@ -47,15 +47,15 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     fn locate(
         &self,
         storage: &mut SP::Storage,
-        id: &CommandId,
+        address: Address,
     ) -> Result<Option<Location>, ClientError> {
         // Search from committed head.
-        if let Some(found) = storage.get_location(id)? {
+        if let Some(found) = storage.get_location(address)? {
             return Ok(Some(found));
         }
         // Search from our temporary heads.
         for &head in self.heads.values() {
-            if let Some(found) = storage.get_location_from(head, id)? {
+            if let Some(found) = storage.get_location_from(head, address)? {
                 return Ok(Some(found));
             }
         }
@@ -75,8 +75,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         if let Some(p) = Option::take(&mut self.perspective) {
             self.phead = None;
             let segment = storage.write(p)?;
-            self.heads
-                .insert(segment.head().id(), segment.head_location());
+            let head = segment.head()?;
+            self.heads.insert(head.address()?, segment.head_location());
         }
 
         // Merge heads pairwise until single head left, then commit.
@@ -94,16 +94,24 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 }
                 let command = policy.merge(&mut buffer, merge_ids)?;
 
-                let braid = make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
+                let (braid, last_common_ancestor) =
+                    make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
 
                 let mut perspective = storage
-                    .new_merge_perspective(left_loc, right_loc, policy_id, braid)?
+                    .new_merge_perspective(
+                        left_loc,
+                        right_loc,
+                        last_common_ancestor,
+                        policy_id,
+                        braid,
+                    )?
                     .assume("trx heads should exist in storage")?;
                 perspective.add_command(&command)?;
 
                 let segment = storage.write(perspective)?;
+                let head = segment.head()?;
 
-                heads.push_back((segment.head().id(), segment.head_location()));
+                heads.push_back((head.address()?, segment.head_location()));
             } else {
                 let segment = storage.get_segment(left_loc)?;
                 // Try to commit. If it fails with `HeadNotAncestor`, we know we
@@ -120,8 +128,9 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                         heads.push_back((left_id, left_loc));
 
                         let head_loc = storage.get_head()?;
-                        let head_id = storage.get_command_id(head_loc)?;
-                        heads.push_back((head_id, head_loc));
+                        let segment = storage.get_segment(head_loc)?;
+                        let head = segment.head()?;
+                        heads.push_back((head.address()?, segment.head_location()));
                     }
                     Err(e) => return Err(e.into()),
                 }
@@ -140,14 +149,16 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         provider: &mut SP,
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
-    ) -> Result<bool, ClientError> {
+    ) -> Result<usize, ClientError> {
         let mut commands = commands.iter();
+        let mut count: usize = 0;
 
         // Get storage or try to initialize with first command.
         let storage = match provider.get_storage(&self.storage_id) {
             Ok(s) => s,
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
+                count = count.checked_add(1).assume("must not overflow")?;
                 self.init(command, engine, provider, sink)?
             }
             Err(e) => return Err(e.into()),
@@ -163,7 +174,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 // Command in current perspective.
                 continue;
             }
-            if self.locate(storage, &command.id())?.is_some() {
+            if self.locate(storage, command.address()?)?.is_some() {
                 // Command already added.
                 continue;
             }
@@ -176,15 +187,17 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     }
                 }
                 Prior::Single(parent) => {
-                    self.add_single(storage, engine, sink, command, &parent)?;
+                    self.add_single(storage, engine, sink, command, parent)?;
+                    count = count.checked_add(1).assume("must not overflow")?;
                 }
                 Prior::Merge(left, right) => {
                     self.add_merge(storage, engine, sink, command, left, right)?;
+                    count = count.checked_add(1).assume("must not overflow")?;
                 }
             };
         }
 
-        Ok(true)
+        Ok(count)
     }
 
     fn add_single(
@@ -193,7 +206,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
         command: &impl Command,
-        parent: &CommandId,
+        parent: Address,
     ) -> Result<(), ClientError> {
         let perspective = self.get_perspective(parent, storage)?;
 
@@ -222,29 +235,31 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
         command: &impl Command,
-        left: CommandId,
-        right: CommandId,
+        left: Address,
+        right: Address,
     ) -> Result<bool, ClientError> {
         // Must always start a new perspective for merges.
         if let Some(p) = Option::take(&mut self.perspective) {
             let seg = storage.write(p)?;
-            self.heads.insert(seg.head().id(), seg.head_location());
+            let head = seg.head()?;
+            self.heads.insert(head.address()?, seg.head_location());
         }
 
         let left_loc = self
-            .locate(storage, &left)?
-            .ok_or(ClientError::NoSuchParent(left))?;
+            .locate(storage, left)?
+            .ok_or(ClientError::NoSuchParent(left.id))?;
         let right_loc = self
-            .locate(storage, &right)?
-            .ok_or(ClientError::NoSuchParent(right))?;
+            .locate(storage, right)?
+            .ok_or(ClientError::NoSuchParent(right.id))?;
 
         let (policy, policy_id) = choose_policy(storage, engine, left_loc, right_loc)?;
 
         // Braid commands from left and right into an ordered sequence.
-        let braid = make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
+        let (braid, last_common_ancestor) =
+            make_braid_segment::<_, E>(storage, left_loc, right_loc, sink, policy)?;
 
         let mut perspective = storage
-            .new_merge_perspective(left_loc, right_loc, policy_id, braid)?
+            .new_merge_perspective(left_loc, right_loc, last_common_ancestor, policy_id, braid)?
             .assume(
                 "we already found left and right locations above and we only call this with merge command",
             )?;
@@ -266,10 +281,10 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
     /// Otherwise, we must write out the perspective and get a new one.
     fn get_perspective(
         &mut self,
-        parent: &CommandId,
+        parent: Address,
         storage: &mut <SP as StorageProvider>::Storage,
     ) -> Result<&mut <SP as StorageProvider>::Perspective, ClientError> {
-        if self.phead == Some(*parent) {
+        if self.phead == Some(parent.id) {
             // Command will append to current perspective.
             return Ok(self
                 .perspective
@@ -281,12 +296,13 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         if let Some(p) = Option::take(&mut self.perspective) {
             self.phead = None;
             let seg = storage.write(p)?;
-            self.heads.insert(seg.head().id(), seg.head_location());
+            let head = seg.head()?;
+            self.heads.insert(head.address()?, seg.head_location());
         }
 
         let loc = self
             .locate(storage, parent)?
-            .ok_or(ClientError::NoSuchParent(*parent))?;
+            .ok_or(ClientError::NoSuchParent(parent.id))?;
 
         // Get a new perspective and store it in the transaction.
         let p = self.perspective.insert(
@@ -295,8 +311,8 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 .assume("location should already be in storage")?,
         );
 
-        self.phead = Some(*parent);
-        self.heads.remove(parent);
+        self.phead = Some(parent.id);
+        self.heads.remove(&parent);
 
         Ok(p)
     }
@@ -352,8 +368,9 @@ fn make_braid_segment<S: Storage, E: Engine>(
     right: Location,
     sink: &mut impl Sink<E::Effect>,
     policy: &E::Policy,
-) -> Result<S::FactIndex, ClientError> {
+) -> Result<(S::FactIndex, (Location, usize)), ClientError> {
     let order = super::braid(storage, left, right)?;
+    let last_common_ancestor = super::last_common_ancestor(storage, left, right)?;
 
     let (&first, rest) = order.split_first().assume("braid is non-empty")?;
 
@@ -387,7 +404,7 @@ fn make_braid_segment<S: Storage, E: Engine>(
 
     sink.commit();
 
-    Ok(braid)
+    Ok((braid, last_common_ancestor))
 }
 
 /// Select the policy from two locations with the greatest serial value.
@@ -417,6 +434,7 @@ fn get_policy<'a, E: Engine>(
 
 #[cfg(test)]
 mod test {
+    use buggy::Bug;
     use test_log::test;
 
     use super::*;
@@ -432,8 +450,9 @@ mod test {
 
     struct SeqCommand {
         id: CommandId,
-        prior: Prior<CommandId>,
+        prior: Prior<Address>,
         data: Box<str>,
+        max_cut: usize,
     }
 
     impl Engine for SeqEngine {
@@ -498,19 +517,32 @@ mod test {
             _target: &'a mut [u8],
             ids: MergeIds,
         ) -> Result<Self::Command<'a>, EngineError> {
-            let (left, right) = ids.into();
+            let (left, right): (Address, Address) = ids.into();
             let mut buf = [0u8; 128];
-            buf[..64].copy_from_slice(left.as_bytes());
-            buf[64..].copy_from_slice(right.as_bytes());
+            buf[..64].copy_from_slice(left.id.as_bytes());
+            buf[64..].copy_from_slice(right.id.as_bytes());
             let id = CommandId::hash_for_testing_only(&buf);
-            Ok(SeqCommand::new(id, Prior::Merge(left, right)))
+
+            Ok(SeqCommand::new(
+                id,
+                Prior::Merge(left, right),
+                left.max_cut
+                    .max(right.max_cut)
+                    .checked_add(1)
+                    .assume("must not overflow")?,
+            ))
         }
     }
 
     impl SeqCommand {
-        fn new(id: CommandId, prior: Prior<CommandId>) -> Self {
+        fn new(id: CommandId, prior: Prior<Address>, max_cut: usize) -> Self {
             let data = id.short_b58().into_boxed_str();
-            Self { id, prior, data }
+            Self {
+                id,
+                prior,
+                data,
+                max_cut,
+            }
         }
     }
 
@@ -533,7 +565,7 @@ mod test {
             self.id
         }
 
-        fn parent(&self) -> Prior<CommandId> {
+        fn parent(&self) -> Prior<Address> {
             self.prior
         }
 
@@ -548,6 +580,10 @@ mod test {
 
         fn bytes(&self) -> &[u8] {
             self.data.as_bytes()
+        }
+
+        fn max_cut(&self) -> Result<usize, Bug> {
+            Ok(self.max_cut)
         }
     }
 
@@ -569,9 +605,9 @@ mod test {
     impl<SP: StorageProvider> GraphBuilder<SP> {
         pub fn init(mut client: ClientState<SeqEngine, SP>, ids: &[CommandId]) -> Self {
             let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
-            let mut prior: Prior<CommandId> = Prior::None;
+            let mut prior: Prior<Address> = Prior::None;
             for &id in ids {
-                let cmd = SeqCommand::new(id, prior);
+                let cmd = SeqCommand::new(id, prior, 0);
                 trx.add_commands(
                     &[cmd],
                     &mut client.provider,
@@ -579,14 +615,15 @@ mod test {
                     &mut NullSink,
                 )
                 .unwrap();
-                prior = Prior::Single(id);
+                prior = Prior::Single(Address { id, max_cut: 0 });
             }
             Self { client, trx }
         }
 
-        pub fn line(&mut self, mut prev: CommandId, ids: &[CommandId]) {
+        pub fn line(&mut self, mut prev: Address, ids: &[CommandId]) {
             for &id in ids {
-                let cmd = SeqCommand::new(id, Prior::Single(prev));
+                let max_cut = prev.max_cut.checked_add(1).unwrap();
+                let cmd = SeqCommand::new(id, Prior::Single(prev), max_cut);
                 self.trx
                     .add_commands(
                         &[cmd],
@@ -595,12 +632,17 @@ mod test {
                         &mut NullSink,
                     )
                     .unwrap();
-                prev = id;
+                prev = Address { id, max_cut };
             }
         }
 
-        pub fn merge(&mut self, (left, right): (CommandId, CommandId), ids: &[CommandId]) {
-            let mergecmd = SeqCommand::new(ids[0], Prior::Merge(left, right));
+        pub fn merge(&mut self, (left, right): (Address, Address), ids: &[CommandId]) {
+            let prior = Prior::Merge(left, right);
+            let mergecmd = SeqCommand::new(ids[0], prior, prior.next_max_cut().unwrap());
+            let mut prev = Address {
+                id: mergecmd.id,
+                max_cut: mergecmd.max_cut,
+            };
             self.trx
                 .add_commands(
                     &[mergecmd],
@@ -609,8 +651,16 @@ mod test {
                     &mut NullSink,
                 )
                 .unwrap();
-            for (&prev, &id) in core::iter::zip(ids, &ids[1..]) {
-                let cmd = SeqCommand::new(id, Prior::Single(prev));
+            for &id in &ids[1..] {
+                let cmd = SeqCommand::new(
+                    id,
+                    Prior::Single(prev),
+                    prev.max_cut.checked_add(1).expect("must not overflow"),
+                );
+                prev = Address {
+                    id: cmd.id,
+                    max_cut: cmd.max_cut,
+                };
                 self.trx
                     .add_commands(
                         &[cmd],
@@ -632,7 +682,11 @@ mod test {
                     .unwrap()
                     .write(p)
                     .unwrap();
-                self.trx.heads.insert(seg.head().id(), seg.head_location());
+                let head = seg.head().unwrap();
+                self.trx.heads.insert(
+                    head.address().expect("address must exist"),
+                    seg.head_location(),
+                );
             }
         }
 
@@ -658,12 +712,12 @@ mod test {
             graph!(@ gb, $($rest)*);
             gb
         }};
-        (@ $gb:ident, $prev:literal < $($id:literal)+; $($rest:tt)*) => {
-            $gb.line(mkid($prev), &[$(mkid($id)),+]);
+        (@ $gb:ident, $prev:literal $prev_max_cut:literal < $($id:literal)+; $($rest:tt)*) => {
+            $gb.line(Address {id: mkid($prev), max_cut: $prev_max_cut}, &[$(mkid($id)),+]);
             graph!(@ $gb, $($rest)*);
         };
-        (@ $gb:ident, $l:literal $r:literal < $($id:literal)+; $($rest:tt)*) => {
-            $gb.merge((mkid($l), mkid($r)), &[$(mkid($id)),+]);
+        (@ $gb:ident, $l:literal $l_max_cut:literal $r:literal $r_max_cut:literal < $($id:literal)+; $($rest:tt)*) => {
+            $gb.merge((Address {id: mkid($l), max_cut: $l_max_cut}, Address {id: mkid($r), max_cut: $r_max_cut}), &[$(mkid($id)),+]);
             graph!(@ $gb, $($rest)*);
         };
         (@ $gb:ident, commit; $($rest:tt)*) => {
@@ -687,11 +741,11 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
-            "a" < "b";
-            "a" < "c";
-            "b" "c" < "ma";
-            "b" < "d";
-            "ma" "d" < "mb";
+            "a" 0 < "b";
+            "a" 0 < "c";
+            "b" 1 "c" 1 < "ma";
+            "b" 1 < "d";
+            "ma" 2 "d" 2 < "mb";
             commit;
         };
         let g = gb
@@ -717,18 +771,18 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
-            "a" < "1" "2" "3";
-            "3" < "4" "6" "7";
-            "3" < "5" "8";
-            "6" "8" < "9" "aa"; commit;
-            "7" < "a1" "a2";
-            "aa" "a2" < "a3";
-            "a3" < "a6" "a4";
-            "a3" < "a7" "a5";
-            "a4" "a5" < "a8";
-            "9" < "42" "43";
-            "42" < "45" "46";
-            "45" < "47" "48";
+            "a" 0 < "1" "2" "3";
+            "3" 3 < "4" "6" "7";
+            "3" 3 < "5" "8";
+            "6" 5 "8" 5 < "9" "aa"; commit;
+            "7" 6 < "a1" "a2";
+            "aa" 7 "a2" 8 < "a3";
+            "a3" 9 < "a6" "a4";
+            "a3" 9 < "a7" "a5";
+            "a4" 11 "a5" 11 < "a8";
+            "9" 6 < "42" "43";
+            "42" 7 < "45" "46";
+            "45" 8 < "47" "48";
             commit;
         };
 
@@ -758,14 +812,14 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
-            "a" < "b" "c";
-            "a" < "b";
-            "b" < "c";
-            "c" < "d";
+            "a" 0 < "b" "c";
+            "a" 0 < "b";
+            "b" 1 < "c";
+            "c" 2 < "d";
             commit;
-            "a" < "b";
-            "b" < "c";
-            "d" < "e";
+            "a" 0 < "b";
+            "b" 1 < "c";
+            "d" 3 < "e";
             commit;
         };
 
@@ -791,8 +845,8 @@ mod test {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
             commit;
-            "a" < "b" "c" "d" "e" "f" "g";
-            "d" < "h" "i" "j";
+            "a" 0 < "b" "c" "d" "e" "f" "g";
+            "d" 3 < "h" "i" "j";
             commit;
         };
 
@@ -818,8 +872,8 @@ mod test {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
             commit;
-            "a" < "b" "c" "d" "h" "i" "j";
-            "d" < "e" "f" "g";
+            "a" 0 < "b" "c" "d" "h" "i" "j";
+            "d" 3 < "e" "f" "g";
             commit;
         };
 

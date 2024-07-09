@@ -135,14 +135,15 @@ where
 
     /// Add commands to the transaction, writing the results to
     /// `sink`.
+    /// Returns the number of commands that were added.
     pub fn add_commands(
         &mut self,
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
-    ) -> Result<(), ClientError> {
-        trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
-        Ok(())
+    ) -> Result<usize, ClientError> {
+        let count = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
+        Ok(count)
     }
 
     /// Performs an `action`, writing the results to `sink`.
@@ -197,7 +198,81 @@ where
     }
 }
 
+/// Returns the last common ancestor of two Locations.
+///
+/// This walks the graph backwards until the two locations meet. This
+/// ensures that you can jump to the last common ancestor from
+/// the merge command created using left and right and know that you
+/// won't be jumping into a branch.
+fn last_common_ancestor<S: Storage>(
+    storage: &mut S,
+    left: Location,
+    right: Location,
+) -> Result<(Location, usize), ClientError> {
+    trace!(%left, %right, "finding least common ancestor");
+    let mut left = left;
+    let mut right = right;
+    while left != right {
+        let left_seg = storage.get_segment(left)?;
+        let left_cmd = left_seg.get_command(left).assume("location must exist")?;
+        let right_seg = storage.get_segment(right)?;
+        let right_cmd = right_seg.get_command(right).assume("location must exist")?;
+        // The command with the lower max cut could be our least common ancestor
+        // so we keeping following the command with the higher max cut until
+        // both sides converge.
+        if left_cmd.max_cut()? > right_cmd.max_cut()? {
+            left = if let Some(previous) = left.previous() {
+                previous
+            } else {
+                match left_seg.prior() {
+                    Prior::None => left,
+                    Prior::Single(s) => s,
+                    Prior::Merge(_, _) => {
+                        assert!(left.command == 0);
+                        if let Some((l, _)) = left_seg.skip_list().last() {
+                            // If the storage supports skip lists we return the
+                            // last common ancestor of this command.
+                            *l
+                        } else {
+                            // This case will only be hit if the storage doesn't
+                            // support skip lists so we can return anything
+                            // because it won't be used.
+                            return Ok((left, left_cmd.max_cut()?));
+                        }
+                    }
+                }
+            };
+        } else {
+            right = if let Some(previous) = right.previous() {
+                previous
+            } else {
+                match right_seg.prior() {
+                    Prior::None => right,
+                    Prior::Single(s) => s,
+                    Prior::Merge(_, _) => {
+                        assert!(right.command == 0);
+                        if let Some((r, _)) = right_seg.skip_list().last() {
+                            // If the storage supports skip lists we return the
+                            // last common ancestor of this command.
+                            *r
+                        } else {
+                            // This case will only be hit if the storage doesn't
+                            // support skip lists so we can return anything
+                            // because it won't be used.
+                            return Ok((right, right_cmd.max_cut()?));
+                        }
+                    }
+                }
+            };
+        }
+    }
+    let left_seg = storage.get_segment(left)?;
+    let left_cmd = left_seg.get_command(left).assume("location must exist")?;
+    Ok((left, left_cmd.max_cut()?))
+}
+
 /// Enforces deterministic ordering for a set of [`Command`]s in a graph.
+/// Returns the ordering.
 pub fn braid<S: Storage>(
     storage: &mut S,
     left: Location,
@@ -248,15 +323,14 @@ pub fn braid<S: Storage>(
         }
     }
 
-    let mut strands = BinaryHeap::<Strand<S::Segment>>::new();
+    let mut braid = Vec::new();
+    let mut strands = BinaryHeap::new();
 
     trace!(%left, %right, "braiding");
 
     for head in [left, right] {
         strands.push(Strand::new(storage, head)?);
     }
-
-    let mut braid = Vec::new();
 
     // Get latest command
     while let Some(strand) = strands.pop() {

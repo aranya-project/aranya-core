@@ -1013,6 +1013,15 @@
       "client": 0,
       "from": 1,
       "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_receive": null,
       "max_syncs": 5
     }
   },

@@ -11,7 +11,7 @@ use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Checkpoint, ClientError, ClientState, Command, CommandId, CommandRecall, Engine, Fact,
+    Address, Checkpoint, ClientError, ClientState, Command, CommandId, CommandRecall, Engine, Fact,
     FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
     Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
     MAX_COMMAND_LENGTH,
@@ -26,9 +26,6 @@ pub struct Session<SP: StorageProvider, E> {
     /// The policy ID for the session.
     policy_id: PolicyId,
 
-    /// Head of the session.
-    head_id: CommandId,
-
     /// The prior facts from the graph head.
     base_facts: <SP::Storage as Storage>::FactIndex,
     /// The log of facts in insertion order.
@@ -38,6 +35,8 @@ pub struct Session<SP: StorageProvider, E> {
 
     /// Tag for associated engine.
     _engine: PhantomData<E>,
+
+    head: Address,
 }
 
 struct SessionPerspective<'a, SP: StorageProvider, E, MS> {
@@ -50,16 +49,18 @@ impl<SP: StorageProvider, E> Session<SP, E> {
         let storage = provider.get_storage(&storage_id)?;
         let head_loc = storage.get_head()?;
         let seg = storage.get_segment(head_loc)?;
+        let command = seg.get_command(head_loc).assume("location must exist")?;
+
         let base_facts = seg.facts()?;
 
         let result = Self {
             storage_id,
             policy_id: seg.policy(),
-            head_id: seg.head().id(),
             base_facts,
             fact_log: Vec::new(),
             current_facts: BTreeMap::new(),
             _engine: PhantomData,
+            head: command.address()?,
         };
 
         Ok(result)
@@ -84,8 +85,8 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
-            message_sink,
             session: self,
+            message_sink,
         };
         let checkpoint = perspective.checkpoint();
         effect_sink.begin();
@@ -128,8 +129,8 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
 
         // Use a special perspective which doesn't check the head
         let mut perspective = SessionPerspective {
-            message_sink: &mut NullSink,
             session: self,
+            message_sink: &mut NullSink,
         };
 
         // Try to evaluate command.
@@ -140,7 +141,6 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             sink.rollback();
             return Err(e.into());
         }
-        self.head_id = command.id();
         sink.commit();
 
         Ok(())
@@ -153,7 +153,7 @@ struct SessionCommand<'a> {
     storage_id: GraphId,
     priority: u32, // Priority::Basic
     id: CommandId,
-    parent: CommandId, // Prior::Single
+    parent: Address, // Prior::Single
     #[serde(borrow)]
     data: &'a [u8],
 }
@@ -167,7 +167,7 @@ impl<'sc> Command for SessionCommand<'sc> {
         self.id
     }
 
-    fn parent(&self) -> Prior<CommandId> {
+    fn parent(&self) -> Prior<Address> {
         Prior::Single(self.parent)
     }
 
@@ -352,6 +352,7 @@ where
 
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
         let command = SessionCommand::from_cmd(self.session.storage_id, command)?;
+        self.session.head = command.address()?;
         let mut buf = [0u8; MAX_COMMAND_LENGTH];
         let bytes = postcard::to_slice(&command, &mut buf).assume("can serialize")?;
         self.message_sink.consume(bytes);
@@ -365,8 +366,8 @@ where
         false
     }
 
-    fn head_id(&self) -> Prior<CommandId> {
-        Prior::Single(self.session.head_id)
+    fn head_address(&self) -> Result<Prior<Address>, Bug> {
+        Ok(Prior::Single(self.session.head))
     }
 }
 

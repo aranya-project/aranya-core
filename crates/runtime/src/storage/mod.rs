@@ -8,10 +8,10 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::Bug;
+use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
-use crate::{Command, CommandId, MaxCut, PolicyId, Prior};
+use crate::{Address, Command, CommandId, PolicyId, Prior};
 
 pub mod linear;
 pub mod memory;
@@ -174,30 +174,38 @@ pub trait Storage {
 
     /// Returns the location of Command with id if it has been stored by
     /// searching from the head.
-    fn get_location(&self, id: &CommandId) -> Result<Option<Location>, StorageError> {
-        self.get_location_from(self.get_head()?, id)
+    fn get_location(&self, address: Address) -> Result<Option<Location>, StorageError> {
+        self.get_location_from(self.get_head()?, address)
     }
 
     /// Returns the location of Command with id by searching from the given location.
     fn get_location_from(
         &self,
         start: Location,
-        id: &CommandId,
+        address: Address,
     ) -> Result<Option<Location>, StorageError> {
-        let mut queue = alloc::collections::VecDeque::new();
-        queue.push_back(start);
-        while let Some(loc) = queue.pop_front() {
-            let seg = self.get_segment(loc)?;
-            for (cmd, i) in seg
-                .get_from(Location::new(loc.segment, 0))
-                .iter()
-                .zip(0..=loc.command)
-            {
-                if &cmd.id() == id {
-                    return Ok(Some(Location::new(loc.segment, i)));
+        let mut queue = Vec::new();
+        queue.push(start);
+        'outer: while let Some(loc) = queue.pop() {
+            let head = self.get_segment(loc)?;
+            if address.max_cut > head.longest_max_cut()? {
+                continue;
+            }
+            if let Some(loc) = head.get_from_max_cut(address.max_cut)? {
+                let command = head.get_command(loc).assume("command must exist")?;
+                if command.id() == address.id {
+                    return Ok(Some(loc));
                 }
             }
-            queue.extend(seg.prior());
+            // Assumes skip list is sorted in ascending order.
+            // We always want to skip as close to the root as possible.
+            for (skip, max_cut) in head.skip_list() {
+                if max_cut >= &address.max_cut {
+                    queue.push(*skip);
+                    continue 'outer;
+                }
+            }
+            queue.extend(head.prior());
         }
         Ok(None)
     }
@@ -220,6 +228,7 @@ pub trait Storage {
         &self,
         left: Location,
         right: Location,
+        last_common_ancestor: (Location, usize),
         policy_id: PolicyId,
         braid: Self::FactIndex,
     ) -> Result<Option<Self::Perspective>, StorageError>;
@@ -249,20 +258,36 @@ pub trait Storage {
         search_location: Location,
         segment: &Self::Segment,
     ) -> Result<bool, StorageError> {
-        let mut queue = alloc::collections::VecDeque::new();
+        let mut queue = Vec::new();
         queue.extend(segment.prior());
-        while let Some(location) = queue.pop_front() {
+        let segment = self.get_segment(search_location)?;
+        let address = segment
+            .get_command(search_location)
+            .assume("location must exist")?
+            .address()?;
+        'outer: while let Some(location) = queue.pop() {
             if location.segment == search_location.segment
                 && location.command >= search_location.command
             {
                 return Ok(true);
             }
             let segment = self.get_segment(location)?;
+            if address.max_cut > segment.longest_max_cut()? {
+                continue;
+            }
+            for (skip, max_cut) in segment.skip_list() {
+                if max_cut >= &address.max_cut {
+                    queue.push(*skip);
+                    continue 'outer;
+                }
+            }
             queue.extend(segment.prior());
         }
         Ok(false)
     }
 }
+
+type MaxCut = usize;
 
 /// A segment is a nonempty sequence of commands persisted to storage.
 ///
@@ -275,12 +300,12 @@ pub trait Storage {
 /// Each command past the first must have the parent of the previous command in the segment.
 pub trait Segment {
     type FactIndex: FactIndex;
-    type Command<'a>: Command + MaxCut
+    type Command<'a>: Command
     where
         Self: 'a;
 
     /// Returns the head of the segment.
-    fn head(&self) -> Self::Command<'_>;
+    fn head(&self) -> Result<Self::Command<'_>, StorageError>;
 
     /// Returns the first Command in the segment.
     fn first(&self) -> Self::Command<'_>;
@@ -303,6 +328,9 @@ pub trait Segment {
     /// Returns the command at the given location.
     fn get_command(&self, location: Location) -> Option<Self::Command<'_>>;
 
+    /// Returns the command with the given max cut from within this segment.
+    fn get_from_max_cut(&self, max_cut: usize) -> Result<Option<Location>, StorageError>;
+
     /// Returns an iterator of commands starting at the given location.
     fn get_from(&self, location: Location) -> Vec<Self::Command<'_>>;
 
@@ -318,6 +346,26 @@ pub trait Segment {
             .into_iter()
             .any(|loc| self.contains(*loc.as_ref()))
     }
+
+    /// The shortest max cut for this segment.
+    ///
+    /// This will always the max cut of the first command in the segment.
+    fn shortest_max_cut(&self) -> MaxCut;
+
+    /// The longest max cut for this segment.
+    ///
+    /// This will always be the max cut of the last command in the segment.
+    fn longest_max_cut(&self) -> Result<MaxCut, StorageError>;
+
+    /// The skip list is a series of locations that can be safely jumped to
+    /// when searching for a location. As long as the max cut of the location
+    /// you're jumping to is greater than or equal to the location you're
+    /// searching for you can jump to it and be guaranteed not to miss
+    /// the location you're searching for.
+    ///
+    /// For merge commands the last location in the skip list is the least
+    /// common ancestor.
+    fn skip_list(&self) -> &[(Location, MaxCut)];
 }
 
 /// An index of facts in storage.
@@ -336,8 +384,8 @@ pub trait Perspective: FactPerspective {
     /// Returns true if the perspective contains a command with the given ID.
     fn includes(&self, id: &CommandId) -> bool;
 
-    /// Returns the head ID in the perspective, if it exists
-    fn head_id(&self) -> Prior<CommandId>;
+    /// Returns the head address in the perspective, if it exists
+    fn head_address(&self) -> Result<Prior<Address>, Bug>;
 }
 
 /// A fact perspective is essentially a mutable, in-memory version of a [`FactIndex`].

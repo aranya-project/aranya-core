@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     command::{Command, CommandId, Priority},
-    Prior,
+    Address, Prior,
 };
 
 /// The data inside a [VmProtocol]. It gets serialized and deserialized over the wire.
@@ -26,11 +26,11 @@ pub enum VmProtocolData<'a> {
         signature: &'a [u8],
     },
     Merge {
-        left: CommandId,
-        right: CommandId,
+        left: Address,
+        right: Address,
     },
     Basic {
-        parent: CommandId,
+        parent: Address,
         author_id: UserId,
         #[serde(borrow)]
         kind: &'a str,
@@ -71,7 +71,7 @@ impl<'a> Command for VmProtocol<'a> {
         self.id
     }
 
-    fn parent(&self) -> Prior<CommandId> {
+    fn parent(&self) -> Prior<Address> {
         match self.unpacked {
             VmProtocolData::Init { .. } => Prior::None,
             VmProtocolData::Merge { left, right, .. } => Prior::Merge(left, right),
