@@ -168,6 +168,15 @@ enum FactPerspectivePrior<R> {
     FactIndex { offset: usize, reader: R },
 }
 
+impl<FM: IoManager + Default> Default for LinearStorageProvider<FM> {
+    fn default() -> Self {
+        Self {
+            manager: FM::default(),
+            storage: BTreeMap::new(),
+        }
+    }
+}
+
 impl<FM: IoManager> LinearStorageProvider<FM> {
     pub fn new(manager: FM) -> Self {
         Self {
@@ -383,7 +392,15 @@ impl<F: Write> Storage for LinearStorage<F> {
     ) -> Result<Self::FactPerspective, StorageError> {
         let segment = self.get_segment(location)?;
 
-        if location == segment.head_location() {
+        // If at head of segment, or no facts in segment,
+        // we don't need to apply updates.
+        if location == segment.head_location()
+            || segment
+                .repr
+                .commands
+                .iter()
+                .all(|cmd| cmd.updates.is_empty())
+        {
             return Ok(LinearFactPerspective::new(
                 FactPerspectivePrior::FactIndex {
                     offset: segment.repr.facts,

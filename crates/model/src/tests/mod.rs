@@ -21,7 +21,8 @@ use policy_vm::{
     Machine,
 };
 use runtime::{
-    storage::memory::MemStorageProvider,
+    memory::MemStorageProvider,
+    storage::linear,
     vm_action, vm_effect,
     vm_policy::{testing::TestFfiEnvelope, VmPolicy},
     ClientState, Engine, FfiCallable, StorageProvider,
@@ -38,6 +39,8 @@ use crate::{
 // Policy loaded from md file.
 const FFI_POLICY: &str = include_str!("./ffi-policy.md");
 const BASIC_POLICY: &str = include_str!("./basic-policy.md");
+
+type Lsp = linear::LinearStorageProvider<linear::testing::Manager>;
 
 // NOTE: In actual usage, we would only have one client factory per
 // implementation, I included two here for testing purposes.
@@ -70,7 +73,7 @@ struct EmptyKeys;
 // `TestFfiEnvelope` ffi needed to satisfy requirements in the policy envelope.
 impl ClientFactory for BasicClientFactory {
     type Engine = ModelEngine<DefaultEngine>;
-    type StorageProvider = MemStorageProvider;
+    type StorageProvider = Lsp;
     type PublicKeys = EmptyKeys;
     type Args = ();
 
@@ -85,7 +88,7 @@ impl ClientFactory for BasicClientFactory {
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
         let engine = ModelEngine::new(policy);
-        let provider = MemStorageProvider::new();
+        let provider = Lsp::default();
 
         ModelClient {
             state: RefCell::new(ClientState::new(engine, provider)),
@@ -123,7 +126,7 @@ impl FfiClientFactory {
 // supporting FFIs.
 impl ClientFactory for FfiClientFactory {
     type Engine = ModelEngine<DefaultEngine>;
-    type StorageProvider = MemStorageProvider;
+    type StorageProvider = Lsp;
     type PublicKeys = PublicKeys<DefaultCipherSuite>;
     type Args = ();
 
@@ -162,7 +165,7 @@ impl ClientFactory for FfiClientFactory {
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
         let engine = ModelEngine::new(policy);
-        let provider = MemStorageProvider::new();
+        let provider = Lsp::default();
 
         ModelClient {
             state: RefCell::new(ClientState::new(engine, provider)),
@@ -1407,4 +1410,37 @@ fn should_create_clients_with_args() {
         vm_effect!(Success { value: true }),
     ];
     assert_eq!(effects, expected);
+}
+
+/// Test for <https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues/917>.
+#[test]
+fn test_storage_fact_issue_917() {
+    let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
+    let mut test_model = RuntimeModel::new(basic_clients);
+
+    test_model.add_client(User::A).unwrap();
+    test_model.add_client(User::B).unwrap();
+
+    test_model
+        .new_graph(Graph::X, User::A, vm_action!(init(1)))
+        .unwrap();
+
+    test_model
+        .action(User::A, Graph::X, vm_action!(create_action(42)))
+        .unwrap();
+
+    test_model.sync(Graph::X, User::A, User::B).unwrap();
+
+    for _ in 0..5 {
+        for _ in 0..5 {
+            test_model
+                .action(User::A, Graph::X, vm_action!(get_stuff()))
+                .unwrap();
+            test_model
+                .action(User::B, Graph::X, vm_action!(get_stuff()))
+                .unwrap();
+        }
+        test_model.sync(Graph::X, User::A, User::B).unwrap();
+        test_model.sync(Graph::X, User::B, User::A).unwrap();
+    }
 }

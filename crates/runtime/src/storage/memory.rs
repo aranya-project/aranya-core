@@ -228,7 +228,9 @@ impl Storage for MemStorage {
     ) -> Result<Self::FactPerspective, StorageError> {
         let segment = self.get_segment(location)?;
 
-        if location == segment.head_location() {
+        if location == segment.head_location()
+            || segment.commands.iter().all(|cmd| cmd.updates.is_empty())
+        {
             return Ok(MemFactPerspective::new(segment.facts.clone().into()));
         }
 

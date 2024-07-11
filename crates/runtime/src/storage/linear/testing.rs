@@ -6,6 +6,7 @@ use spin::mutex::Mutex;
 use super::io;
 use crate::{GraphId, Location, StorageError};
 
+#[derive(Default)]
 pub struct Manager;
 
 impl io::IoManager for Manager {
