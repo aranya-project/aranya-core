@@ -18,7 +18,7 @@ fn test_compile() -> anyhow::Result<()> {
             open { return None }
         }
         action foo(b int) {
-            let x = if b == 0 then 4+i else 3
+            let x = if b == 0 { 4+i } else { 3 }
             let y = Foo{
                 a: x,
                 b: 4
@@ -916,7 +916,7 @@ fn finish_block_should_exit() -> anyhow::Result<()> {
 fn test_should_not_allow_bind_key_in_fact_creation() -> anyhow::Result<()> {
     let text = r#"
         fact F[i int] => {s string}
-        
+
         command CreateBindKey {
             fields {}
             seal { return None }
@@ -944,7 +944,7 @@ fn test_should_not_allow_bind_key_in_fact_creation() -> anyhow::Result<()> {
 fn test_should_not_allow_bind_value_in_fact_creation() -> anyhow::Result<()> {
     let text = r#"
         fact F[i int] => {s string}
-        
+
         command CreateBindValue {
             fields {}
             seal { return None }
@@ -972,7 +972,7 @@ fn test_should_not_allow_bind_value_in_fact_creation() -> anyhow::Result<()> {
 fn test_should_not_allow_bind_key_in_fact_update() -> anyhow::Result<()> {
     let text = r#"
         fact F[i int] => {s string}
-        
+
         command CreateBindValue {
             fields {}
             seal { return None }

@@ -793,20 +793,29 @@ fn parse_match_statement(
     Ok(ast::MatchStatement { expression, arms })
 }
 
-/// Parse a rule::when_statement into a WhenStatement
-fn parse_when_statement(
+/// Parse a rule::if_statement into a IfStatement
+fn parse_if_statement(
     item: Pair<'_, Rule>,
     pratt: &PrattParser<Rule>,
     cc: &mut ChunkContext,
-) -> Result<ast::WhenStatement, ParseError> {
+) -> Result<ast::IfStatement, ParseError> {
     let pc = descend(item);
-    let expression = pc.consume_expression(pratt)?;
-    let statements = parse_statement_list(pc.into_inner(), pratt, cc)?;
 
-    Ok(ast::WhenStatement {
-        expression,
-        statements,
-    })
+    let mut branches = Vec::new();
+    let mut fallback = None;
+
+    let mut iter = pc.into_inner();
+    while let Some(first) = iter.next() {
+        if let Some(second) = iter.next() {
+            let cond = parse_expression(first, pratt)?;
+            let block = parse_statement_list(second.into_inner(), pratt, cc)?;
+            branches.push((cond, block));
+        } else {
+            fallback = Some(parse_statement_list(first.into_inner(), pratt, cc)?);
+        }
+    }
+
+    Ok(ast::IfStatement { branches, fallback })
 }
 
 /// Parse a Rule::create_statement into a CreateStatement.
@@ -910,9 +919,7 @@ fn parse_statement_list(
             Rule::match_statement => {
                 ast::Statement::Match(parse_match_statement(statement, pratt, cc)?)
             }
-            Rule::when_statement => {
-                ast::Statement::When(parse_when_statement(statement, pratt, cc)?)
-            }
+            Rule::if_statement => ast::Statement::If(parse_if_statement(statement, pratt, cc)?),
             Rule::return_statement => {
                 ast::Statement::Return(parse_return_statement(statement, pratt)?)
             }

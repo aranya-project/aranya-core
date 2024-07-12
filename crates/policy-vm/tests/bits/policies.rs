@@ -21,7 +21,7 @@ command Foo {
 }
 
 action foo(b int) {
-    let x = if b == 0 then 4 else 3
+    let x = if b == 0 { 4 } else { 3 }
     let y = Foo{
         a: x,
         b: 4
@@ -108,10 +108,10 @@ pub const POLICY_IS: &str = r#"
         open { return None }
     }
     action check_none(x int) {
-        when x is None {
+        if x is None {
             publish Result { x: None }
         }
-        when x is Some {
+        if x is Some {
             publish Result { x: x }
         }
     }

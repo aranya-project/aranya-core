@@ -149,7 +149,7 @@ count_up_to = { "count_up_to" ~ int_literal ~ fact_literal}
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
 // first expression.
-if_e = { "if" ~ expression ~ "then" ~ expression ~ "else" ~ expression }
+if_e = { "if" ~ expression ~ "{" ~ expression ~ "}" ~ "else" ~ "{" ~ expression ~ "}" }
 // serialize() and deserialize() transform command structs to/from bytes
 serialize = { "serialize(" ~ expression ~ ")" }
 deserialize = { "deserialize(" ~ expression ~ ")" }
@@ -207,8 +207,14 @@ match_arm_expression = { expression ~ ("|" ~ expression)* }
 match_default = { "_" }
 match_arm = { (match_arm_expression | match_default) ~ "=>" ~ statement_block }
 match_statement = { "match" ~ expression ~ "{" ~ match_arm* ~ "}" }
-// The when statement is like an "if" with no "else"
-when_statement = { "when" ~ expression ~ statement_block }
+// if - else if - else
+if_statement = {
+    "if" ~ expression ~ if_branch
+    ~ ("else" ~ "if" ~ expression ~ if_branch)*
+    ~ ("else" ~ if_branch)?
+}
+// need a non-silent rule to distinguish these.
+if_branch = { statement_block }
 // The finish statement contains a block of statements which update
 // fact state and produce effects. The finish statement ends further
 // policy processing after executing its statements.
@@ -232,7 +238,7 @@ statements = _{
     let_statement |
     check_statement |
     match_statement |
-    when_statement |
+    if_statement |
     finish_statement |
     create_statement |
     update_statement |
@@ -292,14 +298,14 @@ global_let_statement = { "let" ~ identifier ~ "=" ~ expression }
 
 top_level_statement = _{
     use_definition |
-    fact_definition | 
-    action_definition | 
-    effect_definition | 
+    fact_definition |
+    action_definition |
+    effect_definition |
     struct_definition |
-    enum_definition | 
-    command_definition | 
-    function_definition | 
-    finish_function_definition | 
+    enum_definition |
+    command_definition |
+    function_definition |
+    finish_function_definition |
     global_let_statement }
 
 // The file is a series of top level statements. SOI and EOI are start/

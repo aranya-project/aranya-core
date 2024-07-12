@@ -352,13 +352,13 @@ pub struct MatchStatement {
     pub arms: Vec<MatchArm>,
 }
 
-/// Test an expression and execute a set of substatements if it is true.
+/// Test a series of conditions and execute the statements for the first true condition.
 #[derive(Debug, Clone, PartialEq)]
-pub struct WhenStatement {
-    /// The value to match against
-    pub expression: Expression,
-    /// All of the potential match arms
-    pub statements: Vec<AstNode<Statement>>,
+pub struct IfStatement {
+    /// Each `if` and `else if` branch.
+    pub branches: Vec<(Expression, Vec<AstNode<Statement>>)>,
+    /// The `else` branch, if present.
+    pub fallback: Option<Vec<AstNode<Statement>>>,
 }
 
 /// Create a fact
@@ -403,8 +403,8 @@ pub enum Statement {
     Check(CheckStatement),
     /// A [MatchStatement]
     Match(MatchStatement),
-    /// A [WhenStatement],
-    When(WhenStatement),
+    /// An [IfStatement],
+    If(IfStatement),
     /// A `finish` block containing [Statement]s
     /// Valid only in policy blocks
     Finish(Vec<AstNode<Statement>>),

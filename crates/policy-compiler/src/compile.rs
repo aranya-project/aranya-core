@@ -1000,19 +1000,29 @@ impl<'a> CompileState<'a> {
                     self.define_label(end_label, self.wp)?;
                 }
                 (
-                    ast::Statement::When(s),
+                    ast::Statement::If(s),
                     StatementContext::Action
                     | StatementContext::PureFunction
                     | StatementContext::CommandPolicy
                     | StatementContext::CommandRecall,
                 ) => {
                     let end_label = self.anonymous_label();
-                    self.compile_expression(&s.expression)?;
-                    self.append_instruction(Instruction::Not);
-                    self.append_instruction(Instruction::Branch(Target::Unresolved(
-                        end_label.clone(),
-                    )));
-                    self.compile_statements(&s.statements)?;
+                    for (cond, branch) in &s.branches {
+                        let next_label = self.anonymous_label();
+                        self.compile_expression(cond)?;
+                        self.append_instruction(Instruction::Not);
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            next_label.clone(),
+                        )));
+                        self.compile_statements(branch)?;
+                        self.append_instruction(Instruction::Jump(Target::Unresolved(
+                            end_label.clone(),
+                        )));
+                        self.define_label(next_label, self.wp)?;
+                    }
+                    if let Some(fallback) = &s.fallback {
+                        self.compile_statements(fallback)?;
+                    }
                     self.define_label(end_label, self.wp)?;
                 }
                 (ast::Statement::Publish(s), StatementContext::Action) => {

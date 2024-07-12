@@ -715,10 +715,10 @@ fn test_not_operator() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_when_true() -> anyhow::Result<()> {
+fn test_if_true() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
-            when x == true {
+            if x == true {
                 check true == false
             }
         }
@@ -741,10 +741,10 @@ fn test_when_true() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_when_false() -> anyhow::Result<()> {
+fn test_if_false() -> anyhow::Result<()> {
     let text = r#"
         action foo(x bool) {
-            when x == true {
+            if x == true {
                 check true == false
             }
         }
@@ -762,6 +762,61 @@ fn test_when_false() -> anyhow::Result<()> {
 
     let result = rs.call_action(name, [false])?;
     assert_eq!(result, ExitReason::Normal);
+
+    Ok(())
+}
+
+#[test]
+fn test_if_branches() -> anyhow::Result<()> {
+    let text = r#"
+        command Result {
+            fields {
+                s string
+            }
+            seal { return None }
+            open { return None }
+        }
+
+        action foo(x int) {
+            if x == 0 {
+                check true
+                publish Result { s: "0" }
+                check true
+            } else if x == 1 {
+                publish Result { s: "1" }
+            } else if x == 2 {
+                check true
+                publish Result { s: "2" }
+            } else {
+                publish Result { s: "3" }
+                check true
+            }
+        }
+    "#;
+
+    let name = "foo";
+    let policy = parse_policy_str(text, Version::V1)?;
+    let ctx = dummy_ctx_action(name);
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+
+    for i in 0i64..4 {
+        let mut io = TestIO::new();
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        rs.call_action(name, [i])?;
+        let result = rs.run()?;
+        assert_eq!(result, ExitReason::Normal);
+
+        assert_eq!(
+            io.publish_stack,
+            [(
+                "Result".to_string(),
+                vec![KVPair::new("s", i.to_string().into())]
+            )],
+        );
+    }
 
     Ok(())
 }
@@ -981,8 +1036,7 @@ fn test_negative_numeric_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x int) {
         let a = -2
-        let c = if x - a == 1 then true else false
-        check c
+        check x - a == 1
     }
     "#;
     let name = "foo";
@@ -1005,10 +1059,10 @@ fn test_negative_numeric_expression() -> anyhow::Result<()> {
 fn test_negative_logical_expression() -> anyhow::Result<()> {
     let text = r#"
     action foo(x bool, y bool) {
-        when x {
+        if x {
             check x
         }
-        when !y {
+        if !y {
             check !y
         }
     }
