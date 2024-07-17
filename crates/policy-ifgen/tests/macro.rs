@@ -1,12 +1,20 @@
 use policy_ifgen::{macros::*, ClientError, KVPair};
 
+#[effects]
+pub enum EffectEnum {
+    TestEffect(TestEffect),
+    TestEffectFields(TestEffectFields),
+}
+
 #[effect]
+#[derive(Default)]
 pub struct TestEffect {
     pub a: i64,
     pub b: String,
 }
 
 #[effect]
+#[derive(Default)]
 pub struct TestEffectFields {
     _int: i64,
     _bool: bool,
@@ -21,6 +29,7 @@ pub struct TestEffectFields {
 }
 
 #[value]
+#[derive(Default)]
 pub struct TestStructFields {
     _int: i64,
     _bool: bool,
@@ -35,10 +44,13 @@ pub struct TestStructFields {
 }
 
 #[value]
+#[derive(Default)]
 pub struct OtherStruct {}
 
 #[value]
+#[derive(Default)]
 pub enum TestEnum {
+    #[default]
     A,
     B,
     C,
@@ -82,6 +94,19 @@ fn test_parse_effect() {
     assert_eq!(parsed, order1.try_into().unwrap());
 
     assert_eq!(parsed, order2.try_into().unwrap());
+}
+
+#[test]
+fn test_effect_enum() {
+    let effect = TestEffect::default();
+    assert_eq!(effect.name(), "TestEffect");
+    let effect = EffectEnum::TestEffect(effect);
+    assert_eq!(effect.name(), "TestEffect");
+
+    let effect = TestEffectFields::default();
+    assert_eq!(effect.name(), "TestEffectFields");
+    let effect = EffectEnum::TestEffectFields(effect);
+    assert_eq!(effect.name(), "TestEffectFields");
 }
 
 #[cfg(feature = "serde")]

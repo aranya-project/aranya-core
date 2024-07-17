@@ -8,6 +8,7 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
     let strukt: ItemStruct = syn::parse2(item)?;
 
     let ident = &strukt.ident;
+    let name = ident.to_string();
 
     let field_idents = strukt
         .fields
@@ -25,6 +26,13 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
     Ok(quote! {
         #derive
         #strukt
+
+        impl #ident {
+            /// Gives the name of the effect.
+            pub fn name(&self) -> &'static ::core::primitive::str {
+                #name
+            }
+        }
 
         impl ::core::convert::TryFrom<::policy_ifgen::Fields> for #ident {
             type Error = ::policy_ifgen::EffectsParseError;
