@@ -104,6 +104,7 @@ impl Value {
             Value::Bytes(_) => Some(VType::Bytes),
             Value::Id(_) => Some(VType::Id),
             Value::Enum(name, _) => Some(VType::Enum(name.to_owned())),
+            Value::Struct(s) => Some(VType::Struct(s.name.clone())),
             _ => None,
         }
     }

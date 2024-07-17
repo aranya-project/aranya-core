@@ -1200,6 +1200,10 @@ fn test_finish_function() -> anyhow::Result<()> {
 #[test]
 fn test_serialize_deserialize() -> anyhow::Result<()> {
     let text = r#"
+        struct Envelope {
+            payload bytes
+        }
+
         command Foo {
             fields {
                 a int,
@@ -1207,7 +1211,9 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
             }
 
             seal {
-                return serialize(this)
+                return Envelope {
+                    payload: serialize(this)
+                }
             }
             open {
                 // Don't access payload this way. See below.
@@ -1241,7 +1247,12 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
         let mut rs = machine.create_run_state(&mut io, &ctx);
         rs.call_seal(name, &this_struct)?;
         let result = rs.consume_return()?;
-        result.try_into()?
+        let mut envelope: Struct = result.try_into()?;
+        let payload = envelope
+            .fields
+            .remove("payload")
+            .expect("envelope has no payload");
+        payload.try_into()?
     };
 
     {
@@ -1338,17 +1349,23 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 #[test]
 fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let text = r#"
+        struct Envelope {
+            payload bytes
+        }
+
         command Foo {
-            fields {}
+            fields {
+                test bytes
+            }
             seal { return None }
             open { return None }
 
             policy {
-                check envelope.thing == "policy"
+                check envelope.payload == this.test
             }
 
             recall {
-                check envelope.thing == "recall"
+                check envelope.payload == this.test
             }
         }
     "#;
@@ -1357,6 +1374,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
     let mut io = TestIO::new();
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
+    let test_data = "thing".as_bytes().to_vec();
 
     {
         let name = "Foo";
@@ -1364,8 +1382,11 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let status = rs.call_command_policy(
             name,
-            &Struct::new("Foo", &[]),
-            Struct::new("Envelope", [("thing".into(), "policy".into())]),
+            &Struct::new("Foo", [KVPair::new("test", test_data.clone().into())]),
+            Struct::new(
+                "Envelope",
+                [KVPair::new("payload", test_data.clone().into())],
+            ),
         )?;
         assert_eq!(status, ExitReason::Normal);
     }
@@ -1376,8 +1397,11 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let status = rs.call_command_recall(
             name,
-            &Struct::new("Foo", &[]),
-            Struct::new("Envelope", [("thing".into(), "recall".into())]),
+            &Struct::new("Foo", [KVPair::new("test", test_data.clone().into())]),
+            Struct::new(
+                "Envelope",
+                [KVPair::new("payload", test_data.clone().into())],
+            ),
         )?;
         assert_eq!(status, ExitReason::Normal);
     }

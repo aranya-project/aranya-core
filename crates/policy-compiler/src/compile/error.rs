@@ -23,7 +23,7 @@ pub enum CompileErrorType {
     /// Invalid expression - the expression does not make sense in context.
     InvalidExpression(ast::Expression),
     /// Invalid type
-    InvalidType,
+    InvalidType(String),
     /// Invalid call color - Tried to make a function call to the wrong type of function.
     InvalidCallColor(CallColor),
     /// Resolution of branch targets failed to find a valid target
@@ -54,7 +54,7 @@ impl fmt::Display for CompileErrorType {
         match self {
             Self::InvalidStatement(c) => write!(f, "Invalid statement in {} context", c),
             Self::InvalidExpression(e) => write!(f, "Invalid expression: {:?}", e),
-            Self::InvalidType => write!(f, "Invalid type"),
+            Self::InvalidType(s) => write!(f, "Invalid type: {}", s),
             Self::InvalidCallColor(cc) => match cc {
                 CallColor::Pure => write!(f, "Pure function not allowed in finish context"),
                 CallColor::Finish => write!(f, "Finish function not allowed in expression"),
@@ -70,6 +70,12 @@ impl fmt::Display for CompileErrorType {
             Self::Bug(bug) => write!(f, "Bug: {}", bug),
             Self::Unknown(s) => write!(f, "Unknown error: {}", s),
         }
+    }
+}
+
+impl From<Bug> for CompileErrorType {
+    fn from(value: Bug) -> Self {
+        CompileErrorType::Bug(value)
     }
 }
 

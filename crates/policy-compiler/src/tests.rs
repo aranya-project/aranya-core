@@ -1,10 +1,9 @@
 #![cfg(test)]
 
-use std::collections::BTreeMap;
-
+use anyhow::anyhow;
 use policy_ast::{FieldDefinition, VType, Version};
 use policy_lang::lang::parse_policy_str;
-use policy_module::{Label, LabelType, ModuleData, Value};
+use policy_module::{ffi::ModuleSchema, Label, LabelType, ModuleData, Value};
 
 use crate::{CallColor, CompileError, CompileErrorType, Compiler};
 
@@ -18,6 +17,7 @@ fn test_compile() -> anyhow::Result<()> {
             open { return None }
         }
         action foo(b int) {
+            let i = 4
             let x = if b == 0 { 4+i } else { 3 }
             let y = Foo{
                 a: x,
@@ -48,7 +48,7 @@ fn test_undefined_struct() -> anyhow::Result<()> {
             .compile()
             .expect_err("compilation succeeded where it should fail")
             .err_type,
-        CompileErrorType::BadArgument(String::from("Bar")),
+        CompileErrorType::InvalidType(String::from("Struct `Bar` not defined")),
     );
 
     Ok(())
@@ -88,7 +88,10 @@ fn test_function_not_defined() -> anyhow::Result<()> {
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
-    assert_eq!(err, CompileErrorType::NotDefined(String::from("g")));
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidType(String::from("Function `g` not defined"))
+    );
 
     Ok(())
 }
@@ -209,10 +212,12 @@ fn test_function_wrong_color_finish() -> anyhow::Result<()> {
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
-    // Quirk: this gives us NotDefined because the compiler compiles all of the regular
-    // functions _before_ the finish functions. So the finish function isn't yet defined.
-    // Fixing this will require a two-pass compilation.
-    assert_eq!(err, CompileErrorType::NotDefined(String::from("f")));
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidType(String::from(
+            "Finish functions are not allowed outside of finish blocks or finish functions"
+        ))
+    );
 
     Ok(())
 }
@@ -434,23 +439,18 @@ fn test_autodefine_struct() -> anyhow::Result<()> {
     let result = Compiler::new(&policy).compile()?;
     let ModuleData::V0(module) = result.data;
 
-    assert_eq!(module.struct_defs, {
-        let mut test_struct_map = BTreeMap::new();
-        test_struct_map.insert(
-            "Foo".to_string(),
-            vec![
-                FieldDefinition {
-                    identifier: "a".to_string(),
-                    field_type: VType::Int,
-                },
-                FieldDefinition {
-                    identifier: "b".to_string(),
-                    field_type: VType::Int,
-                },
-            ],
-        );
-        test_struct_map
-    });
+    let want = vec![
+        FieldDefinition {
+            identifier: "a".to_string(),
+            field_type: VType::Int,
+        },
+        FieldDefinition {
+            identifier: "b".to_string(),
+            field_type: VType::Int,
+        },
+    ];
+    let got = module.struct_defs.get("Foo").unwrap();
+    assert_eq!(got, &want);
 
     Ok(())
 }
@@ -572,7 +572,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
             check ok == Result::OK
             check ok != Result::Err
 
-            match result {
+            match ok {
                 Result::OK => {}
                 Result::Err => {}
             }
@@ -683,7 +683,7 @@ fn test_fact_invalid_key_type() -> anyhow::Result<()> {
         .compile()
         .expect_err("compilation should have failed")
         .err_type;
-    assert_eq!(err, CompileErrorType::InvalidType);
+    assert!(matches!(err, CompileErrorType::InvalidType(_)));
 
     Ok(())
 }
@@ -746,7 +746,7 @@ fn test_fact_invalid_value_type() -> anyhow::Result<()> {
         .compile()
         .expect_err("compilation should have failed")
         .err_type;
-    assert_eq!(err, CompileErrorType::InvalidType);
+    assert!(matches!(err, CompileErrorType::InvalidType(_)));
 
     Ok(())
 }
@@ -806,7 +806,7 @@ fn test_fact_update_invalid_to_type() -> anyhow::Result<()> {
         .compile()
         .expect_err("compilation should have failed")
         .err_type;
-    assert_eq!(err, CompileErrorType::InvalidType);
+    assert!(matches!(err, CompileErrorType::InvalidType(_)));
 
     Ok(())
 }
@@ -1331,6 +1331,229 @@ fn test_count_up_to() -> anyhow::Result<()> {
         err,
         CompileErrorType::BadArgument("count limit must be greater than zero".to_string())
     );
+
+    Ok(())
+}
+
+const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
+    name: "test",
+    functions: &[],
+    structs: &[],
+}];
+
+#[test]
+fn test_type_errors() -> anyhow::Result<()> {
+    struct Case {
+        t: &'static str,
+        e: &'static str,
+    }
+    let cases = [
+        Case {
+            t: r#"
+                function f() bool {
+                    let x = Foo{}
+                }
+            "#,
+            e: "Struct `Foo` not defined",
+        },
+        Case {
+            t: r#"
+                function f() bool {
+                    let x = query Foo[]
+                }
+            "#,
+            e: "Fact `Foo` not defined",
+        },
+        Case {
+            t: r#"
+                function f(x int) bool {
+                    return x + "foo"
+                }
+            "#,
+            e: "types do not match: int and string",
+        },
+        Case {
+            t: r#"
+                function f() int {
+                    return if 0 { 3 } else { 4 }
+                }
+            "#,
+            e: "if condition must be a boolean expression",
+        },
+        Case {
+            t: r#"
+                finish function f() {}
+                function g() bool {
+                    return f()
+                }
+            "#,
+            e: "Finish functions are not allowed outside of finish blocks or finish functions",
+        },
+        Case {
+            t: r#"
+                function g() bool {
+                    return f()
+                }
+            "#,
+            e: "Function `f` not defined",
+        },
+        Case {
+            t: r#"
+                function g() bool {
+                    return x::f()
+                }
+            "#,
+            e: "Module `x` not found",
+        },
+        Case {
+            t: r#"
+                function g() bool {
+                    return test::f()
+                }
+            "#,
+            e: "Foreign function `test::f` not defined",
+        },
+        Case {
+            t: r#"
+                function g() bool {
+                    return x
+                }
+            "#,
+            e: "Unknown identifier `x`",
+        },
+        Case {
+            t: r#"
+                function g() int {
+                    return "3" + "4"
+                }
+            "#,
+            e: "Cannot do math on non-int types",
+        },
+        Case {
+            t: r#"
+                function g() bool {
+                    return 3 || 4
+                }
+            "#,
+            e: "Cannot use boolean operator on non-bool types",
+        },
+        Case {
+            t: r#"
+                function g(x int) bool {
+                    return x.y
+                }
+            "#,
+            e: "Expression left of `.` is not a struct",
+        },
+        Case {
+            t: r#"
+                function g(x struct Foo) bool {
+                    return x.y
+                }
+            "#,
+            e: "Struct `Foo` not defined",
+        },
+        Case {
+            t: r#"
+                struct Foo {}
+                function g(x struct Foo) bool {
+                    return x.y
+                }
+            "#,
+            e: "Struct `Foo` has no member `y`",
+        },
+        Case {
+            t: r#"
+                function g(x string) bool {
+                    return x < "test"
+                }
+            "#,
+            e: "Cannot compare non-int expressions",
+        },
+        Case {
+            t: r#"
+                function g(x string) bool {
+                    return -x
+                }
+            "#,
+            e: "Cannot negate non-int expression",
+        },
+        Case {
+            t: r#"
+                function g(x int) bool {
+                    return !x
+                }
+            "#,
+            e: "Cannot invert non-boolean expression",
+        },
+        Case {
+            t: r#"
+                function g(x int) bool {
+                    return x.y
+                }
+            "#,
+            e: "Expression left of `.` is not a struct",
+        },
+        Case {
+            t: r#"
+                function g(x int) bool {
+                    return unwrap x
+                }
+            "#,
+            e: "Cannot unwrap non-option expression",
+        },
+        Case {
+            t: r#"
+                function g(x int) bool {
+                    return x is None
+                }
+            "#,
+            e: "`is` must operate on an optional expression`",
+        },
+        Case {
+            t: r#"
+                command Foo {
+                    policy {
+                        check 0
+                    }
+                }
+            "#,
+            e: "check must have boolean expression",
+        },
+        Case {
+            t: r#"
+                function f() bool {
+                    return 0
+                }
+            "#,
+            e: "Return value of `f()` must be bool",
+        },
+        Case {
+            t: r#"
+                command Foo {
+                    policy {
+                        finish {
+                            emit 0
+                        }
+                    }
+                }
+            "#,
+            e: "Emit must be given a struct",
+        },
+    ];
+
+    for c in cases {
+        let policy = parse_policy_str(c.t, Version::V1)?;
+        let err = Compiler::new(&policy)
+            .ffi_modules(FAKE_SCHEMA)
+            .compile()
+            .expect_err("Did not get error")
+            .err_type;
+        let CompileErrorType::InvalidType(s) = err else {
+            return Err(anyhow!("Did not get InvalidType: {}", err));
+        };
+        assert_eq!(s, c.e);
+    }
 
     Ok(())
 }

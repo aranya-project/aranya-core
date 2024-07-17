@@ -1,4 +1,8 @@
 //! Data definitions used by the FFI interface
+extern crate alloc;
+use alloc::{boxed::Box, string::String};
+
+use policy_ast::VType;
 
 /// The type of a value
 #[derive(Debug, Clone, PartialEq)]
@@ -17,6 +21,20 @@ pub enum Type<'a> {
     Struct(&'a str),
     /// An optional type of some other type.
     Optional(&'a Type<'a>),
+}
+
+impl From<&Type<'_>> for VType {
+    fn from(value: &Type<'_>) -> Self {
+        match value {
+            Type::String => VType::String,
+            Type::Bytes => VType::Bytes,
+            Type::Int => VType::Int,
+            Type::Bool => VType::Bool,
+            Type::Id => VType::Id,
+            Type::Struct(s) => VType::Struct(String::from(*s)),
+            Type::Optional(t) => VType::Optional(Box::new((*t).into())),
+        }
+    }
 }
 
 /// Describes the context in which the function can be called.
@@ -48,6 +66,14 @@ pub struct Arg<'a> {
     pub name: &'a str,
     /// The field's type.
     pub vtype: Type<'a>,
+}
+
+/// A struct definition
+pub struct Struct<'a> {
+    /// The name of the struct.
+    pub name: &'a str,
+    /// The fields of the struct.
+    pub fields: &'a [Arg<'a>],
 }
 
 /// Shorthand for creating [`Arg`]s.
@@ -154,4 +180,6 @@ pub struct ModuleSchema<'a> {
     pub name: &'a str,
     /// list of functions provided by the module
     pub functions: &'a [Func<'a>],
+    /// list of structs defined by the module
+    pub structs: &'a [Struct<'a>],
 }

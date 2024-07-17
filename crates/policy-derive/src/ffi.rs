@@ -52,6 +52,21 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let crypto: Path = parse_quote!(_crypto);
     let vm: Path = parse_quote!(_policy_vm);
 
+    let structdefs = structs.iter().map(|d| {
+        let name = &d.inner.identifier;
+        let fields = d.inner.fields.iter().map(|arg| {
+            let name = &arg.identifier;
+            let vtype = VTypeTokens::new(&arg.field_type, &vm);
+            quote!(#vm::arg!(#name, #vtype))
+        });
+        quote! {
+            #vm::ffi::Struct {
+                name: #name,
+                fields: &[#(#fields),*],
+            }
+        }
+    });
+
     // `struct Foo { ... }` definitions as parsed from
     // `#[ffi(def = "...")]`.
     let structs = structs.iter().map(|d| {
@@ -228,6 +243,9 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     functions: &[
                         #(#funcs),*
                     ],
+                    structs: &[
+                        #(#structdefs),*
+                    ]
                 };
 
                 #[doc(hidden)]

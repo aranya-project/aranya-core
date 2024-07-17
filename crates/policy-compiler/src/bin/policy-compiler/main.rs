@@ -14,20 +14,40 @@ struct Args {
     /// '.pmod'.
     #[arg(short, long)]
     out: Option<PathBuf>,
+    /// Be verbose
+    #[arg(short, long)]
+    verbose: bool,
 }
 
 pub fn main() -> ExitCode {
     let args = Args::parse();
 
-    let policy_str = std::fs::read_to_string(&args.file).expect("could not read input file");
-    let ast = parse_policy_document(&policy_str).expect("could not parse policy document");
-    let module = Compiler::new(&ast)
-        .compile()
-        .expect("could not compile policy");
+    let out_path = args.out.unwrap_or_else(|| args.file.with_extension("pmod"));
 
-    let out_path = args
-        .out
-        .unwrap_or_else(|| args.file.with_extension(".pmod"));
+    if args.verbose {
+        println!(
+            "Compiling {} to {}",
+            args.file.display(),
+            out_path.display()
+        );
+    }
+
+    let policy_str = std::fs::read_to_string(&args.file).expect("could not read input file");
+    let ast = match parse_policy_document(&policy_str) {
+        Ok(a) => a,
+        Err(e) => {
+            println!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let module = match Compiler::new(&ast).compile() {
+        Ok(m) => m,
+        Err(e) => {
+            println!("{e}");
+            return ExitCode::FAILURE;
+        }
+    };
+
     let mut out_f = File::create(out_path).expect("could not open output file");
 
     ciborium::into_writer(&module, &mut out_f).expect("could not write output file");

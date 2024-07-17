@@ -107,12 +107,12 @@ pub const POLICY_IS: &str = r#"
         seal { return None }
         open { return None }
     }
-    action check_none(x int) {
+    action check_none(x optional int) {
         if x is None {
             publish Result { x: None }
         }
         if x is Some {
-            publish Result { x: x }
+            publish Result { x: unwrap x }
         }
     }
 "#;

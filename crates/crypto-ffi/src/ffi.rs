@@ -107,7 +107,7 @@ impl<S: KeyStore> Ffi<S> {
 function sign(
     our_sign_sk_id id,
     command_bytes bytes,
-) struct Seal
+) struct Signed
 "#)]
     pub(crate) fn sign<E: Engine>(
         &self,
@@ -150,7 +150,7 @@ function verify(
     command_bytes bytes,
     command_id id,
     signature bytes,
-) id
+) bytes
 "#)]
     pub(crate) fn verify<E: Engine>(
         &self,

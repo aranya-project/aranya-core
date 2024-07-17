@@ -20,6 +20,7 @@ impl FfiModule for PrintFfi {
             }],
             return_type: ffi::Type::String,
         }],
+        structs: &[],
     };
 
     fn call<E: Engine>(

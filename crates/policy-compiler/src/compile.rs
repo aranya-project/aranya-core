@@ -1,5 +1,6 @@
 mod error;
 mod target;
+mod types;
 
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
@@ -12,7 +13,7 @@ use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::BugExt;
+use buggy::{Bug, BugExt};
 use policy_ast::{self as ast, AstNode, VType};
 use policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Module, Struct, Target,
@@ -21,10 +22,11 @@ use policy_module::{
 use target::CompileTarget;
 
 pub use self::error::{CallColor, CompileError, CompileErrorType};
+use self::types::{IdentifierTypeStack, Typeish};
 
 enum FunctionColor {
     /// Function has no side-effects and returns a value
-    Pure(#[allow(unused)] VType),
+    Pure(VType),
     /// Function has side-effects and returns no value
     Finish,
 }
@@ -39,16 +41,16 @@ struct FunctionSignature {
 
 /// Enumerates all the possible contexts a statement can be in, to validate whether a
 /// statement is currently valid.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum StatementContext {
     /// An action
-    Action,
+    Action(ast::ActionDefinition),
     /// A command policy block
-    CommandPolicy,
+    CommandPolicy(ast::CommandDefinition),
     /// A command recall block
-    CommandRecall,
+    CommandRecall(ast::CommandDefinition),
     /// A pure function
-    PureFunction,
+    PureFunction(ast::FunctionDefinition),
     /// A finish function or finish block
     Finish,
 }
@@ -56,10 +58,10 @@ pub enum StatementContext {
 impl fmt::Display for StatementContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StatementContext::Action => write!(f, "action"),
-            StatementContext::CommandPolicy => write!(f, "command policy block"),
-            StatementContext::CommandRecall => write!(f, "command recall block"),
-            StatementContext::PureFunction => write!(f, "pure function"),
+            StatementContext::Action(_) => write!(f, "action"),
+            StatementContext::CommandPolicy(_) => write!(f, "command policy block"),
+            StatementContext::CommandRecall(_) => write!(f, "command recall block"),
+            StatementContext::PureFunction(_) => write!(f, "pure function"),
             StatementContext::Finish => write!(f, "finish block/function"),
         }
     }
@@ -84,6 +86,8 @@ struct CompileState<'a> {
     /// The current statement context, implemented as a stack so that it can be
     /// hierarchical.
     statement_context: Vec<StatementContext>,
+    /// Keeps track of identifier types in a stack of scopes
+    identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
     /// name/value mappings for enums, e.g. `"Color"->["Red", "Green"]`
@@ -108,13 +112,11 @@ impl<'a> CompileState<'a> {
         let cs = self
             .statement_context
             .last()
-            .ok_or(CompileError::from_locator(
-                CompileErrorType::Unknown(String::from(
+            .ok_or_else(|| {
+                self.err(CompileErrorType::Bug(Bug::new(
                     "compiling statement without statement context",
-                )),
-                self.last_locator,
-                self.m.codemap.as_ref(),
-            ))?
+                )))
+            })?
             .clone();
         Ok(cs)
     }
@@ -131,31 +133,23 @@ impl<'a> CompileState<'a> {
     /// Inserts a fact definition
     fn define_fact(&mut self, fact: &FactDefinition) -> Result<(), CompileError> {
         if self.m.fact_defs.contains_key(&fact.identifier) {
-            return Err(CompileError::new(CompileErrorType::AlreadyDefined(
-                fact.identifier.clone(),
-            )));
+            return Err(self.err(CompileErrorType::AlreadyDefined(fact.identifier.clone())));
         }
 
         // ensure key identifiers are unique
         let mut identifiers = BTreeSet::new();
         for key in fact.key.iter() {
             if !identifiers.insert(key.identifier.as_str()) {
-                return Err(CompileError::from_locator(
-                    CompileErrorType::AlreadyDefined(key.identifier.to_owned()),
-                    self.last_locator,
-                    self.m.codemap.as_ref(),
-                ));
+                return Err(self.err(CompileErrorType::AlreadyDefined(key.identifier.to_owned())));
             }
         }
 
         // ensure value identifiers are unique
         for value in fact.value.iter() {
             if !identifiers.insert(value.identifier.as_str()) {
-                return Err(CompileError::from_locator(
-                    CompileErrorType::AlreadyDefined(value.identifier.to_owned()),
-                    self.last_locator,
-                    self.m.codemap.as_ref(),
-                ));
+                return Err(self.err(CompileErrorType::AlreadyDefined(
+                    value.identifier.to_owned(),
+                )));
             }
         }
 
@@ -187,11 +181,9 @@ impl<'a> CompileState<'a> {
                 e.insert(fields.to_vec());
                 Ok(())
             }
-            Entry::Occupied(_) => Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(identifier.to_string()),
-                self.last_locator,
-                self.m.codemap.as_ref(),
-            )),
+            Entry::Occupied(_) => {
+                Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())))
+            }
         }
     }
 
@@ -202,22 +194,19 @@ impl<'a> CompileState<'a> {
         let enum_name = enum_def.identifier.as_ref();
         // ensure enum name is unique
         if self.enum_values.contains_key(enum_name) {
-            return Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(enum_def.identifier.to_owned()),
-                self.last_locator,
-                self.m.codemap.as_ref(),
-            ));
+            return Err(self.err(CompileErrorType::AlreadyDefined(
+                enum_def.identifier.to_owned(),
+            )));
         }
 
         // Add values to enum, checking for duplicates
         let mut values = Vec::<&str>::new();
         for value_name in enum_def.values.iter() {
             if values.contains(&value_name.as_str()) {
-                return Err(CompileError::from_locator(
-                    CompileErrorType::AlreadyDefined(format!("{}::{}", enum_name, value_name)),
-                    self.last_locator,
-                    self.m.codemap.as_ref(),
-                ));
+                return Err(self.err(CompileErrorType::AlreadyDefined(format!(
+                    "{}::{}",
+                    enum_name, value_name
+                ))));
             }
             values.push(value_name);
         }
@@ -280,11 +269,7 @@ impl<'a> CompileState<'a> {
                 e.insert(addr);
                 Ok(())
             }
-            Entry::Occupied(_) => Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(label.name),
-                self.last_locator,
-                self.m.codemap.as_ref(),
-            )),
+            Entry::Occupied(_) => Err(self.err(CompileErrorType::AlreadyDefined(label.name))),
         }
     }
 
@@ -302,13 +287,12 @@ impl<'a> CompileState<'a> {
             codemap
                 .map_instruction_range(self.wp, node.locator)
                 .map_err(|_| {
-                    CompileError::from_locator(
+                    self.err_loc(
                         CompileErrorType::Unknown(format!(
                             "could not map address {} to text range {}",
                             self.wp, node.locator
                         )),
                         node.locator,
-                        self.m.codemap.as_ref(),
                     )
                 })
         } else {
@@ -328,7 +312,7 @@ impl<'a> CompileState<'a> {
             Target::Unresolved(s) => {
                 let addr = labels
                     .get(&s)
-                    .ok_or(CompileErrorType::BadTarget(s.name.clone()))?;
+                    .ok_or_else(|| CompileErrorType::BadTarget(s.name.clone()))?;
 
                 *target = Target::Resolved(*addr);
                 Ok(())
@@ -360,11 +344,7 @@ impl<'a> CompileState<'a> {
             // Because structs are dynamically created, this is all we
             // can check at this point. Field validation has to happen
             // at runtime.
-            return Err(CompileError::from_locator(
-                CompileErrorType::BadArgument(s.identifier.clone()),
-                self.last_locator,
-                self.m.codemap.as_ref(),
-            ));
+            return Err(self.err(CompileErrorType::BadArgument(s.identifier.clone())));
         }
         self.append_instruction(Instruction::Const(Value::String(s.identifier.clone())));
         self.append_instruction(Instruction::StructNew);
@@ -377,14 +357,18 @@ impl<'a> CompileState<'a> {
     }
 
     fn err(&self, err_type: CompileErrorType) -> CompileError {
-        CompileError::from_locator(err_type, self.last_locator, self.m.codemap.as_ref())
+        self.err_loc(err_type, self.last_locator)
+    }
+
+    fn err_loc(&self, err_type: CompileErrorType, locator: usize) -> CompileError {
+        CompileError::from_locator(err_type, locator, self.m.codemap.as_ref())
     }
 
     fn get_fact_def(&self, name: &String) -> Result<&FactDefinition, CompileError> {
         self.m
             .fact_defs
             .get(name)
-            .ok_or(self.err(CompileErrorType::NotDefined(name.clone())))
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.clone())))
     }
 
     /// Make sure fact literal matches its schema. Checks that:
@@ -405,26 +389,18 @@ impl<'a> CompileState<'a> {
 
         // key sets must have the same length
         if fact.key_fields.len() != fact_def.key.len() {
-            return Err(CompileError::from_locator(
-                CompileErrorType::InvalidFactLiteral(String::from(
-                    "Fact keys don't match definition",
-                )),
-                self.last_locator,
-                self.m.codemap.as_ref(),
-            ));
+            return Err(self.err(CompileErrorType::InvalidFactLiteral(String::from(
+                "Fact keys don't match definition",
+            ))));
         }
 
         // Ensure the fact has all keys defined in the schema, and they have matching types.
         for (schema_key, lit_key) in fact_def.key.iter().zip(fact.key_fields.iter()) {
             if schema_key.identifier != lit_key.0 {
-                return Err(CompileError::from_locator(
-                    CompileErrorType::InvalidFactLiteral(format!(
-                        "Invalid key: expected {}, got {}",
-                        schema_key.identifier, lit_key.0
-                    )),
-                    self.last_locator,
-                    self.m.codemap.as_ref(),
-                ));
+                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
+                    "Invalid key: expected {}, got {}",
+                    schema_key.identifier, lit_key.0
+                ))));
             }
 
             let Some(vtype) = field_vtype(&lit_key.1) else {
@@ -440,7 +416,10 @@ impl<'a> CompileState<'a> {
                 || vtype == VType::Id)
                 && schema_key.field_type == vtype)
             {
-                return Err(self.err(CompileErrorType::InvalidType));
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "Fact field `{}` must be {}",
+                    schema_key.identifier, schema_key.field_type
+                ))));
             };
         }
 
@@ -475,14 +454,10 @@ impl<'a> CompileState<'a> {
         // Ensure values exist in schema, and have matching types
         for (lit_value, schema_value) in values.iter().zip(fact_def.value.iter()) {
             if lit_value.0 != schema_value.identifier {
-                return Err(CompileError::from_locator(
-                    CompileErrorType::InvalidFactLiteral(format!(
-                        "Expected value {}, got {}",
-                        schema_value.identifier, lit_value.0
-                    )),
-                    self.last_locator,
-                    self.m.codemap.as_ref(),
-                ));
+                return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
+                    "Expected value {}, got {}",
+                    schema_value.identifier, lit_value.0
+                ))));
             }
 
             let Some(lit_type) = field_vtype(&lit_value.1) else {
@@ -490,7 +465,10 @@ impl<'a> CompileState<'a> {
                 continue;
             };
             if lit_type != schema_value.field_type {
-                return Err(self.err(CompileErrorType::InvalidType));
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "field `{}` type should be {}",
+                    schema_value.identifier, schema_value.field_type
+                ))));
             }
         }
 
@@ -527,10 +505,14 @@ impl<'a> CompileState<'a> {
     }
 
     /// Compile an expression
-    fn compile_expression(&mut self, expression: &Expression) -> Result<(), CompileError> {
+    fn compile_expression(&mut self, expression: &Expression) -> Result<Typeish, CompileError> {
         if self.get_statement_context()? == StatementContext::Finish {
             self.check_finish_expression(expression)?;
         }
+
+        let expression_type = self
+            .calculate_expression_type(expression)
+            .map_err(|e| self.err(e.into()))?;
 
         match expression {
             Expression::Int(n) => self.append_instruction(Instruction::Const(Value::Int(*n))),
@@ -588,60 +570,47 @@ impl<'a> CompileState<'a> {
                     self.define_label(end_name, self.wp)?;
                 }
                 ast::InternalFunction::Serialize(e) => {
-                    if self.get_statement_context()? != StatementContext::PureFunction {
-                        return Err(CompileError::from_locator(
-                            CompileErrorType::InvalidExpression((**e).clone()),
-                            self.last_locator,
-                            self.m.codemap.as_ref(),
-                        ));
+                    if !matches!(
+                        self.get_statement_context()?,
+                        StatementContext::PureFunction(_)
+                    ) {
+                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
                     }
                     self.compile_expression(e)?;
                     self.append_instruction(Instruction::Serialize);
                 }
                 ast::InternalFunction::Deserialize(e) => {
-                    if self.get_statement_context()? != StatementContext::PureFunction {
-                        return Err(CompileError::from_locator(
-                            CompileErrorType::InvalidExpression((**e).clone()),
-                            self.last_locator,
-                            self.m.codemap.as_ref(),
-                        ));
+                    if !matches!(
+                        self.get_statement_context()?,
+                        StatementContext::PureFunction(_)
+                    ) {
+                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
                     }
                     self.compile_expression(e)?;
                     self.append_instruction(Instruction::Deserialize);
                 }
             },
             Expression::FunctionCall(f) => {
-                let signature = self.function_signatures.get(&f.identifier.as_str()).ok_or(
-                    CompileError::from_locator(
-                        CompileErrorType::NotDefined(f.identifier.clone()),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    ),
-                )?;
+                let signature = self
+                    .function_signatures
+                    .get(&f.identifier.as_str())
+                    .ok_or_else(|| self.err(CompileErrorType::NotDefined(f.identifier.clone())))?;
                 // Check that this function is the right color - only
                 // pure functions are allowed in expressions.
                 if let FunctionColor::Finish = signature.color {
-                    return Err(CompileError::from_locator(
-                        CompileErrorType::InvalidCallColor(CallColor::Finish),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    ));
+                    return Err(self.err(CompileErrorType::InvalidCallColor(CallColor::Finish)));
                 }
                 // For now all we can do is check that the argument
                 // list has the same length.
                 // TODO(chip): Do more deep type analysis to check
                 // arguments and return types.
                 if signature.args.len() != f.arguments.len() {
-                    return Err(CompileError::from_locator(
-                        CompileErrorType::BadArgument(format!(
-                            "call to `{}` has {} arguments and it should have {}",
-                            f.identifier,
-                            f.arguments.len(),
-                            signature.args.len()
-                        )),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    ));
+                    return Err(self.err(CompileErrorType::BadArgument(format!(
+                        "call to `{}` has {} arguments and it should have {}",
+                        f.identifier,
+                        f.arguments.len(),
+                        signature.args.len()
+                    ))));
                 }
                 for a in &f.arguments {
                     self.compile_expression(a)?;
@@ -666,11 +635,7 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .enumerate()
                     .find(|(_, m)| m.name == f.module)
-                    .ok_or(CompileError::from_locator(
-                        CompileErrorType::NotDefined(f.module.clone()),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    ))?;
+                    .ok_or_else(|| self.err(CompileErrorType::NotDefined(f.module.clone())))?;
 
                 // find module function by name
                 let (procedure_id, procedure) = module
@@ -678,19 +643,16 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .enumerate()
                     .find(|(_, proc)| proc.name == f.identifier)
-                    .ok_or(CompileError::from_locator(
-                        CompileErrorType::NotDefined(format!("{}::{}", f.module, f.identifier)),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    ))?;
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(format!(
+                            "{}::{}",
+                            f.module, f.identifier
+                        )))
+                    })?;
 
                 // verify number of arguments matches the function signature
                 if f.arguments.len() != procedure.args.len() {
-                    return Err(CompileError::from_locator(
-                        CompileErrorType::BadArgument(f.identifier.clone()),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    ));
+                    return Err(self.err(CompileErrorType::BadArgument(f.identifier.clone())));
                 }
 
                 // push args
@@ -707,20 +669,15 @@ impl<'a> CompileState<'a> {
             Expression::EnumReference(e) => {
                 // get enum by name
                 let enum_def = self.enum_values.get(e.identifier.as_str()).ok_or_else(|| {
-                    CompileError::from_locator(
-                        CompileErrorType::NotDefined(e.identifier.to_owned()),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    )
+                    self.err(CompileErrorType::NotDefined(e.identifier.to_owned()))
                 })?;
 
                 // verify that the given name is a member of the enum
                 if !enum_def.contains(&e.value.as_str()) {
-                    return Err(CompileError::from_locator(
-                        CompileErrorType::NotDefined(format!("{}::{}", e.identifier, e.value)),
-                        self.last_locator,
-                        self.m.codemap.as_ref(),
-                    ));
+                    return Err(self.err(CompileErrorType::NotDefined(format!(
+                        "{}::{}",
+                        e.identifier, e.value
+                    ))));
                 }
 
                 self.append_instruction(Instruction::Const(Value::Enum(
@@ -799,7 +756,7 @@ impl<'a> CompileState<'a> {
                             .checked_neg()
                             .assume("value is not `i64::MIN` because it is non-negative")?,
                     )));
-                    return Ok(());
+                    return Ok(expression_type);
                 }
 
                 // Evaluate the expression
@@ -843,7 +800,7 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        Ok(())
+        Ok(expression_type)
     }
 
     /// Check if finish blocks only use appropriate expressions
@@ -882,12 +839,13 @@ impl<'a> CompileState<'a> {
             match (&statement.inner, &context) {
                 (
                     ast::Statement::Let(s),
-                    StatementContext::Action
-                    | StatementContext::PureFunction
-                    | StatementContext::CommandPolicy
-                    | StatementContext::CommandRecall,
+                    StatementContext::Action(_)
+                    | StatementContext::PureFunction(_)
+                    | StatementContext::CommandPolicy(_)
+                    | StatementContext::CommandRecall(_),
                 ) => {
-                    self.compile_expression(&s.expression)?;
+                    let et = self.compile_expression(&s.expression)?;
+                    self.identifier_types.add(&s.identifier, et)?;
                     self.append_instruction(Instruction::Const(Value::String(
                         s.identifier.clone(),
                     )));
@@ -895,12 +853,17 @@ impl<'a> CompileState<'a> {
                 }
                 (
                     ast::Statement::Check(s),
-                    StatementContext::Action
-                    | StatementContext::PureFunction
-                    | StatementContext::CommandPolicy
-                    | StatementContext::CommandRecall,
+                    StatementContext::Action(_)
+                    | StatementContext::PureFunction(_)
+                    | StatementContext::CommandPolicy(_)
+                    | StatementContext::CommandRecall(_),
                 ) => {
-                    self.compile_expression(&s.expression)?;
+                    let et = self.compile_expression(&s.expression)?;
+                    if !et.is_maybe(&VType::Bool) {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "check must have boolean expression",
+                        ))));
+                    }
                     // The current instruction is the branch. The next
                     // instruction is the following panic you arrive at
                     // if the expression is false. The instruction you
@@ -912,10 +875,10 @@ impl<'a> CompileState<'a> {
                 }
                 (
                     ast::Statement::Match(s),
-                    StatementContext::Action
-                    | StatementContext::PureFunction
-                    | StatementContext::CommandPolicy
-                    | StatementContext::CommandRecall,
+                    StatementContext::Action(_)
+                    | StatementContext::PureFunction(_)
+                    | StatementContext::CommandPolicy(_)
+                    | StatementContext::CommandRecall(_),
                 ) => {
                     // Ensure there are no duplicate arm values. Note that this is not completely reliable, because arm values are expressions, evaluated at runtime.
                     // Note: we don't check for zero arms, because that's syntactically invalid.
@@ -928,12 +891,11 @@ impl<'a> CompileState<'a> {
                         })
                         .collect::<Vec<&Expression>>();
                     if find_duplicate(&all_values, |v| v).is_some() {
-                        return Err(CompileError::from_locator(
+                        return Err(self.err_loc(
                             CompileErrorType::AlreadyDefined(String::from(
                                 "duplicate match arm value",
                             )),
                             statement.locator,
-                            self.m.codemap.as_ref(),
                         ));
                     }
 
@@ -968,9 +930,9 @@ impl<'a> CompileState<'a> {
 
                                 // Ensure this is the last case, and also that it's not the only case.
                                 if arm != s.arms.last().expect("last arm") {
-                                    return Err(CompileError::new(CompileErrorType::Unknown(
-                                        String::from("Default match case must be last."),
-                                    )));
+                                    return Err(self.err(CompileErrorType::Unknown(String::from(
+                                        "Default match case must be last.",
+                                    ))));
                                 }
                             }
                         }
@@ -1001,10 +963,10 @@ impl<'a> CompileState<'a> {
                 }
                 (
                     ast::Statement::If(s),
-                    StatementContext::Action
-                    | StatementContext::PureFunction
-                    | StatementContext::CommandPolicy
-                    | StatementContext::CommandRecall,
+                    StatementContext::Action(_)
+                    | StatementContext::PureFunction(_)
+                    | StatementContext::CommandPolicy(_)
+                    | StatementContext::CommandRecall(_),
                 ) => {
                     let end_label = self.anonymous_label();
                     for (cond, branch) in &s.branches {
@@ -1025,17 +987,23 @@ impl<'a> CompileState<'a> {
                     }
                     self.define_label(end_label, self.wp)?;
                 }
-                (ast::Statement::Publish(s), StatementContext::Action) => {
+                (ast::Statement::Publish(s), StatementContext::Action(_)) => {
                     self.compile_expression(s)?;
                     self.append_instruction(Instruction::Publish);
                 }
-                (ast::Statement::Return(s), StatementContext::PureFunction) => {
-                    self.compile_expression(&s.expression)?;
+                (ast::Statement::Return(s), StatementContext::PureFunction(fd)) => {
+                    let et = self.compile_expression(&s.expression)?;
+                    if !et.is_maybe(&fd.return_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Return value of `{}()` must be {}",
+                            fd.identifier, fd.return_type
+                        ))));
+                    }
                     self.append_instruction(Instruction::Return);
                 }
                 (
                     ast::Statement::Finish(s),
-                    StatementContext::CommandPolicy | StatementContext::CommandRecall,
+                    StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),
                 ) => {
                     self.enter_statement_context(StatementContext::Finish);
                     self.compile_statements(s)?;
@@ -1043,12 +1011,11 @@ impl<'a> CompileState<'a> {
 
                     // Ensure `finish` is the last statement in the block. This also guarantees we can't have more than one finish block.
                     if statement != statements.last().expect("expected statement") {
-                        return Err(CompileError::from_locator(
+                        return Err(self.err_loc(
                             CompileErrorType::Unknown(
                                 "`finish` must be the last statement in the block".to_owned(),
                             ),
                             statement.locator,
-                            self.m.codemap.as_ref(),
                         ));
                     }
                     // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
@@ -1062,12 +1029,11 @@ impl<'a> CompileState<'a> {
                             .as_ref()
                             .is_some_and(|v| v.iter().any(|f| f.1 == FactField::Bind))
                     {
-                        return Err(CompileError::from_locator(
+                        return Err(self.err_loc(
                             CompileErrorType::BadArgument(String::from(
                                 "Cannot create fact with bind values",
                             )),
                             statement.locator,
-                            self.m.codemap.as_ref(),
                         ));
                     }
 
@@ -1079,11 +1045,9 @@ impl<'a> CompileState<'a> {
                     // ensure fact is mutable
                     let fact_def = self.get_fact_def(&s.fact.identifier)?;
                     if fact_def.immutable {
-                        return Err(CompileError::from_locator(
-                            CompileErrorType::Unknown(String::from("fact is immutable")),
-                            self.last_locator,
-                            self.m.codemap.as_ref(),
-                        ));
+                        return Err(
+                            self.err(CompileErrorType::Unknown(String::from("fact is immutable")))
+                        );
                     }
 
                     self.verify_fact_against_schema(&s.fact, true)?;
@@ -1098,15 +1062,16 @@ impl<'a> CompileState<'a> {
                         match v {
                             FactField::Bind => {
                                 // Cannot bind in the set statement
-                                return Err(CompileError::from_locator(
+                                return Err(self.err_loc(
                                     CompileErrorType::BadArgument(String::from(
                                         "Cannot update fact to a bind value",
                                     )),
                                     statement.locator,
-                                    self.m.codemap.as_ref(),
                                 ));
                             }
-                            FactField::Expression(e) => self.compile_expression(e)?,
+                            FactField::Expression(e) => {
+                                self.compile_expression(e)?;
+                            }
                         }
                         self.append_instruction(Instruction::Const(Value::String(k.clone())));
                         self.append_instruction(Instruction::FactValueSet);
@@ -1119,25 +1084,31 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Delete);
                 }
                 (ast::Statement::Emit(s), StatementContext::Finish) => {
-                    self.compile_expression(s)?;
+                    let et = self.compile_expression(s)?;
+                    if !matches!(et, Typeish::Type(VType::Struct(_))) {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "Emit must be given a struct",
+                        ))));
+                    }
                     self.append_instruction(Instruction::Emit);
                 }
                 (ast::Statement::FunctionCall(f), StatementContext::Finish) => {
-                    let signature = self.function_signatures.get(&f.identifier.as_str()).ok_or(
-                        CompileError::from_locator(
-                            CompileErrorType::NotDefined(f.identifier.clone()),
-                            statement.locator,
-                            self.m.codemap.as_ref(),
-                        ),
-                    )?;
+                    let signature = self
+                        .function_signatures
+                        .get(&f.identifier.as_str())
+                        .ok_or_else(|| {
+                            self.err_loc(
+                                CompileErrorType::NotDefined(f.identifier.clone()),
+                                statement.locator,
+                            )
+                        })?;
                     // Check that this function is the right color -
                     // only finish functions are allowed in finish
                     // blocks.
                     if let FunctionColor::Pure(_) = signature.color {
-                        return Err(CompileError::from_locator(
+                        return Err(self.err_loc(
                             CompileErrorType::InvalidCallColor(CallColor::Pure),
                             statement.locator,
-                            self.m.codemap.as_ref(),
                         ));
                     }
                     // For now all we can do is check that the argument
@@ -1145,7 +1116,7 @@ impl<'a> CompileState<'a> {
                     // TODO(chip): Do more deep type analysis to check
                     // arguments and return types.
                     if signature.args.len() != f.arguments.len() {
-                        return Err(CompileError::from_locator(
+                        return Err(self.err_loc(
                             CompileErrorType::BadArgument(format!(
                                 "call to `{}` has {} arguments but it should have {}",
                                 f.identifier,
@@ -1153,7 +1124,6 @@ impl<'a> CompileState<'a> {
                                 signature.args.len()
                             )),
                             statement.locator,
-                            self.m.codemap.as_ref(),
                         ));
                     }
                     for a in &f.arguments {
@@ -1175,10 +1145,9 @@ impl<'a> CompileState<'a> {
                     }
                 }
                 (_, _) => {
-                    return Err(CompileError::from_locator(
+                    return Err(self.err_loc(
                         CompileErrorType::InvalidStatement(context),
                         statement.locator,
-                        self.m.codemap.as_ref(),
                     ))
                 }
             }
@@ -1204,29 +1173,29 @@ impl<'a> CompileState<'a> {
         self.define_function_signature(function_node)?;
 
         if let Some(identifier) = find_duplicate(&function.arguments, |a| &a.identifier) {
-            return Err(CompileError::from_locator(
+            return Err(self.err_loc(
                 CompileErrorType::AlreadyDefined(identifier.clone()),
                 function_node.locator,
-                self.m.codemap.as_ref(),
             ));
         }
 
+        self.identifier_types.push_scope();
         for arg in function.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
             self.append_instruction(Instruction::Def);
+            self.identifier_types
+                .add(&arg.identifier, Typeish::Type(arg.field_type.clone()))?;
         }
         let from = self.wp;
         self.compile_statements(&function.statements)?;
         // Check that there is a return statement somewhere in the compiled instructions.
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(CompileError::from_locator(
-                CompileErrorType::NoReturn,
-                function_node.locator,
-                self.m.codemap.as_ref(),
-            ));
+            return Err(self.err_loc(CompileErrorType::NoReturn, function_node.locator));
         }
         // If execution does not hit a return statement, it will panic here.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
+
+        self.identifier_types.pop_scope();
         Ok(())
     }
 
@@ -1238,15 +1207,21 @@ impl<'a> CompileState<'a> {
         let function = &function_node.inner;
         self.define_label(Label::new_temp(&function.identifier), self.wp)?;
         self.map_range(function_node)?;
-        self.define_finish_function_signature(function_node)?;
+        self.identifier_types.push_scope();
         for arg in function.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
             self.append_instruction(Instruction::Def);
+            self.identifier_types.add(
+                arg.identifier.clone(),
+                Typeish::Type(arg.field_type.clone()),
+            )?;
         }
         self.compile_statements(&function.statements)?;
         // Finish functions cannot have return statements, so we add a return instruction
         // manually.
         self.append_instruction(Instruction::Return);
+
+        self.identifier_types.pop_scope();
         Ok(())
     }
 
@@ -1256,17 +1231,23 @@ impl<'a> CompileState<'a> {
         action_node: &AstNode<ast::ActionDefinition>,
     ) -> Result<(), CompileError> {
         let action = &action_node.inner;
+        self.identifier_types.push_scope();
         self.define_label(Label::new(&action.identifier, LabelType::Action), self.wp)?;
         self.map_range(action_node)?;
 
         for arg in action.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
             self.append_instruction(Instruction::Def);
+            self.identifier_types.add(
+                arg.identifier.clone(),
+                Typeish::Type(arg.field_type.clone()),
+            )?;
         }
 
         self.compile_statements(&action.statements)?;
 
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
+        self.identifier_types.pop_scope();
 
         Ok(())
     }
@@ -1279,26 +1260,20 @@ impl<'a> CompileState<'a> {
         let identifier = &global_let.inner.identifier;
         let expression = &global_let.inner.expression;
 
-        let value = expression_value(expression).ok_or_else(|| {
-            CompileError::from_locator(
-                CompileErrorType::InvalidExpression(expression.clone()),
-                self.last_locator,
-                self.m.codemap.as_ref(),
-            )
-        })?;
+        let value = expression_value(expression)
+            .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(expression.clone())))?;
+        let vt = value.vtype().expect("global let expression has weird type");
 
         match self.m.globals.entry(identifier.clone()) {
             Entry::Vacant(e) => {
                 e.insert(value);
             }
             Entry::Occupied(_) => {
-                return Err(CompileError::from_locator(
-                    CompileErrorType::AlreadyDefined(identifier.clone()),
-                    self.last_locator,
-                    self.m.codemap.as_ref(),
-                ));
+                return Err(self.err(CompileErrorType::AlreadyDefined(identifier.clone())));
             }
         }
+
+        self.identifier_types.add(identifier, Typeish::Type(vt))?;
 
         Ok(())
     }
@@ -1327,50 +1302,79 @@ impl<'a> CompileState<'a> {
         self.define_label(not_none, self.wp)
     }
 
-    /// Compile a command policy block
-    fn compile_command(
+    fn compile_command_policy(
         &mut self,
-        command_node: &AstNode<ast::CommandDefinition>,
+        command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
-        let command = &command_node.inner;
-        self.map_range(command_node)?;
-
         self.define_label(
             Label::new(&command.identifier, LabelType::CommandPolicy),
             self.wp,
         )?;
-        self.enter_statement_context(StatementContext::CommandPolicy);
+        self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
+        self.identifier_types.push_scope();
+        self.identifier_types.add(
+            "this",
+            Typeish::Type(VType::Struct(command.identifier.clone())),
+        )?;
+        self.identifier_types.add(
+            "envelope",
+            Typeish::Type(VType::Struct("Envelope".to_string())),
+        )?;
         self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
         self.append_instruction(Instruction::Def);
         self.compile_statements(&command.policy)?;
+        self.identifier_types.pop_scope();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
+        Ok(())
+    }
 
+    fn compile_command_recall(
+        &mut self,
+        command: &ast::CommandDefinition,
+    ) -> Result<(), CompileError> {
         self.define_label(
             Label::new(&command.identifier, LabelType::CommandRecall),
             self.wp,
         )?;
-        self.enter_statement_context(StatementContext::CommandRecall);
+        self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
+        self.identifier_types.push_scope();
+        self.identifier_types.add(
+            "this",
+            Typeish::Type(VType::Struct(command.identifier.clone())),
+        )?;
+        self.identifier_types.add(
+            "envelope",
+            Typeish::Type(VType::Struct("Envelope".to_string())),
+        )?;
         self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
         self.append_instruction(Instruction::Def);
         self.compile_statements(&command.recall)?;
+        self.identifier_types.pop_scope();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
+        Ok(())
+    }
 
+    fn compile_command_seal(
+        &mut self,
+        command: &ast::CommandDefinition,
+        locator: usize,
+    ) -> Result<(), CompileError> {
         if command.seal.is_empty() {
-            return Err(CompileError::from_locator(
+            return Err(self.err_loc(
                 CompileErrorType::Unknown(String::from("Empty/missing seal block in command")),
-                command_node.locator,
-                self.m.codemap.as_ref(),
+                locator,
             ));
         }
-        if command.open.is_empty() {
-            return Err(CompileError::from_locator(
-                CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
-                command_node.locator,
-                self.m.codemap.as_ref(),
-            ));
-        }
+
+        // fake a function def for the seal block
+        let seal_function_definition = ast::FunctionDefinition {
+            identifier: String::from("seal"),
+            arguments: vec![],
+            return_type: VType::Struct(String::from("Envelope")),
+            statements: vec![],
+        };
 
         // Create a call stub for seal. Because it is function-like and
         // uses "return", we need something on the call stack to return
@@ -1383,21 +1387,45 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Call(Target::Unresolved(actual_seal.clone())));
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
         self.define_label(actual_seal, self.wp)?;
-        self.enter_statement_context(StatementContext::PureFunction);
+        self.enter_statement_context(StatementContext::PureFunction(seal_function_definition));
+        self.identifier_types.push_scope();
+        self.identifier_types.add(
+            "this",
+            Typeish::Type(VType::Struct(command.identifier.clone())),
+        )?;
         self.append_instruction(Instruction::Const(Value::String("this".to_string())));
         self.append_instruction(Instruction::Def);
         let from = self.wp;
         self.compile_statements(&command.seal)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(CompileError::from_locator(
-                CompileErrorType::NoReturn,
-                command_node.locator,
-                self.m.codemap.as_ref(),
-            ));
+            return Err(self.err_loc(CompileErrorType::NoReturn, locator));
         }
+        self.identifier_types.pop_scope();
         self.exit_statement_context();
         // If there is no return, this is an error. Panic if we get here.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        Ok(())
+    }
+
+    fn compile_command_open(
+        &mut self,
+        command: &ast::CommandDefinition,
+        locator: usize,
+    ) -> Result<(), CompileError> {
+        if command.open.is_empty() {
+            return Err(self.err_loc(
+                CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
+                locator,
+            ));
+        }
+
+        // fake a function def for the open block
+        let open_function_definition = ast::FunctionDefinition {
+            identifier: String::from("open"),
+            arguments: vec![],
+            return_type: VType::Struct(command.identifier.clone()),
+            statements: vec![],
+        };
 
         // Same thing for open.
         self.define_label(
@@ -1408,20 +1436,37 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Call(Target::Unresolved(actual_open.clone())));
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
         self.define_label(actual_open, self.wp)?;
-        self.enter_statement_context(StatementContext::PureFunction);
+        self.enter_statement_context(StatementContext::PureFunction(open_function_definition));
+        self.identifier_types.push_scope();
+        self.identifier_types.add(
+            "envelope",
+            Typeish::Type(VType::Struct("Envelope".to_string())),
+        )?;
         self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
         self.append_instruction(Instruction::Def);
         let from = self.wp;
         self.compile_statements(&command.open)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
-            return Err(CompileError::from_locator(
-                CompileErrorType::NoReturn,
-                command_node.locator,
-                self.m.codemap.as_ref(),
-            ));
+            return Err(self.err_loc(CompileErrorType::NoReturn, locator));
         }
+        self.identifier_types.pop_scope();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        Ok(())
+    }
+
+    /// Compile a command policy block
+    fn compile_command(
+        &mut self,
+        command_node: &AstNode<ast::CommandDefinition>,
+    ) -> Result<(), CompileError> {
+        let command = &command_node.inner;
+        self.map_range(command_node)?;
+
+        self.compile_command_policy(command)?;
+        self.compile_command_recall(command)?;
+        self.compile_command_seal(command, command_node.locator)?;
+        self.compile_command_open(command, command_node.locator)?;
 
         // command attributes
 
@@ -1453,6 +1498,11 @@ impl<'a> CompileState<'a> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
+        // Compile global let statements
+        for global_let in &self.policy.global_lets {
+            self.compile_global_let(global_let)?;
+        }
+
         for effect in &self.policy.effects {
             let fields: Vec<FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
@@ -1461,6 +1511,21 @@ impl<'a> CompileState<'a> {
 
         for struct_def in &self.policy.structs {
             self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields)?;
+        }
+
+        // define the structs provided by FFI schema
+        for ffi_mod in self.ffi_modules {
+            for s in ffi_mod.structs {
+                let fields: Vec<FieldDefinition> = s
+                    .fields
+                    .iter()
+                    .map(|a| FieldDefinition {
+                        identifier: a.name.to_string(),
+                        field_type: VType::from(&a.vtype),
+                    })
+                    .collect();
+                self.define_struct(s.name, &fields)?;
+            }
         }
 
         // map enum names to constants
@@ -1482,11 +1547,19 @@ impl<'a> CompileState<'a> {
             self.define_struct(&command.identifier, &command.fields)?;
         }
 
-        self.enter_statement_context(StatementContext::PureFunction);
-        for function_def in &self.policy.functions {
-            self.compile_function(function_def)?;
+        // Define the finish function signatures before compiling them, so that they can be
+        // used to catch usage errors in regular functions.
+        for function_def in &self.policy.finish_functions {
+            self.define_finish_function_signature(function_def)?;
         }
-        self.exit_statement_context();
+
+        for function_def in &self.policy.functions {
+            self.enter_statement_context(StatementContext::PureFunction(
+                function_def.inner.clone(),
+            ));
+            self.compile_function(function_def)?;
+            self.exit_statement_context();
+        }
 
         self.enter_statement_context(StatementContext::Finish);
         for function_def in &self.policy.finish_functions {
@@ -1499,11 +1572,11 @@ impl<'a> CompileState<'a> {
             self.compile_command(command)?;
         }
 
-        self.enter_statement_context(StatementContext::Action);
         for action in &self.policy.actions {
+            self.enter_statement_context(StatementContext::Action(action.inner.clone()));
             self.compile_action(action)?;
+            self.exit_statement_context();
         }
-        self.exit_statement_context();
 
         self.resolve_targets()?;
 
@@ -1557,15 +1630,11 @@ impl<'a> Compiler<'a> {
             function_signatures: BTreeMap::new(),
             last_locator: 0,
             statement_context: vec![],
+            identifier_types: IdentifierTypeStack::new(),
             ffi_modules: self.ffi_modules,
             enum_values: BTreeMap::new(),
             is_debug: self.is_debug,
         };
-
-        // Compile global let statements
-        for global_let in &self.policy.global_lets {
-            cs.compile_global_let(global_let)?;
-        }
 
         cs.compile()?;
         Ok(cs.into_module())
