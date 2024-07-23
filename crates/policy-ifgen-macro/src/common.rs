@@ -15,6 +15,7 @@ pub(crate) fn get_derive() -> TokenStream {
         #[derive(
             Clone,
             Debug,
+            Hash,
             PartialEq,
             Eq,
             PartialOrd,

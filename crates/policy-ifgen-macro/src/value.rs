@@ -97,6 +97,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
     let derive = get_derive();
 
     Ok(quote! {
+        #[derive(Copy)]
         #derive
         #enumeration
 
