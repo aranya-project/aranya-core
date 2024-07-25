@@ -40,7 +40,10 @@ jobs:
           runner: ${{ matrix.runner }}
 
       - name: Run cargo audit
-        run: cargo make cargo-audit
+        # TODO: https://github.com/rustsec/rustsec/issues/1217
+        run: |
+          rustup toolchain install 1.79
+          cargo +1.79 make cargo-audit
 
       - name: Run cargo deny
         run: cargo make cargo-deny
