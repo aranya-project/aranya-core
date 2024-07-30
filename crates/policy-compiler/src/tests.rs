@@ -1559,6 +1559,73 @@ fn test_type_errors() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_duplicate_definitions() -> anyhow::Result<()> {
+    struct Case {
+        t: &'static str,
+        e: Option<CompileError>,
+    }
+    let cases = [
+        Case {
+            t: r#"
+                function f(y int) bool {
+                    match y {
+                        1 => { let x = 3 }
+                        2 => { let y = 4 }
+                    }
+                    return false
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
+                function f() bool {
+                    // this will fail at runtime but is allowed by the
+                    // compiler because they are the same type
+                    let x = 3
+                    let x = 4
+                    return false
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
+                function f() bool {
+                    // this is allowed because None is indeterminate
+                    let x = 3
+                    let x = None
+                    return false
+                }
+            "#,
+            e: None,
+        },
+        Case {
+            t: r#"
+                function f() bool {
+                    // this, however, fails because they are definitely
+                    // different types
+                    let x = 3
+                    let x = "foo"
+                    return false
+                }
+        "#,
+            e: Some(CompileError::new(CompileErrorType::InvalidType(
+                "Definitions of `x` do not have the same type: int != string".to_string(),
+            ))),
+        },
+    ];
+
+    for c in cases {
+        let policy = parse_policy_str(c.t, Version::V1)?;
+        let r = Compiler::new(&policy).compile().err();
+        assert_eq!(r, c.e);
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_action_duplicate_name() {
     let text = r#"
         action foo() {}

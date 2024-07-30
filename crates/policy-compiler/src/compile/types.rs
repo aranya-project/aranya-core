@@ -60,7 +60,15 @@ impl IdentifierTypeStack {
             bug!("identifier stack empty");
         };
         match map.entry(name.into()) {
-            hash_map::Entry::Occupied(o) => Err(CompileErrorType::AlreadyDefined(o.key().into())),
+            hash_map::Entry::Occupied(o) => match (o.get(), &value) {
+                (Typeish::Type(ty1), Typeish::Type(ty2)) if ty1 != ty2 => {
+                    Err(CompileErrorType::InvalidType(format!(
+                        "Definitions of `{}` do not have the same type: {ty1} != {ty2}",
+                        o.key()
+                    )))
+                }
+                _ => Ok(()),
+            },
             hash_map::Entry::Vacant(e) => {
                 e.insert(value);
                 Ok(())
