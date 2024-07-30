@@ -28,6 +28,11 @@ action foo(b int) {
     }
     publish y
 }
+
+action bar() {
+    action foo(0)
+    action foo(1)
+}
 "#;
 
 pub const TEST_POLICY_2: &str = r#"

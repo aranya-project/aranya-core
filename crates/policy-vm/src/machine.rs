@@ -519,6 +519,10 @@ where
                 }
             },
             Instruction::Return => {
+                // When the outermost function completes, there is nothing left to do, so exit.
+                if self.call_state.is_empty() {
+                    return Ok(MachineStatus::Exited(ExitReason::Normal));
+                }
                 let s = self
                     .call_state
                     .pop()
@@ -794,12 +798,12 @@ where
     }
 
     /// Set the program counter to the given label.
-    pub fn set_pc_by_label(&mut self, label: Label) -> Result<(), MachineError> {
+    pub fn set_pc_by_label(&mut self, label: &Label) -> Result<(), MachineError> {
         let addr = self
             .machine
             .labels
-            .get(&label)
-            .ok_or_else(|| self.err(MachineErrorType::InvalidAddress(label.name)))?;
+            .get(label)
+            .ok_or_else(|| self.err(MachineErrorType::InvalidAddress(label.name.clone())))?;
         self.pc = *addr;
         Ok(())
     }
@@ -811,9 +815,7 @@ where
         label_type: LabelType,
         this_data: &Struct,
     ) -> Result<(), MachineError> {
-        self.set_pc_by_label(Label::new(name, label_type))?;
-        self.defs.clear();
-        self.call_state.clear();
+        self.setup_function(&Label::new(name, label_type))?;
         self.defs
             .insert(String::from("this"), Value::Struct(this_data.to_owned()));
         Ok(())
@@ -848,19 +850,24 @@ where
         self.run()
     }
 
+    fn setup_function(&mut self, label: &Label) -> Result<(), MachineError> {
+        self.set_pc_by_label(label)?;
+        self.call_state.clear();
+        self.defs.clear();
+
+        Ok(())
+    }
+
     /// Set up machine state for an action call.
     pub fn setup_action<Args>(&mut self, name: &str, args: Args) -> Result<(), MachineError>
     where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
-        self.set_pc_by_label(Label::new(name, LabelType::Action))?;
+        self.setup_function(&Label::new(name, LabelType::Action))?;
         for a in args {
             self.ipush(a.into())?;
         }
-        self.defs.clear();
-        self.call_state.clear();
-
         Ok(())
     }
 
@@ -887,9 +894,7 @@ where
         name: &str,
         this_data: &Struct,
     ) -> Result<ExitReason, MachineError> {
-        self.set_pc_by_label(Label::new(name, LabelType::CommandSeal))?;
-        self.defs.clear();
-        self.call_state.clear();
+        self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
         // Seal/Open pushes the argument and defines it itself, because
         // it calls through a function stub. So we just push `this_data`
         // onto the stack.
@@ -899,9 +904,7 @@ where
 
     /// Call the open block on an envelope struct to produce a command struct.
     pub fn call_open(&mut self, name: &str, envelope: Struct) -> Result<ExitReason, MachineError> {
-        self.set_pc_by_label(Label::new(name, LabelType::CommandOpen))?;
-        self.defs.clear();
-        self.call_state.clear();
+        self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
         self.run()
     }

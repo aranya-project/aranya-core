@@ -14,7 +14,7 @@ use ast::{
     MatchPattern, NamedStruct,
 };
 use buggy::{Bug, BugExt};
-use policy_ast::{self as ast, AstNode, VType};
+use policy_ast::{self as ast, AstNode, FunctionCall, VType};
 use policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Module, Struct, Target,
     Value,
@@ -612,12 +612,7 @@ impl<'a> CompileState<'a> {
                         signature.args.len()
                     ))));
                 }
-                for a in &f.arguments {
-                    self.compile_expression(a)?;
-                }
-                self.append_instruction(Instruction::Call(Target::Unresolved(Label::new_temp(
-                    &f.identifier,
-                ))));
+                self.compile_function_call(f)?;
             }
             Expression::ForeignFunctionCall(f) => {
                 // If the policy hasn't imported this module, don't allow using it
@@ -1126,12 +1121,41 @@ impl<'a> CompileState<'a> {
                             statement.locator,
                         ));
                     }
-                    for a in &f.arguments {
+                    self.compile_function_call(f)?;
+                }
+                (ast::Statement::ActionCall(fc), StatementContext::Action(_)) => {
+                    let Some(action_def) = self
+                        .policy
+                        .actions
+                        .iter()
+                        .find(|a| a.identifier == fc.identifier)
+                    else {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::NotDefined(fc.identifier.clone()),
+                            statement.locator,
+                            self.m.codemap.as_ref(),
+                        ));
+                    };
+
+                    if action_def.arguments.len() != fc.arguments.len() {
+                        return Err(CompileError::from_locator(
+                            CompileErrorType::BadArgument(format!(
+                                "call to `{}` has {} arguments, but it should have {}",
+                                fc.identifier,
+                                fc.arguments.len(),
+                                action_def.arguments.len()
+                            )),
+                            statement.locator,
+                            self.m.codemap.as_ref(),
+                        ));
+                    }
+
+                    for a in &fc.arguments {
                         self.compile_expression(a)?;
                     }
-                    self.append_instruction(Instruction::Call(Target::Unresolved(
-                        Label::new_temp(&f.identifier),
-                    )));
+
+                    let label = Label::new(&fc.identifier, LabelType::Action);
+                    self.append_instruction(Instruction::Call(Target::Unresolved(label)));
                 }
                 (ast::Statement::DebugAssert(s), _) => {
                     if self.is_debug {
@@ -1225,6 +1249,16 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    fn compile_function_call(&mut self, fc: &FunctionCall) -> Result<(), CompileError> {
+        for a in &fc.arguments {
+            self.compile_expression(a)?;
+        }
+
+        let label = Label::new_temp(&fc.identifier);
+        self.append_instruction(Instruction::Call(Target::Unresolved(label)));
+        Ok(())
+    }
+
     /// Compile an action function
     fn compile_action(
         &mut self,
@@ -1234,6 +1268,15 @@ impl<'a> CompileState<'a> {
         self.identifier_types.push_scope();
         self.define_label(Label::new(&action.identifier, LabelType::Action), self.wp)?;
         self.map_range(action_node)?;
+
+        // check for duplicate args
+        if let Some(identifier) = find_duplicate(&action.arguments, |a| &a.identifier) {
+            return Err(CompileError::from_locator(
+                CompileErrorType::AlreadyDefined(identifier.clone()),
+                action_node.locator,
+                self.m.codemap.as_ref(),
+            ));
+        }
 
         for arg in action.arguments.iter().rev() {
             self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
@@ -1245,8 +1288,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.compile_statements(&action.statements)?;
-
-        self.append_instruction(Instruction::Exit(ExitReason::Normal));
+        self.append_instruction(Instruction::Return);
         self.identifier_types.pop_scope();
 
         Ok(())

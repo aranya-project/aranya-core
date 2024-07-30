@@ -217,11 +217,59 @@ fn test_action() -> anyhow::Result<()> {
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
 
-    machine.call_action(name, [Value::from(3), Value::from("foo")], &mut io, &ctx)?;
+    let result = machine
+        .call_action(name, [Value::from(3), Value::from("foo")], &mut io, &ctx)
+        .expect("should execute action");
+    assert_eq!(result, ExitReason::Normal);
 
-    println!("publish stack: {:?}", io.publish_stack);
+    assert_eq!(
+        io.publish_stack[0],
+        (
+            "Foo".to_string(),
+            vec![
+                KVPair::new("a", Value::Int(3)),
+                KVPair::new("b", Value::Int(4))
+            ]
+        )
+    );
 
     Ok(())
+}
+
+#[test]
+fn test_action_call_action() {
+    let policy = parse_policy_str(TEST_POLICY_1, Version::V1).expect("should parse");
+    let module = Compiler::new(&policy).compile().expect("should compile");
+    let mut machine = Machine::from_module(module).expect("should create machine");
+    let mut io = TestIO::new();
+
+    let action_name = "bar";
+    let ctx = dummy_ctx_policy(action_name);
+    machine
+        .call_action(action_name, Vec::<i64>::new(), &mut io, &ctx)
+        .expect("action call should succeed");
+
+    assert_eq!(io.publish_stack.len(), 2);
+    assert_eq!(
+        io.publish_stack[0],
+        (
+            "Foo".to_string(),
+            vec![
+                KVPair::new("a", Value::Int(4)),
+                KVPair::new("b", Value::Int(4))
+            ]
+        )
+    );
+    assert_eq!(
+        io.publish_stack[1],
+        (
+            "Foo".to_string(),
+            vec![
+                KVPair::new("a", Value::Int(3)),
+                KVPair::new("b", Value::Int(4))
+            ]
+        )
+    );
 }
 
 #[test]

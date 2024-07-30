@@ -193,6 +193,8 @@ postfix_op = _{ is }
 expression = { prefix_op* ~ atom ~ postfix_op* ~ (infix_op ~ prefix_op* ~ atom ~ postfix_op*)* }
 
 // # Statements
+// The action statement calls an action. Only valid inside an action block.
+action_call = { "action" ~ function_call }
 // The publish statement publishes the expression as a command.
 publish_statement = { "publish" ~ expression }
 // A let statement assigns a value to an identifier. Identifiers can
@@ -246,7 +248,8 @@ statements = _{
     emit_statement |
     return_statement |
     debug_assert | // Note that debug_assert must take precendence over function_call due to the overlapping syntax
-    function_call
+    function_call |
+    action_call
 }
 statement_block = _{ "{" ~ statements* ~ "}" }
 

@@ -175,7 +175,7 @@ fn parse_errors() -> Result<(), ParseError> {
         error_message: String::from(
             " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
                 |                            ^---\n  |\n  = expected function_call, \
-                publish_statement, let_statement, check_statement, match_statement, \
+                action_call, publish_statement, let_statement, check_statement, match_statement, \
                 if_statement, finish_statement, create_statement, update_statement, \
                 delete_statement, emit_statement, return_statement, or debug_assert",
         ),
@@ -1616,5 +1616,36 @@ fn test_if_statement() -> anyhow::Result<()> {
         }
     "#;
     parse_policy_str(text, Version::V1)?;
+    Ok(())
+}
+
+#[test]
+fn test_action_call() -> anyhow::Result<()> {
+    let text = r#"
+    action ping() {}
+    action pong() {
+        action ping()
+    }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    assert_eq!(
+        policy.actions[1],
+        AstNode {
+            inner: ast::ActionDefinition {
+                identifier: "pong".to_string(),
+                arguments: vec![],
+                statements: vec![AstNode {
+                    inner: ast::Statement::ActionCall(ast::FunctionCall {
+                        identifier: "ping".to_string(),
+                        arguments: vec![]
+                    }),
+                    locator: 50
+                }]
+            },
+            locator: 26
+        }
+    );
+
     Ok(())
 }

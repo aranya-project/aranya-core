@@ -654,7 +654,7 @@ fn test_errors() {
         &[],
         |_| Ok(()),
         |rs| {
-            let r = rs.set_pc_by_label(Label::new("x", LabelType::Action));
+            let r = rs.set_pc_by_label(&Label::new("x", LabelType::Action));
             assert_eq!(
                 r,
                 Err(MachineError::new(MachineErrorType::InvalidAddress(
@@ -674,7 +674,7 @@ fn test_errors() {
             Ok(())
         },
         |rs| {
-            let r = rs.set_pc_by_label(Label::new("x", LabelType::CommandPolicy));
+            let r = rs.set_pc_by_label(&Label::new("x", LabelType::CommandPolicy));
             assert_eq!(
                 r,
                 Err(MachineError::new(MachineErrorType::InvalidAddress(

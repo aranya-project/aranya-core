@@ -665,6 +665,18 @@ fn parse_fact_literal_fields(
     Ok(out)
 }
 
+fn parse_action_call(
+    item: Pair<'_, Rule>,
+    pratt: &PrattParser<Rule>,
+) -> Result<ast::FunctionCall, ParseError> {
+    assert_eq!(item.as_rule(), Rule::action_call);
+
+    let pc = descend(item);
+    let fn_call = pc.consume()?;
+    let action_call = parse_function_call(fn_call, pratt)?;
+    Ok(action_call)
+}
+
 /// Parse a Rule::publish_statement into an PublishStatement.
 fn parse_publish_statement(
     item: Pair<'_, Rule>,
@@ -910,6 +922,7 @@ fn parse_statement_list(
         let locator = cc.add_range(&statement)?;
         let ps = match statement.as_rule() {
             Rule::let_statement => ast::Statement::Let(parse_let_statement(statement, pratt)?),
+            Rule::action_call => ast::Statement::ActionCall(parse_action_call(statement, pratt)?),
             Rule::publish_statement => {
                 ast::Statement::Publish(parse_publish_statement(statement, pratt)?)
             }

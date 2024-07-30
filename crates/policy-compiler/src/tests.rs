@@ -1557,3 +1557,90 @@ fn test_type_errors() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_action_duplicate_name() {
+    let text = r#"
+        action foo() {}
+        action bar() {}
+        action foo() {}
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    assert_eq!(err, CompileErrorType::AlreadyDefined("foo".to_string()));
+}
+
+#[test]
+fn test_action_call_invalid_name() {
+    let text = r#"
+        action foo() {
+            action bad()
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    assert_eq!(err, CompileErrorType::NotDefined("bad".to_string()));
+}
+
+#[test]
+fn test_action_call_without_action_keyword() {
+    let text = r#"
+        action bar() {}
+        action foo() {
+            bar()
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+}
+
+#[test]
+fn test_action_call_not_in_action_context() {
+    let text = r#"
+        action bar() {}
+        function foo() int {
+            action bar()
+            return 0
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+}
+
+#[test]
+fn test_action_call_wrong_args() {
+    let text = r#"
+        action bar(n int) {}
+        action foo() {
+            action bar()
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    assert_eq!(
+        err,
+        CompileErrorType::BadArgument(
+            "call to `bar` has 0 arguments, but it should have 1".to_string()
+        )
+    );
+}
+
+#[test]
+fn test_action_call() {
+    let text = r#"
+        action bar(n int, s string) {}
+        action foo() {
+            action bar(1, "abc")
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let _m = Compiler::new(&policy).compile().expect("should compile");
+}

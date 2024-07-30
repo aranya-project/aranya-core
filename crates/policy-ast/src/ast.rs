@@ -410,6 +410,8 @@ pub enum Statement {
     Finish(Vec<AstNode<Statement>>),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
+    /// Calls an action
+    ActionCall(FunctionCall),
     /// Publishes an expression describing a command.
     /// Valid only in actions.
     Publish(Expression),
