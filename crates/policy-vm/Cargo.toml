@@ -41,6 +41,7 @@ ciborium = { version = "0.2" }
 crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-compiler = { path = "../policy-compiler" }
 policy-lang = { path = "../policy-lang" }
+policy-module = { path = "../policy-module", features = ["testing"] }
 policy-vm = { path = ".", features = ["derive"] }
 trouble = { path = "../trouble", features = ["std"] }
 

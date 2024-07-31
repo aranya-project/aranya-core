@@ -80,7 +80,8 @@ fn test_bytes() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
 
-        rs.call_action(name, [vec![0xa, 0xb, 0xc], vec![0, 255, 42]])?;
+        rs.call_action(name, [vec![0xa, 0xb, 0xc], vec![0, 255, 42]])?
+            .success();
     }
 
     assert_eq!(
@@ -146,7 +147,8 @@ fn test_structs() -> anyhow::Result<()> {
         let name = "foo";
         let ctx = dummy_ctx_action(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_action(name, [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])?;
+        rs.call_action(name, [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])?
+            .success();
     }
 
     assert_eq!(
@@ -217,10 +219,9 @@ fn test_action() -> anyhow::Result<()> {
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
 
-    let result = machine
-        .call_action(name, [Value::from(3), Value::from("foo")], &mut io, &ctx)
-        .expect("should execute action");
-    assert_eq!(result, ExitReason::Normal);
+    machine
+        .call_action(name, [Value::from(3), Value::from("foo")], &mut io, &ctx)?
+        .success();
 
     assert_eq!(
         io.publish_stack[0],
@@ -247,7 +248,8 @@ fn test_action_call_action() {
     let ctx = dummy_ctx_policy(action_name);
     machine
         .call_action(action_name, Vec::<i64>::new(), &mut io, &ctx)
-        .expect("action call should succeed");
+        .expect("action call should succeed")
+        .success();
 
     assert_eq!(io.publish_stack.len(), 2);
     assert_eq!(
@@ -295,7 +297,8 @@ fn test_command_policy() -> anyhow::Result<()> {
     };
     machine
         .call_command_policy(name, &self_data, dummy_envelope(), &mut io, &ctx)
-        .expect("Could not call command policy");
+        .expect("Could not call command policy")
+        .success();
 
     println!("effects: {:?}", io.effect_stack);
 
@@ -325,7 +328,8 @@ fn test_seal() -> anyhow::Result<()> {
         .collect(),
     };
     rs.call_seal(name, &this_data)
-        .expect("Could not call command policy");
+        .expect("Could not call command policy")
+        .success();
 
     let stack_vec = rs.stack.into_vec();
     assert_eq!(stack_vec[0], Value::None);
@@ -347,7 +351,8 @@ fn test_open() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
     rs.call_open(name, dummy_envelope())
-        .expect("Could not call command policy");
+        .expect("Could not call command policy")
+        .success();
 
     let stack_vec = rs.stack.into_vec();
     assert_eq!(stack_vec[0], Value::None);
@@ -373,7 +378,9 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let name = "Set";
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new(name, [(KVPair::new_int("a", 3))]);
-        machine.call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)?;
+        machine
+            .call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)?
+            .success();
     }
 
     let fk = ("Foo".to_owned(), vec![]);
@@ -384,7 +391,9 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
         let name = "Set";
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new("Set", &[]);
-        machine.call_command_policy("Clear", &self_struct, dummy_envelope(), &mut io, &ctx)?;
+        machine
+            .call_command_policy("Clear", &self_struct, dummy_envelope(), &mut io, &ctx)?
+            .success();
     }
 
     assert_eq!(io.facts.get(&fk), None);
@@ -406,12 +415,16 @@ fn test_fact_query() -> anyhow::Result<()> {
         let name = "Set";
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new(name, [KVPair::new_int("a", 3)]);
-        machine.call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)?;
+        machine
+            .call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)?
+            .success();
 
         let name = "Increment";
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new(name, &[]);
-        machine.call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)?;
+        machine
+            .call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)?
+            .success();
     }
 
     let fk = ("Foo".to_owned(), vec![]);
@@ -473,16 +486,15 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let self_struct = Struct::new(name, &[]);
-        let result = rs.call_command_policy(name, &self_struct, dummy_envelope())?;
-        assert_eq!(result, ExitReason::Normal);
+        rs.call_command_policy(name, &self_struct, dummy_envelope())?
+            .success();
     }
 
     {
         let name = "testExists";
         let ctx = dummy_ctx_action(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let result = rs.call_action(name, [false])?;
-        assert_eq!(result, ExitReason::Normal);
+        rs.call_action(name, [false])?.success();
     }
 
     Ok(())
@@ -536,8 +548,8 @@ fn test_count_up_to() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let self_struct = Struct::new(name, &[]);
-        let result = rs.call_command_policy(name, &self_struct, dummy_envelope())?;
-        assert_eq!(result, ExitReason::Normal);
+        rs.call_command_policy(name, &self_struct, dummy_envelope())?
+            .success();
     }
 
     {
@@ -545,8 +557,8 @@ fn test_count_up_to() -> anyhow::Result<()> {
         let ctx = dummy_ctx_policy(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let self_struct = Struct::new(name, &[]);
-        let result = rs.call_command_policy(name, &self_struct, dummy_envelope())?;
-        assert_eq!(result, ExitReason::Normal);
+        rs.call_command_policy(name, &self_struct, dummy_envelope())?
+            .success();
     }
 
     Ok(())
@@ -621,7 +633,8 @@ fn test_fact_function_return() -> anyhow::Result<()> {
             "Foo",
             [KVPair::new("a", a.clone()), KVPair::new("x", Value::Int(2))],
         );
-        rs.call_command_policy(name, &self_struct, dummy_envelope())?;
+        rs.call_command_policy(name, &self_struct, dummy_envelope())?
+            .success();
     }
 
     // Emit fact through Bar
@@ -630,8 +643,8 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         let ctx = dummy_ctx_open(cmd_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let self_struct = Struct::new("Bar", [KVPair::new("a", a)]);
-        let status = rs.call_command_policy(cmd_name, &self_struct, dummy_envelope())?;
-        assert_eq!(status, ExitReason::Normal);
+        rs.call_command_policy(cmd_name, &self_struct, dummy_envelope())?
+            .success();
     }
 
     assert_eq!(
@@ -714,24 +727,22 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
         let ctx = dummy_ctx_open(cmd_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?;
-        assert_eq!(status, ExitReason::Normal);
+        rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?
+            .success();
     }
 
     {
         let action_name = "test_query";
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_action(action_name, [Value::None])?;
-        assert_eq!(status, ExitReason::Normal);
+        rs.call_action(action_name, [Value::None])?.success();
     }
 
     {
         let action_name = "test_exists";
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_action(action_name, [Value::None])?;
-        assert_eq!(status, ExitReason::Normal);
+        rs.call_action(action_name, [Value::None])?.success();
     }
 
     Ok(())
@@ -756,8 +767,7 @@ fn test_not_operator() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action("test", iter::empty::<Value>())?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action("test", iter::empty::<Value>())?.success();
 
     Ok(())
 }
@@ -808,8 +818,7 @@ fn test_if_false() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
-    let result = rs.call_action(name, [false])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action(name, [false])?.success();
 
     Ok(())
 }
@@ -853,9 +862,7 @@ fn test_if_branches() -> anyhow::Result<()> {
     for i in 0i64..4 {
         let mut io = TestIO::new();
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_action(name, [i])?;
-        let result = rs.run()?;
-        assert_eq!(result, ExitReason::Normal);
+        rs.call_action(name, [i])?.success();
 
         assert_eq!(
             io.publish_stack,
@@ -879,8 +886,7 @@ fn test_match_first() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
-    let result = rs.call_action(name, [5])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action(name, [5])?.success();
     assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
         io.publish_stack[0],
@@ -900,8 +906,7 @@ fn test_match_second() -> anyhow::Result<()> {
     let ctx = dummy_ctx_action(name);
 
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action(name, [6])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action(name, [6])?.success();
     assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
         io.publish_stack[0],
@@ -956,9 +961,8 @@ fn test_match_alternation() -> anyhow::Result<()> {
     let action_name = "foo";
     let ctx = dummy_ctx_action(action_name);
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let res = rs.call_action(action_name, [Value::Int(6)])?;
+    rs.call_action(action_name, [Value::Int(6)])?.success();
 
-    assert_eq!(res, ExitReason::Normal);
     assert_eq!(
         io.publish_stack[0],
         ("Result".to_string(), vec![KVPair::new("x", Value::Int(6)),])
@@ -995,8 +999,7 @@ fn test_match_default() -> anyhow::Result<()> {
     let mut io = TestIO::new();
     let ctx = dummy_ctx_action(name);
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action(name, [Value::Int(6)])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action(name, [Value::Int(6)])?.success();
     assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
         io.publish_stack[0],
@@ -1028,9 +1031,7 @@ fn test_match_return() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
     let ctx = dummy_ctx_action("foo");
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action("foo", [42]);
-
-    assert_eq!(result.unwrap(), ExitReason::Normal);
+    rs.call_action("foo", [42])?.success();
 
     Ok(())
 }
@@ -1046,8 +1047,7 @@ fn test_is_some_statement() -> anyhow::Result<()> {
 
     // Test with a value that is not None
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action(name, [Value::Int(10)])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action(name, [Value::Int(10)])?.success();
     assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
         io.publish_stack[0],
@@ -1068,8 +1068,7 @@ fn test_is_none_statement() -> anyhow::Result<()> {
 
     // Test with a None value
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action(name, [Value::None])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action(name, [Value::None])?.success();
     assert_eq!(io.publish_stack.len(), 1);
     assert_eq!(
         io.publish_stack[0],
@@ -1097,8 +1096,7 @@ fn test_negative_numeric_expression() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
 
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action(name, [-1])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action(name, [-1])?.success();
 
     Ok(())
 }
@@ -1125,8 +1123,7 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
 
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action(name, [true, false])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action(name, [true, false])?.success();
 
     Ok(())
 }
@@ -1185,7 +1182,7 @@ fn test_pure_function() -> anyhow::Result<()> {
     {
         let name = "foo";
         let ctx = dummy_ctx_action(name);
-        machine.call_action(name, [3], &mut io, &ctx)?;
+        machine.call_action(name, [3], &mut io, &ctx)?.success();
     }
 
     assert_eq!(
@@ -1234,7 +1231,9 @@ fn test_finish_function() -> anyhow::Result<()> {
         let name = "Foo";
         let ctx = dummy_ctx_policy(name);
         let self_struct = Struct::new("Foo", [KVPair::new("x", Value::Int(3))]);
-        machine.call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)?;
+        machine
+            .call_command_policy(name, &self_struct, dummy_envelope(), &mut io, &ctx)?
+            .success();
     }
 
     assert_eq!(
@@ -1293,7 +1292,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
     let this_bytes: Vec<u8> = {
         let ctx = dummy_ctx_seal(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_seal(name, &this_struct)?;
+        rs.call_seal(name, &this_struct)?.success();
         let result = rs.consume_return()?;
         let mut envelope: Struct = result.try_into()?;
         let payload = envelope
@@ -1313,7 +1312,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
             "Envelope",
             [KVPair::new("payload", Value::Bytes(this_bytes))],
         );
-        rs.call_open(name, envelope)?;
+        rs.call_open(name, envelope)?.success();
         let result = rs.consume_return()?;
         let got_this: Struct = result.try_into()?;
         assert_eq!(got_this, this_struct);
@@ -1371,16 +1370,15 @@ fn test_check_unwrap() -> anyhow::Result<()> {
 
         let ctx = dummy_ctx_open(cmd_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?;
-        assert_eq!(status, ExitReason::Normal);
+        rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?
+            .success();
     }
 
     {
         let action_name = "test_existing";
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_action(action_name, [Value::None])?;
-        assert_eq!(status, ExitReason::Normal);
+        rs.call_action(action_name, [Value::None])?.success();
     }
 
     {
@@ -1428,30 +1426,30 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         let name = "Foo";
         let ctx = dummy_ctx_policy(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_command_policy(
+        rs.call_command_policy(
             name,
             &Struct::new("Foo", [KVPair::new("test", test_data.clone().into())]),
             Struct::new(
                 "Envelope",
                 [KVPair::new("payload", test_data.clone().into())],
             ),
-        )?;
-        assert_eq!(status, ExitReason::Normal);
+        )?
+        .success();
     }
 
     {
         let name = "Foo";
         let ctx = dummy_ctx_policy(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_command_recall(
+        rs.call_command_recall(
             name,
             &Struct::new("Foo", [KVPair::new("test", test_data.clone().into())]),
             Struct::new(
                 "Envelope",
                 [KVPair::new("payload", test_data.clone().into())],
             ),
-        )?;
-        assert_eq!(status, ExitReason::Normal);
+        )?
+        .success();
     }
 
     Ok(())
@@ -1633,8 +1631,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
 
     let ctx = dummy_ctx_action("foo");
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action("foo", [Value::None])?;
-    assert_eq!(result, ExitReason::Normal);
+    rs.call_action("foo", [Value::None])?.success();
 
     // Check if the published struct is correct
     assert_eq!(io.publish_stack.len(), 1);
@@ -1754,11 +1751,11 @@ fn test_enum_reference() -> anyhow::Result<()> {
     let mut io = TestIO::new();
     let ctx = dummy_ctx_policy("test");
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let reason = rs.call_action(
+    rs.call_action(
         "test",
         [Value::Enum("Drink".to_owned(), "Coffee".to_owned())],
-    )?;
-    assert_eq!(reason, ExitReason::Normal);
+    )?
+    .success();
     assert_eq!(
         io.publish_stack[0],
         (

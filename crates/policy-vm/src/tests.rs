@@ -347,7 +347,7 @@ fn test_extcall() {
     let ctx = dummy_ctx_action("test");
     let mut rs = machine.create_run_state(&mut io, &ctx);
 
-    rs.run().expect("Should succeed");
+    rs.run().expect("Should succeed").success();
 
     // Verify we got expected return value
     let ret_val = rs

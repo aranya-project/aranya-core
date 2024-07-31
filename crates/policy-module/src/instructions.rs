@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{data::Value, Label};
 
 /// Reason for ending execution.
+#[must_use]
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ExitReason {
     /// Execution completed without errors.
@@ -13,6 +14,14 @@ pub enum ExitReason {
     Check,
     /// Execution was aborted due to an unhandled error.
     Panic,
+}
+
+impl ExitReason {
+    /// Asserts that the reason is `ExitReason::Normal`.
+    #[cfg(feature = "testing")]
+    pub fn success(self) {
+        assert_eq!(self, Self::Normal);
+    }
 }
 
 impl Display for ExitReason {
