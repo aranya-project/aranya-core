@@ -5,6 +5,7 @@ use crate::{
     import::{ExportError, Import, ImportError},
     kem::{DecapKey, Kem},
     keys::{SecretKey, SecretKeyBytes},
+    signer::PkError,
     zeroize::ZeroizeOnDrop,
     CipherSuite,
 };
@@ -17,7 +18,7 @@ impl<CS: CipherSuite> RootChannelKey<CS> {
         Self(sk)
     }
 
-    pub(super) fn public(&self) -> <CS::Kem as Kem>::EncapKey {
+    pub(super) fn public(&self) -> Result<<CS::Kem as Kem>::EncapKey, PkError> {
         self.0.public()
     }
 

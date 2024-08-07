@@ -135,7 +135,7 @@ pub fn test_round_trip<K: Kem, F: Kdf, A: Aead + IndCca2, R: Csprng>(rng: &mut R
     const INFO: &[u8] = b"some contextual binding";
 
     let skR = K::DecapKey::new(rng);
-    let pkR = skR.public();
+    let pkR = skR.public().expect("encap key should be valid");
 
     let (enc, mut send) = Hpke::<K, F, A>::setup_send(rng, Mode::Base, &pkR, INFO)
         .expect("unable to create send context");
@@ -165,7 +165,7 @@ pub fn test_export<K: Kem, F: Kdf, A: Aead + IndCca2, R: Csprng>(rng: &mut R) {
     const INFO: &[u8] = b"some contextual binding";
 
     let skR = K::DecapKey::new(rng);
-    let pkR = skR.public();
+    let pkR = skR.public().expect("encap key should be valid");
 
     let (enc, send) = Hpke::<K, F, A>::setup_send(rng, Mode::Base, &pkR, INFO)
         .expect("unable to create send context");

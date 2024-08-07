@@ -95,10 +95,10 @@ use crate::{
 /// let label = 42u32;
 ///
 /// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id();
+/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user1 ID should be valid");
 ///
 /// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id();
+/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user2 ID should be valid");
 ///
 /// // user1 creates the channel keys and sends the encapsulation
 /// // to user2...
@@ -106,7 +106,7 @@ use crate::{
 ///     parent_cmd_id,
 ///     our_sk: &user1_sk,
 ///     our_id: user1_id,
-///     their_pk: &user2_sk.public(),
+///     their_pk: &user2_sk.public().expect("receiver encryption public key should be valid"),
 ///     their_id: user2_id,
 ///     label,
 /// };
@@ -120,7 +120,7 @@ use crate::{
 ///     parent_cmd_id,
 ///     our_sk: &user2_sk,
 ///     our_id: user2_id,
-///     their_pk: &user1_sk.public(),
+///     their_pk: &user1_sk.public().expect("receiver encryption public key should be valid"),
 ///     their_id: user1_id,
 ///     label,
 /// };
@@ -447,16 +447,24 @@ mod tests {
         let ch1 = BidiChannel {
             parent_cmd_id,
             our_sk: &sk1,
-            our_id: IdentityKey::<CS>::new(&mut eng).id(),
-            their_pk: &sk2.public(),
-            their_id: IdentityKey::<CS>::new(&mut eng).id(),
+            our_id: IdentityKey::<CS>::new(&mut eng)
+                .id()
+                .expect("sender ID should be valid"),
+            their_pk: &sk2
+                .public()
+                .expect("receiver encryption public key should be valid"),
+            their_id: IdentityKey::<CS>::new(&mut eng)
+                .id()
+                .expect("receiver ID should be valid"),
             label,
         };
         let ch2 = BidiChannel {
             parent_cmd_id,
             our_sk: &sk2,
             our_id: ch1.their_id,
-            their_pk: &sk1.public(),
+            their_pk: &sk1
+                .public()
+                .expect("receiver encryption public key should be valid"),
             their_id: ch1.our_id,
             label,
         };
@@ -471,10 +479,14 @@ mod tests {
         let (mut eng, _) = E::from_entropy(Rng);
 
         let sk1 = EncryptionKey::<CS>::new(&mut eng);
-        let user1_id = IdentityKey::<CS>::new(&mut eng).id();
+        let user1_id = IdentityKey::<CS>::new(&mut eng)
+            .id()
+            .expect("user1 ID should be valid");
 
         let sk2 = EncryptionKey::<CS>::new(&mut eng);
-        let user2_id = IdentityKey::<CS>::new(&mut eng).id();
+        let user2_id = IdentityKey::<CS>::new(&mut eng)
+            .id()
+            .expect("user2 Id should be valid");
 
         let label = 123;
 
@@ -485,7 +497,9 @@ mod tests {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk1,
                     our_id: user1_id,
-                    their_pk: &sk2.public(),
+                    their_pk: &sk2
+                        .public()
+                        .expect("receiver encryption public key should be valid"),
                     their_id: user2_id,
                     label,
                 },
@@ -493,7 +507,9 @@ mod tests {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
                     our_id: user2_id,
-                    their_pk: &sk1.public(),
+                    their_pk: &sk1
+                        .public()
+                        .expect("receiver encryption public key should be valid"),
                     their_id: user1_id,
                     label,
                 },
@@ -504,15 +520,21 @@ mod tests {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk1,
                     our_id: user1_id,
-                    their_pk: &sk2.public(),
+                    their_pk: &sk2
+                        .public()
+                        .expect("receiver encryption public key should be valid"),
                     their_id: user2_id,
                     label,
                 },
                 BidiChannel {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
-                    our_id: IdentityKey::<CS>::new(&mut eng).id(),
-                    their_pk: &sk1.public(),
+                    our_id: IdentityKey::<CS>::new(&mut eng)
+                        .id()
+                        .expect("sender ID should be valid"),
+                    their_pk: &sk1
+                        .public()
+                        .expect("receiver encryption public key should be valid"),
                     their_id: user1_id,
                     label,
                 },
@@ -523,7 +545,9 @@ mod tests {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk1,
                     our_id: user1_id,
-                    their_pk: &sk2.public(),
+                    their_pk: &sk2
+                        .public()
+                        .expect("receiver encryption public key should be valid"),
                     their_id: user2_id,
                     label,
                 },
@@ -531,8 +555,12 @@ mod tests {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
                     our_id: user2_id,
-                    their_pk: &sk1.public(),
-                    their_id: IdentityKey::<CS>::new(&mut eng).id(),
+                    their_pk: &sk1
+                        .public()
+                        .expect("receiver encryption public key should be valid"),
+                    their_id: IdentityKey::<CS>::new(&mut eng)
+                        .id()
+                        .expect("receiver ID should be valid"),
                     label,
                 },
             ),
@@ -542,7 +570,9 @@ mod tests {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk1,
                     our_id: user1_id,
-                    their_pk: &sk2.public(),
+                    their_pk: &sk2
+                        .public()
+                        .expect("receiver encryption public key should be valid"),
                     their_id: user2_id,
                     label: 123,
                 },
@@ -550,7 +580,9 @@ mod tests {
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
                     our_id: user2_id,
-                    their_pk: &sk1.public(),
+                    their_pk: &sk1
+                        .public()
+                        .expect("receiver encryption public key should be valid"),
                     their_id: user1_id,
                     label: 456,
                 },

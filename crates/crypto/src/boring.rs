@@ -64,7 +64,7 @@ use crate::{
         dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId, SharedSecret,
     },
     keys::{PublicKey, SecretKey, SecretKeyBytes},
-    signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
+    signer::{PkError, Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
 
@@ -781,9 +781,9 @@ macro_rules! ecdh_impl {
             type EncapKey = $pk;
 
             #[inline]
-            fn public(&self) -> $pk {
+            fn public(&self) -> Result<$pk, PkError> {
                 let pk = self.0.public($curve::ID);
-                $pk(pk)
+                Ok($pk(pk))
             }
         }
 
@@ -1028,9 +1028,9 @@ macro_rules! ecdsa_impl {
             }
 
             #[inline]
-            fn public(&self) -> $pk {
+            fn public(&self) -> Result<$pk, PkError> {
                 let pk = self.0.public($curve::ID);
-                $pk(pk)
+                Ok($pk(pk))
             }
         }
 
@@ -1310,9 +1310,10 @@ impl SigningKey<Ed25519> for Ed25519SigningKey {
     }
 
     #[inline]
-    fn public(&self) -> Ed25519VerifyingKey {
+    fn public(&self) -> Result<Ed25519VerifyingKey, PkError> {
         // sk is seed || public key
-        Ed25519VerifyingKey(self.sk[32..].try_into().expect("unreachable"))
+        let seed: [u8; 32] = self.sk[32..].try_into().expect("unreachable");
+        Ok(Ed25519VerifyingKey(seed))
     }
 }
 
@@ -2007,11 +2008,11 @@ mod fun_crypto {
         type EncapKey = X25519PublicKey;
 
         #[inline]
-        fn public(&self) -> Self::EncapKey {
+        fn public(&self) -> Result<Self::EncapKey, PkError> {
             let mut pk = [0u8; 32];
             // SAFETY: FFI call, no invariants
             unsafe { X25519_public_from_private(ptr::addr_of_mut!(pk), ptr::addr_of!(self.0)) }
-            X25519PublicKey(pk)
+            Ok(X25519PublicKey(pk))
         }
     }
 

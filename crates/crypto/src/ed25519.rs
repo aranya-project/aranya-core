@@ -25,7 +25,7 @@ use crate::{
     hex::ToHex,
     import::{try_import, ExportError, Import, ImportError},
     keys::{PublicKey, SecretKey, SecretKeyBytes},
-    signer::{self, Signer, SignerError, SignerId},
+    signer::{self, PkError, Signer, SignerError, SignerId},
     zeroize::{ZeroizeOnDrop, Zeroizing},
 };
 
@@ -67,8 +67,8 @@ impl signer::SigningKey<Ed25519> for SigningKey {
         Ok(Signature(sig))
     }
 
-    fn public(&self) -> VerifyingKey {
-        VerifyingKey(self.0.verifying_key())
+    fn public(&self) -> Result<VerifyingKey, PkError> {
+        Ok(VerifyingKey(self.0.verifying_key()))
     }
 }
 
@@ -187,6 +187,13 @@ impl Import<[u8; 64]> for Signature {
 impl Import<&[u8]> for Signature {
     fn import(data: &[u8]) -> Result<Self, ImportError> {
         try_import(data)
+    }
+}
+
+impl SigningKey {
+    /// infallible public method
+    pub fn public(&self) -> VerifyingKey {
+        VerifyingKey(self.0.verifying_key())
     }
 }
 

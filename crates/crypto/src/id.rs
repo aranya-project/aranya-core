@@ -22,7 +22,9 @@ use serde::{
 use subtle::{Choice, ConstantTimeEq};
 use typenum::U64;
 
-use crate::{ciphersuite::SuiteIds, csprng::Csprng, hash::tuple_hash, CipherSuite};
+use crate::{
+    ciphersuite::SuiteIds, csprng::Csprng, hash::tuple_hash, signer::PkError, CipherSuite,
+};
 
 /// A unique cryptographic ID.
 #[repr(C)]
@@ -418,5 +420,23 @@ pub trait Identified {
         + Into<Id>;
 
     /// Uniquely identifies the object.
-    fn id(&self) -> Self::Id;
+    fn id(&self) -> Result<Self::Id, IdError>;
+}
+
+/// An error that may occur when accessing an Id
+#[derive(Debug, Eq, PartialEq)]
+pub struct IdError(&'static str);
+
+impl trouble::Error for IdError {}
+
+impl Display for IdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl From<PkError> for IdError {
+    fn from(err: PkError) -> Self {
+        Self(err.0)
+    }
 }

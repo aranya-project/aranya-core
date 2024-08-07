@@ -86,17 +86,17 @@ use crate::{
 /// let label = 42u32;
 ///
 /// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id();
+/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user1 ID should be valid");
 ///
 /// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id();
+/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user2 ID should be valid");
 ///
 /// // user1 creates the channel keys and sends the encapsulation
 /// // to user2...
 /// let user1_ch = UniChannel {
 ///     parent_cmd_id,
 ///     our_sk: &user1_sk,
-///     their_pk: &user2_sk.public(),
+///     their_pk: &user2_sk.public().expect("receiver encryption key should be valid"),
 ///     seal_id: user1_id,
 ///     open_id: user2_id,
 ///     label,
@@ -110,7 +110,7 @@ use crate::{
 /// let user2_ch = UniChannel {
 ///     parent_cmd_id,
 ///     our_sk: &user2_sk,
-///     their_pk: &user1_sk.public(),
+///     their_pk: &user1_sk.public().expect("receiver encryption key should be valid"),
 ///     seal_id: user1_id,
 ///     open_id: user2_id,
 ///     label,

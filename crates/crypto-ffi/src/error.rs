@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::{fmt, ops::Deref};
 
-use crypto::{Id, ImportError, UnwrapError};
+use crypto::{id::IdError, signer::PkError, Id, ImportError, UnwrapError};
 use policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
 
@@ -58,6 +58,12 @@ impl From<Error> for MachineError {
     }
 }
 
+impl From<IdError> for Error {
+    fn from(err: IdError) -> Self {
+        Self::new(ErrorKind::IdError, err)
+    }
+}
+
 impl From<crypto::Error> for Error {
     fn from(err: crypto::Error) -> Self {
         Self::new(ErrorKind::Crypto, err)
@@ -67,6 +73,12 @@ impl From<crypto::Error> for Error {
 impl From<ImportError> for Error {
     fn from(err: ImportError) -> Self {
         Self::new(ErrorKind::Import, err)
+    }
+}
+
+impl From<PkError> for Error {
+    fn from(err: PkError) -> Self {
+        Self::new(ErrorKind::PkError, err)
     }
 }
 
@@ -136,6 +148,10 @@ pub enum ErrorKind {
     ///
     /// [`Error`] can be downcast to [`WrongContext`].
     WrongContext,
+    /// The Public Key passed in is invalid.
+    PkError,
+    /// The id passed in is invalid.
+    IdError,
 }
 
 impl fmt::Display for ErrorKind {
@@ -149,6 +165,8 @@ impl fmt::Display for ErrorKind {
             Self::KeyStore => write!(f, "keystore failure"),
             Self::Unwrap => write!(f, "unable to unwrap key"),
             Self::WrongContext => write!(f, "method called in wrong context"),
+            Self::PkError => write!(f, "invalid signing key"),
+            Self::IdError => write!(f, "invalid id"),
         }
     }
 }

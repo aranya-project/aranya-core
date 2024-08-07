@@ -199,8 +199,8 @@ mod tests {
     impl Identified for TestKey64 {
         type Id = Id;
 
-        fn id(&self) -> Self::Id {
-            id!(self.0)
+        fn id(&self) -> Result<Self::Id, crate::id::IdError> {
+            Ok(id!(self.0))
         }
     }
 
@@ -212,8 +212,8 @@ mod tests {
     impl Identified for TestKeyId {
         type Id = Id;
 
-        fn id(&self) -> Self::Id {
-            self.0
+        fn id(&self) -> Result<Self::Id, crate::id::IdError> {
+            Ok(self.0)
         }
     }
 

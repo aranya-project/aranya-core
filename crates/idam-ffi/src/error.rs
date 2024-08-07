@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::{fmt, ops::Deref};
 
-use crypto::{Id, ImportError, UnwrapError, WrapError};
+use crypto::{id::IdError, Id, ImportError, UnwrapError, WrapError};
 use policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
 
@@ -60,6 +60,12 @@ impl From<Error> for MachineError {
 
 impl From<crypto::Error> for Error {
     fn from(err: crypto::Error) -> Self {
+        Self::new(ErrorKind::Crypto, err)
+    }
+}
+
+impl From<IdError> for Error {
+    fn from(err: IdError) -> Self {
         Self::new(ErrorKind::Crypto, err)
     }
 }

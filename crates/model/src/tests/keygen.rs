@@ -42,7 +42,7 @@ impl KeyBundle {
         macro_rules! gen {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
-                let id = sk.id();
+                let id = sk.id()?;
                 let wrapped =
                     eng.wrap(sk)
                         .context(concat!("unable to wrap `", stringify!($key), "`"))?;
@@ -73,12 +73,12 @@ impl KeyBundle {
                 .get_key::<_, IdentityKey<E::CS>>(eng, &self.user_id.into())
                 .context("unable to load `IdentityKey`")?
                 .context("unable to find `IdentityKey`")?
-                .public(),
+                .public()?,
             sign_pk: store
                 .get_key::<_, SigningKey<E::CS>>(eng, &self.sign_id.into())
                 .context("unable to load `SigningKey`")?
                 .context("unable to find `SigningKey`")?
-                .public(),
+                .public()?,
         })
     }
 }
@@ -95,7 +95,7 @@ impl MinKeyBundle {
         macro_rules! gen {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
-                let id = sk.id();
+                let id = sk.id().expect("user ID should be valid");
                 let wrapped =
                     eng.wrap(sk)
                         .context(concat!("unable to wrap `", stringify!($key), "`"))?;

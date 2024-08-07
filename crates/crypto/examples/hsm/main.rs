@@ -10,6 +10,7 @@ use crypto::{
     csprng::Csprng,
     ed25519::{self, Ed25519},
     engine::{self, AlgId, RawSecret, RawSecretWrap, UnwrappedKey, WrongKeyType},
+    id::IdError,
     import::{ExportError, Import, ImportError},
     kdf::{Kdf, Prk},
     kem::Kem,
@@ -27,7 +28,6 @@ use serde::{Deserialize, Serialize};
 mod hsm;
 
 use hsm::{Hsm, HsmError, KeyId};
-
 // Ignore this.
 #[cfg(feature = "moonshot")]
 #[no_mangle]
@@ -206,8 +206,8 @@ impl engine::WrappedKey for WrappedKey {}
 impl Identified for WrappedKey {
     type Id = WrappedKeyId;
 
-    fn id(&self) -> Self::Id {
-        WrappedKeyId(self.0.id())
+    fn id(&self) -> Result<Self::Id, IdError> {
+        Ok(WrappedKeyId(self.0.id()))
     }
 }
 
@@ -300,8 +300,8 @@ impl SigningKey<HsmSigner> for HsmSigningKey {
         Ok(HsmSignature(sig))
     }
 
-    fn public(&self) -> HsmVerifyingKey {
-        HsmVerifyingKey(self.0)
+    fn public(&self) -> Result<HsmVerifyingKey, crypto::signer::PkError> {
+        Ok(HsmVerifyingKey(self.0))
     }
 }
 

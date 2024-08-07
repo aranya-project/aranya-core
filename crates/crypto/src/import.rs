@@ -14,6 +14,8 @@ use core::{
 use buggy::Bug;
 use generic_array::{ArrayLength, GenericArray};
 
+use crate::signer::PkError;
+
 /// A slice could not be converted to a fixed-size buffer.
 #[derive(Debug, Eq, PartialEq)]
 pub struct InvalidSizeError {
@@ -49,6 +51,8 @@ pub enum ImportError {
     InvalidContext,
     /// An internal bug was discovered.
     Bug(Bug),
+    /// The Public Key is invalid.
+    PkError(PkError),
 }
 
 impl Display for ImportError {
@@ -59,6 +63,7 @@ impl Display for ImportError {
             Self::InvalidSyntax => write!(f, "data is syntactically invalid"),
             Self::InvalidContext => write!(f, "data came from a different context"),
             Self::Bug(err) => write!(f, "{}", err),
+            Self::PkError(err) => write!(f, "{}", err),
         }
     }
 }
@@ -82,6 +87,12 @@ impl From<InvalidSizeError> for ImportError {
 impl From<Bug> for ImportError {
     fn from(err: Bug) -> Self {
         Self::Bug(err)
+    }
+}
+
+impl From<PkError> for ImportError {
+    fn from(err: PkError) -> Self {
+        Self::PkError(err)
     }
 }
 

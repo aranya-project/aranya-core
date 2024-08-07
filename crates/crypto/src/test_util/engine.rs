@@ -189,11 +189,13 @@ pub fn test_simple_user_signing_key_sign<E: Engine>(eng: &mut E) {
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(MSG, CONTEXT, &sig)
         .expect("the signature should be valid");
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(MSG, b"wrong context", &sig)
         .expect_err("should fail with wrong context");
 
@@ -203,6 +205,7 @@ pub fn test_simple_user_signing_key_sign<E: Engine>(eng: &mut E) {
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(MSG, CONTEXT, &wrong_sig)
         .expect_err("should fail with wrong signature");
 }
@@ -216,6 +219,7 @@ pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
     let want = GroupKey::new(eng);
     let (enc, ciphertext) = enc_key
         .public()
+        .expect("public encryption key should be valid")
         .seal_group_key(eng, &want, group)
         .expect("unable to encrypt `GroupKey`");
     let got = enc_key
@@ -259,7 +263,9 @@ pub fn test_simple_wrap_user_identity_key<E: Engine>(eng: &mut E) {
 /// Simple positive test for exporting the public half of
 /// [`IdentityKey`]s.
 pub fn test_simple_export_user_identity_key<E: Engine>(eng: &mut E) {
-    let want = IdentityKey::<E::CS>::new(eng).public();
+    let want = IdentityKey::<E::CS>::new(eng)
+        .public()
+        .expect("identity key should be valid");
     let bytes =
         postcard::to_allocvec(&want).expect("should be able to encode an `IdentityVerifyingKey`");
     let got =
@@ -282,11 +288,13 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(MESSAGE, CONTEXT, &sig)
         .expect("should not fail with correct signature");
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(MESSAGE, b"wrong context", &sig)
         .expect_err("should fail with wrong context");
 
@@ -296,6 +304,7 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(MESSAGE, CONTEXT, &wrong_sig)
         .expect_err("should fail with wrong signature");
 }
@@ -319,7 +328,9 @@ pub fn test_simple_wrap_user_signing_key<E: Engine>(eng: &mut E) {
 /// Simple positive test for exporting the public half of
 /// [`UserSigningKey`]s.
 pub fn test_simple_export_user_signing_key<E: Engine>(eng: &mut E) {
-    let want = UserSigningKey::<E::CS>::new(eng).public();
+    let want = UserSigningKey::<E::CS>::new(eng)
+        .public()
+        .expect("user signing key should be valid");
     let bytes = postcard::to_allocvec(&want).expect("should be able to encode an `VerifyingKey`");
     let got = postcard::from_bytes(&bytes).expect("should be able to decode an `VerifyingKey`");
     assert_eq!(want, got);
@@ -344,7 +355,9 @@ pub fn test_simple_wrap_user_encryption_key<E: Engine>(eng: &mut E) {
 /// Simple positive test for exporting the public half of
 /// [`EncryptionKey`]s.
 pub fn test_simple_export_user_encryption_key<E: Engine>(eng: &mut E) {
-    let want = EncryptionKey::<E::CS>::new(eng).public();
+    let want = EncryptionKey::<E::CS>::new(eng)
+        .public()
+        .expect("encryption public key should be valid");
     let bytes =
         postcard::to_allocvec(&want).expect("should be able to encode an `EncryptionPublicKey`");
     let got =
@@ -356,7 +369,9 @@ pub fn test_simple_export_user_encryption_key<E: Engine>(eng: &mut E) {
 pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author_sign_pk = UserSigningKey::<E::CS>::new(eng).public();
+    let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
+        .public()
+        .expect("author signing key should be valid");
 
     let gk = GroupKey::new(eng);
     let ciphertext = {
@@ -395,7 +410,9 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author_sign_pk = UserSigningKey::<E::CS>::new(eng).public();
+    let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
+        .public()
+        .expect("author signing key should be valid");
 
     let gk1 = GroupKey::new(eng);
     let gk2 = GroupKey::new(eng);
@@ -434,8 +451,12 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author_pk1 = UserSigningKey::<E::CS>::new(eng).public();
-    let author_pk2 = UserSigningKey::<E::CS>::new(eng).public();
+    let author_pk1 = UserSigningKey::<E::CS>::new(eng)
+        .public()
+        .expect("author 1 signing key should be valid");
+    let author_pk2 = UserSigningKey::<E::CS>::new(eng)
+        .public()
+        .expect("author 2 signing key should be valid");
 
     let gk = GroupKey::new(eng);
     let ciphertext = {
@@ -493,7 +514,9 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author_sign_pk = UserSigningKey::<E::CS>::new(eng).public();
+    let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
+        .public()
+        .expect("author signing key should be valid");
 
     let gk = GroupKey::new(eng);
     let mut ciphertext = {
@@ -541,6 +564,7 @@ where
     let want = GroupKey::new(eng);
     let (enc, ciphertext) = enc_key
         .public()
+        .expect("encryption public key should be valid")
         .seal_group_key(eng, &want, group)
         .expect("unable to encrypt `GroupKey`");
     let enc = Encap::<E::CS>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
@@ -573,21 +597,25 @@ where
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(VERSION, &topic, RECORD, &sig)
         .expect("the signature should be valid");
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(Version::new(VERSION.as_u32() + 1), &topic, RECORD, &sig)
         .expect_err("should fail: wrong version");
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
         .expect_err("should fail: wrong topic");
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(VERSION, &topic, b"wrong", &sig)
         .expect_err("should fail: wrong record");
 
@@ -601,6 +629,7 @@ where
 
     sign_key
         .public()
+        .expect("sender signing key should be valid")
         .verify(VERSION, &topic, RECORD, &wrong_sig)
         .expect_err("should fail: wrong signature");
 }
@@ -613,9 +642,11 @@ where
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
 {
     let send_sk = SenderSecretKey::<E::CS>::new(eng);
-    let send_pk = send_sk.public();
+    let send_pk = send_sk.public().expect("sender public key should be valid");
     let recv_sk = ReceiverSecretKey::<E::CS>::new(eng);
-    let recv_pk = recv_sk.public();
+    let recv_pk = recv_sk
+        .public()
+        .expect("receiver public key should be valid");
 
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
@@ -686,8 +717,12 @@ pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
-        enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
-        sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
+        enc_key: &SenderSecretKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public encryption key should be valid"),
+        sign_key: &SenderSigningKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public signing key should be valid"),
     };
 
     const VERSION: Version = Version::new(1);
@@ -714,8 +749,12 @@ pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
-        enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
-        sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
+        enc_key: &SenderSecretKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public encryption key should be valid"),
+        sign_key: &SenderSigningKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public signing key should be valid"),
     };
 
     const VERSION: Version = Version::new(1);
@@ -742,12 +781,20 @@ pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
-        enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
-        sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
+        enc_key: &SenderSecretKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public encryption key should be valid"),
+        sign_key: &SenderSigningKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public signing key should be valid"),
     };
     let wrong_ident = Sender {
-        enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
-        sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
+        enc_key: &SenderSecretKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public encryption key should be valid"),
+        sign_key: &SenderSigningKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public signing key should be valid"),
     };
 
     const VERSION: Version = Version::new(1);
@@ -785,8 +832,12 @@ pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
-        enc_key: &SenderSecretKey::<E::CS>::new(eng).public(),
-        sign_key: &SenderSigningKey::<E::CS>::new(eng).public(),
+        enc_key: &SenderSecretKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public encryption key should be valid"),
+        sign_key: &SenderSigningKey::<E::CS>::new(eng)
+            .public()
+            .expect("sender public signing key should be valid"),
     };
 
     const VERSION: Version = Version::new(1);
@@ -1100,16 +1151,24 @@ pub fn test_derive_bidi_keys<E: Engine>(eng: &mut E) {
     let ch1 = BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng).id(),
-        their_pk: &sk2.public(),
-        their_id: IdentityKey::<E::CS>::new(eng).id(),
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
         label,
     };
     let ch2 = BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
-        their_pk: &sk1.public(),
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
     };
@@ -1133,16 +1192,22 @@ pub fn test_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
     let ch1 = BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng).id(),
-        their_pk: &sk2.public(),
-        their_id: IdentityKey::<E::CS>::new(eng).id(),
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2.public().expect("encryption public key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
         label: 123,
     };
     let ch2 = BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
-        their_pk: &sk1.public(),
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label: 456,
     };
@@ -1170,16 +1235,24 @@ pub fn test_derive_bidi_keys_different_user_ids<E: Engine>(eng: &mut E) {
     let ch1 = BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng).id(),
-        their_pk: &sk2.public(),
-        their_id: IdentityKey::<E::CS>::new(eng).id(),
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
         label,
     };
     let ch2 = BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
-        their_pk: &sk1.public(),
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
         their_id: UserId::random(eng),
         label,
     };
@@ -1206,16 +1279,24 @@ pub fn test_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
     let ch1 = BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng).id(),
-        their_pk: &sk2.public(),
-        their_id: IdentityKey::<E::CS>::new(eng).id(),
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
         label,
     };
     let ch2 = BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk2,
         our_id: ch1.their_id,
-        their_pk: &sk1.public(),
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
     };
@@ -1242,16 +1323,24 @@ pub fn test_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
     let ch1 = BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng).id(),
-        their_pk: &sk2.public(),
-        their_id: IdentityKey::<E::CS>::new(eng).id(),
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
         label,
     };
     let ch2 = BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
-        their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
+        their_pk: &EncryptionKey::<E::CS>::new(eng)
+            .public()
+            .expect("receiver id should be valid"),
         their_id: ch1.our_id,
         label,
     };
@@ -1279,16 +1368,24 @@ pub fn test_derive_bidi_keys_same_user_id<E: Engine>(eng: &mut E) {
     let mut ch1 = BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng).id(),
-        their_pk: &sk2.public(),
-        their_id: IdentityKey::<E::CS>::new(eng).id(),
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
         label,
     };
     let mut ch2 = BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
-        their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
+        their_pk: &EncryptionKey::<E::CS>::new(eng)
+            .public()
+            .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
     };
@@ -1320,9 +1417,15 @@ pub fn test_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
     let ch = BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        our_id: IdentityKey::<E::CS>::new(eng).id(),
-        their_pk: &sk2.public(),
-        their_id: IdentityKey::<E::CS>::new(eng).id(),
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
         label: 123,
     };
 
@@ -1392,15 +1495,23 @@ pub fn test_derive_uni_key<E: Engine>(eng: &mut E) {
     let ch1 = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        their_pk: &sk2.public(),
-        seal_id: IdentityKey::<E::CS>::new(eng).id(),
-        open_id: IdentityKey::<E::CS>::new(eng).id(),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
         label,
     };
     let ch2 = UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
-        their_pk: &sk1.public(),
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
@@ -1424,15 +1535,23 @@ pub fn test_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
     let ch1 = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        their_pk: &sk2.public(),
-        seal_id: IdentityKey::<E::CS>::new(eng).id(),
-        open_id: IdentityKey::<E::CS>::new(eng).id(),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
         label: 123,
     };
     let ch2 = UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
-        their_pk: &sk1.public(),
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label: 456,
@@ -1459,15 +1578,23 @@ pub fn test_derive_uni_key_different_user_ids<E: Engine>(eng: &mut E) {
     let ch1 = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        their_pk: &sk2.public(),
-        seal_id: IdentityKey::<E::CS>::new(eng).id(),
-        open_id: IdentityKey::<E::CS>::new(eng).id(),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
         label,
     };
     let ch2 = UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
-        their_pk: &sk1.public(),
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: UserId::random(eng),
         label,
@@ -1494,15 +1621,23 @@ pub fn test_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
     let ch1 = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        their_pk: &sk2.public(),
-        seal_id: IdentityKey::<E::CS>::new(eng).id(),
-        open_id: IdentityKey::<E::CS>::new(eng).id(),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
         label,
     };
     let ch2 = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk2,
-        their_pk: &sk1.public(),
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
@@ -1529,15 +1664,23 @@ pub fn test_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
     let ch1 = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        their_pk: &sk2.public(),
-        seal_id: IdentityKey::<E::CS>::new(eng).id(),
-        open_id: IdentityKey::<E::CS>::new(eng).id(),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
         label,
     };
     let ch2 = UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
-        their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
+        their_pk: &EncryptionKey::<E::CS>::new(eng)
+            .public()
+            .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
@@ -1561,15 +1704,23 @@ pub fn test_derive_uni_seal_key_same_user_id<E: Engine>(eng: &mut E) {
     let mut ch1 = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        their_pk: &sk2.public(),
-        seal_id: IdentityKey::<E::CS>::new(eng).id(),
-        open_id: IdentityKey::<E::CS>::new(eng).id(),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
         label,
     };
     let mut ch2 = UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
-        their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
+        their_pk: &EncryptionKey::<E::CS>::new(eng)
+            .public()
+            .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
@@ -1605,15 +1756,23 @@ pub fn test_derive_uni_open_key_same_user_id<E: Engine>(eng: &mut E) {
     let mut ch1 = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        their_pk: &sk2.public(),
-        seal_id: IdentityKey::<E::CS>::new(eng).id(),
-        open_id: IdentityKey::<E::CS>::new(eng).id(),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
         label,
     };
     let mut ch2 = UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
-        their_pk: &EncryptionKey::<E::CS>::new(eng).public(),
+        their_pk: &EncryptionKey::<E::CS>::new(eng)
+            .public()
+            .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
@@ -1647,9 +1806,15 @@ pub fn test_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
     let ch = UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
-        their_pk: &sk2.public(),
-        seal_id: IdentityKey::<E::CS>::new(eng).id(),
-        open_id: IdentityKey::<E::CS>::new(eng).id(),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
         label: 123,
     };
 

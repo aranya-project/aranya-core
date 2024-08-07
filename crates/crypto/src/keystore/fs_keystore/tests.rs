@@ -26,8 +26,8 @@ impl WrappedKey for TestKey64 {}
 impl Identified for TestKey64 {
     type Id = Id;
 
-    fn id(&self) -> Self::Id {
-        id!(self.0)
+    fn id(&self) -> Result<Self::Id, crate::id::IdError> {
+        Ok(id!(self.0))
     }
 }
 
@@ -39,8 +39,8 @@ impl WrappedKey for TestKeyId {}
 impl Identified for TestKeyId {
     type Id = Id;
 
-    fn id(&self) -> Self::Id {
-        self.0
+    fn id(&self) -> Result<Self::Id, crate::id::IdError> {
+        Ok(self.0)
     }
 }
 

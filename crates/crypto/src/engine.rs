@@ -22,7 +22,7 @@ use crate::{
     aead::{Aead, AeadId, OpenError, SealError},
     ciphersuite::CipherSuite,
     csprng::Csprng,
-    id::Identified,
+    id::{IdError, Identified},
     import::{ExportError, ImportError},
     kdf::{Kdf, KdfId, Prk},
     kem::{Kem, KemId},
@@ -44,7 +44,7 @@ pub trait Engine: Csprng + RawSecretWrap<Self> + Sized {
     where
         T: UnwrappedKey<Self::CS>,
     {
-        let id = key.id();
+        let id = key.id()?;
         let secret = key.into_secret();
         self.wrap_secret::<T>(&id, secret.0)
     }
@@ -307,6 +307,8 @@ pub enum WrapError {
     Seal(SealError),
     /// A bug was discovered.
     Bug(Bug),
+    /// An error occurred accessing the unique ID.
+    Id(IdError),
 }
 
 impl Display for WrapError {
@@ -317,6 +319,7 @@ impl Display for WrapError {
             Self::Export(err) => write!(f, "{}", err),
             Self::Seal(err) => write!(f, "{}", err),
             Self::Bug(err) => write!(f, "{}", err),
+            Self::Id(err) => write!(f, "{}", err),
         }
     }
 }
@@ -344,6 +347,11 @@ impl From<ExportError> for WrapError {
     }
 }
 
+impl From<IdError> for WrapError {
+    fn from(err: IdError) -> Self {
+        Self::Id(err)
+    }
+}
 impl From<Bug> for WrapError {
     fn from(err: Bug) -> Self {
         Self::Bug(err)

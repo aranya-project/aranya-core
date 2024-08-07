@@ -15,7 +15,7 @@ use crate::{
         self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
         WrongKeyType,
     },
-    id::{Id, Identified},
+    id::{Id, IdError, Identified},
     import::Import,
     kdf::{Kdf, Prk},
     kem::Kem,
@@ -385,8 +385,8 @@ impl<CS: CipherSuite> engine::WrappedKey for WrappedKey<CS> {}
 impl<CS: CipherSuite> Identified for WrappedKey<CS> {
     type Id = Id;
 
-    fn id(&self) -> Self::Id {
-        self.id
+    fn id(&self) -> Result<Self::Id, IdError> {
+        Ok(self.id)
     }
 }
 

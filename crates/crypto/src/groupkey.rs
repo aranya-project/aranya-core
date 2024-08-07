@@ -17,7 +17,7 @@ use crate::{
     error::Error,
     hash::{tuple_hash, Digest, Hash},
     hmac::Hmac,
-    id::{custom_id, Id, Identified},
+    id::{custom_id, Id, IdError, Identified},
     import::Import,
     kdf,
     zeroize::{Zeroize, ZeroizeOnDrop},
@@ -107,7 +107,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
     /// const PARENT: Id = Id::default();
-    /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public();
+    /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public().expect("signing key should be valid");
     ///
     /// let key = GroupKey::new(&mut Rng);
     ///
@@ -153,7 +153,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
         }
         let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
         rng.fill_bytes(nonce);
-        let info = ctx.to_bytes();
+        let info = ctx.to_bytes()?;
         let key = self.derive_key(&info)?;
         Ok(CS::Aead::new(&key).seal(out, nonce, plaintext, &info)?)
     }
@@ -177,7 +177,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
             return Err(OpenError::Authentication.into());
         }
         let (nonce, ciphertext) = ciphertext.split_at(CS::Aead::NONCE_SIZE);
-        let info = ctx.to_bytes();
+        let info = ctx.to_bytes()?;
         let key = self.derive_key(&info)?;
         Ok(CS::Aead::new(&key).open(dst, nonce, ciphertext, &info)?)
     }
@@ -244,8 +244,8 @@ impl<CS: CipherSuite> Identified for GroupKey<CS> {
     type Id = GroupKeyId;
 
     #[inline]
-    fn id(&self) -> Self::Id {
-        self.id()
+    fn id(&self) -> Result<Self::Id, IdError> {
+        Ok(self.id())
     }
 }
 
@@ -271,7 +271,7 @@ pub struct Context<'a, CS: CipherSuite> {
 
 impl<CS: CipherSuite> Context<'_, CS> {
     /// Converts the [`Context`] to its byte representation.
-    fn to_bytes(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
+    fn to_bytes(&self) -> Result<Digest<<CS::Hash as Hash>::DigestSize>, Error> {
         // Ideally, this would simple be the actual concatenation
         // of `Context`'s fields. However, we need to be
         // `no_alloc` and without `const_generic_exprs` it's
@@ -281,11 +281,11 @@ impl<CS: CipherSuite> Context<'_, CS> {
         // So, we instead hash the fields into a fixed-size
         // buffer. We use `tuple_hash` out of paranoia, but
         // a regular hash should also suffice.
-        tuple_hash::<CS::Hash, _>([
+        Ok(tuple_hash::<CS::Hash, _>([
             self.label.as_bytes(),
             self.parent.as_ref(),
-            self.author_sign_pk.id().as_bytes(),
-        ])
+            self.author_sign_pk.id()?.as_bytes(),
+        ]))
     }
 }
 

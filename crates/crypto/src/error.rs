@@ -8,11 +8,12 @@ use crate::{
     aead::{OpenError, SealError},
     engine::{UnwrapError, WrapError},
     hpke::HpkeError,
+    id::IdError,
     import::{ExportError, ImportError},
     kdf::KdfError,
     kem::{EcdhError, KemError},
     mac::MacError,
-    signer::SignerError,
+    signer::{PkError, SignerError},
 };
 
 /// Encompasses the different errors directly returned by this
@@ -51,6 +52,10 @@ pub enum Error {
     Wrap(WrapError),
     /// A key unwrapping failure.
     Unwrap(UnwrapError),
+    /// An identifier failure.
+    Id(IdError),
+    /// A public key failure.
+    Pk(PkError),
 }
 
 impl fmt::Display for Error {
@@ -71,6 +76,8 @@ impl fmt::Display for Error {
             Self::Export(err) => write!(f, "{}", err),
             Self::Wrap(err) => write!(f, "{}", err),
             Self::Unwrap(err) => write!(f, "{}", err),
+            Self::Id(err) => write!(f, "{}", err),
+            Self::Pk(err) => write!(f, "{}", err),
         }
     }
 }
@@ -165,5 +172,17 @@ impl From<WrapError> for Error {
 impl From<UnwrapError> for Error {
     fn from(err: UnwrapError) -> Self {
         Self::Unwrap(err)
+    }
+}
+
+impl From<IdError> for Error {
+    fn from(err: IdError) -> Self {
+        Self::Id(err)
+    }
+}
+
+impl From<PkError> for Error {
+    fn from(err: PkError) -> Self {
+        Self::Pk(err)
     }
 }

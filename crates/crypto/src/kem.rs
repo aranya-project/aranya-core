@@ -21,6 +21,7 @@ use crate::{
     import::{Import, ImportError},
     kdf::{Kdf, KdfError, Prk},
     keys::{PublicKey, SecretKey},
+    signer::PkError,
     zeroize::ZeroizeOnDrop,
 };
 
@@ -39,6 +40,8 @@ pub enum KemError {
     DhKem(DhKemError),
     /// A public key could not be imported.
     Import(ImportError),
+    /// A public key could not be read.
+    PublicKey(PkError),
 }
 
 impl Display for KemError {
@@ -50,6 +53,7 @@ impl Display for KemError {
             Self::Decapsulation => write!(f, "unable to decapsulate symmetric key"),
             Self::DhKem(err) => write!(f, "{}", err),
             Self::Import(err) => write!(f, "{}", err),
+            Self::PublicKey(err) => write!(f, "{}", err),
         }
     }
 }
@@ -73,6 +77,12 @@ impl From<DhKemError> for KemError {
 impl From<ImportError> for KemError {
     fn from(err: ImportError) -> Self {
         Self::Import(err)
+    }
+}
+
+impl From<PkError> for KemError {
+    fn from(err: PkError) -> Self {
+        Self::PublicKey(err)
     }
 }
 
@@ -190,7 +200,7 @@ pub trait DecapKey: SecretKey {
     type EncapKey: EncapKey;
 
     /// Returns the public half of the key.
-    fn public(&self) -> Self::EncapKey;
+    fn public(&self) -> Result<Self::EncapKey, PkError>;
 }
 
 /// An asymmetric public key used to encapsulate keys.
@@ -364,7 +374,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         //
         //   shared_secret = ExtractAndExpand(dh, kem_context)
         //   return shared_secret, enc
-        let pkE = skE.public();
+        let pkE = skE.public()?;
         let dh = (E::ecdh(&skE, pkR).map_err(DhKemError::Ecdh)?, None);
         let enc = pkE.export();
 
@@ -393,7 +403,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         let pkE = E::PublicKey::import(enc.borrow())?;
         let dh = (E::ecdh(skR, &pkE).map_err(DhKemError::Ecdh)?, None);
 
-        let pkRm = skR.public().export();
+        let pkRm = skR.public()?.export();
 
         let shared_secret =
             Self::extract_and_expand(&dh, enc, &pkRm, None, self.id).map_err(DhKemError::Kdf)?;
@@ -429,7 +439,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         //
         //   shared_secret = ExtractAndExpand(dh, kem_context)
         //   return shared_secret, enc
-        let pkE = skE.public();
+        let pkE = skE.public()?;
         let dh = (
             E::ecdh(&skE, pkR).map_err(DhKemError::Ecdh)?,
             Some(E::ecdh(skS, pkR).map_err(DhKemError::Ecdh)?),
@@ -437,7 +447,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
         let enc = pkE.export();
 
         let pkRm = pkR.export();
-        let pkSm = skS.public().export();
+        let pkSm = skS.public()?.export();
 
         let shared_secret = Self::extract_and_expand(&dh, &enc, &pkRm, Some(&pkSm), self.id)
             .map_err(DhKemError::Kdf)?;
@@ -467,7 +477,7 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
             Some(E::ecdh(skR, pkS).map_err(DhKemError::Ecdh)?),
         );
 
-        let pkRm = skR.public().export();
+        let pkRm = skR.public()?.export();
         let pkSm = pkS.export();
 
         let shared_secret = Self::extract_and_expand(&dh, enc, &pkRm, Some(&pkSm), self.id)

@@ -127,6 +127,7 @@ pub fn test_default<T: Signer, R: Csprng>(rng: &mut R) {
     let sk = T::SigningKey::new(rng);
     let sig = sk.sign(MSG).expect("unable to create signature");
     sk.public()
+        .expect("signing key should be valid")
         .verify(MSG, &sig)
         .expect("unable to verify signature");
 }
@@ -162,8 +163,12 @@ pub fn test_sk_ct_eq<T: Signer, R: Csprng>(rng: &mut R) {
 ///
 /// It also tests `Signer::VerifyingKey::import`.
 pub fn test_pk_eq<T: Signer, R: Csprng>(rng: &mut R) {
-    let pk1 = T::SigningKey::new(rng).public();
-    let pk2 = T::SigningKey::new(rng).public();
+    let pk1 = T::SigningKey::new(rng)
+        .public()
+        .expect("signing key should be valid");
+    let pk2 = T::SigningKey::new(rng)
+        .public()
+        .expect("signing key should be valid");
 
     fn same_key<T: Signer, K: VerifyingKey<T>>(k: K) {
         let pk1 = K::import(k.export().borrow()).expect("should be able to import key");
@@ -202,7 +207,7 @@ pub fn test_batch_simple_good<T: Signer, R: Csprng>(rng: &mut R) {
         .map(|msg| {
             let sk = T::SigningKey::new(rng);
             let sig = sk.sign(msg).expect("should not fail");
-            (sk.public(), sig)
+            (sk.public().expect("signer key should be valid"), sig)
         })
         .unzip();
     T::verify_batch(MSGS, &sigs[..], &pks[..]).expect("should not fail")
@@ -226,7 +231,7 @@ pub fn test_batch_simple_bad<T: Signer, R: Csprng>(rng: &mut R) {
         .map(|msg| {
             let sk = T::SigningKey::new(rng);
             let sig = sk.sign(msg).expect("should not fail");
-            (sk.public(), sig)
+            (sk.public().expect("signing key should be valid"), sig)
         })
         .unzip();
     msgs[msgs.len() / 2] = b"AAAAAAAAAAAAA";

@@ -222,9 +222,9 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///
     /// let ident = Sender {
     ///     enc_key: &SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng)
-    ///         .public(),
+    ///         .public().expect("sender encryption key should be valid"),
     ///     sign_key: &SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng)
-    ///         .public(),
+    ///         .public().expect("sender signing key should be valid"),
     /// };
     ///
     /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
@@ -282,8 +282,8 @@ impl<CS: CipherSuite> TopicKey<CS> {
             &version.to_be_bytes()[..],
             &topic.as_bytes()[..],
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            ident.enc_key.id().as_bytes(),
-            ident.sign_key.id().as_bytes(),
+            ident.enc_key.id()?.as_bytes(),
+            ident.sign_key.id()?.as_bytes(),
         ]);
         let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
         rng.fill_bytes(nonce);
@@ -320,8 +320,8 @@ impl<CS: CipherSuite> TopicKey<CS> {
             &version.to_be_bytes()[..],
             &topic.as_bytes()[..],
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            ident.enc_key.id().as_bytes(),
-            ident.sign_key.id().as_bytes(),
+            ident.enc_key.id()?.as_bytes(),
+            ident.sign_key.id()?.as_bytes(),
         ]);
         Ok(CS::Aead::new(&self.key).open(dst, nonce, ciphertext, &ad)?)
     }
@@ -404,16 +404,16 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// let sig = sk.sign(VERSION, &topic, RECORD)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(VERSION, &topic, RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(Version::new(2), &topic, RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(Version::new(2), &topic, RECORD, &sig)
     ///     .expect_err("should fail: wrong version");
     ///
-    /// sk.public().verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
     ///     .expect_err("should fail: wrong topic");
     ///
-    /// sk.public().verify(VERSION, &topic, b"wrong", &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, b"wrong", &sig)
     ///     .expect_err("should fail: wrong record");
     ///
     /// let wrong_sig = sk
@@ -423,7 +423,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///         b"encoded record",
     ///     )
     ///     .expect("should not fail");
-    /// sk.public().verify(VERSION, &topic, RECORD, &wrong_sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &wrong_sig)
     ///     .expect_err("should fail: wrong signature");
     /// # }
     /// ```
@@ -444,7 +444,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
             &version.to_be_bytes(),
             &topic.as_bytes()[..],
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.public().id().as_bytes(),
+            self.public()?.id()?.as_bytes(),
             record,
         ]);
         let sig = self.0.sign(&msg)?;
@@ -486,7 +486,7 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
             &version.to_be_bytes(),
             &topic.as_bytes()[..],
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id().as_bytes(),
+            self.id()?.as_bytes(),
             record,
         ]);
         Ok(self.0.verify(&msg, &sig.0)?)
@@ -624,9 +624,9 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// let topic = Topic::new("SomeTopic");
     ///
     /// let send_sk = SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng);
-    /// let send_pk = send_sk.public();
+    /// let send_pk = send_sk.public().expect("sender public key should be valid");
     /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(&mut Rng);
-    /// let recv_pk = recv_sk.public();
+    /// let recv_pk = recv_sk.public().expect("receiver public key should be valid");
     ///
     /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
     ///     .expect("should not fail");

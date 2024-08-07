@@ -159,8 +159,20 @@ pub trait SigningKey<T: Signer + ?Sized>: SecretKey {
     fn sign(&self, msg: &[u8]) -> Result<T::Signature, SignerError>;
 
     /// Returns the public half of the key.
-    fn public(&self) -> T::VerifyingKey;
+    fn public(&self) -> Result<T::VerifyingKey, PkError>;
 }
+
+/// Handles Public Key errors
+#[derive(Debug, Eq, PartialEq)]
+pub struct PkError(pub(crate) &'static str);
+
+impl fmt::Display for PkError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl trouble::Error for PkError {}
 
 /// An asymmetric public key used to verify digital signatures.
 pub trait VerifyingKey<T: Signer + ?Sized>: PublicKey {

@@ -139,15 +139,15 @@ impl<CS: CipherSuite> IdentityKey<CS> {
     /// let sig = sk.sign(MESSAGE, CONTEXT)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(MESSAGE, CONTEXT, &sig)
+    /// sk.public().expect("identity key should be valid").verify(MESSAGE, CONTEXT, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(MESSAGE, b"wrong context", &sig)
+    /// sk.public().expect("identity key should be valid").verify(MESSAGE, b"wrong context", &sig)
     ///     .expect_err("should fail");
     ///
     /// let wrong_sig = sk.sign(b"different", b"signature")
     ///     .expect("should not fail");
-    /// sk.public().verify(MESSAGE, CONTEXT, &wrong_sig)
+    /// sk.public().expect("identity key should be valid").verify(MESSAGE, CONTEXT, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
@@ -162,7 +162,7 @@ impl<CS: CipherSuite> IdentityKey<CS> {
         let sum = tuple_hash::<CS::Hash, _>([
             "IdentityKey".as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id().as_bytes(),
+            self.id()?.as_bytes(),
             context,
             msg,
         ]);
@@ -197,7 +197,7 @@ impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
         let sum = tuple_hash::<CS::Hash, _>([
             "IdentityKey".as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id().as_bytes(),
+            self.id()?.as_bytes(),
             context,
             msg,
         ]);
@@ -242,15 +242,15 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let sig = sk.sign(MESSAGE, CONTEXT)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(MESSAGE, CONTEXT, &sig)
+    /// sk.public().expect("signing key should be valid").verify(MESSAGE, CONTEXT, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().verify(MESSAGE, b"wrong context", &sig)
+    /// sk.public().expect("signing key should be valid").verify(MESSAGE, b"wrong context", &sig)
     ///     .expect_err("should fail");
     ///
     /// let wrong_sig = sk.sign(b"different", b"signature")
     ///     .expect("should not fail");
-    /// sk.public().verify(MESSAGE, CONTEXT, &wrong_sig)
+    /// sk.public().expect("signing key should be valid").verify(MESSAGE, CONTEXT, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
@@ -265,7 +265,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
         let sum = tuple_hash::<CS::Hash, _>([
             "SigningKey".as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id().as_bytes(),
+            self.id()?.as_bytes(),
             context,
             msg,
         ]);
@@ -300,7 +300,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let good_cmd = Cmd { data, name, parent_id };
     /// let (sig, _) = sk.sign_cmd(good_cmd)
     ///     .expect("should not fail");
-    /// sk.public().verify_cmd(good_cmd, &sig)
+    /// sk.public().expect("signing key should be valid").verify_cmd(good_cmd, &sig)
     ///     .expect("should not fail");
     ///
     /// let wrong_name_cmd = Cmd {
@@ -308,7 +308,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     name: "wrong name",
     ///     parent_id,
     /// };
-    /// sk.public().verify_cmd(wrong_name_cmd, &sig)
+    /// sk.public().expect("signing key should be valid").verify_cmd(wrong_name_cmd, &sig)
     ///     .expect_err("should fail");
     ///
     /// let wrong_id_cmd = Cmd {
@@ -316,7 +316,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     name,
     ///     parent_id: &Id::random(&mut Rng),
     /// };
-    /// sk.public().verify_cmd(wrong_id_cmd, &sig)
+    /// sk.public().expect("signing key should be valid").verify_cmd(wrong_id_cmd, &sig)
     ///     .expect_err("should fail");
     ///
     /// let wrong_sig_cmd = Cmd {
@@ -326,12 +326,12 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// };
     /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd)
     ///     .expect("should not fail");
-    /// sk.public().verify_cmd(good_cmd, &wrong_sig)
+    /// sk.public().expect("signing key should be valid").verify_cmd(good_cmd, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
     pub fn sign_cmd(&self, cmd: Cmd<'_>) -> Result<(Signature<CS>, CmdId), Error> {
-        let digest = cmd.digest::<CS>(&self.id());
+        let digest = cmd.digest::<CS>(&self.id()?);
         let sig = Signature(self.0.sign(&digest)?);
         let id = policy::cmd_id(&digest, &sig);
         Ok((sig, id))
@@ -364,7 +364,7 @@ impl<CS: CipherSuite> VerifyingKey<CS> {
         let sum = tuple_hash::<CS::Hash, _>([
             "SigningKey".as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id().as_bytes(),
+            self.id()?.as_bytes(),
             context,
             msg,
         ]);
@@ -374,7 +374,7 @@ impl<CS: CipherSuite> VerifyingKey<CS> {
     /// Verifies the signature allegedly created over a policy
     /// command and returns its ID.
     pub fn verify_cmd(&self, cmd: Cmd<'_>, sig: &Signature<CS>) -> Result<CmdId, Error> {
-        let digest = cmd.digest::<CS>(&self.id());
+        let digest = cmd.digest::<CS>(&self.id()?);
         self.0.verify(&digest, &sig.0)?;
         let id = policy::cmd_id(&digest, sig);
         Ok(id)

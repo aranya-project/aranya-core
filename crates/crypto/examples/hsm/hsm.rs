@@ -15,7 +15,8 @@ use crypto::{
     import::{Import, ImportError},
     keys::{PublicKey, SecretKey},
     rust::{Aes256Gcm, Sha512},
-    signer, Rng,
+    signer::PkError,
+    Rng,
 };
 use serde::{Deserialize, Serialize};
 
@@ -28,13 +29,21 @@ pub enum HsmError {
     NotFound(KeyId),
     /// Wrong key type.
     WrongKeyType,
-    /// An internal error was discovered.
+    /// An internal bug was discovered.
     Bug(Bug),
+    /// The Public Key is invalid.
+    PkError(PkError),
 }
 
 impl From<Bug> for HsmError {
     fn from(err: Bug) -> Self {
         Self::Bug(err)
+    }
+}
+
+impl From<PkError> for HsmError {
+    fn from(err: PkError) -> Self {
+        Self::PkError(err)
     }
 }
 
@@ -158,7 +167,7 @@ impl Hsm {
     /// Creates a new `SigningKey`.
     pub fn new_signing_key(&mut self) -> KeyId {
         let sk = SigningKey::new(&mut Rng);
-        let id = Self::signer_key_id(&signer::SigningKey::public(&sk));
+        let id = Self::signer_key_id(&SigningKey::public(&sk));
         self.keys.insert(id, HsmKey::Signing(sk));
         id
     }
@@ -166,7 +175,7 @@ impl Hsm {
     /// Imports a `SigningKey`.
     pub fn import_signing_key(&mut self, data: &[u8]) -> Result<KeyId, ImportError> {
         let sk = SigningKey::import(data)?;
-        let id = Self::signer_key_id(&signer::SigningKey::public(&sk));
+        let id = Self::signer_key_id(&SigningKey::public(&sk));
         self.keys.insert(id, HsmKey::Signing(sk));
         Ok(id)
     }
@@ -198,7 +207,7 @@ impl Hsm {
         F: FnOnce(&VerifyingKey) -> R,
     {
         match self.load_key(id)? {
-            HsmKey::Signing(sk) => Ok(f(&signer::SigningKey::public(sk))),
+            HsmKey::Signing(sk) => Ok(f(&SigningKey::public(sk))),
             HsmKey::Verifying(pk) => Ok(f(pk)),
         }
     }

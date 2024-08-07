@@ -224,11 +224,17 @@ pub struct User<T: TestImpl> {
 impl<T: TestImpl> User<T> {
     /// Creates a new [`User`].
     pub fn new(mut eng: T::Engine, aps: T::Aps, aranya: T::Aranya, mut store: T::Store) -> Self {
-        let user_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&mut eng).id();
+        let user_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&mut eng)
+            .id()
+            .expect("user ID should be valid");
 
         let enc_sk = EncryptionKey::new(&mut eng);
-        let enc_key_id = enc_sk.id();
-        let enc_pk = encode_enc_pk(&enc_sk.public());
+        let enc_key_id = enc_sk.id().expect("encryption key ID should be valid");
+        let enc_pk = encode_enc_pk(
+            &enc_sk
+                .public()
+                .expect("encryption public key should be valid"),
+        );
 
         let wrapped = eng
             .wrap(enc_sk)

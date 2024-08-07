@@ -214,15 +214,15 @@ macro_rules! sk_misc {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
             #[doc = ::core::concat!("Two `", ::core::stringify!($name), "s` with the same ID are the same secret.")]
             #[inline]
-            pub fn id(&self) -> $id {
+            pub fn id(&self) -> Result<$id, $crate::id::IdError> {
                 const CONTEXT: &'static str = ::core::stringify!($sk);
 
-                let pk = $crate::keys::PublicKey::export(&self.0.public());
+                let pk = $crate::keys::PublicKey::export(&self.0.public()?);
                 let id = $crate::id::Id::new::<CS>(
                     ::core::borrow::Borrow::borrow(&pk),
                     CONTEXT.as_bytes(),
                 );
-                $id(id)
+                Ok($id(id))
             }
         }
 
@@ -240,14 +240,14 @@ macro_rules! sk_misc {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             #[inline]
-            pub fn id(&self) -> $id {
-                self.public().id()
+            pub fn id(&self) -> Result<$id,$crate::id::IdError> {
+                self.public()?.id()
             }
 
             /// Returns the public half of the key.
             #[inline]
-            pub fn public(&self) -> $pk<CS> {
-                $pk(self.0.public())
+            pub fn public(&self) -> Result<$pk<CS>,$crate::signer::PkError>{
+                Ok($pk(self.0.public()?))
             }
         }
 
@@ -267,7 +267,7 @@ macro_rules! sk_misc_inner {
 
         impl<CS: $crate::CipherSuite> ::core::fmt::Display for $name<CS> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                ::core::write!(f, "{}", self.id())
+                ::core::write!(f, "{}", self.id().map_err(|_| ::core::fmt::Error)?)
             }
         }
 
@@ -276,7 +276,7 @@ macro_rules! sk_misc_inner {
                 ::core::write!(
                     f,
                     ::core::concat!(::core::stringify!($name), " {}"),
-                    self.id()
+                    self.id().map_err(|_| ::core::fmt::Error)?
                 )
             }
         }
@@ -285,7 +285,7 @@ macro_rules! sk_misc_inner {
             type Id = $id;
 
             #[inline]
-            fn id(&self) -> Self::Id {
+            fn id(&self) -> Result<Self::Id, $crate::id::IdError> {
                 self.id()
             }
         }
@@ -299,11 +299,11 @@ macro_rules! pk_misc {
         impl<CS: $crate::CipherSuite> $name<CS> {
             #[doc = ::core::concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
-            pub fn id(&self) -> $id {
-                $id($crate::id::Id::new::<CS>(
+            pub fn id(&self) -> Result<$id, $crate::id::IdError> {
+                Ok($id($crate::id::Id::new::<CS>(
                     self.0.export().borrow(),
                     $sk.as_bytes(),
-                ))
+                )))
             }
         }
 
@@ -331,13 +331,17 @@ macro_rules! pk_misc {
 
         impl<CS: $crate::CipherSuite> ::core::fmt::Display for $name<CS> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                ::core::write!(f, "{}", self.id())
+                ::core::write!(f, "{}", self.id().map_err(|_| ::core::fmt::Error)?)
             }
         }
 
         impl<CS: $crate::CipherSuite> ::core::fmt::Debug for $name<CS> {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                ::core::write!(f, ::core::concat!(stringify!($name), " {}"), self.id())
+                ::core::write!(
+                    f,
+                    ::core::concat!(stringify!($name), " {}"),
+                    self.id().map_err(|_| ::core::fmt::Error)?
+                )
             }
         }
 
@@ -375,7 +379,7 @@ macro_rules! pk_misc {
             type Id = $id;
 
             #[inline]
-            fn id(&self) -> Self::Id {
+            fn id(&self) -> Result<Self::Id, $crate::id::IdError> {
                 self.id()
             }
         }

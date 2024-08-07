@@ -233,8 +233,8 @@ macro_rules! ecdh_impl {
             type EncapKey = $pk;
 
             #[inline]
-            fn public(&self) -> $pk {
-                $pk(elliptic_curve::PublicKey::from_secret_scalar(&self.0))
+            fn public(&self) -> Result<$pk, $crate::signer::PkError> {
+                Ok($pk(elliptic_curve::PublicKey::from_secret_scalar(&self.0)))
             }
         }
 
@@ -370,8 +370,8 @@ macro_rules! ecdsa_impl {
             }
 
             #[inline]
-            fn public(&self) -> $pk {
-                $pk(ecdsa::VerifyingKey::from(&self.0))
+            fn public(&self) -> Result<$pk, $crate::signer::PkError> {
+                Ok($pk(ecdsa::VerifyingKey::from(&self.0)))
             }
         }
 

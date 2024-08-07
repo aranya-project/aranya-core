@@ -48,7 +48,7 @@ use crate::{
         dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId, SharedSecret,
     },
     keys::{PublicKey, SecretKey, SecretKeyBytes},
-    signer::{Signer, SignerError, SignerId, SigningKey, VerifyingKey},
+    signer::{PkError, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
 };
 
@@ -404,9 +404,9 @@ macro_rules! ecdh_impl {
             type EncapKey = $pk;
 
             #[inline]
-            fn public(&self) -> $pk {
+            fn public(&self) -> Result<$pk, PkError> {
                 let p = Pin::new(self);
-                Self::public(p)
+                Ok(Self::public(p))
             }
         }
 
@@ -704,9 +704,9 @@ macro_rules! ecdsa_impl {
             }
 
             #[inline]
-            fn public(&self) -> $pk {
+            fn public(&self) -> Result<$pk, PkError> {
                 let p = Pin::new(self);
-                Self::public(p)
+                Ok(Self::public(p))
             }
         }
 

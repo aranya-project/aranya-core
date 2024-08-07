@@ -238,8 +238,8 @@ impl<T: Signer + ?Sized> SigningKey<SignerWithDefaults<T>> for SigningKeyWithDef
         Ok(SignatureWithDefaults(self.0.sign(msg)?))
     }
 
-    fn public(&self) -> VerifyingKeyWithDefaults<T> {
-        VerifyingKeyWithDefaults(self.0.public())
+    fn public(&self) -> Result<VerifyingKeyWithDefaults<T>, crate::signer::PkError> {
+        Ok(VerifyingKeyWithDefaults(self.0.public()?))
     }
 }
 

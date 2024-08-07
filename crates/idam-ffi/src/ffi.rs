@@ -63,7 +63,7 @@ function derive_enc_key_id(
         enc_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&enc_pk)?;
-        Ok(pk.id().into())
+        Ok(pk.id()?.into())
     }
 
     /// Returns the ID of an encoded [`VerifyingKey`].
@@ -80,7 +80,7 @@ function derive_sign_key_id(
         sign_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&sign_pk)?;
-        Ok(pk.id().into())
+        Ok(pk.id().map_err(crypto::Error::from)?.into())
     }
 
     /// Returns the ID of an encoded [`IdentityVerifyingKey`].
@@ -97,7 +97,7 @@ function derive_user_id(
         ident_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: IdentityVerifyingKey<E::CS> = postcard::from_bytes(&ident_pk)?;
-        Ok(pk.id().into())
+        Ok(pk.id().map_err(crypto::Error::from)?.into())
     }
 
     /// Generates a random [`GroupKey`].
@@ -167,7 +167,10 @@ function open_group_key(
             .get_key(eng, &our_enc_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id)))?;
-        debug_assert_eq!(sk.id().into_id(), our_enc_sk_id);
+        debug_assert_eq!(
+            sk.id().map_err(crypto::Error::from)?.into_id(),
+            our_enc_sk_id
+        );
 
         let group_key = {
             let enc = Encap::<E::CS>::from_bytes(&sealed_group_key.encap)?;
@@ -220,7 +223,7 @@ function encrypt_message(
             .get_key(eng, &our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id)))?;
-        let our_sign_pk = sk.public();
+        let our_sign_pk = sk.public().expect("signing key should be valid");
 
         let ctx = Context {
             label: &label,
