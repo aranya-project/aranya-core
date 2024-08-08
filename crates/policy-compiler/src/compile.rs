@@ -744,16 +744,6 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Not);
             }
             Expression::Negative(e) => {
-                if let Expression::Int(value) = **e {
-                    // Return negative of the int
-                    self.append_instruction(Instruction::Const(Value::Int(
-                        value
-                            .checked_neg()
-                            .assume("value is not `i64::MIN` because it is non-negative")?,
-                    )));
-                    return Ok(expression_type);
-                }
-
                 // Evaluate the expression
                 self.compile_expression(e)?;
 

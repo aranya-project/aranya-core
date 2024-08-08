@@ -15,9 +15,9 @@ use crate::lang::ParseErrorKind;
 #[allow(clippy::result_large_err)]
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
-
     let token: Pair<'_, Rule> = pair.next().unwrap();
     assert_eq!(token.as_rule(), Rule::int_literal);
+
     Ok(())
 }
 
@@ -1231,7 +1231,6 @@ fn enum_arm_should_be_limited_to_literals() {
             }
         }
         "#,
-        // TODO add test for negative numbers... depends on (#869)
     ];
 
     for text in policies {

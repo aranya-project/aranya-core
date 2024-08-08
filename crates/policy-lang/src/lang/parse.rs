@@ -545,7 +545,16 @@ pub fn parse_expression(
             )),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
-            Rule::neg => Ok(Expression::Negative(Box::new(rhs?))),
+            Rule::neg => {
+                let expr = rhs?;
+                match expr {
+                    Expression::Int(n) => {
+                        let neg_n = n.checked_neg().expect("should be able to negate number");
+                        Ok(Expression::Int(neg_n))
+                    }
+                    _ => Ok(Expression::Negative(Box::new(expr))),
+                }
+            }
             Rule::not => Ok(Expression::Not(Box::new(rhs?))),
             Rule::unwrap => Ok(Expression::Unwrap(Box::new(rhs?))),
             Rule::check_unwrap => Ok(Expression::CheckUnwrap(Box::new(rhs?))),
