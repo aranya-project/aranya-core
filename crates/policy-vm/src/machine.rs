@@ -112,6 +112,10 @@ pub struct Machine {
     pub progmem: Vec<Instruction>,
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
+    /// Action definitions
+    pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Command definitions
+    pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
     /// Fact schemas
     pub fact_defs: BTreeMap<String, ast::FactDefinition>,
     /// Struct schemas
@@ -133,6 +137,8 @@ impl Machine {
         Machine {
             progmem: Vec::from_iter(instructions),
             labels: BTreeMap::new(),
+            action_defs: BTreeMap::new(),
+            command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             command_attributes: BTreeMap::new(),
@@ -146,6 +152,8 @@ impl Machine {
         Machine {
             progmem: vec![],
             labels: BTreeMap::new(),
+            action_defs: BTreeMap::new(),
+            command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             command_attributes: BTreeMap::new(),
@@ -160,6 +168,8 @@ impl Machine {
             ModuleData::V0(m) => Ok(Self {
                 progmem: m.progmem.into(),
                 labels: m.labels,
+                action_defs: m.action_defs,
+                command_defs: m.command_defs,
                 fact_defs: m.fact_defs,
                 struct_defs: m.struct_defs,
                 command_attributes: m.command_attributes,
@@ -175,6 +185,8 @@ impl Machine {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
                 labels: self.labels,
+                action_defs: self.action_defs,
+                command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 command_attributes: self.command_attributes,
@@ -817,6 +829,32 @@ where
         this_data: &Struct,
     ) -> Result<(), MachineError> {
         self.setup_function(&Label::new(name, label_type))?;
+
+        // Verify 'this' arg matches command's fields
+        let command_def = self
+            .machine
+            .command_defs
+            .get(name)
+            .ok_or(self.err(MachineErrorType::NotDefined(String::from(name))))?;
+
+        if this_data.fields.len() != command_def.len() {
+            return Err(self.err(MachineErrorType::Unknown(alloc::format!(
+                "command `{}` expects {} field(s), but `this` contains {}",
+                name,
+                command_def.len(),
+                this_data.fields.len()
+            ))));
+        }
+        for field in &this_data.fields {
+            let expected_type = command_def
+                .get(field.0)
+                .ok_or(self.err(MachineErrorType::InvalidStructMember(String::from(field.0))))?;
+            if let Some(field_type) = field.1.vtype() {
+                if field_type != *expected_type {
+                    return Err(self.err(MachineErrorType::InvalidType));
+                }
+            }
+        }
         self.defs
             .insert(String::from("this"), Value::Struct(this_data.to_owned()));
         Ok(())
@@ -865,9 +903,42 @@ where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
+        // verify number and types of arguments
+        let arg_def = self.machine.action_defs.get(name).ok_or(MachineError::new(
+            MachineErrorType::NotDefined(String::from(name)),
+        ))?;
+        let args: Vec<Value> = args.into_iter().map(|a| a.into()).collect();
+        if args.len() != arg_def.len() {
+            return Err(MachineError::new(MachineErrorType::Unknown(
+                alloc::format!(
+                    "action `{}` expects {} argument(s), but was called with {}",
+                    name,
+                    arg_def.len(),
+                    args.len()
+                ),
+            )));
+        }
+        for (i, arg) in args.iter().enumerate() {
+            if let Some(arg_type) = arg.vtype() {
+                let def_type = &arg_def[i].field_type;
+                match def_type {
+                    ast::VType::Optional(t) => {
+                        if arg_type != **t {
+                            return Err(MachineError::new(MachineErrorType::InvalidType));
+                        }
+                    }
+                    _ => {
+                        if arg_type != *def_type {
+                            return Err(MachineError::new(MachineErrorType::InvalidType));
+                        }
+                    }
+                }
+            }
+        }
+
         self.setup_function(&Label::new(name, LabelType::Action))?;
         for a in args {
-            self.ipush(a.into())?;
+            self.ipush(a)?;
         }
         Ok(())
     }

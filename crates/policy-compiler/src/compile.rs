@@ -1140,8 +1140,21 @@ impl<'a> CompileState<'a> {
                         ));
                     }
 
-                    for a in &fc.arguments {
-                        self.compile_expression(a)?;
+                    for (i, arg) in fc.arguments.iter().enumerate() {
+                        let arg_type = self.compile_expression(arg)?;
+                        match arg_type {
+                            Typeish::Type(t) => {
+                                let expected_arg = &action_def.arguments[i];
+                                if t != expected_arg.field_type {
+                                    return Err(CompileError::from_locator(CompileErrorType::BadArgument(format!("invalid argument type for `{}`: expected `{}`, but got `{t}`", 
+                                            expected_arg.identifier,
+                                            expected_arg.field_type)
+                                        ),
+                                        statement.locator, self.m.codemap.as_ref()));
+                                }
+                            }
+                            Typeish::Indeterminate => {}
+                        }
                     }
 
                     let label = Label::new(&fc.identifier, LabelType::Action);
@@ -1281,6 +1294,16 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Return);
         self.identifier_types.pop_scope();
 
+        match self.m.action_defs.entry(action_node.identifier.clone()) {
+            Entry::Vacant(e) => {
+                e.insert(action_node.arguments.clone());
+            }
+            Entry::Occupied(_) => {
+                return Err(self.err(CompileErrorType::AlreadyDefined(
+                    action_node.identifier.clone(),
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -1520,6 +1543,23 @@ impl<'a> CompileState<'a> {
                 Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(attr.0.clone())));
                 }
+            }
+        }
+
+        // add command fields to compile target
+        match self.m.command_defs.entry(command_node.identifier.clone()) {
+            Entry::Vacant(e) => {
+                let map = command_node
+                    .fields
+                    .iter()
+                    .map(|f| (f.identifier.clone(), f.field_type.clone()))
+                    .collect();
+                e.insert(map);
+            }
+            Entry::Occupied(_) => {
+                return Err(self.err(CompileErrorType::AlreadyDefined(
+                    command_node.identifier.clone(),
+                )));
             }
         }
         Ok(())

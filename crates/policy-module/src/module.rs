@@ -79,6 +79,10 @@ pub struct ModuleV0 {
     pub progmem: Box<[Instruction]>,
     /// Labels
     pub labels: BTreeMap<Label, usize>,
+    /// Action definitions
+    pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Command definitions
+    pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
     /// Fact definitions
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct definitions

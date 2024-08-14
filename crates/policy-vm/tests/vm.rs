@@ -80,8 +80,11 @@ fn test_bytes() -> anyhow::Result<()> {
         let ctx = dummy_ctx_action(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
 
-        rs.call_action(name, [vec![0xa, 0xb, 0xc], vec![0, 255, 42]])?
-            .success();
+        rs.call_action(
+            name,
+            [Value::Id(Id::default()), Value::Bytes(vec![0, 255, 42])],
+        )?
+        .success();
     }
 
     assert_eq!(
@@ -89,14 +92,14 @@ fn test_bytes() -> anyhow::Result<()> {
         (
             "Foo".to_string(),
             vec![
-                KVPair::new("id_field", Value::Bytes(vec![0xa, 0xb, 0xc])),
+                KVPair::new("id_field", Value::Id(Id::default())),
                 KVPair::new("x", Value::Bytes(vec![0, 255, 42]))
             ]
         )
     );
     assert_eq!(
         format!("{}", io.publish_stack[0].1[0]),
-        "id_field: b:0A0B0C".to_string()
+        format!("id_field: {}", Id::default().to_string())
     );
 
     Ok(())
@@ -147,7 +150,7 @@ fn test_structs() -> anyhow::Result<()> {
         let name = "foo";
         let ctx = dummy_ctx_action(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_action(name, [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])?
+        rs.call_action(name, [Value::Id(Id::default()), Value::Int(3)])?
             .success();
     }
 
@@ -160,7 +163,7 @@ fn test_structs() -> anyhow::Result<()> {
                     "bar",
                     Value::Struct(Struct::new("Bar", [KVPair::new("x", Value::Int(3))]))
                 ),
-                KVPair::new("id_field", Value::Bytes(vec![0xa, 0xb, 0xc])),
+                KVPair::new("id_field", Value::Id(Id::default())),
             ]
         )
     );
@@ -193,7 +196,7 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
         let name = "foo";
         let ctx = dummy_ctx_action(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_action("foo", [Value::Bytes(vec![0xa, 0xb, 0xc]), Value::Int(3)])
+        rs.call_action("foo", [Value::Id(Id::default()), Value::Int(3)])
             .unwrap_err()
     };
 
@@ -220,7 +223,7 @@ fn test_action() -> anyhow::Result<()> {
     let ctx = dummy_ctx_action(name);
 
     machine
-        .call_action(name, [Value::from(3), Value::from("foo")], &mut io, &ctx)?
+        .call_action(name, [Value::from(3)], &mut io, &ctx)?
         .success();
 
     assert_eq!(
@@ -233,6 +236,45 @@ fn test_action() -> anyhow::Result<()> {
             ]
         )
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_action_wrong_args() -> anyhow::Result<()> {
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V1)?;
+
+    let name = "foo";
+    let module = Compiler::new(&policy).compile()?;
+    let mut machine = Machine::from_module(module)?;
+    let ctx = dummy_ctx_action(name);
+
+    // wrong number of args
+    {
+        let mut io = TestIO::new();
+
+        let err = machine
+            .call_action(name, [Value::from("3"), Value::from(false)], &mut io, &ctx)
+            .unwrap_err()
+            .err_type;
+        assert_eq!(
+            err,
+            MachineErrorType::Unknown(String::from(
+                "action `foo` expects 1 argument(s), but was called with 2"
+            ))
+        );
+    }
+
+    // invalid type
+    {
+        let mut io = TestIO::new();
+
+        let err = machine
+            .call_action(name, [Value::from("3")], &mut io, &ctx)
+            .unwrap_err()
+            .err_type;
+        assert_eq!(err, MachineErrorType::InvalidType);
+    }
 
     Ok(())
 }
@@ -303,6 +345,81 @@ fn test_command_policy() -> anyhow::Result<()> {
     println!("effects: {:?}", io.effect_stack);
 
     Ok(())
+}
+
+#[test]
+fn test_command_invalid_this() {
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V1).expect("should parse");
+
+    let name = "Foo";
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()
+        .expect("should compile");
+    let mut machine = Machine::from_module(module).expect("should create machine");
+    let ctx = dummy_ctx_policy(name);
+
+    // invalid field count
+    {
+        let mut io = TestIO::new();
+        let self_data = Struct {
+            name: String::from("Bar"),
+            fields: vec![(String::from("b"), Value::Int(4))]
+                .into_iter()
+                .collect(),
+        };
+        let err = machine
+            .call_command_policy(name, &self_data, dummy_envelope(), &mut io, &ctx)
+            .unwrap_err()
+            .err_type;
+        assert_eq!(
+            err,
+            MachineErrorType::Unknown(String::from(
+                "command `Foo` expects 2 field(s), but `this` contains 1"
+            ))
+        );
+    }
+
+    // invalid field name
+    {
+        let mut io = TestIO::new();
+        let self_data = Struct {
+            name: String::from("Bar"),
+            fields: vec![
+                (String::from("aaa"), Value::Int(3)),
+                (String::from("b"), Value::Int(4)),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        let err = machine
+            .call_command_policy(name, &self_data, dummy_envelope(), &mut io, &ctx)
+            .unwrap_err()
+            .err_type;
+        assert_eq!(
+            err,
+            MachineErrorType::InvalidStructMember(String::from("aaa"))
+        );
+    }
+
+    // invalid type
+    {
+        let mut io = TestIO::new();
+        let self_data = Struct {
+            name: String::from("Bar"),
+            fields: vec![
+                (String::from("a"), Value::Int(3)),
+                (String::from("b"), Value::Bool(false)),
+            ]
+            .into_iter()
+            .collect(),
+        };
+        let err = machine
+            .call_command_policy(name, &self_data, dummy_envelope(), &mut io, &ctx)
+            .unwrap_err()
+            .err_type;
+        assert_eq!(err, MachineErrorType::InvalidType);
+    }
 }
 
 #[test]
@@ -494,7 +611,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
         let name = "testExists";
         let ctx = dummy_ctx_action(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_action(name, [false])?.success();
+        rs.call_action(name, iter::empty::<Value>())?.success();
     }
 
     Ok(())
@@ -735,14 +852,16 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         let action_name = "test_query";
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_action(action_name, [Value::None])?.success();
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
     }
 
     {
         let action_name = "test_exists";
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_action(action_name, [Value::None])?.success();
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
     }
 
     Ok(())
@@ -1395,14 +1514,15 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         let action_name = "test_existing";
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        rs.call_action(action_name, [Value::None])?.success();
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
     }
 
     {
         let action_name = "test_nonexistent";
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
-        let status = rs.call_action(action_name, [Value::None])?;
+        let status = rs.call_action(action_name, iter::empty::<Value>())?;
         assert_eq!(status, ExitReason::Check);
     }
 
@@ -1513,7 +1633,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
     ) -> Result<ExitReason, MachineError> {
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(io, &ctx);
-        rs.call_action(action_name, [Value::None])
+        rs.call_action(action_name, iter::empty::<Value>())
     }
 
     assert_eq!(
@@ -1648,7 +1768,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
 
     let ctx = dummy_ctx_action("foo");
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    rs.call_action("foo", [Value::None])?.success();
+    rs.call_action("foo", iter::empty::<Value>())?.success();
 
     // Check if the published struct is correct
     assert_eq!(io.publish_stack.len(), 1);
@@ -1711,7 +1831,7 @@ fn test_global_let_duplicates() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
     let ctx = dummy_ctx_action("foo");
     let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action("foo", [Value::None]);
+    let result = rs.call_action("foo", iter::empty::<Value>());
 
     assert!(matches!(
         result,

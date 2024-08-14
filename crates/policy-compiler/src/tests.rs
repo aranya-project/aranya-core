@@ -1682,21 +1682,36 @@ fn test_action_call_not_in_action_context() {
 
 #[test]
 fn test_action_call_wrong_args() {
-    let text = r#"
+    let texts = [
+        (
+            r#"
         action bar(n int) {}
         action foo() {
             action bar()
         }
-    "#;
+        "#,
+            CompileErrorType::BadArgument(
+                "call to `bar` has 0 arguments, but it should have 1".to_string(),
+            ),
+        ),
+        (
+            r#"
+        action bar(n int) {}
+        action foo() {
+            action bar(false)
+        }
+        "#,
+            CompileErrorType::BadArgument(
+                "invalid argument type for `n`: expected `int`, but got `bool`".to_string(),
+            ),
+        ),
+    ];
 
-    let policy = parse_policy_str(text, Version::V1).expect("should parse");
-    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
-    assert_eq!(
-        err,
-        CompileErrorType::BadArgument(
-            "call to `bar` has 0 arguments, but it should have 1".to_string()
-        )
-    );
+    for (text, expected) in texts {
+        let policy = parse_policy_str(text, Version::V1).expect("should parse");
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(err, expected);
+    }
 }
 
 #[test]

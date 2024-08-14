@@ -14,6 +14,10 @@ pub struct CompileTarget {
     pub progmem: Vec<Instruction>,
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
+    /// Action definitions
+    pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Command definitions (`fields`)
+    pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
     /// Fact schemas
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct schemas
@@ -32,6 +36,8 @@ impl CompileTarget {
         CompileTarget {
             progmem: vec![],
             labels: BTreeMap::new(),
+            action_defs: BTreeMap::new(),
+            command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             command_attributes: BTreeMap::new(),
@@ -46,6 +52,8 @@ impl CompileTarget {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
                 labels: self.labels,
+                action_defs: self.action_defs,
+                command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 command_attributes: self.command_attributes,
