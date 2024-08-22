@@ -29,7 +29,7 @@ pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
-use buggy::{Bug, BugExt};
+use buggy::{bug, Bug, BugExt};
 use crypto::{csprng::rand::Rng as _, Csprng, Rng};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
@@ -42,6 +42,19 @@ use crate::{
 
 pub mod io;
 pub use io::*;
+
+/// Maximum depth of fact indices before compaction.
+///
+/// A lower value will speed up search queries but require more compaction,
+/// slowing down fact index creation and using more storage space.
+///
+/// In the future, this may be configurable at runtime or dynamic based on
+/// heuristics such as fact density.
+///
+/// 16 is our initial guess for balance.
+///
+/// This must be at least 2.
+const MAX_FACT_INDEX_DEPTH: usize = 16;
 
 pub struct LinearStorageProvider<FM: IoManager> {
     manager: FM,
@@ -108,6 +121,10 @@ struct FactIndexRepr {
     offset: usize,
     /// Offset of prior fact index.
     prior: Option<usize>,
+    /// Depth of this fact index.
+    ///
+    /// `prior.depth + 1`, or just `1` if no prior
+    depth: usize,
     /// Facts in sorted order
     facts: NamedFactMap,
 }
@@ -166,6 +183,12 @@ enum FactPerspectivePrior<R> {
     None,
     FactPerspective(Box<LinearFactPerspective<R>>),
     FactIndex { offset: usize, reader: R },
+}
+
+impl<R> FactPerspectivePrior<R> {
+    fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
 }
 
 impl<FM: IoManager + Default> Default for LinearStorageProvider<FM> {
@@ -279,11 +302,15 @@ impl<W: Write> LinearStorage<W> {
         assert!(matches!(init.parents, Prior::None));
         assert!(matches!(init.facts.prior, FactPerspectivePrior::None));
 
+        let mut map = init.facts.map;
+        map.retain(|_, kv| !kv.is_empty());
+
         let facts = writer
             .append(|offset| FactIndexRepr {
                 offset,
                 prior: None,
-                facts: init.facts.map,
+                depth: 1,
+                facts: map,
             })?
             .offset;
 
@@ -320,6 +347,34 @@ impl<W: Write> LinearStorage<W> {
 
     fn open(writer: W) -> Result<Self, StorageError> {
         Ok(Self { writer })
+    }
+
+    fn compact(&mut self, mut repr: FactIndexRepr) -> Result<FactIndexRepr, StorageError> {
+        let mut map = NamedFactMap::new();
+        let reader = self.writer.readonly();
+        loop {
+            for (name, kv) in repr.facts {
+                let sub = map.entry(name).or_default();
+                for (k, v) in kv {
+                    sub.entry(k).or_insert(v);
+                }
+            }
+            let Some(offset) = repr.prior else { break };
+            repr = reader.fetch(offset)?;
+        }
+
+        // Since there's no prior, we can remove tombstones
+        map.retain(|_, kv| {
+            kv.retain(|_, v| v.is_some());
+            !kv.is_empty()
+        });
+
+        Ok(self
+            .write_facts(LinearFactPerspective {
+                map,
+                prior: FactPerspectivePrior::None,
+            })?
+            .repr)
     }
 }
 
@@ -362,6 +417,9 @@ impl<F: Write> Storage for LinearStorage<F> {
             let mut facts = LinearFactPerspective::new(prior);
             for data in &segment.repr.commands[..=parent.command] {
                 facts.apply_updates(&data.updates);
+            }
+            if facts.prior.is_none() {
+                facts.map.retain(|_, kv| !kv.is_empty());
             }
             if facts.map.is_empty() {
                 facts.prior
@@ -562,26 +620,43 @@ impl<F: Write> Storage for LinearStorage<F> {
         &mut self,
         facts: Self::FactPerspective,
     ) -> Result<Self::FactIndex, StorageError> {
-        let prior = match facts.prior {
+        let mut prior = match facts.prior {
             FactPerspectivePrior::None => None,
             FactPerspectivePrior::FactPerspective(prior) => {
                 let prior = self.write_facts(*prior)?;
                 if facts.map.is_empty() {
                     return Ok(prior);
                 }
-                Some(prior.repr.offset)
+                Some(prior.repr)
             }
             FactPerspectivePrior::FactIndex { offset, reader } => {
+                let repr = reader.fetch(offset)?;
                 if facts.map.is_empty() {
-                    let repr = reader.fetch(offset)?;
                     return Ok(LinearFactIndex { repr, reader });
                 }
-                Some(offset)
+                Some(repr)
             }
         };
+
+        let depth = if let Some(mut p) = prior.take() {
+            if p.depth > MAX_FACT_INDEX_DEPTH - 1 {
+                p = self.compact(p)?;
+            }
+            prior.insert(p).depth
+        } else {
+            0
+        };
+
+        let depth = depth.checked_add(1).assume("depth won't overflow")?;
+
+        if depth > MAX_FACT_INDEX_DEPTH {
+            bug!("fact index too deep");
+        }
+
         let repr = self.writer.append(|offset| FactIndexRepr {
             offset,
-            prior,
+            prior: prior.map(|p| p.offset),
+            depth,
             facts: facts.map,
         })?;
 
@@ -834,10 +909,21 @@ impl<R> LinearFactPerspective<R> {
 
     fn apply_updates(&mut self, updates: &[Update]) {
         for (name, key, value) in updates {
-            self.map
-                .entry(name.clone())
-                .or_default()
-                .insert(key.clone(), value.clone());
+            if self.prior.is_none() {
+                if let Some(value) = value {
+                    self.map
+                        .entry(name.clone())
+                        .or_default()
+                        .insert(key.clone(), Some(value.clone()));
+                } else if let Some(e) = self.map.get_mut(name) {
+                    e.remove(key);
+                }
+            } else {
+                self.map
+                    .entry(name.clone())
+                    .or_default()
+                    .insert(key.clone(), value.clone());
+            }
         }
     }
 }
@@ -911,7 +997,14 @@ impl<R: Read> QueryMut for LinearFactPerspective<R> {
     }
 
     fn delete(&mut self, name: String, keys: Keys) {
-        self.map.entry(name).or_default().insert(keys, None);
+        if self.prior.is_none() {
+            // No need for tombstones with no prior.
+            if let Some(kv) = self.map.get_mut(&name) {
+                kv.remove(&keys);
+            }
+        } else {
+            self.map.entry(name).or_default().insert(keys, None);
+        }
     }
 }
 
