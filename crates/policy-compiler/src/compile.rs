@@ -346,12 +346,10 @@ impl<'a> CompileState<'a> {
             // at runtime.
             return Err(self.err(CompileErrorType::BadArgument(s.identifier.clone())));
         }
-        self.append_instruction(Instruction::Const(Value::String(s.identifier.clone())));
-        self.append_instruction(Instruction::StructNew);
+        self.append_instruction(Instruction::StructNew(s.identifier.clone()));
         for field in &s.fields {
             self.compile_expression(&field.1)?;
-            self.append_instruction(Instruction::Const(Value::String(field.0.clone())));
-            self.append_instruction(Instruction::StructSet);
+            self.append_instruction(Instruction::StructSet(field.0.clone()));
         }
         Ok(())
     }
@@ -477,8 +475,7 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: &FactLiteral) -> Result<(), CompileError> {
-        self.append_instruction(Instruction::Const(Value::String(f.identifier.clone())));
-        self.append_instruction(Instruction::FactNew);
+        self.append_instruction(Instruction::FactNew(f.identifier.clone()));
         for field in &f.key_fields {
             if let FactField::Expression(e) = &field.1 {
                 self.compile_expression(e)?;
@@ -486,8 +483,7 @@ impl<'a> CompileState<'a> {
                 // Skip bind values
                 continue;
             }
-            self.append_instruction(Instruction::Const(Value::String(field.0.clone())));
-            self.append_instruction(Instruction::FactKeySet);
+            self.append_instruction(Instruction::FactKeySet(field.0.clone()));
         }
         if let Some(value_fields) = &f.value_fields {
             for field in value_fields {
@@ -497,8 +493,7 @@ impl<'a> CompileState<'a> {
                     // Skip bind values
                     continue;
                 }
-                self.append_instruction(Instruction::Const(Value::String(field.0.clone())));
-                self.append_instruction(Instruction::FactValueSet);
+                self.append_instruction(Instruction::FactValueSet(field.0.clone()));
             }
         }
         Ok(())
@@ -551,8 +546,7 @@ impl<'a> CompileState<'a> {
                     }
                     self.verify_fact_against_schema(fact, false)?;
                     self.compile_fact_literal(fact)?;
-                    self.append_instruction(Instruction::Const(Value::Int(*limit)));
-                    self.append_instruction(Instruction::FactCount);
+                    self.append_instruction(Instruction::FactCount(*limit));
                 }
                 ast::InternalFunction::If(e, t, f) => {
                     let else_name = self.anonymous_label();
@@ -658,8 +652,7 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
             }
             Expression::Identifier(i) => {
-                self.append_instruction(Instruction::Const(Value::String(i.clone())));
-                self.append_instruction(Instruction::Get);
+                self.append_instruction(Instruction::Get(i.clone()));
             }
             Expression::EnumReference(e) => {
                 // get enum by name
@@ -682,9 +675,7 @@ impl<'a> CompileState<'a> {
             }
             Expression::Dot(t, s) => {
                 self.compile_expression(t)?;
-                let sr: &str = s.as_ref();
-                self.append_instruction(Instruction::Const(sr.into()));
-                self.append_instruction(Instruction::StructGet);
+                self.append_instruction(Instruction::StructGet(s.clone()));
             }
             Expression::Add(a, b)
             | Expression::Subtract(a, b)
@@ -831,10 +822,7 @@ impl<'a> CompileState<'a> {
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
                     self.identifier_types.add(&s.identifier, et)?;
-                    self.append_instruction(Instruction::Const(Value::String(
-                        s.identifier.clone(),
-                    )));
-                    self.append_instruction(Instruction::Def);
+                    self.append_instruction(Instruction::Def(s.identifier.clone()));
                 }
                 (
                     ast::Statement::Check(s),
@@ -1058,8 +1046,7 @@ impl<'a> CompileState<'a> {
                                 self.compile_expression(e)?;
                             }
                         }
-                        self.append_instruction(Instruction::Const(Value::String(k.clone())));
-                        self.append_instruction(Instruction::FactValueSet);
+                        self.append_instruction(Instruction::FactValueSet(k.clone()));
                     }
                     self.append_instruction(Instruction::Update);
                 }
@@ -1146,7 +1133,7 @@ impl<'a> CompileState<'a> {
                             Typeish::Type(t) => {
                                 let expected_arg = &action_def.arguments[i];
                                 if t != expected_arg.field_type {
-                                    return Err(CompileError::from_locator(CompileErrorType::BadArgument(format!("invalid argument type for `{}`: expected `{}`, but got `{t}`", 
+                                    return Err(CompileError::from_locator(CompileErrorType::BadArgument(format!("invalid argument type for `{}`: expected `{}`, but got `{t}`",
                                             expected_arg.identifier,
                                             expected_arg.field_type)
                                         ),
@@ -1208,8 +1195,7 @@ impl<'a> CompileState<'a> {
 
         self.identifier_types.push_scope();
         for arg in function.arguments.iter().rev() {
-            self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
-            self.append_instruction(Instruction::Def);
+            self.append_instruction(Instruction::Def(arg.identifier.clone()));
             self.identifier_types
                 .add(&arg.identifier, Typeish::Type(arg.field_type.clone()))?;
         }
@@ -1236,8 +1222,7 @@ impl<'a> CompileState<'a> {
         self.map_range(function_node)?;
         self.identifier_types.push_scope();
         for arg in function.arguments.iter().rev() {
-            self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
-            self.append_instruction(Instruction::Def);
+            self.append_instruction(Instruction::Def(arg.identifier.clone()));
             self.identifier_types.add(
                 arg.identifier.clone(),
                 Typeish::Type(arg.field_type.clone()),
@@ -1282,8 +1267,7 @@ impl<'a> CompileState<'a> {
         }
 
         for arg in action.arguments.iter().rev() {
-            self.append_instruction(Instruction::Const(Value::String(arg.identifier.clone())));
-            self.append_instruction(Instruction::Def);
+            self.append_instruction(Instruction::Def(arg.identifier.clone()));
             self.identifier_types.add(
                 arg.identifier.clone(),
                 Typeish::Type(arg.field_type.clone()),
@@ -1375,8 +1359,7 @@ impl<'a> CompileState<'a> {
             "envelope",
             Typeish::Type(VType::Struct("Envelope".to_string())),
         )?;
-        self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
-        self.append_instruction(Instruction::Def);
+        self.append_instruction(Instruction::Def("envelope".into()));
         self.compile_statements(&command.policy)?;
         self.identifier_types.pop_scope();
         self.exit_statement_context();
@@ -1402,8 +1385,7 @@ impl<'a> CompileState<'a> {
             "envelope",
             Typeish::Type(VType::Struct("Envelope".to_string())),
         )?;
-        self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
-        self.append_instruction(Instruction::Def);
+        self.append_instruction(Instruction::Def("envelope".into()));
         self.compile_statements(&command.recall)?;
         self.identifier_types.pop_scope();
         self.exit_statement_context();
@@ -1448,8 +1430,7 @@ impl<'a> CompileState<'a> {
             "this",
             Typeish::Type(VType::Struct(command.identifier.clone())),
         )?;
-        self.append_instruction(Instruction::Const(Value::String("this".to_string())));
-        self.append_instruction(Instruction::Def);
+        self.append_instruction(Instruction::Def("this".into()));
         let from = self.wp;
         self.compile_statements(&command.seal)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
@@ -1497,8 +1478,7 @@ impl<'a> CompileState<'a> {
             "envelope",
             Typeish::Type(VType::Struct("Envelope".to_string())),
         )?;
-        self.append_instruction(Instruction::Const(Value::String("envelope".to_string())));
-        self.append_instruction(Instruction::Def);
+        self.append_instruction(Instruction::Def("envelope".into()));
         let from = self.wp;
         self.compile_statements(&command.open)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {

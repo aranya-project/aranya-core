@@ -488,16 +488,16 @@ fn test_errors() {
     let x = String::from("x");
 
     // StackUnderflow: Pop an empty stack
-    error_test_harness(&[Instruction::Get], MachineErrorType::StackUnderflow);
+    error_test_harness(
+        &[Instruction::Def(x.clone())],
+        MachineErrorType::StackUnderflow,
+    );
 
     // StackOverflow untested as the stack has no maximum size
 
     // NotDefined: Get a name that isn't defined
     error_test_harness(
-        &[
-            Instruction::Const(Value::String(x.clone())),
-            Instruction::Get,
-        ],
+        &[Instruction::Get(x.clone())],
         MachineErrorType::NotDefined(x.clone()),
     );
 
@@ -505,11 +505,9 @@ fn test_errors() {
     error_test_harness(
         &[
             Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(x.clone())),
-            Instruction::Dup(1),
-            Instruction::Dup(1),
-            Instruction::Def,
-            Instruction::Def,
+            Instruction::Dup(0),
+            Instruction::Def(x.clone()),
+            Instruction::Def(x.clone()),
         ],
         MachineErrorType::AlreadyDefined(x.clone()),
     );
@@ -555,8 +553,7 @@ fn test_errors() {
         &[
             Instruction::Const(Value::Int(3)),
             Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(x.clone())),
-            Instruction::StructSet,
+            Instruction::StructSet(x.clone()),
         ],
         MachineErrorType::InvalidType,
     );
@@ -566,8 +563,7 @@ fn test_errors() {
         &[
             Instruction::Const(Value::Int(3)),
             Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(x.clone())),
-            Instruction::FactKeySet,
+            Instruction::FactKeySet(x.clone()),
         ],
         MachineErrorType::InvalidType,
     );
@@ -577,8 +573,7 @@ fn test_errors() {
         &[
             Instruction::Const(Value::Int(3)),
             Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(x.clone())),
-            Instruction::FactValueSet,
+            Instruction::FactValueSet(x.clone()),
         ],
         MachineErrorType::InvalidType,
     );
@@ -596,8 +591,7 @@ fn test_errors() {
     error_test_harness(
         &[
             Instruction::Const(Value::Struct(Struct::new("foo", &[]))),
-            Instruction::Const(Value::String(x.clone())),
-            Instruction::StructGet,
+            Instruction::StructGet(x.clone()),
         ],
         MachineErrorType::InvalidStructMember(x.clone()),
     );

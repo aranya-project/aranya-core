@@ -442,16 +442,14 @@ where
             Instruction::Const(v) => {
                 self.ipush(v)?;
             }
-            Instruction::Def => {
-                let key = self.ipop()?;
+            Instruction::Def(key) => {
                 let value = self.ipop_value()?;
                 if self.defs.contains_key(&key) || self.machine.globals.contains_key(&key) {
                     return Err(self.err(MachineErrorType::AlreadyDefined(key)));
                 }
                 self.defs.insert(key, value);
             }
-            Instruction::Get => {
-                let key: String = self.ipop()?;
+            Instruction::Get(key) => {
                 let def_value = self.defs.get(&key);
                 let v = def_value
                     .or_else(|| self.machine.globals.get(&key))
@@ -595,30 +593,25 @@ where
                 };
                 self.ipush(v)?;
             }
-            Instruction::FactNew => {
-                let name = self.ipop()?;
+            Instruction::FactNew(name) => {
                 let fact = Fact::new(name);
                 self.ipush(fact)?;
             }
-            Instruction::FactKeySet => {
-                let varname = self.ipop()?;
+            Instruction::FactKeySet(varname) => {
                 let v: HashableValue = self.ipop()?;
                 let f: &mut Fact = self.ipeek()?;
                 f.set_key(varname, v);
             }
-            Instruction::FactValueSet => {
-                let varname = self.ipop()?;
+            Instruction::FactValueSet(varname) => {
                 let value = self.ipop_value()?;
                 let f: &mut Fact = self.ipeek()?;
                 f.set_value(varname, value);
             }
-            Instruction::StructNew => {
-                let name = self.ipop()?;
+            Instruction::StructNew(name) => {
                 let fields = BTreeMap::new();
                 self.ipush(Struct { name, fields })?;
             }
-            Instruction::StructSet => {
-                let field_name = self.ipop()?;
+            Instruction::StructSet(field_name) => {
                 let value = self.ipop_value()?;
                 let mut s: Struct = self.ipop()?;
                 // Validate that the field is part of this structure
@@ -634,8 +627,7 @@ where
                 s.fields.insert(field_name, value);
                 self.ipush(s)?;
             }
-            Instruction::StructGet => {
-                let varname: String = self.ipop()?;
+            Instruction::StructGet(varname) => {
                 let mut s: Struct = self.ipop()?;
                 let v = s
                     .fields
@@ -709,8 +701,7 @@ where
                     None => self.ipush(Value::None)?,
                 }
             }
-            Instruction::FactCount => {
-                let limit: i64 = self.ipop()?;
+            Instruction::FactCount(limit) => {
                 let fact: Fact = self.ipop()?;
                 self.validate_fact_literal(&fact)?;
 
