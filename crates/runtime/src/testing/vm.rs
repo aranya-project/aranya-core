@@ -14,7 +14,8 @@ use crate::{
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
-    ClientState, NullSink, VmEffect, VmPolicy, VmPolicyError,
+    ClientState, CommandId, GraphId, NullSink, SyncRequester, SyncResponder, VmEffect,
+    VmEffectData, VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
 };
 
 /// The policy used by these tests.
@@ -30,6 +31,11 @@ fact Stuff[x int]=>{y int}
 effect StuffHappened {
     x int,
     y int,
+}
+
+effect OutOfRange {
+    value int,
+    increment int,
 }
 
 command Init {
@@ -80,10 +86,21 @@ command Increment {
     open { return deserialize(envelope::open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        check stuff.y > 0
         let new_y = stuff.y + this.amount
         finish {
             update Stuff[x: this.key]=>{y: stuff.y} to {y: new_y}
             emit StuffHappened{x: this.key, y: new_y}
+        }
+    }
+
+    recall {
+        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        finish {
+            emit OutOfRange {
+                value: stuff.y,
+                increment: this.amount,
+            }
         }
     }
 }
@@ -110,12 +127,35 @@ action lookup(k int, v int, expected bool) {
         false => { check f is None }
     }
 }
+
+command Invalidate {
+    attributes {
+        priority: 1
+    }
+    fields {
+        key int
+    }
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
+    policy {
+        let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
+        let newval = -1  // hack around negative number parse bug; see #869
+        finish {
+            update Stuff[x: this.key]=>{y: stuff.y} to {y: newval}
+            emit StuffHappened{x: this.key, y: newval}
+        }
+    }
+}
+
+action invalidate() {
+    publish Invalidate { key: 1 }
+}
 ```
 "#;
 
 #[derive(Debug, Default)]
 struct TestSink {
-    expect: Vec<VmEffect>,
+    expect: Vec<VmEffectData>,
 }
 
 impl TestSink {
@@ -123,7 +163,7 @@ impl TestSink {
         TestSink { expect: Vec::new() }
     }
 
-    fn add_expectation(&mut self, expect: VmEffect) {
+    fn add_expectation(&mut self, expect: VmEffectData) {
         self.expect.push(expect);
     }
 }
@@ -165,6 +205,44 @@ impl Sink<&[u8]> for MsgSink {
     fn consume(&mut self, effect: &[u8]) {
         trace!("sink consume");
         self.0.push(effect.into())
+    }
+
+    fn rollback(&mut self) {
+        trace!("sink rollback");
+    }
+
+    fn commit(&mut self) {
+        trace!("sink commit");
+    }
+}
+
+/// A sink which allows more detailed inspection of effect metadata, as opposed to TestSink,
+/// which only cares about the data.
+#[derive(Default)]
+struct VecSink(Vec<VmEffect>);
+
+impl VecSink {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    fn last(&self) -> &VmEffect {
+        self.0.last().expect("no elements")
+    }
+}
+
+impl Sink<VmEffect> for VecSink {
+    fn begin(&mut self) {
+        trace!("sink begin");
+    }
+
+    fn consume(&mut self, effect: VmEffect) {
+        trace!("sink consume");
+        self.0.push(effect)
     }
 
     fn rollback(&mut self) {
@@ -443,6 +521,117 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
         .expect("key does not exist");
     let value: Vec<_> = postcard::from_bytes(&result).expect("result deserialization");
     assert_eq!(expected_value, value);
+
+    Ok(())
+}
+
+/// Syncs the first client at `storage_id` to the second client.
+fn test_sync<E, P, S>(
+    storage_id: GraphId,
+    cs1: &mut ClientState<E, P>,
+    cs2: &mut ClientState<E, P>,
+    sink: &mut S,
+) where
+    P: StorageProvider,
+    E: Engine,
+    S: Sink<<E>::Effect>,
+{
+    let mut rng = Rng::new();
+    let mut sync_requester = SyncRequester::new(storage_id, &mut rng);
+    let mut sync_responder = SyncResponder::new();
+
+    let mut req_transaction = cs1.transaction(&storage_id);
+
+    while sync_requester.ready() || sync_responder.ready() {
+        if sync_requester.ready() {
+            let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let len = sync_requester
+                .poll(&mut buffer, cs2.provider())
+                .expect("sync req->res");
+
+            sync_responder.receive(&buffer[..len]).expect("recieve res");
+        }
+
+        if sync_responder.ready() {
+            let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let len = sync_responder
+                .poll(&mut buffer, cs1.provider())
+                .expect("sync res->req");
+
+            if len == 0 {
+                break;
+            }
+
+            if let Some(cmds) = sync_requester.receive(&buffer[..len]).expect("recieve req") {
+                cs2.add_commands(&mut req_transaction, sink, &cmds)
+                    .expect("add commands");
+            };
+        }
+    }
+
+    cs2.commit(&mut req_transaction, sink).expect("commit");
+}
+
+/// Tests the command ID and recall status in emitted `VmEffect`s.
+///
+/// The [`TestEngine`] must be instantiated with
+/// [`TEST_POLICY_1`].
+pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(), VmPolicyError> {
+    // create client 1 and initialize it with a nonce of 1
+    let provider = MemStorageProvider::new();
+    let mut cs1 = ClientState::new(engine, provider);
+    let mut sink = VecSink::new();
+    let storage_id = cs1
+        .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
+        .expect("could not create graph");
+
+    // Create a new counter with a value of 1
+    cs1.action(&storage_id, &mut sink, vm_action!(create_action(1)))
+        .expect("could not call action");
+    assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
+    assert_ne!(sink.last().command, CommandId::default());
+    assert!(!sink.last().recalled);
+    sink.clear();
+
+    // create client 2 and sync it with client 1
+    let provider = MemStorageProvider::new();
+    let mut cs2 = ClientState::new(engine2, provider);
+    test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
+    assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
+    sink.clear();
+
+    // At this point, clients are fully synced. Client 2 adds an Increment command, which
+    // brings the counter to 2 from their perspective.
+    cs2.action(&storage_id, &mut sink, vm_action!(increment()))
+        .expect("could not call action");
+    assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 2 }));
+    let increment_cmd_id = sink.last().command;
+    sink.clear();
+
+    // MEANWHILE, IN A PARALLEL UNIVERSE - client 1 adds the Invalidate command, which sets
+    // the counter value to a negative number. This will cause the check to fail in the
+    // Increment command, preventing any further use of this counter.
+    cs1.action(&storage_id, &mut sink, vm_action!(invalidate()))
+        .expect("could not call action");
+    assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: -1 }));
+    sink.clear();
+
+    // Sync client 1 to client 2. Should produce a recall because `Invalidate` is
+    // prioritized before `Increment`. Now that the counter value is starting with `-1`, the
+    // check will fail, and recall will be executed. This produces an OutOfRange effect.
+    test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
+    assert_eq!(
+        sink.last(),
+        &vm_effect!(OutOfRange {
+            increment: 1,
+            value: -1
+        })
+    );
+    // We further check that the command that caused this effect is the increment command we
+    // created earlier,
+    assert_eq!(sink.last().command, increment_cmd_id);
+    // and that the `recalled` flag is set.
+    assert!(sink.last().recalled);
 
     Ok(())
 }

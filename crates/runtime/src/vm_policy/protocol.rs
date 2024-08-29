@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::Cow, collections::BTreeMap, string::String};
+use alloc::{borrow::Cow, collections::BTreeMap, rc::Rc, string::String};
 use core::fmt;
 
 use crypto::UserId;
@@ -46,24 +46,41 @@ pub enum VmProtocolData<'a> {
 /// access to that.
 #[derive(Debug)]
 pub struct VmProtocol<'a> {
+    /// Reference to the serialized data underlying the command
     data: &'a [u8],
+    /// The ID of the command
     id: CommandId,
+    /// The deserialized data
     unpacked: VmProtocolData<'a>,
+    /// A mapping between command names and priorities, shared with the underlying
+    /// [`super::VmPolicy`] and other [`VmProtocol`] instances.
+    priority_map: Rc<BTreeMap<String, u32>>,
 }
 
 impl<'a> VmProtocol<'a> {
-    pub fn new(data: &'a [u8], id: CommandId, unpacked: VmProtocolData<'a>) -> VmProtocol<'a> {
-        VmProtocol { data, id, unpacked }
+    pub fn new(
+        data: &'a [u8],
+        id: CommandId,
+        unpacked: VmProtocolData<'a>,
+        priority_map: Rc<BTreeMap<String, u32>>,
+    ) -> VmProtocol<'a> {
+        VmProtocol {
+            data,
+            id,
+            unpacked,
+            priority_map,
+        }
     }
 }
 
 impl<'a> Command for VmProtocol<'a> {
     fn priority(&self) -> Priority {
-        match &self.unpacked {
+        match self.unpacked {
             VmProtocolData::Init { .. } => Priority::Init,
             VmProtocolData::Merge { .. } => Priority::Merge,
-            // TODO(chip): implement actual message priorities
-            VmProtocolData::Basic { .. } => Priority::Basic(0),
+            VmProtocolData::Basic { kind, .. } => {
+                Priority::Basic(self.priority_map.get(kind).copied().unwrap_or_default())
+            }
         }
     }
 

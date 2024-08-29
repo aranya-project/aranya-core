@@ -34,3 +34,8 @@ fn test_query_fact_value() {
 fn test_aranya_session() {
     vm::test_aranya_session(new_engine()).unwrap()
 }
+
+#[test]
+fn test_effect_metadata() {
+    vm::test_effect_metadata(new_engine(), new_engine()).unwrap()
+}

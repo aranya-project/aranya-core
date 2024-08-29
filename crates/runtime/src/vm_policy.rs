@@ -93,6 +93,21 @@
 //! create distinct IDs for each graph. If no other suitable data exists, it is good
 //! practice to add a nonce field that is distinct for each graph.
 //!
+//! ## Priorities
+//!
+//! `VmPolicy` uses the policy language's attributes system to report command priorities to
+//! the runtime. You can specify the priority of a command by adding the `priority`
+//! attribute. It should be an `int` literal.
+//!
+//! ```policy
+//! command Foo {
+//!     attributes {
+//!         priority: 3
+//!     }
+//!     // ... fields, policy, etc.
+//! }
+//! ```
+//!
 //! ## Policy Interface Generator
 //!
 //! A more comfortable way to use `VmPolicy` is via the [Policy Interface
@@ -101,7 +116,7 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, string::String, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::fmt;
 
 use buggy::bug;
@@ -148,9 +163,10 @@ macro_rules! vm_action {
     };
 }
 
-/// Creates a [`VmEffect`].
+/// Creates a [`VmEffectData`].
 ///
-/// This is mostly useful for testing expected effects.
+/// This is mostly useful for testing expected effects, and is expected to be compared
+/// against a [`VmEffect`].
 ///
 /// # Example
 ///
@@ -163,7 +179,7 @@ macro_rules! vm_action {
 #[macro_export]
 macro_rules! vm_effect {
     ($name:ident { $($field:ident : $val:expr),* $(,)? }) => {
-        $crate::VmEffect {
+        $crate::VmEffectData {
             name: stringify!($name).into(),
             fields: vec![$(
                 ::policy_vm::KVPair::new(stringify!($field), $val.into())
@@ -177,6 +193,8 @@ pub struct VmPolicy<E> {
     machine: Machine,
     engine: Mutex<E>,
     ffis: Mutex<Vec<Box<dyn FfiCallable<E> + Send + 'static>>>,
+    // TODO(chip): replace or fill this with priorities from attributes
+    priority_map: Rc<BTreeMap<String, u32>>,
 }
 
 impl<E> VmPolicy<E> {
@@ -186,10 +204,12 @@ impl<E> VmPolicy<E> {
         engine: E,
         ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
+        let priority_map = VmPolicy::<E>::get_command_priorities(&machine)?;
         Ok(Self {
             machine,
             engine: Mutex::from(engine),
             ffis: Mutex::from(ffis),
+            priority_map: Rc::new(priority_map),
         })
     }
 
@@ -199,6 +219,24 @@ impl<E> VmPolicy<E> {
     {
         rs.source_location()
             .unwrap_or(String::from("(unknown location)"))
+    }
+
+    /// Scans command attributes for priorities and creates the priority map from them.
+    fn get_command_priorities(machine: &Machine) -> Result<BTreeMap<String, u32>, VmPolicyError> {
+        let mut priority_map = BTreeMap::new();
+        for (name, attrs) in &machine.command_attributes {
+            if let Some(Value::Int(p)) = attrs.get("priority") {
+                let pv = (*p).try_into().map_err(|e| {
+                    error!(
+                        ?e,
+                        "Priority out of range in {name}: {p} does not fit in u32"
+                    );
+                    VmPolicyError::Unknown
+                })?;
+                priority_map.insert(name.clone(), pv);
+            }
+        }
+        Ok(priority_map)
     }
 }
 
@@ -228,6 +266,13 @@ impl<E: crypto::Engine> VmPolicy<E> {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
+                    // Construct a new recall context from the policy context
+                    let CommandContext::Policy(policy_ctx) = ctx else {
+                        error!("Non-policy context while evaluating rule: {ctx:?}");
+                        return Err(EngineError::InternalError);
+                    };
+                    let recall_ctx = CommandContext::Recall(policy_ctx.clone());
+                    rs.set_context(&recall_ctx);
                     self.recall_internal(recall, &mut rs, name, &self_data, envelope)
                 }
                 ExitReason::Panic => {
@@ -378,6 +423,29 @@ pub struct VmAction<'a> {
     pub args: Cow<'a, [Value]>,
 }
 
+/// A partial version of [`VmEffect`] containing only the data. Created by
+/// [`vm_effect!`] and used to compare only the name and fields against the full
+/// `VmEffect`.
+#[derive(Debug)]
+pub struct VmEffectData {
+    /// The name of the effect.
+    pub name: String,
+    /// The fields of the effect.
+    pub fields: Vec<KVPair>,
+}
+
+impl PartialEq<VmEffect> for VmEffectData {
+    fn eq(&self, other: &VmEffect) -> bool {
+        self.name == other.name && self.fields == other.fields
+    }
+}
+
+impl PartialEq<VmEffectData> for VmEffect {
+    fn eq(&self, other: &VmEffectData) -> bool {
+        self.name == other.name && self.fields == other.fields
+    }
+}
+
 /// [`VmPolicy`]'s effects.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VmEffect {
@@ -385,6 +453,10 @@ pub struct VmEffect {
     pub name: String,
     /// The fields of the effect.
     pub fields: Vec<KVPair>,
+    /// The command ID that produced this effect
+    pub command: CommandId,
+    /// Was this produced from a recall block?
+    pub recalled: bool,
 }
 
 impl<E: crypto::Engine> Policy for VmPolicy<E> {
@@ -542,7 +614,12 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                 },
             };
             let wrapped = postcard::to_allocvec(&data)?;
-            let new_command = VmProtocol::new(&wrapped, envelope.command_id, data);
+            let new_command = VmProtocol::new(
+                &wrapped,
+                envelope.command_id,
+                data,
+                Rc::clone(&self.priority_map),
+            );
 
             self.call_rule(&new_command, facts, sink, CommandRecall::None)?;
             facts.add_command(&new_command).map_err(|e| {
@@ -566,7 +643,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
             EngineError::Write
         })?;
         let id = CommandId::hash_for_testing_only(data);
-        Ok(VmProtocol::new(data, id, c))
+        Ok(VmProtocol::new(data, id, c, Rc::clone(&self.priority_map)))
     }
 }
 

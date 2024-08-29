@@ -52,8 +52,8 @@ pub struct VmPolicyIO<'o, P, S, E, FFI> {
 pub type FfiList<'a, E> = &'a mut [&'a mut dyn FfiCallable<E>];
 
 impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
-    /// Creates a new `VmPolicyIO` for a [FactPerspective](crate::storage::FactPerspective) and a
-    /// [Sink](crate::engine::Sink).
+    /// Creates a new `VmPolicyIO` for a [`crate::storage::FactPerspective`] and a
+    /// [`crate::engine::Sink`].
     pub fn new(
         facts: &'o mut P,
         sink: &'o mut S,
@@ -125,9 +125,20 @@ where
         self.publish_stack.push((name, fields));
     }
 
-    fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn effect(
+        &mut self,
+        name: String,
+        fields: impl IntoIterator<Item = KVPair>,
+        command: Id,
+        recalled: bool,
+    ) {
         let fields: Vec<_> = fields.into_iter().collect();
-        self.sink.consume(VmEffect { name, fields });
+        self.sink.consume(VmEffect {
+            name,
+            fields,
+            command: command.into(),
+            recalled,
+        });
     }
 
     fn call(
@@ -282,7 +293,7 @@ fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
 }
 
 /// An Iterator that returns a sequence of matching facts from a query. It is produced by
-/// the [VmPolicyIO](super::VmPolicyIO) when a query is made by the VM.
+/// the [`super::VmPolicyIO`] when a query is made by the VM.
 pub struct VmFactCursor<'o, P: Query + 'o> {
     iter: P::QueryIterator<'o>,
 }

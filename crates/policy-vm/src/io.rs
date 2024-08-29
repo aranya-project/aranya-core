@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::string::String;
 use core::fmt;
 
+use crypto::Id;
 use policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 
 use super::Stack;
@@ -76,7 +77,13 @@ where
     fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
 
     /// Create an effect
-    fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
+    fn effect(
+        &mut self,
+        name: String,
+        fields: impl IntoIterator<Item = KVPair>,
+        command: Id,
+        recalled: bool,
+    );
 
     /// Call external function, e.g., one defined in an `FfiModule`.
     fn call(

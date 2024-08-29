@@ -4,7 +4,7 @@ use core::fmt;
 
 use crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
-    Rng,
+    Id, Rng,
 };
 
 use super::ffi::*;
@@ -115,7 +115,13 @@ where
         self.publish_stack.push((name, fields));
     }
 
-    fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn effect(
+        &mut self,
+        name: String,
+        fields: impl IntoIterator<Item = KVPair>,
+        _command: Id,
+        _recalled: bool,
+    ) {
         let mut fields: Vec<_> = fields.into_iter().collect();
         fields.sort_by(|a, b| a.key().cmp(b.key()));
         println!("effect {} {{{:?}}}", name, fields);

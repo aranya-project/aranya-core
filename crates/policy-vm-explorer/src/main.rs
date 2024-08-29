@@ -200,7 +200,13 @@ where
         self.commands.push((name, fields))
     }
 
-    fn effect(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn effect(
+        &mut self,
+        name: String,
+        fields: impl IntoIterator<Item = KVPair>,
+        _command: Id,
+        _recalled: bool,
+    ) {
         let fields = fields.into_iter().collect();
         self.effects.push((name, fields))
     }

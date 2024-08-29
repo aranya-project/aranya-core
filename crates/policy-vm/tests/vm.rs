@@ -757,7 +757,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
     // Emit fact through Bar
     {
         let cmd_name = "Emit";
-        let ctx = dummy_ctx_open(cmd_name);
+        let ctx = dummy_ctx_policy(cmd_name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let self_struct = Struct::new("Bar", [KVPair::new("a", a)]);
         rs.call_command_policy(cmd_name, &self_struct, dummy_envelope())?

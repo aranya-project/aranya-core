@@ -314,6 +314,13 @@ where
         }
     }
 
+    /// Set the internal context object to a new reference. The old reference is not
+    /// preserved. This is a hack to allow a policy context to mutate into a recall context
+    /// when recall happens.
+    pub fn set_context(&mut self, ctx: &'a CommandContext<'_>) {
+        self.ctx = ctx;
+    }
+
     /// Returns a string describing the source code at the current PC,
     /// if available.
     pub fn source_location(&self) -> Option<String> {
@@ -667,7 +674,12 @@ where
                 let s: Struct = self.ipop()?;
                 self.validate_struct_schema(&s)?;
                 let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
-                self.io.effect(s.name, fields);
+                let (command, recall) = match self.ctx {
+                    CommandContext::Policy(ctx) => (ctx.id, false),
+                    CommandContext::Recall(ctx) => (ctx.id, true),
+                    _ => return Err(self.err(MachineErrorType::BadState)),
+                };
+                self.io.effect(s.name, fields, command, recall);
             }
             Instruction::Query => {
                 let qf: Fact = self.ipop()?;
