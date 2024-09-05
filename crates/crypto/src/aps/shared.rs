@@ -123,6 +123,7 @@ raw_key!(RawOpenKey, "A raw [`OpenKey`][crate::aps::OpenKey].");
 mod test_misc {
     use core::fmt;
 
+    #[allow(clippy::wildcard_imports)]
     use super::*;
 
     raw_key!(

@@ -966,8 +966,12 @@ macro_rules! hash_impl {
 
         impl $name {
             fn vtable() -> *const br_hash_class {
+                // This will be safe in 1.82
+                #[allow(unused_unsafe)]
                 // SAFETY: $vtable is static, constant memory
-                unsafe { ptr::addr_of!($vtable) }
+                unsafe {
+                    ptr::addr_of!($vtable)
+                }
             }
         }
 

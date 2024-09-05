@@ -80,10 +80,10 @@ fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
     true
 }
 
-/// Status of machine execution after stepping through each
-/// instruction. These are expected states entered after executing
-/// instructions, as opposed to MachineErrors, which are produced by
-/// invalid instructions or data.
+/// Status of machine execution after stepping through each instruction.
+///
+/// These are expected states entered after executing instructions, as opposed to MachineErrors,
+/// which are produced by invalid instructions or data.
 #[must_use]
 #[derive(Debug, PartialEq)]
 pub enum MachineStatus {
@@ -102,10 +102,11 @@ impl Display for MachineStatus {
     }
 }
 
-/// This is the core policy VM type, which contains the static data for the VM -
-/// instructions, entry points, schemas, globally scoped static values, and optionally a
-/// mapping between instructions and source code locations. For the VM's runtime data, see
-/// [`create_run_state()`](Self::create_run_state) and [`RunState`].
+/// The core policy VM type.
+///
+/// This contains the static data for the VM - instructions, entry points, schemas, globally scoped
+/// static values, and optionally a mapping between instructions and source code locations. For the
+/// VM's runtime data, see [`create_run_state()`](Self::create_run_state) and [`RunState`].
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Machine {
     /// The program memory
@@ -270,11 +271,12 @@ struct CallState {
     defs: BTreeMap<String, Value>,
 }
 
-/// The "run state" of the machine - variables, the stack, the call stack, the program
-/// counter, I/O, and the current execution context. Most commonly created from
-/// [`Machine::create_run_state()`]. It's separated from the rest of the
-/// VM so that it can be managed independently and potentially in multiple simultaneous
-/// instances.
+/// The "run state" of the machine.
+///
+/// This includes variables, the stack, the call stack, the program counter, I/O, and the current
+/// execution context. Most commonly created from [`Machine::create_run_state()`]. It's separated
+/// from the rest of the VM so that it can be managed independently and potentially in multiple
+/// simultaneous instances.
 pub struct RunState<'a, M> {
     /// Reference to the underlying static machine data
     machine: &'a Machine,

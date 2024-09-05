@@ -148,7 +148,7 @@ impl Path {
 
     /// Reports whether the path is absolute.
     pub fn is_abs(&self) -> bool {
-        self.as_bytes().starts_with(&[b'/'])
+        self.as_bytes().starts_with(b"/")
     }
 
     /// Creates an owned [`PathBuf`] with `path` joined to
