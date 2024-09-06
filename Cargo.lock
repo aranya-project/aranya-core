@@ -150,7 +150,7 @@ dependencies = [
  "crypto",
  "heapless",
  "serde",
- "trouble",
+ "trouble 0.1.0 (git+https://git.spideroak-inc.com/spideroak-inc/flow3-rs?branch=main)",
 ]
 
 [[package]]
@@ -167,7 +167,6 @@ dependencies = [
  "siphasher",
  "spin 0.9.8",
  "tracing",
- "trouble",
 ]
 
 [[package]]
@@ -218,7 +217,6 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
- "trouble",
 ]
 
 [[package]]
@@ -333,7 +331,6 @@ name = "buggy"
 version = "0.1.0"
 dependencies = [
  "cfg-if",
- "trouble",
 ]
 
 [[package]]
@@ -361,7 +358,7 @@ dependencies = [
  "base58",
  "buggy",
  "crypto",
- "trouble",
+ "trouble 0.1.0",
 ]
 
 [[package]]
@@ -380,7 +377,7 @@ dependencies = [
  "policy-module",
  "policy-vm",
  "runtime",
- "trouble",
+ "trouble 0.1.0",
 ]
 
 [[package]]
@@ -730,7 +727,7 @@ dependencies = [
  "spin 0.9.8",
  "subtle",
  "tempfile",
- "trouble",
+ "trouble 0.1.0",
  "typenum",
  "wycheproof",
  "zeroize",
@@ -778,7 +775,7 @@ dependencies = [
  "postcard",
  "serde",
  "tracing",
- "trouble",
+ "trouble 0.1.0",
 ]
 
 [[package]]
@@ -977,7 +974,6 @@ dependencies = [
  "crypto",
  "policy-vm",
  "tracing",
- "trouble",
 ]
 
 [[package]]
@@ -1398,7 +1394,7 @@ dependencies = [
  "policy-vm",
  "postcard",
  "tracing",
- "trouble",
+ "trouble 0.1.0",
 ]
 
 [[package]]
@@ -1651,7 +1647,6 @@ dependencies = [
  "serde",
  "tempfile",
  "test-log",
- "trouble",
 ]
 
 [[package]]
@@ -1960,7 +1955,6 @@ name = "policy-ast"
 version = "0.1.0"
 dependencies = [
  "serde",
- "trouble",
 ]
 
 [[package]]
@@ -1974,7 +1968,6 @@ dependencies = [
  "policy-ast",
  "policy-lang",
  "policy-module",
- "trouble",
 ]
 
 [[package]]
@@ -1999,7 +1992,6 @@ dependencies = [
  "policy-vm",
  "runtime",
  "serde",
- "trouble",
 ]
 
 [[package]]
@@ -2048,7 +2040,6 @@ dependencies = [
  "proptest",
  "proptest-derive",
  "serde",
- "trouble",
 ]
 
 [[package]]
@@ -2066,7 +2057,6 @@ dependencies = [
  "policy-module",
  "policy-vm",
  "postcard",
- "trouble",
 ]
 
 [[package]]
@@ -2530,7 +2520,6 @@ dependencies = [
  "test-log",
  "tracing",
  "tracing-subscriber",
- "trouble",
  "vec1",
 ]
 
@@ -3180,9 +3169,13 @@ dependencies = [
 [[package]]
 name = "trouble"
 version = "0.1.0"
+
+[[package]]
+name = "trouble"
+version = "0.1.0"
+source = "git+https://git.spideroak-inc.com/spideroak-inc/flow3-rs?branch=main#5e7f6bf21e77bd0e61fecc0a9912f03133093657"
 dependencies = [
  "cfg-if",
- "postcard",
  "rustc_version",
 ]
 

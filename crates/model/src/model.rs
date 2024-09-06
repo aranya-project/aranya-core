@@ -131,7 +131,7 @@ impl Display for ModelError {
     }
 }
 
-impl trouble::Error for ModelError {}
+impl core::error::Error for ModelError {}
 
 /// Proxy ID for clients
 #[repr(transparent)]

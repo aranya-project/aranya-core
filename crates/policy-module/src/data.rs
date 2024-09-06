@@ -34,7 +34,7 @@ impl Display for ValueConversionError {
     }
 }
 
-impl trouble::Error for ValueConversionError {}
+impl core::error::Error for ValueConversionError {}
 
 /// All of the value types allowed in the VM
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

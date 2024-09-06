@@ -16,13 +16,10 @@ workspace = true
 default = []
 
 # Enable `std`.
-std = [
-	"trouble/std",
-]
+std = []
 
 [dependencies]
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
-trouble = { path = "../trouble" }
 
 [package.metadata.docs.rs]
 all-features = true

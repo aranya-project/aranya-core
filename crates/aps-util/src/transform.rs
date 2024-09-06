@@ -11,7 +11,7 @@ use crypto::{
 /// Like [`TryFrom`], but with a different spelling.
 pub trait Transform<T>: Sized {
     /// The error returned from [`transform`][Self::transform].
-    type Error: trouble::Error;
+    type Error: core::error::Error;
 
     /// Transforms `value` into `Self`.
     fn transform(value: T) -> Result<Self, Self::Error>;

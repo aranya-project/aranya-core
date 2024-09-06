@@ -51,7 +51,7 @@ impl fmt::Display for EncodingError {
     }
 }
 
-impl trouble::Error for EncodingError {}
+impl core::error::Error for EncodingError {}
 
 impl From<der::Error> for EncodingError {
     fn from(err: der::Error) -> Self {

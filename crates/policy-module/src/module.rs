@@ -37,7 +37,7 @@ impl Display for Version {
 #[derive(Debug, Eq, PartialEq)]
 pub struct UnsupportedVersion(());
 
-impl trouble::Error for UnsupportedVersion {}
+impl core::error::Error for UnsupportedVersion {}
 
 impl Display for UnsupportedVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

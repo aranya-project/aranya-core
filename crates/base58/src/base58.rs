@@ -84,7 +84,7 @@ impl fmt::Display for DecodeError {
     }
 }
 
-impl trouble::Error for DecodeError {}
+impl core::error::Error for DecodeError {}
 
 // Generate PartialEq for $lhs and $rhs.
 macro_rules! impl_eq {

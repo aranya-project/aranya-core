@@ -44,7 +44,7 @@ impl From<Bug> for EngineError {
     }
 }
 
-impl trouble::Error for EngineError {}
+impl core::error::Error for EngineError {}
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolicyId(usize);

@@ -290,7 +290,7 @@ impl fmt::Display for BoringError {
     }
 }
 
-impl trouble::Error for BoringError {}
+impl core::error::Error for BoringError {}
 
 /// Returns the most recent BoringSSL error as an [`SealError`].
 fn seal_error() -> SealError {

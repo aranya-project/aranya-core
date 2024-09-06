@@ -16,7 +16,7 @@ impl fmt::Display for InvalidVersion {
     }
 }
 
-impl trouble::Error for InvalidVersion {}
+impl core::error::Error for InvalidVersion {}
 
 /// Policy language version
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]

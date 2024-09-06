@@ -183,4 +183,4 @@ impl fmt::Display for EnvelopeError {
     }
 }
 
-impl trouble::Error for EnvelopeError {}
+impl core::error::Error for EnvelopeError {}

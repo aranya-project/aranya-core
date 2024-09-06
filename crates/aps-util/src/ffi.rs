@@ -202,8 +202,8 @@ impl fmt::Display for FfiError {
     }
 }
 
-impl trouble::Error for FfiError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for FfiError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Crypto(err) => Some(err),
             Self::Stack(err) => Some(err),

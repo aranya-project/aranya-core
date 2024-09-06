@@ -39,8 +39,8 @@ impl fmt::Display for KdfError {
     }
 }
 
-impl trouble::Error for KdfError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for KdfError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Bug(err) => Some(err),
             _ => None,

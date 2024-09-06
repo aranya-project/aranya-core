@@ -20,7 +20,6 @@ pub(crate) fn parse(item: TokenStream) -> syn::Result<TokenStream> {
     // Our `extern crate`s.
     let postcard: Path = parse_quote!(_postcard);
     let serde: Path = parse_quote!(_serde);
-    let trouble: Path = parse_quote!(_trouble);
 
     let postcard_impl = quote! {
         impl #postcard::experimental::max_size::MaxSize for #name {
@@ -80,7 +79,7 @@ pub(crate) fn parse(item: TokenStream) -> syn::Result<TokenStream> {
             }
         }
 
-        impl #trouble::Error for #error {}
+        impl ::core::error::Error for #error {}
     };
 
     let base_impl = {
@@ -140,7 +139,6 @@ pub(crate) fn parse(item: TokenStream) -> syn::Result<TokenStream> {
         const _: () = {
             extern crate postcard as #postcard;
             extern crate serde as #serde;
-            extern crate trouble as #trouble;
 
             #base_impl
             #error_impl

@@ -40,8 +40,8 @@ impl fmt::Display for ClientError {
     }
 }
 
-impl trouble::Error for ClientError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for ClientError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::EngineError(e) => Some(e),
             Self::StorageError(e) => Some(e),

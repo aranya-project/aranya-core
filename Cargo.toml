@@ -15,7 +15,7 @@ authors = ["SpiderOak, Inc."]
 edition = "2021"
 license = "UNLICENSED"
 publish = false
-rust-version = "1.79.0"
+rust-version = "1.81.0"
 
 [workspace.lints.rust]
 # missing_docs = "warn"
@@ -64,7 +64,6 @@ syn = "2.0"
 quote = "1.0"
 
 [patch."https://git.spideroak-inc.com/spideroak-inc/flow3-rs"]
-trouble.path = "crates/trouble"
 buggy.path = "crates/buggy"
 crypto.path = "crates/crypto"
 

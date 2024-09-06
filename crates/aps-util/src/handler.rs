@@ -412,8 +412,8 @@ impl fmt::Display for Error {
     }
 }
 
-impl trouble::Error for Error {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Crypto(err) => Some(err),
             _ => None,

@@ -42,7 +42,7 @@ impl fmt::Display for MacError {
     }
 }
 
-impl trouble::Error for MacError {}
+impl core::error::Error for MacError {}
 
 /// MAC algorithm identifiers.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, AlgId)]

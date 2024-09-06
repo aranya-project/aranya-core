@@ -22,6 +22,5 @@
 /crates/rtrack @elagergren @jdygert
 /crates/rtrack-derive @elagergren @jdygert
 /crates/runtime @jdygert @elagergren
-/crates/trouble @jdygert @elagergren
 
 /.github @elagergren @jdygert

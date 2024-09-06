@@ -1,8 +1,9 @@
-use core::{fmt, ops::Deref};
+use core::fmt;
 
 use buggy::Bug;
 use ciborium as cbor;
 use rustix::io::Errno;
+use trouble::Trouble;
 
 use crate::keystore::{self, ErrorKind};
 
@@ -15,7 +16,7 @@ impl fmt::Display for UnexpectedEof {
     }
 }
 
-impl trouble::Error for UnexpectedEof {}
+impl core::error::Error for UnexpectedEof {}
 
 /// An error returned by [`super::Store`].
 #[derive(Debug)]
@@ -35,8 +36,8 @@ impl fmt::Display for Error {
     }
 }
 
-impl trouble::Error for Error {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         self.0.source()
     }
 }
@@ -44,7 +45,7 @@ impl trouble::Error for Error {
 impl keystore::Error for Error {
     fn new<E>(kind: ErrorKind, err: E) -> Self
     where
-        E: trouble::Error + Send + Sync + 'static,
+        E: core::error::Error + Send + Sync + 'static,
     {
         match kind {
             ErrorKind::AlreadyExists => Self(Repr::AlreadyExists),
@@ -74,7 +75,7 @@ impl From<Errno> for Error {
 
 impl<T> From<cbor::de::Error<T>> for Error
 where
-    T: trouble::Error + Send + Sync + 'static,
+    T: core::error::Error + Send + Sync + 'static,
 {
     fn from(err: cbor::de::Error<T>) -> Self {
         <Self as keystore::Error>::other(Trouble(err))
@@ -83,7 +84,7 @@ where
 
 impl<T> From<cbor::ser::Error<T>> for Error
 where
-    T: trouble::Error + Send + Sync + 'static,
+    T: core::error::Error + Send + Sync + 'static,
 {
     fn from(err: cbor::ser::Error<T>) -> Self {
         <Self as keystore::Error>::other(Trouble(err))
@@ -156,13 +157,13 @@ impl Repr {
         }
     }
 
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::AlreadyExists => None,
             Self::UnexpectedEof(err) => Some(err),
-            Self::Errno(err) => Some(Trouble::from(err)),
-            Self::Encode(err) => Some(Trouble::from(err)),
-            Self::Decode(err) => Some(Trouble::from(err)),
+            Self::Errno(err) => Some(Trouble::cast(err)),
+            Self::Encode(err) => Some(Trouble::cast(err)),
+            Self::Decode(err) => Some(Trouble::cast(err)),
             Self::Bug(err) => Some(err),
             Self::RootDeleted(err) => Some(err),
             Self::Other => None,
@@ -191,46 +192,11 @@ fn downcast_ref<T: 'static, E: 'static>(err: &E) -> Option<&T> {
     (err as &dyn core::any::Any).downcast_ref()
 }
 
-/// A wrapper around some error `E` so that it implements
-/// [`trouble::Error`].
-#[derive(Copy, Clone)]
-#[repr(transparent)]
-pub struct Trouble<E>(E);
-
-impl<E: 'static> Trouble<E> {
-    fn from(err: &E) -> &Self {
-        // SAFETY: `err` and `Self` have the same memory layout.
-        unsafe { &*(err as *const E).cast() }
-    }
-}
-
-impl<E: fmt::Display> fmt::Display for Trouble<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl<E: fmt::Debug> fmt::Debug for Trouble<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl<E: fmt::Display + fmt::Debug> trouble::Error for Trouble<E> {}
-
-impl<E> Deref for Trouble<E> {
-    type Target = E;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 /// The root keystore directory was deleted.
 #[derive(Clone, Debug)]
 pub struct RootDeleted(pub(crate) ());
 
-impl trouble::Error for RootDeleted {}
+impl core::error::Error for RootDeleted {}
 
 impl fmt::Display for RootDeleted {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -301,7 +267,7 @@ mod tests {
         fn trait_object() {
             // Limitation of current approach
             assert!(matches!(
-                Error::new::<&(dyn trouble::Error + Send + Sync + 'static)>(
+                Error::new::<&(dyn core::error::Error + Send + Sync + 'static)>(
                     ErrorKind::Other,
                     &Errno::INVAL
                 ),

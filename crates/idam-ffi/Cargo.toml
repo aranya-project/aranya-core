@@ -25,7 +25,6 @@ std = [
 	"crypto/std",
 	"policy-vm/std",
 	"postcard/use-std",
-	"trouble/std",
 ]
 
 # Enable the testing feature.
@@ -36,7 +35,7 @@ crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-vm = { path = "../policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 tracing = { workspace = true }
-trouble = { path = "../trouble", default-features = false, features = ["third-party"] }
+trouble = { path = "../trouble", default-features = false }
 
 [dev-dependencies]
 idam-ffi = { path = ".", features = ["testing"] }

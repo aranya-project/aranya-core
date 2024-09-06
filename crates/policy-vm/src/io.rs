@@ -33,7 +33,7 @@ impl fmt::Display for MachineIOError {
     }
 }
 
-impl trouble::Error for MachineIOError {}
+impl core::error::Error for MachineIOError {}
 
 impl From<MachineIOError> for MachineError {
     fn from(value: MachineIOError) -> Self {

@@ -9,7 +9,7 @@ use core::{
 
 /// [`Metrics`] provides an interface to push a named [`Metric`] to a collection.
 pub trait Metrics {
-    type Error: trouble::Error + Send + Sync + 'static;
+    type Error: core::error::Error + Send + Sync + 'static;
 
     fn update(&mut self, name: &'static str, metric: Metric) -> Result<(), Self::Error>;
 }

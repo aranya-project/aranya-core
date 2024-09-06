@@ -100,7 +100,7 @@ impl fmt::Display for MachineErrorType {
     }
 }
 
-impl trouble::Error for MachineErrorType {}
+impl core::error::Error for MachineErrorType {}
 
 impl From<Infallible> for MachineErrorType {
     fn from(err: Infallible) -> Self {
@@ -193,7 +193,7 @@ impl fmt::Display for MachineError {
 // Implementing Display and deriving Debug implements
 // error::Error with default behavior by declaring this empty
 // implementation.
-impl trouble::Error for MachineError {}
+impl core::error::Error for MachineError {}
 
 impl From<MachineErrorType> for MachineError {
     fn from(value: MachineErrorType) -> Self {

@@ -64,7 +64,7 @@ impl fmt::Display for BufferTooSmallError {
     }
 }
 
-impl trouble::Error for BufferTooSmallError {}
+impl core::error::Error for BufferTooSmallError {}
 
 /// An error from a [`Nonce`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -83,7 +83,7 @@ impl fmt::Display for InvalidNonceSize {
     }
 }
 
-impl trouble::Error for InvalidNonceSize {}
+impl core::error::Error for InvalidNonceSize {}
 
 /// An error from an [`Aead`] seal.
 #[derive(Debug, Eq, PartialEq)]
@@ -136,8 +136,8 @@ impl fmt::Display for SealError {
     }
 }
 
-impl trouble::Error for SealError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for SealError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Bug(err) => Some(err),
             Self::BufferTooSmall(err) => Some(err),
@@ -219,8 +219,8 @@ impl fmt::Display for OpenError {
     }
 }
 
-impl trouble::Error for OpenError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for OpenError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Bug(err) => Some(err),
             Self::BufferTooSmall(err) => Some(err),
@@ -1000,8 +1000,8 @@ mod committing {
         }
     }
 
-    impl trouble::Error for UtcError {
-        fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+    impl core::error::Error for UtcError {
+        fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
             match self {
                 Self::Bug(err) => Some(err),
                 Self::Import(err) => Some(err),
@@ -1254,8 +1254,8 @@ mod committing {
         }
     }
 
-    impl trouble::Error for HteError {
-        fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+    impl core::error::Error for HteError {
+        fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
             match self {
                 Self::Export(err) => Some(err),
                 Self::Import(err) => Some(err),

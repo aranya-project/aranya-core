@@ -141,7 +141,6 @@ std = [
 	"siphasher/std",
 	"spin?/std",
 	"subtle/std",
-	"trouble/std",
 	"zeroize/std",
 ]
 
@@ -192,7 +191,7 @@ sha2 = { version = "0.10", default-features = false }
 siphasher = { version = "1", default-features = false }
 spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"], optional = true }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
-trouble = { path = "../trouble", default-features = false, features = ["third-party"] }
+trouble = { path = "../trouble", default-features = false }
 typenum = { version = "1", default-features = false, features = ["const-generics"] }
 # Only pulled into non-dev builds if `test_util` is enabled. It
 # won't bloat release builds, though, since users of this crate

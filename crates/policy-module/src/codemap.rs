@@ -15,7 +15,7 @@ impl fmt::Display for RangeError {
     }
 }
 
-impl trouble::Error for RangeError {}
+impl core::error::Error for RangeError {}
 
 /// This is a simplified version of Pest's `Span`. We can't use Pest's version because we
 /// need to work in `no_std` environments.

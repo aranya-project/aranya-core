@@ -13,7 +13,6 @@ policy-ast = { path = "../policy-ast" }
 proptest = { workspace = true, default-features = false, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-trouble = { path = "../trouble" }
 
 [features]
 default = []
@@ -30,7 +29,6 @@ std = [
 	"crypto/std",
 	"policy-ast/std",
 	"serde/std",
-	"trouble/std",
 ]
 
 testing = []

@@ -205,7 +205,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl trouble::Error for Error {}
+impl core::error::Error for Error {}
 
 impl From<Bug> for Error {
     fn from(bug: Bug) -> Self {

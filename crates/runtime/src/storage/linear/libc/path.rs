@@ -24,7 +24,7 @@ use crate::GraphId;
 #[derive(Debug, Eq, PartialEq)]
 pub struct MissingNullByte(());
 
-impl trouble::Error for MissingNullByte {}
+impl core::error::Error for MissingNullByte {}
 
 impl fmt::Display for MissingNullByte {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

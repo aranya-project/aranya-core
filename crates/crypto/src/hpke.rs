@@ -137,7 +137,7 @@ impl Display for InvalidPsk {
     }
 }
 
-impl trouble::Error for InvalidPsk {}
+impl core::error::Error for InvalidPsk {}
 
 /// A pre-shared key and its ID.
 #[cfg_attr(test, derive(Debug))]
@@ -344,8 +344,8 @@ impl Display for HpkeError {
     }
 }
 
-impl trouble::Error for HpkeError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for HpkeError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Seal(err) => Some(err),
             Self::Open(err) => Some(err),
@@ -980,7 +980,7 @@ impl Display for MessageLimitReached {
     }
 }
 
-impl trouble::Error for MessageLimitReached {}
+impl core::error::Error for MessageLimitReached {}
 
 /// Sequence numbers ensure nonce uniqueness.
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]

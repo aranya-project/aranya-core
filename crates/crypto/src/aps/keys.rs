@@ -159,8 +159,8 @@ impl fmt::Display for SealError {
     }
 }
 
-impl trouble::Error for SealError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for SealError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Other(err) => Some(err),
             _ => None,
@@ -266,8 +266,8 @@ impl fmt::Display for OpenError {
     }
 }
 
-impl trouble::Error for OpenError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for OpenError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Other(err) => Some(err),
             _ => None,

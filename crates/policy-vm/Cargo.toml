@@ -23,7 +23,6 @@ std = [
 	"buggy/std",
 	"crypto/std",
 	"policy-ast/std",
-	"trouble/std",
 ]
 
 [dependencies]
@@ -33,7 +32,6 @@ policy-ast = { path = "../policy-ast" }
 policy-derive = { path = "../policy-derive" }
 policy-module = { path = "../policy-module" }
 postcard = { workspace = true, features = ["alloc"] }
-trouble = { path = "../trouble" }
 
 [dev-dependencies]
 anyhow = { workspace = true }
@@ -43,7 +41,6 @@ policy-compiler = { path = "../policy-compiler" }
 policy-lang = { path = "../policy-lang" }
 policy-module = { path = "../policy-module", features = ["testing"] }
 policy-vm = { path = ".", features = ["derive"] }
-trouble = { path = "../trouble", features = ["std"] }
 
 [package.metadata.docs.rs]
 all-features = true

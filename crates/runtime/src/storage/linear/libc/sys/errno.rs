@@ -54,7 +54,7 @@ impl Errno {
     }
 }
 
-impl trouble::Error for Errno {}
+impl core::error::Error for Errno {}
 
 impl fmt::Debug for Errno {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

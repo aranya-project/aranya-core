@@ -79,7 +79,7 @@ impl From<Bug> for CompileErrorType {
     }
 }
 
-impl trouble::Error for CompileErrorType {}
+impl core::error::Error for CompileErrorType {}
 
 // TODO(chip): this is identical to MachineErrorSource and could
 // probably be merged with it. I'm keeping it separate for now as I
@@ -147,7 +147,7 @@ impl fmt::Display for CompileError {
 // Implementing Display and deriving Debug implements
 // error::Error with default behavior by declaring this empty
 // implementation.
-impl trouble::Error for CompileError {}
+impl core::error::Error for CompileError {}
 
 impl From<CompileErrorType> for CompileError {
     fn from(value: CompileErrorType) -> Self {

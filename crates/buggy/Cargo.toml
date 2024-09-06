@@ -14,8 +14,7 @@ workspace = true
 default = []
 
 alloc = []
-std = ["alloc", "trouble/std"]
+std = ["alloc"]
 
 [dependencies]
 cfg-if = { workspace = true }
-trouble = { path = "../trouble" }

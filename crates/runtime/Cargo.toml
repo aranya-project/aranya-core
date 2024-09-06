@@ -15,7 +15,6 @@ buggy = { path = "../buggy", features = ["alloc"] }
 # `crypto` enables `getrandom` by default.
 crypto = { path = "../crypto", default-features = false, features = ["alloc", "rand_compat"] }
 policy-vm = { path = "../policy-vm" }
-trouble = { path = "../trouble" }
 
 cfg-if = { workspace = true, default-features = false, optional = true }
 heapless = { workspace = true, features = ["serde"] }
@@ -66,7 +65,6 @@ std = [
 	"serde/std",
 	"spin/std",
 	"tracing/std",
-	"trouble/std",
 	"vec1/std",
 ]
 

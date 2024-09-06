@@ -117,7 +117,7 @@ impl fmt::Display for StorageError {
     }
 }
 
-impl trouble::Error for StorageError {}
+impl core::error::Error for StorageError {}
 
 impl From<Bug> for StorageError {
     fn from(bug: Bug) -> Self {

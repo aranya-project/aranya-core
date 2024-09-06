@@ -106,7 +106,7 @@ impl fmt::Display for Bug {
     }
 }
 
-impl trouble::Error for Bug {}
+impl core::error::Error for Bug {}
 
 impl From<Infallible> for Bug {
     fn from(err: Infallible) -> Self {

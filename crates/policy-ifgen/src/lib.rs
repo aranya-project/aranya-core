@@ -44,7 +44,7 @@ pub enum EffectsParseError {
     UnknownEffectName,
 }
 
-impl trouble::Error for EffectsParseError {}
+impl core::error::Error for EffectsParseError {}
 
 impl fmt::Display for EffectsParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

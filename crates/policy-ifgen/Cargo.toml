@@ -17,7 +17,6 @@ serde = ["dep:serde", "policy-ifgen-macro/serde"]
 policy-ifgen-macro = { path = "../policy-ifgen-macro" }
 policy-vm = { path = "../policy-vm" }
 runtime = { path = "../runtime" }
-trouble = { path = "../trouble" }
 
 serde = { workspace = true, optional = true }
 

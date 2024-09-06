@@ -112,13 +112,13 @@ impl<T: WrappedKey> Occupied<T> for OccupiedEntry<'_, T> {
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    err: Box<dyn trouble::Error + Send + Sync + 'static>,
+    err: Box<dyn core::error::Error + Send + Sync + 'static>,
 }
 
 impl Error {
     /// Attempts to downcast the error into `T`.
     #[inline]
-    pub fn downcast_ref<T: trouble::Error + 'static>(&self) -> Option<&T> {
+    pub fn downcast_ref<T: core::error::Error + 'static>(&self) -> Option<&T> {
         self.err.downcast_ref::<T>()
     }
 }
@@ -129,8 +129,8 @@ impl fmt::Display for Error {
     }
 }
 
-impl trouble::Error for Error {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         Some(self.err.deref())
     }
 }
@@ -138,7 +138,7 @@ impl trouble::Error for Error {
 impl super::Error for Error {
     fn new<E>(kind: ErrorKind, err: E) -> Self
     where
-        E: trouble::Error + Send + Sync + 'static,
+        E: core::error::Error + Send + Sync + 'static,
     {
         Self {
             kind,
@@ -161,7 +161,7 @@ impl fmt::Display for EncodingError {
     }
 }
 
-impl trouble::Error for EncodingError {}
+impl core::error::Error for EncodingError {}
 
 #[derive(Debug)]
 struct DecodingError;
@@ -172,7 +172,7 @@ impl fmt::Display for DecodingError {
     }
 }
 
-impl trouble::Error for DecodingError {}
+impl core::error::Error for DecodingError {}
 
 #[cfg(test)]
 mod tests {

@@ -51,8 +51,8 @@ impl fmt::Display for SignerError {
     }
 }
 
-impl trouble::Error for SignerError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for SignerError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Other(_) => None,
             Self::Encoding(err) => Some(err),
@@ -172,7 +172,7 @@ impl fmt::Display for PkError {
     }
 }
 
-impl trouble::Error for PkError {}
+impl core::error::Error for PkError {}
 
 /// An asymmetric public key used to verify digital signatures.
 pub trait VerifyingKey<T: Signer + ?Sized>: PublicKey {

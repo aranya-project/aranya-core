@@ -29,7 +29,6 @@ std = [
 	"policy-vm/std",
 	"postcard/use-std",
 	"serde/std",
-	"trouble/std",
 ]
 
 # Enable the `testing` module.
@@ -45,7 +44,7 @@ policy-vm = { path = "../policy-vm", default-features = false, features = ["deri
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"], optional = true }
 tracing = { workspace = true }
-trouble = { path = "../trouble", default-features = false, features = ["third-party"] }
+trouble = { path = "../trouble", default-features = false }
 
 [dev-dependencies]
 # A little bit of a hack: always certain features for tests and

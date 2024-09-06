@@ -86,7 +86,7 @@ impl fmt::Display for SyncError {
     }
 }
 
-impl trouble::Error for SyncError {}
+impl core::error::Error for SyncError {}
 
 impl From<Bug> for SyncError {
     fn from(error: Bug) -> Self {

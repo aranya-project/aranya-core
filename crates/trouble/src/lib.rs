@@ -1,107 +1,44 @@
-//! This crate re-exports or redefines [`std::error::Error`] or
-//! [`core::error::Error`], based on `std` and nightly availability.
-//!
-//! If [`error_in_core`] is stabilized, this will no longer be needed.
-//!
-//! [`error_in_core`]: https://github.com/rust-lang/rust/issues/103765
+//! This crate exports a wrapper type to implement [`core::error::Error`] for a third-party type.
 
 #![no_std]
-#![cfg_attr(error_in_core, feature(error_in_core))]
 #![warn(missing_docs)]
 
-cfg_if::cfg_if! {
-    if #[cfg(any(doc, feature = "std"))] {
-        extern crate std;
+use core::{fmt, ops::Deref};
 
-        #[doc(no_inline)]
-        pub use std::error::Error;
-    } else if #[cfg(use_core_error)] {
-        pub use core::error::Error;
-    } else {
-        use core::any::TypeId;
+/// A wrapper around some error `E` so that it implements [`core::error::Error`].
+///
+/// This is useful for third-party types that have not adapted to the recently stabilized
+/// `error-in-core` feature and thus do not implement the trait when `std` is not available.
+#[derive(Copy, Clone)]
+#[repr(transparent)]
+pub struct Trouble<E>(pub E);
 
-        mod private {
-            #[derive(Debug)]
-            pub struct Internal;
-        }
+impl<E: 'static> Trouble<E> {
+    /// Cast a reference to add `Trouble` around it.
+    pub fn cast(err: &E) -> &Self {
+        // SAFETY: `err` and `Self` have the same memory layout.
+        unsafe { &*core::ptr::from_ref(err).cast() }
+    }
+}
 
-        /// See [`std::error::Error`].
-        pub trait Error: core::fmt::Debug + core::fmt::Display {
-            /// See [`std::error::Error::source`].
-            fn source(&self) -> Option<&(dyn Error + 'static)> {
-                None
-            }
+impl<E: fmt::Display> fmt::Display for Trouble<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
-            // See [`std::error::Error::type_id`].
-            #[doc(hidden)]
-            fn type_id(&self, _: private::Internal) -> TypeId
-            where
-                Self: 'static,
-            {
-                TypeId::of::<Self>()
-            }
-        }
+impl<E: fmt::Debug> fmt::Debug for Trouble<E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
-        impl dyn Error + 'static {
-            /// See [`std::error::Error::is`].
-            #[inline]
-            pub fn is<T: Error + 'static>(&self) -> bool {
-                let t = TypeId::of::<T>();
+impl<E: fmt::Display + fmt::Debug> core::error::Error for Trouble<E> {}
 
-                let concrete = self.type_id(private::Internal);
+impl<E> Deref for Trouble<E> {
+    type Target = E;
 
-                t == concrete
-            }
-
-            /// See [`std::error::Error::downcast_ref`].
-            #[inline]
-            pub fn downcast_ref<T: Error + 'static>(&self) -> Option<&T> {
-                if self.is::<T>() {
-                    // SAFETY: `is` ensures this type cast is
-                    // correct
-                    unsafe { Some(&*(self as *const dyn Error as *const T)) }
-                } else {
-                    None
-                }
-            }
-        }
-
-        impl dyn Error + 'static + Send {
-            /// Forwards the call to the method defined on `dyn
-            /// Error`.
-            #[inline]
-            pub fn is<T: Error + 'static>(&self) -> bool {
-                <dyn Error + 'static>::is::<T>(self)
-            }
-
-            /// Forwards the call to the method defined on `dyn
-            /// Error`.
-            #[inline]
-            pub fn downcast_ref<T: Error + 'static>(&self) -> Option<&T> {
-                <dyn Error + 'static>::downcast_ref::<T>(self)
-            }
-        }
-
-        impl dyn Error + 'static + Send + Sync {
-            /// Forwards the call to the method defined on `dyn
-            /// Error`.
-            #[inline]
-            pub fn is<T: Error + 'static>(&self) -> bool {
-                <dyn Error + 'static>::is::<T>(self)
-            }
-
-            /// Forwards the call to the method defined on `dyn
-            /// Error`.
-            #[inline]
-            pub fn downcast_ref<T: Error + 'static>(&self) -> Option<&T> {
-                <dyn Error + 'static>::downcast_ref::<T>(self)
-            }
-        }
-
-        impl Error for core::alloc::LayoutError {}
-        impl Error for core::convert::Infallible {}
-
-        #[cfg(feature = "third-party")]
-        impl Error for postcard::Error {}
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }

@@ -427,7 +427,7 @@ pub trait Identified {
 #[derive(Debug, Eq, PartialEq)]
 pub struct IdError(&'static str);
 
-impl trouble::Error for IdError {}
+impl core::error::Error for IdError {}
 
 impl Display for IdError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

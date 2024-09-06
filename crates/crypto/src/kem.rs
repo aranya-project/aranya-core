@@ -58,8 +58,8 @@ impl Display for KemError {
     }
 }
 
-impl trouble::Error for KemError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for KemError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::DhKem(err) => Some(err),
             Self::Import(err) => Some(err),
@@ -221,7 +221,7 @@ impl Display for EcdhError {
     }
 }
 
-impl trouble::Error for EcdhError {}
+impl core::error::Error for EcdhError {}
 
 /// Elliptic Curve Diffie Hellman key exchange.
 ///
@@ -320,8 +320,8 @@ impl Display for DhKemError {
     }
 }
 
-impl trouble::Error for DhKemError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for DhKemError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Ecdh(err) => Some(err),
             Self::Kdf(err) => Some(err),

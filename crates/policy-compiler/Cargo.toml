@@ -20,7 +20,6 @@ clap = { version = "4.4", features = ["derive"] }
 policy-ast = { path = "../policy-ast" }
 policy-lang = { path = "../policy-lang" }
 policy-module = { path = "../policy-module", features = ["std"] }
-trouble = { path = "../trouble" }
 
 [dev-dependencies]
 anyhow = { workspace = true }

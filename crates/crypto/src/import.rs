@@ -35,7 +35,7 @@ impl Display for InvalidSizeError {
     }
 }
 
-impl trouble::Error for InvalidSizeError {}
+impl core::error::Error for InvalidSizeError {}
 
 /// An error that occured while importing data.
 #[derive(Debug, Eq, PartialEq)]
@@ -68,8 +68,8 @@ impl Display for ImportError {
     }
 }
 
-impl trouble::Error for ImportError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for ImportError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::InvalidSize(err) => Some(err),
             Self::Bug(err) => Some(err),
@@ -188,4 +188,4 @@ impl Display for ExportError {
     }
 }
 
-impl trouble::Error for ExportError {}
+impl core::error::Error for ExportError {}

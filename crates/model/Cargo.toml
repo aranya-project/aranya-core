@@ -14,7 +14,6 @@ policy-compiler = { path = "../policy-compiler" }
 policy-lang = { path = "../policy-lang" }
 policy-vm = { path = "../policy-vm" }
 runtime = { path = "../runtime", features = ["testing"] }
-trouble = { path = "../trouble" }
 
 [dev-dependencies]
 crypto-ffi = { path = "../crypto-ffi" }

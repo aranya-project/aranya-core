@@ -10,13 +10,13 @@ use tracing::error;
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    err: Box<dyn trouble::Error + Send + Sync + 'static>,
+    err: Box<dyn core::error::Error + Send + Sync + 'static>,
 }
 
 impl Error {
     pub(crate) fn new<E>(kind: ErrorKind, err: E) -> Self
     where
-        E: trouble::Error + Send + Sync + 'static,
+        E: core::error::Error + Send + Sync + 'static,
     {
         Self {
             kind,
@@ -26,7 +26,7 @@ impl Error {
 
     /// Attempts to downcast the error into `T`.
     #[inline]
-    pub fn downcast_ref<T: trouble::Error + 'static>(&self) -> Option<&T> {
+    pub fn downcast_ref<T: core::error::Error + 'static>(&self) -> Option<&T> {
         self.err.downcast_ref::<T>()
     }
 
@@ -37,8 +37,8 @@ impl Error {
     }
 }
 
-impl trouble::Error for Error {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         Some(self.err.deref())
     }
 }
@@ -84,7 +84,7 @@ impl fmt::Display for ErrorKind {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct WrongContext(pub(crate) &'static str);
 
-impl trouble::Error for WrongContext {}
+impl core::error::Error for WrongContext {}
 
 impl fmt::Display for WrongContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

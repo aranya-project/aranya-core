@@ -294,7 +294,7 @@ impl Display for WrongKeyType {
     }
 }
 
-impl trouble::Error for WrongKeyType {}
+impl core::error::Error for WrongKeyType {}
 
 /// An error from [`Engine::wrap`].
 #[derive(Debug, Eq, PartialEq)]
@@ -324,8 +324,8 @@ impl Display for WrapError {
     }
 }
 
-impl trouble::Error for WrapError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for WrapError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Export(err) => Some(err),
             Self::Seal(err) => Some(err),
@@ -392,8 +392,8 @@ impl Display for UnwrapError {
     }
 }
 
-impl trouble::Error for UnwrapError {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for UnwrapError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::Import(err) => Some(err),
             _ => None,

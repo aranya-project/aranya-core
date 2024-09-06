@@ -6,18 +6,19 @@ use core::{fmt, ops::Deref};
 use crypto::{id::IdError, Id, ImportError, UnwrapError, WrapError};
 use policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
+use trouble::Trouble;
 
 /// An error returned by `Ffi`.
 #[derive(Debug)]
 pub struct Error {
     kind: ErrorKind,
-    err: Box<dyn trouble::Error + Send + Sync + 'static>,
+    err: Box<dyn core::error::Error + Send + Sync + 'static>,
 }
 
 impl Error {
     pub(crate) fn new<E>(kind: ErrorKind, err: E) -> Self
     where
-        E: trouble::Error + Send + Sync + 'static,
+        E: core::error::Error + Send + Sync + 'static,
     {
         Self {
             kind,
@@ -27,7 +28,7 @@ impl Error {
 
     /// Attempts to downcast the error into `T`.
     #[inline]
-    pub fn downcast_ref<T: trouble::Error + 'static>(&self) -> Option<&T> {
+    pub fn downcast_ref<T: core::error::Error + 'static>(&self) -> Option<&T> {
         self.err.downcast_ref::<T>()
     }
 
@@ -38,8 +39,8 @@ impl Error {
     }
 }
 
-impl trouble::Error for Error {
-    fn source(&self) -> Option<&(dyn trouble::Error + 'static)> {
+impl core::error::Error for Error {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         Some(self.err.deref())
     }
 }
@@ -84,7 +85,7 @@ impl From<KeyNotFound> for Error {
 
 impl From<postcard::Error> for Error {
     fn from(err: postcard::Error) -> Self {
-        Self::new(ErrorKind::Encoding, err)
+        Self::new(ErrorKind::Encoding, Trouble(err))
     }
 }
 
@@ -173,7 +174,7 @@ impl AllocError {
     }
 }
 
-impl trouble::Error for AllocError {}
+impl core::error::Error for AllocError {}
 
 impl fmt::Display for AllocError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -185,7 +186,7 @@ impl fmt::Display for AllocError {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct KeyNotFound(pub(crate) Id);
 
-impl trouble::Error for KeyNotFound {}
+impl core::error::Error for KeyNotFound {}
 
 impl fmt::Display for KeyNotFound {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -197,7 +198,7 @@ impl fmt::Display for KeyNotFound {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct WrongContext(pub(crate) &'static str);
 
-impl trouble::Error for WrongContext {}
+impl core::error::Error for WrongContext {}
 
 impl fmt::Display for WrongContext {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
