@@ -865,7 +865,7 @@ impl<R: Read> Query for LinearFactIndex<R> {
         Ok(None)
     }
 
-    type QueryIterator<'a> = QueryIterator where R: 'a;
+    type QueryIterator = QueryIterator;
     fn query_prefix(
         &self,
         name: &str,
@@ -949,7 +949,7 @@ impl<R: Read> Query for LinearFactPerspective<R> {
         }
     }
 
-    type QueryIterator<'a> = QueryIterator where R: 'a;
+    type QueryIterator = QueryIterator;
     fn query_prefix(
         &self,
         name: &str,
@@ -1015,7 +1015,7 @@ impl<R: Read> Query for LinearPerspective<R> {
         self.facts.query(name, keys)
     }
 
-    type QueryIterator<'a> = QueryIterator where R: 'a;
+    type QueryIterator = QueryIterator;
     fn query_prefix(
         &self,
         name: &str,

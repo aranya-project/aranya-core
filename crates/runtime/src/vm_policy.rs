@@ -571,26 +571,28 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                 name,
                 head_id: ctx_parent.id.into(),
             });
-            let mut rs = self.machine.create_run_state(&mut io, &ctx);
-            let exit_reason = match args {
-                Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
-                Cow::Owned(args) => rs.call_action(name, args),
+            {
+                let mut rs = self.machine.create_run_state(&mut io, &ctx);
+                let exit_reason = match args {
+                    Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
+                    Cow::Owned(args) => rs.call_action(name, args),
+                }
+                .map_err(|e| {
+                    error!("\n{e}");
+                    EngineError::InternalError
+                })?;
+                match exit_reason {
+                    ExitReason::Normal => {}
+                    ExitReason::Check => {
+                        info!("Check {}", self.source_location(&rs));
+                        return Err(EngineError::Check);
+                    }
+                    ExitReason::Panic => {
+                        info!("Panicked {}", self.source_location(&rs));
+                        return Err(EngineError::Panic);
+                    }
+                };
             }
-            .map_err(|e| {
-                error!("\n{e}");
-                EngineError::InternalError
-            })?;
-            match exit_reason {
-                ExitReason::Normal => {}
-                ExitReason::Check => {
-                    info!("Check {}", self.source_location(&rs));
-                    return Err(EngineError::Check);
-                }
-                ExitReason::Panic => {
-                    info!("Panicked {}", self.source_location(&rs));
-                    return Err(EngineError::Panic);
-                }
-            };
             io.into_publish_stack()
         };
 

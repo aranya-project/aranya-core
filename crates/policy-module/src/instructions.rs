@@ -141,6 +141,10 @@ pub enum Instruction {
     Query,
     /// Count facts, up to a given limit
     FactCount(i64),
+    /// Execute a fact query, and retain results so they can be consumed with `QueryNext`.
+    QueryStart,
+    /// Fetches the next result, and pushes it onto the stack
+    QueryNext(Identifier),
     /// Serialize a command struct
     Serialize,
     /// Deserialize a command struct
@@ -187,6 +191,8 @@ impl Display for Instruction {
             Instruction::Emit => write!(f, "emit"),
             Instruction::Query => write!(f, "query"),
             Instruction::FactCount(limit) => write!(f, "fact_count {limit}"),
+            Instruction::QueryStart => write!(f, "query.start"),
+            Instruction::QueryNext(ident) => write!(f, "query.next {ident}"),
             Instruction::Serialize => write!(f, "serialize"),
             Instruction::Deserialize => write!(f, "deserialize"),
         }

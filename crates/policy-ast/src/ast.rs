@@ -361,6 +361,17 @@ pub struct IfStatement {
     pub fallback: Option<Vec<AstNode<Statement>>>,
 }
 
+/// Iterate over the results of a query, and execute some statements for each one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MapStatement {
+    /// Query
+    pub fact: FactLiteral,
+    /// Identifier of container struct
+    pub identifier: String,
+    /// Statements to execute for each fact
+    pub statements: Vec<AstNode<Statement>>,
+}
+
 /// Create a fact
 #[derive(Debug, Clone, PartialEq)]
 pub struct CreateStatement {
@@ -408,6 +419,8 @@ pub enum Statement {
     /// A `finish` block containing [Statement]s
     /// Valid only in policy blocks
     Finish(Vec<AstNode<Statement>>),
+    /// Map over a fact result set
+    Map(MapStatement),
     /// A [ReturnStatement]. Valid only in functions.
     Return(ReturnStatement),
     /// Calls an action

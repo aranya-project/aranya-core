@@ -14,6 +14,7 @@ use policy_module::{
 use crate::{
     error::{MachineError, MachineErrorType},
     io::MachineIO,
+    scope::ScopeManager,
     stack::Stack,
     CommandContext, OpenContext, SealContext,
 };
@@ -265,34 +266,29 @@ impl Display for Machine {
     }
 }
 
-/// State stored when a call is made, and restored when it returns.
-struct CallState {
-    return_address: usize,
-    defs: BTreeMap<String, Value>,
-}
-
 /// The "run state" of the machine.
 ///
 /// This includes variables, the stack, the call stack, the program counter, I/O, and the current
 /// execution context. Most commonly created from [`Machine::create_run_state()`]. It's separated
 /// from the rest of the VM so that it can be managed independently and potentially in multiple
 /// simultaneous instances.
-pub struct RunState<'a, M> {
+pub struct RunState<'a, M: MachineIO<MachineStack>> {
     /// Reference to the underlying static machine data
     machine: &'a Machine,
     /// Named value definitions ("variables")
-    defs: BTreeMap<String, Value>,
+    scope: ScopeManager<'a>,
     /// The stack
     pub stack: MachineStack,
-    /// The call state stack - stores return addresses and previous
-    /// definitions when a function is called
-    call_state: Vec<CallState>,
+    /// The call state stack - stores return addresses
+    call_state: Vec<usize>,
     /// The program counter
     pc: usize,
     /// I/O callbacks
     io: &'a mut M,
     /// Execution Context (actually used for more than Commands)
     ctx: &'a CommandContext<'a>,
+    // Cursors for `QueryStart` results
+    query_iter_stack: Vec<M::QueryIterator>,
 }
 
 impl<'a, M> RunState<'a, M>
@@ -307,12 +303,13 @@ where
     ) -> RunState<'a, M> {
         RunState {
             machine,
-            defs: BTreeMap::new(),
+            scope: ScopeManager::new(&machine.globals),
             stack: MachineStack(vec![]),
             call_state: vec![],
             pc: 0,
             io,
             ctx,
+            query_iter_stack: vec![],
         }
     }
 
@@ -354,7 +351,7 @@ where
     /// Reset the machine state - undefine all named values, empty the
     /// stack, and set the program counter to zero.
     pub fn reset(&mut self) {
-        self.defs.clear();
+        self.scope.clear();
         self.stack.clear();
         self.pc = 0;
     }
@@ -453,17 +450,11 @@ where
             }
             Instruction::Def(key) => {
                 let value = self.ipop_value()?;
-                if self.defs.contains_key(&key) || self.machine.globals.contains_key(&key) {
-                    return Err(self.err(MachineErrorType::AlreadyDefined(key)));
-                }
-                self.defs.insert(key, value);
+                self.scope.set(key, value)?
             }
             Instruction::Get(key) => {
-                let def_value = self.defs.get(&key);
-                let v = def_value
-                    .or_else(|| self.machine.globals.get(&key))
-                    .ok_or_else(|| self.err(MachineErrorType::NotDefined(key)))?;
-                self.ipush(v.to_owned())?;
+                let value = self.scope.get(&key)?;
+                self.ipush(value)?;
             }
             Instruction::Swap(d) => {
                 if d == 0 {
@@ -493,8 +484,8 @@ where
             Instruction::Pop => {
                 let _ = self.stack.pop_value();
             }
-            Instruction::Block => todo!(),
-            Instruction::End => todo!(),
+            Instruction::Block => self.scope.enter_block().map_err(|e| self.err(e))?,
+            Instruction::End => self.scope.exit_block().map_err(|e| self.err(e))?,
             Instruction::Jump(t) => match t {
                 Target::Unresolved(_) => return Err(self.err(MachineErrorType::UnresolvedTarget)),
                 Target::Resolved(n) => {
@@ -525,15 +516,10 @@ where
             Instruction::Call(t) => match t {
                 Target::Unresolved(_) => return Err(self.err(MachineErrorType::UnresolvedTarget)),
                 Target::Resolved(n) => {
-                    // Take the old defs, emptying defs
-                    let old_defs = core::mem::take(&mut self.defs);
-                    // Store the current PC and name definitions. The
-                    // PC will be incremented after return, so there's
-                    // no need to increment here.
-                    self.call_state.push(CallState {
-                        return_address: self.pc,
-                        defs: old_defs,
-                    });
+                    self.scope.enter_function();
+                    // Store the current PC. The PC will be incremented after return,
+                    // so there's no need to increment here.
+                    self.call_state.push(self.pc);
                     self.pc = n;
                     return Ok(MachineStatus::Executing);
                 }
@@ -543,12 +529,11 @@ where
                 if self.call_state.is_empty() {
                     return Ok(MachineStatus::Exited(ExitReason::Normal));
                 }
-                let s = self
+                self.pc = self
                     .call_state
                     .pop()
                     .ok_or_else(|| self.err(MachineErrorType::CallStack))?;
-                self.defs = s.defs;
-                self.pc = s.return_address;
+                self.scope.exit_function().map_err(|e| self.err(e))?;
             }
             Instruction::ExtCall(module, proc) => {
                 self.io.call(module, proc, &mut self.stack, self.ctx)?;
@@ -742,6 +727,39 @@ where
 
                 self.ipush(Value::Int(count))?;
             }
+            Instruction::QueryStart => {
+                let fact: Fact = self.ipop()?;
+                self.validate_fact_literal(&fact)?;
+                let iter = self.io.fact_query(fact.name, fact.keys)?;
+                self.query_iter_stack.push(iter);
+            }
+            Instruction::QueryNext(ident) => {
+                // Fetch next fact from iterator
+                let iter = self.query_iter_stack.last_mut().ok_or_else(|| {
+                    MachineError::from_position(
+                        MachineErrorType::BadState,
+                        self.pc,
+                        self.machine.codemap.as_ref(),
+                    )
+                })?;
+                // Update `as` variable value and push an end-of-results bool.
+                match iter.next() {
+                    Some(result) => {
+                        let (k, v) = result?;
+                        let mut fields: Vec<KVPair> = vec![];
+                        fields.append(&mut k.into_iter().map(|e| e.into()).collect());
+                        fields.append(&mut v.into_iter().map(|e| e.into()).collect());
+                        let s = Struct::new(&ident, &fields);
+                        self.scope.set(ident, Value::Struct(s))?;
+                        self.ipush(Value::Bool(false))?;
+                    }
+                    None => {
+                        // When there are no more results, dispose of the iterator.
+                        self.query_iter_stack.pop();
+                        self.ipush(Value::Bool(true))?;
+                    }
+                }
+            }
             Instruction::Serialize => {
                 let CommandContext::Seal(SealContext { name, .. }) = self.ctx else {
                     return Err(MachineError::from_position(
@@ -860,8 +878,9 @@ where
                 }
             }
         }
-        self.defs
-            .insert(String::from("this"), Value::Struct(this_data.to_owned()));
+        self.scope
+            .set("this", Value::Struct(this_data.to_owned()))
+            .map_err(|e| self.err(e))?;
         Ok(())
     }
 
@@ -897,7 +916,7 @@ where
     fn setup_function(&mut self, label: &Label) -> Result<(), MachineError> {
         self.set_pc_by_label(label)?;
         self.call_state.clear();
-        self.defs.clear();
+        self.scope.clear();
 
         Ok(())
     }
@@ -1074,7 +1093,7 @@ where
             write!(f, " ({} stacked)", self.call_state.len())?;
         }
         writeln!(f, ":")?;
-        for (k, v) in &self.defs {
+        for (k, v) in self.scope.locals() {
             writeln!(f, "  {}: {}", k, v)?;
         }
         writeln!(f, "# Stack:")?;

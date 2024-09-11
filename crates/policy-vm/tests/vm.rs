@@ -9,7 +9,7 @@ use bits::{policies::*, testio::*};
 use ciborium as cbor;
 use crypto::Id;
 use policy_ast::{self as ast, Version};
-use policy_compiler::{CompileError, CompileErrorType, Compiler};
+use policy_compiler::{CompileErrorType, Compiler};
 use policy_lang::lang::parse_policy_str;
 use policy_vm::{
     ActionContext, CommandContext, ExitReason, FactValue, KVPair, Machine, MachineError,
@@ -1805,61 +1805,6 @@ fn test_global_let_statements() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_global_let_duplicates() -> anyhow::Result<()> {
-    let text = r#"
-        let x = 10
-
-        command Result {
-            fields {
-                a int,
-            }
-            seal { return None }
-            open { return None }
-        }
-
-        action foo() {
-            let x = x + 15
-            publish Result {
-                a: x,
-            }
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V1)?;
-    let mut io = TestIO::new();
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
-    let ctx = dummy_ctx_action("foo");
-    let mut rs = machine.create_run_state(&mut io, &ctx);
-    let result = rs.call_action("foo", iter::empty::<Value>());
-
-    assert!(matches!(
-        result,
-        Err(MachineError {
-            err_type: MachineErrorType::AlreadyDefined(identifier),
-            ..
-        }) if identifier == "x"
-    ));
-
-    let text = r#"
-        let x = 10
-        let x = 5
-    "#;
-
-    let policy = parse_policy_str(text, Version::V1)?;
-    let res = Compiler::new(&policy).compile();
-    assert!(matches!(
-        res,
-        Err(CompileError {
-            err_type: CompileErrorType::AlreadyDefined(identifier),
-            ..
-        }) if identifier == "x"
-    ));
-
-    Ok(())
-}
-
-#[test]
 fn test_enum_reference() -> anyhow::Result<()> {
     let text = r#"
         effect Effect { a string }
@@ -1992,5 +1937,96 @@ fn test_ffi_fail_without_use() -> anyhow::Result<()> {
         .err_type;
     assert_eq!(result, CompileErrorType::NotDefined(String::from("print")));
 
+    Ok(())
+}
+
+#[test]
+fn test_map() -> anyhow::Result<()> {
+    let text = r#"
+        fact F[i int]=>{n int}
+        effect Result {
+            value int
+        }
+
+        command Setup {
+            open { return None }
+            seal { return None }
+            policy {
+                finish {
+                    create F[i:1]=>{n:1}
+                    create F[i:2]=>{n:2}
+                    create F[i:3]=>{n:3}
+                }
+            }
+        }
+
+        command Process {
+            fields {
+                value int
+            }
+            open { return None }
+            seal { return None }
+            policy {
+                finish {
+                    emit Result {
+                        value: this.value
+                    }
+                }
+            }
+        }
+
+        action test() {
+            map F[i:?] as f {
+                publish Process { value: f.n }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+    let mut io = TestIO::new();
+
+    // Empty results. Run test without creating facts.
+    {
+        let name = "test";
+        let ctx = dummy_ctx_action(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let prev_stack_depth = rs.stack.len();
+        rs.call_action(name, iter::empty::<Value>())?.success();
+
+        // Make sure we didn't leave any trailing values on the stack
+        let stack = rs.stack.into_vec();
+        assert_eq!(stack.len(), prev_stack_depth);
+    }
+
+    // Test with some data
+    {
+        let name = "Setup";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let self_struct = Struct::new(name, &[]);
+        rs.call_command_policy(name, &self_struct, dummy_envelope())?
+            .success();
+    }
+    {
+        let name = "test";
+        let ctx = dummy_ctx_action(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let prev_stack_depth = rs.stack.len();
+        rs.call_action(name, iter::empty::<Value>())?.success();
+
+        // Make sure we didn't leave any trailing values on the stack
+        let stack = rs.stack.into_vec();
+        assert_eq!(stack.len(), prev_stack_depth);
+        // Assert we iterated as many times as expected, and with the correct results each time.
+        assert_eq!(io.publish_stack.len(), 3);
+        for (i, value) in [1, 2, 3].into_iter().enumerate() {
+            let kv = &io.publish_stack[i].1;
+            assert_eq!(*kv[0].value(), Value::Int(value));
+        }
+    }
     Ok(())
 }

@@ -4,11 +4,18 @@
 //!
 //! Design discussion/docs: <https://git.spideroak-inc.com/spideroak-inc/flow3-docs/pull/53>
 
-use alloc::{boxed::Box, collections::BTreeMap, string::String, vec::Vec};
-use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, ops::Bound};
+use alloc::{
+    boxed::Box,
+    collections::{btree_map, BTreeMap},
+    string::String,
+    sync::Arc,
+    vec::Vec,
+};
+use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
 use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
+use yoke::{Yoke, Yokeable};
 
 use crate::{
     Address, Checkpoint, ClientError, ClientState, Command, CommandId, CommandRecall, Engine, Fact,
@@ -31,7 +38,7 @@ pub struct Session<SP: StorageProvider, E> {
     /// The log of facts in insertion order.
     fact_log: Vec<(String, Keys, Option<Bytes>)>,
     /// The current facts of the session, relative to `base_facts`.
-    current_facts: BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>,
+    current_facts: Arc<BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>>,
 
     /// Tag for associated engine.
     _engine: PhantomData<E>,
@@ -58,7 +65,7 @@ impl<SP: StorageProvider, E> Session<SP, E> {
             policy_id: seg.policy(),
             base_facts,
             fact_log: Vec::new(),
-            current_facts: BTreeMap::new(),
+            current_facts: Arc::default(),
             _engine: PhantomData,
             head: command.address()?,
         };
@@ -208,10 +215,10 @@ struct QueryIterator<I1: Iterator, I2: Iterator> {
     current: Peekable<I2>,
 }
 
-impl<'q, I1, I2> QueryIterator<I1, I2>
+impl<I1, I2> QueryIterator<I1, I2>
 where
     I1: Iterator<Item = Result<Fact, StorageError>>,
-    I2: Iterator<Item = (&'q [Box<[u8]>], Option<&'q [u8]>)>,
+    I2: Iterator<Item = (Keys, Option<Bytes>)>,
 {
     fn new(prior: I1, current: I2) -> Self {
         Self {
@@ -221,10 +228,10 @@ where
     }
 }
 
-impl<'q, I1, I2> Iterator for QueryIterator<I1, I2>
+impl<I1, I2> Iterator for QueryIterator<I1, I2>
 where
     I1: Iterator<Item = Result<Fact, StorageError>>,
-    I2: Iterator<Item = (&'q [Box<[u8]>], Option<&'q [u8]>)>,
+    I2: Iterator<Item = (Keys, Option<Bytes>)>,
 {
     type Item = Result<Fact, StorageError>;
 
@@ -243,7 +250,7 @@ where
                     // Bubble up errors as soon as possible, instead of returning `new`.
                     return self.prior.next();
                 };
-                match new.0.cmp(old.key.as_ref()) {
+                match new.0.cmp(&old.key) {
                     Ordering::Equal => {
                         // new overwrites old.
                         let _ = self.prior.next();
@@ -263,7 +270,7 @@ where
             if let (k, Some(v)) = slot {
                 return Some(Ok(Fact {
                     key: k.iter().cloned().collect(),
-                    value: v.into(),
+                    value: v,
                 }));
             }
         }
@@ -288,32 +295,81 @@ where
         self.session.base_facts.query(name, keys)
     }
 
-    type QueryIterator<'q> = QueryIterator<
-        <<SP::Storage as Storage>::FactIndex as Query>::QueryIterator<'q>,
-        Box<dyn Iterator<Item = (&'q [Box<[u8]>], Option<&'q [u8]>)> + 'q>,
-    > where Self: 'q;
+    type QueryIterator = QueryIterator<
+        <<SP::Storage as Storage>::FactIndex as Query>::QueryIterator,
+        YokeIter<PrefixIter<'static>, Arc<BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>>>,
+    >;
     fn query_prefix(
         &self,
         name: &str,
         prefix: &[Box<[u8]>],
-    ) -> Result<Self::QueryIterator<'_>, StorageError> {
+    ) -> Result<Self::QueryIterator, StorageError> {
         let prior = self.session.base_facts.query_prefix(name, prefix)?;
-        let current: Box<dyn Iterator<Item = _>> =
-            self.session
-                .current_facts
-                .get(name)
-                .map_or(Box::new(core::iter::empty()), |facts| {
-                    Box::new(
-                        facts
-                            .range::<[Box<[u8]>], _>((Bound::Included(prefix), Bound::Unbounded))
-                            .take_while({
-                                let prefix: Keys = prefix.iter().cloned().collect();
-                                move |(k, _)| k.starts_with(&prefix)
-                            })
-                            .map(|(k, v)| (k.as_ref(), v.as_deref())),
-                    )
-                });
-        Ok(QueryIterator::new(prior, current))
+        let current = Yoke::<PrefixIter<'static>, _>::attach_to_cart(
+            Arc::clone(&self.session.current_facts),
+            |map| match map.get(name) {
+                Some(facts) => PrefixIter::new(facts, prefix.iter().cloned().collect()),
+                None => PrefixIter::default(),
+            },
+        );
+        Ok(QueryIterator::new(prior, YokeIter::new(current)))
+    }
+}
+
+/// Iterator over matching prefix of a [`BTreeMap`].
+///
+/// Equivalent to `map.range(&prefix..).take_while(move |(k, _)| k.starts_with(prefix))`,
+/// but nameable and [`Yokeable`].
+#[derive(Default, Yokeable)]
+struct PrefixIter<'map> {
+    range: btree_map::Range<'map, Keys, Option<Bytes>>,
+    prefix: Keys,
+}
+
+impl<'map> PrefixIter<'map> {
+    fn new(map: &'map BTreeMap<Keys, Option<Bytes>>, prefix: Keys) -> Self {
+        let range =
+            map.range::<[Box<[u8]>], _>((Bound::Included(prefix.as_ref()), Bound::Unbounded));
+        Self { range, prefix }
+    }
+}
+
+impl<'map> Iterator for PrefixIter<'map> {
+    type Item = (Keys, Option<Bytes>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.range
+            .next()
+            .filter(|(k, _)| k.starts_with(&self.prefix))
+            .map(|(k, v)| (k.clone(), v.clone()))
+    }
+}
+
+/// Wrapper around [`Yoke`] which implements [`Iterator`].
+struct YokeIter<I: for<'a> Yokeable<'a>, C>(Option<Yoke<I, C>>);
+
+impl<I: for<'a> Yokeable<'a>, C> YokeIter<I, C> {
+    fn new(yoke: Yoke<I, C>) -> Self {
+        Self(Some(yoke))
+    }
+}
+
+impl<I, C> Iterator for YokeIter<I, C>
+where
+    I: Iterator + for<'a> Yokeable<'a>,
+    for<'a> <I as Yokeable<'a>>::Output: Iterator<Item = I::Item>,
+{
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // `Yoke::map_project` is currently the only way to mutate something in a yoke and get out a value.
+        // It takes the yoke by value though, so we have to `take` it so we can own it temporarily.
+        let mut item = None;
+        self.0 = Some(self.0.take()?.map_project::<I, _>(|mut it, _| {
+            item = it.next();
+            it
+        }));
+        item
     }
 }
 
@@ -322,8 +378,7 @@ impl<'a, SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'a, SP, E, 
         self.session
             .fact_log
             .push((name.clone(), keys.clone(), Some(value.clone())));
-        self.session
-            .current_facts
+        Arc::make_mut(&mut self.session.current_facts)
             .entry(name)
             .or_default()
             .insert(keys, Some(value));
@@ -333,8 +388,7 @@ impl<'a, SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'a, SP, E, 
         self.session
             .fact_log
             .push((name.clone(), keys.clone(), None));
-        self.session
-            .current_facts
+        Arc::make_mut(&mut self.session.current_facts)
             .entry(name)
             .or_default()
             .insert(keys, None);
@@ -386,14 +440,14 @@ where
             return;
         }
         self.session.fact_log.truncate(checkpoint.index);
-        self.session.current_facts.clear();
+        // Create empty map, but reuse allocation if not shared
+        let mut facts =
+            Arc::get_mut(&mut self.session.current_facts).map_or_else(BTreeMap::new, mem::take);
+        facts.clear();
         for (n, k, v) in self.session.fact_log.iter().cloned() {
-            self.session
-                .current_facts
-                .entry(n)
-                .or_default()
-                .insert(k, v);
+            facts.entry(n).or_default().insert(k, v);
         }
+        self.session.current_facts = Arc::new(facts);
     }
 }
 
@@ -433,7 +487,9 @@ mod test {
                     value: v.into(),
                 })
             }),
-            current.iter().map(|(k, v)| (k.as_slice(), *v)),
+            current
+                .into_iter()
+                .map(|(k, v)| (k.into_iter().collect(), v.map(Box::from))),
         )
         .collect();
         let want: Vec<_> = merged

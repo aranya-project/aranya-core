@@ -127,13 +127,13 @@ impl MachExpIO {
     }
 }
 
-struct MachExpQueryIterator<'a> {
+struct MachExpQueryIterator {
     name: String,
     key: FactKeyList,
-    iter: hash_map::Iter<'a, (String, FactKeyList), FactValueList>,
+    iter: hash_map::IntoIter<(String, FactKeyList), FactValueList>,
 }
 
-impl<'a> Iterator for MachExpQueryIterator<'a> {
+impl Iterator for MachExpQueryIterator {
     type Item = Result<(FactKeyList, FactValueList), MachineIOError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -148,7 +148,7 @@ impl<S> MachineIO<S> for MachExpIO
 where
     S: Stack,
 {
-    type QueryIterator<'c> = MachExpQueryIterator<'c> where Self: 'c;
+    type QueryIterator = MachExpQueryIterator;
 
     fn fact_insert(
         &mut self,
@@ -186,12 +186,13 @@ where
         &self,
         name: String,
         key: impl IntoIterator<Item = FactKey>,
-    ) -> Result<Self::QueryIterator<'_>, MachineIOError> {
+    ) -> Result<Self::QueryIterator, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
         Ok(MachExpQueryIterator {
             name,
             key,
-            iter: self.facts.iter(),
+            // TODO(jdygert): Worth removing clone?
+            iter: self.facts.clone().into_iter(),
         })
     }
 

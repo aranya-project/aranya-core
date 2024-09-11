@@ -83,7 +83,7 @@ where
     FFI: DerefMut,
     <FFI as Deref>::Target: FfiCallable<E>,
 {
-    type QueryIterator<'c> = VmFactCursor<'c, P> where Self: 'c;
+    type QueryIterator = VmFactCursor<P>;
 
     fn fact_insert(
         &mut self,
@@ -111,7 +111,7 @@ where
         &self,
         name: String,
         key: impl IntoIterator<Item = FactKey>,
-    ) -> Result<Self::QueryIterator<'_>, MachineIOError> {
+    ) -> Result<Self::QueryIterator, MachineIOError> {
         let keys = ser_keys(key);
         let iter = self.facts.query_prefix(&name, &keys).map_err(|e| {
             error!("query failed: {e}");
@@ -293,12 +293,12 @@ fn deser_values(value: Box<[u8]>) -> Result<Vec<FactValue>, MachineIOError> {
 }
 
 /// An Iterator that returns a sequence of matching facts from a query. It is produced by
-/// the [`super::VmPolicyIO`] when a query is made by the VM.
-pub struct VmFactCursor<'o, P: Query + 'o> {
-    iter: P::QueryIterator<'o>,
+/// the [VmPolicyIO](super::VmPolicyIO) when a query is made by the VM.
+pub struct VmFactCursor<P: Query> {
+    iter: P::QueryIterator,
 }
 
-impl<'o, P: Query> Iterator for VmFactCursor<'o, P> {
+impl<P: Query> Iterator for VmFactCursor<P> {
     type Item = Result<(Vec<FactKey>, Vec<FactValue>), MachineIOError>;
 
     fn next(&mut self) -> Option<Self::Item> {

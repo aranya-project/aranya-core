@@ -8,7 +8,7 @@ use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
     Parser, Span,
 };
-use policy_ast::{self as ast, AstNode, Version};
+use policy_ast::{self as ast, AstNode, MapStatement, Version};
 
 mod error;
 mod markdown;
@@ -949,6 +949,7 @@ fn parse_statement_list(
                 let pairs = statement.into_inner();
                 ast::Statement::Finish(parse_statement_list(pairs, pratt, cc)?)
             }
+            Rule::map_statement => ast::Statement::Map(parse_map_statement(statement, cc, pratt)?),
             Rule::create_statement => {
                 ast::Statement::Create(parse_create_statement(statement, pratt)?)
             }
@@ -977,6 +978,25 @@ fn parse_statement_list(
     }
 
     Ok(statements)
+}
+
+fn parse_map_statement(
+    field: Pair<'_, Rule>,
+    cc: &mut ChunkContext,
+    pratt: &PrattParser<Rule>,
+) -> Result<MapStatement, ParseError> {
+    assert_eq!(field.as_rule(), Rule::map_statement);
+    let pc = descend(field);
+    let pair = pc.consume()?;
+    let fact = parse_fact_literal(pair, pratt)?;
+    let identifier = pc.consume_identifier()?;
+    let statements = parse_statement_list(pc.into_inner(), pratt, cc)?;
+
+    Ok(MapStatement {
+        fact,
+        identifier,
+        statements,
+    })
 }
 
 fn parse_use_definition(

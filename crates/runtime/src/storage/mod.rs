@@ -418,9 +418,7 @@ pub trait Query {
     fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError>;
 
     /// Iterator for [`Query::query_prefix`].
-    type QueryIterator<'a>: Iterator<Item = Result<Fact, StorageError>>
-    where
-        Self: 'a;
+    type QueryIterator: Iterator<Item = Result<Fact, StorageError>>;
 
     /// Look up all named facts that begin with the prefix of keys, in sorted key order.
     ///
@@ -430,7 +428,7 @@ pub trait Query {
         &self,
         name: &str,
         prefix: &[Box<[u8]>],
-    ) -> Result<Self::QueryIterator<'_>, StorageError>;
+    ) -> Result<Self::QueryIterator, StorageError>;
 }
 
 /// A fact with a key and value.

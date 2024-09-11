@@ -5,7 +5,6 @@ use std::{
 };
 
 use ast::{Expression, VType};
-use buggy::bug;
 use policy_ast as ast;
 
 use crate::{compile::CompileState, CompileErrorType};
@@ -40,26 +39,51 @@ impl From<TypeError> for CompileErrorType {
 /// scope" is the one on the top of the stack.
 #[derive(Debug)]
 pub struct IdentifierTypeStack {
-    stack: Vec<HashMap<String, Typeish>>,
+    globals: HashMap<String, Typeish>,
+    locals: Vec<Vec<HashMap<String, Typeish>>>,
 }
 
 impl IdentifierTypeStack {
     /// Create a new `IdentifierTypeStack`
     pub fn new() -> Self {
         Self {
-            stack: vec![HashMap::new()],
+            globals: HashMap::new(),
+            locals: vec![vec![HashMap::new()]],
+        }
+    }
+
+    /// Add an identifier-type mapping to the global variables
+    pub fn add_global<S>(&mut self, name: S, value: Typeish) -> Result<(), CompileErrorType>
+    where
+        S: Into<String>,
+    {
+        match self.globals.entry(name.into()) {
+            hash_map::Entry::Occupied(o) => Err(CompileErrorType::AlreadyDefined(o.key().into())),
+            hash_map::Entry::Vacant(e) => {
+                e.insert(value);
+                Ok(())
+            }
         }
     }
 
     /// Add an identifier-type mapping to the current scope
-    pub fn add<S>(&mut self, name: S, value: Typeish) -> Result<(), CompileErrorType>
-    where
-        S: Into<String>,
-    {
-        let Some(map) = self.stack.last_mut() else {
-            bug!("identifier stack empty");
-        };
-        match map.entry(name.into()) {
+    pub fn add(
+        &mut self,
+        ident: impl AsRef<str> + Into<String>,
+        value: Typeish,
+    ) -> Result<(), CompileErrorType> {
+        let key = ident.as_ref();
+        if self.globals.contains_key(key) {
+            return Err(CompileErrorType::AlreadyDefined(ident.into()));
+        }
+        let locals = self.locals.last_mut().expect("no function scope");
+        for prev in locals.iter().rev().skip(1) {
+            if prev.contains_key(key) {
+                return Err(CompileErrorType::AlreadyDefined(ident.into()));
+            }
+        }
+        let block = locals.last_mut().expect("no block scope");
+        match block.entry(ident.into()) {
             hash_map::Entry::Occupied(o) => match (o.get(), &value) {
                 (Typeish::Type(ty1), Typeish::Type(ty2)) if ty1 != ty2 => {
                     Err(CompileErrorType::InvalidType(format!(
@@ -79,23 +103,45 @@ impl IdentifierTypeStack {
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
     /// found in the current scope.
     pub fn get(&self, name: &str) -> Result<Typeish, CompileErrorType> {
-        for scope in self.stack.iter().rev() {
-            if let Some(v) = scope.get(name) {
-                return Ok(v.clone());
+        if let Some(locals) = self.locals.last() {
+            for scope in locals.iter().rev() {
+                if let Some(v) = scope.get(name) {
+                    return Ok(v.clone());
+                }
             }
+        }
+        if let Some(v) = self.globals.get(name) {
+            return Ok(v.clone());
         }
         Err(CompileErrorType::NotDefined(name.to_string()))
     }
 
     /// Push a new, empty scope on top of the type stack.
-    pub fn push_scope(&mut self) {
-        self.stack.push(HashMap::new())
+    pub fn enter_function(&mut self) {
+        self.locals.push(vec![HashMap::new()]);
     }
 
     /// Pop the current scope off of the type stack. It is a fatal error to pop an empty
     /// stack, as this indicates a mistake in the compiler.
-    pub fn pop_scope(&mut self) {
-        self.stack.pop().expect("empty type stack");
+    pub fn exit_function(&mut self) {
+        self.locals.pop().expect("no function scope");
+    }
+
+    /// Enter a new block scope.
+    pub fn enter_block(&mut self) {
+        self.locals
+            .last_mut()
+            .expect("no function scope")
+            .push(HashMap::new());
+    }
+
+    /// Exit the current block scope.
+    pub fn exit_block(&mut self) {
+        self.locals
+            .last_mut()
+            .expect("no function scope")
+            .pop()
+            .expect("no block scope");
     }
 }
 

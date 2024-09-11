@@ -1272,6 +1272,33 @@ fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_global_let_duplicates() -> anyhow::Result<()> {
+    let text = r#"
+        let x = 10
+        action foo() {
+            let x = x + 15
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    let err = Compiler::new(&policy).compile().unwrap_err();
+
+    assert_eq!(err.err_type, CompileErrorType::AlreadyDefined("x".into()));
+
+    let text = r#"
+        let x = 10
+        let x = 5
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    let err = Compiler::new(&policy).compile().unwrap_err();
+
+    assert_eq!(err.err_type, CompileErrorType::AlreadyDefined("x".into()));
+
+    Ok(())
+}
+
+#[test]
 fn test_field_collision() -> anyhow::Result<()> {
     let text = r#"
     struct Bar {
@@ -1331,6 +1358,99 @@ fn test_count_up_to() -> anyhow::Result<()> {
         err,
         CompileErrorType::BadArgument("count limit must be greater than zero".to_string())
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_map_valid_in_action() {
+    // map is valid only in actions
+    let test = r#"
+        function pets() int {
+            map Pet[name:?]=>{} as p {}
+            return 0
+        }
+    "#;
+    let policy = parse_policy_str(test, Version::V1).expect("should parse");
+    assert!(matches!(
+        Compiler::new(&policy).compile().unwrap_err().err_type,
+        CompileErrorType::InvalidStatement(..)
+    ));
+
+    let test = r#"
+        fact Pet[name string]=>{age int}
+        action pets() {
+            map Pet[name:?] as p {
+                let age = p.age
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(test, Version::V1).expect("should parse");
+    let _module = Compiler::new(&policy).compile().expect("should compile");
+}
+
+#[test]
+fn test_map_identifier_scope() -> anyhow::Result<()> {
+    // Var should be available inside the `map` block
+    {
+        let test = r#"
+            fact Pet[name string]=>{age int}
+            action pets() {
+                let n = 42
+                map Pet[name:?] as p {
+                    check p.age > 0
+                    check n == 42
+                }
+            }
+        "#;
+        let policy = parse_policy_str(test, Version::V1)?;
+        let _module = Compiler::new(&policy).compile()?;
+    }
+
+    let failures = [
+        // `as` var should not be available before `map` block
+        (
+            r#"
+            fact Pet[name string]=>{age int}
+            action pets() {
+                check p == None
+                map Pet[name:?] as p {}
+            }
+        "#,
+            CompileErrorType::InvalidType(String::from("Unknown identifier `p`")),
+        ),
+        // `as` should not be available after `map` block
+        (
+            r#"
+            fact Pet[name string]=>{age int}
+            action pets() {
+                map Pet[name:?] as p {}
+                check p == None
+            }
+        "#,
+            CompileErrorType::InvalidType(String::from("Unknown identifier `p`")),
+        ),
+        // vars defined inside map should not be accessible outside it
+        (
+            r#"
+            fact Pet[name string]=>{age int}
+            action pets() {
+                map Pet[name:?] as p {
+                    let n = 42
+                }
+                check n == 42 // should not be accessible outside the block
+            }
+        "#,
+            CompileErrorType::InvalidType(String::from("Unknown identifier `n`")),
+        ),
+    ];
+
+    for (test, expected) in failures {
+        let policy = parse_policy_str(test, Version::V1)?;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(err, expected);
+    }
 
     Ok(())
 }

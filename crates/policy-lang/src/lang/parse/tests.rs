@@ -176,7 +176,7 @@ fn parse_errors() -> Result<(), ParseError> {
             " --> 1:28\n  |\n1 | function foo(x int) bool { invalid }\n  \
                 |                            ^---\n  |\n  = expected function_call, \
                 action_call, publish_statement, let_statement, check_statement, match_statement, \
-                if_statement, finish_statement, create_statement, update_statement, \
+                if_statement, finish_statement, map_statement, create_statement, update_statement, \
                 delete_statement, emit_statement, return_statement, or debug_assert",
         ),
         rule: Rule::top_level_statement,
@@ -1647,4 +1647,32 @@ fn test_action_call() -> anyhow::Result<()> {
     );
 
     Ok(())
+}
+
+#[test]
+fn test_map_statement() {
+    let text = r#"
+        fact Foo[i int]=>{n int}
+        action foo() {
+            map Foo[i:1] as f {
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    assert_eq!(
+        policy.actions[0].statements,
+        vec![AstNode {
+            inner: ast::Statement::Map(ast::MapStatement {
+                fact: ast::FactLiteral {
+                    identifier: "Foo".to_string(),
+                    key_fields: vec![("i".to_string(), FactField::Expression(Expression::Int(1)))],
+                    value_fields: None,
+                },
+                identifier: "f".to_string(),
+                statements: vec![]
+            }),
+            locator: 69
+        }]
+    );
 }

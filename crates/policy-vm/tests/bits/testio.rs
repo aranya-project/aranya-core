@@ -60,7 +60,8 @@ impl<S> MachineIO<S> for TestIO
 where
     S: Stack,
 {
-    type QueryIterator<'c> = Box<dyn Iterator<Item=Result<(FactKeyList, FactValueList), MachineIOError>>> where Self: 'c;
+    type QueryIterator =
+        Box<dyn Iterator<Item = Result<(FactKeyList, FactValueList), MachineIOError>>>;
 
     fn fact_insert(
         &mut self,
@@ -100,7 +101,7 @@ where
         &self,
         name: String,
         key: impl IntoIterator<Item = FactKey>,
-    ) -> Result<Self::QueryIterator<'_>, MachineIOError> {
+    ) -> Result<Self::QueryIterator, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
         println!("query {}[{:?}]", name, key);
         let iter = self

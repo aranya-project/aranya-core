@@ -396,12 +396,12 @@ impl Query for MemFactIndex {
         Ok(None)
     }
 
-    type QueryIterator<'a> = Box<dyn Iterator<Item = Result<Fact, StorageError>>>;
+    type QueryIterator = Box<dyn Iterator<Item = Result<Fact, StorageError>>>;
     fn query_prefix(
         &self,
         name: &str,
         prefix: &[Box<[u8]>],
-    ) -> Result<Self::QueryIterator<'_>, StorageError> {
+    ) -> Result<Self::QueryIterator, StorageError> {
         Ok(Box::from(
             self.query_prefix_inner(name, prefix)
                 .into_iter()
@@ -708,12 +708,12 @@ impl Query for MemPerspective {
         self.facts.query(name, keys)
     }
 
-    type QueryIterator<'a> = <MemFactPerspective as Query>::QueryIterator<'a>;
+    type QueryIterator = <MemFactPerspective as Query>::QueryIterator;
     fn query_prefix(
         &self,
         name: &str,
         prefix: &[Box<[u8]>],
-    ) -> Result<Self::QueryIterator<'_>, StorageError> {
+    ) -> Result<Self::QueryIterator, StorageError> {
         self.facts.query_prefix(name, prefix)
     }
 }
@@ -762,12 +762,12 @@ impl Query for MemFactPerspective {
         }
     }
 
-    type QueryIterator<'a> = Box<dyn Iterator<Item = Result<Fact, StorageError>>>;
+    type QueryIterator = Box<dyn Iterator<Item = Result<Fact, StorageError>>>;
     fn query_prefix(
         &self,
         name: &str,
         prefix: &[Box<[u8]>],
-    ) -> Result<Self::QueryIterator<'_>, StorageError> {
+    ) -> Result<Self::QueryIterator, StorageError> {
         Ok(Box::from(
             self.query_prefix_inner(name, prefix)
                 .into_iter()

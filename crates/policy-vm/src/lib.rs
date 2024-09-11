@@ -11,6 +11,7 @@ mod error;
 pub mod ffi;
 mod io;
 mod machine;
+mod scope;
 mod stack;
 mod tests;
 

@@ -130,6 +130,13 @@ impl<'a> CompileState<'a> {
         self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
     }
 
+    fn append_var(&mut self, identifier: String, vtype: VType) -> Result<(), CompileError> {
+        self.append_instruction(Instruction::Def(identifier.clone()));
+        self.identifier_types
+            .add(identifier, Typeish::Type(vtype))?;
+        Ok(())
+    }
+
     /// Inserts a fact definition
     fn define_fact(&mut self, fact: &FactDefinition) -> Result<(), CompileError> {
         if self.m.fact_defs.contains_key(&fact.identifier) {
@@ -802,7 +809,12 @@ impl<'a> CompileState<'a> {
     fn compile_statements(
         &mut self,
         statements: &[AstNode<ast::Statement>],
+        scope: Scope,
     ) -> Result<(), CompileError> {
+        if scope == Scope::Layered {
+            self.identifier_types.enter_block();
+            self.append_instruction(Instruction::Block);
+        }
         let context = self.get_statement_context()?;
         for statement in statements {
             self.map_range(statement)?;
@@ -924,7 +936,7 @@ impl<'a> CompileState<'a> {
                         // Drop expression value (It's still around because of the Dup)
                         self.append_instruction(Instruction::Pop);
 
-                        self.compile_statements(&arm.statements)?;
+                        self.compile_statements(&arm.statements, Scope::Same)?;
 
                         // break out of match
                         self.append_instruction(Instruction::Jump(Target::Unresolved(
@@ -949,14 +961,14 @@ impl<'a> CompileState<'a> {
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
                             next_label.clone(),
                         )));
-                        self.compile_statements(branch)?;
+                        self.compile_statements(branch, Scope::Same)?;
                         self.append_instruction(Instruction::Jump(Target::Unresolved(
                             end_label.clone(),
                         )));
                         self.define_label(next_label, self.wp)?;
                     }
                     if let Some(fallback) = &s.fallback {
-                        self.compile_statements(fallback)?;
+                        self.compile_statements(fallback, Scope::Same)?;
                     }
                     self.define_label(end_label, self.wp)?;
                 }
@@ -979,7 +991,7 @@ impl<'a> CompileState<'a> {
                     StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),
                 ) => {
                     self.enter_statement_context(StatementContext::Finish);
-                    self.compile_statements(s)?;
+                    self.compile_statements(s, Scope::Layered)?;
                     self.exit_statement_context();
 
                     // Ensure `finish` is the last statement in the block. This also guarantees we can't have more than one finish block.
@@ -993,6 +1005,38 @@ impl<'a> CompileState<'a> {
                     }
                     // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
                     self.append_instruction(Instruction::Exit(ExitReason::Normal));
+                }
+                (ast::Statement::Map(map_stmt), StatementContext::Action(_action)) => {
+                    self.verify_fact_against_schema(&map_stmt.fact, false)?;
+                    // Execute query and store results
+                    self.compile_fact_literal(&map_stmt.fact)?;
+                    self.append_instruction(Instruction::QueryStart);
+                    // Define Struct variable for the `as` clause
+                    self.identifier_types.enter_block();
+                    self.identifier_types.add(
+                        map_stmt.identifier.clone(),
+                        Typeish::Type(VType::Struct(map_stmt.fact.identifier.clone())),
+                    )?;
+                    // Consume results...
+                    let top_label = self.anonymous_label();
+                    let end_label = self.anonymous_label();
+                    self.define_label(top_label.to_owned(), self.wp)?;
+                    // Fetch next result
+                    self.append_instruction(Instruction::Block);
+                    self.append_instruction(Instruction::QueryNext(map_stmt.identifier.clone()));
+                    // If no more results, break
+                    self.append_instruction(Instruction::Branch(Target::Unresolved(
+                        end_label.clone(),
+                    )));
+                    // body
+                    self.compile_statements(&map_stmt.statements, Scope::Same)?;
+                    self.append_instruction(Instruction::End);
+                    // Jump back to top of loop
+                    self.append_instruction(Instruction::Jump(Target::Unresolved(top_label)));
+                    // Exit loop
+                    self.define_label(end_label, self.wp)?;
+                    self.append_instruction(Instruction::End);
+                    self.identifier_types.exit_block();
                 }
                 (ast::Statement::Create(s), StatementContext::Finish) => {
                     // Do not allow bind values during fact creation
@@ -1166,6 +1210,10 @@ impl<'a> CompileState<'a> {
                 }
             }
         }
+        if scope == Scope::Layered {
+            self.append_instruction(Instruction::End);
+            self.identifier_types.exit_block();
+        }
         Ok(())
     }
 
@@ -1193,14 +1241,12 @@ impl<'a> CompileState<'a> {
             ));
         }
 
-        self.identifier_types.push_scope();
+        self.identifier_types.enter_function();
         for arg in function.arguments.iter().rev() {
-            self.append_instruction(Instruction::Def(arg.identifier.clone()));
-            self.identifier_types
-                .add(&arg.identifier, Typeish::Type(arg.field_type.clone()))?;
+            self.append_var(arg.identifier.clone(), arg.field_type.clone())?;
         }
         let from = self.wp;
-        self.compile_statements(&function.statements)?;
+        self.compile_statements(&function.statements, Scope::Same)?;
         // Check that there is a return statement somewhere in the compiled instructions.
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(self.err_loc(CompileErrorType::NoReturn, function_node.locator));
@@ -1208,7 +1254,7 @@ impl<'a> CompileState<'a> {
         // If execution does not hit a return statement, it will panic here.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
-        self.identifier_types.pop_scope();
+        self.identifier_types.exit_function();
         Ok(())
     }
 
@@ -1220,20 +1266,16 @@ impl<'a> CompileState<'a> {
         let function = &function_node.inner;
         self.define_label(Label::new_temp(&function.identifier), self.wp)?;
         self.map_range(function_node)?;
-        self.identifier_types.push_scope();
+        self.identifier_types.enter_function();
         for arg in function.arguments.iter().rev() {
-            self.append_instruction(Instruction::Def(arg.identifier.clone()));
-            self.identifier_types.add(
-                arg.identifier.clone(),
-                Typeish::Type(arg.field_type.clone()),
-            )?;
+            self.append_var(arg.identifier.clone(), arg.field_type.clone())?;
         }
-        self.compile_statements(&function.statements)?;
+        self.compile_statements(&function.statements, Scope::Same)?;
         // Finish functions cannot have return statements, so we add a return instruction
         // manually.
         self.append_instruction(Instruction::Return);
 
-        self.identifier_types.pop_scope();
+        self.identifier_types.exit_function();
         Ok(())
     }
 
@@ -1253,7 +1295,7 @@ impl<'a> CompileState<'a> {
         action_node: &AstNode<ast::ActionDefinition>,
     ) -> Result<(), CompileError> {
         let action = &action_node.inner;
-        self.identifier_types.push_scope();
+        self.identifier_types.enter_function();
         self.define_label(Label::new(&action.identifier, LabelType::Action), self.wp)?;
         self.map_range(action_node)?;
 
@@ -1267,16 +1309,12 @@ impl<'a> CompileState<'a> {
         }
 
         for arg in action.arguments.iter().rev() {
-            self.append_instruction(Instruction::Def(arg.identifier.clone()));
-            self.identifier_types.add(
-                arg.identifier.clone(),
-                Typeish::Type(arg.field_type.clone()),
-            )?;
+            self.append_var(arg.identifier.clone(), arg.field_type.clone())?;
         }
 
-        self.compile_statements(&action.statements)?;
+        self.compile_statements(&action.statements, Scope::Same)?;
         self.append_instruction(Instruction::Return);
-        self.identifier_types.pop_scope();
+        self.identifier_types.exit_function();
 
         match self.m.action_defs.entry(action_node.identifier.clone()) {
             Entry::Vacant(e) => {
@@ -1312,7 +1350,8 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.identifier_types.add(identifier, Typeish::Type(vt))?;
+        self.identifier_types
+            .add_global(identifier, Typeish::Type(vt))?;
 
         Ok(())
     }
@@ -1350,7 +1389,7 @@ impl<'a> CompileState<'a> {
             self.wp,
         )?;
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
-        self.identifier_types.push_scope();
+        self.identifier_types.enter_function();
         self.identifier_types.add(
             "this",
             Typeish::Type(VType::Struct(command.identifier.clone())),
@@ -1360,8 +1399,8 @@ impl<'a> CompileState<'a> {
             Typeish::Type(VType::Struct("Envelope".to_string())),
         )?;
         self.append_instruction(Instruction::Def("envelope".into()));
-        self.compile_statements(&command.policy)?;
-        self.identifier_types.pop_scope();
+        self.compile_statements(&command.policy, Scope::Same)?;
+        self.identifier_types.exit_function();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
         Ok(())
@@ -1376,7 +1415,7 @@ impl<'a> CompileState<'a> {
             self.wp,
         )?;
         self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
-        self.identifier_types.push_scope();
+        self.identifier_types.enter_function();
         self.identifier_types.add(
             "this",
             Typeish::Type(VType::Struct(command.identifier.clone())),
@@ -1386,8 +1425,8 @@ impl<'a> CompileState<'a> {
             Typeish::Type(VType::Struct("Envelope".to_string())),
         )?;
         self.append_instruction(Instruction::Def("envelope".into()));
-        self.compile_statements(&command.recall)?;
-        self.identifier_types.pop_scope();
+        self.compile_statements(&command.recall, Scope::Same)?;
+        self.identifier_types.exit_function();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
         Ok(())
@@ -1425,18 +1464,18 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
         self.define_label(actual_seal, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction(seal_function_definition));
-        self.identifier_types.push_scope();
+        self.identifier_types.enter_function();
         self.identifier_types.add(
             "this",
             Typeish::Type(VType::Struct(command.identifier.clone())),
         )?;
         self.append_instruction(Instruction::Def("this".into()));
         let from = self.wp;
-        self.compile_statements(&command.seal)?;
+        self.compile_statements(&command.seal, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(self.err_loc(CompileErrorType::NoReturn, locator));
         }
-        self.identifier_types.pop_scope();
+        self.identifier_types.exit_function();
         self.exit_statement_context();
         // If there is no return, this is an error. Panic if we get here.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
@@ -1473,18 +1512,18 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(ExitReason::Normal));
         self.define_label(actual_open, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction(open_function_definition));
-        self.identifier_types.push_scope();
+        self.identifier_types.enter_function();
         self.identifier_types.add(
             "envelope",
             Typeish::Type(VType::Struct("Envelope".to_string())),
         )?;
         self.append_instruction(Instruction::Def("envelope".into()));
         let from = self.wp;
-        self.compile_statements(&command.open)?;
+        self.compile_statements(&command.open, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(self.err_loc(CompileErrorType::NoReturn, locator));
         }
-        self.identifier_types.pop_scope();
+        self.identifier_types.exit_function();
         self.exit_statement_context();
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
         Ok(())
@@ -1639,6 +1678,15 @@ impl<'a> CompileState<'a> {
     pub fn into_module(self) -> Module {
         self.m.into_module()
     }
+}
+
+/// Flag for controling scope when compiling statement blocks.
+#[derive(PartialEq)]
+enum Scope {
+    /// Enter a new layered scope.
+    Layered,
+    /// Remain in the same scope.
+    Same,
 }
 
 /// A builder for creating an instance of [`Module`]

@@ -144,7 +144,7 @@ optional_literal = { none | (some ~ expression) }
 query = { "query" ~ fact_literal }
 // exists is query that checks for the existence of a fact
 exists = { "exists" ~ fact_literal }
-// count-up-to
+// count-up-to - count facts matching query
 count_up_to = { "count_up_to" ~ int_literal ~ fact_literal}
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
@@ -221,6 +221,8 @@ if_branch = { statement_block }
 // fact state and produce effects. The finish statement ends further
 // policy processing after executing its statements.
 finish_statement = { "finish" ~ statement_block }
+// map - iterate over facts
+map_statement = { "map" ~ fact_literal ~ "as" ~ identifier ~ statement_block }
 // The create statement creates a fact.
 create_statement = { "create" ~ fact_literal }
 // The update statement updates a matching fact to a new value.
@@ -242,6 +244,7 @@ statements = _{
     match_statement |
     if_statement |
     finish_statement |
+    map_statement |
     create_statement |
     update_statement |
     delete_statement |
