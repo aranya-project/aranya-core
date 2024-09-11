@@ -1,3 +1,4 @@
+use alloc::vec;
 use core::mem;
 
 use buggy::{bug, BugExt};
@@ -6,12 +7,65 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     requester::SyncRequestMessage, CommandMeta, SyncError, COMMAND_RESPONSE_MAX,
-    COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, SEGMENT_BUFFER_MAX,
+    COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, SEGMENT_BUFFER_MAX,
 };
 use crate::{
     command::{Address, Command, CommandId},
     storage::{GraphId, Location, Segment, Storage, StorageProvider},
+    StorageError,
 };
+
+#[derive(Default, Debug)]
+pub struct PeerCache {
+    heads: Vec<Address, { PEER_HEAD_MAX }>,
+}
+
+impl PeerCache {
+    pub fn new() -> Self {
+        PeerCache { heads: Vec::new() }
+    }
+
+    pub fn heads(&self) -> &[Address] {
+        &self.heads
+    }
+
+    pub fn add_command<S>(
+        &mut self,
+        storage: &mut S,
+        command: Address,
+        cmd_loc: Location,
+    ) -> Result<(), StorageError>
+    where
+        S: Storage,
+    {
+        let mut add_command = true;
+        let mut retain_head = |request_head: &Address, new_head: Location| {
+            let new_head_seg = storage.get_segment(new_head)?;
+            let req_head_loc = storage
+                .get_location(*request_head)?
+                .assume("location must exist")?;
+            let req_head_seg = storage.get_segment(req_head_loc)?;
+            if let Some(new_head_command) = new_head_seg.get_command(new_head) {
+                if request_head.id == new_head_command.address()?.id {
+                    add_command = false;
+                }
+            }
+            if storage.is_ancestor(new_head, &req_head_seg)? {
+                add_command = false;
+            }
+            Ok::<bool, StorageError>(!storage.is_ancestor(req_head_loc, &new_head_seg)?)
+        };
+        self.heads
+            .retain(|h| retain_head(h, cmd_loc).unwrap_or(false));
+        if add_command && !self.heads.is_full() {
+            self.heads
+                .push(command)
+                .ok()
+                .assume("command locations should not be full")?;
+        };
+        Ok(())
+    }
+}
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
 // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
@@ -132,6 +186,7 @@ impl SyncResponder {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
+        response_cache: &mut PeerCache,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
         let length = match self.state {
@@ -153,6 +208,12 @@ impl SyncResponder {
                 };
 
                 self.state = S::Send;
+                for command in &self.has {
+                    // We only need to check commands that are a part of our graph.
+                    if let Some(cmd_loc) = storage.get_location(*command)? {
+                        response_cache.add_command(storage, *command, cmd_loc)?;
+                    }
+                }
                 self.to_send = SyncResponder::find_needed_segments(&self.has, storage)?;
 
                 self.get_next(target, provider)?
@@ -193,6 +254,7 @@ impl SyncResponder {
                 self.to_send = Vec::new();
                 self.has = commands;
                 self.next_send = 0;
+                return Ok(());
             }
             SyncRequestMessage::RequestMissing { .. } => {
                 todo!()
@@ -216,7 +278,7 @@ impl SyncResponder {
         commands: &[Address],
         storage: &impl Storage,
     ) -> Result<Vec<Location, SEGMENT_BUFFER_MAX>, SyncError> {
-        let mut have_locations = alloc::vec::Vec::new(); //BUG: not constant size
+        let mut have_locations = vec::Vec::new(); //BUG: not constant size
         for &addr in commands {
             let Some(location) = storage.get_location(addr)? else {
                 // Note: We could use things we don't
@@ -228,7 +290,7 @@ impl SyncResponder {
             have_locations.push(location);
         }
 
-        let mut heads = alloc::vec::Vec::new();
+        let mut heads = vec::Vec::new();
         heads.push(storage.get_head()?);
 
         let mut result: Deque<Location, SEGMENT_BUFFER_MAX> = Deque::new();

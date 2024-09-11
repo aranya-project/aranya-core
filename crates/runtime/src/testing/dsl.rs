@@ -67,9 +67,9 @@ use tracing::{debug, error};
 
 use crate::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    Address, ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location, Prior,
-    Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester, SyncResponder,
-    COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
+    Address, ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location,
+    PeerCache, Prior, Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester,
+    SyncResponder, COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
 };
 
 fn default_repeat() -> u64 {
@@ -94,6 +94,7 @@ pub enum TestRule {
         graph: u64,
         client: u64,
         from: u64,
+        must_send: Option<usize>,
         must_receive: Option<usize>,
         #[serde(default = "default_max_syncs")]
         max_syncs: u64,
@@ -150,6 +151,7 @@ impl Display for TestRule {
                 graph,
                 client,
                 from,
+                must_send: None,
                 must_receive: None,
                 max_syncs,
             } => write!(
@@ -161,12 +163,37 @@ impl Display for TestRule {
                 graph,
                 client,
                 from,
+                must_send: None,
                 must_receive: Some(must_receive),
                 max_syncs,
             } => write!(
                 f,
                 r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
                 graph, client, from, must_receive, max_syncs,
+            ),
+            TestRule::Sync {
+                graph,
+                client,
+                from,
+                must_send: Some(must_send),
+                must_receive: None,
+                max_syncs,
+            } => write!(
+                f,
+                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "max_syncs": {} }} }},"#,
+                graph, client, from, must_send, max_syncs,
+            ),
+            TestRule::Sync {
+                graph,
+                client,
+                from,
+                must_send: Some(must_send),
+                must_receive: Some(must_receive),
+                max_syncs,
+            } => write!(
+                f,
+                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
+                graph, client, from, must_send, must_receive, max_syncs,
             ),
             TestRule::ActionSet {
                 client,
@@ -359,6 +386,7 @@ where
                                     graph,
                                     client,
                                     from,
+                                    must_send: None,
                                     must_receive: None,
                                     max_syncs: 1,
                                 })
@@ -372,6 +400,7 @@ where
                             graph,
                             client: 1,
                             from: i,
+                            must_send: None,
                             must_receive: None,
                             max_syncs,
                         })
@@ -382,6 +411,7 @@ where
                             graph,
                             client: i,
                             from: 1,
+                            must_send: None,
                             must_receive: None,
                             max_syncs,
                         })
@@ -391,6 +421,7 @@ where
                         graph,
                         client: 0,
                         from: 1,
+                        must_send: None,
                         must_receive: None,
                         max_syncs: (commands / COMMAND_RESPONSE_MAX as u64) + 100,
                     });
@@ -401,6 +432,7 @@ where
                             graph,
                             client: i,
                             from: 0,
+                            must_send: None,
                             must_receive: None,
                             max_syncs,
                         })
@@ -436,6 +468,7 @@ where
                             graph,
                             client: i,
                             from: 0,
+                            must_send: None,
                             must_receive: None,
                             max_syncs: 1,
                         });
@@ -451,6 +484,9 @@ where
     let mut clients = BTreeMap::new();
 
     let mut sink = TestSink::new();
+    // Store all known heads for each client.
+    // BtreeMap<(graph, caching_client, cached_client) RefCell<PeerCache>>
+    let mut client_heads: BTreeMap<(u64, u64, u64), RefCell<PeerCache>> = BTreeMap::new();
 
     for rule in actions {
         debug!(?rule);
@@ -483,6 +519,7 @@ where
                 client,
                 graph,
                 from,
+                must_send,
                 must_receive,
                 max_syncs,
             } => {
@@ -497,22 +534,40 @@ where
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
+                let mut total_sent = 0;
                 let mut total_received = 0;
                 for _ in 0..max_syncs {
-                    let commands_received = sync(
+                    client_heads.entry((graph, client, from)).or_default();
+                    client_heads.entry((graph, from, client)).or_default();
+                    let mut request_cache = client_heads
+                        .get(&(graph, client, from))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    let mut response_cache = client_heads
+                        .get(&(graph, from, client))
+                        .assume("cache must exist")?
+                        .borrow_mut();
+                    let (sent, received) = sync(
+                        &mut request_cache,
+                        &mut response_cache,
                         &mut request_client,
                         &mut response_client,
                         &mut sink,
                         storage_id,
                     )?;
-                    total_received += commands_received;
-                    if commands_received < COMMAND_RESPONSE_MAX {
+                    total_received += received;
+                    total_sent += sent;
+                    if received < COMMAND_RESPONSE_MAX {
                         break;
                     }
                 }
 
                 if let Some(mr) = must_receive {
                     assert_eq!(total_received, mr);
+                }
+
+                if let Some(ms) = must_send {
+                    assert_eq!(total_sent, ms);
                 }
 
                 assert_eq!(0, sink.count());
@@ -629,41 +684,46 @@ where
 }
 
 fn sync<SP: StorageProvider>(
+    request_cache: &mut PeerCache,
+    response_cache: &mut PeerCache,
     request_state: &mut ClientState<TestEngine, SP>,
     response_state: &mut ClientState<TestEngine, SP>,
     sink: &mut TestSink,
     storage_id: &GraphId,
-) -> Result<usize, TestError> {
+) -> Result<(usize, usize), TestError> {
     let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng);
     let mut response_syncer = SyncResponder::new();
     assert!(request_syncer.ready());
 
+    let mut sent = 0;
     let mut request_trx = request_state.transaction(storage_id);
 
     if request_syncer.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = request_syncer.poll(&mut buffer, request_state.provider())?;
+        let (len, commands_sent) =
+            request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
+        sent = commands_sent;
 
         response_syncer.receive(&buffer[..len])?;
     }
 
-    let mut count = 0;
+    let mut received = 0;
     if response_syncer.ready() {
         let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = response_syncer.poll(&mut buffer, response_state.provider())?;
+        let len = response_syncer.poll(&mut buffer, response_state.provider(), response_cache)?;
 
         if len == 0 {
-            return Ok(0);
+            return Ok((sent, received));
         }
 
         if let Some(cmds) = request_syncer.receive(&buffer[..len])? {
-            count = request_state.add_commands(&mut request_trx, sink, &cmds)?;
+            received = request_state.add_commands(&mut request_trx, sink, &cmds, request_cache)?;
         };
     }
 
     request_state.commit(&mut request_trx, sink)?;
 
-    Ok(count)
+    Ok((sent, received))
 }
 
 struct Parent(Prior<Address>);
@@ -796,7 +856,6 @@ test_vectors! {
     three_client_branch,
     large_sync,
     three_client_compare_graphs,
-    generate_graph,
     duplicate_sync_causes_failure,
     missing_parent_after_sync,
     sync_graph_larger_than_command_max,
@@ -836,7 +895,6 @@ macro_rules! test_suite {
             three_client_branch,
             large_sync,
             three_client_compare_graphs,
-            generate_graph,
             duplicate_sync_causes_failure,
             missing_parent_after_sync,
             sync_graph_larger_than_command_max,

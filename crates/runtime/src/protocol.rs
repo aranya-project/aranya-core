@@ -335,7 +335,6 @@ impl Policy for TestPolicy {
                 facts.add_command(&command)?;
             }
             TestActions::SetValue(key, value) => {
-                //let target = facts.get_target()?;
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let target = buffer.as_mut_slice();
                 let payload = (key, value);

@@ -16,9 +16,12 @@ mod requester;
 mod responder;
 
 pub use requester::SyncRequester;
-pub use responder::SyncResponder;
+pub use responder::{PeerCache, SyncResponder};
 
 // TODO: These should all be compile time parameters
+
+/// The maximum number of heads that will be stored for a peer.
+pub const PEER_HEAD_MAX: usize = 10;
 
 /// The maximum number of samples in a request
 const COMMAND_SAMPLE_MAX: usize = 100;

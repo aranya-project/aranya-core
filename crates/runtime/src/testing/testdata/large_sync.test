@@ -8,6 +8,74 @@
   },
   {
     "AddExpectations": {
+      "expectation": 3,
+      "repeat": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 0,
+      "graph": 0,
+      "key": 0,
+      "value": 3,
+      "repeat": 1
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 4,
+      "repeat": 1
+    }
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "graph": 0,
+      "key": 0,
+      "value": 4,
+      "repeat": 1
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 3,
+      "repeat": 2
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_send": 2,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 4,
+      "repeat": 1
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 3,
+      "repeat": 1
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": 2,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "AddExpectations": {
       "expectation": 1,
       "repeat": 101
     }
@@ -22,9 +90,25 @@
     }
   },
   {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": 100,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
     "AddExpectations": {
       "expectation": 1,
       "repeat": 100
+    }
+  },
+  {
+    "PrintGraph": {
+      "client": 0,
+      "graph": 0
     }
   },
   {
@@ -32,6 +116,17 @@
       "graph": 0,
       "client": 1,
       "from": 0,
+      "must_send": 3,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": 1,
       "must_receive": null,
       "max_syncs": 1
     }
@@ -47,6 +142,17 @@
       "graph": 0,
       "client": 1,
       "from": 0,
+      "must_send": 2,
+      "must_receive": null,
+      "max_syncs": 1
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 1,
+      "from": 0,
+      "must_send": 2,
       "must_receive": null,
       "max_syncs": 1
     }
@@ -61,23 +167,20 @@
   },
   {
     "AddExpectations": {
-      "expectation": 1,
-      "repeat": 100
+      "expectation": 4,
+      "repeat": 1
     }
   },
   {
-    "Sync": {
-      "graph": 0,
-      "client": 2,
-      "from": 1,
-      "must_receive": null,
-      "max_syncs": 1
+    "AddExpectations": {
+      "expectation": 3,
+      "repeat": 2
     }
   },
   {
     "AddExpectations": {
       "expectation": 1,
-      "repeat": 1
+      "repeat": 101
     }
   },
   {
@@ -85,6 +188,17 @@
       "graph": 0,
       "client": 2,
       "from": 1,
+      "must_send": 5,
+      "must_receive": null,
+      "max_syncs": 2
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 0,
+      "from": 1,
+      "must_send": 1,
       "must_receive": null,
       "max_syncs": 1
     }

@@ -193,6 +193,7 @@ where
 }
 
 /// We use an enum to automatically define unique values for different users.
+#[derive(Copy, Clone)]
 enum User {
     A,
     B,
@@ -205,6 +206,7 @@ impl From<User> for ProxyClientId {
 }
 
 /// We use an enum to automatically define unique values for different graphs.
+#[derive(Copy, Clone)]
 enum Graph {
     X,
     Y,

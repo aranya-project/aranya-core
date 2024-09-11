@@ -3,6 +3,7 @@
 //! An implementation of the syncer using QUIC.
 
 use std::{
+    collections::BTreeMap,
     net::{Ipv4Addr, SocketAddr},
     sync::Arc,
 };
@@ -11,7 +12,8 @@ use quinn::{ClientConfig, ConnectError, ConnectionError, Endpoint, ReadToEndErro
 use runtime::{
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
-    ClientError, ClientState, SyncError, SyncRequester, SyncResponder, MAX_SYNC_MESSAGE_SIZE,
+    ClientError, ClientState, PeerCache, SyncError, SyncRequester, SyncResponder,
+    MAX_SYNC_MESSAGE_SIZE,
 };
 use tokio::sync::Mutex as TMutex;
 use tracing::error;
@@ -51,8 +53,11 @@ where
     EN: Engine,
     SP: StorageProvider,
 {
+    let mut remote_heads: BTreeMap<SocketAddr, PeerCache> = BTreeMap::new();
     while let Some(conn) = endpoint.accept().await {
-        if let Err(e) = handle_connection(conn, client.clone()).await {
+        let remote = conn.remote_address();
+        let heads = remote_heads.entry(remote).or_default();
+        if let Err(e) = handle_connection(conn, client.clone(), heads).await {
             error!(cause = ?e, "sync error");
         }
     }
@@ -61,6 +66,7 @@ where
 async fn handle_connection<EN, SP>(
     conn: quinn::Connecting,
     client: Arc<TMutex<ClientState<EN, SP>>>,
+    remote_heads: &mut PeerCache,
 ) -> Result<(), QuicSyncError>
 where
     EN: Engine,
@@ -77,13 +83,14 @@ where
         }
         Ok(s) => s,
     };
-    handle_request(stream, client).await?;
+    handle_request(stream, client, remote_heads).await?;
     Ok(())
 }
 
 async fn handle_request<EN, SP>(
     (mut send, mut recv): (quinn::SendStream, quinn::RecvStream),
     client: Arc<TMutex<ClientState<EN, SP>>>,
+    remote_heads: &mut PeerCache,
 ) -> Result<(), QuicSyncError>
 where
     EN: Engine,
@@ -97,7 +104,7 @@ where
         let mut client = client.lock().await;
         response_syncer.receive(&req)?;
 
-        let len = response_syncer.poll(&mut buffer, client.provider())?;
+        let len = response_syncer.poll(&mut buffer, client.provider(), remote_heads)?;
         &buffer[..len]
     };
 
@@ -110,6 +117,7 @@ where
 /// A QUIC syncer client
 pub struct Syncer {
     endpoint: Endpoint,
+    remote_heads: BTreeMap<SocketAddr, PeerCache>,
 }
 
 impl Syncer {
@@ -123,14 +131,17 @@ impl Syncer {
         let client_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0);
         let mut endpoint = Endpoint::client(client_addr)?;
         endpoint.set_default_client_config(client_cfg);
-        Ok(Syncer { endpoint })
+        Ok(Syncer {
+            endpoint,
+            remote_heads: BTreeMap::new(),
+        })
     }
 
     /// Sync the specified graph with a peer at the given address.
     ///
     /// The sync will update your storage, not the peer's.
     pub async fn sync<S, EN, SP>(
-        &self,
+        &mut self,
         client: &mut ClientState<EN, SP>,
         mut syncer: SyncRequester<'_>,
         sink: &mut S,
@@ -143,7 +154,9 @@ impl Syncer {
         S: Sink<<EN as Engine>::Effect>,
     {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = syncer.poll(&mut buffer, client.provider())?;
+        let mut received = 0;
+        let heads = self.remote_heads.entry(server_addr).or_default();
+        let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
         if len > buffer.len() {
             return Err(SyncError::SerilizeError.into());
         }
@@ -155,12 +168,11 @@ impl Syncer {
         send.finish().await?;
         let resp = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
         // An empty response means we're up to date and there's nothing to sync.
-        let mut received = 0;
         if !resp.is_empty() {
             if let Some(cmds) = syncer.receive(&resp)? {
                 received = cmds.len();
                 let mut trx = client.transaction(storage_id);
-                client.add_commands(&mut trx, sink, &cmds)?;
+                client.add_commands(&mut trx, sink, &cmds, heads)?;
                 client.commit(&mut trx, sink)?;
             }
         }

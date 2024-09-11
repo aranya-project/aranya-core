@@ -5,8 +5,8 @@ use buggy::{Bug, BugExt};
 use tracing::trace;
 
 use crate::{
-    Command, CommandId, Engine, EngineError, GraphId, Location, Perspective, Policy, Prior,
-    Priority, Segment, Sink, Storage, StorageError, StorageProvider,
+    Command, CommandId, Engine, EngineError, GraphId, Location, PeerCache, Perspective, Policy,
+    Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 mod session;
@@ -141,8 +141,15 @@ where
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
+        request_heads: &mut PeerCache,
     ) -> Result<usize, ClientError> {
-        let count = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
+        let count = trx.add_commands(
+            commands,
+            &mut self.provider,
+            &mut self.engine,
+            sink,
+            request_heads,
+        )?;
         Ok(count)
     }
 

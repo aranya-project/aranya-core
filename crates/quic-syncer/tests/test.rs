@@ -49,7 +49,7 @@ async fn test_sync() -> Result<()> {
     for i in 0..6 {
         sink2.add_expectation(TestEffect::Got(i));
     }
-    let syncer2 = Syncer::new(&[cert])?;
+    let mut syncer2 = Syncer::new(&[cert])?;
     syncer2
         .sync(
             client2.lock().await.deref_mut(),

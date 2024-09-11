@@ -6,12 +6,12 @@ use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    responder::SyncResponseMessage, SyncCommand, SyncError, COMMAND_RESPONSE_MAX,
-    COMMAND_SAMPLE_MAX, REQUEST_MISSING_MAX,
+    responder::SyncResponseMessage, PeerCache, SyncCommand, SyncError, COMMAND_RESPONSE_MAX,
+    COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, REQUEST_MISSING_MAX,
 };
 use crate::{
     storage::{Segment, Storage, StorageError, StorageProvider},
-    Address, Command, GraphId,
+    Address, Command, GraphId, Location,
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
@@ -131,12 +131,13 @@ impl SyncRequester<'_> {
     }
 
     /// Write a sync message in to the target buffer. Returns the number
-    /// of bytes written.
+    /// of bytes written and the number of commands sent in the sample.
     pub fn poll(
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-    ) -> Result<usize, SyncError> {
+        heads: &mut PeerCache,
+    ) -> Result<(usize, usize), SyncError> {
         use SyncRequesterState as S;
         let result = match self.state {
             S::Start | S::Waiting | S::Idle | S::Closed | S::PartialSync => {
@@ -144,7 +145,7 @@ impl SyncRequester<'_> {
             }
             S::New => {
                 self.state = S::Start;
-                self.start(self.max_bytes, target, provider)?
+                self.start(self.max_bytes, target, provider, heads)?
             }
             S::Resync => self.resume(self.max_bytes, target)?,
             S::Reset => {
@@ -276,16 +277,19 @@ impl SyncRequester<'_> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
-    fn end_session(&mut self, target: &mut [u8]) -> Result<usize, SyncError> {
-        Self::write(
-            target,
-            SyncRequestMessage::EndSession {
-                session_id: self.session_id,
-            },
-        )
+    fn end_session(&mut self, target: &mut [u8]) -> Result<(usize, usize), SyncError> {
+        Ok((
+            Self::write(
+                target,
+                SyncRequestMessage::EndSession {
+                    session_id: self.session_id,
+                },
+            )?,
+            0,
+        ))
     }
 
-    fn resume(&mut self, max_bytes: u64, target: &mut [u8]) -> Result<usize, SyncError> {
+    fn resume(&mut self, max_bytes: u64, target: &mut [u8]) -> Result<(usize, usize), SyncError> {
         if !matches!(
             self.state,
             SyncRequesterState::Resync | SyncRequesterState::Idle
@@ -303,7 +307,7 @@ impl SyncRequester<'_> {
             max_bytes,
         };
 
-        Self::write(target, message)
+        Ok((Self::write(target, message)?, 0))
     }
 
     fn start(
@@ -311,7 +315,8 @@ impl SyncRequester<'_> {
         max_bytes: u64,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-    ) -> Result<usize, SyncError> {
+        heads: &mut PeerCache,
+    ) -> Result<(usize, usize), SyncError> {
         if !matches!(
             self.state,
             SyncRequesterState::Start | SyncRequesterState::New
@@ -331,6 +336,22 @@ impl SyncRequester<'_> {
                 return Err(SyncError::StorageError);
             }
             Ok(storage) => {
+                let mut command_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
+                for address in heads.heads() {
+                    command_locations
+                        .push(
+                            storage
+                                .get_location(*address)?
+                                .assume("location must exist")?,
+                        )
+                        .ok()
+                        .assume("command locations should not be full")?;
+                    if commands.len() < COMMAND_SAMPLE_MAX {
+                        commands
+                            .push(*address)
+                            .map_err(|_| SyncError::CommandOverflow)?;
+                    }
+                }
                 let head = storage.get_head()?;
 
                 let mut current = vec![head];
@@ -346,8 +367,14 @@ impl SyncRequester<'_> {
                         let segment = storage.get_segment(location)?;
 
                         let head = segment.head()?;
+                        let head_address = head.address()?;
+                        for loc in &command_locations {
+                            if loc.segment == location.segment {
+                                continue 'current;
+                            }
+                        }
                         commands
-                            .push(head.address()?)
+                            .push(head_address)
                             .map_err(|_| SyncError::CommandOverflow)?;
                         next.extend(segment.prior());
                         if commands.len() >= COMMAND_SAMPLE_MAX {
@@ -360,6 +387,7 @@ impl SyncRequester<'_> {
             }
         }
 
+        let sent = commands.len();
         let message = SyncRequestMessage::SyncRequest {
             session_id: self.session_id,
             storage_id: self.storage_id,
@@ -367,6 +395,6 @@ impl SyncRequester<'_> {
             commands,
         };
 
-        Self::write(target, message)
+        Ok((Self::write(target, message)?, sent))
     }
 }

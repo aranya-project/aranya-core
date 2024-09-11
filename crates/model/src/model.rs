@@ -19,7 +19,7 @@ use runtime::{
     engine::{Engine, EngineError, Policy, PolicyId, Sink},
     storage::GraphId,
     vm_policy::{VmEffect, VmPolicy, VmPolicyError},
-    ClientError, ClientState, StorageProvider, SyncError, SyncRequester, SyncResponder,
+    ClientError, ClientState, PeerCache, StorageProvider, SyncError, SyncRequester, SyncResponder,
     MAX_SYNC_MESSAGE_SIZE,
 };
 
@@ -324,6 +324,9 @@ pub trait ClientFactory {
 }
 
 type ClientStorageIds = BTreeMap<ProxyGraphId, GraphId>;
+// A map of peer caches for (GraphID, DestClientID, SourceClientID)
+type ClientGraphPeerCache =
+    BTreeMap<(ProxyGraphId, ProxyClientId, ProxyClientId), RefCell<PeerCache>>;
 type Clients<C> = BTreeMap<ProxyClientId, C>;
 
 /// Runtime model.
@@ -334,6 +337,8 @@ pub struct RuntimeModel<CF: ClientFactory, CID, GID> {
     pub clients: Clients<ModelClient<CF>>,
     /// Holds a collection of [`ProxyGraphId`]s and [`GraphId`]s
     pub storage_ids: ClientStorageIds,
+    /// Each client holds a `PeerCache` for each client and graph combination.
+    pub client_graph_peer_cache: ClientGraphPeerCache,
     client_factory: CF,
     _ph: PhantomData<(CID, GID)>,
 }
@@ -347,6 +352,7 @@ where
         RuntimeModel {
             clients: BTreeMap::default(),
             storage_ids: BTreeMap::default(),
+            client_graph_peer_cache: BTreeMap::default(),
             client_factory,
             _ph: PhantomData,
         }
@@ -438,12 +444,33 @@ where
         source_client_proxy_id: Self::ClientId,
         dest_client_proxy_id: Self::ClientId,
     ) -> Result<(), ModelError> {
+        let graph_proxy_id = graph_proxy_id.into();
+        let source_client_proxy_id = source_client_proxy_id.into();
+        let dest_client_proxy_id = dest_client_proxy_id.into();
         // Destination of the sync
         let mut request_state = self
             .clients
-            .get(&dest_client_proxy_id.into())
+            .get(&dest_client_proxy_id)
             .ok_or(ModelError::ClientNotFound)?
             .state
+            .borrow_mut();
+
+        self.client_graph_peer_cache
+            .entry((graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
+            .or_default();
+        self.client_graph_peer_cache
+            .entry((graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
+            .or_default();
+
+        let mut request_cache = self
+            .client_graph_peer_cache
+            .get(&(graph_proxy_id, dest_client_proxy_id, source_client_proxy_id))
+            .ok_or(ModelError::ClientNotFound)?
+            .borrow_mut();
+        let mut response_cache = self
+            .client_graph_peer_cache
+            .get(&(graph_proxy_id, source_client_proxy_id, dest_client_proxy_id))
+            .ok_or(ModelError::ClientNotFound)?
             .borrow_mut();
 
         let mut sink = VecSink::new();
@@ -451,14 +478,14 @@ where
         // Source of the sync
         let mut response_state = self
             .clients
-            .get(&source_client_proxy_id.into())
+            .get(&source_client_proxy_id)
             .ok_or(ModelError::ClientNotFound)?
             .state
             .borrow_mut();
 
         let storage_id = self
             .storage_ids
-            .get(&graph_proxy_id.into())
+            .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
 
         let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
@@ -474,21 +501,34 @@ where
 
             if request_syncer.ready() {
                 let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-                let len = request_syncer.poll(&mut buffer, request_state.provider())?;
+                let (len, _) = request_syncer.poll(
+                    &mut buffer,
+                    request_state.provider(),
+                    &mut request_cache,
+                )?;
 
                 response_syncer.receive(&buffer[..len])?;
             }
 
             if response_syncer.ready() {
                 let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-                let len = response_syncer.poll(&mut buffer, response_state.provider())?;
+                let len = response_syncer.poll(
+                    &mut buffer,
+                    response_state.provider(),
+                    &mut response_cache,
+                )?;
 
                 if len == 0 {
                     break;
                 }
 
                 if let Some(cmds) = request_syncer.receive(&buffer[..len])? {
-                    request_state.add_commands(&mut request_trx, &mut sink, &cmds)?;
+                    request_state.add_commands(
+                        &mut request_trx,
+                        &mut sink,
+                        &cmds,
+                        &mut request_cache,
+                    )?;
                 };
             }
         }

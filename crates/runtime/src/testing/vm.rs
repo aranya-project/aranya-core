@@ -14,7 +14,7 @@ use crate::{
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
-    ClientState, CommandId, GraphId, NullSink, SyncRequester, SyncResponder, VmEffect,
+    ClientState, CommandId, GraphId, NullSink, PeerCache, SyncRequester, SyncResponder, VmEffect,
     VmEffectData, VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
 };
 
@@ -545,8 +545,8 @@ fn test_sync<E, P, S>(
     while sync_requester.ready() || sync_responder.ready() {
         if sync_requester.ready() {
             let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-            let len = sync_requester
-                .poll(&mut buffer, cs2.provider())
+            let (len, _) = sync_requester
+                .poll(&mut buffer, cs2.provider(), &mut PeerCache::new())
                 .expect("sync req->res");
 
             sync_responder.receive(&buffer[..len]).expect("recieve res");
@@ -555,7 +555,7 @@ fn test_sync<E, P, S>(
         if sync_responder.ready() {
             let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = sync_responder
-                .poll(&mut buffer, cs1.provider())
+                .poll(&mut buffer, cs1.provider(), &mut PeerCache::new())
                 .expect("sync res->req");
 
             if len == 0 {
@@ -563,7 +563,7 @@ fn test_sync<E, P, S>(
             }
 
             if let Some(cmds) = sync_requester.receive(&buffer[..len]).expect("recieve req") {
-                cs2.add_commands(&mut req_transaction, sink, &cmds)
+                cs2.add_commands(&mut req_transaction, sink, &cmds, &mut PeerCache::new())
                     .expect("add commands");
             };
         }
