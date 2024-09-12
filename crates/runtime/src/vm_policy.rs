@@ -116,7 +116,7 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::fmt;
 
 use buggy::bug;
@@ -194,7 +194,7 @@ pub struct VmPolicy<E> {
     engine: Mutex<E>,
     ffis: Mutex<Vec<Box<dyn FfiCallable<E> + Send + 'static>>>,
     // TODO(chip): replace or fill this with priorities from attributes
-    priority_map: Rc<BTreeMap<String, u32>>,
+    priority_map: Arc<BTreeMap<String, u32>>,
 }
 
 impl<E> VmPolicy<E> {
@@ -209,7 +209,7 @@ impl<E> VmPolicy<E> {
             machine,
             engine: Mutex::from(engine),
             ffis: Mutex::from(ffis),
-            priority_map: Rc::new(priority_map),
+            priority_map: Arc::new(priority_map),
         })
     }
 
@@ -620,7 +620,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
                 &wrapped,
                 envelope.command_id,
                 data,
-                Rc::clone(&self.priority_map),
+                Arc::clone(&self.priority_map),
             );
 
             self.call_rule(&new_command, facts, sink, CommandRecall::None)?;
@@ -645,7 +645,7 @@ impl<E: crypto::Engine> Policy for VmPolicy<E> {
             EngineError::Write
         })?;
         let id = CommandId::hash_for_testing_only(data);
-        Ok(VmProtocol::new(data, id, c, Rc::clone(&self.priority_map)))
+        Ok(VmProtocol::new(data, id, c, Arc::clone(&self.priority_map)))
     }
 }
 

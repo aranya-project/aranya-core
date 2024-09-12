@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::Cow, collections::BTreeMap, rc::Rc, string::String};
+use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc};
 use core::fmt;
 
 use crypto::UserId;
@@ -54,7 +54,7 @@ pub struct VmProtocol<'a> {
     unpacked: VmProtocolData<'a>,
     /// A mapping between command names and priorities, shared with the underlying
     /// [`super::VmPolicy`] and other [`VmProtocol`] instances.
-    priority_map: Rc<BTreeMap<String, u32>>,
+    priority_map: Arc<BTreeMap<String, u32>>,
 }
 
 impl<'a> VmProtocol<'a> {
@@ -62,7 +62,7 @@ impl<'a> VmProtocol<'a> {
         data: &'a [u8],
         id: CommandId,
         unpacked: VmProtocolData<'a>,
-        priority_map: Rc<BTreeMap<String, u32>>,
+        priority_map: Arc<BTreeMap<String, u32>>,
     ) -> VmProtocol<'a> {
         VmProtocol {
             data,
