@@ -190,7 +190,7 @@ impl Display for Instruction {
             Instruction::Update => write!(f, "update"),
             Instruction::Emit => write!(f, "emit"),
             Instruction::Query => write!(f, "query"),
-            Instruction::FactCount(limit) => write!(f, "fact_count {limit}"),
+            Instruction::FactCount(limit) => write!(f, "fact.count {limit}"),
             Instruction::QueryStart => write!(f, "query.start"),
             Instruction::QueryNext(ident) => write!(f, "query.next {ident}"),
             Instruction::Serialize => write!(f, "serialize"),

@@ -1,12 +1,17 @@
 // This file contains the extracted keywords from policy.pest from keyword_extraction.pl
 
-pub const KEYWORDS: [&str; 49] = [
+pub const KEYWORDS: [&str; 55] = [
     "action",
+    "as",
+    "at_least",
+    "at_most",
+    "attributes",
     "bool",
     "bytes",
     "check",
     "check_unwrap",
     "command",
+    "count_up_to",
     "create",
     "debug_assert",
     "delete",
@@ -17,6 +22,7 @@ pub const KEYWORDS: [&str; 49] = [
     "emit",
     "enum",
     "envelope",
+    "exactly",
     "exists",
     "fact",
     "false",
@@ -29,6 +35,7 @@ pub const KEYWORDS: [&str; 49] = [
     "int",
     "is",
     "let",
+    "map",
     "match",
     "None",
     "open",
@@ -43,7 +50,6 @@ pub const KEYWORDS: [&str; 49] = [
     "Some",
     "string",
     "struct",
-    "then",
     "this",
     "to",
     "true",

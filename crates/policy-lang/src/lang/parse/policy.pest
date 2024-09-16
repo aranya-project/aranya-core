@@ -144,8 +144,14 @@ optional_literal = { none | (some ~ expression) }
 query = { "query" ~ fact_literal }
 // exists is query that checks for the existence of a fact
 exists = { "exists" ~ fact_literal }
-// count-up-to - count facts matching query
+// count facts up to a given limit
 count_up_to = { "count_up_to" ~ int_literal ~ fact_literal}
+// count facts, returning true if the given count was reached
+at_least = { "at_least" ~ int_literal ~ fact_literal}
+// count facts, returning true if the given count was not exceeded
+at_most = { "at_most" ~ int_literal ~ fact_literal }
+// count facts, returning true if the number of facts found equals the expected number
+exactly = { "exactly" ~ int_literal ~ fact_literal }
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
 // first expression.
@@ -155,7 +161,7 @@ serialize = { "serialize(" ~ expression ~ ")" }
 deserialize = { "deserialize(" ~ expression ~ ")" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
-internal_function = _{ query | exists | count_up_to | if_e | serialize | deserialize }
+internal_function = _{ query | exists | count_up_to | at_least | at_most | exactly | if_e | serialize | deserialize }
 // An atom is any of the literals, an internal function,
 // a function call, an identifier, or a parenthetical sub-expression.
 atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | internal_function | function_call | foreign_function_call | enum_reference | identifier | "(" ~ expression ~ ")" }

@@ -14,7 +14,7 @@ use ast::{
     MatchPattern, NamedStruct,
 };
 use buggy::{Bug, BugExt};
-use policy_ast::{self as ast, AstNode, FunctionCall, VType};
+use policy_ast::{self as ast, AstNode, FactCountType, FunctionCall, VType};
 use policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Module, Struct, Target,
     Value,
@@ -545,15 +545,8 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
                 }
-                ast::InternalFunction::CountUpTo(limit, fact) => {
-                    if *limit <= 0 {
-                        return Err(self.err(CompileErrorType::BadArgument(
-                            "count limit must be greater than zero".to_string(),
-                        )));
-                    }
-                    self.verify_fact_against_schema(fact, false)?;
-                    self.compile_fact_literal(fact)?;
-                    self.append_instruction(Instruction::FactCount(*limit));
+                ast::InternalFunction::FactCount(cmp_type, n, fact) => {
+                    self.compile_counting_function(cmp_type, *n, fact)?
                 }
                 ast::InternalFunction::If(e, t, f) => {
                     let else_name = self.anonymous_label();
@@ -1579,6 +1572,46 @@ impl<'a> CompileState<'a> {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
                     command_node.identifier.clone(),
                 )));
+            }
+        }
+        Ok(())
+    }
+
+    fn compile_counting_function(
+        &mut self,
+        cmp_type: &FactCountType,
+        limit: i64,
+        fact: &FactLiteral,
+    ) -> Result<(), CompileError> {
+        if limit <= 0 {
+            return Err(self.err(CompileErrorType::BadArgument(
+                "count limit must be greater than zero".to_string(),
+            )));
+        }
+        self.verify_fact_against_schema(fact, false)?;
+        self.compile_fact_literal(fact)?;
+        match cmp_type {
+            FactCountType::UpTo => self.append_instruction(Instruction::FactCount(limit)),
+            FactCountType::AtLeast => {
+                self.append_instruction(Instruction::FactCount(limit));
+                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Lt);
+                self.append_instruction(Instruction::Not);
+            }
+            FactCountType::AtMost => {
+                self.append_instruction(Instruction::FactCount(
+                    limit.checked_add(1).assume("fact count too large")?,
+                ));
+                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Gt);
+                self.append_instruction(Instruction::Not);
+            }
+            FactCountType::Exactly => {
+                self.append_instruction(Instruction::FactCount(
+                    limit.checked_add(1).assume("fact count too large")?,
+                ));
+                self.append_instruction(Instruction::Const(Value::Int(limit)));
+                self.append_instruction(Instruction::Eq);
             }
         }
         Ok(())

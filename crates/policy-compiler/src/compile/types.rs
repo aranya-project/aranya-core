@@ -299,7 +299,10 @@ impl CompileState<'_> {
                     // we're in to determine this concretely
                     Ok(Typeish::Indeterminate)
                 }
-                policy_ast::InternalFunction::CountUpTo(_, _) => Ok(Typeish::Type(VType::Int)),
+                policy_ast::InternalFunction::FactCount(cmp_type, _, _) => match cmp_type {
+                    ast::FactCountType::UpTo => Ok(Typeish::Type(VType::Int)),
+                    _ => Ok(Typeish::Type(VType::Bool)),
+                },
             },
             Expression::FunctionCall(f) => {
                 if let Some(func_def) = self.function_signatures.get(f.identifier.as_str()) {

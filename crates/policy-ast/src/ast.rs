@@ -206,6 +206,30 @@ pub struct EnumReference {
     pub value: String,
 }
 
+/// How many facts to expect when counting
+#[derive(Debug, Clone, PartialEq)]
+pub enum FactCountType {
+    /// Up to
+    UpTo,
+    /// At least
+    AtLeast,
+    /// At most
+    AtMost,
+    /// Exactly
+    Exactly,
+}
+
+impl fmt::Display for FactCountType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UpTo => write!(f, "up_to"),
+            Self::AtLeast => write!(f, "at_least"),
+            Self::AtMost => write!(f, "at_most"),
+            Self::Exactly => write!(f, "exactly"),
+        }
+    }
+}
+
 /// Expression atoms with special rules or effects.
 #[derive(Debug, Clone, PartialEq)]
 pub enum InternalFunction {
@@ -214,7 +238,7 @@ pub enum InternalFunction {
     /// An `exists` fact query
     Exists(FactLiteral),
     /// Counts the number of facts up to the given limit, and returns the lower of the two.
-    CountUpTo(i64, FactLiteral),
+    FactCount(FactCountType, i64, FactLiteral),
     /// An `if` expression
     If(Box<Expression>, Box<Expression>, Box<Expression>),
     /// Serialize function

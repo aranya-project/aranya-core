@@ -618,12 +618,11 @@ fn test_fact_exists() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_count_up_to() -> anyhow::Result<()> {
+fn test_counting() -> anyhow::Result<()> {
     let text = r#"
         fact Foo[i int]=>{}
 
         command Setup {
-            fields {}
             open { return None }
             seal { return None }
             policy {
@@ -635,8 +634,7 @@ fn test_count_up_to() -> anyhow::Result<()> {
             }
         }
 
-        command Test {
-            fields {}
+        command TestUpTo {
             open { return None }
             seal { return None }
             policy {
@@ -648,6 +646,36 @@ fn test_count_up_to() -> anyhow::Result<()> {
                 check count_all == 3
                 let count_max = count_up_to 9223372036854775807 Foo[i:?]
                 check count_max == 3
+            }
+        }
+
+        command TestAtLeast {
+            open { return None }
+            seal { return None }
+            policy {
+                check at_least 1 Foo[i:?]
+                check at_least 3 Foo[i:?]
+                check at_least 4 Foo[i:?] == false
+            }
+        }
+
+        command TestAtMost {
+            open { return None }
+            seal { return None }
+            policy {
+                check at_most 1 Foo[i:?] == false
+                check at_most 3 Foo[i:?]
+                check at_most 4 Foo[i:?]
+            }
+        }
+
+        command TestExactly {
+            open { return None }
+            seal { return None }
+            policy {
+                check exactly 1 Foo[i:?] == false
+                check exactly 3 Foo[i:?]
+                check exactly 4 Foo[i:?] == false
             }
         }
     "#;
@@ -669,8 +697,39 @@ fn test_count_up_to() -> anyhow::Result<()> {
             .success();
     }
 
+    println!("TestUpTo...");
     {
-        let name = "Test";
+        let name = "TestUpTo";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let self_struct = Struct::new(name, &[]);
+        rs.call_command_policy(name, &self_struct, dummy_envelope())?
+            .success();
+    }
+
+    println!("TestAtLeast...");
+    {
+        let name = "TestAtLeast";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let self_struct = Struct::new(name, &[]);
+        rs.call_command_policy(name, &self_struct, dummy_envelope())?
+            .success();
+    }
+
+    println!("TestAtMost...");
+    {
+        let name = "TestAtMost";
+        let ctx = dummy_ctx_policy(name);
+        let mut rs = machine.create_run_state(&mut io, &ctx);
+        let self_struct = Struct::new(name, &[]);
+        rs.call_command_policy(name, &self_struct, dummy_envelope())?
+            .success();
+    }
+
+    println!("TestExactly...");
+    {
+        let name = "TestExactly";
         let ctx = dummy_ctx_policy(name);
         let mut rs = machine.create_run_state(&mut io, &ctx);
         let self_struct = Struct::new(name, &[]);
