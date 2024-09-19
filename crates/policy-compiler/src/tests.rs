@@ -15,6 +15,9 @@ fn test_compile() -> anyhow::Result<()> {
             fields {}
             seal { return None }
             open { return None }
+            policy {
+                finish {}
+            }
         }
         action foo(b int) {
             let i = 4

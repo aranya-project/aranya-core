@@ -16,10 +16,10 @@ use ast::{
 use buggy::{Bug, BugExt};
 use policy_ast::{self as ast, AstNode, FactCountType, FunctionCall, VType};
 use policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Module, Struct, Target,
-    Value,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
+    Target, Value,
 };
-use target::CompileTarget;
+pub(crate) use target::CompileTarget;
 
 pub use self::error::{CallColor, CompileError, CompileErrorType};
 use self::types::{IdentifierTypeStack, Typeish};
@@ -94,6 +94,8 @@ struct CompileState<'a> {
     enum_values: BTreeMap<&'a str, Vec<&'a str>>,
     /// Determines if one compiles with debug functionality,
     is_debug: bool,
+    /// Auto-defines FFI modules for testing purposes
+    stub_ffi: bool,
 }
 
 impl<'a> CompileState<'a> {
@@ -131,6 +133,7 @@ impl<'a> CompileState<'a> {
     }
 
     fn append_var(&mut self, identifier: String, vtype: VType) -> Result<(), CompileError> {
+        self.append_instruction(Instruction::Meta(Meta::Let(identifier.clone())));
         self.append_instruction(Instruction::Def(identifier.clone()));
         self.identifier_types
             .add(identifier, Typeish::Type(vtype))?;
@@ -618,40 +621,47 @@ impl<'a> CompileState<'a> {
                     ));
                 }
 
-                // find module by name
-                let (module_id, module) = self
-                    .ffi_modules
-                    .iter()
-                    .enumerate()
-                    .find(|(_, m)| m.name == f.module)
-                    .ok_or_else(|| self.err(CompileErrorType::NotDefined(f.module.clone())))?;
+                self.append_instruction(Instruction::Meta(Meta::FFI(
+                    f.module.clone(),
+                    f.identifier.clone(),
+                )));
+                if !self.stub_ffi {
+                    // find module by name
+                    let (module_id, module) = self
+                        .ffi_modules
+                        .iter()
+                        .enumerate()
+                        .find(|(_, m)| m.name == f.module)
+                        .ok_or_else(|| self.err(CompileErrorType::NotDefined(f.module.clone())))?;
 
-                // find module function by name
-                let (procedure_id, procedure) = module
-                    .functions
-                    .iter()
-                    .enumerate()
-                    .find(|(_, proc)| proc.name == f.identifier)
-                    .ok_or_else(|| {
-                        self.err(CompileErrorType::NotDefined(format!(
-                            "{}::{}",
-                            f.module, f.identifier
-                        )))
-                    })?;
+                    // find module function by name
+                    let (procedure_id, procedure) = module
+                        .functions
+                        .iter()
+                        .enumerate()
+                        .find(|(_, proc)| proc.name == f.identifier)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(format!(
+                                "{}::{}",
+                                f.module, f.identifier
+                            )))
+                        })?;
 
-                // verify number of arguments matches the function signature
-                if f.arguments.len() != procedure.args.len() {
-                    return Err(self.err(CompileErrorType::BadArgument(f.identifier.clone())));
+                    // verify number of arguments matches the function signature
+                    if f.arguments.len() != procedure.args.len() {
+                        return Err(self.err(CompileErrorType::BadArgument(f.identifier.clone())));
+                    }
+
+                    // push args
+                    for a in &f.arguments {
+                        self.compile_expression(a)?;
+                    }
+
+                    self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
                 }
-
-                // push args
-                for a in &f.arguments {
-                    self.compile_expression(a)?;
-                }
-
-                self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
             }
             Expression::Identifier(i) => {
+                self.append_instruction(Instruction::Meta(Meta::Get(i.clone())));
                 self.append_instruction(Instruction::Get(i.clone()));
             }
             Expression::EnumReference(e) => {
@@ -827,6 +837,7 @@ impl<'a> CompileState<'a> {
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
                     self.identifier_types.add(&s.identifier, et)?;
+                    self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.clone())));
                     self.append_instruction(Instruction::Def(s.identifier.clone()));
                 }
                 (
@@ -984,6 +995,7 @@ impl<'a> CompileState<'a> {
                     StatementContext::CommandPolicy(_) | StatementContext::CommandRecall(_),
                 ) => {
                     self.enter_statement_context(StatementContext::Finish);
+                    self.append_instruction(Instruction::Meta(Meta::Finish(true)));
                     self.compile_statements(s, Scope::Layered)?;
                     self.exit_statement_context();
 
@@ -1727,6 +1739,7 @@ pub struct Compiler<'a> {
     policy: &'a AstPolicy,
     ffi_modules: &'a [ModuleSchema<'a>],
     is_debug: bool,
+    stub_ffi: bool,
 }
 
 impl<'a> Compiler<'a> {
@@ -1736,6 +1749,7 @@ impl<'a> Compiler<'a> {
             policy,
             ffi_modules: &[],
             is_debug: cfg!(debug_assertions),
+            stub_ffi: false,
         }
     }
 
@@ -1748,6 +1762,11 @@ impl<'a> Compiler<'a> {
     /// Enables or disables debug mode
     pub fn debug(mut self, is_debug: bool) -> Self {
         self.is_debug = is_debug;
+        self
+    }
+
+    pub fn stub_ffi(mut self, flag: bool) -> Self {
+        self.stub_ffi = flag;
         self
     }
 
@@ -1767,9 +1786,11 @@ impl<'a> Compiler<'a> {
             ffi_modules: self.ffi_modules,
             enum_values: BTreeMap::new(),
             is_debug: self.is_debug,
+            stub_ffi: self.stub_ffi,
         };
 
         cs.compile()?;
+
         Ok(cs.into_module())
     }
 }

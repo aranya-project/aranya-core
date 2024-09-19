@@ -5,6 +5,10 @@ use core::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 
+mod meta;
+
+pub use meta::*;
+
 use crate::{data::Value, Label};
 
 /// Reason for ending execution.
@@ -44,6 +48,16 @@ pub enum Target {
     Unresolved(Label),
     /// A resolved target referring to an address
     Resolved(usize),
+}
+
+impl Target {
+    /// Get the resolved address or None if it has not been resolved.
+    pub fn resolved(&self) -> Option<usize> {
+        match self {
+            Target::Resolved(i) => Some(*i),
+            _ => None,
+        }
+    }
 }
 
 impl Display for Target {
@@ -149,6 +163,8 @@ pub enum Instruction {
     Serialize,
     /// Deserialize a command struct
     Deserialize,
+    /// Metadata for tracing
+    Meta(Meta),
 }
 
 impl Display for Instruction {
@@ -195,6 +211,7 @@ impl Display for Instruction {
             Instruction::QueryNext(ident) => write!(f, "query.next {ident}"),
             Instruction::Serialize => write!(f, "serialize"),
             Instruction::Deserialize => write!(f, "deserialize"),
+            Instruction::Meta(m) => write!(f, "meta: {m}"),
         }
     }
 }

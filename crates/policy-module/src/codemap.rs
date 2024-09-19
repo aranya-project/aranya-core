@@ -153,8 +153,8 @@ impl CodeMap {
         }
     }
 
-    /// Retrieve the [Span] containing the given instruction pointer.
-    pub fn span_from_instruction(&self, ip: usize) -> Result<Span<'_>, RangeError> {
+    /// Retrieve the locator for the given instruction pointer
+    pub fn locator_from_instruction(&self, ip: usize) -> Result<usize, RangeError> {
         // Unwrapping the error case of binary_search_by() will get us
         // the closest entry prior to the target.
         let r = self
@@ -165,6 +165,12 @@ impl CodeMap {
             Err(v) => v.checked_sub(1).ok_or(RangeError),
         }?;
         let (_, locator) = self.instruction_mapping[idx];
+        Ok(locator)
+    }
+
+    /// Retrieve the [Span] containing the given instruction pointer.
+    pub fn span_from_instruction(&self, ip: usize) -> Result<Span<'_>, RangeError> {
+        let locator = self.locator_from_instruction(ip)?;
         self.span_from_locator(locator)
     }
 }

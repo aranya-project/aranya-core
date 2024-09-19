@@ -3,5 +3,7 @@
 
 mod compile;
 mod tests;
+mod tracer;
 
 pub use compile::*;
+pub use tracer::*;

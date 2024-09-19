@@ -812,6 +812,7 @@ where
                 }
                 self.ipush(s)?;
             }
+            Instruction::Meta(_) => (),
         }
         self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;
 

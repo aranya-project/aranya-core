@@ -318,6 +318,9 @@ impl CompileState<'_> {
                 }
             }
             Expression::ForeignFunctionCall(f) => {
+                if self.stub_ffi {
+                    return Ok(Typeish::Indeterminate);
+                }
                 let module = self
                     .ffi_modules
                     .iter()

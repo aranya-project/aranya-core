@@ -43,6 +43,8 @@ pub enum CompileErrorType {
     InvalidFactLiteral(String),
     /// A pure function has no return statement
     NoReturn,
+    /// A validation step failed
+    Validation,
     /// An implementation bug
     Bug(Bug),
     /// All other errors
@@ -67,6 +69,7 @@ impl fmt::Display for CompileErrorType {
             Self::Missing(s) => write!(f, "Missing: {}", s),
             Self::InvalidFactLiteral(s) => write!(f, "Fact literal does not match definition: {s}"),
             Self::NoReturn => write!(f, "Function has no return statement"),
+            Self::Validation => write!(f, "Validation failed"),
             Self::Bug(bug) => write!(f, "Bug: {}", bug),
             Self::Unknown(s) => write!(f, "Unknown error: {}", s),
         }
