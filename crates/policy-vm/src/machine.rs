@@ -4,6 +4,7 @@ use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Ve
 use core::fmt::{self, Display};
 
 use buggy::BugExt;
+use heapless::Vec as HVec;
 use policy_ast as ast;
 use policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
@@ -18,6 +19,8 @@ use crate::{
     stack::Stack,
     CommandContext, OpenContext, SealContext,
 };
+
+const STACK_SIZE: usize = 100;
 
 /// Compares a fact's keys and values to its schema.
 /// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
@@ -304,7 +307,7 @@ where
         RunState {
             machine,
             scope: ScopeManager::new(&machine.globals),
-            stack: MachineStack(vec![]),
+            stack: MachineStack(HVec::new()),
             call_state: vec![],
             pc: 0,
             io,
@@ -1031,12 +1034,12 @@ where
 }
 
 /// An implementation of [`Stack`].
-pub struct MachineStack(pub(crate) Vec<Value>);
+pub struct MachineStack(pub(crate) HVec<Value, STACK_SIZE>);
 
 impl MachineStack {
     /// Creates an empty stack.
     pub const fn new() -> Self {
-        Self(Vec::new())
+        Self(HVec::new())
     }
 
     /// Returns the number of values in the stack.
@@ -1055,14 +1058,15 @@ impl MachineStack {
 
     /// Turn a Stack into a Vec of Values.
     pub fn into_vec(self) -> Vec<Value> {
-        self.0
+        self.0.into_iter().collect()
     }
 }
 
 impl Stack for MachineStack {
     fn push_value(&mut self, value: Value) -> Result<(), MachineErrorType> {
-        self.0.push(value);
-        Ok(())
+        self.0
+            .push(value)
+            .map_err(|_| MachineErrorType::StackOverflow)
     }
 
     fn pop_value(&mut self) -> Result<Value, MachineErrorType> {

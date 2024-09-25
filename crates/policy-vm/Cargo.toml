@@ -28,6 +28,7 @@ std = [
 [dependencies]
 buggy = { path = "../buggy", features = ["alloc"] }
 crypto = { path = "../crypto", default-features = false }
+heapless = { workspace = true }
 policy-ast = { path = "../policy-ast" }
 policy-derive = { path = "../policy-derive" }
 policy-module = { path = "../policy-module" }

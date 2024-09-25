@@ -17,8 +17,7 @@ pub enum MachineErrorType {
     /// empty stack.
     StackUnderflow,
     /// Stack overflow - an operation tried to push a value onto a full
-    /// stack. N.B. that there are currently no size limits on the
-    /// stack, so this cannot be reached.
+    /// stack.
     StackOverflow,
     /// Name already defined - an attempt was made to define a name
     /// that was already defined. Parameter is the name.
