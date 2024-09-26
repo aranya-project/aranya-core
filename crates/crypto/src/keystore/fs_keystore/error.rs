@@ -78,7 +78,7 @@ where
     T: core::error::Error + Send + Sync + 'static,
 {
     fn from(err: cbor::de::Error<T>) -> Self {
-        <Self as keystore::Error>::other(Trouble(err))
+        <Self as keystore::Error>::other(err)
     }
 }
 
@@ -87,7 +87,7 @@ where
     T: core::error::Error + Send + Sync + 'static,
 {
     fn from(err: cbor::ser::Error<T>) -> Self {
-        <Self as keystore::Error>::other(Trouble(err))
+        <Self as keystore::Error>::other(err)
     }
 }
 
@@ -162,8 +162,8 @@ impl Repr {
             Self::AlreadyExists => None,
             Self::UnexpectedEof(err) => Some(err),
             Self::Errno(err) => Some(Trouble::cast(err)),
-            Self::Encode(err) => Some(Trouble::cast(err)),
-            Self::Decode(err) => Some(Trouble::cast(err)),
+            Self::Encode(err) => Some(err),
+            Self::Decode(err) => Some(err),
             Self::Bug(err) => Some(err),
             Self::RootDeleted(err) => Some(err),
             Self::Other => None,

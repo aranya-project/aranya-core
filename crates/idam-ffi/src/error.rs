@@ -6,7 +6,6 @@ use core::{fmt, ops::Deref};
 use crypto::{id::IdError, Id, ImportError, UnwrapError, WrapError};
 use policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
-use trouble::Trouble;
 
 /// An error returned by `Ffi`.
 #[derive(Debug)]
@@ -85,7 +84,7 @@ impl From<KeyNotFound> for Error {
 
 impl From<postcard::Error> for Error {
     fn from(err: postcard::Error) -> Self {
-        Self::new(ErrorKind::Encoding, Trouble(err))
+        Self::new(ErrorKind::Encoding, err)
     }
 }
 
