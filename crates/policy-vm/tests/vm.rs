@@ -2089,3 +2089,87 @@ fn test_map() -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+#[test]
+fn test_optional_type_validation() -> anyhow::Result<()> {
+    let text = r#"
+        command TypeValidation {
+            fields {
+                maybe_int optional int,
+                name string,
+            }
+            seal { return None }
+            open { return None }
+            policy {
+                finish {}
+            }
+        }
+
+        action type_validation(maybe_int_input optional int, name_input string) {
+            publish TypeValidation{maybe_int: maybe_int_input, name: name_input}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1)?;
+    let mut io = TestIO::new();
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+
+    let cases = [
+        (
+            Ok(ExitReason::Normal),
+            [
+                KVPair::new("maybe_int", Value::None),
+                KVPair::new("name", Value::String("foo".into())),
+            ],
+        ),
+        (
+            Ok(ExitReason::Normal),
+            [
+                KVPair::new("maybe_int", Value::Int(5)),
+                KVPair::new("name", Value::String("foo".into())),
+            ],
+        ),
+        (
+            Err(MachineErrorType::InvalidType),
+            [
+                KVPair::new("maybe_int", Value::None),
+                KVPair::new("name", Value::None),
+            ],
+        ),
+    ];
+
+    for case in cases.into_iter() {
+        let (expected, args) = case;
+
+        // action call validation
+        {
+            let name = "type_validation";
+            let ctx = dummy_ctx_action(name);
+            let mut rs = machine.create_run_state(&mut io, &ctx);
+            let action_args = args.iter().map(KVPair::value).cloned();
+
+            assert_eq!(
+                rs.call_action(name, action_args).map_err(|e| e.err_type),
+                expected
+            );
+        }
+
+        // command call validation
+        {
+            let name = "TypeValidation";
+            let ctx = dummy_ctx_policy(name);
+            let mut rs = machine.create_run_state(&mut io, &ctx);
+
+            assert_eq!(
+                rs.call_command_policy(name, &Struct::new(name, args), dummy_envelope())
+                    .map_err(|e| e.err_type),
+                expected
+            );
+        }
+    }
+
+    Ok(())
+}

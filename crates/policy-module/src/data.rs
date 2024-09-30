@@ -108,6 +108,25 @@ impl Value {
             _ => None,
         }
     }
+
+    /// Checks to see if a [`Value`] matches some [`VType`]
+    /// ```
+    /// use policy_ast::VType;
+    /// use policy_module::Value;
+    ///
+    /// let value = Value::Int(1);
+    ///
+    /// assert!(value.fits_type(&VType::Int));
+    /// ```
+    pub fn fits_type(&self, expected_type: &VType) -> bool {
+        match (self.vtype(), expected_type) {
+            (None, VType::Optional(_)) => true,
+            (None, _) => false,
+            (Some(VType::Optional(_)), _) => unreachable!(),
+            (Some(left), VType::Optional(inner)) => left == **inner,
+            (Some(left), right) => left == *right,
+        }
+    }
 }
 
 impl<T: Into<Value>> From<Option<T>> for Value {

@@ -876,10 +876,9 @@ where
             let expected_type = command_def
                 .get(field.0)
                 .ok_or(self.err(MachineErrorType::InvalidStructMember(String::from(field.0))))?;
-            if let Some(field_type) = field.1.vtype() {
-                if field_type != *expected_type {
-                    return Err(self.err(MachineErrorType::InvalidType));
-                }
+
+            if !field.1.fits_type(expected_type) {
+                return Err(self.err(MachineErrorType::InvalidType));
             }
         }
         self.scope
@@ -947,20 +946,9 @@ where
             )));
         }
         for (i, arg) in args.iter().enumerate() {
-            if let Some(arg_type) = arg.vtype() {
-                let def_type = &arg_def[i].field_type;
-                match def_type {
-                    ast::VType::Optional(t) => {
-                        if arg_type != **t {
-                            return Err(MachineError::new(MachineErrorType::InvalidType));
-                        }
-                    }
-                    _ => {
-                        if arg_type != *def_type {
-                            return Err(MachineError::new(MachineErrorType::InvalidType));
-                        }
-                    }
-                }
+            let def_type = &arg_def[i].field_type;
+            if !arg.fits_type(def_type) {
+                return Err(MachineError::new(MachineErrorType::InvalidType));
             }
         }
 
