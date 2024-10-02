@@ -70,8 +70,8 @@ impl KeyStore for MemStore {
         Ok(entry)
     }
 
-    fn get<T: WrappedKey>(&self, id: &Id) -> Result<Option<T>, Self::Error> {
-        match self.0.entry(*id)? {
+    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error> {
+        match self.0.entry(id)? {
             GuardedEntry::Vacant(_) => Ok(None),
             GuardedEntry::Occupied(v) => Ok(Some(v.get()?)),
         }
@@ -256,8 +256,8 @@ impl<T: TestImpl> User<T> {
         }
     }
 
-    fn lookup(&mut self, id: &UserId) -> NodeId {
-        let (idx, _) = self.mapping.insert_full(*id);
+    fn lookup(&mut self, id: UserId) -> NodeId {
+        let (idx, _) = self.mapping.insert_full(id);
         NodeId::new(u32::try_from(idx).expect("`idx` out of range"))
     }
 
@@ -265,7 +265,7 @@ impl<T: TestImpl> User<T> {
     fn test_roundtrip(sealer: &mut Self, opener: &mut Self, label: Label) {
         const GOLDEN: &str = "hello, world!";
         let ciphertext = {
-            let opener_node_id = sealer.lookup(&opener.user_id);
+            let opener_node_id = sealer.lookup(opener.user_id);
             let id = ChannelId::new(opener_node_id, label);
             let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Aps>::OVERHEAD];
             sealer
@@ -275,7 +275,7 @@ impl<T: TestImpl> User<T> {
             dst
         };
         let (plaintext, got_label) = {
-            let sealer_node_id = opener.lookup(&sealer.user_id);
+            let sealer_node_id = opener.lookup(sealer.user_id);
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Aps>::OVERHEAD];
             let label = opener
                 .aps_client
@@ -291,7 +291,7 @@ impl<T: TestImpl> User<T> {
     /// `sealer`.
     fn test_bad_label(sealer: &mut Self, opener: &mut Self, label: Label) {
         const GOLDEN: &str = "hello, world!";
-        let opener_node_id = sealer.lookup(&opener.user_id);
+        let opener_node_id = sealer.lookup(opener.user_id);
         let id = ChannelId::new(opener_node_id, label);
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Aps>::OVERHEAD];
         let err = sealer
@@ -305,7 +305,7 @@ impl<T: TestImpl> User<T> {
     /// `sealer`.
     fn test_wrong_direction(sealer: &mut Self, opener: &mut Self, label: Label) {
         const GOLDEN: &str = "hello, world!";
-        let opener_node_id = sealer.lookup(&opener.user_id);
+        let opener_node_id = sealer.lookup(opener.user_id);
         let id = ChannelId::new(opener_node_id, label);
         let mut dst = vec![0u8; GOLDEN.len() + Client::<T::Aps>::OVERHEAD];
         let err = sealer
@@ -434,7 +434,7 @@ where
             )
             .expect("author should be able to load bidi keys");
 
-        let peer_node_id = author.lookup(&peer.user_id);
+        let peer_node_id = author.lookup(peer.user_id);
         let id = ChannelId::new(peer_node_id, label);
         author
             .aps_state
@@ -461,7 +461,7 @@ where
             )
             .expect("peer should be able to load bidi keys");
 
-        let author_node_id = peer.lookup(&author.user_id);
+        let author_node_id = peer.lookup(author.user_id);
         let id = ChannelId::new(author_node_id, label);
         peer.aps_state
             .add(id, keys.into())
@@ -542,7 +542,7 @@ where
             .expect("author should be able to load encryption key");
         assert!(matches!(keys, UniKey::SealOnly(_)));
 
-        let peer_node_id = author.lookup(&peer.user_id);
+        let peer_node_id = author.lookup(peer.user_id);
         let id = ChannelId::new(peer_node_id, label);
         author
             .aps_state
@@ -571,7 +571,7 @@ where
             .expect("peer should be able to load decryption key");
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
-        let author_node_id = peer.lookup(&author.user_id);
+        let author_node_id = peer.lookup(author.user_id);
         let id = ChannelId::new(author_node_id, label);
         peer.aps_state
             .add(id, keys.into())
@@ -650,7 +650,7 @@ where
             .expect("author should be able to load decryption key");
         assert!(matches!(keys, UniKey::OpenOnly(_)));
 
-        let peer_node_id = author.lookup(&peer.user_id);
+        let peer_node_id = author.lookup(peer.user_id);
         let id = ChannelId::new(peer_node_id, label);
         author
             .aps_state
@@ -679,7 +679,7 @@ where
             .expect("peer should be able to load encryption key");
         assert!(matches!(keys, UniKey::SealOnly(_)));
 
-        let author_node_id = peer.lookup(&author.user_id);
+        let author_node_id = peer.lookup(author.user_id);
         let id = ChannelId::new(author_node_id, label);
         peer.aps_state
             .add(id, keys.into())

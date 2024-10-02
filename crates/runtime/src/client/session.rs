@@ -53,7 +53,7 @@ struct SessionPerspective<'a, SP: StorageProvider, E, MS> {
 
 impl<SP: StorageProvider, E> Session<SP, E> {
     pub(super) fn new(provider: &mut SP, storage_id: GraphId) -> Result<Self, ClientError> {
-        let storage = provider.get_storage(&storage_id)?;
+        let storage = provider.get_storage(storage_id)?;
         let head_loc = storage.get_head()?;
         let seg = storage.get_segment(head_loc)?;
         let command = seg.get_command(head_loc).assume("location must exist")?;
@@ -88,7 +88,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         ES: Sink<E::Effect>,
         MS: for<'b> Sink<&'b [u8]>,
     {
-        let policy = client.engine.get_policy(&self.policy_id)?;
+        let policy = client.engine.get_policy(self.policy_id)?;
 
         // Use a special perspective so we can send to the message sink.
         let mut perspective = SessionPerspective {
@@ -132,7 +132,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             bug!("ephemeral commands must be run on the same graph");
         }
 
-        let policy = client.engine.get_policy(&self.policy_id)?;
+        let policy = client.engine.get_policy(self.policy_id)?;
 
         // Use a special perspective which doesn't check the head
         let mut perspective = SessionPerspective {
@@ -414,7 +414,7 @@ where
         Ok(0)
     }
 
-    fn includes(&self, _id: &CommandId) -> bool {
+    fn includes(&self, _id: CommandId) -> bool {
         debug_assert!(false, "only used in transactions");
 
         false

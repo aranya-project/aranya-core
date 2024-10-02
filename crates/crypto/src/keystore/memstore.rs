@@ -51,8 +51,8 @@ impl KeyStore for MemStore {
         }
     }
 
-    fn get<T: WrappedKey>(&self, id: &Id) -> Result<Option<T>, Self::Error> {
-        match self.keys.get(id) {
+    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error> {
+        match self.keys.get(&id) {
             Some(v) => Ok(Some(v.to_wrapped()?)),
             None => Ok(None),
         }
@@ -226,7 +226,7 @@ mod tests {
             .try_insert(id!(1), want)
             .expect("should be able to store key");
         let got = store
-            .get::<TestKey64>(&id!(1))
+            .get::<TestKey64>(id!(1))
             .expect("`get` should not fail")
             .expect("should be able to find key");
         assert_eq!(got, want);
@@ -241,7 +241,7 @@ mod tests {
             .try_insert(id!(1), want)
             .expect("should be able to store key");
         store
-            .get::<TestKeyId>(&id!(1))
+            .get::<TestKeyId>(id!(1))
             .expect_err("should not be able to get key");
     }
 
@@ -257,21 +257,21 @@ mod tests {
             .expect("should be able to store key");
 
         let got = store
-            .remove::<TestKey64>(&id!(1))
+            .remove::<TestKey64>(id!(1))
             .expect("`remove` should not fail")
             .expect("should be able to find key");
         assert_eq!(got, TestKey64(1));
 
         // After removing key=1, key=2 should still exist.
         let got = store
-            .get::<TestKey64>(&id!(2))
+            .get::<TestKey64>(id!(2))
             .expect("`get` should not fail")
             .expect("should be able to find key");
         assert_eq!(got, TestKey64(2));
 
         // But key=1 should not.
         assert!(store
-            .get::<TestKey64>(&id!(1))
+            .get::<TestKey64>(id!(1))
             .expect("`get` should not fail")
             .is_none());
     }

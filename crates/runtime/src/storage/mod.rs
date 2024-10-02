@@ -140,7 +140,7 @@ pub trait StorageProvider {
     /// # Arguments
     ///
     /// * `policy_id` - The policy to associate with the graph.
-    fn new_perspective(&mut self, policy_id: &PolicyId) -> Self::Perspective;
+    fn new_perspective(&mut self, policy_id: PolicyId) -> Self::Perspective;
 
     /// Create a new graph.
     ///
@@ -158,10 +158,7 @@ pub trait StorageProvider {
     /// # Arguments
     ///
     /// * `graph` - ID of the graph, taken from the initialization command.
-    fn get_storage<'a>(
-        &'a mut self,
-        graph: &GraphId,
-    ) -> Result<&'a mut Self::Storage, StorageError>;
+    fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError>;
 }
 
 /// Represents the runtime's graph; [`Command`]s in storage have been validated
@@ -382,7 +379,7 @@ pub trait Perspective: FactPerspective {
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError>;
 
     /// Returns true if the perspective contains a command with the given ID.
-    fn includes(&self, id: &CommandId) -> bool;
+    fn includes(&self, id: CommandId) -> bool;
 
     /// Returns the head address in the perspective, if it exists
     fn head_address(&self) -> Result<Prior<Address>, Bug>;

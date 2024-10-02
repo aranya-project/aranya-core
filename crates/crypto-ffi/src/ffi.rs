@@ -123,7 +123,7 @@ function sign(
         let sk: SigningKey<E::CS> = {
             let wrapped = self
                 .store
-                .get(&our_sign_sk_id)
+                .get(our_sign_sk_id)
                 .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
                 .ok_or(KeyNotFound(our_sign_sk_id))?;
             eng.unwrap(&wrapped)?

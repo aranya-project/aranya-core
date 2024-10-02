@@ -285,7 +285,7 @@ impl Engine for TestEngine {
         Ok(PolicyId::new(policy[0] as usize))
     }
 
-    fn get_policy<'a>(&'a self, _id: &PolicyId) -> Result<&'a Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
         Ok(&self.policy)
     }
 }
@@ -328,14 +328,14 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(&storage_id, &mut sink, vm_action!(create_action(3)))
+    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(&storage_id, &mut sink, vm_action!(increment()))
+    cs.action(storage_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
 
     // Everything past this point is validation that the facts exist and were created
@@ -344,7 +344,7 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Get the storage provider and get the storage associated with our storage ID to peek
     // into its graph.
-    let storage = cs.provider().get_storage(&storage_id)?;
+    let storage = cs.provider().get_storage(storage_id)?;
     // Find the head Location.
     let head = storage.get_head()?;
 
@@ -382,7 +382,7 @@ pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
         .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
         .expect("could not create graph");
 
-    cs.action(&graph, &mut NullSink, vm_action!(create_action(1)))
+    cs.action(graph, &mut NullSink, vm_action!(create_action(1)))
         .expect("can create");
 
     let mut session = cs.session(graph).expect("should be able to create session");
@@ -434,14 +434,14 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     //
     // The Commands produced by actions are evaluated immediately and sent to the sink.
     // This is why a sink is passed to the action method.
-    cs.action(&storage_id, &mut sink, vm_action!(create_action(3)))
+    cs.action(storage_id, &mut sink, vm_action!(create_action(3)))
         .expect("could not call action");
 
     // Add an expected effect for the increment action.
     sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 4 }));
 
     // Call the increment action
-    cs.action(&storage_id, &mut sink, vm_action!(increment()))
+    cs.action(storage_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
 
     {
@@ -488,7 +488,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
         sink.add_expectation(vm_effect!(StuffHappened { x: 1, y: 5 }));
 
         // Call the increment action
-        cs.action(&storage_id, &mut sink, vm_action!(increment()))
+        cs.action(storage_id, &mut sink, vm_action!(increment()))
             .expect("could not call action");
 
         {
@@ -507,7 +507,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Verify that the graph was not affected by the ephemeral commands.
 
-    let storage = cs.provider().get_storage(&storage_id)?;
+    let storage = cs.provider().get_storage(storage_id)?;
     let head = storage.get_head()?;
 
     let fact_name = "Stuff";
@@ -540,7 +540,7 @@ fn test_sync<E, P, S>(
     let mut sync_requester = SyncRequester::new(storage_id, &mut rng);
     let mut sync_responder = SyncResponder::new();
 
-    let mut req_transaction = cs1.transaction(&storage_id);
+    let mut req_transaction = cs1.transaction(storage_id);
 
     while sync_requester.ready() || sync_responder.ready() {
         if sync_requester.ready() {
@@ -586,7 +586,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
         .expect("could not create graph");
 
     // Create a new counter with a value of 1
-    cs1.action(&storage_id, &mut sink, vm_action!(create_action(1)))
+    cs1.action(storage_id, &mut sink, vm_action!(create_action(1)))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     assert_ne!(sink.last().command, CommandId::default());
@@ -602,7 +602,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
 
     // At this point, clients are fully synced. Client 2 adds an Increment command, which
     // brings the counter to 2 from their perspective.
-    cs2.action(&storage_id, &mut sink, vm_action!(increment()))
+    cs2.action(storage_id, &mut sink, vm_action!(increment()))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 2 }));
     let increment_cmd_id = sink.last().command;
@@ -611,7 +611,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     // MEANWHILE, IN A PARALLEL UNIVERSE - client 1 adds the Invalidate command, which sets
     // the counter value to a negative number. This will cause the check to fail in the
     // Increment command, preventing any further use of this counter.
-    cs1.action(&storage_id, &mut sink, vm_action!(invalidate()))
+    cs1.action(storage_id, &mut sink, vm_action!(invalidate()))
         .expect("could not call action");
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: -1 }));
     sink.clear();

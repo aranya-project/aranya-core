@@ -79,7 +79,7 @@ impl StorageProvider for MemStorageProvider {
     type Storage = MemStorage;
     type Segment = MemSegment;
 
-    fn new_perspective(&mut self, policy_id: &PolicyId) -> Self::Perspective {
+    fn new_perspective(&mut self, policy_id: PolicyId) -> Self::Perspective {
         MemPerspective::new_unrooted(policy_id)
     }
 
@@ -104,12 +104,9 @@ impl StorageProvider for MemStorageProvider {
         Ok((graph_id, entry.insert(storage)))
     }
 
-    fn get_storage<'a>(
-        &'a mut self,
-        graph: &GraphId,
-    ) -> Result<&'a mut Self::Storage, StorageError> {
+    fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError> {
         self.storage
-            .get_mut(graph)
+            .get_mut(&graph)
             .ok_or(StorageError::NoSuchStorage)
     }
 }
@@ -640,11 +637,11 @@ impl MemPerspective {
         }
     }
 
-    fn new_unrooted(policy: &PolicyId) -> Self {
+    fn new_unrooted(policy: PolicyId) -> Self {
         Self {
             prior: Prior::None,
             parents: Prior::None,
-            policy: *policy,
+            policy,
             facts: MemFactPerspective::new(FactPerspectivePrior::None),
             commands: Vec::new(),
             current_updates: Vec::new(),
@@ -688,8 +685,8 @@ impl Perspective for MemPerspective {
         self.policy
     }
 
-    fn includes(&self, id: &CommandId) -> bool {
-        self.commands.iter().any(|cmd| cmd.command.id == *id)
+    fn includes(&self, id: CommandId) -> bool {
+        self.commands.iter().any(|cmd| cmd.command.id == id)
     }
 
     fn head_address(&self) -> Result<Prior<Address>, Bug> {

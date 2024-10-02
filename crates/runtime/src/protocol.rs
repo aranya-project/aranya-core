@@ -124,7 +124,7 @@ impl Engine for TestEngine {
         Ok(PolicyId::new(policy[0] as usize))
     }
 
-    fn get_policy<'a>(&'a self, _id: &PolicyId) -> Result<&'a Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
         Ok(&self.policy)
     }
 }

@@ -553,7 +553,7 @@ where
                         &mut request_client,
                         &mut response_client,
                         &mut sink,
-                        storage_id,
+                        *storage_id,
                     )?;
                     total_received += received;
                     total_sent += sent;
@@ -602,7 +602,7 @@ where
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
-                    state.action(storage_id, &mut sink, set)?;
+                    state.action(*storage_id, &mut sink, set)?;
                 }
 
                 assert_eq!(0, sink.count());
@@ -615,7 +615,7 @@ where
                     .get_mut();
 
                 let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
-                let storage = state.provider().get_storage(storage_id)?;
+                let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
             }
@@ -638,8 +638,8 @@ where
 
                 let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
-                let storage_a = state_a.provider().get_storage(storage_id)?;
-                let storage_b = state_b.provider().get_storage(storage_id)?;
+                let storage_a = state_a.provider().get_storage(*storage_id)?;
+                let storage_b = state_b.provider().get_storage(*storage_id)?;
 
                 let same = graph_eq(storage_a, storage_b);
                 if same != equal {
@@ -662,7 +662,7 @@ where
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
                 let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
-                let storage = state.provider().get_storage(storage_id)?;
+                let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
                 let seg = storage.get_segment(head)?;
                 let command = seg.get_command(head).assume("command must exist")?;
@@ -689,9 +689,9 @@ fn sync<SP: StorageProvider>(
     request_state: &mut ClientState<TestEngine, SP>,
     response_state: &mut ClientState<TestEngine, SP>,
     sink: &mut TestSink,
-    storage_id: &GraphId,
+    storage_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng);
+    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng);
     let mut response_syncer = SyncResponder::new();
     assert!(request_syncer.ready());
 

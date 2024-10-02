@@ -25,7 +25,7 @@ pub trait KeyStore {
     fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error>;
 
     /// Retrieves a stored `WrappedKey`.
-    fn get<T: WrappedKey>(&self, id: &Id) -> Result<Option<T>, Self::Error>;
+    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error>;
 
     /// Stores a `WrappedKey`.
     ///
@@ -41,8 +41,8 @@ pub trait KeyStore {
     }
 
     /// Retrieves and removes a stored `WrappedKey`.
-    fn remove<T: WrappedKey>(&mut self, id: &Id) -> Result<Option<T>, Self::Error> {
-        match self.entry(*id)? {
+    fn remove<T: WrappedKey>(&mut self, id: Id) -> Result<Option<T>, Self::Error> {
+        match self.entry(id)? {
             Entry::Vacant(_) => Ok(None),
             Entry::Occupied(v) => Ok(Some(v.remove()?)),
         }
@@ -126,13 +126,13 @@ pub enum ErrorKind {
 /// An extension trait.
 pub trait KeyStoreExt: KeyStore {
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: &Id) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &mut E, id: Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: &Id) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &mut E, id: Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
@@ -140,7 +140,7 @@ pub trait KeyStoreExt: KeyStore {
 
 impl<T: KeyStore> KeyStoreExt for T {
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: &Id) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &mut E, id: Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
@@ -156,7 +156,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     }
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: &Id) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &mut E, id: Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,

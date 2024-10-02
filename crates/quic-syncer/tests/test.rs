@@ -42,7 +42,7 @@ async fn test_sync() -> Result<()> {
         client1
             .lock()
             .await
-            .action(&storage_id, &mut sink1, action)?;
+            .action(storage_id, &mut sink1, action)?;
     }
     assert_eq!(sink1.count(), 0);
 
@@ -55,7 +55,7 @@ async fn test_sync() -> Result<()> {
             client2.lock().await.deref_mut(),
             SyncRequester::new(storage_id, &mut Rng),
             &mut sink2,
-            &storage_id,
+            storage_id,
             addr1,
         )
         .await?;

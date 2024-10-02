@@ -110,9 +110,9 @@ where
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<GraphId, ClientError> {
         let policy_id = self.engine.add_policy(policy_data)?;
-        let policy = self.engine.get_policy(&policy_id)?;
+        let policy = self.engine.get_policy(policy_id)?;
 
-        let mut perspective = self.provider.new_perspective(&policy_id);
+        let mut perspective = self.provider.new_perspective(policy_id);
         sink.begin();
         policy
             .call_action(action, &mut perspective, sink)
@@ -156,7 +156,7 @@ where
     /// Performs an `action`, writing the results to `sink`.
     pub fn action(
         &mut self,
-        storage_id: &GraphId,
+        storage_id: GraphId,
         sink: &mut impl Sink<E::Effect>,
         action: <E::Policy as Policy>::Action<'_>,
     ) -> Result<(), ClientError> {
@@ -169,7 +169,7 @@ where
             .assume("can always get perspective at head")?;
 
         let policy_id = perspective.policy();
-        let policy = self.engine.get_policy(&policy_id)?;
+        let policy = self.engine.get_policy(policy_id)?;
 
         // No need to checkpoint the perspective since it is only for this action.
         // Must checkpoint once we add action transactions.
@@ -195,8 +195,8 @@ where
     SP: StorageProvider,
 {
     /// Create a new [`Transaction`], used to receive [`Command`]s when syncing.
-    pub fn transaction(&mut self, storage_id: &GraphId) -> Transaction<SP, E> {
-        Transaction::new(*storage_id)
+    pub fn transaction(&mut self, storage_id: GraphId) -> Transaction<SP, E> {
+        Transaction::new(storage_id)
     }
 
     /// Create an ephemeral [`Session`] associated with this client.

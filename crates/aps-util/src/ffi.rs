@@ -88,7 +88,7 @@ function create_bidi_channel(
 
         let our_sk = &self
             .store
-            .get_key(eng, &our_enc_key_id.into())
+            .get_key(eng, our_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
@@ -141,7 +141,7 @@ function create_uni_channel(
 
         let our_sk = &self
             .store
-            .get_key(eng, &author_enc_key_id.into())
+            .get_key(eng, author_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;

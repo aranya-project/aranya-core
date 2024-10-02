@@ -50,7 +50,7 @@ impl<'a> Cmd<'a> {
     /// binding.
     pub(crate) fn digest<CS: CipherSuite>(
         &self,
-        author: &SigningKeyId,
+        author: SigningKeyId,
     ) -> Digest<<CS::Hash as Hash>::DigestSize> {
         // digest = H(
         //     "SignPolicyCommand-v1",

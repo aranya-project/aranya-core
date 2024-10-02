@@ -58,7 +58,7 @@ where
         Ok(PolicyId::new(policy[0] as usize))
     }
 
-    fn get_policy<'a>(&'a self, _id: &PolicyId) -> Result<&'a Self::Policy, EngineError> {
+    fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
         Ok(&self.policy)
     }
 }
@@ -432,7 +432,7 @@ where
 
         let mut sink = VecSink::new();
 
-        state.action(storage_id, &mut sink, action)?;
+        state.action(*storage_id, &mut sink, action)?;
 
         Ok(sink.effects)
     }
@@ -492,7 +492,7 @@ where
         let mut response_syncer = SyncResponder::new();
         assert!(request_syncer.ready());
 
-        let mut request_trx = request_state.transaction(storage_id);
+        let mut request_trx = request_state.transaction(*storage_id);
 
         loop {
             if !request_syncer.ready() && !response_syncer.ready() {

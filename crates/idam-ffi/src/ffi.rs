@@ -164,7 +164,7 @@ function open_group_key(
     ) -> Result<StoredGroupKey, Error> {
         let sk: EncryptionKey<E::CS> = self
             .store
-            .get_key(eng, &our_enc_sk_id)
+            .get_key(eng, our_enc_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id)))?;
         debug_assert_eq!(
@@ -220,7 +220,7 @@ function encrypt_message(
 
         let sk: SigningKey<E::CS> = self
             .store
-            .get_key(eng, &our_sign_sk_id)
+            .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id)))?;
         let our_sign_pk = sk.public().expect("signing key should be valid");

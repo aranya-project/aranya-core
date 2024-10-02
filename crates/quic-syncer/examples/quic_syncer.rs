@@ -81,7 +81,7 @@ async fn sync_peer(
     server_addr: SocketAddr,
 ) {
     let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());
-    let fut = syncer.sync(client, sync_requester, sink, &storage_id, server_addr);
+    let fut = syncer.sync(client, sync_requester, sink, storage_id, server_addr);
     match fut.await {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),
@@ -169,7 +169,7 @@ async fn run(options: Opt) -> Result<()> {
             client
                 .lock()
                 .await
-                .action(&storage_id, &mut sink, action)
+                .action(storage_id, &mut sink, action)
                 .map_err(|e| SyncError {
                     error_msg: e.to_string(),
                 })?;

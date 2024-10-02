@@ -69,7 +69,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<(), ClientError> {
-        let storage = provider.get_storage(&self.storage_id)?;
+        let storage = provider.get_storage(self.storage_id)?;
 
         // Write out current perspective.
         if let Some(p) = Option::take(&mut self.perspective) {
@@ -155,7 +155,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let mut count: usize = 0;
 
         // Get storage or try to initialize with first command.
-        let storage = match provider.get_storage(&self.storage_id) {
+        let storage = match provider.get_storage(self.storage_id) {
             Ok(s) => s,
             Err(StorageError::NoSuchStorage) => {
                 let command = commands.next().ok_or(ClientError::InitError)?;
@@ -170,7 +170,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             if self
                 .perspective
                 .as_ref()
-                .is_some_and(|p| p.includes(&command.id()))
+                .is_some_and(|p| p.includes(command.id()))
             {
                 // Command in current perspective.
                 continue;
@@ -220,7 +220,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         let perspective = self.get_perspective(parent, storage)?;
 
         let policy_id = perspective.policy();
-        let policy = engine.get_policy(&policy_id)?;
+        let policy = engine.get_policy(policy_id)?;
 
         // Try to run command, or revert if failed.
         sink.begin();
@@ -349,10 +349,10 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         };
 
         let policy_id = engine.add_policy(policy_data)?;
-        let policy = engine.get_policy(&policy_id)?;
+        let policy = engine.get_policy(policy_id)?;
 
         // Get an empty perspective and run the init command.
-        let mut perspective = provider.new_perspective(&policy_id);
+        let mut perspective = provider.new_perspective(policy_id);
         sink.begin();
         if let Err(e) = policy.call_rule(command, &mut perspective, sink, CommandRecall::None) {
             sink.rollback();
@@ -437,7 +437,7 @@ fn get_policy<'a, E: Engine>(
 ) -> Result<(&'a E::Policy, PolicyId), ClientError> {
     let segment = storage.get_segment(location)?;
     let policy_id = segment.policy();
-    let policy = engine.get_policy(&policy_id)?;
+    let policy = engine.get_policy(policy_id)?;
     Ok((policy, policy_id))
 }
 
@@ -472,7 +472,7 @@ mod test {
             Ok(PolicyId::new(0))
         }
 
-        fn get_policy<'a>(&'a self, _id: &PolicyId) -> Result<&'a Self::Policy, EngineError> {
+        fn get_policy(&self, _id: PolicyId) -> Result<&Self::Policy, EngineError> {
             Ok(&SeqPolicy)
         }
     }
@@ -691,7 +691,7 @@ mod test {
                 let seg = self
                     .client
                     .provider
-                    .get_storage(&self.trx.storage_id)
+                    .get_storage(self.trx.storage_id)
                     .unwrap()
                     .write(p)
                     .unwrap();
@@ -764,7 +764,7 @@ mod test {
         let g = gb
             .client
             .provider
-            .get_storage(&"a".parse().unwrap())
+            .get_storage("a".parse().unwrap())
             .unwrap();
 
         #[cfg(feature = "graphviz")]
@@ -802,7 +802,7 @@ mod test {
         let g = gb
             .client
             .provider
-            .get_storage(&"a".parse().unwrap())
+            .get_storage("a".parse().unwrap())
             .unwrap();
 
         #[cfg(feature = "graphviz")]
@@ -839,7 +839,7 @@ mod test {
         let g = gb
             .client
             .provider
-            .get_storage(&"a".parse().unwrap())
+            .get_storage("a".parse().unwrap())
             .unwrap();
 
         #[cfg(feature = "graphviz")]
@@ -866,7 +866,7 @@ mod test {
         let g = gb
             .client
             .provider
-            .get_storage(&"a".parse().unwrap())
+            .get_storage("a".parse().unwrap())
             .unwrap();
 
         #[cfg(feature = "graphviz")]
@@ -893,7 +893,7 @@ mod test {
         let g = gb
             .client
             .provider
-            .get_storage(&"a".parse().unwrap())
+            .get_storage("a".parse().unwrap())
             .unwrap();
 
         #[cfg(feature = "graphviz")]

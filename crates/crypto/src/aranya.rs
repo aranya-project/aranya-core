@@ -331,7 +331,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// # }
     /// ```
     pub fn sign_cmd(&self, cmd: Cmd<'_>) -> Result<(Signature<CS>, CmdId), Error> {
-        let digest = cmd.digest::<CS>(&self.id()?);
+        let digest = cmd.digest::<CS>(self.id()?);
         let sig = Signature(self.0.sign(&digest)?);
         let id = policy::cmd_id(&digest, &sig);
         Ok((sig, id))
@@ -374,7 +374,7 @@ impl<CS: CipherSuite> VerifyingKey<CS> {
     /// Verifies the signature allegedly created over a policy
     /// command and returns its ID.
     pub fn verify_cmd(&self, cmd: Cmd<'_>, sig: &Signature<CS>) -> Result<CmdId, Error> {
-        let digest = cmd.digest::<CS>(&self.id()?);
+        let digest = cmd.digest::<CS>(self.id()?);
         self.0.verify(&digest, &sig.0)?;
         let id = policy::cmd_id(&digest, sig);
         Ok(id)

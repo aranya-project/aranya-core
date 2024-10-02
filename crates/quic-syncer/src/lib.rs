@@ -145,7 +145,7 @@ impl Syncer {
         client: &mut ClientState<EN, SP>,
         mut syncer: SyncRequester<'_>,
         sink: &mut S,
-        storage_id: &GraphId,
+        storage_id: GraphId,
         server_addr: SocketAddr,
     ) -> Result<usize, QuicSyncError>
     where

@@ -54,7 +54,7 @@ fn test_get() {
         .try_insert(id!(1), want)
         .expect("should be able to store key");
     let got = store
-        .get::<TestKey64>(&id!(1))
+        .get::<TestKey64>(id!(1))
         .expect("`get` should not fail")
         .expect("should be able to find key");
     assert_eq!(got, want);
@@ -70,7 +70,7 @@ fn test_get_wrong_key_type() {
         .try_insert(id!(1), want)
         .expect("should be able to store key");
     store
-        .get::<TestKeyId>(&id!(1))
+        .get::<TestKeyId>(id!(1))
         .expect_err("should not be able to get key");
 }
 
@@ -87,21 +87,21 @@ fn test_remove() {
         .expect("should be able to store key");
 
     let got = store
-        .remove::<TestKey64>(&id!(1))
+        .remove::<TestKey64>(id!(1))
         .expect("`remove` should not fail")
         .expect("should be able to find key");
     assert_eq!(got, TestKey64(1));
 
     // After removing key=1, key=2 should still exist.
     let got = store
-        .get::<TestKey64>(&id!(2))
+        .get::<TestKey64>(id!(2))
         .expect("`get` should not fail")
         .expect("should be able to find key");
     assert_eq!(got, TestKey64(2));
 
     // But key=1 should not.
     assert!(store
-        .get::<TestKey64>(&id!(1))
+        .get::<TestKey64>(id!(1))
         .expect("`get` should not fail")
         .is_none());
 }
@@ -116,14 +116,14 @@ fn test_get_cloned() {
         .try_insert(id!(1), want)
         .expect("should be able to store key");
     let got = store1
-        .get::<TestKey64>(&id!(1))
+        .get::<TestKey64>(id!(1))
         .expect("`get` should not fail")
         .expect("should be able to find key");
     assert_eq!(got, want);
 
     let store2 = store1.try_clone().expect("should be able to clone `Store`");
     let got = store2
-        .get::<TestKey64>(&id!(1))
+        .get::<TestKey64>(id!(1))
         .expect("`get` should not fail")
         .expect("should be able to find key");
     assert_eq!(got, want);
@@ -142,7 +142,7 @@ fn test_deleted_directory() {
 
     dir.close().expect("should be able to remove `TempDir`");
 
-    let err = store.get::<TestKey64>(&id!(1)).expect_err("`get` not fail");
+    let err = store.get::<TestKey64>(id!(1)).expect_err("`get` not fail");
     assert!(err.downcast_ref::<RootDeleted>().is_some());
 }
 
@@ -162,7 +162,7 @@ fn test_vacant_entry_no_insert() {
         .try_insert(id!(1), want)
         .expect("should be able to store key");
     let got = store
-        .get::<TestKey64>(&id!(1))
+        .get::<TestKey64>(id!(1))
         .expect("`get` should not fail")
         .expect("should be able to find key");
     assert_eq!(got, want);

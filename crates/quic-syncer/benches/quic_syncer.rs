@@ -77,7 +77,7 @@ fn new_graph(
 
 fn add_commands(
     client: &mut ClientState<TestEngine, MemStorageProvider>,
-    storage_id: &GraphId,
+    storage_id: GraphId,
     sink: &mut CountSink,
     n: u64,
 ) {
@@ -127,7 +127,7 @@ fn sync_bench(c: &mut Criterion) {
             let task = tokio::spawn(run_syncer(response_client.clone(), endpoint));
             add_commands(
                 response_client.lock().await.deref_mut(),
-                &storage_id,
+                storage_id,
                 &mut response_sink,
                 iters,
             );
@@ -141,7 +141,7 @@ fn sync_bench(c: &mut Criterion) {
                         request_client.lock().await.deref_mut(),
                         sync_requester,
                         &mut request_sink,
-                        &storage_id,
+                        storage_id,
                         listen_addr,
                     )
                     .await

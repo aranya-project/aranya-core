@@ -70,12 +70,12 @@ impl KeyBundle {
     {
         Ok(PublicKeys {
             ident_pk: store
-                .get_key::<_, IdentityKey<E::CS>>(eng, &self.user_id.into())
+                .get_key::<_, IdentityKey<E::CS>>(eng, self.user_id.into())
                 .context("unable to load `IdentityKey`")?
                 .context("unable to find `IdentityKey`")?
                 .public()?,
             sign_pk: store
-                .get_key::<_, SigningKey<E::CS>>(eng, &self.sign_id.into())
+                .get_key::<_, SigningKey<E::CS>>(eng, self.sign_id.into())
                 .context("unable to load `SigningKey`")?
                 .context("unable to find `SigningKey`")?
                 .public()?,

@@ -73,7 +73,7 @@ pub trait Engine {
     /// # Arguments
     ///
     /// * `policy` - Byte slice representing a [`PolicyId`].
-    fn get_policy<'a>(&'a self, id: &PolicyId) -> Result<&'a Self::Policy, EngineError>;
+    fn get_policy(&self, id: PolicyId) -> Result<&Self::Policy, EngineError>;
 }
 
 /// The [`Sink`] transactionally consumes effects from evaluating [`Policy`].

@@ -194,7 +194,7 @@ impl SyncResponder {
                 return Err(SyncError::NotReady);
             }
             S::Start => {
-                let Some(storage_id) = self.storage_id.as_ref() else {
+                let Some(storage_id) = self.storage_id else {
                     self.state = S::Reset;
                     bug!("poll called before storage_id was set");
                 };
@@ -345,7 +345,7 @@ impl SyncResponder {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
     ) -> Result<usize, SyncError> {
-        let Some(storage_id) = self.storage_id.as_ref() else {
+        let Some(storage_id) = self.storage_id else {
             self.state = SyncResponderState::Reset;
             bug!("get_next called before storage_id was set");
         };

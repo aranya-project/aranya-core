@@ -214,11 +214,11 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
     type Segment = LinearSegment<<FM::Writer as Write>::ReadOnly>;
     type Storage = LinearStorage<FM::Writer>;
 
-    fn new_perspective(&mut self, policy_id: &PolicyId) -> Self::Perspective {
+    fn new_perspective(&mut self, policy_id: PolicyId) -> Self::Perspective {
         LinearPerspective::new(
             Prior::None,
             Prior::None,
-            *policy_id,
+            policy_id,
             FactPerspectivePrior::None,
             0,
             None,
@@ -243,20 +243,17 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
         Ok((graph_id, entry.insert(LinearStorage::create(file, init)?)))
     }
 
-    fn get_storage<'a>(
-        &'a mut self,
-        graph: &GraphId,
-    ) -> Result<&'a mut Self::Storage, StorageError> {
+    fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError> {
         use alloc::collections::btree_map::Entry;
 
-        let entry = match self.storage.entry(*graph) {
+        let entry = match self.storage.entry(graph) {
             Entry::Vacant(v) => v,
             Entry::Occupied(o) => return Ok(o.into_mut()),
         };
 
         let file = self
             .manager
-            .open(*graph)?
+            .open(graph)?
             .ok_or(StorageError::NoSuchStorage)?;
         Ok(entry.insert(LinearStorage::open(file)?))
     }
@@ -1074,8 +1071,8 @@ impl<R: Read> Perspective for LinearPerspective<R> {
         Ok(self.commands.len())
     }
 
-    fn includes(&self, id: &CommandId) -> bool {
-        self.commands.iter().any(|cmd| cmd.id == *id)
+    fn includes(&self, id: CommandId) -> bool {
+        self.commands.iter().any(|cmd| cmd.id == id)
     }
 
     fn head_address(&self) -> Result<Prior<Address>, Bug> {
@@ -1141,7 +1138,7 @@ mod test {
     #[test]
     fn test_query_prefix() {
         let mut provider = LinearStorageProvider::new(Manager);
-        let mut fp = provider.new_perspective(&PolicyId::new(0));
+        let mut fp = provider.new_perspective(PolicyId::new(0));
 
         let name = "x";
 
