@@ -395,7 +395,7 @@ pub trait Revertable {
     fn checkpoint(&self) -> Checkpoint;
 
     /// Revert the perspective to the state it was at when the checkpoint was created.
-    fn revert(&mut self, checkpoint: Checkpoint);
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug>;
 }
 
 /// A checkpoint used to revert perspectives.

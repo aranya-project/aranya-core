@@ -1041,13 +1041,23 @@ impl<R: Read> Revertable for LinearPerspective<R> {
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) {
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+        if checkpoint.index == self.commands.len() {
+            return Ok(());
+        }
+
+        if checkpoint.index > self.commands.len() {
+            bug!("A checkpoint's index should always be less than or equal to the length of a perspective's command history!");
+        }
+
         self.commands.truncate(checkpoint.index);
         self.facts.clear();
         self.current_updates.clear();
         for data in &self.commands {
             self.facts.apply_updates(&data.updates);
         }
+
+        Ok(())
     }
 }
 

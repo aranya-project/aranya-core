@@ -107,7 +107,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             }
             Err(e) => {
                 // Other error, revert all? See #513.
-                perspective.revert(checkpoint);
+                perspective.revert(checkpoint)?;
                 perspective.message_sink.rollback();
                 effect_sink.rollback();
                 Err(e.into())
@@ -144,7 +144,7 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         sink.begin();
         let checkpoint = perspective.checkpoint();
         if let Err(e) = policy.call_rule(&command, &mut perspective, sink, CommandRecall::None) {
-            perspective.revert(checkpoint);
+            perspective.revert(checkpoint)?;
             sink.rollback();
             return Err(e.into());
         }
@@ -435,10 +435,15 @@ where
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) {
-        if checkpoint.index >= self.session.fact_log.len() {
-            return;
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+        if checkpoint.index == self.session.fact_log.len() {
+            return Ok(());
         }
+
+        if checkpoint.index > self.session.fact_log.len() {
+            bug!("A checkpoint's index should always be less than or equal to the length of a session's fact log!");
+        }
+
         self.session.fact_log.truncate(checkpoint.index);
         // Create empty map, but reuse allocation if not shared
         let mut facts =
@@ -448,6 +453,8 @@ where
             facts.entry(n).or_default().insert(k, v);
         }
         self.session.current_facts = Arc::new(facts);
+
+        Ok(())
     }
 }
 

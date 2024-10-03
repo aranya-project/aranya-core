@@ -226,7 +226,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         sink.begin();
         let checkpoint = perspective.checkpoint();
         if let Err(e) = policy.call_rule(command, perspective, sink, CommandRecall::None) {
-            perspective.revert(checkpoint);
+            perspective.revert(checkpoint)?;
             sink.rollback();
             return Err(e.into());
         }
