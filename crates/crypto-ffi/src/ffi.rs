@@ -114,7 +114,7 @@ function sign(
         ctx: &CommandContext<'_>,
         eng: &mut E,
         our_sign_sk_id: Id,
-        command: Vec<u8>,
+        command_bytes: Vec<u8>,
     ) -> Result<Signed, Error> {
         let CommandContext::Seal(ctx) = ctx else {
             return Err(WrongContext("`crypto::sign` used outside of a `seal` block").into());
@@ -131,7 +131,7 @@ function sign(
         debug_assert_eq!(sk.id()?.into_id(), our_sign_sk_id);
 
         let (sig, id) = sk.sign_cmd(Cmd {
-            data: &command,
+            data: &command_bytes,
             name: ctx.name,
             parent_id: &ctx.head_id,
         })?;
@@ -158,7 +158,7 @@ function verify(
         _eng: &mut E,
         author_sign_pk: Vec<u8>,
         parent_id: Id,
-        command: Vec<u8>,
+        command_bytes: Vec<u8>,
         command_id: Id,
         signature: Vec<u8>,
     ) -> Result<Vec<u8>, Error> {
@@ -170,13 +170,13 @@ function verify(
         let signature = Signature::<E::CS>::from_bytes(&signature)?;
 
         let cmd = Cmd {
-            data: &command,
+            data: &command_bytes,
             name: ctx.name,
             parent_id: &parent_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;
         if bool::from(id.ct_eq(&command_id.into())) {
-            Ok(command)
+            Ok(command_bytes)
         } else {
             Err(InvalidCmdId(()).into())
         }

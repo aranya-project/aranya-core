@@ -8,6 +8,8 @@ use crypto::{EncryptionKeyId, UserId};
 use policy_ast::VType;
 use serde::{Deserialize, Serialize};
 
+use super::ffi::Type;
+
 #[derive(Debug)]
 /// Indicates that the Value conversion has failed
 pub enum ValueConversionError {
@@ -35,6 +37,49 @@ impl Display for ValueConversionError {
 }
 
 impl core::error::Error for ValueConversionError {}
+
+/// Allows a type to be used by FFI derive.
+// TODO(eric): move this into `super::ffi`?
+pub trait Typed {
+    /// Indicates the type of the type.
+    const TYPE: Type<'static>;
+}
+
+macro_rules! impl_typed {
+    ($name:ty => $type:ident) => {
+        impl Typed for $name {
+            const TYPE: Type<'static> = Type::$type;
+        }
+    };
+}
+
+impl_typed!(String => String);
+impl_typed!(&str => String);
+
+impl_typed!(Vec<u8> => Bytes);
+impl_typed!(&[u8] => Bytes);
+
+impl_typed!(isize => Int);
+impl_typed!(i64 => Int);
+impl_typed!(i32 => Int);
+impl_typed!(i16 => Int);
+impl_typed!(i8 => Int);
+
+impl_typed!(usize => Int);
+impl_typed!(u64 => Int);
+impl_typed!(u32 => Int);
+impl_typed!(u16 => Int);
+impl_typed!(u8 => Int);
+
+impl_typed!(bool => Bool);
+
+impl_typed!(Id => Id);
+impl_typed!(EncryptionKeyId => Id);
+impl_typed!(UserId => Id);
+
+impl<T: Typed> Typed for Option<T> {
+    const TYPE: Type<'static> = Type::Optional(&T::TYPE);
+}
 
 /// All of the value types allowed in the VM
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

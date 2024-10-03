@@ -77,8 +77,8 @@ impl TestFfiEnvelope {
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
-        envelope: Envelope,
+        envelope_input: Envelope,
     ) -> Result<Vec<u8>, Infallible> {
-        Ok(envelope.payload)
+        Ok(envelope_input.payload)
     }
 }

@@ -6,9 +6,9 @@ use crypto::{
 };
 use policy_vm::{
     self,
-    ffi::{ffi, FfiModule},
-    CommandContext, MachineError, MachineErrorType, MachineStack, PolicyContext, Stack, Value,
-    ValueConversionError,
+    ffi::{ffi, FfiModule, Type},
+    CommandContext, MachineError, MachineErrorType, MachineStack, PolicyContext, Stack, Typed,
+    Value, ValueConversionError,
 };
 
 #[derive(Debug, PartialEq)]
@@ -82,6 +82,10 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 struct Label(u32);
+
+impl Typed for Label {
+    const TYPE: Type<'static> = Type::Int;
+}
 
 impl From<Label> for Value {
     fn from(label: Label) -> Self {
@@ -188,9 +192,9 @@ impl<'a, T, G> TestModule<'a, T, G> {
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
-        id: Id,
+        id_input: Id,
     ) -> Result<Id, Infallible> {
-        Ok(id)
+        Ok(id_input)
     }
 
     #[ffi_export(def = "function no_args() int")]

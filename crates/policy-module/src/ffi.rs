@@ -5,7 +5,7 @@ use alloc::{boxed::Box, string::String};
 use policy_ast::VType;
 
 /// The type of a value
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Type<'a> {
     /// A UTF-8 string.
     String,
@@ -21,6 +21,44 @@ pub enum Type<'a> {
     Struct(&'a str),
     /// An optional type of some other type.
     Optional(&'a Type<'a>),
+}
+
+impl Type<'_> {
+    // Like `==`, but can be used in a const context.
+    //
+    // Used by `policy-derive`.
+    #[doc(hidden)]
+    pub const fn const_eq(&self, rhs: &Self) -> bool {
+        use Type::*;
+        match (self, rhs) {
+            (String, String) | (Bytes, Bytes) | (Int, Int) | (Bool, Bool) | (Id, Id) => true,
+            (Struct(lhs), Struct(rhs)) => {
+                // `lhs == rhs` cannot be used in a const
+                // context.
+                let lhs = lhs.as_bytes();
+                let rhs = rhs.as_bytes();
+                if lhs.len() != rhs.len() {
+                    return false;
+                }
+                let mut i = 0;
+                while i < lhs.len() && i < rhs.len() {
+                    if lhs[i] != rhs[i] {
+                        return false;
+                    }
+                    // Cannot overflow or wrap since `i` is
+                    // `usize` and `<[_]>::len()` is at most
+                    // `isize::MAX`.
+                    #[allow(clippy::arithmetic_side_effects)]
+                    {
+                        i += 1;
+                    }
+                }
+                true
+            }
+            (Optional(lhs), Optional(rhs)) => lhs.const_eq(rhs),
+            _ => false,
+        }
+    }
 }
 
 impl From<&Type<'_>> for VType {
@@ -157,20 +195,55 @@ macro_rules! __arg {
     ($name:literal, $type:ident) => {{
         $crate::ffi::Arg {
             name: $name,
-            vtype: $crate::ffi::Type::$type,
+            vtype: $crate::__type!($type),
         }
     }};
     ($name:literal, Struct($struct_name:literal)) => {{
         $crate::ffi::Arg {
             name: $name,
-            vtype: $crate::ffi::Type::Struct($struct_name),
+            vtype: $crate::__type!(Struct($struct_name)),
         }
     }};
     ($name:literal, Optional($inner:expr)) => {{
         $crate::ffi::Arg {
             name: $name,
-            vtype: $crate::ffi::Type::Optional($inner),
+            vtype: $crate::__type!(Optional($inner)),
         }
+    }};
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __type {
+    (@raw $type:ident) => {
+        $crate::ffi::Type::$type
+    };
+    (@raw Struct($struct_name:literal)) => {
+        $crate::ffi::Type::Struct($struct_name)
+    };
+    (@raw Optional($inner:expr)) => {
+        $crate::ffi::Type::Optional($inner)
+    };
+
+    (String) => {{ $crate::__type!(@raw String) }};
+    (Bytes) => {{ $crate::__type!(@raw Bytes) }};
+    (Int) => {{ $crate::__type!(@raw Int) }};
+    (Bool) => {{ $crate::__type!(@raw Bool) }};
+    (Id) => {{ $crate::__type!(@raw Id) }};
+    (Struct($struct_name:literal)) => {{
+        $crate::__type!(@raw Struct($struct_name))
+    }};
+    (Optional($(inner:tt)+)) => {{
+        $crate::__type!(@raw Optional($(inner)+))
+    }};
+    (Optional($inner:expr)) => {{
+        $crate::__type!(@raw Optional($inner))
+    }};
+    ($type:ident) => {{
+        ::core::compile_error!(::core::concat!(
+            "unknown argument type: ",
+            ::core::stringify!($type)
+        ))
     }};
 }
 

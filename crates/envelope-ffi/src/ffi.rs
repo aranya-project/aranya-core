@@ -101,11 +101,11 @@ function parent_id(envelope_input struct Envelope) id
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
-        envelope: Envelope,
+        envelope_input: Envelope,
     ) -> Result<Id, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
-                Ok(envelope.parent_id)
+                Ok(envelope_input.parent_id)
             }
             _ => Err(WrongContext(
                 "`envelope::parent_id` called outside of an `open`, `policy`, or `recall` block",
@@ -121,11 +121,11 @@ function author_id(envelope_input struct Envelope) id
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
-        envelope: Envelope,
+        envelope_input: Envelope,
     ) -> Result<Id, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
-                Ok(envelope.author_id)
+                Ok(envelope_input.author_id)
             }
             _ => Err(WrongContext(
                 "`envelope::author_id` called outside of an `open`, `policy`, or `recall` block",
@@ -142,11 +142,11 @@ function command_id(envelope_input struct Envelope) id
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
-        envelope: Envelope,
+        envelope_input: Envelope,
     ) -> Result<Id, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
-                Ok(envelope.command_id)
+                Ok(envelope_input.command_id)
             }
             _ => Err(WrongContext(
                 "`envelope::command_id` called outside of an `open`, `policy`, or `recall` block",
@@ -163,11 +163,11 @@ function signature(envelope_input struct Envelope) bytes
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
-        envelope: Envelope,
+        envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
-                Ok(envelope.signature)
+                Ok(envelope_input.signature)
             }
             _ => Err(WrongContext(
                 "`envelope::signature` called outside of an `open`, `policy`, or `recall` block",
@@ -184,11 +184,11 @@ function payload(envelope_input struct Envelope) bytes
         &self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,
-        envelope: Envelope,
+        envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
-                Ok(envelope.payload)
+                Ok(envelope_input.payload)
             }
             _ => Err(WrongContext(
                 "`envelope::payload` called outside of an `open`, `policy`, or `recall` block",

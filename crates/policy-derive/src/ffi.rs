@@ -5,7 +5,7 @@ use policy_lang::{
     lang,
 };
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{
     parse::{Parse, ParseStream},
     parse_quote,
@@ -71,6 +71,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     // `#[ffi(def = "...")]`.
     let structs = structs.iter().map(|d| {
         let name = format_ident!("{}", d.identifier);
+        let name_str = d.identifier.to_string();
         let names = d
             .fields
             .iter()
@@ -135,6 +136,10 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     })
                 }
             }
+            #[automatically_derived]
+            impl #vm::Typed for #name {
+                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Struct(#name_str);
+            }
         }
     });
 
@@ -186,7 +191,23 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 .map(|arg| {
                     let name = format_ident!("__arg_{}", arg.ident);
                     let rtype = &arg.ty.ty;
+                    let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
+                    let msg = format!(
+                        "mismatched types: expected `{want}`, found `{got}`",
+                        want = quote!(#vtype),
+                        got = quote!(#rtype),
+                    );
+                    let const_assert = quote_spanned! {rtype.span()=>
+                        const {
+                            if !<#rtype as #vm::Typed>::TYPE.const_eq(
+                                &#vm::__type!(#vtype),
+                            ) {
+                                panic!(#msg);
+                            }
+                        }
+                    };
                     quote! {
+                        #const_assert
                         let #name = #vm::Stack::pop::<#rtype>(__stack)?
                     }
                 })
@@ -536,6 +557,18 @@ impl Func {
                             format!("invalid argument name: {}", t.pat.to_token_stream()),
                         ));
                     };
+
+                    // arg name should match definition
+                    if !ident.to_string().starts_with("_") && *ident != def.identifier {
+                        return Err(Error::new_spanned(
+                            ident,
+                            format!(
+                                "arg identifier `{ident}` should match definition (`{}`)",
+                                def.identifier
+                            ),
+                        ));
+                    }
+
                     Ok(Arg {
                         ident: ident.clone(),
                         ty: t.clone(),

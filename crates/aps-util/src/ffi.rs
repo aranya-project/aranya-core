@@ -15,7 +15,8 @@ use crypto::{
     KeyStoreExt, UnwrapError, UserId, WrapError,
 };
 use policy_vm::{
-    ffi::ffi, CommandContext, MachineError, MachineErrorType, MachineIOError, Value,
+    ffi::{ffi, Type},
+    CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
     ValueConversionError,
 };
 
@@ -119,7 +120,7 @@ function create_bidi_channel(
     #[ffi_export(def = r#"
 function create_uni_channel(
     parent_cmd_id id,
-    our_enc_key_id id,
+    author_enc_key_id id,
     their_pk bytes,
     seal_id id,
     open_id id,
@@ -274,6 +275,10 @@ impl From<aps::Label> for Label {
     fn from(label: aps::Label) -> Self {
         Self(label.to_u32())
     }
+}
+
+impl Typed for Label {
+    const TYPE: Type<'static> = Type::Int;
 }
 
 impl TryFrom<Value> for Label {

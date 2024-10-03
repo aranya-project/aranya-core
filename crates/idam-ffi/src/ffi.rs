@@ -150,7 +150,7 @@ function seal_group_key(
     #[ffi_export(def = r#"
 function open_group_key(
     sealed_group_key struct SealedGroupKey,
-    our_enc_sk_id bytes,
+    our_enc_sk_id id,
     group_id id,
 ) struct StoredGroupKey
 "#)]
@@ -193,7 +193,7 @@ function encrypt_message(
     plaintext bytes,
     wrapped_group_key bytes,
     our_sign_sk_id id,
-    // Name of the command that will carry the 
+    // Name of the command that will carry the
     // encrypted message.
     label string,
 ) bytes
