@@ -6,7 +6,7 @@
 
 use core::marker::PhantomData;
 
-use crypto::{Csprng, Engine, Id, KeyStore, Random, SignerError, SigningKey, UserId};
+use aranya_crypto::{Csprng, Engine, Id, KeyStore, Random, SignerError, SigningKey, UserId};
 use policy_vm::{ActionContext, CommandContext, OpenContext, PolicyContext, SealContext};
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,7 @@ use crate::{
 /// # Example
 ///
 /// ```
-/// use crypto::{default::DefaultEngine, keystore::memstore::MemStore, Rng};
+/// use aranya_crypto::{default::DefaultEngine, keystore::memstore::MemStore, Rng};
 ///
 /// use crypto_ffi::run_tests;
 ///
@@ -121,7 +121,7 @@ where
                 command_id,
                 signature,
             )
-            .expect("`crypto::verify` should not fail");
+            .expect("`aranya_crypto::verify` should not fail");
         assert_eq!(got, command);
     }
 
@@ -175,7 +175,7 @@ where
             command_id,
             signature,
         )
-        .expect_err("`crypto::verify` should fail");
+        .expect_err("`aranya_crypto::verify` should fail");
     }
 
     /// Test that we reject signatures that were not over the
@@ -226,11 +226,11 @@ where
                 command_id,
                 signature,
             )
-            .expect_err("`crypto::verify` should fail");
+            .expect_err("`aranya_crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Signer(SignerError::Verification)),
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Signer(SignerError::Verification)),
         );
     }
 
@@ -285,11 +285,11 @@ where
                 command_id,
                 signature,
             )
-            .expect_err("`crypto::verify` should fail");
+            .expect_err("`aranya_crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Signer(SignerError::Verification)),
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Signer(SignerError::Verification)),
         );
     }
 
@@ -343,11 +343,11 @@ where
                 command_id,
                 signature,
             )
-            .expect_err("`crypto::verify` should fail");
+            .expect_err("`aranya_crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Signer(SignerError::Verification)),
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Signer(SignerError::Verification)),
         );
     }
 
@@ -398,11 +398,11 @@ where
                 command_id,
                 signature,
             )
-            .expect_err("`crypto::verify` should fail");
+            .expect_err("`aranya_crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Signer(SignerError::Verification)),
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Signer(SignerError::Verification)),
         );
     }
 
@@ -453,7 +453,7 @@ where
                     sk.id().expect("signing key ID should be valid").into_id(),
                     command.clone(),
                 )
-                .expect_err("`crypto::seal` should fail");
+                .expect_err("`aranya_crypto::seal` should fail");
             assert_eq!(err.kind(), ErrorKind::WrongContext);
             assert!(err.downcast_ref::<WrongContext>().is_some());
         }
@@ -525,7 +525,7 @@ where
                     command_id,
                     signature.clone(),
                 )
-                .expect_err("`crypto::verify` should fail");
+                .expect_err("`aranya_crypto::verify` should fail");
             assert_eq!(err.kind(), ErrorKind::WrongContext);
             assert!(err.downcast_ref::<WrongContext>().is_some());
         }

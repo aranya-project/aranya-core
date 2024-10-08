@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::ops::{Deref, DerefMut};
 
-use crypto::Id;
+use aranya_crypto::Id;
 use policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError,
     MachineErrorType, MachineIO, MachineIOError, MachineStack,
@@ -27,7 +27,7 @@ pub trait FfiCallable<E> {
 impl<FM, E> FfiCallable<E> for FM
 where
     FM: FfiModule,
-    E: crypto::Engine,
+    E: aranya_crypto::Engine,
 {
     fn call(
         &mut self,
@@ -79,7 +79,7 @@ impl<'o, P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'o, P, S, E, FFI>
 where
     P: FactPerspective,
     S: Sink<VmEffect>,
-    E: crypto::Engine,
+    E: aranya_crypto::Engine,
     FFI: DerefMut,
     <FFI as Deref>::Target: FfiCallable<E>,
 {

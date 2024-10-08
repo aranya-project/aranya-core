@@ -3,8 +3,8 @@
 use alloc::vec::Vec;
 use core::convert::Infallible;
 
-use buggy::{bug, BugExt};
-use crypto::UserId;
+use aranya_buggy::{bug, BugExt};
+use aranya_crypto::UserId;
 use policy_vm::{ffi::ffi, CommandContext, MachineError};
 
 use crate::CommandId;

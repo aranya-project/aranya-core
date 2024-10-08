@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::string::String;
 use core::fmt;
 
-use crypto::Id;
+use aranya_crypto::Id;
 use policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 
 use super::Stack;

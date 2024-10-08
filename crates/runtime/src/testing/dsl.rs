@@ -60,8 +60,8 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::time::Instant;
 
-use buggy::{Bug, BugExt};
-use crypto::{csprng::rand::Rng as RRng, Csprng, Rng};
+use aranya_buggy::{Bug, BugExt};
+use aranya_crypto::{csprng::rand::Rng as RRng, Csprng, Rng};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error};
 

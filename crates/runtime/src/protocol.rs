@@ -2,7 +2,7 @@
 use alloc::vec::Vec;
 use core::convert::Infallible;
 
-use buggy::bug;
+use aranya_buggy::bug;
 use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
 use serde::{Deserialize, Serialize};
 use tracing::trace;

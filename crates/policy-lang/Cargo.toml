@@ -15,7 +15,7 @@ default = []
 
 [dependencies]
 anyhow = { workspace = true }
-buggy = { path = "../buggy", features = ["std"] }
+aranya-buggy = { path = "../aranya-buggy", features = ["std"] }
 clap = { version = "4.4", features = ["derive"] }
 markdown = { version = "=1.0.0-alpha.17" }
 pest = { version = "2" }

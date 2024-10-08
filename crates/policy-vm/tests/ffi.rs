@@ -1,6 +1,6 @@
 use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
-use crypto::{
+use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     Engine, Id, Rng,
 };

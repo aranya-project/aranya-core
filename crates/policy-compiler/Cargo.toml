@@ -14,7 +14,7 @@ workspace = true
 default = []
 
 [dependencies]
-buggy = { path = "../buggy", features = ["std"] }
+aranya-buggy = { path = "../aranya-buggy", features = ["std"] }
 ciborium = { version = "0.2" }
 clap = { version = "4.4", features = ["derive"] }
 policy-ast = { path = "../policy-ast" }

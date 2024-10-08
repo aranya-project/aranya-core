@@ -8,8 +8,8 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+aranya-buggy = { path = "../../crates/aranya-buggy" }
 base58 = { path = "../../crates/base58" }
-buggy = { path = "../../crates/buggy" }
-# `crypto` enables `getrandom` by default.
-crypto = { path = "../../crates/crypto", default-features = false }
+# `aranya-crypto` enables `getrandom` by default.
+aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false }
 trouble = { path = "../../crates/trouble" }

@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use buggy::Bug;
+use aranya_buggy::Bug;
 use pest::{
     error::{Error as PestError, LineColLocation},
     Span,

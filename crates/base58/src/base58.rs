@@ -10,7 +10,7 @@ use core::{
     str::{self, FromStr},
 };
 
-use buggy::{Bug, BugExt};
+use aranya_buggy::{Bug, BugExt};
 use byteorder::{BigEndian, ByteOrder};
 
 use crate::arith::{div_ww, mul_add_ww};

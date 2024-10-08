@@ -9,7 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
-crypto = { path = "../crypto", default-features = false, features = ["alloc", "fs-keystore"] }
+aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc", "fs-keystore"] }
 policy-compiler = { path = "../policy-compiler" }
 policy-lang = { path = "../policy-lang" }
 policy-vm = { path = "../policy-vm" }

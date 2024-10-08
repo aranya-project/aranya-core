@@ -8,7 +8,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::{Bug, BugExt};
+use aranya_buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, Command, CommandId, PolicyId, Prior};
@@ -19,7 +19,7 @@ pub mod memory;
 /// The maximum size of a serialized message
 pub const MAX_COMMAND_LENGTH: usize = 2048;
 
-crypto::custom_id! {
+aranya_crypto::custom_id! {
     /// The ID of the graph, taken from initialization.
     pub struct GraphId;
 }

@@ -8,7 +8,7 @@ mod tests;
 
 use core::convert::Infallible;
 
-use crypto::UserId;
+use aranya_crypto::UserId;
 use policy_vm::{ffi::ffi, CommandContext};
 
 /// Implements the FFI `Device` module
@@ -20,7 +20,7 @@ pub struct FfiDevice {
 impl FfiDevice {
     /// Returns the current user's UserId
     #[ffi_export(def = r#"function current_user_id() id"#)]
-    pub(crate) fn current_user_id<E: crypto::Engine>(
+    pub(crate) fn current_user_id<E: aranya_crypto::Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,

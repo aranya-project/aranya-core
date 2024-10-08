@@ -11,9 +11,9 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-buggy = { path = "../buggy", features = ["alloc"] }
+aranya-buggy = { path = "../aranya-buggy", features = ["alloc"] }
+aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
 # `crypto` enables `getrandom` by default.
-crypto = { path = "../crypto", default-features = false, features = ["alloc", "rand_compat"] }
 policy-vm = { path = "../policy-vm" }
 
 cfg-if = { workspace = true, default-features = false, optional = true }
@@ -57,8 +57,8 @@ libc = [
 ]
 
 std = [
-	"buggy/std",
-	"crypto/std",
+	"aranya-buggy/std",
+	"aranya-crypto/std",
 	"libc?/std",
 	"memchr?/std",
 	"policy-vm/std",
@@ -70,7 +70,7 @@ std = [
 ]
 
 testing = [
-	"crypto/rand_compat",
+	"aranya-crypto/rand_compat",
 	"policy-vm/derive",
 
 	"dep:policy-module",

@@ -1,4 +1,4 @@
-use crypto::Engine;
+use aranya_crypto::Engine;
 use policy_vm::{
     ffi::{self, FfiModule, ModuleSchema},
     CommandContext, MachineError, MachineErrorType, Stack, Value,

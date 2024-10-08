@@ -1,7 +1,7 @@
 extern crate alloc;
 use alloc::string::String;
 
-use crypto::Id;
+use aranya_crypto::Id;
 use policy_vm::{ffi::ffi, CommandContext, MachineError, MachineErrorType};
 
 /// Implements 'perspective` FFI module.
@@ -21,7 +21,7 @@ pub struct FfiPerspective;
 impl FfiPerspective {
     /// Returns the ID of the command at the head of the perspective. Only valid for `Seal` and `Action` contexts.
     #[ffi_export(def = r#"function head_id() id"#)]
-    pub(crate) fn head_id<E: crypto::Engine>(
+    pub(crate) fn head_id<E: aranya_crypto::Engine>(
         &mut self,
         ctx: &CommandContext<'_>,
         _eng: &mut E,

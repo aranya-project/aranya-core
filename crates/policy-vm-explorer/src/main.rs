@@ -6,8 +6,8 @@ use std::{
     io::{stdin, Read},
 };
 
+use aranya_crypto::Id;
 use clap::{arg, ArgGroup, Parser, ValueEnum};
-use crypto::Id;
 use policy_compiler::Compiler;
 use policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use policy_vm::{

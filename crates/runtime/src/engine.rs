@@ -5,7 +5,7 @@
 
 use core::fmt;
 
-use buggy::Bug;
+use aranya_buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{

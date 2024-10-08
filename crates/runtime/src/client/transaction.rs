@@ -1,7 +1,7 @@
 use alloc::collections::{BTreeMap, VecDeque};
 use core::{marker::PhantomData, mem};
 
-use buggy::{bug, BugExt};
+use aranya_buggy::{bug, BugExt};
 
 use crate::{
     Address, ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId,
@@ -443,7 +443,7 @@ fn get_policy<'a, E: Engine>(
 
 #[cfg(test)]
 mod test {
-    use buggy::Bug;
+    use aranya_buggy::Bug;
     use test_log::test;
 
     use super::*;

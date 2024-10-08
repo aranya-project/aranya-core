@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use crypto::{
+use aranya_crypto::{
     CipherSuite, Engine, IdentityKey, IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey,
     SigningKeyId, UserId, VerifyingKey,
 };

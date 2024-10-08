@@ -3,8 +3,8 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
-pub use crypto::Id;
-use crypto::{EncryptionKeyId, UserId};
+pub use aranya_crypto::Id;
+use aranya_crypto::{EncryptionKeyId, UserId};
 use policy_ast::VType;
 use serde::{Deserialize, Serialize};
 

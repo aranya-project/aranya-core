@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String};
 use core::{convert::Infallible, fmt};
 
-use buggy::Bug;
+use aranya_buggy::Bug;
 use policy_module::{CodeMap, ValueConversionError};
 
 use crate::io::MachineIOError;

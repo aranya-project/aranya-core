@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc};
 use core::fmt;
 
-use crypto::UserId;
+use aranya_crypto::UserId;
 use policy_vm::{Struct, Value};
 use serde::{Deserialize, Serialize};
 
@@ -146,9 +146,9 @@ impl TryFrom<Struct> for Envelope<'_> {
         }
 
         Ok(Self {
-            parent_id: get::<crypto::Id>(fields, "parent_id")?.into(),
-            author_id: get::<crypto::Id>(fields, "author_id")?.into(),
-            command_id: get::<crypto::Id>(fields, "command_id")?.into(),
+            parent_id: get::<aranya_crypto::Id>(fields, "parent_id")?.into(),
+            author_id: get::<aranya_crypto::Id>(fields, "author_id")?.into(),
+            command_id: get::<aranya_crypto::Id>(fields, "command_id")?.into(),
             payload: Cow::Owned(get(fields, "payload")?),
             signature: Cow::Owned(get(fields, "signature")?),
         })

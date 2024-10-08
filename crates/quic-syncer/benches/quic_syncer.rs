@@ -13,8 +13,8 @@ use std::{
 };
 
 use anyhow::Result;
+use aranya_crypto::Rng;
 use criterion::{criterion_group, criterion_main, Criterion};
-use crypto::Rng;
 use quic_syncer::{run_syncer, Syncer};
 use quinn::{Endpoint, ServerConfig};
 use runtime::{

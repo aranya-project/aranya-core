@@ -1,7 +1,7 @@
 use alloc::vec;
 
-use buggy::BugExt;
-use crypto::Csprng;
+use aranya_buggy::BugExt;
+use aranya_crypto::Csprng;
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 

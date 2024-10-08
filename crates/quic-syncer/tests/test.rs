@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use crypto::Rng;
+use aranya_crypto::Rng;
 use quic_syncer::{run_syncer, Syncer};
 use quinn::{Endpoint, ServerConfig};
 use runtime::{

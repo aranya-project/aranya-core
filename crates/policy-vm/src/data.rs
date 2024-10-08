@@ -1,5 +1,5 @@
-pub use crypto::Id;
-use crypto::UserId;
+pub use aranya_crypto::Id;
+use aranya_crypto::UserId;
 
 /// Context for actions
 #[derive(Clone, Debug, PartialEq, Eq)]

@@ -2,7 +2,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use crypto::{engine::Engine, Id};
+use aranya_crypto::{engine::Engine, Id};
 use policy_vm::{ffi::ffi, CommandContext};
 
 use crate::error::{Error, WrongContext};

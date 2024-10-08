@@ -25,7 +25,7 @@ alloc = []
 std = [
 	"alloc",
 
-	"crypto/std",
+	"aranya-crypto/std",
 	"policy-vm/std",
 	"postcard/use-std",
 	"serde/std",
@@ -39,7 +39,7 @@ testing = [
 ]
 
 [dependencies]
-crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
+aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"], optional = true }
@@ -50,7 +50,7 @@ tracing = { workspace = true }
 # examples.
 crypto-ffi = { path = ".", features = ["testing"] }
 
-crypto = { path = "../crypto", features = ["alloc", "getrandom"] }
+aranya-crypto = { path = "../aranya-crypto", features = ["alloc", "getrandom"] }
 
 [package.metadata.docs.rs]
 all-features = true

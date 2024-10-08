@@ -23,11 +23,11 @@ std = ["alloc"]
 testing = []
 
 [dependencies]
-crypto = { path = "../crypto", default-features = false }
+aranya-crypto = { path = "../aranya-crypto", default-features = false }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
-crypto = { path = "../crypto", features = ["getrandom"] }
+aranya-crypto = { path = "../aranya-crypto", features = ["getrandom"] }
 
 [package.metadata.docs.rs]
 all-features = true

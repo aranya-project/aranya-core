@@ -3,7 +3,7 @@ use std::{
     fmt,
 };
 
-use crypto::{
+use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     Id, Rng,
 };

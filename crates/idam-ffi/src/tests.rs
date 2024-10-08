@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crypto::{default::DefaultEngine, keystore::memstore::MemStore, Rng};
+use aranya_crypto::{default::DefaultEngine, keystore::memstore::MemStore, Rng};
 
 use crate::testing::run_tests;
 

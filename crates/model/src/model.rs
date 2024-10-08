@@ -12,7 +12,7 @@ use core::{
 use std::{collections::btree_map::Entry, marker::PhantomData};
 
 use anyhow::Result;
-use crypto::Rng;
+use aranya_crypto::Rng;
 use policy_compiler::CompileError;
 use policy_lang::lang::ParseError;
 use runtime::{
@@ -37,7 +37,7 @@ pub struct ModelEngine<E> {
 
 impl<E> ModelEngine<E>
 where
-    E: crypto::Engine,
+    E: aranya_crypto::Engine,
 {
     /// Creates a new ModelEngine instance with a [`VmPolicy`].
     pub fn new(policy: VmPolicy<E>) -> Self {
@@ -47,7 +47,7 @@ where
 
 impl<E> Engine for ModelEngine<E>
 where
-    E: crypto::Engine,
+    E: aranya_crypto::Engine,
 {
     type Policy = VmPolicy<E>;
     type Effect = ModelEffect;

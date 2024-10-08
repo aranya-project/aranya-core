@@ -4,13 +4,13 @@
 //! ## Creating a `VmPolicy` instance
 //!
 //! To use `VmPolicy` in your [`Engine`](super::Engine), you need to provide a Policy VM
-//! [`Machine`], a [`crypto::Engine`], and a Vec of Boxed FFI implementations. The Machine
+//! [`Machine`], a [`aranya_crypto::Engine`], and a Vec of Boxed FFI implementations. The Machine
 //! will be created by either compiling a policy document (see
 //! [`parse_policy_document()`](../../policy_lang/lang/fn.parse_policy_document.html) and
 //! [`Compiler`](../../policy_compiler/struct.Compiler.html)), or loading a compiled policy
 //! module (see [`Machine::from_module()`]). The crypto engine comes from your favorite
 //! implementation
-//! ([`DefaultEngine::from_entropy()`](crypto::default::DefaultEngine::from_entropy) is a
+//! ([`DefaultEngine::from_entropy()`](aranya_crypto::default::DefaultEngine::from_entropy) is a
 //! good choice for testing). The list of FFIs is a list of things that implement
 //! [`FfiModule`](policy_vm::ffi::FfiModule), most likely via the [ffi attribute
 //! macro](../../policy_vm/ffi/attr.ffi.html). The list of FFI modules _must_ be in the same
@@ -23,7 +23,7 @@
 //!     .ffi_modules(&[TestFfiEnvelope::SCHEMA])
 //!     .compile()
 //!     .unwrap();
-//! // Create a `crypto::Engine` implementation
+//! // Create a `aranya_crypto::Engine` implementation
 //! let (eng, _) = DefaultEngine::from_entropy(Rng);
 //! // Create a list of FFI module implementations
 //! let ffi_modules = vec![Box::from(TestFfiEnvelope {
@@ -119,7 +119,7 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::fmt;
 
-use buggy::bug;
+use aranya_buggy::bug;
 use policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     OpenContext, PolicyContext, RunState, SealContext, Struct, Value,
@@ -240,7 +240,7 @@ impl<E> VmPolicy<E> {
     }
 }
 
-impl<E: crypto::Engine> VmPolicy<E> {
+impl<E: aranya_crypto::Engine> VmPolicy<E> {
     #[allow(clippy::too_many_arguments)]
     #[instrument(skip_all, fields(name = name))]
     fn evaluate_rule<'a, P>(
@@ -459,7 +459,7 @@ pub struct VmEffect {
     pub recalled: bool,
 }
 
-impl<E: crypto::Engine> Policy for VmPolicy<E> {
+impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     type Action<'a> = VmAction<'a>;
     type Effect = VmEffect;
     type Command<'a> = VmProtocol<'a>;

@@ -8,7 +8,7 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-crypto = { path = "../crypto", default-features = false }
+aranya-crypto = { path = "../aranya-crypto", default-features = false }
 policy-ast = { path = "../policy-ast" }
 proptest = { workspace = true, default-features = false, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }
@@ -18,7 +18,7 @@ serde = { workspace = true, default-features = false, features = ["derive"] }
 default = []
 
 proptest = [
-	"crypto/proptest",
+	"aranya-crypto/proptest",
 	"dep:proptest",
 	"dep:proptest-derive",
 	"std",
@@ -26,7 +26,7 @@ proptest = [
 
 # Enable `std`.
 std = [
-	"crypto/std",
+	"aranya-crypto/std",
 	"policy-ast/std",
 	"serde/std",
 ]

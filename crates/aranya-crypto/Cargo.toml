@@ -1,0 +1,244 @@
+[package]
+name = "aranya-crypto"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+
+[features]
+default = [
+	"getrandom",
+]
+
+# Enable allocations.
+alloc = [
+	"aes-gcm/alloc",
+	"aranya-buggy/alloc",
+	"der/alloc",
+	"ecdsa/alloc",
+	"postcard/alloc",
+	"rand?/alloc",
+	"rand_core/alloc",
+	"rustix?/alloc",
+	"zeroize/alloc",
+]
+
+# Enable BearSSL.
+bearssl = [
+	"dep:bearssl-sys",
+]
+
+# Enable BoringSSL.
+boringssl = [
+	"alloc",
+	"dep:bssl-sys",
+]
+
+# Enable committing AEAD implementations.
+committing-aead = [
+	"dep:aes",
+]
+
+# Implement `Clone` for the built-in AEADs.
+clone-aead = []
+
+# Enable Ed25519 batch signature verification.
+#
+# NB: this is NOT supported on big-endian architectures.
+#
+# This is its own feature because of a weird interaction
+# between cargo, ed25519-dalek, and VxWorks.
+#
+# ed25519-dalek's `batch` feature requires `alloc`, so normally
+# we'd put "ed25519-dalek/batch" behind our `alloc` feature.
+#
+# However, ed25519-dalek's `batch` feature does not build for
+# vxworks/ppc because its merlin dependency does not support
+# big-endian architectures.
+#
+# Cargo does not support target-specific features, so we're
+# unable to express "enable ed25519-dalek/batch only if `alloc`
+# is enabled and the current architecture is little-endian."
+ed25519_batch = [
+	"alloc",
+	"ed25519-dalek/batch",
+]
+
+# Enable the file system backed `KeyStore`.
+fs-keystore = [
+	"alloc", # ciborium already requires alloc
+
+	"dep:ciborium",
+	"dep:ciborium-io",
+	"dep:rustix",
+]
+
+# Enable `getrandom` support.
+#
+# NB: `getrandom` does not support VxWorks < 7.
+getrandom = [
+	"dep:getrandom",
+
+	"rand_core/getrandom",
+]
+
+# Build for Project Moonshot.
+moonshot = [
+	"dep:aes",
+	"dep:lazy_static",
+	"dep:spin",
+]
+
+# Enable `proptest::arbitrary::Arbitrary` implemenations
+proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
+
+# Enable compat with the `rand`, `rand_core`, etc. crates.
+rand_compat = [
+	"dep:rand",
+]
+
+# Use std.
+std = [
+	"alloc",
+	# If we're already using `std`, we might as well enable
+	# `Csprng` support for `OsRng`. Doing this makes the
+	# `#[cfg(...)]` blocks easier to manage.
+	"getrandom",
+	# Pull in `rand` for `ThreadRng`.
+	"dep:rand",
+
+	"aes-gcm/std",
+	"aranya-buggy/std",
+	"base58/std",
+	"byteorder/std",
+	"ciborium-io?/std",
+	"ciborium?/std",
+	"crypto-common/std",
+	"der/std",
+	"der/std",
+	"ecdsa/std",
+	"ed25519-dalek/std",
+	"elliptic-curve/std",
+	"getrandom?/std",
+	"p256/std",
+	"p384/std",
+	"postcard/use-std",
+	"proptest?/std",
+	"rand?/std",
+	"rand?/std_rng",
+	"rand_core/std",
+	"rustix?/std",
+	"serde/std",
+	"serde_json?/std",
+	"sha2/std",
+	"siphasher/std",
+	"spin?/std",
+	"subtle/std",
+	"zeroize/std",
+]
+
+# Include testing utilities.
+test_util = [
+	"alloc",
+	"proptest",
+
+	"dep:serde_json",
+	"dep:serde_repr",
+	"dep:wycheproof",
+]
+
+[dependencies]
+aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
+aranya-buggy = { path = "../aranya-buggy", default-features = false }
+base58 = { path = "../base58", default-features = false }
+bearssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bearssl.git", tag = "v0.2.0", optional = true }
+bssl-sys = { git = "https://git.spideroak-inc.com/spideroak-inc/bssl.git", branch = "main", optional = true }
+byteorder = { workspace = true, default-features = false }
+cfg-if = { workspace = true, default-features = false }
+ciborium = { version = "0.2", default-features = false, optional = true }
+ciborium-io = { version = "0.2", default-features = false, optional = true }
+crypto-common = { version = "0.1", default-features = false }
+crypto-derive = { path = "../crypto-derive" }
+der = { version = "0.7", default-features = false }
+ecdsa = { version = "0.16", default-features = false, features = ["signing", "verifying", "der"] }
+ed25519-dalek = { version = "2.0.0-rc.3", default-features = false, features = ["zeroize"] }
+elliptic-curve = { version = "0.13", default-features = false, features = ["ecdh", "arithmetic", "sec1"] }
+generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
+getrandom = { version = "0.2", default-features = false, optional = true }
+lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"], optional = true }
+more-asserts = { version = "0.3", default-features = false }
+p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
+p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
+postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
+proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
+proptest-derive = { workspace = true, optional = true }
+rand = { workspace = true, default-features = false, optional = true }
+# `rand_core` is required by the `rust` backend.
+rand_core = { workspace = true, default-features = false }
+rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
+serde = { workspace = true, default-features = false, features = ["derive"] }
+serde_json = { version = "1", default-features = false, optional = true }
+serde_repr = { version = "0.1", default-features = false, optional = true }
+sha2 = { version = "0.10", default-features = false }
+siphasher = { version = "1", default-features = false }
+spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"], optional = true }
+subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
+trouble = { path = "../trouble", default-features = false }
+typenum = { version = "1", default-features = false, features = ["const-generics"] }
+# Only pulled into non-dev builds if `test_util` is enabled. It
+# won't bloat release builds, though, since users of this crate
+# should only use this feature inside [dev-dependencies].
+wycheproof = { version = "0.5", optional = true }
+zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
+
+[dev-dependencies]
+aranya-crypto = { path = ".", features = ["alloc", "test_util"] }
+# A little bit of a hack: always certain features for tests and
+# examples.
+postcard = { workspace = true, features = ["alloc", "heapless"] }
+rand = { workspace = true, features = ["std", "std_rng"] }
+serde = { workspace = true, default-features = false, features = ["derive"] }
+serde_json = { version = "1", default-features = false }
+serde_repr = { version = "0.1", default-features = false }
+tempfile = { version = "3" }
+wycheproof = { version = "0.5" }
+
+[[example]]
+name = "hsm"
+crate-type = ["lib"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+always_include_features = [
+	"alloc",
+	"bearssl",
+	"boringssl",
+	"clone-aead",
+	"committing-aead",
+	"ed25519_batch",
+	"fs-keystore",
+	"getrandom",
+	"proptest",
+	"rand_compat",
+	"std",
+	"test_util",
+]
+
+skip_feature_sets = []
+
+denylist = [
+	"result_option_inspect",
+]
+
+[package.metadata.cargo-machete]
+ignored = ["old-generic-array"]

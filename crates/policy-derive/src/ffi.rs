@@ -319,7 +319,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
             // TODO(eric): make `alloc` optional.
             extern crate alloc as #alloc;
-            extern crate crypto as #crypto;
+            extern crate aranya_crypto as #crypto;
             extern crate policy_vm as #vm;
 
             #(#structs)*
@@ -339,7 +339,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
             // TODO(eric): make `alloc` optional.
             extern crate alloc as #alloc;
-            extern crate crypto as #crypto;
+            extern crate aranya_crypto as #crypto;
             extern crate policy_vm as #vm;
 
             #mod_impl

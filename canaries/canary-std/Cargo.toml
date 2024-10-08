@@ -8,11 +8,11 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-# aps-util = { path = "../../crates/aps-util", features = ["alloc"] }
+# afc-util = { path = "../../crates/afc-util", features = ["alloc"] }
+aranya-buggy = { path = "../../crates/aranya-buggy", features = ["alloc"] }
 base58 = { path = "../../crates/base58", features = ["alloc"] }
-buggy = { path = "../../crates/buggy", features = ["alloc"] }
-# `crypto` enables `getrandom` by default.
-crypto = { path = "../../crates/crypto", default-features = false, features = [
+# `aranya-crypto` enables `getrandom` by default.
+aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false, features = [
 	"alloc",
 	"committing-aead",
 	"clone-aead",

@@ -68,7 +68,7 @@ args = [
     "--target=powerpc-wrs-vxworks",
     "--release",
     # Only try to build the crates that are used on VxWorks.
-    "--package=crypto",
+    "--package=aranya-crypto",
     "--package=runtime",
     # Build the variant used by the Moonshot project since
     # it's currently our only use of VxWorks.

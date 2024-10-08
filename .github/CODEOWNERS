@@ -2,10 +2,11 @@
 
 /canaries @jdygert @elagergren
 
-/crates/aps-util @elagergren @jdygert
+/crates/afc-util @elagergren @jdygert
 /crates/base58 @elagergren @jdygert
-/crates/buggy @jdygert @elagergren
+/crates/aranya-buggy @jdygert @elagergren
 
+/crates/aranya-crypto @elagergren @ycarmy
 /crates/crypto* @elagergren @ycarmy
 
 /crates/device-ffi @rfraser @chip

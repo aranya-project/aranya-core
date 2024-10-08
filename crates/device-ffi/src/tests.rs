@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crypto::{
+use aranya_crypto::{
     default::{DefaultEngine, Rng},
     Id, UserId,
 };

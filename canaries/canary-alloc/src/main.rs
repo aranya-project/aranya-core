@@ -2,9 +2,9 @@
 #![no_std]
 #![no_main]
 
+extern crate aranya_buggy;
+extern crate aranya_crypto;
 extern crate base58;
-extern crate buggy;
-extern crate crypto;
 extern crate trouble;
 
 #[cfg(target_os = "none")] // hack to please rust-analyzer

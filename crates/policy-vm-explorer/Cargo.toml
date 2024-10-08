@@ -15,8 +15,8 @@ default = []
 
 [dependencies]
 anyhow = { workspace = true }
+aranya-crypto = { path = "../aranya-crypto" }
 clap = { version = "4.4", features = ["derive"] }
-crypto = { path = "../crypto" }
 policy-compiler = { path = "../policy-compiler" }
 policy-lang = { path = "../policy-lang" }
 policy-vm = { path = "../policy-vm", features = ["std"] }

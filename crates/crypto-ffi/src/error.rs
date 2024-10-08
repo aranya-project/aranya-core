@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::{fmt, ops::Deref};
 
-use crypto::{id::IdError, signer::PkError, Id, ImportError, UnwrapError};
+use aranya_crypto::{id::IdError, signer::PkError, Id, ImportError, UnwrapError};
 use policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
 
@@ -64,8 +64,8 @@ impl From<IdError> for Error {
     }
 }
 
-impl From<crypto::Error> for Error {
-    fn from(err: crypto::Error) -> Self {
+impl From<aranya_crypto::Error> for Error {
+    fn from(err: aranya_crypto::Error) -> Self {
         Self::new(ErrorKind::Crypto, err)
     }
 }
@@ -115,15 +115,15 @@ impl From<WrongContext> for Error {
 /// Describes [`Error`].
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub enum ErrorKind {
-    /// The [`crypto`] crate failed.
+    /// The [`aranya_crypto`] crate failed.
     ///
-    /// [`Error`] can be downcast to [`crypto::Error`].
+    /// [`Error`] can be downcast to [`aranya_crypto::Error`].
     Crypto,
     /// Unable to encode/decode some input.
     ///
     /// [`Error`] can be downcast to [`postcard::Error`].
     Encoding,
-    /// Unable to import a [`Signature`][crypto::Signature] or
+    /// Unable to import a [`Signature`][aranya_crypto::Signature] or
     /// cryptographic key.
     ///
     /// [`Error`] can be downcast to [`ImportError`].
@@ -133,12 +133,12 @@ pub enum ErrorKind {
     /// [`Error`] can be downcast to [`InvalidCmdId`].
     InvalidCmdId,
     /// The key was not found in the
-    /// [`KeyStore`][crypto::KeyStore].
+    /// [`KeyStore`][aranya_crypto::KeyStore].
     KeyNotFound,
     /// The keystore failed.
     ///
     /// [`Error`] can be downcast to
-    /// [`KeyStore::Error`][crypto::KeyStore::Error].
+    /// [`KeyStore::Error`][aranya_crypto::KeyStore::Error].
     KeyStore,
     /// Unable to unwrap a key.
     ///
@@ -171,7 +171,7 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-/// Unable to find a key in the [`KeyStore`][crypto::KeyStore].
+/// Unable to find a key in the [`KeyStore`][aranya_crypto::KeyStore].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct InvalidCmdId(pub(crate) ());
 
@@ -183,7 +183,7 @@ impl fmt::Display for InvalidCmdId {
     }
 }
 
-/// Unable to find a key in the [`KeyStore`][crypto::KeyStore].
+/// Unable to find a key in the [`KeyStore`][aranya_crypto::KeyStore].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct KeyNotFound(pub(crate) Id);
 

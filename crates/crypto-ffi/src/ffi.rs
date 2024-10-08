@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::borrow::Borrow;
 
-use crypto::{
+use aranya_crypto::{
     subtle::ConstantTimeEq, Cmd, Engine, Id, KeyStore, Signature, SigningKey, VerifyingKey,
 };
 use policy_vm::{ffi::ffi, CommandContext};
@@ -117,7 +117,9 @@ function sign(
         command_bytes: Vec<u8>,
     ) -> Result<Signed, Error> {
         let CommandContext::Seal(ctx) = ctx else {
-            return Err(WrongContext("`crypto::sign` used outside of a `seal` block").into());
+            return Err(
+                WrongContext("`aranya_crypto::sign` used outside of a `seal` block").into(),
+            );
         };
 
         let sk: SigningKey<E::CS> = {
@@ -163,7 +165,9 @@ function verify(
         signature: Vec<u8>,
     ) -> Result<Vec<u8>, Error> {
         let CommandContext::Open(ctx) = ctx else {
-            return Err(WrongContext("`crypto::verify` used outside of an `open` block").into());
+            return Err(
+                WrongContext("`aranya_crypto::verify` used outside of an `open` block").into(),
+            );
         };
 
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&author_sign_pk)?;

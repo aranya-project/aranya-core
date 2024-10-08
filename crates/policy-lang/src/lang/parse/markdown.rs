@@ -1,4 +1,4 @@
-use buggy::BugExt;
+use aranya_buggy::BugExt;
 use markdown::{
     mdast::{Node, Yaml},
     to_mdast, ParseOptions,

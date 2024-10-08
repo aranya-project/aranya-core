@@ -8,7 +8,7 @@ mod io;
 
 use alloc::collections::BTreeMap;
 
-use crypto::Id;
+use aranya_crypto::Id;
 use io::TestIO;
 
 use crate::{

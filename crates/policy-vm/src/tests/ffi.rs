@@ -1,4 +1,4 @@
-use crypto::Engine;
+use aranya_crypto::Engine;
 
 use crate::{
     ffi::{self, FfiModule, ModuleSchema},

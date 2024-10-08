@@ -63,9 +63,9 @@ proc-macro2 = "1.0"
 syn = "2.0"
 quote = "1.0"
 
-[patch."https://git.spideroak-inc.com/spideroak-inc/flow3-rs"]
-buggy.path = "crates/buggy"
-crypto.path = "crates/crypto"
+[patch."https://git.spideroak-inc.com/spideroak-inc/aranya-core"]
+aranya-buggy.path = "crates/aranya-buggy"
+aranya-crypto.path = "crates/aranya-crypto"
 
 [profile.dev]
 panic = "abort"

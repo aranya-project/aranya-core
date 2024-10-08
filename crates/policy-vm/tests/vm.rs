@@ -5,9 +5,9 @@ mod bits;
 
 use std::{collections::BTreeMap, iter};
 
+use aranya_crypto::Id;
 use bits::{policies::*, testio::*};
 use ciborium as cbor;
-use crypto::Id;
 use policy_ast::{self as ast, Version};
 use policy_compiler::{CompileErrorType, Compiler};
 use policy_lang::lang::parse_policy_str;

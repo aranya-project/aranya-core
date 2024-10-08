@@ -5,7 +5,7 @@
 
 use core::marker::PhantomData;
 
-use crypto::{
+use aranya_crypto::{
     aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, EncryptionKey, Engine, GroupKey, Id,
     IdentityKey, KeyStore, SigningKey, UserId,
 };
@@ -24,7 +24,7 @@ use crate::{
 /// # Example
 ///
 /// ```
-/// use crypto::{default::DefaultEngine, keystore::memstore::MemStore, Rng};
+/// use aranya_crypto::{default::DefaultEngine, keystore::memstore::MemStore, Rng};
 ///
 /// use idam_ffi::run_tests;
 ///
@@ -209,8 +209,8 @@ where
         assert_eq!(err.kind(), ErrorKind::Crypto);
 
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Open(OpenError::Authentication)),
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Open(OpenError::Authentication)),
         );
     }
 
@@ -266,8 +266,8 @@ where
             );
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Open(OpenError::Authentication)),
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Open(OpenError::Authentication)),
         );
     }
 
@@ -318,8 +318,8 @@ where
             );
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Open(OpenError::Authentication)),
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Open(OpenError::Authentication)),
         );
     }
 
@@ -371,8 +371,8 @@ where
             .expect_err("should not be able to decrypt message encrypted with different author");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Open(OpenError::Authentication)),
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Open(OpenError::Authentication)),
         );
     }
 
@@ -498,8 +498,8 @@ where
             .expect_err("should not be able to decrypt `GroupKey` with tampered ciphertext");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Hpke(HpkeError::Open(
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Hpke(HpkeError::Open(
                 OpenError::Authentication
             ))),
         );
@@ -611,8 +611,8 @@ where
             );
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
-            err.downcast_ref::<crypto::Error>(),
-            Some(&crypto::Error::Hpke(HpkeError::Open(
+            err.downcast_ref::<aranya_crypto::Error>(),
+            Some(&aranya_crypto::Error::Hpke(HpkeError::Open(
                 OpenError::Authentication
             ))),
         );

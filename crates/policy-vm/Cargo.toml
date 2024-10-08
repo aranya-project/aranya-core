@@ -20,14 +20,14 @@ derive = []
 
 # Enable `std`.
 std = [
-	"buggy/std",
-	"crypto/std",
+	"aranya-buggy/std",
+	"aranya-crypto/std",
 	"policy-ast/std",
 ]
 
 [dependencies]
-buggy = { path = "../buggy", features = ["alloc"] }
-crypto = { path = "../crypto", default-features = false }
+aranya-buggy = { path = "../aranya-buggy", features = ["alloc"] }
+aranya-crypto = { path = "../aranya-crypto", default-features = false }
 heapless = { workspace = true }
 policy-ast = { path = "../policy-ast" }
 policy-derive = { path = "../policy-derive" }
@@ -36,8 +36,8 @@ postcard = { workspace = true, features = ["alloc"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }
+aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 ciborium = { version = "0.2" }
-crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
 policy-compiler = { path = "../policy-compiler" }
 policy-lang = { path = "../policy-lang" }
 policy-module = { path = "../policy-module", features = ["testing"] }

@@ -3,12 +3,12 @@ use alloc::{
     string::{String, ToString},
 };
 
-use buggy::{Bug, BugExt};
+use aranya_buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;
 
-crypto::custom_id! {
+aranya_crypto::custom_id! {
     /// An ID constructed as a cryptographic hash of a serialized [`Command`].
     pub struct CommandId;
 }
@@ -19,7 +19,7 @@ impl CommandId {
     /// This is for testing only. It's not `#[cfg(test)]` because
     /// (unfortunately) some code already depends on it.
     pub fn hash_for_testing_only(data: &[u8]) -> Self {
-        use crypto::{hash::Hash, rust::Sha512};
+        use aranya_crypto::{hash::Hash, rust::Sha512};
         Sha512::hash(data).into_array().into()
     }
 

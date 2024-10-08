@@ -22,10 +22,10 @@ pub enum Effect {
     AdminRemoved(AdminRemoved),
     OperatorRemoved(OperatorRemoved),
     SatelliteRemoved(SatelliteRemoved),
-    ApsLabelCreated(ApsLabelCreated),
-    ApsLabelAssigned(ApsLabelAssigned),
-    ApsLabelRevoked(ApsLabelRevoked),
-    ApsBidiChannelCreated(ApsBidiChannelCreated),
+    AfcLabelCreated(AfcLabelCreated),
+    AfcLabelAssigned(AfcLabelAssigned),
+    AfcLabelRevoked(AfcLabelRevoked),
+    AfcBidiChannelCreated(AfcBidiChannelCreated),
 }
 /// TtcTeamCreated policy effect.
 #[effect]
@@ -89,29 +89,29 @@ pub struct OperatorRemoved {
 pub struct SatelliteRemoved {
     pub user_id: Id,
 }
-/// ApsLabelCreated policy effect.
+/// AfcLabelCreated policy effect.
 #[effect]
-pub struct ApsLabelCreated {
+pub struct AfcLabelCreated {
     pub name: String,
     pub label: i64,
 }
-/// ApsLabelAssigned policy effect.
+/// AfcLabelAssigned policy effect.
 #[effect]
-pub struct ApsLabelAssigned {
+pub struct AfcLabelAssigned {
     pub user_id: Id,
     pub name: String,
     pub label: i64,
     pub op: String,
 }
-/// ApsLabelRevoked policy effect.
+/// AfcLabelRevoked policy effect.
 #[effect]
-pub struct ApsLabelRevoked {
+pub struct AfcLabelRevoked {
     pub user_id: Id,
     pub label: i64,
 }
-/// ApsBidiChannelCreated policy effect.
+/// AfcBidiChannelCreated policy effect.
 #[effect]
-pub struct ApsBidiChannelCreated {
+pub struct AfcBidiChannelCreated {
     pub user1: Id,
     pub user2: Id,
     pub label: i64,
@@ -163,20 +163,20 @@ pub trait ActorExt {
     fn remove_admin(&mut self, user_id: Id) -> Result<(), ClientError>;
     fn remove_operator(&mut self, user_id: Id) -> Result<(), ClientError>;
     fn remove_satellite(&mut self, user_id: Id) -> Result<(), ClientError>;
-    fn create_aps_label(&mut self, name: String, label: i64) -> Result<(), ClientError>;
-    fn assign_aps_label(
+    fn create_afc_label(&mut self, name: String, label: i64) -> Result<(), ClientError>;
+    fn assign_afc_label(
         &mut self,
         user_id: Id,
         label: i64,
         op: String,
     ) -> Result<(), ClientError>;
-    fn revoke_aps_label(&mut self, user_id: Id, label: i64) -> Result<(), ClientError>;
-    fn create_aps_bidi_channel(
+    fn revoke_afc_label(&mut self, user_id: Id, label: i64) -> Result<(), ClientError>;
+    fn create_afc_bidi_channel(
         &mut self,
         peer_id: Id,
         label: i64,
     ) -> Result<(), ClientError>;
-    fn create_aps_uni_channel(
+    fn create_afc_uni_channel(
         &mut self,
         seal_id: Id,
         open_id: Id,

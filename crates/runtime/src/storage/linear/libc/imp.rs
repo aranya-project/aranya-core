@@ -1,7 +1,7 @@
 use alloc::sync::Arc;
 use core::{cmp::Ordering, hash::Hasher};
 
-use buggy::{bug, BugExt};
+use aranya_buggy::{bug, BugExt};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::error;
 
@@ -227,7 +227,7 @@ impl Root {
     }
 
     fn calc_checksum(&self) -> u64 {
-        let mut hasher = crypto::siphasher::sip::SipHasher::new();
+        let mut hasher = aranya_crypto::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
         hasher.write_usize(self.head.segment);
         hasher.write_usize(self.head.command);

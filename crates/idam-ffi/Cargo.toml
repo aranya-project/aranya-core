@@ -15,14 +15,14 @@ default = ["alloc"]
 
 # Enable allocations.
 alloc = [
-	"crypto/alloc",
+	"aranya-crypto/alloc",
 ]
 
 # Enable `std`.
 std = [
 	"alloc",
 
-	"crypto/std",
+	"aranya-crypto/std",
 	"policy-vm/std",
 	"postcard/use-std",
 ]
@@ -31,7 +31,7 @@ std = [
 testing = []
 
 [dependencies]
-crypto = { path = "../crypto", default-features = false, features = ["alloc"] }
+aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 policy-vm = { path = "../policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 tracing = { workspace = true }
@@ -39,7 +39,7 @@ tracing = { workspace = true }
 [dev-dependencies]
 idam-ffi = { path = ".", features = ["testing"] }
 
-crypto = { path = "../crypto", features = ["alloc"] }
+aranya-crypto = { path = "../aranya-crypto", features = ["alloc"] }
 
 [package.metadata.docs.rs]
 all-features = true

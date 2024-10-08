@@ -8,12 +8,12 @@ use std::{
     ops::Range,
 };
 
+use aranya_buggy::{Bug, BugExt};
 pub use ast::Policy as AstPolicy;
 use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt};
 use policy_ast::{self as ast, AstNode, FactCountType, FunctionCall, VType};
 use policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,

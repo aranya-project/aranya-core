@@ -1,6 +1,6 @@
 use std::fmt;
 
-use buggy::Bug;
+use aranya_buggy::Bug;
 use policy_ast as ast;
 use policy_module::CodeMap;
 

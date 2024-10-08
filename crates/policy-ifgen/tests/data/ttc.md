@@ -28,8 +28,8 @@ allowed to:
 - Remove Admins
 - Remove Operators
 - Remove Satellites
-- Revoke APS labels from Operators
-- Revoke APS labels from Satellites
+- Revoke AFC labels from Operators
+- Revoke AFC labels from Satellites
 
 The Owner role should _not_ be regularly used. Instead, use
 the [Admin](#admin) role for day-to-day operations.
@@ -49,14 +49,14 @@ Admins manage Operators. They are only allowed to:
 Operators operator and control individal satellites. They
 are only allowed to:
 
-- Create APS channels with individual satellites as specified by
+- Create AFC channels with individual satellites as specified by
   Admins.
 
 ### Satellite
 
 Satellites are individual satellites. They are only allowed to:
 
-- Create APS channels with Operators as specified by
+- Create AFC channels with Operators as specified by
   Admins.
 
 ```policy
@@ -647,7 +647,7 @@ command RemoveUser {
 
     recall {
         finish {
-            aps_remove_all_channels(this.user_id)
+            afc_remove_all_channels(this.user_id)
         }
     }
 }
@@ -664,7 +664,7 @@ command RemoveUser {
   Owner.
 - Satellites can only be removed by Admins or Owners
 
-## CreateApsLabel
+## CreateAfcLabel
 
 ```policy
 // Reports whether `v` is an unsigned, 32-bit integer.
@@ -672,29 +672,29 @@ function is_u32(v int) bool {
     return v >= 0 && v <= 4294967295
 }
 
-// Reports whether `label` has the valid format for an APS label.
-function is_valid_aps_label(label int) bool {
+// Reports whether `label` has the valid format for an AFC label.
+function is_valid_afc_label(label int) bool {
     return is_u32(v)
 }
 
-// Creates an APS label.
-action create_aps_label(name string, label int) {
-    let cmd = CreateApsLabel {
+// Creates an AFC label.
+action create_afc_label(name string, label int) {
+    let cmd = CreateAfcLabel {
         name: name,
         label: label,
     }
     publish cmd
 }
 
-// Records that an APS label exists.
-fact ApsLabel[label int]=>{name string}
+// Records that an AFC label exists.
+fact AfcLabel[label int]=>{name string}
 
-effect ApsLabelCreated {
+effect AfcLabelCreated {
     name string,
     label int,
 }
 
-command CreateApsLabel {
+command CreateAfcLabel {
     fields {
         // A textual name for the label.
         name string,
@@ -706,16 +706,16 @@ command CreateApsLabel {
         let author = crypto_author_id(envelope)
         check is_valid_user(get_user(author)) // DEBUG
 
-        // Only Admins can create APS labels.
+        // Only Admins can create AFC labels.
         check is_admin(author)
 
-        // It must be a valid APS label.
-        check is_valid_aps_label(this.label)
+        // It must be a valid AFC label.
+        check is_valid_afc_label(this.label)
 
         finish {
-            create ApsLabel[label: this.label]=>{name: this.name}
+            create AfcLabel[label: this.label]=>{name: this.name}
 
-            emit ApsLabelCreated {
+            emit AfcLabelCreated {
                 name: this.name,
                 label: this.label,
             }
@@ -728,9 +728,9 @@ command CreateApsLabel {
 }
 ```
 
-- Only Admins are allowed to create APS labels.
+- Only Admins are allowed to create AFC labels.
 
-## AssignApsLabel
+## AssignAfcLabel
 
 ```policy
 /*
@@ -754,9 +754,9 @@ function is_valid_chan_op(op string) bool {
     return ok
 }
 
-// Assigns the user the APS `label`.
-action assign_aps_label(user_id id, label int, op string) {
-    let cmd = AssignApsLabel {
+// Assigns the user the AFC `label`.
+action assign_afc_label(user_id id, label int, op string) {
+    let cmd = AssignAfcLabel {
         user_id: user_id,
         label: label,
         op: op,
@@ -764,7 +764,7 @@ action assign_aps_label(user_id id, label int, op string) {
     publish cmd
 }
 
-effect ApsLabelAssigned {
+effect AfcLabelAssigned {
     // The user being assigned the label.
     user_id id,
     // The name of the label being assigned.
@@ -775,14 +775,14 @@ effect ApsLabelAssigned {
     op string,
 }
 
-// Records that a user is allowed to use an APS label.
-fact AssignedApsLabel[user_id id, label int]=>{op string}
+// Records that a user is allowed to use an AFC label.
+fact AssignedAfcLabel[user_id id, label int]=>{op string}
 
 // Reports whether the users have permission to create
 // a bidirectional channel with each other.
 function can_create_bidi_channel(user1 id, user2 id, label int) bool {
-    let user1_ok = exists AssignedApsLabel[user_id: user1, label: label]=>{op: "ChanOp_Bidirectional"}
-    let user2_ok = exists AssignedApsLabel[user_id: user2, label: label]=>{op: "ChanOp_Bidirectional"}
+    let user1_ok = exists AssignedAfcLabel[user_id: user1, label: label]=>{op: "ChanOp_Bidirectional"}
+    let user2_ok = exists AssignedAfcLabel[user_id: user2, label: label]=>{op: "ChanOp_Bidirectional"}
     return user1_ok && user2_ok
 }
 
@@ -803,11 +803,11 @@ function can_create_uni_channel(send_id id, open_id id, label int) bool {
 
 // Returns the channel operation for a particular label.
 function get_allowed_op(user_id id, label int) string {
-    let user_info = unwrap query AssignedApsLabel[user_id: user_id, label: label]=>{op: ?}
+    let user_info = unwrap query AssignedAfcLabel[user_id: user_id, label: label]=>{op: ?}
     return user_info.op
 }
 
-command AssignApsLabel {
+command AssignAfcLabel {
     fields {
         // The user being assigned the label.
         user_id id,
@@ -821,23 +821,23 @@ command AssignApsLabel {
         let author = get_user(crypto_author_id(envelope))
         check is_valid_user(author) // DEBUG
 
-        // Only Admins are allowed to assign APS
+        // Only Admins are allowed to assign AFC
         // labels.
         check is_admin(author)
 
         // Obviously it must be a valid label.
-        check is_valid_aps_label(this.label)
+        check is_valid_afc_label(this.label)
 
         // Obviously it must be a valid channel op.
         check is_valid_chan_op(this.op)
 
         // The label must exist.
-        let label = unwrap query ApsLabel[label: this.label]=>{name: ?}
+        let label = unwrap query AfcLabel[label: this.label]=>{name: ?}
 
         finish {
-            create AssignedApsLabel[user_id: this.user_id, label: this.label]=>{op: this.op}
+            create AssignedAfcLabel[user_id: this.user_id, label: this.label]=>{op: this.op}
 
-            emit ApsLabelAssigned {
+            emit AfcLabelAssigned {
                 user_id: this.user_id,
                 name: label.name,
                 label: this.label,
@@ -854,28 +854,28 @@ command AssignApsLabel {
 
 **Invariants**:
 
-- Only Admins are allowed to assign APS labels.
+- Only Admins are allowed to assign AFC labels.
 
-## RevokeApsLabel
+## RevokeAfcLabel
 
 ```policy
-// Revokes the user's access to the APS `label`.
-action revoke_aps_label(user_id id, label int) {
-    let cmd = RevokeApsLabel {
+// Revokes the user's access to the AFC `label`.
+action revoke_afc_label(user_id id, label int) {
+    let cmd = RevokeAfcLabel {
         user_id: user_id,
         label: label,
     }
     publish cmd
 }
 
-effect ApsLabelRevoked {
+effect AfcLabelRevoked {
     // The user for whom the label is being revoked.
     user_id id,
     // The label being revoked.
     label int,
 }
 
-command RevokeApsLabel {
+command RevokeAfcLabel {
     fields {
         // The user for whom the label is being revoked.
         user_id id,
@@ -888,17 +888,17 @@ command RevokeApsLabel {
         check is_valid_user(author) // DEBUG
 
         // Only Owners or Admins are allowed to revoke
-        // APS labels.
+        // AFC labels.
         check author.role == "Role_Owner" ||
               author.role == "Role_Admin"
 
         // Obviously it must be a valid label.
-        check is_valid_aps_label(this.label)
+        check is_valid_afc_label(this.label)
 
         finish {
-            delete AssignedApsLabel[user_id: this.user_id, label: this.label]
+            delete AssignedAfcLabel[user_id: this.user_id, label: this.label]
 
-            emit ApsLabelRevoked {
+            emit AfcLabelRevoked {
                 user_id: this.user_id,
                 label: this.label,
             }
@@ -907,7 +907,7 @@ command RevokeApsLabel {
 
     recall {
         finish {
-            aps_remove_channel(this.user_id, this.label)
+            afc_remove_channel(this.user_id, this.label)
         }
     }
 }
@@ -915,27 +915,27 @@ command RevokeApsLabel {
 
 **Invariants**:
 
-- Only Owners and Admins are allowed to revoke APS
+- Only Owners and Admins are allowed to revoke AFC
   labels.
 
-## CreateApsBidiChannel
+## CreateAfcBidiChannel
 
-Creates a bidirectional APS channel.
+Creates a bidirectional AFC channel.
 
 ```policy
-action create_aps_bidi_channel(peer_id id, label int) {
+action create_afc_bidi_channel(peer_id id, label int) {
 }
 
-// Records that a bidirectional APS channel has been created.
-fact ApsBidiChannel[user1 id, user2 id, label int]=>{}
+// Records that a bidirectional AFC channel has been created.
+fact AfcBidiChannel[user1 id, user2 id, label int]=>{}
 
-effect ApsBidiChannelCreated {
+effect AfcBidiChannelCreated {
     user1 id,
     user2 id,
     label int,
 }
 
-command CreateApsBidiChannel {
+command CreateAfcBidiChannel {
     fields {
         peer id,
         label int,
@@ -956,7 +956,7 @@ command CreateApsBidiChannel {
         check can_create_bidi_channel(author.user_id, peer.user_id, this.label)
 
         // It must be a valid label.
-        check is_valid_aps_label(this.label)
+        check is_valid_afc_label(this.label)
 
         let our_id = device_current_user_id()
 
@@ -966,7 +966,7 @@ command CreateApsBidiChannel {
                 let parent_cmd_id = braid_head_id()
                 let author_enc_pk = get_enc_key(peer)
                 finish {
-                    create ApsBidiChannel[
+                    create AfcBidiChannel[
                         user1: author.user_id,
                         user2: peer.user_id,
                         label: this.label,
@@ -974,8 +974,8 @@ command CreateApsBidiChannel {
 
                     // We're creating a new channel, so get rid
                     // of the existing channel, if any.
-                    aps_remove_channel(author.user_id, None)
-                    aps_store_bidi_keys_responder(
+                    afc_remove_channel(author.user_id, None)
+                    afc_store_bidi_keys_responder(
                         parent_cmd_id,
                         our_sk_id,
                         our_id,
@@ -985,7 +985,7 @@ command CreateApsBidiChannel {
                         this.encap,
                     )
 
-                    emit ApsBidiChannelCreated {
+                    emit AfcBidiChannelCreated {
                         user1: author,
                         user2: peer,
                     }
@@ -993,13 +993,13 @@ command CreateApsBidiChannel {
             }
             false => {
                 finish {
-                    create ApsBidiChannel[
+                    create AfcBidiChannel[
                         user1: author.user_id,
                         user2: peer.user_id,
                         label: this.label,
                     ]=>{encap: encap}
 
-                    emit ApsBidiChannelCreated {
+                    emit AfcBidiChannelCreated {
                         user1: author.user_id,
                         user2: peer.user_id,
                     }
@@ -1010,7 +1010,7 @@ command CreateApsBidiChannel {
 
     recall {
         finish {
-            aps_remove_channel(this.peer_id, this.label)
+            afc_remove_channel(this.peer_id, this.label)
         }
     }
 }
@@ -1024,12 +1024,12 @@ command CreateApsBidiChannel {
   for their labels that have `ChanOp_Bidirectational`
   permission.
 
-## CreateApsUniChannel
+## CreateAfcUniChannel
 
 ```policy
-action create_aps_uni_channel(seal_id id, open_id id, label int) {
+action create_afc_uni_channel(seal_id id, open_id id, label int) {
     let parent_cmd_id = braid_head_id()
-    let ch = aps_create_uni_channel(
+    let ch = afc_create_uni_channel(
         parent_cmd_id,
         our_sk_id,
         peer_pk,
@@ -1037,7 +1037,7 @@ action create_aps_uni_channel(seal_id id, open_id id, label int) {
         open_id,
         label,
     )
-    let cmd = CreateApsUniChannel {
+    let cmd = CreateAfcUniChannel {
         seal_id: seal_id,
         open_id: open_id,
         label: label,
@@ -1056,21 +1056,21 @@ action create_aps_uni_channel(seal_id id, open_id id, label int) {
     match our_id == seal_id {
         // We're the seal-only side.
         true => {
-            // aps_remove_channel(open_id, None)
-            // aps_store_seal_only_key_initiator(open_id, label, ch.key)
+            // afc_remove_channel(open_id, None)
+            // afc_store_seal_only_key_initiator(open_id, label, ch.key)
         }
         // We're the open-only side.
         false => {
-            // aps_remove_channel(seal_id, None)
-            // aps_store_open_only_key_initiator(seal_id, label, ch.key)
+            // afc_remove_channel(seal_id, None)
+            // afc_store_open_only_key_initiator(seal_id, label, ch.key)
         }
     }
 }
 
-// Records that a unidirectional APS channel has been created.
-fact ApsUniChannel[seal_id id, open_id id, label int]=>{}
+// Records that a unidirectional AFC channel has been created.
+fact AfcUniChannel[seal_id id, open_id id, label int]=>{}
 
-command CreateApsUniChannel {
+command CreateAfcUniChannel {
     fields {
         // The UserID of the side that can encrypt data.
         seal_id id,
@@ -1098,7 +1098,7 @@ command CreateApsUniChannel {
         check can_create_uni_channel(this.seal_id, this.open_id, this.label)
 
         // It must be a valid label.
-        check is_valid_aps_label(this.label)
+        check is_valid_afc_label(this.label)
 
         // There are three mutually exclusive states:
         //
@@ -1136,19 +1136,19 @@ command CreateApsUniChannel {
 
                 let parent_cmd_id = braid_head_id()
                 finish {
-                    create ApsUniChannel[
+                    create AfcUniChannel[
                         seal_id: this.seal_id,
                         open_id: this.open_id,
                         label: this.label,
                     ]=>{encap: encap}
-                    aps_store_open_only_key(
+                    afc_store_open_only_key(
                         parent_cmd_id,
                         this.seal_id,
                         this.open_id,
                         this.label,
                         this.encap,
                     )
-                    emit ApsUniChannelCreated {
+                    emit AfcUniChannelCreated {
                         seal_id: this.seal_id,
                         open_id: this.open_id,
                         encap: encap,
@@ -1159,12 +1159,12 @@ command CreateApsUniChannel {
             false => {
                 // Nothing special to do here.
                 finish {
-                    create ApsUniChannel[
+                    create AfcUniChannel[
                         seal_id: this.seal_id,
                         open_id: this.open_id,
                         label: this.label,
                     ]=>{encap: encap}
-                    emit ApsUniChannelCreated {
+                    emit AfcUniChannelCreated {
                         seal_id: this.seal_id,
                         open_id: this.open_id,
                         encap: encap,
@@ -1176,7 +1176,7 @@ command CreateApsUniChannel {
 
     recall {
         finish {
-            aps_remove_channel(this.peer, this.label)
+            afc_remove_channel(this.peer, this.label)
         }
     }
 }
@@ -1192,6 +1192,6 @@ or `ChanOp_SealOnly` permissions for the label and the open side
 has either `ChanOp_Bidirectional` or `ChanOp_OpenOnly`
 permissions for the label.
 
-# APS FFI Policy
+# AFC FFI Policy
 
-[APS FFI Policy](ffi.md).
+[AFC FFI Policy](ffi.md).

@@ -2,7 +2,7 @@ extern crate alloc;
 use alloc::collections::{btree_map, BTreeMap};
 use core::fmt;
 
-use crypto::{
+use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     Id, Rng,
 };

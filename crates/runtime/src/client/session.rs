@@ -13,7 +13,7 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{bug, Bug, BugExt};
+use aranya_buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 use yoke::{Yoke, Yokeable};
 

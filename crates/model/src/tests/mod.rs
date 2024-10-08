@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use core::cell::RefCell;
 use std::{fs, marker::PhantomData};
 
-use crypto::{
+use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     keystore::fs_keystore::Store,
     Rng, UserId,

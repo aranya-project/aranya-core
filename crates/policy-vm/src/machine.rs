@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
-use buggy::BugExt;
+use aranya_buggy::BugExt;
 use heapless::Vec as HVec;
 use policy_ast as ast;
 use policy_module::{

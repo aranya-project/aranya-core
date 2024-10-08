@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::{fmt, ops::Deref};
 
-use crypto::{id::IdError, Id, ImportError, UnwrapError, WrapError};
+use aranya_crypto::{id::IdError, Id, ImportError, UnwrapError, WrapError};
 use policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
 
@@ -58,8 +58,8 @@ impl From<Error> for MachineError {
     }
 }
 
-impl From<crypto::Error> for Error {
-    fn from(err: crypto::Error) -> Self {
+impl From<aranya_crypto::Error> for Error {
+    fn from(err: aranya_crypto::Error) -> Self {
         Self::new(ErrorKind::Crypto, err)
     }
 }
@@ -113,9 +113,9 @@ pub enum ErrorKind {
     ///
     /// [`Error`] can be downcast to [`AllocError`].
     Alloc,
-    /// The [`crypto`] crate failed.
+    /// The [`aranya_crypto`] crate failed.
     ///
-    /// [`Error`] can be downcast to [`crypto::Error`].
+    /// [`Error`] can be downcast to [`aranya_crypto::Error`].
     Crypto,
     /// Unable to encode/decode some input.
     ///
@@ -126,12 +126,12 @@ pub enum ErrorKind {
     /// [`Error`] can be downcast to [`ImportError`].
     Import,
     /// The key was not found in the
-    /// [`KeyStore`][crypto::KeyStore].
+    /// [`KeyStore`][aranya_crypto::KeyStore].
     KeyNotFound,
     /// The keystore failed.
     ///
     /// [`Error`] can be downcast to
-    /// [`KeyStore::Error`][crypto::KeyStore::Error].
+    /// [`KeyStore::Error`][aranya_crypto::KeyStore::Error].
     KeyStore,
     /// Unable to unwrap a key.
     ///
@@ -181,7 +181,7 @@ impl fmt::Display for AllocError {
     }
 }
 
-/// Unable to find a key in the [`KeyStore`][crypto::KeyStore].
+/// Unable to find a key in the [`KeyStore`][aranya_crypto::KeyStore].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct KeyNotFound(pub(crate) Id);
 

@@ -15,8 +15,8 @@ use core::{
     slice, str,
 };
 
-use buggy::{Bug, BugExt};
-use crypto::id::{String64, ToBase58};
+use aranya_buggy::{Bug, BugExt};
+use aranya_crypto::id::{String64, ToBase58};
 
 use crate::GraphId;
 

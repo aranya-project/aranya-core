@@ -13,8 +13,8 @@
 use std::{error::Error, fmt, fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
 
 use anyhow::{bail, Context, Result};
+use aranya_crypto::Rng;
 use clap::Parser;
-use crypto::Rng;
 use quic_syncer::{run_syncer, Syncer};
 use quinn::ServerConfig;
 use runtime::{

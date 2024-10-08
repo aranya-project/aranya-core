@@ -16,6 +16,6 @@ impl Actor for PrintClient {
 fn main() {
     let mut client = PrintClient;
     client
-        .assign_aps_label(Id::default(), 42, String::from("foo"))
+        .assign_afc_label(Id::default(), 42, String::from("foo"))
         .expect("no panic");
 }

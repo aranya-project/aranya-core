@@ -1,6 +1,6 @@
 //! The VM's foreign function interface.
 
-use crypto::Engine;
+use aranya_crypto::Engine;
 pub use policy_module::ffi::*;
 
 #[cfg(feature = "derive")]

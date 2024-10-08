@@ -2,7 +2,7 @@ extern crate alloc;
 
 use alloc::{string::String, vec, vec::Vec};
 
-use crypto::{
+use aranya_crypto::{
     engine::Engine, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey, EncryptionKey,
     EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey,
     VerifyingKey,
@@ -80,7 +80,7 @@ function derive_sign_key_id(
         sign_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&sign_pk)?;
-        Ok(pk.id().map_err(crypto::Error::from)?.into())
+        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into())
     }
 
     /// Returns the ID of an encoded [`IdentityVerifyingKey`].
@@ -97,7 +97,7 @@ function derive_user_id(
         ident_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: IdentityVerifyingKey<E::CS> = postcard::from_bytes(&ident_pk)?;
-        Ok(pk.id().map_err(crypto::Error::from)?.into())
+        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into())
     }
 
     /// Generates a random [`GroupKey`].
@@ -168,7 +168,7 @@ function open_group_key(
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id)))?;
         debug_assert_eq!(
-            sk.id().map_err(crypto::Error::from)?.into_id(),
+            sk.id().map_err(aranya_crypto::Error::from)?.into_id(),
             our_enc_sk_id
         );
 

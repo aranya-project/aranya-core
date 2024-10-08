@@ -2,7 +2,7 @@
 
 use core::{convert::Infallible, fmt};
 
-use buggy::Bug;
+use aranya_buggy::Bug;
 use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 

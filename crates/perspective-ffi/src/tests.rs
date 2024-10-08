@@ -1,7 +1,7 @@
 #![cfg(test)]
 #![allow(clippy::unwrap_used)]
 
-use crypto::{
+use aranya_crypto::{
     default::{DefaultEngine, Rng},
     Id, UserId,
 };

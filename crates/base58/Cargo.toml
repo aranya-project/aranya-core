@@ -15,12 +15,12 @@ workspace = true
 [features]
 default = []
 # Enable alloc
-alloc = ["buggy/alloc"]
+alloc = ["aranya-buggy/alloc"]
 # Enable std
-std = ["alloc", "buggy/std"]
+std = ["alloc", "aranya-buggy/std"]
 
 [dependencies]
-buggy = { path = "../buggy" }
+aranya-buggy = { path = "../aranya-buggy" }
 
 byteorder = { workspace = true, default-features = false }
 
