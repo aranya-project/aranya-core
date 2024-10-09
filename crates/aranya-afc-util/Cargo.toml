@@ -1,0 +1,72 @@
+[package]
+name = "aranya-afc-util"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+
+[features]
+default = [
+	"alloc",
+]
+
+# Enable allocations.
+alloc = []
+
+std = [
+	"aranya-crypto/std",
+	"aranya-fast-channels/std",
+	"aranya-policy-vm/std",
+	"indexmap?/std",
+	"postcard/use-std",
+	"serde/std",
+	"siphasher?/std",
+	"spin?/std",
+	"tracing/std",
+]
+
+# Enable the `testing` module.
+testing = [
+	"alloc",
+
+	"dep:indexmap",
+	"dep:siphasher",
+	"dep:spin",
+]
+
+[dependencies]
+aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }
+aranya-policy-vm = { path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
+
+aranya-fast-channels = { git = "https://github.com/aranya-project/aranya-fast-channels.git", branch = "main", default-features = false, features = ["alloc"] }
+
+indexmap = { version = "2.1", default-features = false, optional = true }
+postcard = { workspace = true, default-features = false, features = ["heapless"] }
+serde = { workspace = true, default-features = false, features = ["derive"] }
+siphasher = { version = "1", default-features = false, optional = true }
+spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"], optional = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+# A little bit of a hack: always certain features for tests and
+# examples.
+aranya-afc-util = { path = ".", features = ["testing"] }
+
+aranya-fast-channels = { git = "https://github.com/aranya-project/aranya-fast-channels.git", branch = "main", default-features = false, features = ["memory", "std"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+always_include_features = []
+
+skip_feature_sets = []
+
+denylist = []

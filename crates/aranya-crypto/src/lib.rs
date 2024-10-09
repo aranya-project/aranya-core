@@ -45,7 +45,7 @@
 #[macro_use]
 mod util;
 
-pub(crate) use crypto_derive::AlgId;
+pub(crate) use aranya_crypto_derive::AlgId;
 pub mod aead;
 pub mod afc;
 pub mod apq;

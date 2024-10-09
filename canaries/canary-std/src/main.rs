@@ -2,19 +2,19 @@
 #![no_std]
 #![no_main]
 
+extern crate aranya_base58;
 extern crate aranya_buggy;
 extern crate aranya_crypto;
-extern crate base58;
-extern crate crypto_ffi;
-extern crate device_ffi;
-extern crate envelope_ffi;
-extern crate idam_ffi;
-extern crate perspective_ffi;
-extern crate policy_ast;
-extern crate policy_module;
-extern crate policy_vm;
-extern crate runtime;
-extern crate trouble;
+extern crate aranya_crypto_ffi;
+extern crate aranya_device_ffi;
+extern crate aranya_envelope_ffi;
+extern crate aranya_idam_ffi;
+extern crate aranya_perspective_ffi;
+extern crate aranya_policy_ast;
+extern crate aranya_policy_module;
+extern crate aranya_policy_vm;
+extern crate aranya_runtime;
+extern crate aranya_trouble;
 
 #[cfg(target_os = "none")] // hack to please rust-analyzer
 #[panic_handler]

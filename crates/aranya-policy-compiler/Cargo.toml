@@ -1,0 +1,26 @@
+[package]
+name = "aranya-policy-compiler"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+[dependencies]
+aranya-buggy = { path = "../aranya-buggy", features = ["std"] }
+aranya-policy-ast = { path = "../aranya-policy-ast" }
+aranya-policy-lang = { path = "../aranya-policy-lang" }
+aranya-policy-module = { path = "../aranya-policy-module", features = ["std"] }
+
+ciborium = { version = "0.2" }
+clap = { version = "4.4", features = ["derive"] }
+
+[dev-dependencies]
+anyhow = { workspace = true }

@@ -8,9 +8,9 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-# afc-util = { path = "../../crates/afc-util", features = ["alloc"] }
+# aranya-afc-util = { path = "../../crates/aranya-afc-util", features = ["alloc"] }
+aranya-base58 = { path = "../../crates/aranya-base58", features = ["alloc"] }
 aranya-buggy = { path = "../../crates/aranya-buggy", features = ["alloc"] }
-base58 = { path = "../../crates/base58", features = ["alloc"] }
 # `aranya-crypto` enables `getrandom` by default.
 aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false, features = [
 	"alloc",
@@ -19,14 +19,14 @@ aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false,
 	"proptest",
 	"rand_compat",
 ] }
-crypto-ffi = { path = "../../crates/crypto-ffi", features = ["alloc"] }
-device-ffi = { path = "../../crates/device-ffi", features = ["alloc"] }
-envelope-ffi = { path = "../../crates/envelope-ffi", features = ["alloc"] }
-idam-ffi = { path = "../../crates/idam-ffi", features = ["alloc"] }
-perspective-ffi = { path = "../../crates/perspective-ffi", features = ["alloc"] }
-policy-ast = { path = "../../crates/policy-ast" }
-policy-module = { path = "../../crates/policy-module" }
-policy-vm = { path = "../../crates/policy-vm", features = ["derive"] }
+aranya-crypto-ffi = { path = "../../crates/aranya-crypto-ffi", features = ["alloc"] }
+aranya-device-ffi = { path = "../../crates/aranya-device-ffi", features = ["alloc"] }
+aranya-envelope-ffi = { path = "../../crates/aranya-envelope-ffi", features = ["alloc"] }
+aranya-idam-ffi = { path = "../../crates/aranya-idam-ffi", features = ["alloc"] }
+aranya-perspective-ffi = { path = "../../crates/aranya-perspective-ffi", features = ["alloc"] }
+aranya-policy-ast = { path = "../../crates/aranya-policy-ast" }
+aranya-policy-module = { path = "../../crates/aranya-policy-module" }
+aranya-policy-vm = { path = "../../crates/aranya-policy-vm", features = ["derive"] }
 # These features must also be no-std.
-runtime = { path = "../../crates/runtime", features = ["testing"] }
-trouble = { path = "../../crates/trouble" }
+aranya-runtime = { path = "../../crates/aranya-runtime", features = ["testing"] }
+aranya-trouble = { path = "../../crates/aranya-trouble" }

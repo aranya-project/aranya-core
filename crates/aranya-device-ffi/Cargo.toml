@@ -1,0 +1,40 @@
+[package]
+name = "aranya-device-ffi"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+# Enable allocations.
+alloc = []
+
+# Enable std.
+std = ["alloc"]
+
+# Enable the `testing` module.
+testing = []
+
+[dependencies]
+aranya-crypto = { path = "../aranya-crypto", default-features = false }
+aranya-policy-vm = { path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
+
+[dev-dependencies]
+aranya-crypto = { path = "../aranya-crypto", features = ["getrandom"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+always_include_features = []
+
+skip_feature_sets = []
+
+denylist = []

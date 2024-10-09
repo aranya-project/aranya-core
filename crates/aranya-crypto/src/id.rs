@@ -8,7 +8,7 @@ use core::{
     str::FromStr,
 };
 
-pub use base58::{DecodeError, String64, ToBase58};
+pub use aranya_base58::{DecodeError, String64, ToBase58};
 use generic_array::GenericArray;
 use postcard::experimental::max_size::MaxSize;
 #[cfg(feature = "proptest")]

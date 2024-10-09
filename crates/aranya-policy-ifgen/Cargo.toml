@@ -1,0 +1,30 @@
+[package]
+name = "aranya-policy-ifgen"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+serde = [
+	"aranya-policy-ifgen-macro/serde",
+	"dep:serde",
+]
+
+[dependencies]
+aranya-policy-ifgen-macro = { path = "../aranya-policy-ifgen-macro" }
+aranya-policy-vm = { path = "../aranya-policy-vm" }
+aranya-runtime = { path = "../aranya-runtime" }
+
+serde = { workspace = true, optional = true }
+
+[dev-dependencies]
+aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }
+aranya-policy-lang = { path = "../aranya-policy-lang" }
+
+goldenfile = "1.6.0"

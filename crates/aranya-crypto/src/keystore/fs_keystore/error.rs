@@ -1,9 +1,9 @@
 use core::fmt;
 
 use aranya_buggy::Bug;
+use aranya_trouble::Trouble;
 use ciborium as cbor;
 use rustix::io::Errno;
-use trouble::Trouble;
 
 use crate::keystore::{self, ErrorKind};
 

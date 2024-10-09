@@ -2,26 +2,23 @@
 
 /canaries @jdygert @elagergren
 
-/crates/afc-util @elagergren @jdygert
-/crates/base58 @elagergren @jdygert
+/crates/aranya-afc-util @elagergren @jdygert
+/crates/aranya-base58 @elagergren @jdygert
 /crates/aranya-buggy @jdygert @elagergren
 
-/crates/aranya-crypto @elagergren @ycarmy
-/crates/crypto* @elagergren @ycarmy
+/crates/aranya-crypto* @elagergren @ycarmy
 
-/crates/device-ffi @rfraser @chip
-/crates/envelope-ffi @elagergren @ycarmy
-/crates/idam-ffi @elagergren @ycarmy
-/crates/model @smckeon @jdygert
-/crates/perspective-ffi @apetkov @chip
+/crates/aranya-device-ffi @rfraser @chip
+/crates/aranya-envelope-ffi @elagergren @ycarmy
+/crates/aranya-idam-ffi @elagergren @ycarmy
+/crates/aranya-model @smckeon @jdygert
+/crates/aranya-perspective-ffi @apetkov @chip
 
-/crates/policy-* @chip @apetkov
-/crates/policy-ifgen* @jdygert @elagergren
-/crates/policy-derive @elagergren @chip
+/crates/aranya-policy-* @chip @apetkov
+/crates/aranya-policy-ifgen* @jdygert @elagergren
+/crates/aranya-policy-derive @elagergren @chip
 
-/crates/quic-syncer @bzimmerman @jdygert
-/crates/rtrack @elagergren @jdygert
-/crates/rtrack-derive @elagergren @jdygert
-/crates/runtime @jdygert @elagergren
+/crates/aranya-quic-syncer @bzimmerman @jdygert
+/crates/aranya-runtime @jdygert @elagergren
 
 /.github @elagergren @jdygert

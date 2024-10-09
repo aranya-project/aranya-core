@@ -1,0 +1,21 @@
+[package]
+name = "aranya-policy-ifgen-build"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aranya-policy-ast = { path = "../aranya-policy-ast" }
+aranya-policy-lang = { path = "../aranya-policy-lang" }
+
+anyhow = { workspace = true }
+prettyplease = { workspace = true }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
