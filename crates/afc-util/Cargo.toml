@@ -43,7 +43,7 @@ testing = [
 
 [dependencies]
 aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }
-aranya-fast-channels = { git = "https://git.spideroak-inc.com/spideroak-inc/aranya-fast-channels.git", branch = "main", default-features = false, features = ["alloc"] }
+aranya-fast-channels = { git = "https://github.com/aranya-project/aranya-fast-channels.git", branch = "main", default-features = false, features = ["alloc"] }
 indexmap = { version = "2.1", default-features = false, optional = true }
 policy-vm = { path = "../policy-vm", default-features = false, features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
@@ -53,7 +53,7 @@ spin = { version = "0.9", default-features = false, features = ["mutex", "spin_m
 tracing = { workspace = true }
 
 [dev-dependencies]
-aranya-fast-channels = { git = "https://git.spideroak-inc.com/spideroak-inc/aranya-fast-channels.git", branch = "main", default-features = false, features = ["memory", "std"] }
+aranya-fast-channels = { git = "https://github.com/aranya-project/aranya-fast-channels.git", branch = "main", default-features = false, features = ["memory", "std"] }
 # A little bit of a hack: always certain features for tests and
 # examples.
 afc-util = { path = ".", features = ["testing"] }

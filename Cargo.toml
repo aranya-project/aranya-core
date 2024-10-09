@@ -63,7 +63,7 @@ proc-macro2 = "1.0"
 syn = "2.0"
 quote = "1.0"
 
-[patch."https://git.spideroak-inc.com/spideroak-inc/aranya-core"]
+[patch."https://github.com/aranya-project/aranya-core"]
 aranya-buggy.path = "crates/aranya-buggy"
 aranya-crypto.path = "crates/aranya-crypto"
 

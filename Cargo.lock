@@ -211,7 +211,7 @@ dependencies = [
 [[package]]
 name = "aranya-fast-channels"
 version = "0.1.0"
-source = "git+https://git.spideroak-inc.com/spideroak-inc/aranya-fast-channels.git?branch=main#1be87c69cf053340b61722dd7d486cd30e5f01f2"
+source = "git+https://github.com/aranya-project/aranya-fast-channels.git?branch=main#f215ee7ab2fcac78676be62b91b666a67e421616"
 dependencies = [
  "aranya-buggy",
  "aranya-crypto",
@@ -293,7 +293,7 @@ checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 [[package]]
 name = "bearssl-sys"
 version = "0.1.0"
-source = "git+https://git.spideroak-inc.com/spideroak-inc/bearssl.git?tag=v0.2.0#95d49f9c556bc76368329398b2cb6794c9ec5385"
+source = "git+https://github.com/aranya-project/bearssl.git?tag=v0.2.0#95d49f9c556bc76368329398b2cb6794c9ec5385"
 dependencies = [
  "bindgen",
  "cc",
@@ -360,7 +360,7 @@ dependencies = [
 [[package]]
 name = "bssl-sys"
 version = "0.1.0"
-source = "git+https://git.spideroak-inc.com/spideroak-inc/bssl.git?branch=main#81256f5ae9f50d2dda819c7750147281402c802b"
+source = "git+https://github.com/aranya-project/bssl.git?branch=main#81256f5ae9f50d2dda819c7750147281402c802b"
 dependencies = [
  "bindgen",
  "cfg-if",
@@ -1516,7 +1516,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
