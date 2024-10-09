@@ -121,7 +121,7 @@ where
                 command_id,
                 signature,
             )
-            .expect("`aranya_crypto::verify` should not fail");
+            .expect("`crypto::verify` should not fail");
         assert_eq!(got, command);
     }
 
@@ -175,7 +175,7 @@ where
             command_id,
             signature,
         )
-        .expect_err("`aranya_crypto::verify` should fail");
+        .expect_err("`crypto::verify` should fail");
     }
 
     /// Test that we reject signatures that were not over the
@@ -226,7 +226,7 @@ where
                 command_id,
                 signature,
             )
-            .expect_err("`aranya_crypto::verify` should fail");
+            .expect_err("`crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
             err.downcast_ref::<aranya_crypto::Error>(),
@@ -285,7 +285,7 @@ where
                 command_id,
                 signature,
             )
-            .expect_err("`aranya_crypto::verify` should fail");
+            .expect_err("`crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
             err.downcast_ref::<aranya_crypto::Error>(),
@@ -343,7 +343,7 @@ where
                 command_id,
                 signature,
             )
-            .expect_err("`aranya_crypto::verify` should fail");
+            .expect_err("`crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
             err.downcast_ref::<aranya_crypto::Error>(),
@@ -398,7 +398,7 @@ where
                 command_id,
                 signature,
             )
-            .expect_err("`aranya_crypto::verify` should fail");
+            .expect_err("`crypto::verify` should fail");
         assert_eq!(err.kind(), ErrorKind::Crypto);
         assert_eq!(
             err.downcast_ref::<aranya_crypto::Error>(),
@@ -453,7 +453,7 @@ where
                     sk.id().expect("signing key ID should be valid").into_id(),
                     command.clone(),
                 )
-                .expect_err("`aranya_crypto::seal` should fail");
+                .expect_err("`crypto::sign` should fail");
             assert_eq!(err.kind(), ErrorKind::WrongContext);
             assert!(err.downcast_ref::<WrongContext>().is_some());
         }
@@ -525,7 +525,7 @@ where
                     command_id,
                     signature.clone(),
                 )
-                .expect_err("`aranya_crypto::verify` should fail");
+                .expect_err("`crypto::verify` should fail");
             assert_eq!(err.kind(), ErrorKind::WrongContext);
             assert!(err.downcast_ref::<WrongContext>().is_some());
         }
