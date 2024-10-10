@@ -70,10 +70,11 @@ args = [
     # Only try to build the crates that are used on VxWorks.
     "--package=aranya-crypto",
     "--package=aranya-runtime",
+    "--package=aranya-fast-channels",
     # Build the variant used by the Moonshot project since
     # it's currently our only use of VxWorks.
     "--no-default-features",
-    "--features=moonshot,libc",
+    "--features=moonshot,libc,posix,sdlib",
     "${@}",
 ]
 dependencies = ["setup-vxworks-env"]

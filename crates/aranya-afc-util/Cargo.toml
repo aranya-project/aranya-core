@@ -43,9 +43,8 @@ testing = [
 
 [dependencies]
 aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }
+aranya-fast-channels = { path = "../aranya-fast-channels", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
-
-aranya-fast-channels = { git = "https://github.com/aranya-project/aranya-fast-channels.git", branch = "main", default-features = false, features = ["alloc"] }
 
 indexmap = { version = "2.1", default-features = false, optional = true }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
@@ -59,7 +58,7 @@ tracing = { workspace = true }
 # examples.
 aranya-afc-util = { path = ".", features = ["testing"] }
 
-aranya-fast-channels = { git = "https://github.com/aranya-project/aranya-fast-channels.git", branch = "main", default-features = false, features = ["memory", "std"] }
+aranya-fast-channels = { path = "../aranya-fast-channels", default-features = false, features = ["memory", "std"] }
 
 [package.metadata.docs.rs]
 all-features = true

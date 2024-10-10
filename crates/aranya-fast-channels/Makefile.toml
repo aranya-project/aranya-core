@@ -1,0 +1,7 @@
+[tasks.clippy]
+script = '''
+cargo clippy
+cargo clippy --all-targets
+cargo clippy --all-targets --features posix
+'''
+install_crate = { rustup_component_name = "clippy" }

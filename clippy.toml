@@ -1,4 +1,6 @@
 allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allowed-wildcard-imports = ["features"]
 disallowed-macros = [
     # TODO(jdygert): Disallow core::unreachable
     # { path = "core::unreachable", reason = "use aranya_buggy::bug" }
