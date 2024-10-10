@@ -154,6 +154,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-bearssl-sys"
+version = "0.1.0"
+source = "git+https://github.com/aranya-project/aranya-bearssl-sys.git?branch=main#c1368b6166fc9be2cf3a2e347cd7656c2daaee45"
+dependencies = [
+ "bindgen",
+ "cc",
+ "glob",
+]
+
+[[package]]
+name = "aranya-bssl-sys"
+version = "0.1.0"
+source = "git+https://github.com/aranya-project/aranya-bssl-sys.git?branch=main#cb4fd2b2ef89fcb2c7ed509038bb6a30de62fa4f"
+dependencies = [
+ "bindgen",
+ "cfg-if",
+ "cmake",
+ "memchr",
+]
+
+[[package]]
 name = "aranya-buggy"
 version = "0.1.0"
 dependencies = [
@@ -167,12 +188,12 @@ dependencies = [
  "aes",
  "aes-gcm",
  "aranya-base58",
+ "aranya-bearssl-sys",
+ "aranya-bssl-sys",
  "aranya-buggy",
  "aranya-crypto",
  "aranya-crypto-derive",
  "aranya-trouble",
- "bearssl-sys",
- "bssl-sys",
  "byteorder",
  "cfg-if",
  "ciborium",
@@ -530,28 +551,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
-name = "bearssl-sys"
-version = "0.1.0"
-source = "git+https://github.com/aranya-project/bearssl.git?tag=v0.2.0#95d49f9c556bc76368329398b2cb6794c9ec5385"
-dependencies = [
- "bindgen",
- "cc",
- "glob",
-]
-
-[[package]]
 name = "bindgen"
-version = "0.65.1"
+version = "0.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfdf7b466f9a4903edc73f95d6d2bcd5baf8ae620638762244d3f60143643cc5"
+checksum = "f49d8fed880d473ea71efb9bf597651e77201bdd4893efe54c9e5d65ae04ce6f"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags",
  "cexpr",
  "clang-sys",
- "lazy_static",
- "lazycell",
- "peeking_take_while",
- "prettyplease",
+ "itertools",
  "proc-macro2",
  "quote",
  "regex",
@@ -577,12 +585,6 @@ checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
 
 [[package]]
 name = "bitflags"
-version = "1.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bef38d45163c2f1dde094a7dfd33ccf595c92905c8f8f4fdc18d06fb1037718a"
-
-[[package]]
-name = "bitflags"
 version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
@@ -594,17 +596,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array 0.14.7",
-]
-
-[[package]]
-name = "bssl-sys"
-version = "0.1.0"
-source = "git+https://github.com/aranya-project/bssl.git?branch=main#81256f5ae9f50d2dda819c7750147281402c802b"
-dependencies = [
- "bindgen",
- "cfg-if",
- "cmake",
- "memchr",
 ]
 
 [[package]]
@@ -1509,12 +1500,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lazycell"
-version = "1.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
-
-[[package]]
 name = "libc"
 version = "0.2.155"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1542,7 +1527,7 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0ff37bd590ca25063e35af745c343cb7a0271906fb7b37e4813e8f79f00268d"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "libc",
 ]
 
@@ -1746,12 +1731,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "peeking_take_while"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
-
-[[package]]
 name = "pem"
 version = "3.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1941,7 +1920,7 @@ checksum = "b4c2511913b88df1637da85cc8d96ec8e43a3f8bb8ccb71ee1ac240d6f3df58d"
 dependencies = [
  "bit-set",
  "bit-vec",
- "bitflags 2.6.0",
+ "bitflags",
  "lazy_static",
  "num-traits",
  "rand",
@@ -2220,7 +2199,7 @@ version = "0.38.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70dc5ec042f7a43c4a73241207cecc9873a06d45debb38b329f8541d85c2730f"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "errno",
  "libc",
  "linux-raw-sys",
@@ -2341,7 +2320,7 @@ version = "2.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "897b2245f0b511c87893af39b033e5ca9cce68824c4d7e7630b5a1d339658d02"
 dependencies = [
- "bitflags 2.6.0",
+ "bitflags",
  "core-foundation",
  "core-foundation-sys",
  "libc",

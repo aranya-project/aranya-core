@@ -22,8 +22,8 @@ use core::{
     result::Result,
 };
 
-pub use bssl_sys;
-use bssl_sys::{
+pub use aranya_bssl_sys;
+use aranya_bssl_sys::{
     point_conversion_form_t, BN_equal_consttime, ECDH_compute_key, ECDSA_sign, ECDSA_verify,
     EC_KEY_dup, EC_KEY_free, EC_KEY_generate_key, EC_KEY_generate_key_fips, EC_KEY_get0_group,
     EC_KEY_get0_private_key, EC_KEY_get0_public_key, EC_KEY_is_opaque, EC_KEY_new_by_curve_name,
@@ -113,11 +113,11 @@ mod rust_alloc {
             //
             // SAFETY: there is none
             unsafe {
-                bssl_sys::OPENSSL_memory_alloc = Some(mem_alloc);
-                bssl_sys::OPENSSL_memory_free = Some(mem_free);
-                bssl_sys::OPENSSL_memory_get_size = Some(mem_size);
+                aranya_bssl_sys::OPENSSL_memory_alloc = Some(mem_alloc);
+                aranya_bssl_sys::OPENSSL_memory_free = Some(mem_free);
+                aranya_bssl_sys::OPENSSL_memory_get_size = Some(mem_size);
             }
-            bssl_sys::init()
+            aranya_bssl_sys::init()
         }
         ctor!(do_init);
     }
@@ -136,7 +136,7 @@ mod rust_alloc {
         #[allow(clippy::wildcard_imports)]
         use super::*;
 
-        ctor!(bssl_sys::init);
+        ctor!(aranya_bssl_sys::init);
 
         #[no_mangle]
         unsafe extern "C" fn OPENSSL_memory_alloc(size: usize) -> *mut c_void {
@@ -589,7 +589,7 @@ indcca2_aead_impl!(
 mod committing {
     use core::ptr;
 
-    use bssl_sys::{AES_encrypt, AES_set_encrypt_key, AES_BLOCK_SIZE, AES_KEY};
+    use aranya_bssl_sys::{AES_encrypt, AES_set_encrypt_key, AES_BLOCK_SIZE, AES_KEY};
     use generic_array::GenericArray;
     use typenum::{Unsigned, U16, U32};
 
@@ -1597,7 +1597,7 @@ mod lame_crypto {
     #[allow(clippy::wildcard_imports)]
     use {
         super::*,
-        bssl_sys::{
+        aranya_bssl_sys::{
             CRYPTO_memcmp, EVP_MD_size, EVP_sha256, EVP_sha384, EVP_sha512, HKDF_expand,
             HKDF_extract, HMAC_CTX_cleanse, HMAC_CTX_copy_ex, HMAC_CTX_init, HMAC_Final,
             HMAC_Init_ex, HMAC_Update, HKDF, HMAC, HMAC_CTX,
@@ -1910,7 +1910,7 @@ mod fun_crypto {
     use {
         super::*,
         crate::{hkdf::hkdf_impl, hmac::hmac_impl},
-        bssl_sys::{
+        aranya_bssl_sys::{
             EVP_AEAD_CTX_open, EVP_aead_chacha20_poly1305, X25519_keypair,
             X25519_public_from_private, NID_X25519, X25519 as X25519_ecdh,
         },
@@ -1929,7 +1929,7 @@ mod fun_crypto {
     indcca2_aead_impl!(
         Aes256GcmSiv,
         "AES-256-GCM-SIV",
-        bssl_sys::EVP_aead_aes_256_gcm_siv,
+        aranya_bssl_sys::EVP_aead_aes_256_gcm_siv,
         // Assumes a random nonce.
         //
         // We can technically go higher than this, but it's not
@@ -2373,7 +2373,7 @@ mod tests {
     mod alloc_tests {
         use core::sync::atomic::Ordering;
 
-        use bssl_sys::{OPENSSL_free, OPENSSL_malloc};
+        use aranya_bssl_sys::{OPENSSL_free, OPENSSL_malloc};
         use rust_alloc::mem_size;
 
         use super::*;

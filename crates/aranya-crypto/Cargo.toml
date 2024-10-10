@@ -32,13 +32,13 @@ alloc = [
 
 # Enable BearSSL.
 bearssl = [
-	"dep:bearssl-sys",
+	"dep:aranya-bearssl-sys",
 ]
 
 # Enable BoringSSL.
 boringssl = [
 	"alloc",
-	"dep:bssl-sys",
+	"dep:aranya-bssl-sys",
 ]
 
 # Enable committing AEAD implementations.
@@ -160,10 +160,11 @@ aranya-buggy = { path = "../aranya-buggy", default-features = false }
 aranya-crypto-derive = { path = "../aranya-crypto-derive" }
 aranya-trouble = { path = "../aranya-trouble", default-features = false }
 
+aranya-bearssl-sys = { git = "https://github.com/aranya-project/aranya-bearssl-sys.git", branch = "main", optional = true }
+aranya-bssl-sys = { git = "https://github.com/aranya-project/aranya-bssl-sys.git", branch = "main", optional = true }
+
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
-bearssl-sys = { git = "https://github.com/aranya-project/bearssl.git", tag = "v0.2.0", optional = true }
-bssl-sys = { git = "https://github.com/aranya-project/bssl.git", branch = "main", optional = true }
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
 ciborium = { version = "0.2", default-features = false, optional = true }

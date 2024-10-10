@@ -25,9 +25,9 @@ use core::{
     slice,
 };
 
-pub use bearssl_sys;
+pub use aranya_bearssl_sys;
 #[allow(clippy::wildcard_imports)]
-use bearssl_sys::*;
+use aranya_bearssl_sys::*;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeLess};
 use typenum::{Unsigned, U, U12, U16, U32};
 
