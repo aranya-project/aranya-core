@@ -1,10 +1,11 @@
 [package]
 name = "aranya-crypto-ffi"
+description = "The crypto FFI for Aranya Policy"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [lints]
@@ -39,8 +40,8 @@ testing = [
 ]
 
 [dependencies]
-aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }
-aranya-policy-vm = { path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
+aranya-crypto = { version = "0.1.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
+aranya-policy-vm = { version = "0.1.0", path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
 
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"], optional = true }

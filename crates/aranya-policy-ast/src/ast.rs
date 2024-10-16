@@ -77,21 +77,21 @@ impl<T> Deref for AstNode<T> {
 /// It is not called `Type` because that conflicts with reserved keywords.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum VType {
-    /// a character (UTF-8) string
+    /// A character (UTF-8) string
     String,
     /// A byte string
     Bytes,
-    /// a signed 64-bit integer
+    /// A signed 64-bit integer
     Int,
-    /// a boolean
+    /// A boolean
     Bool,
-    /// a Flow3 identifier
+    /// A unique identifier
     Id,
     /// A named struct
     Struct(String),
     /// Named enumeration
     Enum(String),
-    /// an optional type of some other type
+    /// An optional type of some other type
     Optional(Box<VType>),
 }
 

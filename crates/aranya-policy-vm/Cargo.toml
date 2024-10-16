@@ -1,10 +1,11 @@
 [package]
 name = "aranya-policy-vm"
+description = "The Aranya Policy Virtual Machine"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [lints]
@@ -26,11 +27,11 @@ std = [
 ]
 
 [dependencies]
-aranya-buggy = { path = "../aranya-buggy", features = ["alloc"] }
-aranya-crypto = { path = "../aranya-crypto", default-features = false }
-aranya-policy-ast = { path = "../aranya-policy-ast" }
-aranya-policy-derive = { path = "../aranya-policy-derive" }
-aranya-policy-module = { path = "../aranya-policy-module" }
+aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["alloc"] }
+aranya-crypto = { version = "0.1.0", path = "../aranya-crypto", default-features = false }
+aranya-policy-ast = { version = "0.1.0", path = "../aranya-policy-ast" }
+aranya-policy-derive = { version = "0.1.0", path = "../aranya-policy-derive" }
+aranya-policy-module = { version = "0.1.0", path = "../aranya-policy-module" }
 
 heapless = { workspace = true }
 postcard = { workspace = true, features = ["alloc"] }

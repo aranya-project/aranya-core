@@ -1,20 +1,21 @@
 [package]
 name = "aranya-runtime"
+description = "The Aranya core runtime"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-aranya-buggy = { path = "../aranya-buggy", features = ["alloc"] }
+aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["alloc"] }
 # `aranya-crypto` enables `getrandom` by default.
-aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
-aranya-policy-vm = { path = "../aranya-policy-vm" }
+aranya-crypto = { version = "0.1.0", path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
+aranya-policy-vm = { version = "0.1.0", path = "../aranya-policy-vm" }
 
 cfg-if = { workspace = true, default-features = false, optional = true }
 heapless = { workspace = true, features = ["serde"] }
@@ -27,7 +28,7 @@ tracing = { workspace = true }
 vec1 = { version = "1.10.1", default-features = false, features = ["serde"] }
 
 # Used by `testing`.
-aranya-policy-module = { path = "../aranya-policy-module", optional = true }
+aranya-policy-module = { version = "0.1.0", path = "../aranya-policy-module", optional = true }
 serde_json = { version = "1.0.117", default-features = false, features = ["alloc"], optional = true }
 
 # graphviz

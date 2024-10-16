@@ -1,17 +1,17 @@
 [package]
 name = "aranya-quic-syncer"
-version = "0.1.0"
+publish = false
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-aranya-runtime = { path = "../aranya-runtime", features = ["std"] }
+aranya-runtime = { version = "0.1.0", path = "../aranya-runtime", features = ["std"] }
 
 quinn = { workspace = true }
 rustls = { workspace = true, default-features = false, features = ["quic"] }

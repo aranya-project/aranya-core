@@ -13,8 +13,8 @@ default-members = [
 [workspace.package]
 authors = ["SpiderOak, Inc."]
 edition = "2021"
-license = "UNLICENSED"
-publish = false
+license = "AGPL-3.0-only"
+repository = "https://github.com/aranya-project/aranya-core"
 rust-version = "1.81.0"
 
 [workspace.lints.rust]
@@ -62,10 +62,6 @@ prettyplease = "0.2"
 proc-macro2 = "1.0"
 syn = "2.0"
 quote = "1.0"
-
-[patch."https://github.com/aranya-project/aranya-core"]
-aranya-buggy.path = "crates/aranya-buggy"
-aranya-crypto.path = "crates/aranya-crypto"
 
 [profile.dev]
 panic = "abort"

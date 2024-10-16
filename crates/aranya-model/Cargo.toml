@@ -1,18 +1,18 @@
 [package]
 name = "aranya-model"
-version = "0.1.0"
+publish = false
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc", "fs-keystore"] }
-aranya-policy-compiler = { path = "../aranya-policy-compiler" }
-aranya-policy-lang = { path = "../aranya-policy-lang" }
-aranya-policy-vm = { path = "../aranya-policy-vm" }
-aranya-runtime = { path = "../aranya-runtime", features = ["testing"] }
+aranya-crypto = { version = "0.1.0", path = "../aranya-crypto", default-features = false, features = ["alloc", "fs-keystore"] }
+aranya-policy-compiler = { version = "0.1.0", path = "../aranya-policy-compiler" }
+aranya-policy-lang = { version = "0.1.0", path = "../aranya-policy-lang" }
+aranya-policy-vm = { version = "0.1.0", path = "../aranya-policy-vm" }
+aranya-runtime = { version = "0.1.0", path = "../aranya-runtime", features = ["testing"] }
 
 anyhow = { workspace = true }
 

@@ -1,10 +1,11 @@
 [package]
 name = "aranya-crypto"
+description = "The Aranya Cryptography Engine"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [lints]
@@ -155,13 +156,13 @@ test_util = [
 ]
 
 [dependencies]
-aranya-base58 = { path = "../aranya-base58", default-features = false }
-aranya-buggy = { path = "../aranya-buggy", default-features = false }
-aranya-crypto-derive = { path = "../aranya-crypto-derive" }
-aranya-trouble = { path = "../aranya-trouble", default-features = false }
+aranya-base58 = { version = "0.1.0", path = "../aranya-base58", default-features = false }
+aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
+aranya-crypto-derive = { version = "0.1.0", path = "../aranya-crypto-derive" }
+aranya-trouble = { version = "0.1.0", path = "../aranya-trouble", default-features = false }
 
-aranya-bearssl-sys = { git = "https://github.com/aranya-project/aranya-bearssl-sys.git", branch = "main", optional = true }
-aranya-bssl-sys = { git = "https://github.com/aranya-project/aranya-bssl-sys.git", branch = "main", optional = true }
+aranya-bearssl-sys = { version = "0.1.0", git = "https://github.com/aranya-project/aranya-bearssl-sys.git", branch = "main", optional = true }
+aranya-bssl-sys = { version = "0.1.0", git = "https://github.com/aranya-project/aranya-bssl-sys.git", branch = "main", optional = true }
 
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
@@ -219,7 +220,16 @@ name = "hsm"
 crate-type = ["lib"]
 
 [package.metadata.docs.rs]
-all-features = true
+features = [
+	"clone-aead",
+	"committing-aead",
+	"ed25519_batch",
+	"fs-keystore",
+	"moonshot",
+	"rand_compat",
+	"std",
+	"test_util",
+]
 
 [package.metadata.cargo-all-features]
 always_include_features = [

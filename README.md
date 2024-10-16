@@ -1,6 +1,6 @@
-# flow3-rs
+# Aranya Core
 
-This repo is a cargo workspace for the Rust implementation for Aranya.
+This repo is a cargo workspace for the Rust implementation for the core of the Aranya platform.
 
 ## Cargo Make
 
@@ -31,11 +31,3 @@ makers unit-tests
 # run correctness checks
 makers correctness
 ```
-
-### Tools
-
-
-For Policy development, the [VSCode Policy extension](https://git.spideroak-inc.com/spideroak-inc/policy-lang-vscode-ext)
-is available for installation. The extension provides syntax highlighting for
-Policy code blocks in markdown files.
-

@@ -1,10 +1,11 @@
 [package]
 name = "aranya-fast-channels"
+description = "High throughput, low latency encryption protected by Aranya Policy"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [lib]
@@ -77,8 +78,8 @@ core_intrinsics = []
 try_find = []
 
 [dependencies]
-aranya-buggy = { git = "https://github.com/aranya-project/aranya-core", branch = "main", default-features = false }
-aranya-crypto = { git = "https://github.com/aranya-project/aranya-core", branch = "main", default-features = false, features = ["getrandom"] }
+aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
+aranya-crypto = { version = "0.1.0", path = "../aranya-crypto", default-features = false, features = ["getrandom"] }
 
 byteorder = { version = "1", default-features = false }
 cfg-if = { workspace = true }

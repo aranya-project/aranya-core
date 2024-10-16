@@ -1,18 +1,19 @@
 [package]
 name = "aranya-policy-ifgen-build"
+description = "Code generator for aranya-policy-ifgen"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
-publish.workspace = true
+repository.workspace = true
 rust-version.workspace = true
 
 [lints]
 workspace = true
 
 [dependencies]
-aranya-policy-ast = { path = "../aranya-policy-ast" }
-aranya-policy-lang = { path = "../aranya-policy-lang" }
+aranya-policy-ast = { version = "0.1.0", path = "../aranya-policy-ast" }
+aranya-policy-lang = { version = "0.1.0", path = "../aranya-policy-lang" }
 
 anyhow = { workspace = true }
 prettyplease = { workspace = true }
