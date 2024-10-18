@@ -295,8 +295,9 @@ pub fn braid<S: Storage>(
         fn new(
             storage: &mut impl Storage<Segment = S>,
             location: Location,
+            cached_segment: Option<S>,
         ) -> Result<Self, ClientError> {
-            let segment = storage.get_segment(location)?;
+            let segment = cached_segment.map_or_else(|| storage.get_segment(location), Ok)?;
 
             let key = {
                 let cmd = segment
@@ -336,16 +337,16 @@ pub fn braid<S: Storage>(
     trace!(%left, %right, "braiding");
 
     for head in [left, right] {
-        strands.push(Strand::new(storage, head)?);
+        strands.push(Strand::new(storage, head, None)?);
     }
 
     // Get latest command
     while let Some(strand) = strands.pop() {
         // Consume another command off the strand
-        let prior = if let Some(previous) = strand.next.previous() {
-            Prior::Single(previous)
+        let (prior, mut maybe_cached_segment) = if let Some(previous) = strand.next.previous() {
+            (Prior::Single(previous), Some(strand.segment))
         } else {
-            strand.segment.prior()
+            (strand.segment.prior(), None)
         };
         if matches!(prior, Prior::Merge(..)) {
             trace!("skipping merge command");
@@ -367,7 +368,13 @@ pub fn braid<S: Storage>(
             }
 
             trace!("strand at {location}");
-            strands.push(Strand::new(storage, location)?);
+            strands.push(Strand::new(
+                storage,
+                location,
+                // Taking is OK here because `maybe_cached_segment` is `Some` when
+                // the current strand has a single parent that is in the same segment
+                Option::take(&mut maybe_cached_segment),
+            )?);
         }
         if strands.len() == 1 {
             // No concurrency left, done.
