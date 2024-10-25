@@ -156,7 +156,8 @@ dependencies = [
 [[package]]
 name = "aranya-bearssl-sys"
 version = "0.1.0"
-source = "git+https://github.com/aranya-project/aranya-bearssl-sys.git?branch=main#c1368b6166fc9be2cf3a2e347cd7656c2daaee45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8c84dcd0c2e09e4dfd3a9d913719d89e6982056cfdc6d78d7c9fc8ca097c642"
 dependencies = [
  "bindgen",
  "cc",
@@ -166,7 +167,8 @@ dependencies = [
 [[package]]
 name = "aranya-bssl-sys"
 version = "0.1.0"
-source = "git+https://github.com/aranya-project/aranya-bssl-sys.git?branch=main#bbe4b62ee35bd1c6e6dc16e8d49b8f4f7f60f631"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c546e3b6052eeeec82e527142009bfed9eb60fdc525dbeb713cd806a0924f2ad"
 dependencies = [
  "bindgen",
  "cfg-if",
