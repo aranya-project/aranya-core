@@ -300,6 +300,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-libc"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "memchr",
+ "tracing",
+]
+
+[[package]]
 name = "aranya-model"
 version = "0.0.0"
 dependencies = [
@@ -476,16 +486,14 @@ version = "0.1.0"
 dependencies = [
  "aranya-buggy",
  "aranya-crypto",
+ "aranya-libc",
  "aranya-policy-compiler",
  "aranya-policy-lang",
  "aranya-policy-module",
  "aranya-policy-vm",
  "aranya-runtime",
- "cfg-if",
  "dot-writer",
  "heapless",
- "libc",
- "memchr",
  "postcard",
  "proptest",
  "serde",

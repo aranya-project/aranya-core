@@ -21,7 +21,6 @@
 mod error;
 mod imp;
 mod path;
-mod sys;
 mod tests;
 
 pub use error::Error;

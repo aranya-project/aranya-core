@@ -12,9 +12,9 @@ pub use libc::{
     S_IWUSR,
 };
 
-use super::{
-    super::path::Path,
+use crate::{
     errno::{errno, Errno},
+    path::Path,
     AsAtRoot, BorrowedFd,
 };
 

@@ -5,6 +5,7 @@
 /crates/aranya-afc-util @elagergren @jdygert
 /crates/aranya-base58 @elagergren @jdygert
 /crates/aranya-buggy @jdygert @elagergren
+/crates/aranya-libc @elagergren @jdygert
 
 /crates/aranya-crypto* @elagergren @ycarmy
 

@@ -15,12 +15,10 @@ workspace = true
 aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["alloc"] }
 # `aranya-crypto` enables `getrandom` by default.
 aranya-crypto = { version = "0.1.0", path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
+aranya-libc = { version = "0.1.0", path = "../aranya-libc", default-features = false, optional = true }
 aranya-policy-vm = { version = "0.1.0", path = "../aranya-policy-vm" }
 
-cfg-if = { workspace = true, default-features = false, optional = true }
 heapless = { workspace = true, features = ["serde"] }
-libc = { workspace = true, optional = true }
-memchr = { version = "2.7.2", default-features = false, optional = true }
 postcard = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
 spin = { workspace = true, features = ["spin_mutex"] }
@@ -38,12 +36,14 @@ yoke = { version = "0.7.4", features = ["derive"] }
 [dev-dependencies]
 aranya-runtime = { path = ".", features = ["testing", "libc"] }
 
+aranya-libc = { path = "../aranya-libc", features = ["std"] }
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
 aranya-policy-module = { path = "../aranya-policy-module", features = ["proptest"] }
+
 proptest = { workspace = true, default-features = true }
 serde_json = { version = "1.0.117", default-features = false, features = ["alloc"] }
-tempfile = "3.9.0"
+tempfile = { version = "3.9.0" }
 test-log = { workspace = true }
 tracing-subscriber = { workspace = true, default-features = true } # affects features used by test-log
 
@@ -52,17 +52,14 @@ default = []
 
 # Enable `libc`.
 libc = [
-	"dep:cfg-if",
-	"dep:libc",
-	"dep:memchr",
+	"dep:aranya-libc",
 ]
 
 std = [
 	"aranya-buggy/std",
 	"aranya-crypto/std",
+	"aranya-libc?/std",
 	"aranya-policy-vm/std",
-	"libc?/std",
-	"memchr?/std",
 	"postcard/use-std",
 	"serde/std",
 	"spin/std",

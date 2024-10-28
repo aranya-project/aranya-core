@@ -2,17 +2,14 @@ use alloc::sync::Arc;
 use core::{cmp::Ordering, hash::Hasher};
 
 use aranya_buggy::{bug, BugExt};
+use aranya_libc::{
+    self as libc, Errno, OwnedFd, Path, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
+    O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
+};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::error;
 
-use super::{
-    error::Error,
-    path::Path,
-    sys::{
-        self, Errno, OwnedFd, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY,
-        O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
-    },
-};
+use super::error::Error;
 use crate::{
     linear::io::{IoManager, Read, Write},
     GraphId, Location, StorageError,
@@ -28,13 +25,13 @@ pub struct FileManager {
     // VxWorks doesn't support `openat`, so we also need to store
     // the path.
     #[cfg(target_os = "vxworks")]
-    dir: super::path::PathBuf,
+    dir: aranya_libc::PathBuf,
 }
 
 impl FileManager {
     /// Creates a `FileManager` at `dir`.
     pub fn new<P: AsRef<Path>>(dir: P) -> Result<Self, Error> {
-        let fd = sys::open(dir.as_ref(), O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0)?;
+        let fd = libc::open(dir.as_ref(), O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0)?;
         Ok(Self {
             fd,
             // TODO(eric): skip the alloc if `P` is `PathBuf`?
@@ -51,8 +48,8 @@ impl FileManager {
 
     /// Returns the root.
     #[cfg(not(target_os = "vxworks"))]
-    fn root(&self) -> sys::BorrowedFd<'_> {
-        sys::AsFd::as_fd(&self.fd)
+    fn root(&self) -> libc::BorrowedFd<'_> {
+        libc::AsFd::as_fd(&self.fd)
     }
 }
 
@@ -61,25 +58,25 @@ impl IoManager for FileManager {
 
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
         let name = id.to_path()?;
-        let fd = sys::openat(
+        let fd = libc::openat(
             self.root(),
             name,
             O_RDWR | O_CREAT | O_EXCL | O_CLOEXEC,
             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP,
         )?;
-        sys::flock(&fd, LOCK_EX | LOCK_NB)?;
+        libc::flock(&fd, LOCK_EX | LOCK_NB)?;
         // TODO(jdygert): fallocate?
         Writer::create(fd)
     }
 
     fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
         let name = id.to_path()?;
-        let fd = match sys::openat(self.root(), name, O_RDWR | O_CLOEXEC, 0) {
+        let fd = match libc::openat(self.root(), name, O_RDWR | O_CLOEXEC, 0) {
             Ok(fd) => fd,
             Err(Errno::ENOENT) => return Ok(None),
             Err(e) => return Err(e.into()),
         };
-        sys::flock(&fd, LOCK_EX | LOCK_NB)?;
+        libc::flock(&fd, LOCK_EX | LOCK_NB)?;
         Ok(Some(Writer::open(fd)?))
     }
 }
@@ -267,13 +264,13 @@ struct File {
 
 impl File {
     fn fallocate(&self, offset: i64, len: i64) -> Result<(), StorageError> {
-        sys::fallocate(&self.fd, 0, offset, len)?;
+        libc::fallocate(&self.fd, 0, offset, len)?;
         Ok(())
     }
 
     fn read_exact(&self, mut offset: i64, mut buf: &mut [u8]) -> Result<(), StorageError> {
         while !buf.is_empty() {
-            match sys::pread(&self.fd, buf, offset) {
+            match libc::pread(&self.fd, buf, offset) {
                 Ok(0) => break,
                 Ok(n) => {
                     buf = buf.get_mut(n..).assume("`n` should be in bounds")?;
@@ -295,7 +292,7 @@ impl File {
 
     fn write_all(&self, mut offset: i64, mut buf: &[u8]) -> Result<(), StorageError> {
         while !buf.is_empty() {
-            match sys::pwrite(&self.fd, buf, offset) {
+            match libc::pwrite(&self.fd, buf, offset) {
                 Ok(0) => {
                     error!(remaining = buf.len(), "could not write whole buffer");
                     return Err(StorageError::IoError);
@@ -314,7 +311,7 @@ impl File {
     }
 
     fn sync(&self) -> Result<(), StorageError> {
-        sys::fsync(&self.fd)?;
+        libc::fsync(&self.fd)?;
         Ok(())
     }
 

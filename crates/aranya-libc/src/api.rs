@@ -1,24 +1,17 @@
-mod errno;
-mod linux;
-mod macos;
-mod unix;
-mod vxworks;
-
 use alloc::sync::Arc;
 use core::{ffi::c_int, marker::PhantomData};
 
 use cfg_if::cfg_if;
-pub use errno::Errno;
 
-use super::path::Path;
+use super::{errno::Errno, path::Path};
 
 cfg_if! {
     if #[cfg(target_os = "vxworks")] {
-        use vxworks as imp;
+        use super::sys::vxworks as imp;
     } else if #[cfg(target_os = "linux")] {
-        use linux as imp;
+        use super::sys::linux as imp;
     } else if #[cfg(target_os = "macos")] {
-        use macos as imp;
+        use super::sys::macos as imp;
     } else {
         compile_error!("unsupported OS");
     }
@@ -82,7 +75,7 @@ impl Drop for OwnedFd {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct BorrowedFd<'fd> {
-    fd: imp::RawFd,
+    pub(crate) fd: imp::RawFd,
     _lifetime: PhantomData<&'fd OwnedFd>,
 }
 

@@ -1,8 +1,8 @@
 use core::{convert::Infallible, fmt};
 
+use aranya_libc::Errno;
 use tracing::error;
 
-use super::sys::Errno;
 use crate::StorageError;
 
 /// An error returned by this module.

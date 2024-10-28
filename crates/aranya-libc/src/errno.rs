@@ -48,6 +48,11 @@ impl Errno {
         Self(unsafe { get_errno() })
     }
 
+    /// Creates an `Errno` from the raw error code.
+    pub const fn from_raw_os_error(err: c_int) -> Self {
+        Self(err)
+    }
+
     /// Returns the underlying code.
     pub const fn code(self) -> c_int {
         self.0

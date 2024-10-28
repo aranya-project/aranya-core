@@ -7,9 +7,9 @@ pub use libc::{
     S_IRUSR, S_IWGRP, S_IWUSR,
 };
 
-use super::{
-    super::path::Path,
+use crate::{
     errno::{errno, Errno},
+    path::Path,
     AsAtRoot, AsFd, BorrowedFd,
 };
 
