@@ -666,7 +666,10 @@ impl<F: Write> Storage for LinearStorage<F> {
 
 impl<R: Read> Segment for LinearSegment<R> {
     type FactIndex = LinearFactIndex<R>;
-    type Command<'a> = LinearCommand<'a> where R: 'a;
+    type Command<'a>
+        = LinearCommand<'a>
+    where
+        R: 'a;
 
     fn head(&self) -> Result<Self::Command<'_>, StorageError> {
         let data = self.repr.commands.last();
@@ -1112,7 +1115,7 @@ impl From<Prior<Address>> for Prior<CommandId> {
     }
 }
 
-impl<'a> Command for LinearCommand<'a> {
+impl Command for LinearCommand<'_> {
     fn priority(&self) -> Priority {
         self.priority.clone()
     }

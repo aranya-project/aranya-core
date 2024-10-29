@@ -121,7 +121,7 @@ struct TestModule<'a, T, G> {
     _g: PhantomData<G>,
 }
 
-impl<'a, T, G> TestModule<'a, T, G> {
+impl<T, G> TestModule<'_, T, G> {
     fn new() -> Self {
         Self {
             _x: None,
@@ -156,7 +156,7 @@ struct S2 {
 }
 "#
 )]
-impl<'a, T, G> TestModule<'a, T, G> {
+impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function add(x int, y int) int")]
     fn add<E: Engine>(
         _ctx: &CommandContext<'_>,

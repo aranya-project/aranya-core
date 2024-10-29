@@ -165,7 +165,7 @@ struct SessionCommand<'a> {
     data: &'a [u8],
 }
 
-impl<'sc> Command for SessionCommand<'sc> {
+impl Command for SessionCommand<'_> {
     fn priority(&self) -> Priority {
         Priority::Basic(self.priority)
     }
@@ -277,9 +277,9 @@ where
     }
 }
 
-impl<'a, SP, E, MS> FactPerspective for SessionPerspective<'a, SP, E, MS> where SP: StorageProvider {}
+impl<SP, E, MS> FactPerspective for SessionPerspective<'_, SP, E, MS> where SP: StorageProvider {}
 
-impl<'a, SP, E, MS> Query for SessionPerspective<'a, SP, E, MS>
+impl<SP, E, MS> Query for SessionPerspective<'_, SP, E, MS>
 where
     SP: StorageProvider,
 {
@@ -334,7 +334,7 @@ impl<'map> PrefixIter<'map> {
     }
 }
 
-impl<'map> Iterator for PrefixIter<'map> {
+impl Iterator for PrefixIter<'_> {
     type Item = (Keys, Option<Bytes>);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -373,7 +373,7 @@ where
     }
 }
 
-impl<'a, SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'a, SP, E, MS> {
+impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> {
     fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) {
         self.session
             .fact_log
@@ -395,7 +395,7 @@ impl<'a, SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'a, SP, E, 
     }
 }
 
-impl<'a, SP, E, MS> Perspective for SessionPerspective<'a, SP, E, MS>
+impl<SP, E, MS> Perspective for SessionPerspective<'_, SP, E, MS>
 where
     SP: StorageProvider,
     MS: for<'b> Sink<&'b [u8]>,
@@ -425,7 +425,7 @@ where
     }
 }
 
-impl<'a, SP, E, MS> Revertable for SessionPerspective<'a, SP, E, MS>
+impl<SP, E, MS> Revertable for SessionPerspective<'_, SP, E, MS>
 where
     SP: StorageProvider,
 {

@@ -1072,7 +1072,7 @@ impl Default for MachineStack {
     }
 }
 
-impl<'a, M> Display for RunState<'a, M>
+impl<M> Display for RunState<'_, M>
 where
     M: MachineIO<MachineStack>,
 {

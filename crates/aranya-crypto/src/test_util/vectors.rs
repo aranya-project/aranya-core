@@ -196,7 +196,7 @@ pub mod hpke {
             &'a self,
             id: usize,
             xkSm: &'a [u8],
-        ) -> Mode<'_, T> {
+        ) -> Mode<'a, T> {
             match self.mode {
                 HpkeMode::Base => Mode::Base,
                 HpkeMode::Psk => {

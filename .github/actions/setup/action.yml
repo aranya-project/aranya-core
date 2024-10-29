@@ -77,14 +77,6 @@ runs:
         ./rustup.sh -y --default-toolchain none
         source "$HOME/.cargo/env"
         echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
-        rustup \
-          toolchain \
-          install stable \
-          --profile minimal \
-          --allow-downgrade \
-          --component cargo \
-          --component clippy \
-          --component rustfmt
       shell: bash
     # Various runners have a 64-bit kernel with a 32-bit userspace.
     # Setting rustup's default host to armv7 allows using the 32-bit executables.

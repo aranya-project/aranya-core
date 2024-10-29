@@ -75,7 +75,7 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     }
 }
 
-impl<'o, P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'o, P, S, E, FFI>
+impl<P, S, E, FFI> MachineIO<MachineStack> for VmPolicyIO<'_, P, S, E, FFI>
 where
     P: FactPerspective,
     S: Sink<VmEffect>,

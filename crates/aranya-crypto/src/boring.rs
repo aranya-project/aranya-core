@@ -1444,7 +1444,7 @@ impl Import<[u8; 64]> for Ed25519Signature {
     }
 }
 
-impl<'a> Import<&'a [u8]> for Ed25519Signature {
+impl Import<&[u8]> for Ed25519Signature {
     #[inline]
     fn import(data: &[u8]) -> Result<Self, ImportError> {
         try_import(data)
@@ -2040,7 +2040,7 @@ mod fun_crypto {
         }
     }
 
-    impl<'a> Import<&'a [u8]> for X25519PrivateKey {
+    impl Import<&[u8]> for X25519PrivateKey {
         #[inline]
         fn import(data: &[u8]) -> Result<Self, ImportError> {
             Ok(Self(Scalar::<Curve25519>::import(data)?.into()))
@@ -2083,7 +2083,7 @@ mod fun_crypto {
         }
     }
 
-    impl<'a> Import<&'a [u8]> for X25519PublicKey {
+    impl Import<&[u8]> for X25519PublicKey {
         #[inline]
         fn import(data: &[u8]) -> Result<Self, ImportError> {
             try_import(data)

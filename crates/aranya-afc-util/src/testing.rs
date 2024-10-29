@@ -168,14 +168,14 @@ impl<'a, T> Guard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for Guard<'a, T> {
+impl<T> Drop for Guard<'_, T> {
     fn drop(&mut self) {
         // SAFETY: we're single threaded, hopefully...
         unsafe { self.mutex.force_unlock() }
     }
 }
 
-impl<'a, T> Deref for Guard<'a, T> {
+impl<T> Deref for Guard<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {

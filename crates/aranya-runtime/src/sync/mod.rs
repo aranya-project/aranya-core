@@ -52,13 +52,6 @@ pub struct CommandMeta {
     max_cut: usize,
 }
 
-/// Enum of all supported sync messages.
-// TODO: Use compile-time args. This initial definition results in this clippy warning:
-// https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
-// As the buffer consts will be compile-time variables in the future, we will be
-// able to tune these buffers for smaller footprints. Right now, this enum is not
-// suitable for small devices (`SyncResponse` is 8448 bytes).
-
 /// An error returned by the syncer.
 #[derive(Debug)]
 pub enum SyncError {

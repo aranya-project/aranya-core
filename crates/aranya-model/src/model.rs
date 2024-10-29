@@ -369,7 +369,10 @@ where
     type Action<'a> = <<CF::Engine as Engine>::Policy as Policy>::Action<'a>;
     type PublicKeys = CF::PublicKeys;
     type ClientArgs = CF::Args;
-    type Session<'a> = Session<'a, CF::Engine, CF::StorageProvider> where CF: 'a;
+    type Session<'a>
+        = Session<'a, CF::Engine, CF::StorageProvider>
+    where
+        CF: 'a;
     type ClientId = CID;
     type GraphId = GID;
 

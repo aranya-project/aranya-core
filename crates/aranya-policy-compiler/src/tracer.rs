@@ -91,7 +91,7 @@ struct TraceIntermediate {
     successful_branch_paths: Vec<Vec<usize>>,
 }
 
-impl<'a> TraceAnalyzer<'a> {
+impl TraceAnalyzer<'_> {
     fn trace_err(&self, etype: TraceErrorType) -> TraceError {
         TraceError::new(etype, self.instruction_path.clone())
     }

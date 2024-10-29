@@ -240,7 +240,7 @@ impl<'a, T> OccupiedEntry<'a, T> {
     }
 }
 
-impl<'a, T: WrappedKey> Occupied<T> for OccupiedEntry<'a, T> {
+impl<T: WrappedKey> Occupied<T> for OccupiedEntry<'_, T> {
     type Error = Error;
 
     fn get(&self) -> Result<T, Self::Error> {

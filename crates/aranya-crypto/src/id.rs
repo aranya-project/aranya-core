@@ -177,7 +177,7 @@ impl<'de> Deserialize<'de> for Id {
         D: Deserializer<'de>,
     {
         struct Base58Visitor;
-        impl<'de> Visitor<'de> for Base58Visitor {
+        impl Visitor<'_> for Base58Visitor {
             type Value = Id;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

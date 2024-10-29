@@ -302,7 +302,7 @@ pub fn braid<S: Storage>(
             let key = {
                 let cmd = segment
                     .get_command(location)
-                    .ok_or_else(|| StorageError::CommandOutOfBounds(location))?;
+                    .ok_or(StorageError::CommandOutOfBounds(location))?;
                 (cmd.priority(), cmd.id())
             };
 

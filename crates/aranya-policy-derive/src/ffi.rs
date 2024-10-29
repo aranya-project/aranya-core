@@ -11,7 +11,7 @@ use syn::{
     parse_quote,
     spanned::Spanned,
     Attribute, Error, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, LitStr, Meta, Pat, PatIdent,
-    PatType, Path, ReturnType, Token, Type,
+    PatType, Path, ReturnType, Token,
 };
 
 use crate::attr::{get_lit_str, Attr, Symbol};
@@ -22,10 +22,9 @@ use crate::attr::{get_lit_str, Attr, Symbol};
 pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let FfiAttr { module, structs } = syn::parse2(attr)?;
     let mut item: ItemImpl = syn::parse2(item)?;
-    // The name of the type that the `#[ffi]` attribute is
-    // applied to.
-    let ident = type_name(&item.self_ty)?;
-    let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
+    // The type that the `#[ffi]` attribute is applied to.
+    let self_ty = &item.self_ty;
+    let (impl_generics, _ty_generics, where_clause) = item.generics.split_for_impl();
 
     // Checks for duplicate FFI names.
     let mut ext_names = HashSet::new();
@@ -256,7 +255,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
         quote! {
             #[automatically_derived]
-            impl #impl_generics #vm::ffi::FfiModule for #ident #ty_generics #where_clause {
+            impl #impl_generics #vm::ffi::FfiModule for #self_ty #where_clause {
                 type Error = #vm::MachineError;
 
                 const SCHEMA: #vm::ffi::ModuleSchema<'static> = #vm::ffi::ModuleSchema {
@@ -420,16 +419,6 @@ fn skip_comma(input: ParseStream<'_>) -> syn::Result<()> {
         let _: Token![,] = input.parse()?;
     }
     Ok(())
-}
-
-/// Returns the type's name,
-fn type_name(ty: &Type) -> syn::Result<Ident> {
-    match ty {
-        // TODO(eric): this is probably wrong for something like
-        // `crate::foo::bar::Baz`.
-        Type::Path(path) => Ok(path.path.segments[0].ident.clone()),
-        _ => Err(Error::new(ty.span(), "unknown type")),
-    }
 }
 
 const FFI_EXPORT: Symbol = Symbol("ffi_export");

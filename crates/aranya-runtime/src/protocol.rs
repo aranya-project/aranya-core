@@ -64,7 +64,7 @@ pub struct TestProtocol<'a> {
     data: &'a [u8],
 }
 
-impl<'a> Command for TestProtocol<'a> {
+impl Command for TestProtocol<'_> {
     fn priority(&self) -> Priority {
         match &self.command {
             WireProtocol::Init(_) => Priority::Init,

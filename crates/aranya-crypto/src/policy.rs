@@ -45,7 +45,7 @@ pub struct Cmd<'a> {
     pub parent_id: &'a Id,
 }
 
-impl<'a> Cmd<'a> {
+impl Cmd<'_> {
     /// Returns the digest of the command and its contextual
     /// binding.
     pub(crate) fn digest<CS: CipherSuite>(
