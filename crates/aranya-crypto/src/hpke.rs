@@ -1171,13 +1171,28 @@ mod tests {
     /// Tests that [`AeadId`] is assigned correctly.
     #[test]
     fn test_aead_id() {
-        // NB: we include two unofficiant IDs.
+        // NB: we include two unofficial IDs.
         let unassigned = 0x0004..=0xFFFE - 2;
         for id in unassigned {
             let want = AeadId::Other(NonZeroU16::new(id).expect("`id` should be non-zero"));
             let encoded = postcard::to_vec::<_, { u16::POSTCARD_MAX_SIZE }>(&id)
                 .expect("should be able to encode `u16`");
             let got: AeadId = postcard::from_bytes(&encoded).unwrap_or_else(|err| {
+                panic!("should be able to decode unassigned `AeadId` {id}: {err}")
+            });
+            assert_eq!(got, want);
+        }
+    }
+
+    /// Tests that [`AeadId`] can be serialized and deserialized via [`serde_json`].
+    #[test]
+    fn test_aead_id_json() {
+        // NB: we include two unofficial IDs.
+        let unassigned = 0x0004..=0xFFFE - 2;
+        for id in unassigned {
+            let want = AeadId::Other(NonZeroU16::new(id).expect("`id` should be non-zero"));
+            let encoded = serde_json::to_string(&id).expect("should be able to encode `u16`");
+            let got: AeadId = serde_json::from_str(&encoded).unwrap_or_else(|err| {
                 panic!("should be able to decode unassigned `AeadId` {id}: {err}")
             });
             assert_eq!(got, want);

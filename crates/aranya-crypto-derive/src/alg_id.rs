@@ -50,10 +50,11 @@ pub(crate) fn parse(item: TokenStream) -> syn::Result<TokenStream> {
                         ::core::write!(f, "{}", ::core::stringify!(#name))
                     }
 
-                    fn visit_u16<E>(self, v: u16) -> ::core::result::Result<Self::Value, E>
+                    fn visit_u64<E>(self, v: u64) -> ::core::result::Result<Self::Value, E>
                     where
                         E: #serde::de::Error,
                     {
+                        let v = u16::try_from(v).map_err(E::custom)?;
                         #name::try_from_u16(v).map_err(E::custom)
                     }
                 }
