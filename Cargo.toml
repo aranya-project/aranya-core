@@ -59,8 +59,8 @@ tracing = { version = "0.1", default-features = false, features = ["attributes"]
 tracing-subscriber = { version = "0.3.18", default-features = false }
 
 prettyplease = "0.2"
-proc-macro2 = "1.0"
-syn = "2.0"
+proc-macro2 = "1.0.80"
+syn = "2.0.59"
 quote = "1.0"
 
 [profile.dev]

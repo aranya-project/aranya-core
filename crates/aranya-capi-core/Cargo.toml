@@ -1,0 +1,45 @@
+[package]
+name = "aranya-capi-core"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+# Enable `ciborium` support.
+ciborium = [
+	"dep:ciborium-io",
+]
+
+# Enable debugging.
+debug = ["aranya-capi-macro/debug"]
+
+# Enable `std`.
+std = [
+	"aranya-buggy/std",
+	"aranya-libc/std",
+	"ciborium-io?/std",
+]
+
+[dependencies]
+aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
+aranya-capi-macro = { version = "0.1.0", path = "../aranya-capi-macro", default-features = false }
+aranya-libc = { version = "0.1.0", path = "../aranya-libc", default-features = false }
+
+cfg-if = { workspace = true, default-features = false }
+const_format = { version = "0.2.31", default-features = false, features = ["assertcp"] }
+tracing = { workspace = true, default-features = false }
+
+ciborium-io = { version = "0.2.2", default-features = false, optional = true }
+
+[dev-dependencies]
+libc = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "registry", "std"] }
+tracing-test = { version = "0.2.5" }

@@ -7,6 +7,8 @@
 /crates/aranya-buggy @jdygert @elagergren
 /crates/aranya-libc @elagergren @jdygert
 
+/crates/aranya-capi* @elagergren @jdygert @chip
+
 /crates/aranya-crypto* @elagergren @ycarmy
 
 /crates/aranya-device-ffi @rfraser @chip

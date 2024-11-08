@@ -120,6 +120,9 @@ exceptions = [
     { allow = ["AGPL-3.0"], crate = "aranya-afc-util" },
     { allow = ["AGPL-3.0"], crate = "aranya-base58" },
     { allow = ["AGPL-3.0"], crate = "aranya-buggy" },
+    { allow = ["AGPL-3.0"], crate = "aranya-capi-codegen" },
+    { allow = ["AGPL-3.0"], crate = "aranya-capi-core" },
+    { allow = ["AGPL-3.0"], crate = "aranya-capi-macro" },
     { allow = ["AGPL-3.0"], crate = "aranya-crypto" },
     { allow = ["AGPL-3.0"], crate = "aranya-crypto-derive" },
     { allow = ["AGPL-3.0"], crate = "aranya-crypto-ffi" },
@@ -128,7 +131,6 @@ exceptions = [
     { allow = ["AGPL-3.0"], crate = "aranya-fast-channels" },
     { allow = ["AGPL-3.0"], crate = "aranya-idam-ffi" },
     { allow = ["AGPL-3.0"], crate = "aranya-libc" },
-    { allow = ["AGPL-3.0"], crate = "aranya-model" },
     { allow = ["AGPL-3.0"], crate = "aranya-perspective-ffi" },
     { allow = ["AGPL-3.0"], crate = "aranya-policy-ast" },
     { allow = ["AGPL-3.0"], crate = "aranya-policy-compiler" },
@@ -139,8 +141,6 @@ exceptions = [
     { allow = ["AGPL-3.0"], crate = "aranya-policy-lang" },
     { allow = ["AGPL-3.0"], crate = "aranya-policy-module" },
     { allow = ["AGPL-3.0"], crate = "aranya-policy-vm" },
-    { allow = ["AGPL-3.0"], crate = "aranya-policy-vm-explorer" },
-    { allow = ["AGPL-3.0"], crate = "aranya-quic-syncer" },
     { allow = ["AGPL-3.0"], crate = "aranya-runtime" },
     { allow = ["AGPL-3.0"], crate = "aranya-trouble" },
 ]
@@ -239,6 +239,8 @@ deny = [
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
     "generic-array@0.14.7",
+    "regex-automata@0.1.10",
+    "regex-syntax@0.6.29",
     "ring@0.16.20",
     "spin@0.5.2",
     "syn@1.0.109",
@@ -268,9 +270,7 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 # List of URLs for allowed Git repositories
 allow-git = []
-private = [
-    "https://github.com/aranya-project/",
-]
+private = []
 
 [sources.allow-org]
 # 1 or more github.com organizations to allow git sources for

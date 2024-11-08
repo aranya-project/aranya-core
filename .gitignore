@@ -13,3 +13,5 @@
 # From -C instrument-coverage
 *.profraw
 tarpaulin-report.html
+
+rustc-ice*

@@ -1,5 +1,6 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
+allow-panic-in-tests = true
 allowed-wildcard-imports = ["features"]
 disallowed-macros = [
     # TODO(jdygert): Disallow core::unreachable

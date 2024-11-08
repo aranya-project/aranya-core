@@ -1,0 +1,28 @@
+[package]
+name = "aranya-capi-codegen-test"
+publish = false
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+aranya-buggy = { version = "0.1.0", path = "../aranya-buggy" }
+aranya-capi-core = { version = "0.1.0", path = "../aranya-capi-core", features = ["debug"] }
+
+thiserror = { version = "1.0.68" }
+tracing = { workspace = true }
+
+[build-dependencies]
+aranya-capi-codegen = { version = "0.1.0", path = "../aranya-capi-codegen" }
+
+anyhow = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true, features = ["extra-traits", "full"] }
+tracing = { workspace = true, features = ["std"] }
+tracing-appender = { version = "0.2.3" }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "registry", "std"] }
