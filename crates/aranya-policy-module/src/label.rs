@@ -21,6 +21,8 @@ pub enum LabelType {
     /// This label is a temporary destination for implementing
     /// branching constructs.
     Temporary,
+    /// Function entry point
+    Function,
 }
 
 impl Display for LabelType {
@@ -32,6 +34,7 @@ impl Display for LabelType {
             LabelType::CommandSeal => write!(f, "seal"),
             LabelType::CommandOpen => write!(f, "open"),
             LabelType::Temporary => write!(f, "temp"),
+            LabelType::Function => write!(f, "fn"),
         }
     }
 }

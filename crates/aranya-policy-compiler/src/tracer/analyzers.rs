@@ -1,8 +1,10 @@
 mod finish_analyzer;
+mod function_analyzer;
 mod value_analyzer;
 
 use aranya_policy_module::{Instruction, ModuleV0};
 pub use finish_analyzer::*;
+pub use function_analyzer::*;
 pub use value_analyzer::*;
 
 use super::{TraceError, TraceFailure};

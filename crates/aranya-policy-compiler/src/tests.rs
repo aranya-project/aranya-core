@@ -5,7 +5,7 @@ use aranya_policy_ast::{FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{ffi::ModuleSchema, Label, LabelType, ModuleData, Value};
 
-use crate::{CallColor, CompileError, CompileErrorType, Compiler};
+use crate::{validate::validate, CallColor, CompileError, CompileErrorType, Compiler};
 
 #[test]
 fn test_compile() -> anyhow::Result<()> {
@@ -1848,4 +1848,69 @@ fn test_action_call() {
 
     let policy = parse_policy_str(text, Version::V1).expect("should parse");
     let _m = Compiler::new(&policy).compile().expect("should compile");
+}
+
+#[test]
+fn test_validate_return() {
+    let valid = [
+        r#"function a() int {
+            return 0 // ok
+        }"#,
+        r#"function c() int {
+            if true {
+                // no return - ok
+            }
+            return 6
+        }"#,
+        r#"function d() int {
+            let n = 0
+            if n > 0 {
+                // ok, return at end
+            }
+            else {
+                return 0
+            }
+            return 1
+        }"#,
+        r#"function f() int {
+            if true {
+                return 1
+            }
+            else {
+                return 0
+            }
+            // ok
+        }"#,
+    ];
+
+    let invalid = [
+        r#"function b() int {
+            if false {
+                return 0
+            }
+            // missing return - fail
+        }"#,
+        r#"function e() int {
+            let n = 0
+            if n > 0 {
+                
+            }
+            else {
+                return 0
+            }
+            // missing return - fail
+        }"#,
+    ];
+
+    for p in valid {
+        let policy = parse_policy_str(p, Version::V1).expect("should parse");
+        let m = Compiler::new(&policy).compile().expect("should compile");
+        assert!(!validate(&m));
+    }
+
+    for p in invalid {
+        let policy = parse_policy_str(p, Version::V1).expect("should parse");
+        let m = Compiler::new(&policy).compile().expect("should compile");
+        assert!(validate(&m));
+    }
 }

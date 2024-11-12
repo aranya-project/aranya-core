@@ -609,7 +609,7 @@ impl<'a> CompileState<'a> {
                         signature.args.len()
                     ))));
                 }
-                self.compile_function_call(f)?;
+                self.compile_function_call(f, false)?;
             }
             Expression::ForeignFunctionCall(f) => {
                 // If the policy hasn't imported this module, don't allow using it
@@ -1147,7 +1147,7 @@ impl<'a> CompileState<'a> {
                             statement.locator,
                         ));
                     }
-                    self.compile_function_call(f)?;
+                    self.compile_function_call(f, true)?;
                 }
                 (ast::Statement::ActionCall(fc), StatementContext::Action(_)) => {
                     let Some(action_def) = self
@@ -1235,7 +1235,10 @@ impl<'a> CompileState<'a> {
         function_node: &'a AstNode<ast::FunctionDefinition>,
     ) -> Result<(), CompileError> {
         let function = &function_node.inner;
-        self.define_label(Label::new_temp(&function.identifier), self.wp)?;
+        self.define_label(
+            Label::new(&function.identifier, LabelType::Function),
+            self.wp,
+        )?;
         self.map_range(function_node)?;
         self.define_function_signature(function_node)?;
 
@@ -1284,12 +1287,23 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    fn compile_function_call(&mut self, fc: &FunctionCall) -> Result<(), CompileError> {
+    fn compile_function_call(
+        &mut self,
+        fc: &FunctionCall,
+        is_finish: bool,
+    ) -> Result<(), CompileError> {
         for a in &fc.arguments {
             self.compile_expression(a)?;
         }
 
-        let label = Label::new_temp(&fc.identifier);
+        let label = Label::new(
+            &fc.identifier,
+            if is_finish {
+                LabelType::Temporary
+            } else {
+                LabelType::Function
+            },
+        );
         self.append_instruction(Instruction::Call(Target::Unresolved(label)));
         Ok(())
     }
