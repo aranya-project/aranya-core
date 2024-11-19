@@ -111,16 +111,10 @@ runs:
     - name: Export GO_VERSION
       run: |
         echo "GO_VERSION=${{ inputs.go-version }}" >> $GITHUB_ENV
-        go env -w "GONOPROXY=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GONOSUMDB=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GOPRIVATE=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
       shell: bash
       if: ${{ inputs.runner != 'windows-latest' && inputs.target != 'vxworks-ppc' }}
     - name: Export GO_VERSION
       run: |
         echo "GO_VERSION=${{ inputs.go-version }}" >> $env:GITHUB_ENV
-        go env -w "GONOPROXY=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GONOSUMDB=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GOPRIVATE=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
       shell: pwsh
       if: ${{ inputs.runner == 'windows-latest' && inputs.target != 'vxworks-ppc' }}
