@@ -61,7 +61,6 @@ runs:
           echo "CXX=$GITHUB_WORKSPACE/clang++12" >> $GITHUB_ENV
           echo "LD=$(which lld-12)" >> $GITHUB_ENV
       shell: bash
-      if: ${{ inputs.runner == 'self-hosted-linux-arm64' || inputs.runner == 'self-hosted-linux-amd64' }}
 
     #
     # Set up Rust
@@ -78,23 +77,11 @@ runs:
         source "$HOME/.cargo/env"
         echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
       shell: bash
-    # Various runners have a 64-bit kernel with a 32-bit userspace.
-    # Setting rustup's default host to armv7 allows using the 32-bit executables.
-    - name: Set rustup's host
-      run: |
-        rustup set default-host armv7-unknown-linux-gnueabihf
-        rustup show active-toolchain
-      shell: bash
-      if: ${{ inputs.runner == 'self-hosted-linux-arm' }}
     - name: cargo version
       shell: bash
       run: |
         file cargo
         cargo --version --verbose
-    - name: glibc version
-      shell: bash
-      run: ldd --version
-      if: ${{ inputs.runner == 'self-hosted-linux-arm' }}
 
     - name: Install sccache
       uses: spideroak-inc/sccache-action@main

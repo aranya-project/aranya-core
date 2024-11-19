@@ -29,7 +29,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: "self-hosted-linux-amd64", target: "vxworks-ppc" }
+          - { runner: "ubuntu-latest", target: "vxworks-ppc" }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v3
