@@ -57,7 +57,7 @@ runs:
           pkg-config
 
           echo "CC=$(which clang-14)" >> $GITHUB_ENV
-          echo "CXX=$GITHUB_WORKSPACE/clang++14" >> $GITHUB_ENV
+          echo "CXX=$(which clang-14)" >> $GITHUB_ENV
           echo "LD=$(which lld-14)" >> $GITHUB_ENV
       shell: bash
 
