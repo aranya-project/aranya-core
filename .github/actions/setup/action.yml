@@ -43,23 +43,23 @@ runs:
         sudo apt-get update -y
         sudo apt-get install -y --no-install-recommends \
           build-essential \
-          clang-12 \
-          clang-tools-12 \
+          clang-14 \
+          clang-tools-14 \
           cmake \
           libunwind-dev \
-          libc++-12-dev \
-          libc++abi-12-dev \
-          libclang-12-dev \
-          libclang1-12 \
-          llvm-12 \
-          llvm-12-dev \
-          lld-12 \
+          libc++-14-dev \
+          libc++abi-14-dev \
+          libclang-14-dev \
+          libclang1-14 \
+          llvm-14 \
+          llvm-14-dev \
+          lld-14 \
           ninja-build \
           pkg-config
 
-          echo "CC=$(which clang-12)" >> $GITHUB_ENV
-          echo "CXX=$GITHUB_WORKSPACE/clang++12" >> $GITHUB_ENV
-          echo "LD=$(which lld-12)" >> $GITHUB_ENV
+          echo "CC=$(which clang-14)" >> $GITHUB_ENV
+          echo "CXX=$GITHUB_WORKSPACE/clang++14" >> $GITHUB_ENV
+          echo "LD=$(which lld-14)" >> $GITHUB_ENV
       shell: bash
 
     #
