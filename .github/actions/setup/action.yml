@@ -46,7 +46,6 @@ runs:
           clang-14 \
           clang-tools-14 \
           cmake \
-          libunwind-dev \
           libc++-14-dev \
           libc++abi-14-dev \
           libclang-14-dev \
