@@ -27,7 +27,7 @@ use crate::{
 /// decrypt messages.
 ///
 /// ```rust
-/// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+/// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
 /// # {
 /// use {
 ///     core::borrow::{Borrow, BorrowMut},

@@ -34,7 +34,7 @@
 //!
 //! ```
 //! # fn main() -> Result<(), Box<dyn core::error::Error>> {
-//! # #[cfg(all(feature = "posix", not(feature = "moonshot")))]
+//! # #[cfg(all(feature = "posix", not(feature = "trng")))]
 //! # {
 //! use aranya_fast_channels::{
 //!     AfcState,

@@ -32,11 +32,6 @@ memory = [
 	"alloc",
 ]
 
-# For Project Moonshot.
-moonshot = [
-	"aranya-crypto/moonshot",
-]
-
 # Support page-aligned NodeLists.
 page-aligned = ["libc"]
 
@@ -61,6 +56,11 @@ testing = [
 
 	"dep:hex",
 	"dep:log", # TODO
+]
+
+# Use a system provided TRNG for the default CSPRNG.
+trng = [
+	"aranya-crypto/trng",
 ]
 
 # Enable unsafe debugging.

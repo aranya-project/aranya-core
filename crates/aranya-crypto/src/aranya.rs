@@ -121,7 +121,7 @@ impl<CS: CipherSuite> IdentityKey<CS> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+    /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
     ///     default::{
@@ -224,7 +224,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+    /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
     ///     default::{
@@ -278,7 +278,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+    /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
     ///     default::{

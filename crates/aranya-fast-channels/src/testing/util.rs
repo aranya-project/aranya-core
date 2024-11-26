@@ -30,10 +30,10 @@ use crate::{
     state::{AfcState, AranyaState, Channel, ChannelId, Directed, Label, NodeId},
 };
 
-#[cfg(feature = "moonshot")]
+#[cfg(feature = "trng")]
 static HW_RAND: core::sync::atomic::AtomicU32 = core::sync::atomic::AtomicU32::new(0);
 
-#[cfg(feature = "moonshot")]
+#[cfg(feature = "trng")]
 #[no_mangle]
 unsafe extern "C" fn OS_hardware_rand() -> u32 {
     HW_RAND.fetch_add(1, core::sync::atomic::Ordering::SeqCst)

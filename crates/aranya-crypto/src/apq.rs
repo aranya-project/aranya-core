@@ -196,7 +196,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+    /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
     ///     apq::{
@@ -384,7 +384,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+    /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
     ///     apq::{SenderSigningKey, Topic, Version},
@@ -601,7 +601,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+    /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
     ///     apq::{

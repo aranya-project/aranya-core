@@ -128,8 +128,8 @@ macro_rules! rand_int_impl {
 rand_int_impl!(u8 u16 u32 u64 u128 usize);
 rand_int_impl!(i8 i16 i32 i64 i128 isize);
 
-#[cfg(feature = "moonshot")]
-pub(crate) mod moonshot {
+#[cfg(feature = "trng")]
+pub(crate) mod trng {
     use core::iter::{IntoIterator, Iterator};
 
     use aes::{

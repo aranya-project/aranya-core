@@ -90,13 +90,6 @@ getrandom = [
 	"rand_core/getrandom",
 ]
 
-# Build for Project Moonshot.
-moonshot = [
-	"dep:aes",
-	"dep:lazy_static",
-	"dep:spin",
-]
-
 # Enable `proptest::arbitrary::Arbitrary` implemenations
 proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
 
@@ -153,6 +146,13 @@ test_util = [
 	"dep:serde_json",
 	"dep:serde_repr",
 	"dep:wycheproof",
+]
+
+# Use a system provided TRNG for the default CSPRNG.
+trng = [
+	"dep:aes",
+	"dep:lazy_static",
+	"dep:spin",
 ]
 
 [dependencies]
@@ -225,10 +225,10 @@ features = [
 	"committing-aead",
 	"ed25519_batch",
 	"fs-keystore",
-	"moonshot",
 	"rand_compat",
 	"std",
 	"test_util",
+	"trng",
 ]
 
 [package.metadata.cargo-all-features]
