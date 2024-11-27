@@ -90,6 +90,9 @@ getrandom = [
 	"rand_core/getrandom",
 ]
 
+# Enable cryptographically hazardous code.
+hazmat = []
+
 # Enable `proptest::arbitrary::Arbitrary` implemenations
 proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
 
@@ -241,6 +244,7 @@ always_include_features = [
 	"ed25519_batch",
 	"fs-keystore",
 	"getrandom",
+	"hazmat",
 	"proptest",
 	"rand_compat",
 	"std",
@@ -249,9 +253,7 @@ always_include_features = [
 
 skip_feature_sets = []
 
-denylist = [
-	"result_option_inspect",
-]
+denylist = []
 
 [package.metadata.cargo-machete]
 ignored = ["old-generic-array"]

@@ -60,9 +60,7 @@ use crate::{
     hash::{Block, Digest, Hash, HashId},
     hex::ToHex,
     import::{try_import, ExportError, Import, ImportError},
-    kem::{
-        dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId, SharedSecret,
-    },
+    kem::{dhkem_impl, DecapKey, Ecdh, EcdhError, EncapKey, SharedSecret},
     keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{PkError, Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     zeroize::{Zeroize, ZeroizeOnDrop},
@@ -629,6 +627,7 @@ mod committing {
     crate::aead::hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
 }
 #[cfg(feature = "committing-aead")]
+#[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
 pub use committing::*;
 
 /// An elliptic curve key.
@@ -2118,6 +2117,7 @@ mod fun_crypto {
     #[allow(clippy::wildcard_imports)]
     mod tests {
         use super::*;
+        use crate::kem::Kem;
 
         // Test some [`CipherSuite`] configurations.
         mod ciphersuite_tests {

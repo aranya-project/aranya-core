@@ -533,60 +533,98 @@ impl<E: Ecdh, F: Kdf> DhKem<E, F> {
 
 type PubKeyData<T> = <<T as Ecdh>::PublicKey as PublicKey>::Data;
 
+/// Implement [`Kem`] for an [`Ecdh`].
+///
+/// - `name`: The name of the resulting [`Kem`] impl.
+/// - `doc`: A string to use for documentation.
+/// - `ecdh`: The [`Ecdh`].
+/// - `kdf`: The [`Kdf`][crate::kdf::Kdf] to use.
+/// - `sk`: The [`DecapKey`] to use.
+/// - `pk`: The [`EncapKey`] to use.
+///
+/// # ⚠️ Warning
+/// <div class="warning">
+/// This is a low-level feature. You should not be using it
+/// unless you understand what you are doing.
+/// </div>
+///
+/// # Example
+///
+/// ```rust,ignore
+/// # #[cfg(feature = "hazmat")]
+/// # fn main() {
+/// use aranya_crypto::dhkem_impl;
+/// dhkem_impl! {
+///     DhKemP256HkdfSha256,
+///     "DHKEM(P256, HKDF-SHA256)",
+///     P256,
+///     HkdfSha256,
+///     P256PrivateKey,
+///     P256PublicKey,
+/// }
+/// # }
+/// ```
+#[cfg_attr(feature = "hazmat", macro_export)]
+#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
 macro_rules! dhkem_impl {
     ($name:ident, $doc:expr, $ecdh:ty, $kdf:ty, $sk:ident, $pk:ident $(,)?) => {
         #[doc = concat!($doc, ".")]
+        #[derive(Debug)]
         pub struct $name;
 
         #[allow(non_snake_case)]
-        impl Kem for $name {
-            const ID: KemId = KemId::$name;
+        impl $crate::kem::Kem for $name {
+            const ID: $crate::kem::KemId = $crate::kem::KemId::$name;
 
             type DecapKey = $sk;
             type EncapKey = $pk;
             type Secret = $crate::kdf::Prk<<$kdf as $crate::kdf::Kdf>::PrkSize>;
             type Encap = <$pk as $crate::keys::PublicKey>::Data;
 
-            fn encap<R: Csprng>(
+            fn encap<R: $crate::csprng::Csprng>(
                 rng: &mut R,
                 pkR: &Self::EncapKey,
-            ) -> Result<(Self::Secret, Self::Encap), KemError> {
-                DhKem::<$ecdh, $kdf>::new(Self::ID).encap(rng, pkR)
+            ) -> ::core::result::Result<(Self::Secret, Self::Encap), $crate::kem::KemError> {
+                $crate::kem::DhKem::<$ecdh, $kdf>::new(Self::ID).encap(rng, pkR)
             }
 
             fn encap_deterministically(
                 pkR: &Self::EncapKey,
                 skE: Self::DecapKey,
-            ) -> Result<(Self::Secret, Self::Encap), KemError> {
-                DhKem::<$ecdh, $kdf>::new(Self::ID).encap_deterministically(pkR, skE)
+            ) -> ::core::result::Result<(Self::Secret, Self::Encap), $crate::kem::KemError> {
+                $crate::kem::DhKem::<$ecdh, $kdf>::new(Self::ID).encap_deterministically(pkR, skE)
             }
 
-            fn decap(enc: &Self::Encap, skR: &Self::DecapKey) -> Result<Self::Secret, KemError> {
-                DhKem::<$ecdh, $kdf>::new(Self::ID).decap(enc, skR)
+            fn decap(
+                enc: &Self::Encap,
+                skR: &Self::DecapKey,
+            ) -> ::core::result::Result<Self::Secret, $crate::kem::KemError> {
+                $crate::kem::DhKem::<$ecdh, $kdf>::new(Self::ID).decap(enc, skR)
             }
 
-            fn auth_encap<R: Csprng>(
+            fn auth_encap<R: $crate::csprng::Csprng>(
                 rng: &mut R,
                 pkR: &Self::EncapKey,
                 skS: &Self::DecapKey,
-            ) -> Result<(Self::Secret, Self::Encap), KemError> {
-                DhKem::<$ecdh, $kdf>::new(Self::ID).auth_encap(rng, pkR, skS)
+            ) -> ::core::result::Result<(Self::Secret, Self::Encap), $crate::kem::KemError> {
+                $crate::kem::DhKem::<$ecdh, $kdf>::new(Self::ID).auth_encap(rng, pkR, skS)
             }
 
             fn auth_encap_deterministically(
                 pkR: &Self::EncapKey,
                 skS: &Self::DecapKey,
                 skE: Self::DecapKey,
-            ) -> Result<(Self::Secret, Self::Encap), KemError> {
-                DhKem::<$ecdh, $kdf>::new(Self::ID).auth_encap_deterministically(pkR, skS, skE)
+            ) -> ::core::result::Result<(Self::Secret, Self::Encap), $crate::kem::KemError> {
+                $crate::kem::DhKem::<$ecdh, $kdf>::new(Self::ID)
+                    .auth_encap_deterministically(pkR, skS, skE)
             }
 
             fn auth_decap(
                 enc: &Self::Encap,
                 skR: &Self::DecapKey,
                 pkS: &Self::EncapKey,
-            ) -> Result<Self::Secret, KemError> {
-                DhKem::<$ecdh, $kdf>::new(Self::ID).auth_decap(enc, skR, pkS)
+            ) -> ::core::result::Result<Self::Secret, $crate::kem::KemError> {
+                $crate::kem::DhKem::<$ecdh, $kdf>::new(Self::ID).auth_decap(enc, skR, pkS)
             }
         }
     };

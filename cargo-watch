@@ -16,7 +16,9 @@ EOF
 }
 trap 'cleanup' EXIT
 
-export RUSTDOCFLAGS="--cfg docs"
+export RUSTDOCFLAGS="--cfg docsrs"
 cargo +nightly doc --all-features --workspace # init target/doc
 http -a 127.0.0.1 -p 8080 target/doc &
-cargo watch -s 'cargo +nightly doc --all-features --workspace'
+cargo watch \
+    -s 'cargo +nightly doc --all-features --workspace' \
+    -i 'crates/aranya-capi-codegen-test/'

@@ -867,7 +867,8 @@ mod committing {
     /// [bellare].
     ///
     /// [bellare]: https://eprint.iacr.org/2022/268
-    pub(crate) struct CtrThenXorPrf<A, C> {
+    #[doc(hidden)]
+    pub struct CtrThenXorPrf<A, C> {
         _aead: PhantomData<A>,
         _cipher: PhantomData<C>,
     }
@@ -1034,8 +1035,30 @@ mod committing {
     }
 
     /// Implements the UNAE-Then-Commit (UtC) transform to turn
-    /// a standard AEAD (that implements [`CtrThenXorPrf`]) into
-    /// a CMT-1 AEAD.
+    /// a standard AEAD into a CMT-1 AEAD.
+    ///
+    /// - `name`: The name of the resulting [`Aead`].
+    /// - `inner`: The underlying [`Aead`].
+    /// - `cipher`: The underlying [`BlockCipher`].
+    /// - `doc`: A string to use for documentation.
+    ///
+    /// # ⚠️ Warning
+    /// <div class="warning">
+    /// This is a low-level feature. You should not be using it
+    /// unless you understand what you are doing.
+    /// </div>
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// # #[cfg(all(feature = "committing-aead", feature = "hazmat"))]
+    /// # fn main() {
+    /// use aranya_crypto::utc_aead;
+    /// utc_aead!(Cmt1Aes256Gcm, Aes256Gcm, Aes256, "CMT-1 AES-256-GCM.");
+    /// # }
+    /// ```
+    #[cfg_attr(feature = "hazmat", macro_export)]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "committing-aead", feature = "hazmat"))))]
     macro_rules! utc_aead {
         ($name:ident, $inner:ty, $cipher:ty, $doc:expr) => {
             #[doc = $doc]
@@ -1046,23 +1069,20 @@ mod committing {
 
             impl $name {
                 const COMMITMENT_SIZE: usize = <<$cipher as $crate::aead::BlockCipher>::BlockSize as
-                                                                        ::typenum::Unsigned>::USIZE;
+                                                                        $crate::typenum::Unsigned>::USIZE;
             }
 
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::CommittingAead for $name {}
 
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Cmt1Aead for $name {}
 
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Aead for $name {
                 const ID: $crate::aead::AeadId = $crate::aead::AeadId::$name;
                 const LIFETIME: $crate::aead::Lifetime = <$inner as $crate::aead::Aead>::LIFETIME;
 
                 type KeySize = <$inner as $crate::aead::Aead>::KeySize;
                 type NonceSize = <$inner as $crate::aead::Aead>::NonceSize;
-                type Overhead = ::typenum::Sum<
+                type Overhead = $crate::typenum::Sum<
                     <$inner as $crate::aead::Aead>::Overhead,
                     // UtC has one block of overhead.
                     <$cipher as $crate::aead::BlockCipher>::BlockSize,
@@ -1093,7 +1113,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (dst, cx) = ::aranya_buggy::BugExt::assume(
+                    let (dst, cx) = $crate::aranya_buggy::BugExt::assume(
                         dst.split_last_chunk_mut::<{Self::COMMITMENT_SIZE}>(),
                         "`COMMITMENT_SIZE` fits in `out`",
                     )?;
@@ -1126,7 +1146,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (tag, cx) = ::aranya_buggy::BugExt::assume(
+                    let (tag, cx) = $crate::aranya_buggy::BugExt::assume(
                         overhead.split_last_chunk_mut::<{Self::COMMITMENT_SIZE}>(),
                         "`COMMITMENT_SIZE` fits in `overhead`",
                     )?;
@@ -1159,7 +1179,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (ciphertext, got_cx) = ::aranya_buggy::BugExt::assume(
+                    let (ciphertext, got_cx) = $crate::aranya_buggy::BugExt::assume(
                         ciphertext.split_last_chunk::<{Self::COMMITMENT_SIZE}>(),
                         "`COMMITMENT_SIZE` fits in `ciphertext`",
                     )?;
@@ -1167,7 +1187,7 @@ mod committing {
                         &self.key,
                         &nonce.try_into()?,
                     )?;
-                    if !bool::from(::subtle::ConstantTimeEq::ct_eq(
+                    if !bool::from($crate::subtle::ConstantTimeEq::ct_eq(
                         want_cx.as_slice(),
                         got_cx,
                     )) {
@@ -1198,7 +1218,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (overhead, got_cx) = ::aranya_buggy::BugExt::assume(
+                    let (overhead, got_cx) = $crate::aranya_buggy::BugExt::assume(
                         overhead.split_last_chunk::<{Self::COMMITMENT_SIZE}>(),
                         "`COMMITMENT_SIZE` fits in `overhead`",
                     )?;
@@ -1206,7 +1226,7 @@ mod committing {
                         &self.key,
                         &nonce.try_into()?,
                     )?;
-                    if !bool::from(::subtle::ConstantTimeEq::ct_eq(
+                    if !bool::from($crate::subtle::ConstantTimeEq::ct_eq(
                         want_cx.as_slice(),
                         got_cx,
                     )) {
@@ -1289,10 +1309,32 @@ mod committing {
 
     /// Implements the Hash-then-Encrypt (HtE) transform to turn
     /// a CMT-1 AEAD into a CMT-4 AEAD.
+    ///
+    /// - `name`: The name of the resulting [`Aead`].
+    /// - `inner`: The underlying [`Aead`].
+    /// - `hash`: A hash function.
+    /// - `doc`: A string to use for documentation.
+    ///
+    /// # ⚠️ Warning
+    /// <div class="warning">
+    /// This is a low-level feature. You should not be using it
+    /// unless you understand what you are doing.
+    /// </div>
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// # #[cfg(all(feature = "committing-aead", feature = "hazmat"))]
+    /// # fn main() {
+    /// use aranya_crypto::hte_aead;
+    /// hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
+    /// # }
+    /// ```
+    #[cfg_attr(feature = "hazmat", macro_export)]
+    #[cfg_attr(docsrs, doc(cfg(all(feature = "committing-aead", feature = "hazmat"))))]
     macro_rules! hte_aead {
         ($name:ident, $inner:ty, $hash:ty, $doc:expr) => {
             #[doc = $doc]
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             pub struct $name {
                 key: <$inner as $crate::aead::Aead>::Key,
             }
@@ -1315,7 +1357,7 @@ mod committing {
                         hmac.update(ad);
                         hmac.tag()
                     };
-                    let mut key_bytes = ::generic_array::GenericArray::<
+                    let mut key_bytes = $crate::generic_array::GenericArray::<
                         u8,
                         <<$inner as $crate::aead::Aead>::Key as $crate::keys::SecretKey>::Size,
                     >::default();
@@ -1333,19 +1375,14 @@ mod committing {
 
             // The `where` bound is important as it enforces the
             // requirement that `$inner` be a CMT-1 AEAD.
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::CommittingAead for $name where $inner: $crate::aead::Cmt1Aead {}
 
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Cmt1Aead for $name {}
 
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Cmt3Aead for $name {}
 
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Cmt4Aead for $name where $inner: $crate::aead::Cmt1Aead {}
 
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             impl $crate::aead::Aead for $name {
                 const ID: $crate::aead::AeadId = $crate::aead::AeadId::$name;
                 const LIFETIME: $crate::aead::Lifetime = <$inner as $crate::aead::Aead>::LIFETIME;

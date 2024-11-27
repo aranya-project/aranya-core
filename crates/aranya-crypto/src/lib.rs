@@ -82,6 +82,7 @@ pub mod zeroize;
 
 pub use aead::{BufferTooSmallError, OpenError, SealError};
 pub use aranya::*;
+pub use aranya_buggy;
 pub use ciphersuite::*;
 pub use csprng::{Csprng, Random};
 pub use default::Rng;

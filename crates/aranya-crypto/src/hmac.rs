@@ -108,18 +108,12 @@ pub type HmacKey<N> = MacKey<N>;
 pub struct Tag<N: ArrayLength>(Digest<N>);
 
 impl<N: ArrayLength> Tag<N> {
+    /// Returns the size in bytes of the tag.
     #[cfg(feature = "committing-aead")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
     #[allow(clippy::len_without_is_empty)]
-    pub(crate) const fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.0.len()
-    }
-
-    // NB: this is intentionally not public because the only safe
-    // way to use a MAC is to compare it for equality using
-    // `ConstantTimeEq`. It's needed by the `hkdf` module,
-    // however.
-    pub(crate) fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
     }
 
     // NB: this is intentionally not public because the only safe
@@ -128,6 +122,34 @@ impl<N: ArrayLength> Tag<N> {
     // however.
     pub(crate) fn into_array(self) -> GenericArray<u8, N> {
         self.0.into_array()
+    }
+}
+
+// NB: this is intentionally not public by default because the
+// only safe way to use a MAC is to compare it for equality using
+// `ConstantTimeEq`. It's needed by the `hkdf` module, however.
+cfg_if::cfg_if! {
+    if #[cfg(feature = "hazmat")] {
+        impl<N: ArrayLength> Tag<N> {
+            /// Returns the tag as a byte slice.
+            ///
+            /// # ⚠️ Warning
+            /// <div class="warning">
+            /// This is a low-level feature. You should not be
+            /// using it unless you understand what you are
+            /// doing.
+            /// </div>
+            #[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
+            pub const fn as_bytes(&self) -> &[u8] {
+                self.0.as_bytes()
+            }
+        }
+    } else {
+        impl<N: ArrayLength> Tag<N> {
+            pub(crate) const fn as_bytes(&self) -> &[u8] {
+                self.0.as_bytes()
+            }
+        }
     }
 }
 
@@ -148,6 +170,49 @@ impl<'a, N: ArrayLength> TryFrom<&'a [u8]> for Tag<N> {
     }
 }
 
+/// Implement [`Hmac`] for `$name`.
+///
+/// # ⚠️ Warning
+/// <div class="warning">
+/// This is a low-level feature. You should not be using it
+/// unless you understand what you are doing.
+/// </div>
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "hazmat")]
+/// # fn main() {
+/// use aranya_crypto::{
+///     hash::{Block, Digest, Hash, HashId},
+///     hmac_impl,
+///     typenum::U32,
+/// };
+///
+/// #[derive(Clone)]
+/// pub struct Sha256;
+///
+/// impl Hash for Sha256 {
+///     const ID: HashId = HashId::Sha256;
+///     type DigestSize = U32;
+///     type Block = Block<64>;
+///     const BLOCK_SIZE: usize = 64;
+///     fn new() -> Self {
+///         Self
+///     }
+///     fn update(&mut self, _data: &[u8]) {
+///         todo!()
+///     }
+///     fn digest(self) -> Digest<Self::DigestSize> {
+///         todo!()
+///     }
+/// }
+///
+/// hmac_impl!(HmacSha256, "HMAC-SHA-256", Sha256);
+/// # }
+/// ```
+#[cfg_attr(feature = "hazmat", macro_export)]
+#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
 macro_rules! hmac_impl {
     ($name:ident, $doc:expr, $hash:ident) => {
         #[doc = concat!($doc, ".")]
