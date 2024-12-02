@@ -1,36 +1,15 @@
 name: "Setup build tools"
 description: "Action for setting up build tools"
 inputs:
-  gh-token:
-    description: "github.com Access Token"
-    required: true
-  ghe-token:
-    description: "git.spideroak-inc.com Access Token"
-    required: true
   go-version:
     description: "Go version"
     required: true
     default: "stable"
-  runner:
-    description: "OS being used (e.g., macos-latest)"
-    required: true
   target:
     description: "OS-arch target being compiled for (e.g., linux-arm64)"
 runs:
   using: "composite"
   steps:
-    # Our runners don't get wiped between runs :/
-    - name: nuke old .gitconfig
-      run: rm ~/.gitconfig || true
-      shell: bash
-
-    - name: Set up git
-      run: |
-        git config --global --replace-all url."https://${{ inputs.ghe-token }}@git.spideroak-inc.com/spideroak-inc/".insteadOf 'https://github.com/aranya-project/'
-        git config --global --replace-all url."https://${{ inputs.gh-token }}@github.com/".insteadOf 'https://github.com/'
-        echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> $GITHUB_ENV
-      shell: bash
-
       # There is a bug in the version of GCC that ships with our
       # arm64 runners that prevents BoringSSL from compiling. So,
       # use Clang instead.
@@ -85,7 +64,7 @@ runs:
     - name: Install sccache
       uses: aranya-project/sccache-action@main
       with:
-        version: "v0.7.7"
+        version: "v0.8.2"
 
     - name: Configure sccache
       run: |
@@ -95,7 +74,7 @@ runs:
       shell: bash
 
     - name: Install cargo-make
-      run: cargo install --version '0.37.11' --locked cargo-make
+      run: cargo install --version '0.37.23' --locked cargo-make
       shell: bash
 
     # BoringSSL uses Go.

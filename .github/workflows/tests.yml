@@ -34,14 +34,10 @@ jobs:
         ]
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Environment
         uses: ./.github/actions/setup
-        with:
-          ghe-token: ${{ secrets.CC_BUILD_TOKEN }}
-          gh-token: ${{ secrets.GH_DOTCOM_TOKEN }}
-          runner: ${{ matrix.runner }}
 
       - name: Unit Tests
         run: cargo make unit-tests
