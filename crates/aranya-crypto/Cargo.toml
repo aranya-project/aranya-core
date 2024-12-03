@@ -36,12 +36,6 @@ bearssl = [
 	"dep:aranya-bearssl-sys",
 ]
 
-# Enable BoringSSL.
-boringssl = [
-	"alloc",
-	"dep:aranya-bssl-sys",
-]
-
 # Enable committing AEAD implementations.
 committing-aead = [
 	"dep:aes",
@@ -165,7 +159,6 @@ aranya-crypto-derive = { version = "0.1.0", path = "../aranya-crypto-derive" }
 aranya-trouble = { version = "0.1.0", path = "../aranya-trouble", default-features = false }
 
 aranya-bearssl-sys = { version = "0.1.0", optional = true }
-aranya-bssl-sys = { version = "0.1.0", optional = true }
 
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
@@ -238,7 +231,6 @@ features = [
 always_include_features = [
 	"alloc",
 	"bearssl",
-	"boringssl",
 	"clone-aead",
 	"committing-aead",
 	"ed25519_batch",

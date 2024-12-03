@@ -52,7 +52,6 @@ pub mod apq;
 mod aranya;
 pub mod asn1;
 pub mod bearssl;
-pub mod boring;
 mod ciphersuite;
 pub mod csprng;
 pub mod default;

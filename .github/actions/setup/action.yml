@@ -34,6 +34,8 @@ runs:
       # There is a bug in the version of GCC that ships with our
       # arm64 runners that prevents BoringSSL from compiling. So,
       # use Clang instead.
+      #
+      # TODO(eric): Reassess whether we still need these.
     - name: Install arm64/amd64 system dependencies
       run: |
         set -x
@@ -111,29 +113,3 @@ runs:
     - name: Install cargo-make
       run: cargo install --version '0.37.11' --locked cargo-make
       shell: bash
-
-    # BoringSSL uses Go.
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        token: ${{ inputs.gh-token }}
-        go-version: ${{ inputs.go-version }}
-        check-latest: true
-      if: ${{ inputs.target != 'vxworks-ppc' }}
-
-    - name: Export GO_VERSION
-      run: |
-        echo "GO_VERSION=${{ inputs.go-version }}" >> $GITHUB_ENV
-        go env -w "GONOPROXY=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GONOSUMDB=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GOPRIVATE=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-      shell: bash
-      if: ${{ inputs.runner != 'windows-latest' && inputs.target != 'vxworks-ppc' }}
-    - name: Export GO_VERSION
-      run: |
-        echo "GO_VERSION=${{ inputs.go-version }}" >> $env:GITHUB_ENV
-        go env -w "GONOPROXY=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GONOSUMDB=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-        go env -w "GOPRIVATE=git.spideroak-inc.com/spideroak-inc/*,*.spideroak.com,*.spideroak-ms.com"
-      shell: pwsh
-      if: ${{ inputs.runner == 'windows-latest' && inputs.target != 'vxworks-ppc' }}

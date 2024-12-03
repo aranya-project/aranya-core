@@ -141,9 +141,7 @@ pub(crate) mod trng {
     use crate::{csprng::Csprng, kdf::Kdf, zeroize::ZeroizeOnDrop};
 
     cfg_if! {
-        if #[cfg(feature = "boringssl")] {
-            use crate::boring::HkdfSha512;
-        } else if #[cfg(feature = "bearssl")] {
+        if #[cfg(feature = "bearssl")] {
             use crate::bearssl::HkdfSha512;
         } else {
             use crate::rust::HkdfSha512;
@@ -348,13 +346,6 @@ pub(crate) mod trng {
         #[cfg(feature = "bearssl")]
         fn test_aes_ctr_csprng_bearssl() {
             test_aes_ctr_csprng::<crate::bearssl::HkdfSha512>();
-        }
-
-        /// Test with BoringSSL's HKDF.
-        #[test]
-        #[cfg(feature = "boringssl")]
-        fn test_aes_ctr_csprng_boringssl() {
-            test_aes_ctr_csprng::<crate::boring::HkdfSha512>();
         }
 
         /// Test our own HKDF.

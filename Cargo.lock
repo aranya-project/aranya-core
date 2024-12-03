@@ -165,18 +165,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aranya-bssl-sys"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c546e3b6052eeeec82e527142009bfed9eb60fdc525dbeb713cd806a0924f2ad"
-dependencies = [
- "bindgen",
- "cfg-if",
- "cmake",
- "memchr",
-]
-
-[[package]]
 name = "aranya-buggy"
 version = "0.1.0"
 dependencies = [
@@ -250,7 +238,6 @@ dependencies = [
  "aes-gcm",
  "aranya-base58",
  "aranya-bearssl-sys",
- "aranya-bssl-sys",
  "aranya-buggy",
  "aranya-crypto",
  "aranya-crypto-derive",
@@ -855,15 +842,6 @@ name = "clap_lex"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
-
-[[package]]
-name = "cmake"
-version = "0.1.51"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb1e43aa7fd152b1f968787f7dbcdeb306d1867ff373c69955211876c053f91a"
-dependencies = [
- "cc",
-]
 
 [[package]]
 name = "cobs"

@@ -262,12 +262,6 @@ mod tests {
         };
     }
 
-    #[cfg(feature = "boringssl")]
-    mod boringssl {
-        use crate::boring::{Sha256, Sha384, Sha512};
-        hmac_tests!();
-    }
-
     #[cfg(feature = "bearssl")]
     mod bearssl {
         use crate::bearssl::{Sha256, Sha384, Sha512};
