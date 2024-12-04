@@ -14,7 +14,7 @@ workspace = true
 aranya-buggy = { version = "0.1.0", path = "../aranya-buggy" }
 aranya-capi-core = { version = "0.1.0", path = "../aranya-capi-core", features = ["debug"] }
 
-thiserror = { version = "1.0.68" }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]

@@ -377,10 +377,9 @@ impl SyncResponder {
                 bug!("send index OOB");
             };
 
-            let Ok(segment) = storage.get_segment(location) else {
-                self.state = SyncResponderState::Reset;
-                return Err(SyncError::StorageError);
-            };
+            let segment = storage
+                .get_segment(location)
+                .inspect_err(|_| self.state = SyncResponderState::Reset)?;
 
             let found = segment.get_from(location);
 

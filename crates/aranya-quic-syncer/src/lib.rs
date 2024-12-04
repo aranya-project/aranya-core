@@ -8,6 +8,7 @@ use std::{
     sync::Arc,
 };
 
+use aranya_buggy::{bug, Bug};
 use aranya_runtime::{
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
@@ -22,29 +23,32 @@ use tracing::error;
 #[derive(thiserror::Error, Debug)]
 pub enum QuicSyncError {
     /// A sync protocol error.
-    #[error("sync error")]
+    #[error("sync error: {0}")]
     Sync(#[from] SyncError),
     /// An error interacting with the runtime client.
-    #[error("client error")]
+    #[error("client error: {0}")]
     Client(#[from] ClientError),
     /// A tls error from configuring certificates
-    #[error("rustls error")]
+    #[error("rustls error: {0}")]
     Rustls(#[from] rustls::Error),
     /// An error writing to the quic stream
-    #[error("write error")]
+    #[error("write error: {0}")]
     Write(#[from] WriteError),
     /// An error reading from the quic stream
-    #[error("read error")]
+    #[error("read error: {0}")]
     Read(#[from] ReadToEndError),
     /// An error when creating a connection
-    #[error("connect error")]
+    #[error("connect error: {0}")]
     Connect(#[from] ConnectError),
     /// An error during connection
-    #[error("connection error")]
+    #[error("connection error: {0}")]
     Connection(#[from] ConnectionError),
     /// An IO error binding the socket
-    #[error("io error")]
+    #[error("io error: {0}")]
     Io(#[from] std::io::Error),
+    /// An unexpected bug
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
 
 /// Runs a server listening for sync requests from other peers.
@@ -158,7 +162,7 @@ impl Syncer {
         let heads = self.remote_heads.entry(server_addr).or_default();
         let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
         if len > buffer.len() {
-            return Err(SyncError::SerilizeError.into());
+            bug!("length should fit in buffer");
         }
 
         let conn = self.endpoint.connect(server_addr, "localhost")?.await?;

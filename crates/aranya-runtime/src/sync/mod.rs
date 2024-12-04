@@ -1,7 +1,5 @@
 //! Interface for syncing state between clients.
 
-use core::{convert::Infallible, fmt};
-
 use aranya_buggy::Bug;
 use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
@@ -53,59 +51,24 @@ pub struct CommandMeta {
 }
 
 /// An error returned by the syncer.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum SyncError {
-    UnexpectedMessage,
+    #[error("sync session ID does not match")]
     SessionMismatch,
+    #[error("missing sync response")]
     MissingSyncResponse,
+    #[error("syncer state not valid for this message")]
     SessionState,
-    StorageError,
+    #[error("syncer not ready for operation")]
     NotReady,
-    SerilizeError,
+    #[error("too many commands sent")]
     CommandOverflow,
-    Bug(Bug),
-}
-
-impl fmt::Display for SyncError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnexpectedMessage => write!(f, "unexpected message"),
-            Self::SessionMismatch => write!(f, "session mismatch"),
-            Self::MissingSyncResponse => write!(f, "missing sync response"),
-            Self::SessionState => write!(f, "session state error"),
-            Self::StorageError => write!(f, "storage error"),
-            Self::NotReady => write!(f, "not ready"),
-            Self::SerilizeError => write!(f, "serialize error"),
-            Self::CommandOverflow => write!(f, "too many commands sent"),
-            Self::Bug(bug) => write!(f, "{bug}"),
-        }
-    }
-}
-
-impl core::error::Error for SyncError {}
-
-impl From<Bug> for SyncError {
-    fn from(error: Bug) -> Self {
-        SyncError::Bug(error)
-    }
-}
-
-impl From<Infallible> for SyncError {
-    fn from(error: Infallible) -> Self {
-        match error {}
-    }
-}
-
-impl From<StorageError> for SyncError {
-    fn from(_error: StorageError) -> Self {
-        SyncError::StorageError
-    }
-}
-
-impl From<PostcardError> for SyncError {
-    fn from(_error: PostcardError) -> Self {
-        SyncError::SerilizeError
-    }
+    #[error("storage error: {0}")]
+    Storage(#[from] StorageError),
+    #[error("serialize error: {0}")]
+    Serialize(#[from] PostcardError),
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
 
 /// Sync command to be committed to graph.
