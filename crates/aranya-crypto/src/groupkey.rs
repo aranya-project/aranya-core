@@ -90,7 +90,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// # Example
     ///
     /// ```rust
-    /// # #[cfg(all(feature = "alloc", not(feature = "moonshot")))]
+    /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
     ///     Context,

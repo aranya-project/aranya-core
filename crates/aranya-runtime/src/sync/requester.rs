@@ -332,8 +332,8 @@ impl SyncRequester<'_> {
 
         match provider.get_storage(self.storage_id) {
             Err(StorageError::NoSuchStorage) => (),
-            Err(_) => {
-                return Err(SyncError::StorageError);
+            Err(err) => {
+                return Err(SyncError::Storage(err));
             }
             Ok(storage) => {
                 let mut command_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();

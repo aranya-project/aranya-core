@@ -2,7 +2,7 @@
 
 use aranya_crypto::{default::DefaultCipherSuite, test_ciphersuite};
 
-#[cfg(feature = "moonshot")]
+#[cfg(feature = "trng")]
 #[no_mangle]
 extern "C" fn OS_hardware_rand() -> u32 {
     42

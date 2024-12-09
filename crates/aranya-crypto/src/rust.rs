@@ -44,7 +44,7 @@ use crate::{
     hkdf::hkdf_impl,
     hmac::hmac_impl,
     import::{try_from_slice, ExportError, Import, ImportError},
-    kem::{dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId},
+    kem::{dhkem_impl, DecapKey, Ecdh, EcdhError, EncapKey},
     keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     zeroize::ZeroizeOnDrop,
@@ -165,6 +165,7 @@ mod committing {
     crate::aead::hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
 }
 #[cfg(feature = "committing-aead")]
+#[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
 pub use committing::*;
 
 use crate::aead::InvalidNonceSize;

@@ -29,7 +29,7 @@ mod hsm;
 
 use hsm::{Hsm, HsmError, KeyId};
 // Ignore this.
-#[cfg(feature = "moonshot")]
+#[cfg(feature = "trng")]
 #[no_mangle]
 extern "C" fn OS_hardware_rand() -> u32 {
     use ::rand::RngCore;

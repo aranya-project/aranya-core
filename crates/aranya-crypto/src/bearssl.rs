@@ -44,9 +44,7 @@ use crate::{
     hkdf::hkdf_impl,
     hmac::hmac_impl,
     import::{ExportError, Import, ImportError},
-    kem::{
-        dhkem_impl, DecapKey, DhKem, Ecdh, EcdhError, EncapKey, Kem, KemError, KemId, SharedSecret,
-    },
+    kem::{dhkem_impl, DecapKey, Ecdh, EcdhError, EncapKey, SharedSecret},
     keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{PkError, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
@@ -244,6 +242,7 @@ mod committing {
     crate::aead::hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
 }
 #[cfg(feature = "committing-aead")]
+#[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
 pub use committing::*;
 
 macro_rules! curve_impl {

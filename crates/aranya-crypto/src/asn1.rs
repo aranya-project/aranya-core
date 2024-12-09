@@ -232,21 +232,21 @@ impl<const N: usize> RawSig<N> {
         }
     }
 
-    #[cfg(any(feature = "bearssl", feature = "boringssl"))]
+    #[cfg(feature = "bearssl")]
     pub(crate) fn as_mut_ptr(&mut self) -> *mut u8 {
         Self::check();
 
         self.0.as_mut_ptr()
     }
 
-    #[cfg(any(feature = "bearssl", feature = "boringssl"))]
+    #[cfg(feature = "bearssl")]
     pub(crate) fn as_ptr(&self) -> *const u8 {
         Self::check();
 
         self.0.as_ptr()
     }
 
-    #[cfg(any(feature = "bearssl", feature = "boringssl"))]
+    #[cfg(feature = "bearssl")]
     pub(crate) fn len(&self) -> usize {
         Self::check();
 

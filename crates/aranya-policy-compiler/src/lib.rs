@@ -4,6 +4,7 @@
 mod compile;
 mod tests;
 mod tracer;
+pub mod validate;
 
 pub use compile::*;
 pub use tracer::*;

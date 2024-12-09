@@ -52,7 +52,6 @@ pub mod apq;
 mod aranya;
 pub mod asn1;
 pub mod bearssl;
-pub mod boring;
 mod ciphersuite;
 pub mod csprng;
 pub mod default;
@@ -82,6 +81,7 @@ pub mod zeroize;
 
 pub use aead::{BufferTooSmallError, OpenError, SealError};
 pub use aranya::*;
+pub use aranya_buggy;
 pub use ciphersuite::*;
 pub use csprng::{Csprng, Random};
 pub use default::Rng;

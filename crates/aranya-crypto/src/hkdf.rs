@@ -139,6 +139,49 @@ impl<H: Hash> Hkdf<H> {
     }
 }
 
+/// Implement [`Hkdf`] for `$name`.
+///
+/// # ⚠️ Warning
+/// <div class="warning">
+/// This is a low-level feature. You should not be using it
+/// unless you understand what you are doing.
+/// </div>
+///
+/// # Example
+///
+/// ```rust
+/// # #[cfg(feature = "hazmat")]
+/// # fn main() {
+/// use aranya_crypto::{
+///     hash::{Block, Digest, Hash, HashId},
+///     hkdf_impl,
+///     typenum::U32,
+/// };
+///
+/// #[derive(Clone)]
+/// pub struct Sha256;
+///
+/// impl Hash for Sha256 {
+///     const ID: HashId = HashId::Sha256;
+///     type DigestSize = U32;
+///     type Block = Block<64>;
+///     const BLOCK_SIZE: usize = 64;
+///     fn new() -> Self {
+///         Self
+///     }
+///     fn update(&mut self, _data: &[u8]) {
+///         todo!()
+///     }
+///     fn digest(self) -> Digest<Self::DigestSize> {
+///         todo!()
+///     }
+/// }
+///
+/// hkdf_impl!(HkdfSha256, "HMAC-SHA-256", Sha256);
+/// # }
+/// ```
+#[cfg_attr(feature = "hazmat", macro_export)]
+#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
 macro_rules! hkdf_impl {
     ($name:ident, $doc_name:expr, $hash:ident) => {
         #[doc = concat!($doc_name, ".")]
@@ -191,12 +234,6 @@ mod tests {
             test_kdf!(hkdf_sha384, HkdfSha384, HkdfTest::HkdfSha384);
             test_kdf!(hkdf_sha512, HkdfSha512, HkdfTest::HkdfSha512);
         };
-    }
-
-    #[cfg(feature = "boringssl")]
-    mod boringssl {
-        use crate::boring::{Sha256, Sha384, Sha512};
-        hkdf_tests!();
     }
 
     #[cfg(feature = "bearssl")]
