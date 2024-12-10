@@ -50,34 +50,6 @@ command = "cargo"
 args = ["deny", "check"]
 
 
-# VxWorks
-[tasks.setup-vxworks-env]
-category = "vxworks"
-description = "Setup vxworks environment"
-script = "rustup component add --toolchain ${NIGHTLY} rust-src"
-dependencies = ["install-nightly"]
-
-[tasks.build-vxworks-code]
-category = "vxworks"
-description = "Build vxworks code"
-toolchain = "${NIGHTLY}"
-command = "cargo"
-args = [
-    "build",
-    "-Zbuild-std=core,alloc",
-    "--target=powerpc-wrs-vxworks",
-    "--release",
-    # Only try to build the crates that are used on VxWorks.
-    "--package=aranya-crypto",
-    "--package=aranya-runtime",
-    "--package=aranya-fast-channels",
-    "--no-default-features",
-    "--features=trng,libc,posix,sdlib",
-    "${@}",
-]
-dependencies = ["setup-vxworks-env"]
-
-
 # Correctness
 [tasks.correctness]
 category = "correctness"
