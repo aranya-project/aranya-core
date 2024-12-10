@@ -26,10 +26,7 @@ concurrency:
 
 jobs:
   fmt:
-    strategy:
-      matrix:
-        runner: ["ubuntu-latest"]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -39,10 +36,7 @@ jobs:
         run: cargo make check-fmt
 
   canaries:
-    strategy:
-      matrix:
-        runner: ["ubuntu-latest"]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -52,10 +46,7 @@ jobs:
         run: cargo make check-canaries
 
   clippy:
-    strategy:
-      matrix:
-        runner: ["ubuntu-latest"]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -65,10 +56,7 @@ jobs:
         run: cargo make clippy
 
   machete:
-    strategy:
-      matrix:
-        runner: ["ubuntu-latest"]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -78,10 +66,7 @@ jobs:
         run: cargo make machete
 
   check:
-    strategy:
-      matrix:
-        runner: ["ubuntu-latest"]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 

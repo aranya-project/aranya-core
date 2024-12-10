@@ -1,47 +1,8 @@
 name: "Setup build tools"
 description: "Action for setting up build tools"
-inputs:
-  go-version:
-    description: "Go version"
-    required: true
-    default: "stable"
-  target:
-    description: "OS-arch target being compiled for (e.g., linux-arm64)"
 runs:
   using: "composite"
   steps:
-      # There is a bug in the version of GCC that ships with our
-      # arm64 runners that prevents BoringSSL from compiling. So,
-      # use Clang instead.
-      #
-      # TODO(eric): Reassess whether we still need these.
-    - name: Install arm64/amd64 system dependencies
-      run: |
-        set -x
-
-        lsb_release -a
-
-        sudo apt-get update -y
-        sudo apt-get install -y --no-install-recommends \
-          build-essential \
-          clang-14 \
-          clang-tools-14 \
-          cmake \
-          libc++-14-dev \
-          libc++abi-14-dev \
-          libclang-14-dev \
-          libclang1-14 \
-          llvm-14 \
-          llvm-14-dev \
-          lld-14 \
-          ninja-build \
-          pkg-config
-
-          echo "CC=$(which clang-14)" >> $GITHUB_ENV
-          echo "CXX=$(which clang-14)" >> $GITHUB_ENV
-          echo "LD=$(which lld-14)" >> $GITHUB_ENV
-      shell: bash
-
     #
     # Set up Rust
     #

@@ -26,10 +26,7 @@ concurrency:
 
 jobs:
   security-checks:
-    strategy:
-      matrix:
-        runner: ["ubuntu-latest"]
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
