@@ -273,7 +273,10 @@ fn test_action_wrong_args() -> anyhow::Result<()> {
             .call_action(name, [Value::from("3")], &mut io, &ctx)
             .unwrap_err()
             .err_type;
-        assert_eq!(err, MachineErrorType::InvalidType);
+        assert_eq!(
+            err,
+            MachineErrorType::invalid_type("int", "String", "invalid function argument")
+        );
     }
 
     Ok(())
@@ -418,7 +421,10 @@ fn test_command_invalid_this() {
             .call_command_policy(name, &self_data, dummy_envelope(), &mut io, &ctx)
             .unwrap_err()
             .err_type;
-        assert_eq!(err, MachineErrorType::InvalidType);
+        assert_eq!(
+            err,
+            MachineErrorType::invalid_type("int", "Bool", "invalid function argument")
+        );
     }
 }
 
@@ -1715,7 +1721,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
             .err()
             .unwrap(),
         MachineError {
-            err_type: MachineErrorType::InvalidType,
+            err_type: MachineErrorType::InvalidType { .. },
             ..
         }
     ));
@@ -2133,7 +2139,11 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
             ],
         ),
         (
-            Err(MachineErrorType::InvalidType),
+            Err(MachineErrorType::invalid_type(
+                "string",
+                "None",
+                "invalid function argument",
+            )),
             [
                 KVPair::new("maybe_int", Value::None),
                 KVPair::new("name", Value::None),

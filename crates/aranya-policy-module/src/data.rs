@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
@@ -14,7 +14,14 @@ use super::ffi::Type;
 /// Indicates that the Value conversion has failed
 pub enum ValueConversionError {
     /// A conversion was attempted to a type that is not compatible with this Value
-    InvalidType,
+    InvalidType {
+        /// Expected type name
+        want: String,
+        /// Received type name
+        got: String,
+        /// Extra information
+        msg: String,
+    },
     /// A struct conversion found a field mismatch between types
     InvalidStructMember(String),
     /// The target type does not have sufficient range to represent this Value
@@ -23,10 +30,27 @@ pub enum ValueConversionError {
     BadState,
 }
 
+impl ValueConversionError {
+    /// Constructs an `InvalidType` error
+    pub fn invalid_type(
+        want: impl Into<String>,
+        got: impl Into<String>,
+        msg: impl Into<String>,
+    ) -> Self {
+        Self::InvalidType {
+            want: want.into(),
+            got: got.into(),
+            msg: msg.into(),
+        }
+    }
+}
+
 impl Display for ValueConversionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ValueConversionError::InvalidType => write!(f, "invalid type for operation"),
+            ValueConversionError::InvalidType { want, got, msg } => {
+                write!(f, "expected type {want}, but got {got}: {msg}")
+            }
             ValueConversionError::InvalidStructMember(k) => {
                 write!(f, "invalid struct member `{}`", k)
             }
@@ -154,6 +178,21 @@ impl Value {
         }
     }
 
+    /// Returns a string representing the value's type.
+    pub fn type_name(&self) -> String {
+        match self {
+            Value::Int(_) => String::from("Int"),
+            Value::Bool(_) => String::from("Bool"),
+            Value::String(_) => String::from("String"),
+            Value::Bytes(_) => String::from("Bytes"),
+            Value::Struct(s) => format!("Struct {}", s.name),
+            Value::Fact(f) => format!("Fact {}", f.name),
+            Value::Id(_) => String::from("Id"),
+            Value::Enum(name, _) => format!("Enum {}", name),
+            Value::None => String::from("None"),
+        }
+    }
+
     /// Checks to see if a [`Value`] matches some [`VType`]
     /// ```
     /// use aranya_policy_ast::VType;
@@ -253,7 +292,11 @@ impl TryFrom<Value> for i64 {
         if let Value::Int(i) = value {
             return Ok(i);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "Int",
+            value.type_name(),
+            "Value -> i64",
+        ))
     }
 }
 
@@ -264,7 +307,11 @@ impl TryFrom<Value> for bool {
         if let Value::Bool(b) = value {
             return Ok(b);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "Bool",
+            value.type_name(),
+            "Value -> bool",
+        ))
     }
 }
 
@@ -275,7 +322,11 @@ impl TryFrom<Value> for String {
         if let Value::String(s) = value {
             return Ok(s);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "String",
+            value.type_name(),
+            "Value -> String",
+        ))
     }
 }
 
@@ -286,7 +337,11 @@ impl TryFrom<Value> for Vec<u8> {
         if let Value::Bytes(v) = value {
             return Ok(v);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "Bytes",
+            value.type_name(),
+            "Value -> Vec<u8>",
+        ))
     }
 }
 
@@ -297,7 +352,11 @@ impl TryFrom<Value> for Struct {
         if let Value::Struct(s) = value {
             return Ok(s);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "Struct",
+            value.type_name(),
+            "Value -> Struct",
+        ))
     }
 }
 
@@ -308,7 +367,11 @@ impl TryFrom<Value> for Fact {
         if let Value::Fact(f) = value {
             return Ok(f);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "Fact",
+            value.type_name(),
+            "Value -> Fact",
+        ))
     }
 }
 
@@ -319,7 +382,11 @@ impl TryFrom<Value> for Id {
         if let Value::Id(id) = value {
             Ok(id)
         } else {
-            Err(ValueConversionError::InvalidType)
+            Err(ValueConversionError::invalid_type(
+                "Id",
+                value.type_name(),
+                "Value -> Id",
+            ))
         }
     }
 }
@@ -331,7 +398,11 @@ impl TryFrom<Value> for UserId {
         if let Value::Id(id) = value {
             Ok(id.into())
         } else {
-            Err(ValueConversionError::InvalidType)
+            Err(ValueConversionError::invalid_type(
+                "Id",
+                value.type_name(),
+                "Value -> UserId",
+            ))
         }
     }
 }
@@ -343,7 +414,11 @@ impl TryFrom<Value> for EncryptionKeyId {
         if let Value::Id(id) = value {
             Ok(id.into())
         } else {
-            Err(ValueConversionError::InvalidType)
+            Err(ValueConversionError::invalid_type(
+                "Id",
+                value.type_name(),
+                "Value -> EncryptionKeyId",
+            ))
         }
     }
 }
@@ -354,7 +429,11 @@ impl TryAsMut<i64> for Value {
         if let Self::Int(s) = self {
             return Ok(s);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "i64",
+            self.type_name(),
+            "Value -> i64",
+        ))
     }
 }
 
@@ -364,7 +443,11 @@ impl TryAsMut<bool> for Value {
         if let Self::Bool(b) = self {
             return Ok(b);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "bool",
+            self.type_name(),
+            "Value -> bool",
+        ))
     }
 }
 
@@ -374,7 +457,11 @@ impl TryAsMut<str> for Value {
         if let Self::String(s) = self {
             return Ok(s);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "String",
+            self.type_name(),
+            "Value -> String",
+        ))
     }
 }
 
@@ -384,7 +471,11 @@ impl TryAsMut<[u8]> for Value {
         if let Self::Bytes(v) = self {
             return Ok(v);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "Vec<u8>",
+            self.type_name(),
+            "Value -> [u8]",
+        ))
     }
 }
 
@@ -394,7 +485,11 @@ impl TryAsMut<Struct> for Value {
         if let Self::Struct(s) = self {
             return Ok(s);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "Struct",
+            self.type_name(),
+            "Value -> Struct",
+        ))
     }
 }
 
@@ -404,7 +499,11 @@ impl TryAsMut<Fact> for Value {
         if let Self::Fact(f) = self {
             return Ok(f);
         }
-        Err(ValueConversionError::InvalidType)
+        Err(ValueConversionError::invalid_type(
+            "Fact",
+            self.type_name(),
+            "Value -> Fact",
+        ))
     }
 }
 
@@ -467,7 +566,11 @@ impl TryFrom<Value> for HashableValue {
             Value::Bool(v) => Ok(HashableValue::Bool(v)),
             Value::String(v) => Ok(HashableValue::String(v)),
             Value::Id(v) => Ok(HashableValue::Id(v)),
-            _ => Err(ValueConversionError::InvalidType),
+            _ => Err(ValueConversionError::invalid_type(
+                "Int | Bool | String | Id",
+                value.type_name(),
+                "Value -> HashableValue",
+            )),
         }
     }
 }

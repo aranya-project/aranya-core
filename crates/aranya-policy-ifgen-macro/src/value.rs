@@ -40,11 +40,17 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
             type Error = ::aranya_policy_ifgen::ValueConversionError;
             fn try_from(value: ::aranya_policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
                 let ::aranya_policy_ifgen::Value::Struct(mut s) = value else {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::InvalidType);
+                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::invalid_type(
+                        ::core::concat!("Struct ", #name), value.type_name(), "handle_struct"
+                    ));
                 };
 
                 if s.name != #name {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::InvalidType);
+                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::invalid_type(
+                        ::core::concat!("Struct ", #name),
+                        ::aranya_policy_ifgen::format!("Struct {}", s.name),
+                        "struct names don't match"
+                    ));
                 }
 
                 let parsed = Self { #(
@@ -105,11 +111,16 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
             type Error = ::aranya_policy_ifgen::ValueConversionError;
             fn try_from(value: ::aranya_policy_ifgen::Value) -> ::core::result::Result<Self, Self::Error> {
                 let ::aranya_policy_ifgen::Value::Enum(name, val) = value else {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::InvalidType);
+                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::invalid_type(
+                        ::core::concat!("Enum ", #enum_ident), value.type_name(), "handle_enum"
+                    ));
                 };
 
                 if name != #enum_ident {
-                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::InvalidType);
+                    return ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::invalid_type(
+                        ::core::concat!("Enum ", #enum_ident),
+                        ::aranya_policy_ifgen::format!("Enum {}", name), "enum names don't match"
+                    ));
                 }
 
                 match val.as_str() {

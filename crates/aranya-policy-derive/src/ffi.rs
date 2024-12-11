@@ -110,14 +110,22 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             impl ::core::convert::TryFrom<#vm::Value> for #name {
                 type Error = #vm::ValueConversionError;
 
-                fn try_from(__value: #vm::Value) -> ::core::result::Result<Self, Self::Error> {
-                    let #vm::Value::Struct(mut __struct) = __value else {
+                fn try_from(mut __value: #vm::Value) -> ::core::result::Result<Self, Self::Error> {
+                    let #vm::Value::Struct(__struct) = &mut __value else {
                         return ::core::result::Result::Err(
-                            #vm::ValueConversionError::InvalidType);
+                            #vm::ValueConversionError::invalid_type(
+                                ::core::concat!("Struct ", #name_str),
+                                __value.type_name(),
+                                "TryFrom"
+                            ));
                     };
                     if __struct.name != ::core::stringify!(#name) {
                         return ::core::result::Result::Err(
-                            #vm::ValueConversionError::InvalidType);
+                            #vm::ValueConversionError::invalid_type(
+                                ::core::concat!("Struct ", #name_str),
+                                __value.type_name(),
+                                "name doesn't match"
+                            ));
                     }
                     #(
                         let #fields = __struct.fields.remove(::core::stringify!(#names))
