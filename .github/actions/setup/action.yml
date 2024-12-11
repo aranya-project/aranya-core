@@ -1,28 +1,17 @@
 name: "Setup build tools"
 description: "Action for setting up build tools"
+
 runs:
   using: "composite"
   steps:
-    #
-    # Set up Rust
-    #
-    - name: Install Rust
-      run: |
-        cat<<EOF>>rustup.sh.sha256
-        32a680a84cf76014915b3f8aa44e3e40731f3af92cd45eb0fcc6264fd257c428  rustup.sh
-        EOF
-        wget 'https://sh.rustup.rs' -O rustup.sh
-        shasum -c rustup.sh.sha256
-        chmod +x ./rustup.sh
-        ./rustup.sh -y --default-toolchain none
-        source "$HOME/.cargo/env"
-        echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
-      shell: bash
-    - name: cargo version
+    - name: Version info
       shell: bash
       run: |
-        file cargo
         cargo --version --verbose
+        ldd --version
+        clang --version
+        gcc --version
+        cmake --version
 
     - name: Install sccache
       uses: aranya-project/sccache-action@main
@@ -30,12 +19,12 @@ runs:
         version: "v0.8.2"
 
     - name: Configure sccache
+      shell: bash
       run: |
         echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
-      shell: bash
 
     - name: Install cargo-make
-      run: cargo install --version '0.37.23' --locked cargo-make
       shell: bash
+      run: cargo install --version '0.37.23' --locked cargo-make

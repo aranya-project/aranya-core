@@ -61,7 +61,12 @@ jobs:
         run: cargo make machete
 
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runner:
+          - ubuntu-latest
+          - ubuntu2404-arm64-4core
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
