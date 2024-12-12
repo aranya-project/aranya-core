@@ -14,9 +14,9 @@
 //! available by a particular module. For details on the
 //! cryptographic APIs used by IdAM, see [IDAM crypto].
 //!
-//! [IDAM crypto]: https://github.com/spideroak-inc/flow3-docs/blob/37bfddf39c37ae258615e8bf2617432aaf8d453a/idam_crypto.md
-//! [IDAM]: https://github.com/spideroak-inc/flow3-docs/blob/8bf06fdfdb4521f96892de9eff8c7b2908413ace/src/idam.md
-//! [policy lang]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/main/src/policy-v1.md
+//! [IDAM crypto]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/idam_crypto.md
+//! [IDAM]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/idam.md
+//! [policy lang]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/policy-v1.md
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest)), no_std)]

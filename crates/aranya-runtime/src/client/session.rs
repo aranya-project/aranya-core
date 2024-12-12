@@ -2,7 +2,7 @@
 //!
 //! See [`ClientState::session`] and [`Session`].
 //!
-//! Design discussion/docs: <https://git.spideroak-inc.com/spideroak-inc/flow3-docs/pull/53>
+//! Design discussion/docs: <https://git.spideroak-inc.com/spideroak-inc/aranya-docs/pull/53>
 
 use alloc::{
     boxed::Box,
