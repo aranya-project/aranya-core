@@ -4,13 +4,11 @@
 //! If you implement any traits in this crate it is **very
 //! highly** recommended that you use these tests.
 
-#![allow(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    clippy::missing_panics_doc,
-    clippy::panic,
-    clippy::unwrap_used
-)]
+#![allow(clippy::expect_used)]
+#![allow(clippy::indexing_slicing)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::panic)]
+#![allow(clippy::unwrap_used)]
 #![cfg(any(test, feature = "testing"))]
 #![cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #![cfg_attr(not(feature = "trng"), forbid(unsafe_code))]
@@ -24,7 +22,6 @@ use aranya_crypto::{
     typenum::{Unsigned, U1},
     Engine, Rng,
 };
-use cfg_if::cfg_if;
 
 use crate::{
     buf::FixedBuf,
@@ -36,9 +33,8 @@ use crate::{
     AfcState,
 };
 
-// TODO: check that seq increments by one
-
-/// Performs all of the tests in this module.
+/// Performs all of the tests in the [`testing`][crate::testing]
+/// module.
 ///
 /// # Example
 /// ```
@@ -100,6 +96,7 @@ macro_rules! __test_impl {
 			test!(test_issue112);
 			test!(test_client_send);
             test!(test_key_expiry);
+			test!(test_monotonic_seq_by_one);
 
             // Unidirectional tests.
 			test!(test_unidirectional_basic);
@@ -140,15 +137,16 @@ pub fn test_seal_open_basic<T: TestImpl, A: IndCca2>() {
                 .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label) = {
+        let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-            let label = c2
+            let (label, seq) = c2
                 .open(id1, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label)
+            (dst, label, seq)
         };
-        assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-        assert_eq!(got_label, label);
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label}");
+        assert_eq!(got_label, label, "{label}");
+        assert_eq!(got_seq, 0, "{label}");
     }
 }
 
@@ -171,31 +169,30 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: IndCca2>() {
                 .unwrap_or_else(|err| panic!("seal_in_place({ch2}, ...): {err}"));
             data
         };
-        let (plaintext, got_label) = {
+        let (plaintext, got_label, got_seq) = {
             let mut data = ciphertext.clone();
-            let label = c2
+            let (label, seq) = c2
                 .open_in_place(id1, &mut data)
                 .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-            (data, label)
+            (data, label, seq)
         };
-        assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-        assert_eq!(got_label, label);
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label}");
+        assert_eq!(got_label, label, "{label}");
+        assert_eq!(got_seq, 0, "{label}");
     }
 }
 
 /// Similar to [`test_seal_open_basic`], but with multiple
 /// clients.
 pub fn test_multi_client<T: TestImpl, A: IndCca2>() {
-    let max_nodes = {
-        cfg_if! {
-            if #[cfg(any(target_arch = "x86", target_arch = "x86_64"))] {
-                10
-            } else {
-                // This test was too slow on ARM (and likely so on PowerPC, etc).
-                // See https://git.spideroak-inc.com/spideroak-inc/aps/issues/103
-                3
-            }
-        }
+    let max_nodes = if cfg!(any(
+        target_arch = "aarch64",
+        target_arch = "x86",
+        target_arch = "x86_64",
+    )) {
+        10
+    } else {
+        3
     };
 
     eprintln!("# testing with {max_nodes} nodes");
@@ -215,11 +212,19 @@ pub fn test_multi_client<T: TestImpl, A: IndCca2>() {
     const GOLDEN: &str = "hello, world!";
 
     fn test<S: AfcState>(
-        label: Label,
+        clients: &mut HashMap<NodeId, Client<S>>,
         send: NodeId,
         recv: NodeId,
-        clients: &mut HashMap<NodeId, Client<S>>,
+        label: Label,
+        seqs: &mut HashMap<(NodeId, NodeId, Label), u64>,
     ) {
+        let want_seq = *seqs
+            .entry((send, recv, label))
+            .and_modify(|seq| {
+                *seq += 1;
+            })
+            .or_insert(0);
+
         let ciphertext = {
             let u0 = clients
                 .get_mut(&send)
@@ -231,28 +236,30 @@ pub fn test_multi_client<T: TestImpl, A: IndCca2>() {
             dst
         };
 
-        let (plaintext, got_label) = {
+        let (plaintext, got_label, got_seq) = {
             let u1 = clients
                 .get(&recv)
                 .unwrap_or_else(|| panic!("unable to find recv client: {recv}"));
             let mut dst = vec![0u8; ciphertext.len() - overhead(u1)];
-            let label = u1
+            let (label, seq) = u1
                 .open(send, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("{label}: open({send}, ...): {err}"));
-            (dst, label)
+            (dst, label, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{send},{recv}");
         assert_eq!(got_label, label, "{send},{recv}");
+        assert_eq!(got_seq, want_seq, "{send},{recv}");
     }
 
+    let mut seqs = HashMap::new();
     for label in labels {
         for a in &ids {
             for b in &ids {
                 if a == b {
                     continue;
                 }
-                test(label, *a, *b, &mut clients);
-                test(label, *b, *a, &mut clients);
+                test(&mut clients, *a, *b, label, &mut seqs);
+                test(&mut clients, *b, *a, label, &mut seqs);
             }
         }
     }
@@ -278,15 +285,16 @@ pub fn test_remove<T: TestImpl, A: IndCca2>() {
                     .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label) = {
+            let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
-                let label = c
+                let (label, seq) = c
                     .open_in_place(id1, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label)
+                (data, label, seq)
             };
             assert_eq!(&plaintext[..], GOLDEN.as_bytes());
             assert_eq!(got_label, label);
+            assert_eq!(got_seq, 0);
 
             // Now that we know it works, delete the channel and try
             // again. It should fail.
@@ -326,15 +334,16 @@ pub fn test_remove_all<T: TestImpl, A: IndCca2>() {
                     .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label) = {
+            let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
-                let label = c
+                let (label, seq) = c
                     .open_in_place(id1, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label)
+                (data, label, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-            assert_eq!(got_label, label);
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
+            assert_eq!(got_label, label, "{label},{id}");
+            assert_eq!(got_seq, 0, "{label},{id}");
         }
     }
 
@@ -379,15 +388,16 @@ pub fn test_remove_if<T: TestImpl, A: IndCca2>() {
                     .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label) = {
+            let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
-                let label = c
+                let (label, seq) = c
                     .open_in_place(id1, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label)
+                (data, label, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-            assert_eq!(got_label, label);
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
+            assert_eq!(got_label, label, "{label},{id}");
+            assert_eq!(got_seq, 0, "{label},{id}");
         }
     }
 
@@ -440,15 +450,16 @@ pub fn test_remove_no_channels<T: TestImpl, A: IndCca2>() {
                     .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label) = {
+            let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
-                let label = c
+                let (label, seq) = c
                     .open_in_place(id1, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label)
+                (data, label, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-            assert_eq!(got_label, label);
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
+            assert_eq!(got_label, label, "{label},{id}");
+            assert_eq!(got_seq, 0, "{label},{id}");
         }
     }
 
@@ -499,15 +510,16 @@ pub fn test_channels_exist<T: TestImpl, A: IndCca2>() {
                     .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label) = {
+            let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
-                let label = c
+                let (label, seq) = c
                     .open_in_place(id1, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label)
+                (data, label, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-            assert_eq!(got_label, label);
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
+            assert_eq!(got_label, label, "{label},{id}");
+            assert_eq!(got_seq, 0, "{label},{id}");
         }
     }
 
@@ -553,15 +565,16 @@ pub fn test_channels_not_exist<T: TestImpl, A: IndCca2>() {
                     .unwrap_or_else(|err| panic!("seal_in_place({ch}, ...): {err}"));
                 data
             };
-            let (plaintext, got_label) = {
+            let (plaintext, got_label, got_seq) = {
                 let mut data = ciphertext.clone();
-                let label = c
+                let (label, seq) = c
                     .open_in_place(id1, &mut data)
                     .unwrap_or_else(|err| panic!("open_in_place({id1}, ...): {err}"));
-                (data, label)
+                (data, label, seq)
             };
-            assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-            assert_eq!(got_label, label);
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{label},{id}");
+            assert_eq!(got_label, label, "{label},{id}");
+            assert_eq!(got_seq, 0, "{label},{id}");
         }
     }
 
@@ -606,16 +619,17 @@ pub fn test_issue112<T: TestImpl, A: IndCca2>() {
         dst.truncate(GOLDEN.len() + overhead(&c1));
         dst
     };
-    let (plaintext, got_label) = {
+    let (plaintext, got_label, got_seq) = {
         let mut dst = vec![0u8; ciphertext.len() - overhead(&c1)];
-        let label = c2
+        let (label, seq) = c2
             .open(id1, &mut dst[..], &ciphertext[..])
             .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
         dst.truncate(ciphertext.len() - overhead(&c2));
-        (dst, label)
+        (dst, label, seq)
     };
     assert_eq!(&plaintext[..], GOLDEN.as_bytes());
     assert_eq!(got_label, LABEL);
+    assert_eq!(got_seq, 0);
 }
 
 /// Tests that `Client` is `Send`.
@@ -649,15 +663,16 @@ pub fn test_unidirectional_basic<T: TestImpl, A: IndCca2>() {
                 .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label) = {
+        let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(c2)];
-            let label = c2
+            let (label, seq) = c2
                 .open(*id1, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label)
+            (dst, label, seq)
         };
-        assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-        assert_eq!(got_label, label);
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{id1},{id2},{label}");
+        assert_eq!(got_label, label, "{id1},{id2},{label}");
+        assert_eq!(got_seq, 0, "{id1},{id2},{label}");
     }
 
     const LABEL1: Label = Label::new(1);
@@ -722,15 +737,16 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: IndCca2>() {
                 .unwrap_or_else(|err| panic!("{id1}::seal({ch2}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label) = {
+        let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(c2)];
-            let label = c2
+            let (label, seq) = c2
                 .open(*id1, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("{id2}::open({id1}, ...): {err}"));
-            (dst, label)
+            (dst, label, seq)
         };
-        assert_eq!(&plaintext[..], GOLDEN.as_bytes());
-        assert_eq!(got_label, label);
+        assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{id1},{id2},{label}");
+        assert_eq!(got_label, label, "{id1},{id2},{label}");
+        assert_eq!(got_seq, 0, "{id1},{id2},{label}");
     }
 
     const LABEL1: Label = Label::new(1);
@@ -858,6 +874,8 @@ pub fn test_key_expiry<T: TestImpl, A: IndCca2>() {
 
     // From HPKE: 2^n - 1 where n = nonce length in bytes.
     let seq_max = (1 << (8 * N::USIZE)) - 1;
+    assert!(seq_max > 0);
+
     for seq in 0..=seq_max {
         for label in labels {
             let ciphertext = {
@@ -879,14 +897,15 @@ pub fn test_key_expiry<T: TestImpl, A: IndCca2>() {
 
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
             if seq < seq_max {
-                let (plaintext, got_label) = {
-                    let label = c2
+                let (plaintext, got_label, got_seq) = {
+                    let (label, seq) = c2
                         .open(id1, &mut dst[..], &ciphertext[..])
                         .unwrap_or_else(|err| panic!("{seq}: open({id1}, ...): {err}"));
-                    (dst, label)
+                    (dst, label, seq)
                 };
                 assert_eq!(&plaintext[..], GOLDEN.as_bytes());
                 assert_eq!(got_label, label);
+                assert_eq!(got_seq, seq);
             } else {
                 let err = c2
                     .open(id1, &mut dst[..], &ciphertext[..])
@@ -1003,12 +1022,12 @@ pub fn test_open_different_seq<T: TestImpl, A: IndCca2>() {
             c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
                 .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
 
-            // Rewrite the header to use a different sequencen
+            // Rewrite the header to use a different sequence
             // number.
             let hdr = DataHeader::try_parse(dst.first_chunk().expect("`dst` should have a header"))
                 .expect("should be able to parse header");
             DataHeaderBuilder::new()
-                .seq(hdr.seq.wrapping_add(1))
+                .seq(hdr.seq.to_u64().wrapping_add(1))
                 .encode(&mut dst);
 
             dst
@@ -1063,14 +1082,55 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: IndCca2>() {
             }
         };
 
-        let (plaintext, got_label) = {
+        let (plaintext, got_label, got_seq) = {
             let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
-            let label = c2
+            let (label, seq) = c2
                 .open(id1, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
-            (dst, label)
+            (dst, label, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes());
         assert_eq!(got_label, label);
+        assert_eq!(got_seq, 0);
+    }
+}
+
+/// Tests that the sequence number increases by one each time.
+// NB: This is essentially the same thing as `test_key_expiry`,
+// but explicit.
+pub fn test_monotonic_seq_by_one<T: TestImpl, A: IndCca2>() {
+    type N = U1;
+    let labels = [Label::new(0)];
+    let (eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
+    let mut d = Aranya::<T, _>::new("test_monotonic_seq_by_one", labels.len(), eng);
+    let (mut c1, id1) = d.new_client(labels);
+    let (c2, id2) = d.new_client(labels);
+
+    const GOLDEN: &str = "hello, world!";
+
+    // From HPKE: 2^n - 1 where n = nonce length in bytes.
+    let seq_max = (1 << (8 * N::USIZE)) - 1;
+    assert!(seq_max > 0);
+
+    for want_seq in 0..seq_max {
+        for label in labels {
+            let ciphertext = {
+                let ch2 = ChannelId::new(id2, label);
+                let mut dst = vec![0u8; GOLDEN.len() + overhead(&c1)];
+                c1.seal(ch2, &mut dst[..], GOLDEN.as_bytes())
+                    .unwrap_or_else(|err| panic!("seal({ch2}, ...): {err}"));
+                dst
+            };
+            let (plaintext, got_label, got_seq) = {
+                let mut dst = vec![0u8; ciphertext.len() - overhead(&c2)];
+                let (label, seq) = c2
+                    .open(id1, &mut dst[..], &ciphertext[..])
+                    .unwrap_or_else(|err| panic!("open({id1}, ...): {err}"));
+                (dst, label, seq)
+            };
+            assert_eq!(&plaintext[..], GOLDEN.as_bytes(), "{want_seq},{label}");
+            assert_eq!(got_label, label, "{want_seq},{label}");
+            assert_eq!(got_seq, want_seq, "{want_seq},{label}");
+        }
     }
 }

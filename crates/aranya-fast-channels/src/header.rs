@@ -1,6 +1,7 @@
 use core::fmt;
 
 use aranya_buggy::{bug, Bug, BugExt};
+use aranya_crypto::afc::Seq;
 use serde::{Deserialize, Serialize};
 
 use crate::state::Label;
@@ -95,7 +96,7 @@ packed! {
         /// The channel label.
         pub label: Label,
         /// The ciphertext's sequence number.
-        pub seq: u64,
+        pub seq: Seq,
     }
 }
 
@@ -115,7 +116,7 @@ impl DataHeader {
 
         Ok(Self {
             label: u32::from_le_bytes(*label).into(),
-            seq: u64::from_le_bytes(*seq),
+            seq: Seq::new(u64::from_le_bytes(*seq)),
         })
     }
 
@@ -129,7 +130,7 @@ impl DataHeader {
         let (seq_out, rest) = rest
             .split_first_chunk_mut()
             .assume("`out` should be large enough for a sequence number")?;
-        *seq_out = self.seq.to_le_bytes();
+        *seq_out = self.seq.to_u64().to_le_bytes();
 
         if !rest.is_empty() {
             bug!("`out` should be exactly `DataHeader::PACKED_SIZE`");
@@ -275,7 +276,7 @@ mod tests {
     #[test]
     fn test_data_header_basic() {
         for label in [Label::new(0), Label::new(1), Label::new(u32::MAX)] {
-            for seq in [0, 1, u64::MAX] {
+            for seq in [0, 1, u64::MAX].map(Into::<Seq>::into) {
                 let want = DataHeader { label, seq };
                 let got = {
                     let mut buf = [0u8; DataHeader::PACKED_SIZE];

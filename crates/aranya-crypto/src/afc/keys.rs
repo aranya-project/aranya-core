@@ -1,4 +1,4 @@
-use core::fmt;
+use core::{cmp::Ordering, fmt};
 
 use aranya_buggy::Bug;
 use byteorder::{ByteOrder, LittleEndian};
@@ -12,7 +12,7 @@ use crate::{
     CipherSuite,
 };
 
-/// A sequence number.
+/// Identifies the position of a ciphertext in a channel.
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Seq(hpke::Seq);
 
@@ -36,6 +36,30 @@ impl Seq {
     #[cfg(any(test, feature = "test_util"))]
     pub(crate) fn max<N: ::generic_array::ArrayLength>() -> u64 {
         hpke::Seq::max::<N>()
+    }
+}
+
+impl From<Seq> for u64 {
+    fn from(seq: Seq) -> u64 {
+        seq.to_u64()
+    }
+}
+
+impl From<u64> for Seq {
+    fn from(seq: u64) -> Self {
+        Self::new(seq)
+    }
+}
+
+impl PartialEq<u64> for Seq {
+    fn eq(&self, other: &u64) -> bool {
+        PartialEq::eq(&self.to_u64(), other)
+    }
+}
+
+impl PartialOrd<u64> for Seq {
+    fn partial_cmp(&self, other: &u64) -> Option<Ordering> {
+        PartialOrd::partial_cmp(&self.to_u64(), other)
     }
 }
 

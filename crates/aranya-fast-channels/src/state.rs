@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
 
-/// APS' view of the state state.
+/// AFC's view of the shared state.
 pub trait AfcState {
     /// Used to encrypt/decrypt messages.
     type CipherSuite: CipherSuite;
@@ -28,9 +28,7 @@ pub trait AfcState {
     where
         F: FnOnce(&OpenKey<Self::CipherSuite>) -> Result<T, Error>;
 
-    /// Checks if a channel exists.
-    ///
-    /// Returns true if the channel exists.
+    /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Error>;
 }
 
@@ -74,13 +72,12 @@ pub trait AranyaState {
     /// It is not an error if the channel does not exist.
     fn remove_if(&self, f: impl FnMut(ChannelId) -> bool) -> Result<(), Self::Error>;
 
-    /// Checks if a channel exists.
-    ///
-    /// Returns true if the channel exists.
+    /// Reports whether the channel exists.
     fn exists(&self, id: ChannelId) -> Result<bool, Self::Error>;
 }
 
-/// Identifies an encrypted communication channel.
+/// Uniquely identifies a channel for a particular [`AfcState`]
+/// and [`AranyaState`].
 ///
 /// It has two primary parts: a [`NodeId`] that identifies the
 /// team member and a [`Label`] that identifies the set of policy
@@ -112,7 +109,7 @@ impl ChannelId {
         self.label
     }
 
-    /// Converts the channel to bytes.
+    /// Converts the ID to bytes.
     pub fn to_bytes(&self) -> [u8; 8] {
         let mut b = [0u8; 8];
         self.node_id().put_bytes(&mut b[..4]);
@@ -131,8 +128,8 @@ impl fmt::Display for ChannelId {
     }
 }
 
-/// Associates a [`Channel`] with an Aranya team member,
-/// identified by a 32-bit integer.
+/// A local identifier that associates a [`Channel`] with an
+/// Aranya team member.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct NodeId(u32);
@@ -187,7 +184,7 @@ impl From<u32> for NodeId {
 /// Associates a [`Channel`] with Aranya policy rules that govern
 /// communication in the channel.
 ///
-/// See [`Channel`] for more information.
+/// Labels are defined inside Aranya policy.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Label(u32);
@@ -239,7 +236,7 @@ impl From<u32> for Label {
     }
 }
 
-/// An APS channel.
+/// An AFC channel.
 #[derive(Copy, Clone)]
 pub struct Channel<S, O> {
     /// Uniquely identifies the channel.

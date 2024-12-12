@@ -1,8 +1,10 @@
 use core::fmt;
 
 use aranya_buggy::BugExt;
+#[doc(inline)]
+pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
-    afc::{AuthData, OpenKey, SealKey, Seq},
+    afc::{AuthData, OpenKey, SealKey},
     zeroize::Zeroize,
 };
 
@@ -19,6 +21,7 @@ use crate::{
 /// Client is a connection to Aranya.
 ///
 /// See the crate documentation for more information.
+#[derive(Debug)]
 pub struct Client<S> {
     state: S,
 }
@@ -154,9 +157,10 @@ impl<S: AfcState> Client<S> {
             };
             f(aead, &ad)
         })??;
+        debug!("seq={seq}");
 
         DataHeader {
-            seq: seq.to_u64(),
+            seq,
             label: id.label(),
         }
         .encode(header)?;
@@ -175,9 +179,14 @@ impl<S: AfcState> Client<S> {
     /// be at least `ciphertext.len() - Client::OVERHEAD` bytes
     /// long.
     ///
-    /// It returns the cryptographically verified label
-    /// associated with the ciphertext.
-    pub fn open(&self, peer: NodeId, dst: &mut [u8], ciphertext: &[u8]) -> Result<Label, Error> {
+    /// It returns the cryptographically verified label and
+    /// sequence number associated with the ciphertext.
+    pub fn open(
+        &self,
+        peer: NodeId,
+        dst: &mut [u8],
+        ciphertext: &[u8],
+    ) -> Result<(Label, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
         // like so:
         //    ciphertext || tag || header
@@ -218,18 +227,19 @@ impl<S: AfcState> Client<S> {
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
-        Ok(label)
+        Ok((label, seq))
     }
 
-    /// Decrypts and authenticates `data` received from `peer`.
+    /// Decrypts and authenticates the ciphertext `data` received
+    /// from `peer`.
     ///
     /// The resulting plaintext is written in-place to `data`,
     /// which will be truncated to exactly the length of the
     /// plaintext.
     ///
-    /// On success, it returns the cryptographically verified
-    /// label associated with the ciphertext.
-    pub fn open_in_place<T: Buf>(&self, peer: NodeId, data: &mut T) -> Result<Label, Error> {
+    /// It returns the cryptographically verified label and
+    /// sequence number associated with the ciphertext.
+    pub fn open_in_place<T: Buf>(&self, peer: NodeId, data: &mut T) -> Result<(Label, Seq), Error> {
         // NB: For performance reasons, `data` is arranged
         // like so:
         //    ciphertext || tag || header
@@ -270,11 +280,11 @@ impl<S: AfcState> Client<S> {
 
         // We were able to decrypt the message, meaning the label
         // is indeed valid.
-        Ok(label)
+        Ok((label, seq))
     }
 
     /// Invokes `f` with the key for `id`.
-    fn do_open<F, T>(&self, id: ChannelId, seq: u64, f: F) -> Result<T, Error>
+    fn do_open<F, T>(&self, id: ChannelId, seq: Seq, f: F) -> Result<T, Error>
     where
         F: FnOnce(
             /* aead: */ &OpenKey<S::CipherSuite>,
@@ -284,7 +294,6 @@ impl<S: AfcState> Client<S> {
     {
         debug!("decrypting: id={id}");
 
-        let seq = Seq::new(seq);
         let ad = AuthData {
             // TODO(eric): update `AuthData` to use `u16`.
             version: u32::from(Version::current().to_u16()),

@@ -7,6 +7,10 @@ macro_rules! little_endian {
             pub(super) struct $name($type);
 
             impl $name {
+                /// The maximum value.
+                #[allow(dead_code, reason = "U32::MAX is not used")]
+                pub const MAX: Self = Self::new(<$type>::MAX);
+
                 /// Interprets `v` as a little-endian integer.
                 pub const fn new(v: $type) -> Self {
                     Self(v.to_le())

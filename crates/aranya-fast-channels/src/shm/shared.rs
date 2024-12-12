@@ -11,6 +11,7 @@ use aranya_buggy::{Bug, BugExt};
 use aranya_crypto::{
     aead::Aead,
     afc::{RawOpenKey, RawSealKey, Seq},
+    hash::tuple_hash,
     CipherSuite, Csprng, Random,
 };
 use cfg_if::cfg_if;
@@ -388,6 +389,8 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     pub seal_key: RawSealKey<CS>,
     /// The key/nonce used to decrypt data from the channel peer.
     pub open_key: RawOpenKey<CS>,
+    /// Uniquely identifies `seal_key` and `open_key`.
+    pub key_id: KeyId,
 }
 assert_ffi_safe!(ShmChan<aranya_crypto::default::DefaultCipherSuite>);
 
@@ -424,6 +427,8 @@ impl<CS: CipherSuite> ShmChan<CS> {
         // decrypts and authenticates for the key. Randomizing
         // the key prevents an attacker from crafting such
         // a ciphertext.
+        let seal_key = keys.seal().cloned().unwrap_or_else(|| Random::random(rng));
+        let open_key = keys.open().cloned().unwrap_or_else(|| Random::random(rng));
         let chan = Self {
             magic: Self::MAGIC,
             node_id: id.node_id().to_u32().into(),
@@ -434,10 +439,11 @@ impl<CS: CipherSuite> ShmChan<CS> {
             seq: if keys.seal().is_some() {
                 U64::new(0)
             } else {
-                U64::new(u64::MAX)
+                U64::MAX
             },
-            seal_key: keys.seal().cloned().unwrap_or_else(|| Random::random(rng)),
-            open_key: keys.open().cloned().unwrap_or_else(|| Random::random(rng)),
+            key_id: KeyId::new(&seal_key, &open_key),
+            seal_key,
+            open_key,
         };
         ptr.write(chan);
     }
@@ -494,7 +500,8 @@ impl<CS: CipherSuite> ShmChan<CS> {
 
     /// Updates the sequence number.
     pub fn set_seq(&mut self, seq: Seq) {
-        // TODO(eric): check that it's not going backward?
+        debug_assert!(seq.to_u64() > self.seq.into());
+
         self.seq = seq.to_u64().into();
     }
 
@@ -529,7 +536,21 @@ impl<CS: CipherSuite> Clone for ShmChan<CS> {
             seq: self.seq,
             seal_key: self.seal_key.clone(),
             open_key: self.open_key.clone(),
+            key_id: self.key_id,
         }
+    }
+}
+
+impl<CS: CipherSuite> fmt::Debug for ShmChan<CS> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ShmChan")
+            .field("magic", &self.magic)
+            .field("node_id", &self.node_id)
+            .field("label", &self.label)
+            .field("direction", &self.direction)
+            .field("seq", &self.seq)
+            .field("key_id", &self.key_id)
+            .finish_non_exhaustive()
     }
 }
 
@@ -1101,6 +1122,29 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         Ok(self.chans_mut()?.iter_mut())
+    }
+}
+
+/// Uniquely identifies a [`RawSealKey`], [`RawOpenKey`] tuple.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub(super) struct KeyId([u8; 16]);
+
+impl KeyId {
+    fn new<CS: CipherSuite>(seal: &RawSealKey<CS>, open: &RawOpenKey<CS>) -> Self {
+        let id = tuple_hash::<CS::Hash, _>([
+            seal.key.as_bytes(),
+            &seal.base_nonce,
+            open.key.as_bytes(),
+            &open.base_nonce,
+        ])
+        .into_array();
+        #[allow(
+            clippy::unwrap_used,
+            clippy::indexing_slicing,
+            reason = "The compiler proves that this does not panic."
+        )]
+        Self(id[..16].try_into().unwrap())
     }
 }
 

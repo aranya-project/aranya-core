@@ -118,9 +118,9 @@ macro_rules! bench_impl {
 
 				let id = ChannelId::new(node_id, label);
 				let keys = Directed::Bidirectional {
-						seal,
-						open,
-					};
+                    seal,
+                    open,
+                };
 				aranya.add(id, keys).unwrap();
 				id
 			});

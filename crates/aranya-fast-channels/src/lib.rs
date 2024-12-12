@@ -1,27 +1,27 @@
-//! `aranya-fast-channels` implements Aranya Fast Channels (AFC).
+//! The core library for Aranya Fast Channels (AFC).
 //!
 //! # Overview
 //!
-//! APS provides a high-throughput, low latency encryption engine
+//! AFC provides a high-throughput, low latency encryption engine
 //! protected by Aranya's policy rules. Data encrypted with (or
 //! decrypted by) the engine is sent out of band (not though
 //! Aranya itself), making it suitable for encrypting network
 //! streams and other high-throughput data.
 //!
-//! APS can be configured to use custom cryptography and random
+//! AFC can be configured to use custom cryptography and random
 //! number generation.
 //!
 //! # Usage
 //!
-//! APS uses the client-daemon model, with APS being the
+//! AFC uses the client-daemon model, with AFC being the
 //! "client" and Aranya being the "daemon." However, this is
 //! merely a logical distinction; for instance, it's possible for
 //! both to be in the same process, just running as different
 //! threads (or tasks).
 //!
-//! All APS operations are handled by the [`Client`], which
+//! All AFC operations are handled by the [`Client`], which
 //! communicates with the daemon over [`AfcState`] and
-//! [`AranyaState`]. By default, APS provides a state
+//! [`AranyaState`]. By default, AFC provides a state
 //! implementation backed by shared memory.
 //!
 //! # Example
@@ -198,10 +198,10 @@
 //! // whatever makes sense for your application.
 //!
 //! // Have user2 decrypt the data from user1.
-//! let (label, plaintext) = {
+//! let (label, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     let label = afc_client_b.open(user1_node_id, &mut dst[..], &ciphertext[..])?;
-//!     (label, dst)
+//!     let (label, seq) = afc_client_b.open(user1_node_id, &mut dst[..], &ciphertext[..])?;
+//!     (label, seq, dst)
 //! };
 //!
 //! // At this point we can now make a decision on what to do
@@ -213,6 +213,7 @@
 //! // plaintext data on to another system that ingests "top
 //! // secret" data.
 //! assert_eq!(label, TOP_SECRET);
+//! assert_eq!(seq, 0);
 //! assert_eq!(plaintext, GOLDEN.as_bytes());
 //!
 //! # }
