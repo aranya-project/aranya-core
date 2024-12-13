@@ -2,7 +2,7 @@
 //!
 //! See [`ClientState::session`] and [`Session`].
 //!
-//! Design discussion/docs: <https://git.spideroak-inc.com/spideroak-inc/aranya-docs/pull/53>
+//! Design doc: [Aranya Sessions](https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/Aranya-Sessions-note.md)
 
 use alloc::{
     boxed::Box,
