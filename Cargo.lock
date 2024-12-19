@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",
@@ -443,7 +443,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-macro"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
