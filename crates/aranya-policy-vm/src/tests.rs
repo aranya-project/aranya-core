@@ -408,7 +408,11 @@ fn test_extcall_invalid_arg() {
     // Empty stack - should fail
     assert_eq!(
         rs.run().unwrap_err(),
-        MachineError::new(MachineErrorType::InvalidType)
+        MachineError::new(MachineErrorType::invalid_type(
+            "String",
+            "Int",
+            "Value -> String"
+        ))
     );
 }
 
@@ -519,7 +523,7 @@ fn test_errors() {
             Instruction::Const(Value::String(x.clone())),
             Instruction::Gt,
         ],
-        MachineErrorType::InvalidType,
+        MachineErrorType::invalid_type("Int, Int", "Int, String", "Greater-than comparison"),
     );
 
     // InvalidType: 3 + "x" (same case as 3 - "x")
@@ -529,7 +533,7 @@ fn test_errors() {
             Instruction::Const(Value::String(x.clone())),
             Instruction::Add,
         ],
-        MachineErrorType::InvalidType,
+        MachineErrorType::invalid_type("Int", "String", "Value -> i64"),
     );
 
     // InvalidType: 3 && "x"
@@ -539,13 +543,13 @@ fn test_errors() {
             Instruction::Const(Value::String(x.clone())),
             Instruction::And,
         ],
-        MachineErrorType::InvalidType,
+        MachineErrorType::invalid_type("Bool", "String", "Value -> bool"),
     );
 
     // InvalidType: !3
     error_test_harness(
         &[Instruction::Const(Value::Int(3)), Instruction::Not],
-        MachineErrorType::InvalidType,
+        MachineErrorType::invalid_type("bool", "Int", "Value -> bool"),
     );
 
     // InvalidType: Set a struct value on a thing that isn't a struct
@@ -555,7 +559,7 @@ fn test_errors() {
             Instruction::Const(Value::Int(3)),
             Instruction::StructSet(x.clone()),
         ],
-        MachineErrorType::InvalidType,
+        MachineErrorType::invalid_type("Struct", "Int", "Value -> Struct"),
     );
 
     // InvalidType: Set a fact key on a thing that isn't a fact
@@ -565,7 +569,7 @@ fn test_errors() {
             Instruction::Const(Value::Int(3)),
             Instruction::FactKeySet(x.clone()),
         ],
-        MachineErrorType::InvalidType,
+        MachineErrorType::invalid_type("Fact", "Int", "Value -> Fact"),
     );
 
     // InvalidType: Set a fact value on a thing that isn't a fact
@@ -575,7 +579,7 @@ fn test_errors() {
             Instruction::Const(Value::Int(3)),
             Instruction::FactValueSet(x.clone()),
         ],
-        MachineErrorType::InvalidType,
+        MachineErrorType::invalid_type("Fact", "Int", "Value -> Fact"),
     );
 
     // InvalidType: Branch on a non-bool value
@@ -584,7 +588,7 @@ fn test_errors() {
             Instruction::Const(Value::Int(3)),
             Instruction::Branch(Target::Unresolved(Label::new_temp(&x))),
         ],
-        MachineErrorType::InvalidType,
+        MachineErrorType::invalid_type("Bool", "Int", "Value -> bool"),
     );
 
     // InvalidStructGet: Access `foo.x` when `x` is not a member of `foo`
@@ -607,7 +611,7 @@ fn test_errors() {
             Instruction::Dup(0),
             Instruction::Update,
         ],
-        MachineErrorType::InvalidFact,
+        MachineErrorType::InvalidFact(x.clone()),
     );
 
     // InvalidSchema: Publish a command that was not defined
@@ -619,7 +623,7 @@ fn test_errors() {
             })),
             Instruction::Publish,
         ],
-        MachineErrorType::InvalidSchema,
+        MachineErrorType::InvalidSchema(x.clone()),
     );
 
     // InvalidSchema: Emit an effect that was not defined
@@ -631,13 +635,13 @@ fn test_errors() {
             })),
             Instruction::Emit,
         ],
-        MachineErrorType::InvalidSchema,
+        MachineErrorType::InvalidSchema(x.clone()),
     );
 
     // UnresolvedTarget: Jump to an unresolved target
     error_test_harness(
         &[Instruction::Jump(Target::Unresolved(Label::new_temp(&x)))],
-        MachineErrorType::UnresolvedTarget,
+        MachineErrorType::UnresolvedTarget(Label::new_temp(&x)),
     );
 
     // InvalidAddress: Run empty program

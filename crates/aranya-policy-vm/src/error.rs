@@ -4,7 +4,7 @@ use alloc::{borrow::ToOwned, string::String};
 use core::{convert::Infallible, fmt};
 
 use aranya_buggy::Bug;
-use aranya_policy_module::{CodeMap, ValueConversionError};
+use aranya_policy_module::{CodeMap, Label, ValueConversionError};
 
 use crate::io::MachineIOError;
 
@@ -27,26 +27,33 @@ pub enum MachineErrorType {
     NotDefined(String),
     /// Invalid type - An operation was given a value of the wrong
     /// type. E.g. addition with strings.
-    InvalidType,
+    InvalidType {
+        /// Expected type name
+        want: String,
+        /// Received type name
+        got: String,
+        /// Extra information
+        msg: String,
+    },
     /// Invalid struct member - An attempt to access a member not
     /// present in a struct. Parameter is the key name.
     InvalidStructMember(String),
     /// Invalid fact - An attempt was made to use a fact in a way
     /// that does not match the Fact schema.
-    InvalidFact,
+    InvalidFact(String),
     /// Invalid schema - An attempt to publish a Command struct or emit
     /// an Effect that does not match its definition.
-    InvalidSchema,
+    InvalidSchema(String),
     /// Unresolved target - A branching instruction attempted to jump
     /// to a target whose address has not yet been resolved.
-    UnresolvedTarget,
+    UnresolvedTarget(Label),
     /// Invalid address - An attempt to execute an instruction went
     /// beyond instruction bounds, or an action/command lookup did not
     /// find an address for the given name.
     InvalidAddress(String),
     /// Bad state - Some internal state is invalid and execution cannot
     /// continue.
-    BadState,
+    BadState(&'static str),
     /// IntegerOverflow occurs when an instruction wraps an integer above
     /// the max value or below the min value.
     IntegerOverflow,
@@ -76,15 +83,19 @@ impl fmt::Display for MachineErrorType {
             MachineErrorType::StackOverflow => write!(f, "stack overflow"),
             MachineErrorType::AlreadyDefined(s) => write!(f, "name `{}` already defined", s),
             MachineErrorType::NotDefined(s) => write!(f, "name `{}` not defined", s),
-            MachineErrorType::InvalidType => write!(f, "invalid type for operation"),
+            MachineErrorType::InvalidType { want, got, msg } => {
+                write!(f, "expected type {}, but got {}: {}", want, got, msg)
+            }
             MachineErrorType::InvalidStructMember(k) => write!(f, "invalid struct member `{}`", k),
-            MachineErrorType::InvalidFact => write!(f, "invalid fact"),
-            MachineErrorType::InvalidSchema => write!(f, "invalid schema"),
-            MachineErrorType::UnresolvedTarget => write!(f, "unresolved branch/jump target"),
+            MachineErrorType::InvalidFact(s) => write!(f, "invalid fact: {}", s),
+            MachineErrorType::InvalidSchema(s) => write!(f, "invalid schema: {}", s),
+            MachineErrorType::UnresolvedTarget(label) => {
+                write!(f, "unresolved branch/jump target: {}", label)
+            }
             MachineErrorType::InvalidAddress(label) => write!(f, "invalid address: {}", label),
-            MachineErrorType::BadState => write!(f, "Bad state"),
+            MachineErrorType::BadState(s) => write!(f, "Bad state: {}", s),
             MachineErrorType::IntegerOverflow => write!(f, "integer wrap"),
-            MachineErrorType::InvalidInstruction => write!(f, "bad state"),
+            MachineErrorType::InvalidInstruction => write!(f, "invalid instruction"),
             MachineErrorType::CallStack => write!(f, "call stack"),
             MachineErrorType::IO(e) => write!(f, "IO: {}", e),
             MachineErrorType::FfiModuleNotDefined(module) => {
@@ -95,6 +106,21 @@ impl fmt::Display for MachineErrorType {
             }
             MachineErrorType::Bug(bug) => write!(f, "Bug: {}", bug),
             MachineErrorType::Unknown(reason) => write!(f, "unknown error: {}", reason),
+        }
+    }
+}
+
+impl MachineErrorType {
+    /// Constructs an `InvalidType` error
+    pub fn invalid_type(
+        want: impl Into<String>,
+        got: impl Into<String>,
+        msg: impl Into<String>,
+    ) -> Self {
+        Self::InvalidType {
+            want: want.into(),
+            got: got.into(),
+            msg: msg.into(),
         }
     }
 }
@@ -110,12 +136,18 @@ impl From<Infallible> for MachineErrorType {
 impl From<ValueConversionError> for MachineErrorType {
     fn from(value: ValueConversionError) -> Self {
         match value {
-            ValueConversionError::InvalidType => MachineErrorType::InvalidType,
+            ValueConversionError::InvalidType { want, got, msg } => {
+                MachineErrorType::InvalidType { want, got, msg }
+            }
             ValueConversionError::InvalidStructMember(s) => {
                 MachineErrorType::InvalidStructMember(s)
             }
-            ValueConversionError::OutOfRange => MachineErrorType::InvalidType,
-            ValueConversionError::BadState => MachineErrorType::BadState,
+            ValueConversionError::OutOfRange => MachineErrorType::InvalidType {
+                want: "Int".to_owned(),
+                got: "Int".to_owned(),
+                msg: "out of range".to_owned(),
+            },
+            ValueConversionError::BadState => MachineErrorType::BadState("value conversion error"),
         }
     }
 }

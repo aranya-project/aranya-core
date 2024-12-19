@@ -99,7 +99,13 @@ impl TryFrom<Value> for Label {
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let x = match value {
             Value::Int(x) => x,
-            _ => return Err(ValueConversionError::InvalidType),
+            _ => {
+                return Err(ValueConversionError::invalid_type(
+                    "Int",
+                    value.type_name(),
+                    "Value -> Label",
+                ));
+            }
         };
         Ok(Label(
             u32::try_from(x).map_err(|_| ValueConversionError::OutOfRange)?,

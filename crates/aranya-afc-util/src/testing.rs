@@ -274,17 +274,18 @@ impl<T: TestImpl> User<T> {
                 .unwrap_or_else(|err| panic!("seal({id}, ...): {err}"));
             dst
         };
-        let (plaintext, got_label) = {
+        let (plaintext, got_label, got_seq) = {
             let sealer_node_id = opener.lookup(sealer.user_id);
             let mut dst = vec![0u8; ciphertext.len() - Client::<T::Afc>::OVERHEAD];
-            let label = opener
+            let (label, seq) = opener
                 .afc_client
                 .open(sealer_node_id, &mut dst[..], &ciphertext[..])
                 .unwrap_or_else(|err| panic!("open({sealer_node_id}, ...): {err}"));
-            (dst, label)
+            (dst, label, seq)
         };
         assert_eq!(&plaintext[..], GOLDEN.as_bytes());
         assert_eq!(got_label, label);
+        assert_eq!(got_seq, 0);
     }
 
     /// Tests the case where `label` has not been assigned to

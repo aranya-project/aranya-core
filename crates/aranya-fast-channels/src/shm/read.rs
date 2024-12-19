@@ -1,4 +1,9 @@
-use core::{cell::Cell, marker::PhantomData, sync::atomic::Ordering};
+use core::{
+    cell::Cell,
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+    sync::atomic::Ordering,
+};
 
 use aranya_buggy::BugExt;
 use aranya_crypto::{
@@ -9,7 +14,7 @@ use aranya_crypto::{
 use super::{
     error::Error,
     path::{Flag, Mode, Path},
-    shared::{Index, Op, State},
+    shared::{Index, KeyId, Op, State},
 };
 use crate::{
     mutex::StdMutex,
@@ -48,7 +53,7 @@ where
     // APS is typically used to seal/open many messages with the
     // same peer, so cache the most recent successful invocations
     // of seal/open.
-    last_seal: StdMutex<Option<Cache<SealKey<CS>>>>,
+    last_seal: StdMutex<Option<Cache<CachedSealKey<CS>>>>,
     last_open: StdMutex<Option<Cache<OpenKey<CS>>>>,
 
     /// Make `State` `!Sync` pending issues/95.
@@ -95,7 +100,7 @@ where
                 let gen = unsafe { mutex.inner_unsynchronized().gen.load(Ordering::Acquire) };
                 if c.gen == gen {
                     // Same generation, so we can use the key.
-                    debug!("cache hit: id={id} gen={gen}");
+                    debug!("cache hit: id={id} gen={gen} seq={}", c.key.seq());
 
                     return Ok(f(&mut c.key));
                 }
@@ -125,15 +130,34 @@ where
         };
         let mut key = SealKey::from_raw(&chan.seal_key, chan.seq())?;
 
+        debug!("chan = {chan:p}/{chan:?}");
+
         let result = f(&mut key);
         if likely!(result.is_ok()) {
             // Encryption was successful (it usually is), so
             // update the cache.
-            let new = Cache { id, key, gen, idx };
+            let new = Cache {
+                id,
+                key: CachedSealKey {
+                    key,
+                    id: chan.key_id,
+                },
+                gen,
+                idx,
+            };
             if let Some(old) = cache.replace(new) {
-                // We've evicted an existing entry, so write back
-                // the updated sequence number.
-                chan.set_seq(old.key.seq());
+                // We've evicted an existing entry, so try to
+                // write back the updated sequence number.
+                if let Some((chan, _)) = list.find_mut(old.id, Some(old.idx), Op::Seal)? {
+                    debug!(
+                        "updating seq: chan = {chan:p}/{chan:?} old={} new={}",
+                        chan.seq(),
+                        old.key.seq()
+                    );
+                    if chan.key_id == old.key.id {
+                        chan.set_seq(old.key.seq());
+                    }
+                }
             }
         }
         Ok(result)
@@ -199,5 +223,23 @@ where
         let mutex = self.inner.load_read_list()?;
         let list = mutex.lock().assume("poisoned")?;
         Ok(list.exists(id, None, Op::Any)?)
+    }
+}
+
+struct CachedSealKey<CS: CipherSuite> {
+    key: SealKey<CS>,
+    id: KeyId,
+}
+
+impl<CS: CipherSuite> Deref for CachedSealKey<CS> {
+    type Target = SealKey<CS>;
+    fn deref(&self) -> &Self::Target {
+        &self.key
+    }
+}
+
+impl<CS: CipherSuite> DerefMut for CachedSealKey<CS> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.key
     }
 }

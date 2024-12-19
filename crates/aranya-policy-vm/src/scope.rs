@@ -31,25 +31,31 @@ impl<'a> ScopeManager<'a> {
         self.locals.push(vec![BTreeMap::new()]);
     }
 
+    /// Exit the current function scope.
+    pub fn exit_function(&mut self) -> Result<(), MachineErrorType> {
+        self.locals.pop().ok_or(MachineErrorType::BadState(
+            "exit_function: empty function-scope stack",
+        ))?;
+        Ok(())
+    }
     /// Enter a new block scope.
     ///
     /// Previously defined locals within the same function scope will be available.
     pub fn enter_block(&mut self) -> Result<(), MachineErrorType> {
-        let locals = self.locals.last_mut().ok_or(MachineErrorType::BadState)?;
+        let locals = self.locals.last_mut().ok_or(MachineErrorType::BadState(
+            "enter_block: empty function-scope stack",
+        ))?;
         locals.push(BTreeMap::new());
-        Ok(())
-    }
-
-    /// Exit the current function scope.
-    pub fn exit_function(&mut self) -> Result<(), MachineErrorType> {
-        self.locals.pop().ok_or(MachineErrorType::BadState)?;
         Ok(())
     }
 
     /// Exit the current block scope.
     pub fn exit_block(&mut self) -> Result<(), MachineErrorType> {
-        let last = self.locals.last_mut().ok_or(MachineErrorType::BadState)?;
-        last.pop().ok_or(MachineErrorType::BadState)?;
+        let last = self.locals.last_mut().ok_or(MachineErrorType::BadState(
+            "exit_block: empty function-scope stack",
+        ))?;
+        last.pop()
+            .ok_or(MachineErrorType::BadState("exit_block: no block"))?;
         Ok(())
     }
 
@@ -81,14 +87,19 @@ impl<'a> ScopeManager<'a> {
             return Err(MachineErrorType::AlreadyDefined(ident.into()));
         }
 
-        let locals = self.locals.last_mut().ok_or(MachineErrorType::BadState)?;
+        let locals = self
+            .locals
+            .last_mut()
+            .ok_or(MachineErrorType::BadState("set: no local block"))?;
         for m in locals.iter() {
             if m.contains_key(ident.as_ref()) {
                 return Err(MachineErrorType::AlreadyDefined(ident.into()));
             }
         }
 
-        let block = locals.last_mut().ok_or(MachineErrorType::BadState)?;
+        let block = locals
+            .last_mut()
+            .ok_or(MachineErrorType::BadState("set: no locals"))?;
         block.insert(ident.into(), value);
 
         Ok(())

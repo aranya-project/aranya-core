@@ -1,6 +1,12 @@
 extern crate alloc;
 
-use alloc::{borrow::ToOwned, collections::BTreeMap, string::String, vec, vec::Vec};
+use alloc::{
+    borrow::ToOwned,
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::fmt::{self, Display};
 
 use aranya_buggy::BugExt;
@@ -409,7 +415,7 @@ where
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
     fn validate_struct_schema(&self, s: &Struct) -> Result<(), MachineError> {
-        let err = self.err(MachineErrorType::InvalidSchema);
+        let err = self.err(MachineErrorType::InvalidSchema(s.name.clone()));
 
         match self.machine.struct_defs.get(&s.name) {
             Some(fields) => {
@@ -490,7 +496,9 @@ where
             Instruction::Block => self.scope.enter_block().map_err(|e| self.err(e))?,
             Instruction::End => self.scope.exit_block().map_err(|e| self.err(e))?,
             Instruction::Jump(t) => match t {
-                Target::Unresolved(_) => return Err(self.err(MachineErrorType::UnresolvedTarget)),
+                Target::Unresolved(label) => {
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
+                }
                 Target::Resolved(n) => {
                     // We set the PC and return here to skip the
                     // increment below. We could subtract 1 here to
@@ -504,8 +512,8 @@ where
                 let conditional = self.ipop()?;
                 if conditional {
                     match t {
-                        Target::Unresolved(_) => {
-                            return Err(self.err(MachineErrorType::UnresolvedTarget))
+                        Target::Unresolved(label) => {
+                            return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
                         }
                         Target::Resolved(n) => {
                             self.pc = n;
@@ -517,7 +525,9 @@ where
             Instruction::Next => todo!(),
             Instruction::Last => todo!(),
             Instruction::Call(t) => match t {
-                Target::Unresolved(_) => return Err(self.err(MachineErrorType::UnresolvedTarget)),
+                Target::Unresolved(label) => {
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
+                }
                 Target::Resolved(n) => {
                     self.scope.enter_function();
                     // Store the current PC. The PC will be incremented after return,
@@ -574,13 +584,29 @@ where
                 let b = self.ipop_value()?;
                 let a = self.ipop_value()?;
                 let v = match instruction {
-                    Instruction::Gt => match (a, b) {
-                        (Value::Int(a), Value::Int(b)) => a > b,
-                        _ => return Err(self.err(MachineErrorType::InvalidType)),
+                    Instruction::Gt => match (&a, &b) {
+                        (Value::Int(ia), Value::Int(ib)) => ia > ib,
+                        _ => {
+                            let a_type = a.type_name();
+                            let b_type = b.type_name();
+                            return Err(self.err(MachineErrorType::invalid_type(
+                                "Int, Int",
+                                alloc::format!("{a_type}, {b_type}").to_owned(),
+                                "Greater-than comparison",
+                            )));
+                        }
                     },
-                    Instruction::Lt => match (a, b) {
-                        (Value::Int(a), Value::Int(b)) => a < b,
-                        _ => return Err(self.err(MachineErrorType::InvalidType)),
+                    Instruction::Lt => match (&a, &b) {
+                        (Value::Int(ia), Value::Int(ib)) => ia < ib,
+                        _ => {
+                            let a_type = a.type_name();
+                            let b_type = b.type_name();
+                            return Err(self.err(MachineErrorType::invalid_type(
+                                "Int, Int",
+                                alloc::format!("{a_type}, {b_type}"),
+                                "Less-than comparison",
+                            )));
+                        }
                     },
                     // This leans heavily on PartialEq to do the work.
                     // Equality depends on values having the same type and
@@ -617,7 +643,7 @@ where
                     .machine
                     .struct_defs
                     .get(&s.name)
-                    .ok_or_else(|| self.err(MachineErrorType::InvalidSchema))?;
+                    .ok_or_else(|| self.err(MachineErrorType::InvalidSchema(s.name.clone())))?;
                 if !struct_def_fields.iter().any(|f| f.identifier == field_name) {
                     return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                 }
@@ -653,8 +679,9 @@ where
                 let fact_from: Fact = self.ipop()?;
                 let replaced_fact = {
                     let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
-                    iter.next()
-                        .ok_or_else(|| self.err(MachineErrorType::InvalidFact))??
+                    iter.next().ok_or_else(|| {
+                        self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
+                    })??
                 };
                 self.io.fact_delete(fact_from.name, replaced_fact.0)?;
                 self.io
@@ -667,7 +694,11 @@ where
                 let (command, recall) = match self.ctx {
                     CommandContext::Policy(ctx) => (ctx.id, false),
                     CommandContext::Recall(ctx) => (ctx.id, true),
-                    _ => return Err(self.err(MachineErrorType::BadState)),
+                    _ => {
+                        return Err(
+                            self.err(MachineErrorType::BadState("Emit: wrong command context"))
+                        )
+                    }
                 };
                 self.io.effect(s.name, fields, command, recall);
             }
@@ -740,7 +771,7 @@ where
                 // Fetch next fact from iterator
                 let iter = self.query_iter_stack.last_mut().ok_or_else(|| {
                     MachineError::from_position(
-                        MachineErrorType::BadState,
+                        MachineErrorType::BadState("QueryNext: no results"),
                         self.pc,
                         self.machine.codemap.as_ref(),
                     )
@@ -872,13 +903,17 @@ where
                 this_data.fields.len()
             ))));
         }
-        for field in &this_data.fields {
+        for (name, value) in &this_data.fields {
             let expected_type = command_def
-                .get(field.0)
-                .ok_or(self.err(MachineErrorType::InvalidStructMember(String::from(field.0))))?;
+                .get(name)
+                .ok_or(self.err(MachineErrorType::InvalidStructMember(String::from(name))))?;
 
-            if !field.1.fits_type(expected_type) {
-                return Err(self.err(MachineErrorType::InvalidType));
+            if !value.fits_type(expected_type) {
+                return Err(self.err(MachineErrorType::invalid_type(
+                    expected_type.to_string(),
+                    value.type_name(),
+                    "invalid function argument",
+                )));
             }
         }
         self.scope
@@ -948,7 +983,11 @@ where
         for (i, arg) in args.iter().enumerate() {
             let def_type = &arg_def[i].field_type;
             if !arg.fits_type(def_type) {
-                return Err(MachineError::new(MachineErrorType::InvalidType));
+                return Err(MachineError::new(MachineErrorType::invalid_type(
+                    def_type.to_string(),
+                    arg.type_name(),
+                    "invalid function argument",
+                )));
             }
         }
 
@@ -1012,7 +1051,7 @@ where
             .is_some_and(|schema| validate_fact_schema(fact, schema))
         {
             return Err(MachineError::from_position(
-                MachineErrorType::InvalidSchema,
+                MachineErrorType::InvalidSchema(fact.name.clone()),
                 self.pc,
                 self.machine.codemap.as_ref(),
             ));

@@ -851,7 +851,7 @@ impl DataHeaderBuilder {
         let (seq_out, rest) = rest
             .split_first_chunk_mut()
             .expect("`out` should be large enough for `Seq`");
-        *seq_out = self.seq.unwrap_or(hdr.seq).to_le_bytes();
+        *seq_out = self.seq.unwrap_or(hdr.seq.to_u64()).to_le_bytes();
 
         assert!(rest.is_empty(), "`out` should be exactly `Header::SIZE`");
     }

@@ -15,6 +15,8 @@ pub mod macros {
     pub use aranya_policy_ifgen_macro::{actions, effect, effects, value};
 }
 
+pub use alloc::format;
+
 pub use aranya_policy_vm::{Id, KVPair, Struct, TryFromValue, Value, ValueConversionError};
 pub use aranya_runtime::{vm_action, vm_effect, ClientError, VmAction, VmEffect};
 #[cfg(feature = "serde")]
