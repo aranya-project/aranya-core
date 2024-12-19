@@ -12,7 +12,7 @@ workspace = true
 
 [dependencies]
 aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["std"] }
-aranya-runtime = { version = "0.2.0", path = "../aranya-runtime", features = ["std"] }
+aranya-runtime = { version = "0.3.0", path = "../aranya-runtime", features = ["std"] }
 
 quinn = { workspace = true }
 rustls = { workspace = true, default-features = false, features = ["quic"] }
