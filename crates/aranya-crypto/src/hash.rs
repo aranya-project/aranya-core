@@ -15,6 +15,7 @@ use core::{
 };
 
 use generic_array::{ArrayLength, GenericArray, IntoArrayLength};
+use sha3_utils::{encode_string, right_encode_bytes};
 use subtle::{Choice, ConstantTimeEq};
 use typenum::{
     generic_const_mappings::Const,
@@ -254,40 +255,12 @@ where
     // 4. newX = z || right_encode(L).
     let mut h = H::new();
     for v in s {
-        encode_string(&mut h, v.as_ref())
+        for part in &encode_string(v.as_ref()) {
+            h.update(part);
+        }
     }
-    right_encode(&mut h, H::DIGEST_SIZE as u64);
+    h.update(right_encode_bytes(H::DIGEST_SIZE).as_bytes());
     h.digest()
-}
-
-#[inline(always)]
-fn encode_string<H: Hash>(h: &mut H, s: &[u8]) {
-    left_encode(h, s.len() as u64);
-    h.update(s);
-}
-
-#[inline(always)]
-fn left_encode<H: Hash>(h: &mut H, v: u64) {
-    let mut b = [0u8; 9];
-    b[1..].copy_from_slice(&v.to_be_bytes());
-    let i = b[..8]
-        .iter()
-        .enumerate()
-        .position(|(pos, &n)| pos > 0 && n != 0)
-        .unwrap_or(8);
-    // The following cannot wrap because i is always 1-8.
-    b[i.wrapping_sub(1)] = (9_usize.wrapping_sub(i)) as u8;
-    h.update(&b[i.wrapping_sub(1)..]);
-}
-
-#[inline(always)]
-fn right_encode<H: Hash>(h: &mut H, v: u64) {
-    let mut b = [0u8; 9];
-    b[..8].copy_from_slice(&v.to_be_bytes());
-    let i = b[..7].iter().position(|&n| n != 0).unwrap_or(7);
-    // The following cannot wrap because i is always 1-7.
-    b[8] = 8_usize.wrapping_sub(i) as u8;
-    h.update(&b[i.wrapping_sub(1)..]);
 }
 
 #[cfg(test)]
