@@ -25,11 +25,12 @@ use typenum::U64;
 use crate::{
     aead::{Aead, AeadId, IndCca2},
     hash::{Hash, HashId},
+    id::Id,
     kdf::{Kdf, KdfId},
     kem::{Kem, KemId},
     mac::{Mac, MacId},
     signer::{Signer, SignerId},
-    Id,
+    xof::Xof,
 };
 
 /// The cryptographic primitives used by the cryptography engine.
@@ -67,6 +68,8 @@ pub trait CipherSuite {
     type Mac: Mac<KeySize = U64, TagSize = U64>;
     /// See [`Signer`] for more information.
     type Signer: Signer;
+    /// See [`Xof`] for more information.
+    type Xof: Xof;
 }
 
 /// Identifies the algorithms used by a [`CipherSuite`].

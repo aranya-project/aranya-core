@@ -77,6 +77,8 @@ mod policy;
 pub mod rust;
 pub mod signer;
 pub mod test_util;
+pub mod tuple_hash;
+pub mod xof;
 pub mod zeroize;
 
 pub use aead::{BufferTooSmallError, OpenError, SealError};
