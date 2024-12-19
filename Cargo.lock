@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "aranya-buggy",
  "aranya-crypto",
