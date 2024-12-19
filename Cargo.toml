@@ -43,7 +43,7 @@ heapless = { version = "0.7", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
-proptest = { version = "1.4", default-features = false, features = ["alloc"] }
+proptest = { version = "1.6", default-features = false, features = ["no_std", "alloc"] }
 proptest-derive = { version = "0.5" }
 quinn = { version = "0.10.1" }
 rand = { version = "0.8", default-features = false }
