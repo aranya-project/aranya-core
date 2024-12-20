@@ -138,6 +138,7 @@ impl CipherSuite for DefaultCipherSuite {
     type Kem = crate::rust::DhKemP256HkdfSha256;
     type Mac = crate::rust::HmacSha512;
     type Signer = crate::ed25519::Ed25519;
+    type Xof = crate::rust::CShake256;
 }
 
 /// A basic [`Engine`] implementation that wraps keys with

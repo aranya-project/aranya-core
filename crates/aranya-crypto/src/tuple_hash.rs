@@ -6,7 +6,7 @@
 //! [`tuple-hash`]: https://docs.rs/tuple-hash/0.5.0/tuple_hash/
 
 use generic_array::{ArrayLength, GenericArray};
-use sha3_utils::{encode_string, right_encode_bytes};
+use sha3_utils::{encode_string, right_encode, right_encode_bytes};
 
 use crate::xof::{Xof, XofReader};
 

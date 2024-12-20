@@ -267,6 +267,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "sha2",
+ "sha3",
  "sha3-utils 0.3.0",
  "siphasher",
  "spin 0.9.8",

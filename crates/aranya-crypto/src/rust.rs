@@ -47,6 +47,7 @@ use crate::{
     kem::{dhkem_impl, DecapKey, Ecdh, EcdhError, EncapKey},
     keys::{PublicKey, SecretKey, SecretKeyBytes},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
+    xof::{Xof, XofReader},
     zeroize::ZeroizeOnDrop,
 };
 
@@ -570,6 +571,52 @@ impl<R: Csprng> RngCore for RngWrapper<'_, R> {
     fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), rand_core::Error> {
         self.fill_bytes(dst);
         Ok(())
+    }
+}
+
+// Code taken from https://docs.rs/tuple-hash/0.5.0/tuple_hash/
+macro_rules! impl_cshake {
+    ($doc:expr, $name:ident) => {
+        #[derive(Clone, Debug)]
+        #[doc = "`"]
+        #[doc = $doc]
+        #[doc = "`,"]
+        pub struct $name(sha3::$name);
+
+        impl Xof for $name {
+            type Reader = <sha3::$name as sha3::digest::ExtendableOutput>::Reader;
+
+            fn new(s: &[u8]) -> Self {
+                use sha3::digest::core_api::CoreProxy;
+
+                let core =
+                    <sha3::$name as CoreProxy>::Core::new_with_function_name(b"TupleHash", s);
+                Self(<sha3::$name>::from_core(core))
+            }
+
+            #[inline]
+            fn update(&mut self, data: &[u8]) {
+                sha3::digest::Update::update(&mut self.0, data);
+            }
+
+            #[inline]
+            fn finalize_xof(self) -> Self::Reader {
+                sha3::digest::ExtendableOutput::finalize_xof(self.0)
+            }
+        }
+    };
+}
+impl_cshake!("cSHAKE128", CShake128);
+impl_cshake!("cSHAKE256", CShake256);
+
+// Code taken from https://docs.rs/tuple-hash/0.5.0/tuple_hash/
+impl<R> XofReader for R
+where
+    R: sha3::digest::XofReader,
+{
+    #[inline]
+    fn read(&mut self, out: &mut [u8]) {
+        sha3::digest::XofReader::read(self, out);
     }
 }
 
