@@ -6,7 +6,7 @@
 //! cryptography is centralized inside of the *cryptography
 //! engine*. The cryptographic APIs provided by the cryptography
 //! engine are described in multiple documents, including the
-//! [IDAM] and [IDAM crypto] specs.
+//! [IDAM crypto] spec.
 //!
 //! While it's generally referred to as *the* cryptography
 //! engine, it's important to note that there can be multiple
