@@ -267,6 +267,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "sha2",
+ "sha3-utils",
  "siphasher",
  "spin 0.9.8",
  "subtle",
@@ -2597,6 +2598,15 @@ dependencies = [
  "cfg-if",
  "cpufeatures",
  "digest",
+]
+
+[[package]]
+name = "sha3-utils"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e7a7b1ffced1f9158cd7d884786c2650a566833c8c6cf43f9e28caacaf3fd60"
+dependencies = [
+ "typenum",
 ]
 
 [[package]]
