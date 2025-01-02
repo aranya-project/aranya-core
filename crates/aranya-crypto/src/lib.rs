@@ -35,7 +35,6 @@
 //! prevent cross-version attacks.
 //!
 //! [IDAM crypto]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/idam_crypto.md
-//! [IDAM]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/idam.md
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
