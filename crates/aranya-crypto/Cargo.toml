@@ -28,6 +28,7 @@ alloc = [
 	"rand?/alloc",
 	"rand_core/alloc",
 	"rustix?/alloc",
+	"sha3-utils/alloc",
 	"zeroize/alloc",
 ]
 
@@ -129,6 +130,7 @@ std = [
 	"serde/std",
 	"serde_json?/std",
 	"sha2/std",
+	"sha3-utils/std",
 	"siphasher/std",
 	"spin?/std",
 	"subtle/std",
@@ -188,6 +190,7 @@ serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, optional = true }
 serde_repr = { version = "0.1", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false }
+sha3-utils = { version = "0.3.0", default-features = false }
 siphasher = { version = "1", default-features = false }
 spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"], optional = true }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
