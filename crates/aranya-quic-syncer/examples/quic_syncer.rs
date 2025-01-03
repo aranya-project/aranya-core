@@ -19,11 +19,11 @@ use aranya_runtime::{
     engine::Sink,
     protocol::{TestActions, TestEffect, TestEngine},
     storage::memory::MemStorageProvider,
-    ClientState, GraphId, SyncRequester,
+    ClientState, Engine, GraphId, StorageProvider, SyncRequester,
 };
 use clap::Parser;
 use quinn::ServerConfig;
-use tokio::sync::Mutex as TMutex;
+use tokio::sync::{mpsc, Mutex as TMutex};
 
 /// An error returned by the syncer.
 #[derive(Debug)]
@@ -73,15 +73,19 @@ fn main() {
     std::process::exit(code);
 }
 
-async fn sync_peer(
-    client: &mut ClientState<TestEngine, MemStorageProvider>,
-    syncer: &mut Syncer,
-    sink: &mut PrintSink,
+async fn sync_peer<EN, SP, S>(
+    client: &mut ClientState<EN, SP>,
+    syncer: &mut Syncer<EN, SP, S>,
+    sink: &mut S,
     storage_id: GraphId,
     server_addr: SocketAddr,
-) {
-    let sync_requester = SyncRequester::new(storage_id, &mut Rng::new());
-    let fut = syncer.sync(client, sync_requester, sink, storage_id, server_addr);
+) where
+    EN: Engine,
+    SP: StorageProvider,
+    S: Sink<<EN as Engine>::Effect>,
+{
+    let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server_addr);
+    let fut = syncer.sync(client, sync_requester, sink, storage_id);
     match fut.await {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),
@@ -112,23 +116,42 @@ async fn run(options: Opt) -> Result<()> {
         }
     };
 
-    let key = rustls::PrivateKey(key);
-    let cert = rustls::Certificate(cert);
-    let cert_chain = vec![cert];
-    let mut syncer = Syncer::new(&cert_chain)?;
-
     let engine = TestEngine::new();
     let storage = MemStorageProvider::new();
 
     let client = Arc::new(TMutex::new(ClientState::new(engine, storage)));
-    let mut sink = PrintSink {};
+    let sink = Arc::new(TMutex::new(PrintSink {}));
+    let key = rustls::PrivateKey(key);
+    let cert = rustls::Certificate(cert);
+    let cert_chain = vec![cert];
+    let (tx1, _) = mpsc::unbounded_channel();
+    let mut server_config = ServerConfig::with_single_cert(cert_chain.clone(), key.clone())?;
+    let transport_config =
+        Arc::get_mut(&mut server_config.transport).expect("error creating transport config");
+    transport_config.max_concurrent_uni_streams(0_u8.into());
+    let endpoint =
+        quinn::Endpoint::server(server_config, options.listen).map_err(|e| SyncError {
+            error_msg: e.to_string(),
+        })?;
+    let syncer = Arc::new(TMutex::new(Syncer::new(
+        &cert_chain,
+        client.clone(),
+        sink.clone(),
+        tx1,
+        endpoint.local_addr()?,
+    )?));
+
     let storage_id;
     if options.new_graph {
         let policy_data = 0_u64.to_be_bytes();
         storage_id = client
             .lock()
             .await
-            .new_graph(policy_data.as_slice(), TestActions::Init(0), &mut sink)
+            .new_graph(
+                policy_data.as_slice(),
+                TestActions::Init(0),
+                sink.lock().await.deref_mut(),
+            )
             .map_err(|e| SyncError {
                 error_msg: e.to_string(),
             })?;
@@ -142,21 +165,14 @@ async fn run(options: Opt) -> Result<()> {
         .into());
     }
 
-    let mut server_config = ServerConfig::with_single_cert(cert_chain.clone(), key.clone())?;
-    let transport_config =
-        Arc::get_mut(&mut server_config.transport).expect("error creating transport config");
-    transport_config.max_concurrent_uni_streams(0_u8.into());
-    let endpoint =
-        quinn::Endpoint::server(server_config, options.listen).map_err(|e| SyncError {
-            error_msg: e.to_string(),
-        })?;
-    let task = tokio::spawn(run_syncer(client.clone(), endpoint));
+    let (_, rx1) = mpsc::unbounded_channel();
+    let task = tokio::spawn(run_syncer(syncer.clone(), endpoint, rx1));
     // Initial sync to sync the Init command
     if !options.new_graph {
         sync_peer(
             client.lock().await.deref_mut(),
-            &mut syncer,
-            &mut sink,
+            syncer.lock().await.deref_mut(),
+            sink.lock().await.deref_mut(),
             storage_id,
             options.peer,
         )
@@ -169,15 +185,15 @@ async fn run(options: Opt) -> Result<()> {
             client
                 .lock()
                 .await
-                .action(storage_id, &mut sink, action)
+                .action(storage_id, sink.lock().await.deref_mut(), action)
                 .map_err(|e| SyncError {
                     error_msg: e.to_string(),
                 })?;
         } else {
             sync_peer(
                 client.lock().await.deref_mut(),
-                &mut syncer,
-                &mut sink,
+                syncer.lock().await.deref_mut(),
+                sink.lock().await.deref_mut(),
                 storage_id,
                 options.peer,
             )

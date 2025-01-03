@@ -8,14 +8,15 @@ use aranya_policy_module::Module;
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value};
 use tracing::trace;
 
+use super::dsl::dispatch;
 use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
     ser_keys,
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
-    ClientState, CommandId, GraphId, NullSink, PeerCache, SyncRequester, SyncResponder, VmEffect,
-    VmEffectData, VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
+    ClientState, CommandId, GraphId, NullSink, PeerCache, SyncRequester, VmEffect, VmEffectData,
+    VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
 };
 
 /// The policy used by these tests.
@@ -537,36 +538,29 @@ fn test_sync<E, P, S>(
     S: Sink<<E>::Effect>,
 {
     let mut rng = Rng::new();
-    let mut sync_requester = SyncRequester::new(storage_id, &mut rng);
-    let mut sync_responder = SyncResponder::new();
+    let mut sync_requester = SyncRequester::new(storage_id, &mut rng, ());
 
     let mut req_transaction = cs1.transaction(storage_id);
 
-    while sync_requester.ready() || sync_responder.ready() {
-        if sync_requester.ready() {
-            let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-            let (len, _) = sync_requester
-                .poll(&mut buffer, cs2.provider(), &mut PeerCache::new())
-                .expect("sync req->res");
+    while sync_requester.ready() {
+        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let (len, _) = sync_requester
+            .poll(&mut buffer, cs2.provider(), &mut PeerCache::new())
+            .expect("sync req->res");
 
-            sync_responder.receive(&buffer[..len]).expect("recieve res");
-        }
+        let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = dispatch::<()>(
+            &buffer[..len],
+            &mut target,
+            cs1.provider(),
+            &mut PeerCache::new(),
+        )
+        .expect("dispatch sync response");
 
-        if sync_responder.ready() {
-            let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-            let len = sync_responder
-                .poll(&mut buffer, cs1.provider(), &mut PeerCache::new())
-                .expect("sync res->req");
-
-            if len == 0 {
-                break;
-            }
-
-            if let Some(cmds) = sync_requester.receive(&buffer[..len]).expect("recieve req") {
-                cs2.add_commands(&mut req_transaction, sink, &cmds, &mut PeerCache::new())
-                    .expect("add commands");
-            };
-        }
+        if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
+            cs2.add_commands(&mut req_transaction, sink, &cmds, &mut PeerCache::new())
+                .expect("add commands");
+        };
     }
 
     cs2.commit(&mut req_transaction, sink).expect("commit");
