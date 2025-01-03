@@ -11,7 +11,7 @@
 
 /crates/aranya-crypto* @elagergren-spideroak @ycarmy
 
-/crates/aranya-device-ffi @chip-so @ jdygert-spok # MISSING: @rfraser
+/crates/aranya-device-ffi @chip-so @jdygert-spok # MISSING: @rfraser
 /crates/aranya-envelope-ffi @elagergren-spideroak @ycarmy
 /crates/aranya-idam-ffi @elagergren-spideroak @ycarmy
 /crates/aranya-model @smckeon-so @jdygert-spok
