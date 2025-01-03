@@ -267,6 +267,7 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "sha2",
+ "sha3-utils",
  "siphasher",
  "spin 0.9.8",
  "subtle",
@@ -326,7 +327,7 @@ dependencies = [
  "cfg-if",
  "const_format",
  "criterion",
- "heapless",
+ "heapless 0.7.17",
  "hex",
  "libc",
  "log",
@@ -490,7 +491,7 @@ dependencies = [
  "aranya-policy-module",
  "aranya-policy-vm",
  "ciborium",
- "heapless",
+ "heapless 0.8.0",
  "postcard",
 ]
 
@@ -517,6 +518,8 @@ dependencies = [
  "clap",
  "criterion",
  "directories-next",
+ "heapless 0.8.0",
+ "postcard",
  "quinn",
  "rcgen",
  "rustls",
@@ -540,7 +543,7 @@ dependencies = [
  "aranya-policy-vm",
  "aranya-runtime",
  "dot-writer",
- "heapless",
+ "heapless 0.8.0",
  "postcard",
  "proptest",
  "serde",
@@ -1465,6 +1468,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hash32"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47d60b12902ba28e2730cd37e95b8c9223af2808df9e902d4df49588d1470606"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1477,10 +1489,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdc6457c0eb62c71aac4bc17216026d8410337c4126773b9c5daba343f17964f"
 dependencies = [
  "atomic-polyfill",
- "hash32",
+ "hash32 0.2.1",
  "rustc_version",
  "serde",
  "spin 0.9.8",
+ "stable_deref_trait",
+]
+
+[[package]]
+name = "heapless"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
+dependencies = [
+ "hash32 0.3.1",
+ "serde",
  "stable_deref_trait",
 ]
 
@@ -1987,7 +2010,7 @@ dependencies = [
  "cobs",
  "embedded-io 0.4.0",
  "embedded-io 0.6.1",
- "heapless",
+ "heapless 0.7.17",
  "postcard-derive",
  "serde",
 ]
@@ -2600,6 +2623,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha3-utils"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e7a7b1ffced1f9158cd7d884786c2650a566833c8c6cf43f9e28caacaf3fd60"
+dependencies = [
+ "typenum",
+]
+
+[[package]]
 name = "sharded-slab"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2924,9 +2956,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.42.0"
+version = "1.41.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cec9b21b0450273377fc97bd4c33a8acffc8c996c987a7c5b319a0083707551"
+checksum = "22cfb5bee7a6a52939ca9224d6ac897bb669134078daa8735560897f69de4d33"
 dependencies = [
  "backtrace",
  "libc",

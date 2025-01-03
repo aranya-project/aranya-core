@@ -3,11 +3,11 @@ use alloc::vec;
 use aranya_buggy::BugExt;
 use aranya_crypto::Csprng;
 use heapless::Vec;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use super::{
-    responder::SyncResponseMessage, PeerCache, SyncCommand, SyncError, COMMAND_RESPONSE_MAX,
-    COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, REQUEST_MISSING_MAX,
+    dispatcher::SyncType, responder::SyncResponseMessage, PeerCache, SyncCommand, SyncError,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, REQUEST_MISSING_MAX,
 };
 use crate::{
     storage::{Segment, Storage, StorageError, StorageProvider},
@@ -93,7 +93,7 @@ pub enum SyncRequesterState {
 
 // The length of the Out Of Order buffer
 const OOO_LEN: usize = 4;
-pub struct SyncRequester<'a> {
+pub struct SyncRequester<'a, A> {
     session_id: u128,
     storage_id: GraphId,
     state: SyncRequesterState,
@@ -101,11 +101,12 @@ pub struct SyncRequester<'a> {
     next_index: u64,
     #[allow(unused)] // TODO(jdygert): Figure out what this is for...
     ooo_buffer: [Option<&'a [u8]>; OOO_LEN],
+    server_address: A,
 }
 
-impl SyncRequester<'_> {
+impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R, server_address: A) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -118,7 +119,26 @@ impl SyncRequester<'_> {
             max_bytes: 0,
             next_index: 0,
             ooo_buffer: core::array::from_fn(|_| None),
+            server_address,
         }
+    }
+
+    /// Create a new [`SyncRequester`] for an existing session.
+    pub fn new_session_id(storage_id: GraphId, session_id: u128, server_address: A) -> Self {
+        SyncRequester {
+            session_id,
+            storage_id,
+            state: SyncRequesterState::Waiting,
+            max_bytes: 0,
+            next_index: 0,
+            ooo_buffer: core::array::from_fn(|_| None),
+            server_address,
+        }
+    }
+
+    /// Returns the server address.
+    pub fn server_addr(&self) -> A {
+        self.server_address.clone()
     }
 
     /// Returns true if [`Self::poll`] would produce a message.
@@ -165,6 +185,15 @@ impl SyncRequester<'_> {
         let (message, remaining): (SyncResponseMessage, &'a [u8]) =
             postcard::take_from_bytes(data)?;
 
+        self.get_sync_commands(message, remaining)
+    }
+
+    /// Extract SyncCommands from a SyncResponseMessage and remaining bytes.
+    pub fn get_sync_commands<'a>(
+        &mut self,
+        message: SyncResponseMessage,
+        remaining: &'a [u8],
+    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_SAMPLE_MAX>>, SyncError> {
         if message.session_id() != self.session_id {
             return Err(SyncError::SessionMismatch);
         }
@@ -273,7 +302,7 @@ impl SyncRequester<'_> {
         Ok(result)
     }
 
-    fn write(target: &mut [u8], msg: SyncRequestMessage) -> Result<usize, SyncError> {
+    fn write(target: &mut [u8], msg: SyncType<A>) -> Result<usize, SyncError> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
@@ -281,8 +310,11 @@ impl SyncRequester<'_> {
         Ok((
             Self::write(
                 target,
-                SyncRequestMessage::EndSession {
-                    session_id: self.session_id,
+                SyncType::Poll {
+                    request: SyncRequestMessage::EndSession {
+                        session_id: self.session_id,
+                    },
+                    address: self.server_address.clone(),
                 },
             )?,
             0,
@@ -298,36 +330,26 @@ impl SyncRequester<'_> {
         }
 
         self.state = SyncRequesterState::Waiting;
-        let message = SyncRequestMessage::SyncResume {
-            session_id: self.session_id,
-            response_index: self
-                .next_index
-                .checked_sub(1)
-                .assume("next_index must be positive")?,
-            max_bytes,
+        let message = SyncType::Poll {
+            request: SyncRequestMessage::SyncResume {
+                session_id: self.session_id,
+                response_index: self
+                    .next_index
+                    .checked_sub(1)
+                    .assume("next_index must be positive")?,
+                max_bytes,
+            },
+            address: self.server_address.clone(),
         };
 
         Ok((Self::write(target, message)?, 0))
     }
 
-    fn start(
-        &mut self,
-        max_bytes: u64,
-        target: &mut [u8],
+    fn get_commands(
+        &self,
         provider: &mut impl StorageProvider,
         heads: &mut PeerCache,
-    ) -> Result<(usize, usize), SyncError> {
-        if !matches!(
-            self.state,
-            SyncRequesterState::Start | SyncRequesterState::New
-        ) {
-            self.state = SyncRequesterState::Reset;
-            return Err(SyncError::SessionState);
-        }
-
-        self.state = SyncRequesterState::Start;
-        self.max_bytes = max_bytes;
-
+    ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
         match provider.get_storage(self.storage_id) {
@@ -386,13 +408,68 @@ impl SyncRequester<'_> {
                 }
             }
         }
+        Ok(commands)
+    }
 
-        let sent = commands.len();
-        let message = SyncRequestMessage::SyncRequest {
-            session_id: self.session_id,
-            storage_id: self.storage_id,
+    /// Writes a Subscribe message to target.
+    pub fn subscribe(
+        &mut self,
+        target: &mut [u8],
+        provider: &mut impl StorageProvider,
+        heads: &mut PeerCache,
+        remain_open: u64,
+        max_bytes: u64,
+    ) -> Result<usize, SyncError> {
+        let commands = self.get_commands(provider, heads)?;
+        let message = SyncType::Subscribe {
+            remain_open,
             max_bytes,
             commands,
+            address: self.server_address.clone(),
+            storage_id: self.storage_id,
+        };
+
+        Self::write(target, message)
+    }
+
+    /// Writes an Unsubscribe message to target.
+    pub fn unsubscribe(&mut self, target: &mut [u8]) -> Result<usize, SyncError> {
+        let message = SyncType::Unsubscribe {
+            address: self.server_address.clone(),
+        };
+
+        Self::write(target, message)
+    }
+
+    fn start(
+        &mut self,
+        max_bytes: u64,
+        target: &mut [u8],
+        provider: &mut impl StorageProvider,
+        heads: &mut PeerCache,
+    ) -> Result<(usize, usize), SyncError> {
+        if !matches!(
+            self.state,
+            SyncRequesterState::Start | SyncRequesterState::New
+        ) {
+            self.state = SyncRequesterState::Reset;
+            return Err(SyncError::SessionState);
+        }
+
+        self.state = SyncRequesterState::Start;
+        self.max_bytes = max_bytes;
+
+        let commands = self.get_commands(provider, heads)?;
+
+        let sent = commands.len();
+        let message = SyncType::Poll {
+            request: SyncRequestMessage::SyncRequest {
+                session_id: self.session_id,
+                storage_id: self.storage_id,
+                max_bytes,
+                commands,
+            },
+            address: self.server_address.clone(),
         };
 
         Ok((Self::write(target, message)?, sent))
