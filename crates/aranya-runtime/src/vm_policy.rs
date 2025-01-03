@@ -27,7 +27,7 @@
 //! let (eng, _) = DefaultEngine::from_entropy(Rng);
 //! // Create a list of FFI module implementations
 //! let ffi_modules = vec![Box::from(TestFfiEnvelope {
-//!     user: UserId::random(&mut Rng),
+//!     user: UserId::random(&Rng),
 //! })];
 //! // And finally, create the VmPolicy
 //! let policy = VmPolicy::new(machine, eng, ffi_modules).unwrap();
@@ -191,7 +191,7 @@ macro_rules! vm_effect {
 /// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<E> {
     machine: Machine,
-    engine: Mutex<E>,
+    engine: E,
     ffis: Mutex<Vec<Box<dyn FfiCallable<E> + Send + 'static>>>,
     // TODO(chip): replace or fill this with priorities from attributes
     priority_map: Arc<BTreeMap<String, u32>>,
@@ -207,7 +207,7 @@ impl<E> VmPolicy<E> {
         let priority_map = VmPolicy::<E>::get_command_priorities(&machine)?;
         Ok(Self {
             machine,
-            engine: Mutex::from(engine),
+            engine,
             ffis: Mutex::from(ffis),
             priority_map: Arc::new(priority_map),
         })
@@ -257,8 +257,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         P: FactPerspective,
     {
         let mut ffis = self.ffis.lock();
-        let mut eng = self.engine.lock();
-        let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
+        let mut io = VmPolicyIO::new(facts, sink, &self.engine, &mut ffis);
         let mut rs = self.machine.create_run_state(&mut io, ctx);
         let self_data = Struct::new(name, fields);
         match rs.call_command_policy(&self_data.name, &self_data, envelope.clone().into()) {
@@ -328,8 +327,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
     {
         let mut sink = NullSink;
         let mut ffis = self.ffis.lock();
-        let mut eng = self.engine.lock();
-        let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
+        let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &mut ffis);
         let ctx = CommandContext::Open(OpenContext { name });
         let mut rs = self.machine.create_run_state(&mut io, &ctx);
         let status = rs.call_open(name, envelope.into());
@@ -371,8 +369,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
     ) -> Result<Envelope<'static>, EngineError> {
         let mut sink = NullSink;
         let mut ffis = self.ffis.lock();
-        let mut eng = self.engine.lock();
-        let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
+        let mut io = VmPolicyIO::new(facts, &mut sink, &self.engine, &mut ffis);
         let ctx = CommandContext::Seal(SealContext {
             name,
             head_id: ctx_parent.into(),
@@ -565,8 +562,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
 
         let publish_stack = {
             let mut ffis = self.ffis.lock();
-            let mut eng = self.engine.lock();
-            let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
+            let mut io = VmPolicyIO::new(facts, sink, &self.engine, &mut ffis);
             let ctx = CommandContext::Action(ActionContext {
                 name,
                 head_id: ctx_parent.id.into(),

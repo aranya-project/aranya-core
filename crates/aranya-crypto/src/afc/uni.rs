@@ -80,16 +80,16 @@ use crate::{
 /// }
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
-/// let (mut eng, _) = E::from_entropy(Rng);
+/// let (eng, _) = E::from_entropy(Rng);
 ///
-/// let parent_cmd_id = Id::random(&mut eng);
+/// let parent_cmd_id = Id::random(&eng);
 /// let label = 42u32;
 ///
-/// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user1 ID should be valid");
+/// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&eng);
+/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&eng).id().expect("user1 ID should be valid");
 ///
-/// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user2 ID should be valid");
+/// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&eng);
+/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&eng).id().expect("user2 ID should be valid");
 ///
 /// // user1 creates the channel keys and sends the encapsulation
 /// // to user2...
@@ -101,7 +101,7 @@ use crate::{
 ///     open_id: user2_id,
 ///     label,
 /// };
-/// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &user1_ch)
+/// let UniSecrets { author, peer } = UniSecrets::new(&eng, &user1_ch)
 ///     .expect("unable to create `UniSecrets`");
 /// let mut user1 = key_from_author(&user1_ch, author);
 ///
@@ -247,7 +247,7 @@ pub struct UniSecrets<CS: CipherSuite> {
 impl<CS: CipherSuite> UniSecrets<CS> {
     /// Creates a new set of encapsulated secrets for the
     /// unidirectional channel.
-    pub fn new<E: Engine<CS = CS>>(eng: &mut E, ch: &UniChannel<'_, CS>) -> Result<Self, Error> {
+    pub fn new<E: Engine<CS = CS>>(eng: &E, ch: &UniChannel<'_, CS>) -> Result<Self, Error> {
         // Only the channel author calls this function.
         let author_sk = ch.our_sk;
         let peer_pk = ch.their_pk;

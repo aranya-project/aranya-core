@@ -110,7 +110,7 @@ macro_rules! bench_impl {
 
 				// Use the same key to simplify the decryption
 				// benchmarks.
-				let seal = RawSealKey::random(&mut Rng);
+				let seal = RawSealKey::random(&Rng);
 				let open = RawOpenKey {
 					key: seal.key.clone(),
 					base_nonce: seal.base_nonce,

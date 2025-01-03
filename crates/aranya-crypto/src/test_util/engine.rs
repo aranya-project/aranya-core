@@ -177,7 +177,7 @@ macro_rules! test_engine {
 pub use test_engine;
 
 /// Simple test for [`UserSigningKey`].
-pub fn test_simple_user_signing_key_sign<E: Engine>(eng: &mut E) {
+pub fn test_simple_user_signing_key_sign<E: Engine>(eng: &E) {
     const MSG: &[u8] = b"hello, world!";
     const CONTEXT: &[u8] = b"test_simple_user_signing_key_sign";
 
@@ -212,7 +212,7 @@ pub fn test_simple_user_signing_key_sign<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for encrypting/decrypting
 /// [`GroupKey`]s.
-pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_seal_group_key<E: Engine>(eng: &E) {
     let enc_key = EncryptionKey::<E::CS>::new(eng);
 
     let group = Id::default();
@@ -229,7 +229,7 @@ pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`GroupKey`]s.
-pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_group_key<E: Engine>(eng: &E) {
     let want = GroupKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -245,7 +245,7 @@ pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`IdentityKey`]s.
-pub fn test_simple_wrap_user_identity_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_user_identity_key<E: Engine>(eng: &E) {
     let want = IdentityKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -262,7 +262,7 @@ pub fn test_simple_wrap_user_identity_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`IdentityKey`]s.
-pub fn test_simple_export_user_identity_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_user_identity_key<E: Engine>(eng: &E) {
     let want = IdentityKey::<E::CS>::new(eng)
         .public()
         .expect("identity key should be valid");
@@ -276,7 +276,7 @@ pub fn test_simple_export_user_identity_key<E: Engine>(eng: &mut E) {
 /// Simple test for [`IdentityKey`].
 /// Creates a signature over `msg` bound to some `context`.
 /// `msg` must NOT be pre-hashed.
-pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
+pub fn test_simple_identity_key_sign<E: Engine>(eng: &E) {
     let sign_key = IdentityKey::<E::CS>::new(eng);
 
     const MESSAGE: &[u8] = b"hello, world!";
@@ -310,7 +310,7 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`UserSigningKey`]s.
-pub fn test_simple_wrap_user_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_user_signing_key<E: Engine>(eng: &E) {
     let want = UserSigningKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -327,7 +327,7 @@ pub fn test_simple_wrap_user_signing_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`UserSigningKey`]s.
-pub fn test_simple_export_user_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_user_signing_key<E: Engine>(eng: &E) {
     let want = UserSigningKey::<E::CS>::new(eng)
         .public()
         .expect("user signing key should be valid");
@@ -337,7 +337,7 @@ pub fn test_simple_export_user_signing_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`EncryptionKey`]s.
-pub fn test_simple_wrap_user_encryption_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_user_encryption_key<E: Engine>(eng: &E) {
     let want = EncryptionKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -354,7 +354,7 @@ pub fn test_simple_wrap_user_encryption_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`EncryptionKey`]s.
-pub fn test_simple_export_user_encryption_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_user_encryption_key<E: Engine>(eng: &E) {
     let want = EncryptionKey::<E::CS>::new(eng)
         .public()
         .expect("encryption public key should be valid");
@@ -366,7 +366,7 @@ pub fn test_simple_export_user_encryption_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for encryption using a [`GroupKey`].
-pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
+pub fn test_group_key_seal<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
@@ -407,7 +407,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`GroupKey`].
-pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_wrong_key<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
@@ -448,7 +448,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`Context`].
-pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_wrong_context<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_pk1 = UserSigningKey::<E::CS>::new(eng)
@@ -511,7 +511,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for a modified ciphertext.
-pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
+pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
@@ -553,7 +553,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
 }
 
 /// Test encoding/decoding [`EncryptedGroupKey`].
-pub fn test_encrypted_group_key_encode<E: Engine>(eng: &mut E)
+pub fn test_encrypted_group_key_encode<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -580,7 +580,7 @@ where
 
 /// Simple test for [`SenderSigningKey`].
 /// Creates a signature over an encoded record.
-pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &mut E)
+pub fn test_simple_sender_signing_key_sign<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -636,7 +636,7 @@ where
 
 /// Simple positive test for encrypting/decrypting
 /// [`TopicKey`]s.
-pub fn test_simple_seal_topic_key<E: Engine>(eng: &mut E)
+pub fn test_simple_seal_topic_key<E: Engine>(eng: &E)
 where
     <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
     Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
@@ -665,7 +665,7 @@ where
 }
 
 /// Simple positive test for wrapping [`SenderSecretKey`]s.
-pub fn test_simple_wrap_user_sender_secret_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_user_sender_secret_key<E: Engine>(eng: &E) {
     let want = SenderSecretKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -681,7 +681,7 @@ pub fn test_simple_wrap_user_sender_secret_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`SenderSigningKey`]s.
-pub fn test_simple_wrap_user_sender_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_user_sender_signing_key<E: Engine>(eng: &E) {
     let want = SenderSigningKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -697,7 +697,7 @@ pub fn test_simple_wrap_user_sender_signing_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`ReceiverSecretKey`]s.
-pub fn test_simple_wrap_user_receiver_secret_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_user_receiver_secret_key<E: Engine>(eng: &E) {
     let want = ReceiverSecretKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -713,7 +713,7 @@ pub fn test_simple_wrap_user_receiver_secret_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for encryption using a [`TopicKey`].
-pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_seal<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -745,7 +745,7 @@ pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`TopicKey`].
-pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -777,7 +777,7 @@ pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for the wrong [`Context`].
-pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -828,7 +828,7 @@ pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
 }
 
 /// Negative test for a modified ciphertext.
-pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
+pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &E) {
     const INPUT: &[u8] = b"hello, world!";
 
     let ident = Sender {
@@ -892,7 +892,7 @@ fn assert_same_afc_keys<CS: CipherSuite>(seal: &mut SealKey<CS>, open: &OpenKey<
 ///
 /// If `seal` is `None` then a random key will be used.
 fn assert_different_afc_keys<E: Engine>(
-    eng: &mut E,
+    eng: &E,
     seal: Option<SealKey<E::CS>>,
     open: &OpenKey<E::CS>,
 ) {
@@ -926,7 +926,7 @@ fn assert_different_afc_keys<E: Engine>(
 }
 
 /// A simple positive test for [`SealKey`] and [`OpenKey`].
-pub fn test_same_seal_key_open_key<E: Engine>(eng: &mut E) {
+pub fn test_same_seal_key_open_key<E: Engine>(eng: &E) {
     let raw: RawSealKey<E::CS> = Random::random(eng);
     let mut seal =
         SealKey::<E::CS>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
@@ -935,7 +935,7 @@ pub fn test_same_seal_key_open_key<E: Engine>(eng: &mut E) {
 }
 
 /// A simple negative test for [`SealKey`] and [`OpenKey`].
-pub fn test_different_seal_key_open_key<E: Engine>(eng: &mut E) {
+pub fn test_different_seal_key_open_key<E: Engine>(eng: &E) {
     let seal = SealKey::from_raw(&Random::random(eng), Seq::ZERO)
         .expect("should be able to create `SealKey`");
     let open = OpenKey::from_raw(&Random::random(eng)).expect("should be able to create `OpenKey`");
@@ -945,7 +945,7 @@ pub fn test_different_seal_key_open_key<E: Engine>(eng: &mut E) {
 
 /// Tests that [`SealKey`]'s sequence number monotonically
 /// advances by one each time.
-pub fn test_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
+pub fn test_seal_key_monotonic_seq_number<E: Engine>(eng: &E) {
     let mut seal = SealKey::<E::CS>::from_raw(&Random::random(eng), Seq::ZERO)
         .expect("should be able to create `SealKey`");
 
@@ -967,7 +967,7 @@ pub fn test_seal_key_monotonic_seq_number<E: Engine>(eng: &mut E) {
 
 /// Tests that [`SealKey`] refuses to encrypt when its
 /// sequence number has been exhausted.
-pub fn test_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
+pub fn test_seal_key_seq_number_exhausted<E: Engine>(eng: &E) {
     let max = Seq::max::<<<E::CS as CipherSuite>::Aead as Aead>::NonceSize>();
     // Start at one before the max.
     let start = Seq::new(max - 1);
@@ -997,7 +997,7 @@ pub fn test_seal_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
 
 /// Tests that [`OpenKey`] refuses to decrypt when the
 /// sequence number has been exhausted.
-pub fn test_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
+pub fn test_open_key_seq_number_exhausted<E: Engine>(eng: &E) {
     let raw: RawSealKey<E::CS> = Random::random(eng);
     let mut seal =
         SealKey::<E::CS>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
@@ -1032,7 +1032,7 @@ pub fn test_open_key_seq_number_exhausted<E: Engine>(eng: &mut E) {
 
 /// Tests that [`OpenKey`]'s fails when the incorrect
 /// sequence number is provided.
-pub fn test_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
+pub fn test_open_key_wrong_seq_number<E: Engine>(eng: &E) {
     let raw: RawSealKey<E::CS> = Random::random(eng);
     let mut seal =
         SealKey::<E::CS>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
@@ -1065,7 +1065,7 @@ pub fn test_open_key_wrong_seq_number<E: Engine>(eng: &mut E) {
 
 /// Tests that [`OpenKey`]'s fails when the incorrect
 /// [`AuthData`] is provided.
-pub fn test_open_key_wrong_auth_data<E: Engine>(eng: &mut E) {
+pub fn test_open_key_wrong_auth_data<E: Engine>(eng: &E) {
     let raw: RawSealKey<E::CS> = Random::random(eng);
     let mut seal =
         SealKey::<E::CS>::from_raw(&raw, Seq::ZERO).expect("should be able to create `SealKey`");
@@ -1128,7 +1128,7 @@ fn assert_bidi_keys_match<CS: CipherSuite>(lhs: BidiKeys<CS>, rhs: BidiKeys<CS>)
 }
 
 /// Checks that `lhs` and `rhs` do _not_ match.
-fn assert_bidi_keys_mismatch<E: Engine>(eng: &mut E, lhs: BidiKeys<E::CS>, rhs: BidiKeys<E::CS>) {
+fn assert_bidi_keys_mismatch<E: Engine>(eng: &E, lhs: BidiKeys<E::CS>, rhs: BidiKeys<E::CS>) {
     // We should never generate duplicate keys.
     assert_ct_ne!(lhs.seal_key(), rhs.seal_key(), "duplicate `SealKey`");
     assert_ct_ne!(lhs.open_key(), rhs.open_key(), "duplicate `OpenKey`");
@@ -1144,7 +1144,7 @@ fn assert_bidi_keys_mismatch<E: Engine>(eng: &mut E, lhs: BidiKeys<E::CS>, rhs: 
 }
 
 /// A simple positive test for deriving [`BidiKeys`].
-pub fn test_derive_bidi_keys<E: Engine>(eng: &mut E) {
+pub fn test_derive_bidi_keys<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let label = 123;
@@ -1186,7 +1186,7 @@ pub fn test_derive_bidi_keys<E: Engine>(eng: &mut E) {
 }
 
 /// Different labels should create different [`BidiKeys`].
-pub fn test_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
+pub fn test_derive_bidi_keys_different_labels<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = BidiChannel {
@@ -1228,7 +1228,7 @@ pub fn test_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
 /// [`BidiKeys`].
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_derive_bidi_keys_different_user_ids<E: Engine>(eng: &mut E) {
+pub fn test_derive_bidi_keys_different_user_ids<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1272,7 +1272,7 @@ pub fn test_derive_bidi_keys_different_user_ids<E: Engine>(eng: &mut E) {
 /// [`BidiKeys`].
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
+pub fn test_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1316,7 +1316,7 @@ pub fn test_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
 /// [`BidiKeys`].
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
+pub fn test_derive_bidi_keys_different_keys<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1361,7 +1361,7 @@ pub fn test_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `UserId` when deriving
 /// [`BidiKeys`].
-pub fn test_derive_bidi_keys_same_user_id<E: Engine>(eng: &mut E) {
+pub fn test_derive_bidi_keys_same_user_id<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1411,7 +1411,7 @@ pub fn test_derive_bidi_keys_same_user_id<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`BidiAuthorSecret`]s.
-pub fn test_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
+pub fn test_wrap_bidi_author_secret<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::new(eng);
     let sk2 = EncryptionKey::new(eng);
     let ch = BidiChannel {
@@ -1461,11 +1461,7 @@ fn assert_same_uni_key<CS: CipherSuite>(seal: UniSealKey<CS>, open: UniOpenKey<C
 }
 
 /// Checks that `seal` and `open` are different keys.
-fn assert_different_uni_key<E: Engine>(
-    eng: &mut E,
-    seal: UniSealKey<E::CS>,
-    open: UniOpenKey<E::CS>,
-) {
+fn assert_different_uni_key<E: Engine>(eng: &E, seal: UniSealKey<E::CS>, open: UniOpenKey<E::CS>) {
     // Simple test: they should not have the same bytes.
     {
         let seal = seal.as_raw_key();
@@ -1488,7 +1484,7 @@ fn assert_different_uni_key<E: Engine>(
 
 /// A simple positive test for deriving [`UniSealKey`] and
 /// [`UniOpenKey`].
-pub fn test_derive_uni_key<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_key<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let label = 123;
@@ -1529,7 +1525,7 @@ pub fn test_derive_uni_key<E: Engine>(eng: &mut E) {
 
 /// Different labels should create different [`UniSealKey`]
 /// and [`UniOpenKey`]s.
-pub fn test_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_key_different_labels<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = UniChannel {
@@ -1571,7 +1567,7 @@ pub fn test_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
 /// [`UniSealKey`] and [`UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_derive_uni_key_different_user_ids<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_key_different_user_ids<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1614,7 +1610,7 @@ pub fn test_derive_uni_key_different_user_ids<E: Engine>(eng: &mut E) {
 /// [`UniSealKey`] and [`UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_key_different_cmd_ids<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1657,7 +1653,7 @@ pub fn test_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
 /// [`UniSealKey`] and [`UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_key_different_keys<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1697,7 +1693,7 @@ pub fn test_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `UserId` when deriving
 /// [`UniSealKey`]s.
-pub fn test_derive_uni_seal_key_same_user_id<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_seal_key_same_user_id<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1749,7 +1745,7 @@ pub fn test_derive_uni_seal_key_same_user_id<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `UserId` when deriving
 /// [`UniOpenKey`]s.
-pub fn test_derive_uni_open_key_same_user_id<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_open_key_same_user_id<E: Engine>(eng: &E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1800,7 +1796,7 @@ pub fn test_derive_uni_open_key_same_user_id<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`UniAuthorSecret`]s.
-pub fn test_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
+pub fn test_wrap_uni_author_secret<E: Engine>(eng: &E) {
     let sk1 = EncryptionKey::new(eng);
     let sk2 = EncryptionKey::new(eng);
     let ch = UniChannel {

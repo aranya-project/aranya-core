@@ -13,7 +13,7 @@ use crate::{csprng::Csprng, keys::SecretKey, mac::Mac};
 /// # aranya_crypto::__doctest_os_hardware_rand!();
 /// macro_rules! run_test {
 ///     ($test:ident) => {
-///         aranya_crypto::test_util::mac::$test::<HmacSha256, _>(&mut Rng);
+///         aranya_crypto::test_util::mac::$test::<HmacSha256, _>(&Rng);
 ///     }
 /// }
 /// aranya_crypto::for_each_mac_test!(run_test);
@@ -67,7 +67,7 @@ macro_rules! test_mac {
             ($test:ident) => {
                 #[test]
                 fn $test() {
-                    $crate::test_util::mac::$test::<$mac, _>(&mut $crate::Rng)
+                    $crate::test_util::mac::$test::<$mac, _>(&$crate::Rng)
                 }
             };
         }
@@ -88,7 +88,7 @@ pub use test_mac;
 const DATA: &[u8] = b"hello, world!";
 
 /// Basic positive test.
-pub fn test_default<T: Mac, R: Csprng>(rng: &mut R) {
+pub fn test_default<T: Mac, R: Csprng>(rng: &R) {
     let key = T::Key::new(rng);
     let tag1 = T::mac(&key, DATA);
     let tag2 = T::mac(&key, DATA);
@@ -96,7 +96,7 @@ pub fn test_default<T: Mac, R: Csprng>(rng: &mut R) {
 }
 
 /// Tests that [`Mac::update`] is the same as [`Mac::mac`].
-pub fn test_update<T: Mac, R: Csprng>(rng: &mut R) {
+pub fn test_update<T: Mac, R: Csprng>(rng: &R) {
     let key = T::Key::new(rng);
     let tag1 = T::mac(&key, DATA);
     let tag2 = {
@@ -110,7 +110,7 @@ pub fn test_update<T: Mac, R: Csprng>(rng: &mut R) {
 }
 
 /// Test [`Mac::verify`].
-pub fn test_verify<T: Mac, R: Csprng>(rng: &mut R) {
+pub fn test_verify<T: Mac, R: Csprng>(rng: &R) {
     let key = T::Key::new(rng);
     let tag1 = T::mac(&key, DATA);
 
@@ -122,7 +122,7 @@ pub fn test_verify<T: Mac, R: Csprng>(rng: &mut R) {
 }
 
 /// Negative tests for different keys.
-pub fn test_different_keys<T: Mac, R: Csprng>(rng: &mut R) {
+pub fn test_different_keys<T: Mac, R: Csprng>(rng: &R) {
     let key1 = T::Key::new(rng);
     let key2 = T::Key::new(rng);
     assert_ct_ne!(key1, key2, "keys should differ");
@@ -133,7 +133,7 @@ pub fn test_different_keys<T: Mac, R: Csprng>(rng: &mut R) {
 }
 
 /// Negative test for MACs of different data.
-pub fn test_different_data<T: Mac, R: Csprng>(rng: &mut R) {
+pub fn test_different_data<T: Mac, R: Csprng>(rng: &R) {
     let key = T::Key::new(rng);
     let tag1 = T::mac(&key, b"hello");
     let tag2 = T::mac(&key, b"world");

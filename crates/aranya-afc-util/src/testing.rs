@@ -223,12 +223,12 @@ pub struct User<T: TestImpl> {
 
 impl<T: TestImpl> User<T> {
     /// Creates a new [`User`].
-    pub fn new(mut eng: T::Engine, afc: T::Afc, aranya: T::Aranya, mut store: T::Store) -> Self {
-        let user_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&mut eng)
+    pub fn new(eng: T::Engine, afc: T::Afc, aranya: T::Aranya, mut store: T::Store) -> Self {
+        let user_id = IdentityKey::<<T::Engine as Engine>::CS>::new(&eng)
             .id()
             .expect("user ID should be valid");
 
-        let enc_sk = EncryptionKey::new(&mut eng);
+        let enc_sk = EncryptionKey::new(&eng);
         let enc_key_id = enc_sk.id().expect("encryption key ID should be valid");
         let enc_pk = encode_enc_pk(
             &enc_sk
@@ -395,7 +395,7 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = Id::random(&Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateBidiChannel",
         head_id: parent_cmd_id,
@@ -406,7 +406,7 @@ where
         .ffi
         .create_bidi_channel(
             &ctx,
-            &mut author.eng,
+            &author.eng,
             parent_cmd_id,
             author.enc_key_id,
             author.user_id,
@@ -422,7 +422,7 @@ where
         let keys = author
             .handler
             .bidi_channel_created(
-                &mut author.eng,
+                &author.eng,
                 &BidiChannelCreated {
                     parent_cmd_id,
                     author_id: author.user_id,
@@ -449,7 +449,7 @@ where
         let keys = peer
             .handler
             .bidi_channel_received(
-                &mut peer.eng,
+                &peer.eng,
                 &BidiChannelReceived {
                     parent_cmd_id,
                     author_id: author.user_id,
@@ -501,7 +501,7 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = Id::random(&Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateSealOnlyChannel",
         head_id: parent_cmd_id,
@@ -512,7 +512,7 @@ where
         .ffi
         .create_uni_channel(
             &ctx,
-            &mut author.eng,
+            &author.eng,
             parent_cmd_id,
             author.enc_key_id,
             peer.enc_pk.clone(),
@@ -528,7 +528,7 @@ where
         let keys = author
             .handler
             .uni_channel_created(
-                &mut author.eng,
+                &author.eng,
                 &UniChannelCreated {
                     parent_cmd_id,
                     author_id: author.user_id,
@@ -557,7 +557,7 @@ where
         let keys = peer
             .handler
             .uni_channel_received(
-                &mut peer.eng,
+                &peer.eng,
                 &UniChannelReceived {
                     parent_cmd_id,
                     author_id: author.user_id,
@@ -609,7 +609,7 @@ where
     let mut peer = T::new(); // seal only
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = Id::random(&Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateUniOnlyChannel",
         head_id: parent_cmd_id,
@@ -620,7 +620,7 @@ where
         .ffi
         .create_uni_channel(
             &ctx,
-            &mut author.eng,
+            &author.eng,
             parent_cmd_id,
             author.enc_key_id,
             peer.enc_pk.clone(),
@@ -636,7 +636,7 @@ where
         let keys = author
             .handler
             .uni_channel_created(
-                &mut author.eng,
+                &author.eng,
                 &UniChannelCreated {
                     parent_cmd_id,
                     author_id: author.user_id,
@@ -665,7 +665,7 @@ where
         let keys = peer
             .handler
             .uni_channel_received(
-                &mut peer.eng,
+                &peer.eng,
                 &UniChannelReceived {
                     parent_cmd_id,
                     author_id: author.user_id,

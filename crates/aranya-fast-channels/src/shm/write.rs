@@ -1,4 +1,4 @@
-use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Ordering};
+use core::{cell::Cell, marker::PhantomData, sync::atomic::Ordering};
 
 use aranya_buggy::BugExt;
 use aranya_crypto::{
@@ -14,7 +14,6 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    mutex::StdMutex,
     shm::shared::Op,
     state::{AranyaState, ChannelId, Directed},
     util::debug,
@@ -23,7 +22,7 @@ use crate::{
 /// The writer's view of the shared memory state.
 pub struct WriteState<CS, R> {
     inner: State<CS>,
-    rng: StdMutex<R>,
+    rng: R,
 
     /// Make `State` `!Sync` pending issues/95.
     _no_sync: PhantomData<Cell<()>>,
@@ -41,7 +40,7 @@ where
     {
         Ok(Self {
             inner: State::open(path, flag, mode, max_chans)?,
-            rng: StdMutex::new(rng),
+            rng,
             _no_sync: PhantomData,
         })
     }
@@ -62,8 +61,6 @@ where
         id: ChannelId,
         keys: Directed<Self::SealKey, Self::OpenKey>,
     ) -> Result<(), Error> {
-        let mut rng = self.rng.lock().assume("poisoned")?;
-
         let (write_off, idx, grow) = {
             let off = self.inner.write_off(self.inner.shm())?;
             // Load state after loading the write offset because
@@ -90,7 +87,7 @@ where
             };
             debug!("adding chan {id} at {idx} grow={grow}");
 
-            ShmChan::<CS>::init(chan, id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(chan, id, &keys, &self.rng);
 
             let gen = side.gen.fetch_add(1, Ordering::AcqRel);
             debug!("write side gen={}", gen + 1);
@@ -112,7 +109,7 @@ where
             let off = self.inner.swap_offsets(self.inner.shm(), write_off)?;
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            ShmChan::<CS>::init(side.raw_at(idx)?, id, &keys, rng.deref_mut());
+            ShmChan::<CS>::init(side.raw_at(idx)?, id, &keys, &self.rng);
 
             let gen = side.gen.fetch_add(1, Ordering::AcqRel);
             debug!("read side gen={}", gen + 1);

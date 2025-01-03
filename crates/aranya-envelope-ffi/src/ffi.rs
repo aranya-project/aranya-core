@@ -100,7 +100,7 @@ function parent_id(envelope_input struct Envelope) id
     pub(crate) fn parent_id<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
     ) -> Result<Id, Error> {
         match ctx {
@@ -120,7 +120,7 @@ function author_id(envelope_input struct Envelope) id
     pub(crate) fn author_id<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
     ) -> Result<Id, Error> {
         match ctx {
@@ -141,7 +141,7 @@ function command_id(envelope_input struct Envelope) id
     pub(crate) fn command_id<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
     ) -> Result<Id, Error> {
         match ctx {
@@ -162,7 +162,7 @@ function signature(envelope_input struct Envelope) bytes
     pub(crate) fn signature<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
         match ctx {
@@ -183,7 +183,7 @@ function payload(envelope_input struct Envelope) bytes
     pub(crate) fn payload<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
         match ctx {
@@ -211,7 +211,7 @@ function new(
     pub(crate) fn new_envelope<E: Engine>(
         &self,
         ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
         parent_id: Id,
         author_id: Id,
         command_id: Id,

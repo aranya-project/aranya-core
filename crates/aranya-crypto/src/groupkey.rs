@@ -48,7 +48,7 @@ impl<CS> Clone for GroupKey<CS> {
 
 impl<CS: CipherSuite> GroupKey<CS> {
     /// Creates a new, random `GroupKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> GroupKey<CS> {
+    pub fn new<R: Csprng>(rng: &R) -> GroupKey<CS> {
         Self::from_seed(Random::random(rng))
     }
 
@@ -107,13 +107,13 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
     /// const PARENT: Id = Id::default();
-    /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public().expect("signing key should be valid");
+    /// let author = SigningKey::<DefaultCipherSuite>::new(&Rng).public().expect("signing key should be valid");
     ///
-    /// let key = GroupKey::new(&mut Rng);
+    /// let key = GroupKey::new(&Rng);
     ///
     /// let ciphertext = {
     ///     let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
-    ///     key.seal(&mut Rng, &mut dst, MESSAGE, Context{
+    ///     key.seal(&Rng, &mut dst, MESSAGE, Context{
     ///         label: LABEL,
     ///         parent: PARENT,
     ///         author_sign_pk: &author,
@@ -134,7 +134,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// ```
     pub fn seal<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: &R,
         dst: &mut [u8],
         plaintext: &[u8],
         ctx: Context<'_, CS>,

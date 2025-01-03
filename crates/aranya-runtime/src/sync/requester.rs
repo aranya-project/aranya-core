@@ -106,7 +106,7 @@ pub struct SyncRequester<'a, A> {
 
 impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R, server_address: A) -> Self {
+    pub fn new<R: Csprng>(storage_id: GraphId, rng: &R, server_address: A) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);

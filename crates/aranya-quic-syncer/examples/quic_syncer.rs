@@ -84,7 +84,7 @@ async fn sync_peer<EN, SP, S>(
     SP: StorageProvider,
     S: Sink<<EN as Engine>::Effect>,
 {
-    let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server_addr);
+    let sync_requester = SyncRequester::new(storage_id, &Rng::new(), server_addr);
     let fut = syncer.sync(client, sync_requester, sink, storage_id);
     match fut.await {
         Ok(_) => {}

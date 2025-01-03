@@ -150,7 +150,7 @@ where
     T: TestImpl,
     CS: CipherSuite,
 {
-    fn new<R: Csprng>(rng: &mut R, state: T::Aranya<CS>) -> Self {
+    fn new<R: Csprng>(rng: &R, state: T::Aranya<CS>) -> Self {
         Self {
             ident_sk: IdentityKey::new(rng),
             enc_sk: EncryptionKey::new(rng),
@@ -227,7 +227,7 @@ where
 
         let States { afc, aranya } =
             T::new_states::<E::CS>(self.name.as_str(), user_id, self.max_chans);
-        let user = User::new(&mut self.eng, aranya);
+        let user = User::new(&self.eng, aranya);
         let client = Client::<T::Afc<E::CS>>::new(afc);
 
         for (label, user_type) in labels {
@@ -255,7 +255,7 @@ where
                 let (our_side, peer_side) = {
                     let author = (&user, user_id, user_type);
                     let peer = (peer, *peer_id, *peer_type);
-                    Self::new_channel(&mut self.eng, author, peer, label)
+                    Self::new_channel(&self.eng, author, peer, label)
                 };
 
                 // Register the peer.
@@ -283,7 +283,7 @@ where
     }
 
     fn new_channel(
-        eng: &mut E,
+        eng: &E,
         author: (&User<T, E::CS>, NodeId, ChanOp),
         peer: (&User<T, E::CS>, NodeId, ChanOp),
         label: Label,
@@ -306,7 +306,7 @@ where
     }
 
     fn new_bidi_channel(
-        eng: &mut E,
+        eng: &E,
         author: (&User<T, E::CS>, NodeId),
         peer: (&User<T, E::CS>, NodeId),
         label: Label,
@@ -359,7 +359,7 @@ where
     }
 
     fn new_uni_channel(
-        eng: &mut E,
+        eng: &E,
         seal: (&User<T, E::CS>, NodeId),
         open: (&User<T, E::CS>, NodeId),
         label: Label,
@@ -714,8 +714,8 @@ where
 }
 
 /// Returns a random `u32` in [0, n).
-pub fn rand_intn<R: Csprng>(rng: &mut R, n: u32) -> u32 {
-    fn rand_u32<R: Csprng>(rng: &mut R) -> u32 {
+pub fn rand_intn<R: Csprng>(rng: &R, n: u32) -> u32 {
+    fn rand_u32<R: Csprng>(rng: &R) -> u32 {
         let mut b = [0u8; 4];
         rng.fill_bytes(&mut b);
         u32::from_le_bytes(b)

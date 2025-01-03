@@ -80,9 +80,9 @@ where
     const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext { name: "dummy" });
 
     /// Test that we can verify valid signatures.
-    pub fn test_sign_verify(mut eng: E, mut store: S) {
+    pub fn test_sign_verify(eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -98,7 +98,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
         let Signed {
             signature,
@@ -106,7 +106,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -114,7 +114,7 @@ where
         let got = ffi
             .verify(
                 &Self::OPEN_CTX,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command.clone(),
@@ -127,9 +127,9 @@ where
 
     /// Test that we reject signatures that have been tampered
     /// with.
-    pub fn test_verify_reject_modified_sig(mut eng: E, mut store: S) {
+    pub fn test_verify_reject_modified_sig(eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -145,7 +145,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
         let Signed {
             mut signature,
@@ -153,7 +153,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -168,7 +168,7 @@ where
         // could be a failure because `sig` is malformed.
         ffi.verify(
             &Self::OPEN_CTX,
-            &mut eng,
+            &eng,
             pk,
             Id::default(),
             command,
@@ -180,9 +180,9 @@ where
 
     /// Test that we reject signatures that were not over the
     /// command (or where the command was modified).
-    pub fn test_verify_reject_modified_command(mut eng: E, mut store: S) {
+    pub fn test_verify_reject_modified_command(eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -198,7 +198,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let mut command = postcard::to_allocvec(&Command::random(&mut eng))
+        let mut command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
         let Signed {
             signature,
@@ -206,7 +206,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -219,7 +219,7 @@ where
         let err = ffi
             .verify(
                 &Self::OPEN_CTX,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command,
@@ -236,7 +236,7 @@ where
 
     /// Test that we reject signatures created with a different
     /// command name.
-    pub fn test_verify_reject_different_cmd_name(mut eng: E, mut store: S) {
+    pub fn test_verify_reject_different_cmd_name(eng: E, mut store: S) {
         const SEAL_CTX: CommandContext<'static> = CommandContext::Seal(SealContext {
             name: "foo",
             head_id: Id::default(),
@@ -245,7 +245,7 @@ where
         const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext { name: "bar" });
 
         let (sk, pk) = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -261,7 +261,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
         let Signed {
             signature,
@@ -269,7 +269,7 @@ where
         } = ffi
             .sign(
                 &SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -278,7 +278,7 @@ where
         let err = ffi
             .verify(
                 &OPEN_CTX,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command,
@@ -295,9 +295,9 @@ where
 
     /// Test that we reject signatures created with a different
     /// parent command ID.
-    pub fn test_verify_reject_different_parent_cmd_id(mut eng: E, mut store: S) {
+    pub fn test_verify_reject_different_parent_cmd_id(eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -313,12 +313,12 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
 
         let seal_ctx = CommandContext::Seal(SealContext {
             name: "dummy",
-            head_id: Id::random(&mut eng),
+            head_id: Id::random(&eng),
         });
         let Signed {
             signature,
@@ -326,7 +326,7 @@ where
         } = ffi
             .sign(
                 &seal_ctx,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -336,7 +336,7 @@ where
         let err = ffi
             .verify(
                 &open_ctx,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command,
@@ -353,12 +353,12 @@ where
 
     /// Test that we reject signatures created with a different
     /// [`SigningKey`].
-    pub fn test_verify_reject_different_signing_key(mut eng: E, mut store: S) {
+    pub fn test_verify_reject_different_signing_key(eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&eng);
             let pk = {
                 // NB: different `SigningKey`.
-                let sk = SigningKey::<E::CS>::new(&mut eng);
+                let sk = SigningKey::<E::CS>::new(&eng);
                 postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                     .expect("should be able to encode `VerifyingKey`")
             };
@@ -375,7 +375,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
         let Signed {
             signature,
@@ -383,7 +383,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -391,7 +391,7 @@ where
         let err = ffi
             .verify(
                 &Self::OPEN_CTX,
-                &mut eng,
+                &eng,
                 pk,
                 Id::default(),
                 command,
@@ -408,9 +408,9 @@ where
 
     /// Test that `seal` returns an error when called outside
     /// of a `seal` block.
-    pub fn test_seal_reject_wrong_context(mut eng: E, mut store: S) {
+    pub fn test_seal_reject_wrong_context(eng: E, mut store: S) {
         let sk = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&eng);
             let wrapped = eng
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
@@ -424,7 +424,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
 
         for ctx in &[
@@ -449,7 +449,7 @@ where
             let err = ffi
                 .sign(
                     ctx,
-                    &mut eng,
+                    &eng,
                     sk.id().expect("signing key ID should be valid").into_id(),
                     command.clone(),
                 )
@@ -461,9 +461,9 @@ where
 
     /// Test that `verify` returns an error when called outside
     /// of an `open` block.
-    pub fn test_verify_reject_wrong_context(mut eng: E, mut store: S) {
+    pub fn test_verify_reject_wrong_context(eng: E, mut store: S) {
         let (sk, pk) = {
-            let sk = SigningKey::<E::CS>::new(&mut eng);
+            let sk = SigningKey::<E::CS>::new(&eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
             let wrapped = eng
@@ -479,7 +479,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
         let Signed {
             signature,
@@ -487,7 +487,7 @@ where
         } = ffi
             .sign(
                 &Self::SEAL_CTX,
-                &mut eng,
+                &eng,
                 sk.id().expect("signing key ID should be valid").into_id(),
                 command.clone(),
             )
@@ -518,7 +518,7 @@ where
             let err = ffi
                 .verify(
                     ctx,
-                    &mut eng,
+                    &eng,
                     pk.clone(),
                     Id::default(),
                     command.clone(),
@@ -536,7 +536,7 @@ where
 struct Command([u8; 32]);
 
 impl Random for Command {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: &R) -> Self {
         Self(Random::random(rng))
     }
 }

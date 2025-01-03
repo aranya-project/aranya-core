@@ -270,7 +270,7 @@ impl TestEngine {
             machine,
             eng,
             vec![Box::from(TestFfiEnvelope {
-                user: UserId::random(&mut Rng),
+                user: UserId::random(&Rng),
             })],
         )
         .expect("Could not load policy");
@@ -537,8 +537,8 @@ fn test_sync<E, P, S>(
     E: Engine,
     S: Sink<<E>::Effect>,
 {
-    let mut rng = Rng::new();
-    let mut sync_requester = SyncRequester::new(storage_id, &mut rng, ());
+    let rng = Rng::new();
+    let mut sync_requester = SyncRequester::new(storage_id, &rng, ());
 
     let mut req_transaction = cs1.transaction(storage_id);
 

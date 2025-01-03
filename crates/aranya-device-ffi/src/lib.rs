@@ -23,7 +23,7 @@ impl FfiDevice {
     pub(crate) fn current_user_id<E: aranya_crypto::Engine>(
         &self,
         _ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
     ) -> Result<UserId, Infallible> {
         Ok(self.id)
     }

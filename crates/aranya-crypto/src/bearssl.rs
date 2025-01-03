@@ -410,7 +410,7 @@ macro_rules! ecdh_impl {
         }
 
         impl SecretKey for $sk {
-            fn new<R: Csprng>(rng: &mut R) -> Self {
+            fn new<R: Csprng>(rng: &R) -> Self {
                 // We don't know what `rng` is, so construct our
                 // own.
                 let mut rng = RngWrapper::new(rng);
@@ -711,7 +711,7 @@ macro_rules! ecdsa_impl {
 
         impl SecretKey for $sk {
             #[inline]
-            fn new<R: Csprng>(rng: &mut R) -> Self {
+            fn new<R: Csprng>(rng: &R) -> Self {
                 // We don't know what `rng` is, so construct our
                 // own.
                 let mut rng = RngWrapper::new(rng);
@@ -1056,7 +1056,7 @@ hmac_impl!(HmacSha384, "HMAC-SHA384", Sha384);
 hmac_impl!(HmacSha512, "HMAC-SHA512", Sha512);
 
 /// A `HMAC_DRBG`-based CSPRNG.
-pub struct HmacDrbg(br_hmac_drbg_context);
+pub struct HmacDrbg(spin::Mutex<br_hmac_drbg_context>);
 
 impl HmacDrbg {
     /// Creates a CSPRNG from a cryptographically secure seed.
@@ -1071,11 +1071,11 @@ impl HmacDrbg {
                 seed.len(),
             );
         }
-        Self(ctx)
+        Self(spin::Mutex::new(ctx))
     }
 
     /// Creates a CSPRNG seeded with entropy from `rng`.
-    pub fn from_rng<R: Csprng>(rng: &mut R) -> Self {
+    pub fn from_rng<R: Csprng>(rng: &R) -> Self {
         let mut seed = [0u8; 64];
         rng.fill_bytes(&mut seed);
         HmacDrbg::new(seed)
@@ -1083,7 +1083,7 @@ impl HmacDrbg {
 }
 
 impl Csprng for HmacDrbg {
-    fn fill_bytes(&mut self, mut dst: &mut [u8]) {
+    fn fill_bytes(&self, mut dst: &mut [u8]) {
         // Max number of bytes that can be requested from
         // a `HMAC_DRBG` per request.
         const MAX: usize = 1 << 16;
@@ -1091,12 +1091,15 @@ impl Csprng for HmacDrbg {
         while !dst.is_empty() {
             let n = cmp::min(dst.len(), MAX);
             // SAFETY: FFI call, no invariants
-            unsafe {
-                br_hmac_drbg_generate(
-                    ptr::addr_of_mut!(self.0),
-                    dst.as_mut_ptr() as *mut c_void,
-                    n,
-                );
+            {
+                let mut ctx = self.0.lock();
+                unsafe {
+                    br_hmac_drbg_generate(
+                        ptr::addr_of_mut!(*ctx),
+                        dst.as_mut_ptr() as *mut c_void,
+                        n,
+                    );
+                }
             }
             dst = &mut dst[n..];
         }
@@ -1164,11 +1167,11 @@ struct RngWrapper<'a> {
     // NB: field order matters! Do not change the ordering. See
     // the comment in `rng_wrapper_generate`.
     vtable: *const br_prng_class,
-    rng: &'a mut dyn Csprng,
+    rng: &'a dyn Csprng,
 }
 
 impl<'a> RngWrapper<'a> {
-    fn new(rng: &'a mut dyn Csprng) -> Self {
+    fn new(rng: &'a dyn Csprng) -> Self {
         let vtable = ptr::addr_of!(RNG_WRAPPER_VTABLE);
         RngWrapper { vtable, rng }
     }

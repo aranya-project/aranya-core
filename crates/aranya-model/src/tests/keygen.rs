@@ -34,7 +34,7 @@ impl KeyBundle {
     /// Generates a key bundle.
     ///
     /// The wrapped keys are stored inside of `store`.
-    pub fn generate<E, S>(eng: &mut E, store: &mut S) -> Result<Self>
+    pub fn generate<E, S>(eng: &E, store: &mut S) -> Result<Self>
     where
         E: Engine,
         S: KeyStore,
@@ -63,7 +63,7 @@ impl KeyBundle {
     }
 
     /// Loads the public keys from `store`.
-    pub fn public_keys<E, S>(&self, eng: &mut E, store: &S) -> Result<PublicKeys<E::CS>>
+    pub fn public_keys<E, S>(&self, eng: &E, store: &S) -> Result<PublicKeys<E::CS>>
     where
         E: Engine,
         S: KeyStore,
@@ -87,7 +87,7 @@ impl MinKeyBundle {
     /// Generates a minimum key bundle.
     ///
     /// The wrapped keys are stored inside of `store`.
-    pub fn generate<E, S>(eng: &mut E, store: &mut S) -> Result<Self>
+    pub fn generate<E, S>(eng: &E, store: &mut S) -> Result<Self>
     where
         E: Engine,
         S: KeyStore,

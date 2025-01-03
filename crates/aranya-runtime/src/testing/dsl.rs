@@ -61,7 +61,7 @@ use core::{
 use std::time::Instant;
 
 use aranya_buggy::{Bug, BugExt};
-use aranya_crypto::{csprng::rand::Rng as RRng, Csprng, Rng};
+use aranya_crypto::{csprng::rand::Rng as RRng, Rng};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::{debug, error};
 
@@ -376,7 +376,7 @@ pub fn run_test<SB>(mut backend: SB, rules: &[TestRule]) -> Result<(), TestError
 where
     SB: StorageBackend,
 {
-    let mut rng = &mut Rng as &mut dyn Csprng;
+    let rng = &mut Rng;
     let actions: Vec<_> = rules
         .iter()
         .cloned()
@@ -730,7 +730,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     sink: &mut TestSink,
     storage_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, server_address);
+    let mut request_syncer = SyncRequester::new(storage_id, &Rng, server_address);
     assert!(request_syncer.ready());
 
     let mut request_trx = request_state.transaction(storage_id);

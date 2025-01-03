@@ -20,7 +20,7 @@ pub trait FfiCallable<E> {
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext<'_>,
-        eng: &mut E,
+        eng: &E,
     ) -> Result<(), MachineError>;
 }
 
@@ -34,7 +34,7 @@ where
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext<'_>,
-        eng: &mut E,
+        eng: &E,
     ) -> Result<(), MachineError> {
         FM::call(self, procedure, stack, ctx, eng).map_err(Into::into)
     }
@@ -45,7 +45,7 @@ pub struct VmPolicyIO<'o, P, S, E, FFI> {
     facts: &'o mut P,
     sink: &'o mut S,
     publish_stack: Vec<(String, Vec<KVPair>)>,
-    engine: &'o mut E,
+    engine: &'o E,
     ffis: &'o mut [FFI],
 }
 
@@ -57,7 +57,7 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     pub fn new(
         facts: &'o mut P,
         sink: &'o mut S,
-        engine: &'o mut E,
+        engine: &'o E,
         ffis: &'o mut [FFI],
     ) -> VmPolicyIO<'o, P, S, E, FFI> {
         VmPolicyIO {

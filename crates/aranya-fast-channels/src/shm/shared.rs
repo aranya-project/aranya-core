@@ -410,7 +410,7 @@ impl<CS: CipherSuite> ShmChan<CS> {
         ptr: &mut MaybeUninit<Self>,
         id: ChannelId,
         keys: &Directed<RawSealKey<CS>, RawOpenKey<CS>>,
-        rng: &mut R,
+        rng: &R,
     ) {
         // As a safety precaution, randomize keys that we don't
         // use. Leaving them unset (usually all zeros) is
