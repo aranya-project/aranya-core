@@ -10,11 +10,13 @@ use crate::{
     Address, Prior,
 };
 
+mod dispatcher;
 mod requester;
 mod responder;
 
-pub use requester::SyncRequester;
-pub use responder::{PeerCache, SyncResponder};
+pub use dispatcher::{SubscribeResult, SyncType};
+pub use requester::{SyncRequestMessage, SyncRequester};
+pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
 
 // TODO: These should all be compile time parameters
 
@@ -48,6 +50,15 @@ pub struct CommandMeta {
     policy_length: u32,
     length: u32,
     max_cut: usize,
+}
+
+impl CommandMeta {
+    pub fn address(&self) -> Address {
+        Address {
+            id: self.id,
+            max_cut: self.max_cut,
+        }
+    }
 }
 
 /// An error returned by the syncer.

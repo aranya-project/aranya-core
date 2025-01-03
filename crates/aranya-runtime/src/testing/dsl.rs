@@ -62,14 +62,14 @@ use std::time::Instant;
 
 use aranya_buggy::{Bug, BugExt};
 use aranya_crypto::{csprng::rand::Rng as RRng, Csprng, Rng};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
     Address, ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location,
     PeerCache, Prior, Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester,
-    SyncResponder, COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
+    SyncResponder, SyncType, COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
 };
 
 fn default_repeat() -> u64 {
@@ -78,6 +78,43 @@ fn default_repeat() -> u64 {
 
 fn default_max_syncs() -> u64 {
     1
+}
+
+/// Dispatches the SyncType contained in data.
+/// This function is only for testing using polling. In production
+/// usage the syncer implementation will handle this.
+pub fn dispatch<A: DeserializeOwned + Serialize>(
+    data: &[u8],
+    target: &mut [u8],
+    provider: &mut impl StorageProvider,
+    response_cache: &mut PeerCache,
+) -> Result<usize, SyncError> {
+    let sync_type: SyncType<A> = postcard::from_bytes(data)?;
+    let len = match sync_type {
+        SyncType::Poll {
+            request,
+            address: _,
+        } => {
+            let mut response_syncer: SyncResponder<()> = SyncResponder::new(());
+            response_syncer.receive(request)?;
+            assert!(response_syncer.ready());
+            response_syncer.poll(target, provider, response_cache)?
+        }
+        SyncType::Subscribe {
+            storage_id: _,
+            remain_open: _,
+            max_bytes: _,
+            address: _,
+            commands: _,
+        } => unimplemented!(),
+        SyncType::Unsubscribe { address: _ } => unimplemented!(),
+        SyncType::Push {
+            message: _,
+            storage_id: _,
+            address: _,
+        } => unimplemented!(),
+    };
+    Ok(len)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -547,11 +584,12 @@ where
                         .get(&(graph, from, client))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let (sent, received) = sync(
+                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
                         &mut request_cache,
                         &mut response_cache,
                         &mut request_client,
                         &mut response_client,
+                        client,
                         &mut sink,
                         *storage_id,
                     )?;
@@ -683,43 +721,39 @@ where
     Ok(())
 }
 
-fn sync<SP: StorageProvider>(
+fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     request_cache: &mut PeerCache,
     response_cache: &mut PeerCache,
     request_state: &mut ClientState<TestEngine, SP>,
     response_state: &mut ClientState<TestEngine, SP>,
+    server_address: u64,
     sink: &mut TestSink,
     storage_id: GraphId,
 ) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng);
-    let mut response_syncer = SyncResponder::new();
+    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, server_address);
     assert!(request_syncer.ready());
 
-    let mut sent = 0;
     let mut request_trx = request_state.transaction(storage_id);
 
-    if request_syncer.ready() {
-        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let (len, commands_sent) =
-            request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
-        sent = commands_sent;
-
-        response_syncer.receive(&buffer[..len])?;
-    }
+    let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+    let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
 
     let mut received = 0;
-    if response_syncer.ready() {
-        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let len = response_syncer.poll(&mut buffer, response_state.provider(), response_cache)?;
+    let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
+    let len = dispatch::<A>(
+        &buffer[..len],
+        &mut target,
+        response_state.provider(),
+        response_cache,
+    )?;
 
-        if len == 0 {
-            return Ok((sent, received));
-        }
-
-        if let Some(cmds) = request_syncer.receive(&buffer[..len])? {
-            received = request_state.add_commands(&mut request_trx, sink, &cmds, request_cache)?;
-        };
+    if len == 0 {
+        return Ok((sent, received));
     }
+
+    if let Some(cmds) = request_syncer.receive(&target[..len])? {
+        received = request_state.add_commands(&mut request_trx, sink, &cmds, request_cache)?;
+    };
 
     request_state.commit(&mut request_trx, sink)?;
 

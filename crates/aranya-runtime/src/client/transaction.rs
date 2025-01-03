@@ -41,6 +41,11 @@ impl<SP: StorageProvider, E> Transaction<SP, E> {
 }
 
 impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
+    /// Returns the transaction's storage id.
+    pub fn storage_id(&self) -> GraphId {
+        self.storage_id
+    }
+
     /// Find a given id if reachable within this transaction.
     ///
     /// Does not search `self.perspective`, which should be written out beforehand.

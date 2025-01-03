@@ -12,7 +12,7 @@ use super::{
 use crate::{
     command::{Address, Command, CommandId},
     storage::{GraphId, Location, Segment, Storage, StorageProvider},
-    StorageError,
+    StorageError, SyncType,
 };
 
 #[derive(Default, Debug)]
@@ -147,7 +147,7 @@ impl Default for SyncResponderState {
 }
 
 #[derive(Default)]
-pub struct SyncResponder {
+pub struct SyncResponder<A> {
     session_id: Option<u128>,
     storage_id: Option<GraphId>,
     state: SyncResponderState,
@@ -155,11 +155,12 @@ pub struct SyncResponder {
     next_send: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
+    server_address: A,
 }
 
-impl SyncResponder {
+impl<A: Serialize + Clone> SyncResponder<A> {
     /// Create a new [`SyncResponder`].
-    pub fn new() -> Self {
+    pub fn new(server_address: A) -> Self {
         SyncResponder {
             session_id: None,
             storage_id: None,
@@ -168,6 +169,7 @@ impl SyncResponder {
             next_send: 0,
             has: Vec::new(),
             to_send: Vec::new(),
+            server_address,
         }
     }
 
@@ -214,7 +216,7 @@ impl SyncResponder {
                         response_cache.add_command(storage, *command, cmd_loc)?;
                     }
                 }
-                self.to_send = SyncResponder::find_needed_segments(&self.has, storage)?;
+                self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
 
                 self.get_next(target, provider)?
             }
@@ -232,8 +234,7 @@ impl SyncResponder {
     }
 
     /// Receive a sync message. Updates the responders state for later polling.
-    pub fn receive(&mut self, data: &[u8]) -> Result<(), SyncError> {
-        let message: SyncRequestMessage = postcard::from_bytes(data)?;
+    pub fn receive(&mut self, message: SyncRequestMessage) -> Result<(), SyncError> {
         if self.session_id.is_none() {
             self.session_id = Some(message.session_id());
         }
@@ -268,6 +269,10 @@ impl SyncResponder {
         };
 
         Ok(())
+    }
+
+    fn write_sync_type(target: &mut [u8], msg: SyncType<A>) -> Result<usize, SyncError> {
+        Ok(postcard::to_slice(&msg, target)?.len())
     }
 
     fn write(target: &mut [u8], msg: SyncResponseMessage) -> Result<usize, SyncError> {
@@ -345,28 +350,117 @@ impl SyncResponder {
         target: &mut [u8],
         provider: &mut impl StorageProvider,
     ) -> Result<usize, SyncError> {
+        if self.next_send >= self.to_send.len() {
+            self.state = SyncResponderState::Idle;
+            return Ok(0);
+        }
+        let (commands, command_data, index) = self.get_commands(provider)?;
+
+        let message = SyncResponseMessage::SyncResponse {
+            session_id: self.session_id()?,
+            index: self.next_send as u64,
+            commands,
+        };
+
+        self.next_send = index;
+
+        let length = Self::write(target, message)?;
+        let total_length = length
+            .checked_add(command_data.len())
+            .assume("length + command_data_length mustn't overflow")?;
+        target
+            .get_mut(length..total_length)
+            .assume("sync message fits in target")?
+            .copy_from_slice(&command_data);
+        Ok(total_length)
+    }
+
+    /// Writes a sync push message to target for the peer. The message will
+    /// contain any commands that are after the commands in response_cache.
+    pub fn push(
+        &mut self,
+        target: &mut [u8],
+        provider: &mut impl StorageProvider,
+        response_cache: &mut PeerCache,
+    ) -> Result<usize, SyncError> {
+        use SyncResponderState as S;
         let Some(storage_id) = self.storage_id else {
-            self.state = SyncResponderState::Reset;
-            bug!("get_next called before storage_id was set");
+            self.state = S::Reset;
+            bug!("poll called before storage_id was set");
         };
 
         let storage = match provider.get_storage(storage_id) {
+            Ok(s) => s,
+            Err(e) => {
+                self.state = S::Reset;
+                return Err(e.into());
+            }
+        };
+        self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
+        let (commands, command_data, index) = self.get_commands(provider)?;
+        let storage = match provider.get_storage(storage_id) {
+            Ok(s) => s,
+            Err(e) => {
+                self.state = S::Reset;
+                return Err(e.into());
+            }
+        };
+        for command in &commands {
+            if let Some(cmd_loc) = storage.get_location(command.address())? {
+                response_cache.add_command(storage, command.address(), cmd_loc)?;
+            }
+        }
+        let mut length = 0;
+        if !commands.is_empty() {
+            let message = SyncType::Push {
+                message: SyncResponseMessage::SyncResponse {
+                    session_id: self.session_id()?,
+                    index: self.next_send as u64,
+                    commands,
+                },
+                storage_id: self.storage_id.assume("storage id must exist")?,
+                address: self.server_address.clone(),
+            };
+            self.next_send = index;
+
+            length = Self::write_sync_type(target, message)?;
+            let total_length = length
+                .checked_add(command_data.len())
+                .assume("length + command_data_length mustn't overflow")?;
+            target
+                .get_mut(length..total_length)
+                .assume("sync message fits in target")?
+                .copy_from_slice(&command_data);
+            length = total_length;
+        }
+        Ok(length)
+    }
+
+    fn get_commands(
+        &mut self,
+        provider: &mut impl StorageProvider,
+    ) -> Result<
+        (
+            Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
+            Vec<u8, MAX_SYNC_MESSAGE_SIZE>,
+            usize,
+        ),
+        SyncError,
+    > {
+        let Some(storage_id) = self.storage_id.as_ref() else {
+            self.state = SyncResponderState::Reset;
+            bug!("get_next called before storage_id was set");
+        };
+        let storage = match provider.get_storage(*storage_id) {
             Ok(s) => s,
             Err(e) => {
                 self.state = SyncResponderState::Reset;
                 return Err(e.into());
             }
         };
-
-        if self.next_send >= self.to_send.len() {
-            self.state = SyncResponderState::Idle;
-            return Ok(0);
-        }
-
         let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
         let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
         let mut index = self.next_send;
-
         for i in self.next_send..self.to_send.len() {
             if commands.is_full() {
                 break;
@@ -419,25 +513,7 @@ impl SyncResponder {
                 }
             }
         }
-
-        let message = SyncResponseMessage::SyncResponse {
-            session_id: self.session_id()?,
-            index: self.next_send as u64,
-            commands,
-        };
-
-        self.next_send = index;
-
-        let mut length = Self::write(target, message)?;
-        let total_length = length
-            .checked_add(command_data.len())
-            .assume("length + command_data_length mustn't overflow")?;
-        target
-            .get_mut(length..total_length)
-            .assume("sync message fits in target")?
-            .copy_from_slice(&command_data);
-        length = total_length;
-        Ok(length)
+        Ok((commands, command_data, index))
     }
 
     fn session_id(&self) -> Result<u128, SyncError> {

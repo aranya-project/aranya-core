@@ -18,8 +18,9 @@ use aranya_policy_lang::lang::ParseError;
 use aranya_runtime::{
     engine::{Engine, EngineError, Policy, PolicyId, Sink},
     storage::GraphId,
+    testing::dsl::dispatch,
     vm_policy::{VmEffect, VmPolicy, VmPolicyError},
-    ClientError, ClientState, PeerCache, StorageProvider, SyncError, SyncRequester, SyncResponder,
+    ClientError, ClientState, PeerCache, StorageProvider, SyncError, SyncRequester,
     MAX_SYNC_MESSAGE_SIZE,
 };
 
@@ -349,7 +350,7 @@ where
 {
     /// Creates a new [`RuntimeModel`]
     pub fn new(client_factory: CF) -> Self {
-        RuntimeModel {
+        RuntimeModel::<CF, CID, GID> {
             clients: BTreeMap::default(),
             storage_ids: BTreeMap::default(),
             client_graph_peer_cache: BTreeMap::default(),
@@ -491,17 +492,12 @@ where
             .get(&graph_proxy_id)
             .ok_or(ModelError::GraphNotFound)?;
 
-        let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new());
-        let mut response_syncer = SyncResponder::new();
+        let mut request_syncer = SyncRequester::new(*storage_id, &mut Rng::new(), ());
         assert!(request_syncer.ready());
 
         let mut request_trx = request_state.transaction(*storage_id);
 
-        loop {
-            if !request_syncer.ready() && !response_syncer.ready() {
-                break;
-            }
-
+        while request_syncer.ready() {
             if request_syncer.ready() {
                 let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
                 let (len, _) = request_syncer.poll(
@@ -510,22 +506,18 @@ where
                     &mut request_cache,
                 )?;
 
-                response_syncer.receive(&buffer[..len])?;
-            }
-
-            if response_syncer.ready() {
-                let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-                let len = response_syncer.poll(
-                    &mut buffer,
+                let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
+                let len = dispatch::<()>(
+                    &buffer[..len],
+                    &mut target,
                     response_state.provider(),
                     &mut response_cache,
                 )?;
-
                 if len == 0 {
                     break;
                 }
 
-                if let Some(cmds) = request_syncer.receive(&buffer[..len])? {
+                if let Some(cmds) = request_syncer.receive(&target[..len])? {
                     request_state.add_commands(
                         &mut request_trx,
                         &mut sink,
