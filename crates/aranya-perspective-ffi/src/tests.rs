@@ -13,7 +13,7 @@ use crate::FfiPerspective;
 
 #[test]
 fn test_head_id() {
-    let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
+    let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
     let mut perspective = FfiPerspective {};
     let head_id = Id::default();
 
@@ -22,7 +22,7 @@ fn test_head_id() {
             name: "action",
             head_id,
         });
-        assert_eq!(perspective.head_id(&context, &mut eng).unwrap(), head_id);
+        assert_eq!(perspective.head_id(&context, &eng).unwrap(), head_id);
     }
 
     {
@@ -30,16 +30,13 @@ fn test_head_id() {
             name: "seal",
             head_id,
         });
-        assert_eq!(perspective.head_id(&context, &mut eng).unwrap(), head_id);
+        assert_eq!(perspective.head_id(&context, &eng).unwrap(), head_id);
     }
 
     {
         let context = CommandContext::Open(OpenContext { name: "open" });
         assert_eq!(
-            perspective
-                .head_id(&context, &mut eng)
-                .unwrap_err()
-                .err_type,
+            perspective.head_id(&context, &eng).unwrap_err().err_type,
             MachineErrorType::Unknown(
                 "head_id is only available in Seal and Action contexts".to_string()
             )
@@ -54,10 +51,7 @@ fn test_head_id() {
             version: Id::default(),
         });
         assert_eq!(
-            perspective
-                .head_id(&context, &mut eng)
-                .expect_err("")
-                .err_type,
+            perspective.head_id(&context, &eng).expect_err("").err_type,
             MachineErrorType::Unknown(
                 "head_id is only available in Seal and Action contexts".to_string()
             )
@@ -72,10 +66,7 @@ fn test_head_id() {
             version: Id::default(),
         });
         assert_eq!(
-            perspective
-                .head_id(&context, &mut eng)
-                .expect_err("")
-                .err_type,
+            perspective.head_id(&context, &eng).expect_err("").err_type,
             MachineErrorType::Unknown(
                 "head_id is only available in Seal and Action contexts".to_string()
             )

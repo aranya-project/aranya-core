@@ -427,7 +427,7 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> Hpke<K, F, A> {
     /// The `info` parameter provides contextual binding.
     #[allow(clippy::type_complexity)]
     pub fn setup_send<R: Csprng>(
-        rng: &mut R,
+        rng: &R,
         mode: Mode<'_, &K::DecapKey>,
         pkR: &K::EncapKey,
         info: &[u8],

@@ -112,7 +112,7 @@
 ///     #[ffi_export(def = "function add(x int, y int) int")]
 ///     fn add<E: Engine>(
 ///         _ctx: &CommandContext<'_>,
-///         _eng: &mut E,
+///         _eng: &E,
 ///         x: i64,
 ///         y: i64,
 ///     ) -> Result<i64, Overflow> {
@@ -124,7 +124,7 @@
 ///     #[ffi_export(def = "function quo(x int, y int) int")]
 ///     fn quo<E: Engine>(
 ///         _ctx: &CommandContext<'_>,
-///         _eng: &mut E,
+///         _eng: &E,
 ///         x: i64,
 ///         y: i64,
 ///     ) -> Result<i64, DivideByZero> {
@@ -134,7 +134,7 @@
 ///     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
 ///     fn custom_def<E: Engine>(
 ///         _ctx: &CommandContext<'_>,
-///         _eng: &mut E,
+///         _eng: &E,
 ///         _a: i64,
 ///         _b: Vec<u8>,
 ///     ) -> Result<bool, Infallible> {
@@ -144,7 +144,7 @@
 ///     #[ffi_export(def = "function struct_fn(x struct S0) struct S1")]
 ///     fn struct_fn<E: Engine>(
 ///         _ctx: &CommandContext<'_>,
-///         _eng: &mut E,
+///         _eng: &E,
 ///         x: S0,
 ///     ) -> Result<S1, Infallible> {
 ///         Ok(S1 { x })

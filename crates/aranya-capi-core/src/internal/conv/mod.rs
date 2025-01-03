@@ -100,7 +100,7 @@ tuple_impls! { A B C D E F G H I J K L M N O P Q R S T U V W X }
 tuple_impls! { A B C D E F G H I J K L M N O P Q R S T U V W X Y }
 tuple_impls! { A B C D E F G H I J K L M N O P Q R S T U V W X Y Z }
 
-impl<'a, T> TryFromFfi for &'a T {
+impl<T> TryFromFfi for &T {
     type Ffi = *const T;
     type Error = InvalidPtr;
     unsafe fn try_from_ffi(val: Self::Ffi) -> Result<Self, Self::Error> {

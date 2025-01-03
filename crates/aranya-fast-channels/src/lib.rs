@@ -107,13 +107,13 @@
 //! };
 //! let user2_node_id = NodeId::new(2);
 //!
-//! let (mut eng, _) = E::from_entropy(Rng);
+//! let (eng, _) = E::from_entropy(Rng);
 //!
-//! let user1_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let user1_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let user1_id = IdentityKey::<CS>::new(&eng).id()?;
+//! let user1_enc_sk = EncryptionKey::<CS>::new(&eng);
 //!
-//! let user2_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let user2_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let user2_id = IdentityKey::<CS>::new(&eng).id()?;
+//! let user2_enc_sk = EncryptionKey::<CS>::new(&eng);
 //!
 //! // The label used for encryption and decryption.
 //! //
@@ -122,7 +122,7 @@
 //! const TOP_SECRET: Label = Label::new(12);
 //!
 //! let ch1 = BidiChannel {
-//!     parent_cmd_id: Id::random(&mut eng),
+//!     parent_cmd_id: Id::random(&eng),
 //!     our_sk: &user1_enc_sk,
 //!     our_id: user1_id,
 //!     their_pk: &user2_enc_sk.public()?,
@@ -130,7 +130,7 @@
 //!     label: TOP_SECRET.to_u32(),
 //! };
 //! let BidiSecrets { author, peer } =
-//!     BidiSecrets::new(&mut eng, &ch1)?;
+//!     BidiSecrets::new(&eng, &ch1)?;
 //!
 //! // Inform user1 about user2.
 //! let (seal, open) = BidiKeys::from_author_secret(&ch1, author)?

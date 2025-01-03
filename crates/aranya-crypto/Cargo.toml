@@ -35,6 +35,7 @@ alloc = [
 # Enable BearSSL.
 bearssl = [
 	"dep:aranya-bearssl-sys",
+	"dep:spin",
 ]
 
 # Enable committing AEAD implementations.

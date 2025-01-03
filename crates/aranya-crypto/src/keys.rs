@@ -27,7 +27,7 @@ pub trait SecretKey: Clone + ConstantTimeEq + for<'a> Import<&'a [u8]> + Zeroize
     ///
     /// Implementations are free to ignore `rng` and callers must
     /// not rely on this function reading from `rng`.
-    fn new<R: Csprng>(rng: &mut R) -> Self;
+    fn new<R: Csprng>(rng: &R) -> Self;
 
     /// The size of the key.
     type Size: ArrayLength + 'static;
@@ -98,7 +98,7 @@ impl<N: ArrayLength> ConstantTimeEq for SecretKeyBytes<N> {
 }
 
 impl<N: ArrayLength> Random for SecretKeyBytes<N> {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: &R) -> Self {
         Self(Random::random(rng))
     }
 }
@@ -204,7 +204,7 @@ macro_rules! raw_key {
             type Size = N;
 
             #[inline]
-            fn new<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+            fn new<R: $crate::csprng::Csprng>(rng: &R) -> Self {
                 Self($crate::csprng::Random::random(rng))
             }
 
@@ -218,7 +218,7 @@ macro_rules! raw_key {
         }
 
         impl<N: ::generic_array::ArrayLength> $crate::csprng::Random for $name<N> {
-            fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+            fn random<R: $crate::csprng::Csprng>(rng: &R) -> Self {
                 let sk = <$crate::keys::SecretKeyBytes<N> as $crate::csprng::Random>::random(rng);
                 Self(sk)
             }

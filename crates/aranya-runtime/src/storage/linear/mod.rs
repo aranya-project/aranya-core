@@ -30,7 +30,7 @@ pub mod testing;
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
 use aranya_buggy::{bug, Bug, BugExt};
-use aranya_crypto::{csprng::rand::Rng as _, Csprng, Rng};
+use aranya_crypto::{csprng::rand::Rng as _, Rng};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
@@ -557,7 +557,7 @@ impl<F: Write> Storage for LinearStorage<F> {
 
         let get_skips =
             |l: Location, count: usize| -> Result<Vec<(Location, usize)>, StorageError> {
-                let mut rng = &mut Rng as &mut dyn Csprng;
+                let rng = &mut Rng;
                 let mut skips = vec![];
                 for _ in 0..count {
                     let segment = self.get_segment(l)?;

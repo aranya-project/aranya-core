@@ -83,7 +83,7 @@ impl ClientFactory for BasicClientFactory {
         // Configure testing FFIs
         let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> =
             vec![Box::from(TestFfiEnvelope {
-                user: UserId::random(&mut Rng),
+                user: UserId::random(&Rng),
             })];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
@@ -145,11 +145,10 @@ impl ClientFactory for FfiClientFactory {
         };
 
         // Generate key bundle
-        let (mut eng, _) = DefaultEngine::from_entropy(Rng);
-        let bundle =
-            KeyBundle::generate(&mut eng, &mut store).expect("unable to generate `KeyBundle`");
+        let (eng, _) = DefaultEngine::from_entropy(Rng);
+        let bundle = KeyBundle::generate(&eng, &mut store).expect("unable to generate `KeyBundle`");
         let public_keys = bundle
-            .public_keys(&mut eng, &store)
+            .public_keys(&eng, &store)
             .expect("unable to generate public keys");
 
         // Configure FFIs
@@ -1275,14 +1274,14 @@ fn should_create_clients_with_args() {
                 Store::open(&path).expect("should create keystore")
             };
 
-            let (mut eng, _) = DefaultEngine::from_entropy(Rng);
+            let (eng, _) = DefaultEngine::from_entropy(Rng);
             // Generate key bundle
             let bundle =
-                KeyBundle::generate(&mut eng, &mut store).expect("unable to generate `KeyBundle`");
+                KeyBundle::generate(&eng, &mut store).expect("unable to generate `KeyBundle`");
 
             // Assign public keys to our variable
             public_keys = bundle
-                .public_keys(&mut eng, &store)
+                .public_keys(&eng, &store)
                 .expect("unable to generate public keys");
 
             // Configure FFIs
@@ -1352,10 +1351,10 @@ fn should_create_clients_with_args() {
                 Store::open(&path).expect("should create keystore")
             };
 
-            let (mut eng, _) = DefaultEngine::from_entropy(Rng);
+            let (eng, _) = DefaultEngine::from_entropy(Rng);
             // Generate key bundle
-            let bundle = MinKeyBundle::generate(&mut eng, &mut store)
-                .expect("unable to generate `KeyBundle`");
+            let bundle =
+                MinKeyBundle::generate(&eng, &mut store).expect("unable to generate `KeyBundle`");
 
             // Configure FFIs
             let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![

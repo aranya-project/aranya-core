@@ -155,7 +155,7 @@ impl<CS: CipherSuite> Clone for TopicKey<CS> {
 
 impl<CS: CipherSuite> TopicKey<CS> {
     /// Creates a new, random `TopicKey`.
-    pub fn new<R: Csprng>(rng: &mut R, version: Version, topic: &Topic) -> Result<Self, Error> {
+    pub fn new<R: Csprng>(rng: &R, version: Version, topic: &Topic) -> Result<Self, Error> {
         Self::from_seed(Random::random(rng), version, topic)
     }
 
@@ -221,19 +221,19 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// const MESSAGE: &[u8] = b"hello, world!";
     ///
     /// let ident = Sender {
-    ///     enc_key: &SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng)
+    ///     enc_key: &SenderSecretKey::<DefaultCipherSuite>::new(&Rng)
     ///         .public().expect("sender encryption key should be valid"),
-    ///     sign_key: &SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng)
+    ///     sign_key: &SenderSigningKey::<DefaultCipherSuite>::new(&Rng)
     ///         .public().expect("sender signing key should be valid"),
     /// };
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
+    /// let key = TopicKey::new(&Rng, VERSION, &topic)
     ///     .expect("should not fail");
     ///
     /// let ciphertext = {
     ///     let mut dst = vec![0u8; MESSAGE.len() + key.overhead()];
     ///     key.seal_message(
-    ///         &mut Rng,
+    ///         &Rng,
     ///         &mut dst,
     ///         MESSAGE,
     ///         VERSION,
@@ -258,7 +258,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// ```
     pub fn seal_message<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: &R,
         dst: &mut [u8],
         plaintext: &[u8],
         version: Version,
@@ -374,7 +374,7 @@ key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// Creates a `SenderSigningKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(rng: &R) -> Self {
         let sk = <CS::Signer as Signer>::SigningKey::new(rng);
         SenderSigningKey(sk)
     }
@@ -399,7 +399,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// let topic = Topic::new("SomeTopic");
     /// const RECORD: &[u8] = b"an encoded record";
     ///
-    /// let sk = SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = SenderSigningKey::<DefaultCipherSuite>::new(&Rng);
     ///
     /// let sig = sk.sign(VERSION, &topic, RECORD)
     ///     .expect("should not fail");
@@ -502,7 +502,7 @@ key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
 
 impl<CS: CipherSuite> SenderSecretKey<CS> {
     /// Creates a `SenderSecretKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(rng: &R) -> Self {
         let sk = <CS::Kem as Kem>::DecapKey::new(rng);
         SenderSecretKey(sk)
     }
@@ -529,7 +529,7 @@ key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
     /// Creates a `ReceiverSecretKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(rng: &R) -> Self {
         let sk = <CS::Kem as Kem>::DecapKey::new(rng);
         ReceiverSecretKey(sk)
     }
@@ -623,17 +623,17 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// const VERSION: Version = Version::new(1);
     /// let topic = Topic::new("SomeTopic");
     ///
-    /// let send_sk = SenderSecretKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let send_sk = SenderSecretKey::<DefaultCipherSuite>::new(&Rng);
     /// let send_pk = send_sk.public().expect("sender public key should be valid");
-    /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(&Rng);
     /// let recv_pk = recv_sk.public().expect("receiver public key should be valid");
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
+    /// let key = TopicKey::new(&Rng, VERSION, &topic)
     ///     .expect("should not fail");
     ///
     /// // The sender encrypts...
     /// let (enc, mut ciphertext) = recv_pk.seal_topic_key(
-    ///     &mut Rng,
+    ///     &Rng,
     ///     VERSION,
     ///     &topic,
     ///     &send_sk,
@@ -670,7 +670,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// ```
     pub fn seal_topic_key<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: &R,
         version: Version,
         topic: &Topic,
         sk: &SenderSecretKey<CS>,

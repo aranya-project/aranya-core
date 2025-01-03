@@ -283,7 +283,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     __proc: usize,
                     __stack: &mut impl #vm::Stack,
                     __ctx: &#vm::CommandContext<'_>,
-                    __eng: &mut __E,
+                    __eng: &__E,
                 ) -> ::core::result::Result<(), Self::Error> {
                     #[allow(non_camel_case_types, clippy::enum_variant_names)]
                     enum __Func {
@@ -512,12 +512,12 @@ impl Func {
             .any(|arg| matches!(arg, FnArg::Receiver(_)));
 
         // The second and third arguments are `&CommandContext`
-        // and `&mut E`, which are passed in by `call`, so skip
+        // and `&E`, which are passed in by `call`, so skip
         // them.
         //
         // TODO(eric): we should issue a diagnostic when the
         // first non-self argument isn't `&CommandContext` and
-        // second argument isn't `&mut E`.
+        // second argument isn't `&E`.
         let num_skip = if is_method { 3 } else { 2 };
         let num_args = match item.sig.inputs.len().checked_sub(num_skip) {
             Some(n) => n,

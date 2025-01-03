@@ -40,13 +40,13 @@ impl<CS: CipherSuite> ConstantTimeEq for RootChannelKey<CS> {
 }
 
 impl<CS: CipherSuite> Random for RootChannelKey<CS> {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: &R) -> Self {
         Self(<<CS::Kem as Kem>::DecapKey as SecretKey>::new(rng))
     }
 }
 
 impl<CS: CipherSuite> SecretKey for RootChannelKey<CS> {
-    fn new<R: Csprng>(rng: &mut R) -> Self {
+    fn new<R: Csprng>(rng: &R) -> Self {
         Random::random(rng)
     }
 
@@ -106,7 +106,7 @@ macro_rules! raw_key {
         }
 
         impl<CS: $crate::CipherSuite> $crate::csprng::Random for $name<CS> {
-            fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+            fn random<R: $crate::csprng::Csprng>(rng: &R) -> Self {
                 Self {
                     key: $crate::csprng::Random::random(rng),
                     base_nonce: $crate::csprng::Random::random(rng),

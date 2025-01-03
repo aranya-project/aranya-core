@@ -36,7 +36,7 @@ impl TestFfiEnvelope {
     fn seal<E>(
         &self,
         ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
         payload: Vec<u8>,
     ) -> Result<Envelope, MachineError> {
         #[derive(serde::Serialize)]
@@ -76,7 +76,7 @@ impl TestFfiEnvelope {
     fn open<E>(
         &self,
         _ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Infallible> {
         Ok(envelope_input.payload)

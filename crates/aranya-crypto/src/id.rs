@@ -60,7 +60,7 @@ impl Id {
     }
 
     /// Creates a random ID.
-    pub fn random<R: Csprng>(rng: &mut R) -> Self {
+    pub fn random<R: Csprng>(rng: &R) -> Self {
         let mut b = [0u8; 64];
         rng.fill_bytes(&mut b);
         Self(b)
@@ -257,7 +257,7 @@ macro_rules! custom_id {
             }
 
             /// Creates a random ID.
-            pub fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+            pub fn random<R: $crate::csprng::Csprng>(rng: &R) -> Self {
                 Self($crate::Id::random(rng))
             }
 

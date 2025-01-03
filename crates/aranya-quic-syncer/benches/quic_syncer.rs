@@ -150,7 +150,7 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
-                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), addr2);
+                let sync_requester = SyncRequester::new(storage_id, &Rng::new(), addr2);
                 if let Err(e) = syncer1
                     .lock()
                     .await

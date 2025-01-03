@@ -109,7 +109,7 @@ key_misc!(IdentityKey, IdentityVerifyingKey, UserId);
 
 impl<CS: CipherSuite> IdentityKey<CS> {
     /// Creates an `IdentityKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(rng: &R) -> Self {
         let sk = <CS::Signer as Signer>::SigningKey::new(rng);
         IdentityKey(sk)
     }
@@ -132,7 +132,7 @@ impl<CS: CipherSuite> IdentityKey<CS> {
     ///     Rng,
     /// };
     ///
-    /// let sk = IdentityKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = IdentityKey::<DefaultCipherSuite>::new(&Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
@@ -212,7 +212,7 @@ key_misc!(SigningKey, VerifyingKey, SigningKeyId);
 
 impl<CS: CipherSuite> SigningKey<CS> {
     /// Creates a `SigningKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(rng: &R) -> Self {
         let sk = <CS::Signer as Signer>::SigningKey::new(rng);
         SigningKey(sk)
     }
@@ -235,7 +235,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     SigningKey,
     /// };
     ///
-    /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = SigningKey::<DefaultCipherSuite>::new(&Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
@@ -291,11 +291,11 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     SigningKey,
     /// };
     ///
-    /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let sk = SigningKey::<DefaultCipherSuite>::new(&Rng);
     ///
     /// let data = b"... some command data ...";
     /// let name = "AddUser";
-    /// let parent_id = &Id::random(&mut Rng);
+    /// let parent_id = &Id::random(&Rng);
     ///
     /// let good_cmd = Cmd { data, name, parent_id };
     /// let (sig, _) = sk.sign_cmd(good_cmd)
@@ -314,7 +314,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let wrong_id_cmd = Cmd {
     ///     data,
     ///     name,
-    ///     parent_id: &Id::random(&mut Rng),
+    ///     parent_id: &Id::random(&Rng),
     /// };
     /// sk.public().expect("signing key should be valid").verify_cmd(wrong_id_cmd, &sig)
     ///     .expect_err("should fail");
@@ -322,7 +322,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let wrong_sig_cmd = Cmd {
     ///     data: b"different",
     ///     name: "signature",
-    ///     parent_id: &Id::random(&mut Rng),
+    ///     parent_id: &Id::random(&Rng),
     /// };
     /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd)
     ///     .expect("should not fail");
@@ -388,7 +388,7 @@ key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
     /// Creates a user's `EncryptionKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
+    pub fn new<R: Csprng>(rng: &R) -> Self {
         let sk = <CS::Kem as Kem>::DecapKey::new(rng);
         EncryptionKey(sk)
     }
@@ -441,7 +441,7 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
     /// of the [`EncryptionPublicKey`].
     pub fn seal_group_key<R: Csprng>(
         &self,
-        rng: &mut R,
+        rng: &R,
         key: &GroupKey<CS>,
         group: Id,
     ) -> Result<(Encap<CS>, EncryptedGroupKey<CS>), Error> {

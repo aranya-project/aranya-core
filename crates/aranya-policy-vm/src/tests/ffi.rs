@@ -28,7 +28,7 @@ impl FfiModule for PrintFfi {
         procedure: usize,
         stack: &mut impl Stack,
         _ctx: &CommandContext<'_>,
-        _eng: &mut E,
+        _eng: &E,
     ) -> Result<(), Self::Error> {
         match procedure {
             0 => {

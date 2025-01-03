@@ -42,6 +42,8 @@ use crate::{
 /// extern "C" {
 ///     /// Reads `len` cryptographically secure bytes into
 ///     /// `dst`.
+///     ///
+///     /// Must be re-entrant.
 ///     fn crypto_getrandom(dst: *mut u8, len: usize);
 /// }
 /// ```
@@ -53,9 +55,9 @@ use crate::{
 /// # use aranya_crypto::csprng::Csprng;
 /// use aranya_crypto::Rng;
 ///
-/// fn foo<R: Csprng>(_rng: &mut R) {}
+/// fn foo<R: Csprng>(_rng: &R) {}
 ///
-/// foo(&mut Rng);
+/// foo(&Rng);
 /// ```
 #[derive(Copy, Clone, Debug, Default)]
 pub struct Rng;
@@ -72,7 +74,7 @@ impl Rng {
 }
 
 impl Csprng for Rng {
-    fn fill_bytes(&mut self, dst: &mut [u8]) {
+    fn fill_bytes(&self, dst: &mut [u8]) {
         cfg_if! {
             if #[cfg(feature = "trng")] {
                 crate::csprng::trng::thread_rng().fill_bytes(dst)
@@ -176,15 +178,15 @@ impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
 
     /// Creates an [`Engine`] using entropy from `rng` and
     /// returns it and the generated key.
-    pub fn from_entropy(mut rng: R) -> (Self, <S::Aead as Aead>::Key) {
-        let key = <S::Aead as Aead>::Key::new(&mut rng);
+    pub fn from_entropy(rng: R) -> (Self, <S::Aead as Aead>::Key) {
+        let key = <S::Aead as Aead>::Key::new(&rng);
         let eng = Self::new(&key, rng);
         (eng, key)
     }
 }
 
 impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
-    fn fill_bytes(&mut self, dst: &mut [u8]) {
+    fn fill_bytes(&self, dst: &mut [u8]) {
         self.rng.fill_bytes(dst)
     }
 }
@@ -210,7 +212,7 @@ impl<R: Csprng, S: CipherSuite> Engine for DefaultEngine<R, S> {
 
 impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
     fn wrap_secret<T>(
-        &mut self,
+        &self,
         id: &<T as Identified>::Id,
         secret: RawSecret<S>,
     ) -> Result<<Self as Engine>::WrappedKey, WrapError>
@@ -221,7 +223,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
         let mut tag = Tag::<S::Aead>::default();
         // TODO(eric): we should probably ensure that we do not
         // repeat nonces.
-        let nonce = Nonce::<_>::random(&mut self.rng);
+        let nonce = Nonce::<_>::random(&self.rng);
         let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
             eng_id: S::ID,
             alg_id: T::ID,

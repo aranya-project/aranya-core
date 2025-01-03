@@ -89,16 +89,16 @@ use crate::{
 /// }
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
-/// let (mut eng, _) = E::from_entropy(Rng);
+/// let (eng, _) = E::from_entropy(Rng);
 ///
-/// let parent_cmd_id = Id::random(&mut eng);
+/// let parent_cmd_id = Id::random(&eng);
 /// let label = 42u32;
 ///
-/// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user1 ID should be valid");
+/// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&eng);
+/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&eng).id().expect("user1 ID should be valid");
 ///
-/// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user2 ID should be valid");
+/// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&eng);
+/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&eng).id().expect("user2 ID should be valid");
 ///
 /// // user1 creates the channel keys and sends the encapsulation
 /// // to user2...
@@ -110,7 +110,7 @@ use crate::{
 ///     their_id: user2_id,
 ///     label,
 /// };
-/// let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &user1_ch)
+/// let BidiSecrets { author, peer } = BidiSecrets::new(&eng, &user1_ch)
 ///     .expect("unable to create `BidiSecrets`");
 /// let mut user1 = Keys::from_author(&user1_ch, author);
 ///
@@ -276,7 +276,7 @@ pub struct BidiSecrets<CS: CipherSuite> {
 impl<CS: CipherSuite> BidiSecrets<CS> {
     /// Creates a new set of encapsulated secrets for the
     /// bidirectional channel.
-    pub fn new<E: Engine<CS = CS>>(eng: &mut E, ch: &BidiChannel<'_, CS>) -> Result<Self, Error> {
+    pub fn new<E: Engine<CS = CS>>(eng: &E, ch: &BidiChannel<'_, CS>) -> Result<Self, Error> {
         // Only the channel author calls this function.
         let author_id = ch.our_id;
         let author_sk = ch.our_sk;
@@ -439,21 +439,21 @@ mod tests {
     fn test_info_positive() {
         type E = DefaultEngine<Rng>;
         type CS = DefaultCipherSuite;
-        let (mut eng, _) = E::from_entropy(Rng);
-        let parent_cmd_id = Id::random(&mut eng);
-        let sk1 = EncryptionKey::<CS>::new(&mut eng);
-        let sk2 = EncryptionKey::<CS>::new(&mut eng);
+        let (eng, _) = E::from_entropy(Rng);
+        let parent_cmd_id = Id::random(&eng);
+        let sk1 = EncryptionKey::<CS>::new(&eng);
+        let sk2 = EncryptionKey::<CS>::new(&eng);
         let label = 123;
         let ch1 = BidiChannel {
             parent_cmd_id,
             our_sk: &sk1,
-            our_id: IdentityKey::<CS>::new(&mut eng)
+            our_id: IdentityKey::<CS>::new(&eng)
                 .id()
                 .expect("sender ID should be valid"),
             their_pk: &sk2
                 .public()
                 .expect("receiver encryption public key should be valid"),
-            their_id: IdentityKey::<CS>::new(&mut eng)
+            their_id: IdentityKey::<CS>::new(&eng)
                 .id()
                 .expect("receiver ID should be valid"),
             label,
@@ -476,15 +476,15 @@ mod tests {
     fn test_info_negative() {
         type E = DefaultEngine<Rng>;
         type CS = DefaultCipherSuite;
-        let (mut eng, _) = E::from_entropy(Rng);
+        let (eng, _) = E::from_entropy(Rng);
 
-        let sk1 = EncryptionKey::<CS>::new(&mut eng);
-        let user1_id = IdentityKey::<CS>::new(&mut eng)
+        let sk1 = EncryptionKey::<CS>::new(&eng);
+        let user1_id = IdentityKey::<CS>::new(&eng)
             .id()
             .expect("user1 ID should be valid");
 
-        let sk2 = EncryptionKey::<CS>::new(&mut eng);
-        let user2_id = IdentityKey::<CS>::new(&mut eng)
+        let sk2 = EncryptionKey::<CS>::new(&eng);
+        let user2_id = IdentityKey::<CS>::new(&eng)
             .id()
             .expect("user2 Id should be valid");
 
@@ -494,7 +494,7 @@ mod tests {
             (
                 "different parent_cmd_id",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: Id::random(&eng),
                     our_sk: &sk1,
                     our_id: user1_id,
                     their_pk: &sk2
@@ -504,7 +504,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: Id::random(&eng),
                     our_sk: &sk2,
                     our_id: user2_id,
                     their_pk: &sk1
@@ -517,7 +517,7 @@ mod tests {
             (
                 "different our_id",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: Id::random(&eng),
                     our_sk: &sk1,
                     our_id: user1_id,
                     their_pk: &sk2
@@ -527,9 +527,9 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: Id::random(&eng),
                     our_sk: &sk2,
-                    our_id: IdentityKey::<CS>::new(&mut eng)
+                    our_id: IdentityKey::<CS>::new(&eng)
                         .id()
                         .expect("sender ID should be valid"),
                     their_pk: &sk1
@@ -542,7 +542,7 @@ mod tests {
             (
                 "different their_id",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: Id::random(&eng),
                     our_sk: &sk1,
                     our_id: user1_id,
                     their_pk: &sk2
@@ -552,13 +552,13 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: Id::random(&eng),
                     our_sk: &sk2,
                     our_id: user2_id,
                     their_pk: &sk1
                         .public()
                         .expect("receiver encryption public key should be valid"),
-                    their_id: IdentityKey::<CS>::new(&mut eng)
+                    their_id: IdentityKey::<CS>::new(&eng)
                         .id()
                         .expect("receiver ID should be valid"),
                     label,
@@ -567,7 +567,7 @@ mod tests {
             (
                 "different label",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: Id::random(&eng),
                     our_sk: &sk1,
                     our_id: user1_id,
                     their_pk: &sk2
@@ -577,7 +577,7 @@ mod tests {
                     label: 123,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id: Id::random(&eng),
                     our_sk: &sk2,
                     our_id: user2_id,
                     their_pk: &sk1

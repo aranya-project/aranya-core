@@ -106,7 +106,7 @@ fn test_many_nodes() {
     // All the channels we've stored in the shared memory.
     let mut chans = Vec::with_capacity(MAX_CHANS * labels.len());
 
-    let rng = &mut Rng;
+    let rng = &Rng;
 
     // NB: this is O(((n^2 + n)/2) * m) where n=MAX_CHANS
     // and m=len(labels).
@@ -114,7 +114,7 @@ fn test_many_nodes() {
         for i in 0..MAX_CHANS {
             let chan = Channel {
                 id: ChannelId::new(NodeId::new(u32::try_from(i).unwrap()), label),
-                keys: match util::rand_intn(&mut Rng, 3) {
+                keys: match util::rand_intn(rng, 3) {
                     0 => Directed::SealOnly {
                         seal: RawSealKey::random(rng),
                     },

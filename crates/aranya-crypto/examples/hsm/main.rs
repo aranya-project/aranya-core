@@ -53,7 +53,7 @@ impl Default for HsmEngine {
 }
 
 impl Csprng for HsmEngine {
-    fn fill_bytes(&mut self, dst: &mut [u8]) {
+    fn fill_bytes(&self, dst: &mut [u8]) {
         Rng.fill_bytes(dst)
     }
 }
@@ -80,7 +80,7 @@ impl Engine for HsmEngine {
 
 impl RawSecretWrap<Self> for HsmEngine {
     fn wrap_secret<T>(
-        &mut self,
+        &self,
         id: &<T as Identified>::Id,
         secret: RawSecret<Self>,
     ) -> Result<<Self as Engine>::WrappedKey, WrapError>
@@ -308,7 +308,7 @@ impl SigningKey<HsmSigner> for HsmSigningKey {
 impl SecretKey for HsmSigningKey {
     type Size = <ed25519::SigningKey as SecretKey>::Size;
 
-    fn new<R: Csprng>(_rng: &mut R) -> Self {
+    fn new<R: Csprng>(_rng: &R) -> Self {
         let key_id = Hsm::write().new_signing_key();
         Self(key_id)
     }

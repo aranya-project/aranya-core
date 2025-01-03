@@ -24,6 +24,6 @@ pub trait FfiModule {
         procedure: usize,
         stack: &mut impl Stack,
         ctx: &CommandContext<'_>,
-        eng: &mut E,
+        eng: &E,
     ) -> Result<(), Self::Error>;
 }
