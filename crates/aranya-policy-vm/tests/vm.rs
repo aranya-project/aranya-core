@@ -2181,3 +2181,56 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_block_expression() -> anyhow::Result<()> {
+    let policy_text = r#"
+        command TestCommand {
+            fields {
+                    x int
+            }
+
+            seal { return None }
+            open { return None }
+
+            policy {
+            }
+        }
+
+        action test() {
+            let a = 3
+            let b = 4
+            let x = {
+                    let c = 5
+                    : a + b + c
+            }
+
+            publish TestCommand {
+                    x: x
+            }
+        }
+    "#
+    .trim();
+
+    let policy = parse_policy_str(policy_text, Version::V1)?;
+    let mut io = TestIO::new();
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let mut machine = Machine::from_module(module)?;
+    let name = "test";
+    let args: [Value; 0] = [];
+    let ctx = dummy_ctx_action(name);
+    let r = machine.call_action(name, args, &mut io, &ctx)?;
+    assert_eq!(r, ExitReason::Normal);
+
+    assert_eq!(
+        io.publish_stack.last(),
+        Some(&(
+            "TestCommand".to_string(),
+            vec![KVPair::new("x", Value::Int(12))]
+        ))
+    );
+
+    Ok(())
+}
