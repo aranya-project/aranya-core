@@ -116,12 +116,14 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
-use core::fmt;
+use alloc::{
+    borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, sync::Arc, vec::Vec,
+};
+use core::{borrow::Borrow, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
-    OpenContext, PolicyContext, RunState, SealContext, Struct, Value,
+    OpenContext, PolicyContext, RunState, Stack, Struct, Value,
 };
 use buggy::bug;
 use spin::Mutex;
@@ -191,8 +193,8 @@ macro_rules! vm_effect {
 /// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<E> {
     machine: Machine,
-    engine: Mutex<E>,
-    ffis: Mutex<Vec<Box<dyn FfiCallable<E> + Send + 'static>>>,
+    engine: RefCell<E>,
+    ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
     // TODO(chip): replace or fill this with priorities from attributes
     priority_map: Arc<BTreeMap<String, u32>>,
 }
@@ -207,8 +209,8 @@ impl<E> VmPolicy<E> {
         let priority_map = VmPolicy::<E>::get_command_priorities(&machine)?;
         Ok(Self {
             machine,
-            engine: Mutex::from(engine),
-            ffis: Mutex::from(ffis),
+            engine: RefCell::from(engine),
+            ffis,
             priority_map: Arc::new(priority_map),
         })
     }
@@ -250,24 +252,28 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         envelope: Envelope<'_>,
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
-        ctx: &CommandContext<'_>,
+        ctx: CommandContext<'_>,
         recall: CommandRecall,
     ) -> Result<(), EngineError>
     where
         P: FactPerspective,
     {
-        let mut ffis = self.ffis.lock();
-        let mut eng = self.engine.lock();
-        let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
-        let mut rs = self.machine.create_run_state(&mut io, ctx);
+        let io = RefCell::new(VmPolicyIO::new(
+            Rc::new(RefCell::new(facts)),
+            Rc::new(RefCell::new(sink)),
+            &self.engine,
+            &self.ffis,
+        ));
+        let mut rs = self.machine.create_run_state(&io, &ctx);
         let self_data = Struct::new(name, fields);
         match rs.call_command_policy(&self_data.name, &self_data, envelope.clone().into()) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
+                ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
                     // Construct a new recall context from the policy context
-                    let CommandContext::Policy(policy_ctx) = ctx else {
+                    let CommandContext::Policy(policy_ctx) = ctx.clone() else {
                         error!("Non-policy context while evaluating rule: {ctx:?}");
                         return Err(EngineError::InternalError);
                     };
@@ -303,6 +309,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
             CommandRecall::OnCheck => {
                 match rs.call_command_recall(name, self_data, envelope.into()) {
                     Ok(ExitReason::Normal) => Err(EngineError::Check),
+                    Ok(ExitReason::Yield) => bug!("unexpected yield"),
                     Ok(ExitReason::Check) => {
                         info!("Recall failed: {}", self.source_location(rs));
                         Err(EngineError::Check)
@@ -327,11 +334,14 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         P: FactPerspective,
     {
         let mut sink = NullSink;
-        let mut ffis = self.ffis.lock();
-        let mut eng = self.engine.lock();
-        let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
+        let io = RefCell::new(VmPolicyIO::new(
+            Rc::new(RefCell::new(facts)),
+            Rc::new(RefCell::new(&mut sink)),
+            &self.engine,
+            &self.ffis,
+        ));
         let ctx = CommandContext::Open(OpenContext { name });
-        let mut rs = self.machine.create_run_state(&mut io, &ctx);
+        let mut rs = self.machine.create_run_state(&io, &ctx);
         let status = rs.call_open(name, envelope.into());
         match status {
             Ok(reason) => match reason {
@@ -345,6 +355,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                         EngineError::InternalError
                     })?)
                 }
+                ExitReason::Yield => bug!("unexpected yield"),
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
                     Err(EngineError::Check)
@@ -352,58 +363,6 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
                     Err(EngineError::Check)
-                }
-            },
-            Err(e) => {
-                error!("\n{e}");
-                Err(EngineError::InternalError)
-            }
-        }
-    }
-
-    #[instrument(skip_all, fields(name = name))]
-    fn seal_command(
-        &self,
-        name: &str,
-        fields: impl IntoIterator<Item = impl Into<(String, Value)>>,
-        ctx_parent: CommandId,
-        facts: &mut impl FactPerspective,
-    ) -> Result<Envelope<'static>, EngineError> {
-        let mut sink = NullSink;
-        let mut ffis = self.ffis.lock();
-        let mut eng = self.engine.lock();
-        let mut io = VmPolicyIO::new(facts, &mut sink, &mut *eng, &mut ffis);
-        let ctx = CommandContext::Seal(SealContext {
-            name,
-            head_id: ctx_parent.into(),
-        });
-        let mut rs = self.machine.create_run_state(&mut io, &ctx);
-        let command_struct = Struct::new(name, fields);
-        let status = rs.call_seal(name, &command_struct);
-        match status {
-            Ok(reason) => match reason {
-                ExitReason::Normal => {
-                    let v = rs.consume_return().map_err(|e| {
-                        error!("Could not pull envelope from stack: {e}");
-                        EngineError::InternalError
-                    })?;
-                    let strukt = Struct::try_from(v).map_err(|e| {
-                        error!("Envelope is not a struct: {e}");
-                        EngineError::InternalError
-                    })?;
-                    let envelope = Envelope::try_from(strukt).map_err(|e| {
-                        error!("Malformed Envelope: {e}");
-                        EngineError::InternalError
-                    })?;
-                    Ok(envelope)
-                }
-                ExitReason::Check => {
-                    info!("Check {}", self.source_location(&rs));
-                    Err(EngineError::Check)
-                }
-                ExitReason::Panic => {
-                    info!("Panicked {}", self.source_location(&rs));
-                    Err(EngineError::Panic)
                 }
             },
             Err(e) => {
@@ -481,67 +440,62 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             error!("Could not deserialize: {e:?}");
             EngineError::Read
         })?;
-        match unpacked {
-            VmProtocolData::Init {
-                author_id,
-                kind,
-                serialized_fields,
-                signature,
-                ..
-            } => {
-                let envelope = Envelope {
-                    parent_id: CommandId::default(),
+        let command_info = {
+            match unpacked {
+                VmProtocolData::Init {
                     author_id,
-                    command_id: command.id(),
-                    payload: Cow::Borrowed(serialized_fields),
-                    signature: Cow::Borrowed(signature),
-                };
-                let command_struct = self.open_command(kind, envelope.clone(), facts)?;
-                let fields: Vec<KVPair> = command_struct
-                    .fields
-                    .into_iter()
-                    .map(|(k, v)| KVPair::new(&k, v))
-                    .collect();
-                let ctx = CommandContext::Policy(PolicyContext {
-                    name: kind,
-                    id: command.id().into(),
-                    author: author_id,
-                    version: CommandId::default().into(),
-                });
-                self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, &ctx, recall)?
-            }
-            VmProtocolData::Basic {
-                parent,
-                kind,
-                author_id,
-                serialized_fields,
-                signature,
-            } => {
-                let envelope = Envelope {
-                    parent_id: parent.id,
+                    kind,
+                    serialized_fields,
+                    signature,
+                    ..
+                } => Some((
+                    Envelope {
+                        parent_id: CommandId::default(),
+                        author_id,
+                        command_id: command.id(),
+                        payload: Cow::Borrowed(serialized_fields),
+                        signature: Cow::Borrowed(signature),
+                    },
+                    kind,
                     author_id,
-                    command_id: command.id(),
-                    payload: Cow::Borrowed(serialized_fields),
-                    signature: Cow::Borrowed(signature),
-                };
-                let command_struct = self.open_command(kind, envelope.clone(), facts)?;
-                let fields: Vec<KVPair> = command_struct
-                    .fields
-                    .into_iter()
-                    .map(|(k, v)| KVPair::new(&k, v))
-                    .collect();
-                let ctx = CommandContext::Policy(PolicyContext {
-                    name: kind,
-                    id: command.id().into(),
-                    author: author_id,
-                    version: CommandId::default().into(),
-                });
-                self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, &ctx, recall)?
+                )),
+                VmProtocolData::Basic {
+                    parent,
+                    kind,
+                    author_id,
+                    serialized_fields,
+                    signature,
+                } => Some((
+                    Envelope {
+                        parent_id: parent.id,
+                        author_id,
+                        command_id: command.id(),
+                        payload: Cow::Borrowed(serialized_fields),
+                        signature: Cow::Borrowed(signature),
+                    },
+                    kind,
+                    author_id,
+                )),
+                // Merges always pass because they're an artifact of the graph
+                _ => None,
             }
-            // Merges always pass because they're an artifact of the graph
-            _ => (),
-        }
+        };
 
+        if let Some((envelope, kind, author_id)) = command_info {
+            let command_struct = self.open_command(kind, envelope.clone(), facts)?;
+            let fields: Vec<KVPair> = command_struct
+                .fields
+                .into_iter()
+                .map(|(k, v)| KVPair::new(&k, v))
+                .collect();
+            let ctx = CommandContext::Policy(PolicyContext {
+                name: kind,
+                id: command.id().into(),
+                author: author_id,
+                version: CommandId::default().into(),
+            });
+            self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
+        }
         Ok(())
     }
 
@@ -562,27 +516,123 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         // FIXME(chip): This is kind of wrong, but it avoids having to
         // plumb Option<Id> into the VM and FFI
         let ctx_parent = parent.unwrap_or_default();
-
-        let publish_stack = {
-            let mut ffis = self.ffis.lock();
-            let mut eng = self.engine.lock();
-            let mut io = VmPolicyIO::new(facts, sink, &mut *eng, &mut ffis);
-            let ctx = CommandContext::Action(ActionContext {
-                name,
-                head_id: ctx_parent.id.into(),
-            });
-            {
-                let mut rs = self.machine.create_run_state(&mut io, &ctx);
-                let exit_reason = match args {
-                    Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
-                    Cow::Owned(args) => rs.call_action(name, args),
-                }
-                .map_err(|e| {
-                    error!("\n{e}");
-                    EngineError::InternalError
-                })?;
+        let facts = Rc::new(RefCell::new(facts));
+        let sink = Rc::new(RefCell::new(sink));
+        let io = RefCell::new(VmPolicyIO::new(
+            Rc::clone(&facts),
+            Rc::clone(&sink),
+            &self.engine,
+            &self.ffis,
+        ));
+        let ctx = CommandContext::Action(ActionContext {
+            name,
+            head_id: ctx_parent.id.into(),
+        });
+        {
+            let mut rs = self.machine.create_run_state(&io, &ctx);
+            let mut exit_reason = match args {
+                Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
+                Cow::Owned(args) => rs.call_action(name, args),
+            }
+            .map_err(|e| {
+                error!("\n{e}");
+                EngineError::InternalError
+            })?;
+            loop {
                 match exit_reason {
-                    ExitReason::Normal => {}
+                    ExitReason::Normal => {
+                        // Action completed
+                        break;
+                    }
+                    ExitReason::Yield => {
+                        // Command was published.
+                        let command_struct: Struct =
+                            rs.stack.pop().assume("should have command struct")?;
+
+                        let fields = command_struct
+                            .fields
+                            .iter()
+                            .map(|(k, v)| KVPair::new(k, v.clone()));
+                        io.safe_borrow_mut()?
+                            .publish(command_struct.name.clone(), fields);
+
+                        let seal_ctx = ctx.seal_from_action(&command_struct.name)?;
+                        let mut rs_seal = self.machine.create_run_state(&io, &seal_ctx);
+                        match rs_seal
+                            .call_seal(&command_struct.name, &command_struct)
+                            .map_err(|e| {
+                                error!("Cannot seal command: {}", e);
+                                EngineError::Panic
+                            })? {
+                            ExitReason::Normal => (),
+                            r @ ExitReason::Yield
+                            | r @ ExitReason::Check
+                            | r @ ExitReason::Panic => {
+                                error!("Could not seal command: {}", r);
+                                return Err(EngineError::Panic);
+                            }
+                        }
+
+                        // Grab sealed envelope from stack
+                        let envelope_struct: Struct =
+                            rs_seal.stack.pop().assume("Expected a sealed envelope")?;
+                        let envelope = Envelope::try_from(envelope_struct).map_err(|e| {
+                            error!("Malformed envelope: {e}");
+                            EngineError::InternalError
+                        })?;
+
+                        // The parent of a basic command should be the command that was added to the perspective on the previous
+                        // iteration of the loop
+                        let parent = match RefCell::borrow_mut(Rc::borrow(&facts)).head_address()? {
+                            Prior::None => None,
+                            Prior::Single(id) => Some(id),
+                            Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
+                        };
+
+                        let data = match parent {
+                            None => VmProtocolData::Init {
+                                // TODO(chip): where does the policy value come from?
+                                policy: 0u64.to_le_bytes(),
+                                author_id: envelope.author_id,
+                                kind: &command_struct.name,
+                                serialized_fields: &envelope.payload,
+                                signature: &envelope.signature,
+                            },
+                            Some(parent) => VmProtocolData::Basic {
+                                author_id: envelope.author_id,
+                                parent,
+                                kind: &command_struct.name,
+                                serialized_fields: &envelope.payload,
+                                signature: &envelope.signature,
+                            },
+                        };
+                        let wrapped = postcard::to_allocvec(&data)?;
+                        let new_command = VmProtocol::new(
+                            &wrapped,
+                            envelope.command_id,
+                            data,
+                            Arc::clone(&self.priority_map),
+                        );
+
+                        self.call_rule(
+                            &new_command,
+                            *RefCell::borrow_mut(Rc::borrow(&facts)),
+                            *RefCell::borrow_mut(Rc::borrow(&sink)),
+                            CommandRecall::None,
+                        )?;
+                        RefCell::borrow_mut(Rc::borrow(&facts))
+                            .add_command(&new_command)
+                            .map_err(|e| {
+                                error!("{e}");
+                                EngineError::Write
+                            })?;
+
+                        // Resume action after last Publish
+                        exit_reason = rs.run().map_err(|e| {
+                            error!("{e}");
+                            EngineError::InternalError
+                        })?;
+                    }
                     ExitReason::Check => {
                         info!("Check {}", self.source_location(&rs));
                         return Err(EngineError::Check);
@@ -593,41 +643,6 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                     }
                 };
             }
-            io.into_publish_stack()
-        };
-
-        for (name, fields) in publish_stack {
-            let envelope = self.seal_command(&name, fields, ctx_parent.id, facts)?;
-            let data = match parent {
-                None => VmProtocolData::Init {
-                    // TODO(chip): where does the policy value come from?
-                    policy: 0u64.to_le_bytes(),
-                    author_id: envelope.author_id,
-                    kind: &name,
-                    serialized_fields: &envelope.payload,
-                    signature: &envelope.signature,
-                },
-                Some(parent) => VmProtocolData::Basic {
-                    author_id: envelope.author_id,
-                    parent,
-                    kind: &name,
-                    serialized_fields: &envelope.payload,
-                    signature: &envelope.signature,
-                },
-            };
-            let wrapped = postcard::to_allocvec(&data)?;
-            let new_command = VmProtocol::new(
-                &wrapped,
-                envelope.command_id,
-                data,
-                Arc::clone(&self.priority_map),
-            );
-
-            self.call_rule(&new_command, facts, sink, CommandRecall::None)?;
-            facts.add_command(&new_command).map_err(|e| {
-                error!("{e}");
-                EngineError::Write
-            })?;
         }
 
         Ok(())

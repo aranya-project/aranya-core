@@ -2,6 +2,7 @@ extern crate alloc;
 
 use alloc::string::String;
 
+use buggy::Bug;
 use aranya_crypto::Id;
 use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 
@@ -23,11 +24,20 @@ pub enum MachineIOError {
     /// Some internal operation has failed
     #[error("internal error")]
     Internal,
+    /// Bug
+    #[error("bug: {0}")]
+    Bug(Bug),
 }
 
 impl From<MachineIOError> for MachineError {
     fn from(value: MachineIOError) -> Self {
         MachineError::new(MachineErrorType::IO(value))
+    }
+}
+
+impl From<Bug> for MachineIOError {
+    fn from(bug: Bug) -> Self {
+        Self::Bug(bug)
     }
 }
 
