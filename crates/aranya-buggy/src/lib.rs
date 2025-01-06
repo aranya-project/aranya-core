@@ -42,7 +42,12 @@ extern crate alloc;
 
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
-use core::{convert::Infallible, fmt, panic::Location};
+use core::{
+    cell::{Ref, RefCell, RefMut},
+    convert::Infallible,
+    fmt,
+    panic::Location,
+};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 /// Error type for errors that should be unreachable, indicating a bug.
@@ -164,6 +169,25 @@ macro_rules! bug {
         return ::core::result::Result::Err($crate::Bug::new_with_source($msg, $source).into())
             .into()
     };
+}
+
+/// Convenience wrapper to make non-panicking borrowing easier.
+pub trait SafeBorrow<T> {
+    /// Borrow with assumption that the wrapped value is not currently borrowed, and return an `Err` if it is.
+    fn safe_borrow(&self) -> Result<Ref<'_, T>, Bug>;
+    /// Borrow mutably with assumption that the wrapped value is not currently borrowed, and return an `Err` if it is.
+    fn safe_borrow_mut(&self) -> Result<RefMut<'_, T>, Bug>;
+}
+
+impl<T> SafeBorrow<T> for RefCell<T> {
+    fn safe_borrow(&self) -> Result<Ref<'_, T>, Bug> {
+        self.try_borrow().assume("should be able to borrow")
+    }
+
+    fn safe_borrow_mut(&self) -> Result<RefMut<'_, T>, Bug> {
+        self.try_borrow_mut()
+            .assume("should be able to borrow mutably")
+    }
 }
 
 #[cfg(test)]

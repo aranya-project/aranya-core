@@ -142,7 +142,9 @@ where
         ctx: &CommandContext<'_>,
     ) -> Result<(), MachineError> {
         match module {
-            0 => self.print_ffi.call(procedure, stack, ctx, &mut self.engine),
+            0 => self
+                .print_ffi
+                .call(procedure, stack, &ctx, &mut self.engine),
             _ => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,
             ))),

@@ -24,7 +24,7 @@ impl FfiModule for PrintFfi {
     };
 
     fn call<E: Engine>(
-        &mut self,
+        &self,
         procedure: usize,
         stack: &mut impl Stack,
         _ctx: &CommandContext<'_>,

@@ -288,4 +288,33 @@ command StoreSessionData {
         }
     }
 }
+
+// `Relationship` is an effect that will be emitted from `Link` commands
+// in order to show parent-child relationships between commands
+effect Relationship {
+    parent_id id,
+    command_id id
+}
+
+// Emits `Relationship` effects
+command Link {
+    // Local variables for command
+    fields {}
+
+    seal { return envelope::seal(serialize(this)) }
+    open { return deserialize(envelope::open(envelope)) }
+
+    policy {
+        finish {
+            emit Relationship{parent_id: envelope.parent_id, command_id: envelope.command_id}
+        }
+    }
+}
+
+// Publishes multiple `Link` commands
+action publish_multiple_commands() {
+    publish Link{}
+    publish Link{}
+    publish Link{}
+}
 ```
