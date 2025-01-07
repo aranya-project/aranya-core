@@ -410,7 +410,7 @@ pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
 }
 
 /// Test ephemeral Aranya session.
-/// See `https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/Aranya-Sessions-note.md`.
+/// See `https://github.com/aranya-project/aranya-docs/blob/main/src/Aranya-Sessions-note.md`.
 ///
 /// The [`TestEngine`] must be instantiated with
 /// [`TEST_POLICY_1`].
