@@ -243,18 +243,15 @@ dependencies = [
  "cfg-if",
  "ciborium",
  "ciborium-io",
- "generic-array 1.1.1",
  "postcard",
  "proptest",
  "proptest-derive",
  "rand",
  "rustix",
  "serde",
+ "serde_json",
  "siphasher",
- "subtle",
  "tempfile",
- "typenum",
- "zeroize",
 ]
 
 [[package]]

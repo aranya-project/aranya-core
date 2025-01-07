@@ -22,26 +22,27 @@ macro_rules! ciphertext {
     ($name:ident, $size:ty, $doc:expr) => {
         #[doc = $doc]
         pub struct $name<CS>(
-            pub(crate)  ::generic_array::GenericArray<
+            pub(crate)  $crate::generic_array::GenericArray<
                 u8,
-                ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
             >,
         )
         where
             CS: $crate::CipherSuite,
             <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                ::generic_array::ArrayLength;
+            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
+                $crate::generic_array::ArrayLength;
 
         impl<CS> $name<CS>
         where
             CS: $crate::CipherSuite,
             <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                ::generic_array::ArrayLength,
+            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
+                $crate::generic_array::ArrayLength,
         {
             /// The size in bytes of the ciphertext.
-            pub const SIZE: usize = <$size as ::typenum::Unsigned>::USIZE + CS::Aead::OVERHEAD;
+            pub const SIZE: usize =
+                <$size as $crate::typenum::Unsigned>::USIZE + CS::Aead::OVERHEAD;
 
             /// Encodes itself as bytes.
             pub fn as_bytes(&self) -> &[u8] {
@@ -52,7 +53,7 @@ macro_rules! ciphertext {
             pub fn from_bytes(
                 data: &[u8],
             ) -> ::core::result::Result<Self, $crate::import::InvalidSizeError> {
-                let v: &::generic_array::GenericArray<u8, _> =
+                let v: &$crate::generic_array::GenericArray<u8, _> =
                     data.try_into()
                         .map_err(|_| $crate::import::InvalidSizeError {
                             got: data.len(),
@@ -66,8 +67,8 @@ macro_rules! ciphertext {
         where
             CS: $crate::CipherSuite,
             <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                ::generic_array::ArrayLength,
+            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
+                $crate::generic_array::ArrayLength,
         {
             type Error = $crate::import::InvalidSizeError;
 
@@ -80,8 +81,8 @@ macro_rules! ciphertext {
         where
             CS: $crate::CipherSuite,
             <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                ::generic_array::ArrayLength,
+            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
+                $crate::generic_array::ArrayLength,
         {
             fn clone(&self) -> Self {
                 Self(::core::clone::Clone::clone(&self.0))
@@ -92,36 +93,36 @@ macro_rules! ciphertext {
         where
             CS: $crate::CipherSuite,
             <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                ::generic_array::ArrayLength,
-            ::generic_array::GenericArray<
+            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
+                $crate::generic_array::ArrayLength,
+            $crate::generic_array::GenericArray<
                 u8,
-                ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
             >: ::postcard::experimental::max_size::MaxSize,
         {
-            const POSTCARD_MAX_SIZE: usize = <::generic_array::GenericArray<
+            const POSTCARD_MAX_SIZE: usize = <$crate::generic_array::GenericArray<
                 u8,
-                ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
             > as ::postcard::experimental::max_size::MaxSize>::POSTCARD_MAX_SIZE;
         }
 
         impl<CS>
             ::core::convert::From<
-                ::generic_array::GenericArray<
+                $crate::generic_array::GenericArray<
                     u8,
-                    ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                    $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
                 >,
             > for $name<CS>
         where
             CS: $crate::CipherSuite,
             <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                ::generic_array::ArrayLength,
+            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
+                $crate::generic_array::ArrayLength,
         {
             fn from(
-                buf: ::generic_array::GenericArray<
+                buf: $crate::generic_array::GenericArray<
                     u8,
-                    ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                    $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
                 >,
             ) -> Self {
                 Self(buf)
@@ -132,8 +133,8 @@ macro_rules! ciphertext {
         where
             CS: $crate::CipherSuite,
             <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                ::generic_array::ArrayLength,
+            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
+                $crate::generic_array::ArrayLength,
         {
             fn serialize<S>(&self, s: S) -> ::core::result::Result<S::Ok, S::Error>
             where
@@ -147,8 +148,8 @@ macro_rules! ciphertext {
         where
             CS: $crate::CipherSuite,
             <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            ::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                ::generic_array::ArrayLength,
+            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
+                $crate::generic_array::ArrayLength,
         {
             fn deserialize<D>(d: D) -> ::core::result::Result<Self, D::Error>
             where
@@ -159,8 +160,8 @@ macro_rules! ciphertext {
                 where
                     G: $crate::CipherSuite,
                     <G::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-                    ::typenum::Sum<<G::Aead as $crate::aead::Aead>::Overhead, $size>:
-                        ::generic_array::ArrayLength,
+                    $crate::typenum::Sum<<G::Aead as $crate::aead::Aead>::Overhead, $size>:
+                        $crate::generic_array::ArrayLength,
                 {
                     type Value = $name<G>;
 

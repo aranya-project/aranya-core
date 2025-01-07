@@ -18,7 +18,7 @@ use crate::{
 /// # Example
 ///
 /// ```
-/// use aranya_crypto_core::{Rng, rust::Aes256Gcm};
+/// use aranya_crypto_core::{default::Rng, rust::Aes256Gcm};
 ///
 /// # aranya_crypto_core::__doctest_os_hardware_rand!();
 /// macro_rules! run_test {
@@ -78,7 +78,7 @@ macro_rules! test_aead {
             ($test:ident) => {
                 #[test]
                 fn $test() {
-                    $crate::test_util::aead::$test::<$aead, _>(&mut $crate::Rng)
+                    $crate::test_util::aead::$test::<$aead, _>(&mut $crate::default::Rng)
                 }
             }
         }

@@ -42,9 +42,6 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
-#[macro_use]
-mod util;
-
 pub mod afc;
 pub mod apq;
 mod aranya;
@@ -59,31 +56,63 @@ mod misc;
 mod policy;
 pub mod test_util;
 
+// Re-export `$name` without inlining it.
+macro_rules! reexport {
+    ($($name:ident),* $(,)?) => {
+        $(
+            /// # Warning
+            ///
+            /// This is a low-level module. You should not be
+            /// using it directly unless you are implementing an
+            /// engine.
+            #[doc(no_inline)]
+            pub use aranya_crypto_core::$name;
+        )*
+    }
+}
+reexport! {
+    aead,
+    asn1,
+    csprng,
+    ec,
+    ed25519,
+    hash,
+    hex,
+    hkdf,
+    hmac,
+    hpke,
+    import,
+    kdf,
+    kem,
+    keys,
+    mac,
+    rust,
+    signer,
+}
+
 pub use aranya::*;
 pub use aranya_buggy;
+#[doc(no_inline)]
 #[cfg(feature = "bearssl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
 pub use aranya_crypto_core::bearssl;
 pub use aranya_crypto_core::{
-    aead::{self, BufferTooSmallError, OpenError, SealError},
-    asn1,
-    csprng::{self, Csprng, Random},
-    default::Rng,
-    ec, ed25519, generic_array, hash, hex, hkdf, hmac,
-    hpke::{self, HpkeError},
-    import::{self, ExportError, ImportError},
-    kdf::{self, KdfError},
-    kem::{self, EcdhError, KemError},
-    keys,
-    mac::{self, MacError},
-    rust,
-    signer::{self, SignerError},
+    aead::{BufferTooSmallError, OpenError, SealError},
+    csprng::{Csprng, Random},
+    generic_array,
+    hpke::HpkeError,
+    import::{ExportError, ImportError},
+    kdf::KdfError,
+    kem::{EcdhError, KemError},
+    mac::MacError,
+    signer::SignerError,
     subtle, typenum, zeroize,
 };
 #[cfg(feature = "hazmat")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
 pub use aranya_crypto_core::{dhkem_impl, hkdf_impl, hmac_impl};
 pub use ciphersuite::*;
+pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};
 pub use error::*;
 pub use groupkey::*;

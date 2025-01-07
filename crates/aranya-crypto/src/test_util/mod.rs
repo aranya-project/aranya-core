@@ -29,9 +29,6 @@ pub use aranya_crypto_core::test_util::{
 };
 pub use ciphersuite::test_ciphersuite;
 pub use engine::test_engine;
-use subtle::{Choice, ConstantTimeEq};
-use typenum::U64;
-use zeroize::ZeroizeOnDrop;
 
 use crate::{
     aead::{Aead, AeadId, IndCca2, Lifetime, OpenError, SealError},
@@ -44,6 +41,9 @@ use crate::{
     keys::{PublicKey, SecretKey, SecretKeyBytes},
     mac::{Mac, MacId},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
+    subtle::{Choice, ConstantTimeEq},
+    typenum::U64,
+    zeroize::ZeroizeOnDrop,
     Id,
 };
 
@@ -62,13 +62,13 @@ pub use __apply;
 #[macro_export]
 macro_rules! assert_ct_eq {
     ($lhs:expr, $rhs:expr) => {
-        assert!(bool::from(::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)))
+        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)))
     };
     ($lhs:expr, $rhs:expr, ) => {
         $crate::assert_ct_eq!($lhs, $rhs)
     };
     ($lhs:expr, $rhs:expr, $($args:tt)+) => {
-        assert!(bool::from(::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)), $($args)+)
+        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)), $($args)+)
     };
 }
 pub(super) use assert_ct_eq;
@@ -77,13 +77,13 @@ pub(super) use assert_ct_eq;
 #[macro_export]
 macro_rules! assert_ct_ne {
     ($lhs:expr, $rhs:expr) => {
-        assert!(bool::from(::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)))
+        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)))
     };
     ($lhs:expr, $rhs:expr, ) => {
         $crate::assert_ct_ne!($lhs, $rhs)
     };
     ($lhs:expr, $rhs:expr, $($args:tt)+) => {
-        assert!(bool::from(::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)), $($args)+)
+        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)), $($args)+)
     };
 }
 pub(super) use assert_ct_ne;

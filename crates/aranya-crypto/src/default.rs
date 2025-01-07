@@ -1,13 +1,10 @@
 //! Default implementations.
 
 use aranya_buggy::BugExt;
-use generic_array::GenericArray;
+pub use aranya_crypto_core::default::Rng;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
-use typenum::U64;
 
-#[doc(inline)]
-pub use crate::Rng;
 use crate::{
     aead::{Aead, Nonce, Tag},
     ciphersuite::CipherSuite,
@@ -16,6 +13,7 @@ use crate::{
         self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
         WrongKeyType,
     },
+    generic_array::GenericArray,
     id::{Id, IdError, Identified},
     import::Import,
     kdf::{Kdf, Prk},
@@ -23,6 +21,7 @@ use crate::{
     keys::{SecretKey, SecretKeyBytes},
     mac::Mac,
     signer::Signer,
+    typenum::U64,
 };
 
 /// The default [`CipherSuite`].

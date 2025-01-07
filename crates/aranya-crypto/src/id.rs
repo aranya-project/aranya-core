@@ -9,7 +9,6 @@ use core::{
 };
 
 pub use aranya_base58::{DecodeError, String64, ToBase58};
-use generic_array::GenericArray;
 use postcard::experimental::max_size::MaxSize;
 #[cfg(feature = "proptest")]
 #[doc(hidden)]
@@ -19,11 +18,16 @@ use serde::{
     ser::SerializeTuple,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-use subtle::{Choice, ConstantTimeEq};
-use typenum::U64;
 
 use crate::{
-    ciphersuite::SuiteIds, csprng::Csprng, hash::tuple_hash, signer::PkError, CipherSuite,
+    ciphersuite::SuiteIds,
+    csprng::Csprng,
+    generic_array::GenericArray,
+    hash::tuple_hash,
+    signer::PkError,
+    subtle::{Choice, ConstantTimeEq},
+    typenum::U64,
+    CipherSuite,
 };
 
 /// A unique cryptographic ID.

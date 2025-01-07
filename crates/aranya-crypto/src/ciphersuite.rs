@@ -20,7 +20,6 @@
 
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
-use typenum::U64;
 
 use crate::{
     aead::{Aead, AeadId, IndCca2},
@@ -29,6 +28,7 @@ use crate::{
     kem::{Kem, KemId},
     mac::{Mac, MacId},
     signer::{Signer, SignerId},
+    typenum::U64,
     Id,
 };
 

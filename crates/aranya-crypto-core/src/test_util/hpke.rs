@@ -22,7 +22,7 @@ use crate::{
 ///
 /// ```
 /// use aranya_crypto_core::{
-///     Rng,
+///     default::Rng,
 ///     rust::{
 ///         Aes256Gcm,
 ///         DhKemP256HkdfSha256,
@@ -104,7 +104,7 @@ macro_rules! test_hpke {
                 #[test]
                 fn $test() {
                     $crate::test_util::hpke::$test::<$kem, $kdf, $aead, _>(
-                        &mut $crate::Rng,
+                        &mut $crate::default::Rng,
                     )
                 }
             };

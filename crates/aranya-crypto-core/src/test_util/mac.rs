@@ -8,7 +8,7 @@ use crate::{csprng::Csprng, keys::SecretKey, mac::Mac};
 /// # Example
 ///
 /// ```
-/// use aranya_crypto_core::{Rng, rust::HmacSha256};
+/// use aranya_crypto_core::{default::Rng, rust::HmacSha256};
 ///
 /// # aranya_crypto_core::__doctest_os_hardware_rand!();
 /// macro_rules! run_test {
@@ -63,7 +63,7 @@ macro_rules! test_mac {
             ($test:ident) => {
                 #[test]
                 fn $test() {
-                    $crate::test_util::mac::$test::<$mac, _>(&mut $crate::Rng)
+                    $crate::test_util::mac::$test::<$mac, _>(&mut $crate::default::Rng)
                 }
             };
         }

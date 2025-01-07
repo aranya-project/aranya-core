@@ -24,7 +24,6 @@ alloc = [
 	"aranya-crypto-core/alloc",
 	"postcard/alloc",
 	"rustix?/alloc",
-	"zeroize/alloc",
 ]
 
 # Enable BearSSL.
@@ -101,8 +100,6 @@ std = [
 	"rustix?/std",
 	"serde/std",
 	"siphasher/std",
-	"subtle/std",
-	"zeroize/std",
 ]
 
 # Include testing utilities.
@@ -126,16 +123,12 @@ byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
 ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
-generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
 postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 siphasher = { version = "1", default-features = false }
-subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
-typenum = { version = "1", default-features = false, features = ["const-generics"] }
-zeroize = { version = "1", default-features = false, features = ["zeroize_derive"] }
 
 [dev-dependencies]
 # A little bit of a hack: always certain features for tests and
@@ -145,6 +138,7 @@ aranya-crypto = { path = ".", features = ["alloc", "test_util"] }
 postcard = { workspace = true, features = ["alloc", "heapless"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
+serde_json = { version = "1", default-features = false }
 tempfile = { version = "3" }
 
 [[example]]

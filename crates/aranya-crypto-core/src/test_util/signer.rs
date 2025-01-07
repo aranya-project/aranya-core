@@ -17,7 +17,7 @@ use crate::{
 /// # Example
 ///
 /// ```
-/// use aranya_crypto_core::{Rng, rust::P256};
+/// use aranya_crypto_core::{default::Rng, rust::P256};
 ///
 /// # aranya_crypto_core::__doctest_os_hardware_rand!();
 /// macro_rules! run_test {
@@ -66,7 +66,7 @@ macro_rules! test_signer {
             ($test:ident) => {
                 #[test]
                 fn $test() {
-                    $crate::test_util::signer::$test::<$signer, _>(&mut $crate::Rng)
+                    $crate::test_util::signer::$test::<$signer, _>(&mut $crate::default::Rng)
                 }
             };
         }

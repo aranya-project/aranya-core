@@ -31,7 +31,7 @@ use crate::csprng::Csprng;
 ///
 /// ```
 /// # use aranya_crypto_core::csprng::Csprng;
-/// use aranya_crypto_core::Rng;
+/// use aranya_crypto_core::default::Rng;
 ///
 /// fn foo<R: Csprng>(_rng: &mut R) {}
 ///
