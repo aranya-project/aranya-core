@@ -1,115 +1,30 @@
 name: "Setup build tools"
 description: "Action for setting up build tools"
-inputs:
-  gh-token:
-    description: "github.com Access Token"
-    required: true
-  ghe-token:
-    description: "git.spideroak-inc.com Access Token"
-    required: true
-  go-version:
-    description: "Go version"
-    required: true
-    default: "stable"
-  runner:
-    description: "OS being used (e.g., macos-latest)"
-    required: true
-  target:
-    description: "OS-arch target being compiled for (e.g., linux-arm64)"
+
 runs:
   using: "composite"
   steps:
-    # Our runners don't get wiped between runs :/
-    - name: nuke old .gitconfig
-      run: rm ~/.gitconfig || true
-      shell: bash
-
-    - name: Set up git
-      run: |
-        git config --global --replace-all url."https://${{ inputs.ghe-token }}@git.spideroak-inc.com/spideroak-inc/".insteadOf 'https://github.com/aranya-project/'
-        git config --global --replace-all url."https://${{ inputs.gh-token }}@github.com/".insteadOf 'https://github.com/'
-        echo "CARGO_NET_GIT_FETCH_WITH_CLI=true" >> $GITHUB_ENV
-      shell: bash
-
-      # There is a bug in the version of GCC that ships with our
-      # arm64 runners that prevents BoringSSL from compiling. So,
-      # use Clang instead.
-      #
-      # TODO(eric): Reassess whether we still need these.
-    - name: Install arm64/amd64 system dependencies
-      run: |
-        set -x
-
-        lsb_release -a
-
-        sudo apt-get update -y
-        sudo apt-get install -y --no-install-recommends \
-          build-essential \
-          clang-12 \
-          clang-tools-12 \
-          cmake \
-          libunwind-dev \
-          libc++-12-dev \
-          libc++abi-12-dev \
-          libclang-12-dev \
-          libclang1-12 \
-          llvm-12 \
-          llvm-12-dev \
-          lld-12 \
-          ninja-build \
-          pkg-config
-
-          echo "CC=$(which clang-12)" >> $GITHUB_ENV
-          echo "CXX=$GITHUB_WORKSPACE/clang++12" >> $GITHUB_ENV
-          echo "LD=$(which lld-12)" >> $GITHUB_ENV
-      shell: bash
-      if: ${{ inputs.runner == 'self-hosted-linux-arm64' || inputs.runner == 'self-hosted-linux-amd64' }}
-
-    #
-    # Set up Rust
-    #
-    - name: Install Rust
-      run: |
-        cat<<EOF>>rustup.sh.sha256
-        32a680a84cf76014915b3f8aa44e3e40731f3af92cd45eb0fcc6264fd257c428  rustup.sh
-        EOF
-        wget 'https://sh.rustup.rs' -O rustup.sh
-        shasum -c rustup.sh.sha256
-        chmod +x ./rustup.sh
-        ./rustup.sh -y --default-toolchain none
-        source "$HOME/.cargo/env"
-        echo "${HOME}/.cargo/bin" >> $GITHUB_PATH
-      shell: bash
-    # Various runners have a 64-bit kernel with a 32-bit userspace.
-    # Setting rustup's default host to armv7 allows using the 32-bit executables.
-    - name: Set rustup's host
-      run: |
-        rustup set default-host armv7-unknown-linux-gnueabihf
-        rustup show active-toolchain
-      shell: bash
-      if: ${{ inputs.runner == 'self-hosted-linux-arm' }}
-    - name: cargo version
+    - name: Version info
       shell: bash
       run: |
-        file cargo
         cargo --version --verbose
-    - name: glibc version
-      shell: bash
-      run: ldd --version
-      if: ${{ inputs.runner == 'self-hosted-linux-arm' }}
+        ldd --version
+        clang --version
+        gcc --version
+        cmake --version
 
     - name: Install sccache
-      uses: spideroak-inc/sccache-action@main
+      uses: aranya-project/sccache-action@main
       with:
-        version: "v0.7.7"
+        version: "v0.8.2"
 
     - name: Configure sccache
+      shell: bash
       run: |
         echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
-      shell: bash
 
     - name: Install cargo-make
-      run: cargo install --version '0.37.11' --locked cargo-make
       shell: bash
+      run: cargo install --version '0.37.23' --locked cargo-make
