@@ -1,27 +1,27 @@
-* @elagergren @jdygert
+* @elagergren-spideroak @jdygert-spok
 
-/canaries @jdygert @elagergren
+/canaries @jdygert-spok @elagergren-spideroak
 
-/crates/aranya-afc-util @elagergren @jdygert
-/crates/aranya-base58 @elagergren @jdygert
-/crates/aranya-buggy @jdygert @elagergren
-/crates/aranya-libc @elagergren @jdygert
+/crates/aranya-afc-util @elagergren-spideroak @jdygert-spok
+/crates/aranya-base58 @elagergren-spideroak @jdygert-spok
+/crates/aranya-buggy @jdygert-spok @elagergren-spideroak
+/crates/aranya-libc @elagergren-spideroak @jdygert-spok
 
-/crates/aranya-capi* @elagergren @jdygert @chip
+/crates/aranya-capi* @elagergren-spideroak @jdygert-spok @chip-so
 
-/crates/aranya-crypto* @elagergren @ycarmy
+/crates/aranya-crypto* @elagergren-spideroak @ycarmy
 
-/crates/aranya-device-ffi @rfraser @chip
-/crates/aranya-envelope-ffi @elagergren @ycarmy
-/crates/aranya-idam-ffi @elagergren @ycarmy
-/crates/aranya-model @smckeon @jdygert
-/crates/aranya-perspective-ffi @apetkov @chip
+/crates/aranya-device-ffi @chip-so @jdygert-spok @rfraser-spideroak
+/crates/aranya-envelope-ffi @elagergren-spideroak @ycarmy
+/crates/aranya-idam-ffi @elagergren-spideroak @ycarmy
+/crates/aranya-model @smckeon-so @jdygert-spok
+/crates/aranya-perspective-ffi @apetkov-so @chip-so
 
-/crates/aranya-policy-* @chip @apetkov
-/crates/aranya-policy-ifgen* @jdygert @elagergren
-/crates/aranya-policy-derive @elagergren @chip
+/crates/aranya-policy-* @chip-so @apetkov-so
+/crates/aranya-policy-ifgen* @jdygert-spok @elagergren-spideroak
+/crates/aranya-policy-derive @elagergren-spideroak @chip-so
 
-/crates/aranya-quic-syncer @bzimmerman @jdygert
-/crates/aranya-runtime @jdygert @elagergren
+/crates/aranya-quic-syncer @benz-spideroak @jdygert-spok
+/crates/aranya-runtime @jdygert-spok @elagergren-spideroak
 
-/.github @elagergren @jdygert
+/.github @elagergren-spideroak @jdygert-spok
