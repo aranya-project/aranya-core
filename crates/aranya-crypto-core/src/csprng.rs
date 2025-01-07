@@ -46,16 +46,16 @@ impl<R: Csprng + ?Sized> Csprng for &mut R {
     }
 }
 
-#[cfg(feature = "getrandom")]
-#[cfg_attr(docsrs, doc(cfg(feature = "getrandom")))]
+#[cfg(all(feature = "getrandom", feature = "rand_compat"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "getrandom", feature = "rand_compat"))))]
 impl Csprng for rand_core::OsRng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         rand_core::RngCore::fill_bytes(self, dst)
     }
 }
 
-#[cfg(feature = "std")]
-#[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+#[cfg(all(feature = "rand_compat", feature = "std"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "rand_compat", feature = "std"))))]
 impl Csprng for rand::rngs::ThreadRng {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         rand_core::RngCore::fill_bytes(self, dst)

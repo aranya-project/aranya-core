@@ -16,7 +16,6 @@ workspace = true
 [features]
 default = [
 	"getrandom",
-	#"trng",
 ]
 
 # Enable allocations.
@@ -92,9 +91,6 @@ std = [
 	# `Csprng` support for `OsRng`. Doing this makes the
 	# `#[cfg(...)]` blocks easier to manage.
 	"getrandom",
-
-	# Pull in `rand` for `ThreadRng`.
-	"dep:rand",
 
 	"aes-gcm/std",
 	"aranya-buggy/std",
