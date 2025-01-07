@@ -51,6 +51,8 @@ tracing-subscriber = { workspace = true, default-features = true } # affects fea
 [features]
 default = []
 
+bench = ["aranya-policy-vm/bench"]
+
 # Enable `libc`.
 libc = [
 	"dep:aranya-libc",

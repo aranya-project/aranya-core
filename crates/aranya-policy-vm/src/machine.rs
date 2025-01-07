@@ -22,6 +22,8 @@ use aranya_policy_module::{
 use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
 
+#[cfg(feature = "bench")]
+use crate::bench::{bench_aggregate, Stopwatch};
 use crate::{
     error::{MachineError, MachineErrorType},
     io::MachineIO,
@@ -302,6 +304,8 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     ctx: CommandContext<'a>,
     // Cursors for `QueryStart` results
     query_iter_stack: Vec<M::QueryIterator>,
+    #[cfg(feature = "bench")]
+    stopwatch: Stopwatch,
 }
 
 impl<'a, M> RunState<'a, M>
@@ -323,6 +327,8 @@ where
             io,
             ctx,
             query_iter_stack: vec![],
+            #[cfg(feature = "bench")]
+            stopwatch: Stopwatch::new(),
         }
     }
 
@@ -429,8 +435,11 @@ where
     /// Validate a struct against defined schema.
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
-    fn validate_struct_schema(&self, s: &Struct) -> Result<(), MachineError> {
+    fn validate_struct_schema(&mut self, s: &Struct) -> Result<(), MachineError> {
         let err = self.err(MachineErrorType::InvalidSchema(s.name.clone()));
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.start("validate_struct_schema");
 
         match self.machine.struct_defs.get(&s.name) {
             Some(fields) => {
@@ -453,6 +462,10 @@ where
                         None => return Err(err),
                     }
                 }
+
+                #[cfg(feature = "bench")]
+                self.stopwatch.stop();
+
                 Ok(())
             }
             None => Err(err),
@@ -468,6 +481,7 @@ where
         // Clone the instruction so we don't take an immutable
         // reference to self while we manipulate the stack later.
         let instruction = self.machine.progmem[self.pc()].clone();
+
         match instruction {
             Instruction::Const(v) => {
                 self.ipush(v)?;
@@ -889,8 +903,9 @@ where
                 }
                 self.ipush(s)?;
             }
-            Instruction::Meta(_) => (),
+            Instruction::Meta(_m) => {}
         }
+
         self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;
 
         Ok(MachineStatus::Executing)
@@ -901,12 +916,31 @@ where
     /// with, or an error.
     pub fn run(&mut self) -> Result<ExitReason, MachineError> {
         loop {
-            match self
-                .step()
-                .map_err(|err| err.with_position(self.pc, self.machine.codemap.as_ref()))?
+            #[cfg(feature = "bench")]
             {
+                if let Some(instruction) = self.machine.progmem.get(self.pc()) {
+                    if let Some(name) = instruction.to_string().split_whitespace().next() {
+                        self.stopwatch.start(name);
+                    }
+                }
+            }
+
+            let result = self
+                .step()
+                .map_err(|err| err.with_position(self.pc, self.machine.codemap.as_ref()))?;
+
+            #[cfg(feature = "bench")]
+            if !self.stopwatch.measurement_stack.is_empty() {
+                self.stopwatch.stop();
+            }
+
+            match result {
                 MachineStatus::Executing => continue,
-                MachineStatus::Exited(reason) => return Ok(reason),
+                MachineStatus::Exited(reason) => {
+                    #[cfg(feature = "bench")]
+                    bench_aggregate(&mut self.stopwatch);
+                    return Ok(reason);
+                }
             };
         }
     }
@@ -1008,6 +1042,9 @@ where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
+        #[cfg(feature = "bench")]
+        self.stopwatch.start("setup_action");
+
         // verify number and types of arguments
         let arg_def = self.machine.action_defs.get(name).ok_or(MachineError::new(
             MachineErrorType::NotDefined(String::from(name)),
@@ -1038,6 +1075,10 @@ where
         for a in args {
             self.ipush(a)?;
         }
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.stop();
+
         Ok(())
     }
 
@@ -1047,6 +1088,7 @@ where
     // TODO(chip): I don't really like how V: Into<Value> works here
     // because it still means all of the args have to have the same
     // type.
+    #[allow(clippy::let_and_return)]
     pub fn call_action<Args>(&mut self, name: &str, args: Args) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
@@ -1059,24 +1101,43 @@ where
     /// Call the seal block on this command to produce an envelope. The
     /// seal block is given an implicit parameter `this` and should
     /// return an opaque envelope struct on the stack.
+    #[allow(clippy::let_and_return)]
     pub fn call_seal(
         &mut self,
         name: &str,
         this_data: &Struct,
     ) -> Result<ExitReason, MachineError> {
+        #[cfg(feature = "bench")]
+        self.stopwatch.start("call_seal");
+
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
+
         // Seal/Open pushes the argument and defines it itself, because
         // it calls through a function stub. So we just push `this_data`
         // onto the stack.
         self.ipush(this_data.to_owned())?;
-        self.run()
+        let result = self.run();
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.stop();
+
+        result
     }
 
     /// Call the open block on an envelope struct to produce a command struct.
+    #[allow(clippy::let_and_return)]
     pub fn call_open(&mut self, name: &str, envelope: Struct) -> Result<ExitReason, MachineError> {
+        #[cfg(feature = "bench")]
+        self.stopwatch.start("call_open");
+
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
-        self.run()
+        let result = self.run();
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.stop();
+
+        result
     }
 
     /// Destroy the `RunState` and return the value on top of the stack.
@@ -1086,7 +1147,10 @@ where
             .map_err(|t| MachineError::from_position(t, self.pc, self.machine.codemap.as_ref()))
     }
 
-    fn validate_fact_literal(&self, fact: &Fact) -> Result<(), MachineError> {
+    fn validate_fact_literal(&mut self, fact: &Fact) -> Result<(), MachineError> {
+        #[cfg(feature = "bench")]
+        self.stopwatch.start("validate_fact_literal");
+
         if !self
             .machine
             .fact_defs
@@ -1099,6 +1163,10 @@ where
                 self.machine.codemap.as_ref(),
             ));
         }
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.stop();
+
         Ok(())
     }
 }
