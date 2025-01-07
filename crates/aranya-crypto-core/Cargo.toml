@@ -27,7 +27,6 @@ alloc = [
 	"postcard/alloc",
 	"rand?/alloc",
 	"rand_core/alloc",
-	"rustix?/alloc",
 	"sha3-utils/alloc",
 	"zeroize/alloc",
 ]
@@ -67,15 +66,6 @@ ed25519_batch = [
 	"ed25519-dalek/batch",
 ]
 
-# Enable the file system backed `KeyStore`.
-fs-keystore = [
-	"alloc", # ciborium already requires alloc
-
-	"dep:ciborium",
-	"dep:ciborium-io",
-	"dep:rustix",
-]
-
 # Enable `getrandom` support.
 #
 # NB: `getrandom` does not support VxWorks < 7.
@@ -87,9 +77,6 @@ getrandom = [
 
 # Enable cryptographically hazardous code.
 hazmat = []
-
-# Enable `proptest::arbitrary::Arbitrary` implemenations
-proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
 
 # Enable compat with the `rand`, `rand_core`, etc. crates.
 rand_compat = [
@@ -107,11 +94,7 @@ std = [
 	"dep:rand",
 
 	"aes-gcm/std",
-	"aranya-base58/std",
 	"aranya-buggy/std",
-	"byteorder/std",
-	"ciborium-io?/std",
-	"ciborium?/std",
 	"crypto-common/std",
 	"der/std",
 	"der/std",
@@ -122,16 +105,13 @@ std = [
 	"p256/std",
 	"p384/std",
 	"postcard/use-std",
-	"proptest?/std",
 	"rand?/std",
 	"rand?/std_rng",
 	"rand_core/std",
-	"rustix?/std",
 	"serde/std",
 	"serde_json?/std",
 	"sha2/std",
 	"sha3-utils/std",
-	"siphasher/std",
 	"spin?/std",
 	"subtle/std",
 	"zeroize/std",
@@ -140,8 +120,8 @@ std = [
 # Include testing utilities.
 test_util = [
 	"alloc",
-	"proptest",
 
+	"dep:more-asserts",
 	"dep:serde_json",
 	"dep:serde_repr",
 	"dep:wycheproof",
@@ -155,19 +135,14 @@ trng = [
 ]
 
 [dependencies]
-aranya-base58 = { version = "0.1.0", path = "../aranya-base58", default-features = false }
 aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
 aranya-crypto-derive = { version = "0.2.0", path = "../aranya-crypto-derive" }
-aranya-trouble = { version = "0.1.0", path = "../aranya-trouble", default-features = false }
 
 aranya-bearssl-sys = { version = "0.1.0", optional = true }
 
 aes = { version = "0.8", default-features = false, features = ["zeroize"], optional = true }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes"] }
-byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
-ciborium = { version = "0.2", default-features = false, optional = true }
-ciborium-io = { version = "0.2", default-features = false, optional = true }
 crypto-common = { version = "0.1", default-features = false }
 der = { version = "0.7", default-features = false }
 ecdsa = { version = "0.16", default-features = false, features = ["signing", "verifying", "der"] }
@@ -176,22 +151,21 @@ elliptic-curve = { version = "0.13", default-features = false, features = ["ecdh
 generic-array = { version = "1", default-features = false, features = ["const-default", "serde", "zeroize"] }
 getrandom = { version = "0.2", default-features = false, optional = true }
 lazy_static = { version = "1.4", default-features = false, features = ["spin_no_std"], optional = true }
-more-asserts = { version = "0.3", default-features = false }
+more-asserts = { version = "0.3", default-features = false, optional = true }
 p256 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
 p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"] }
+# Required by `aranya_crypto_derive::AlgId`.
 postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
-proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
-proptest-derive = { workspace = true, optional = true }
 rand = { workspace = true, default-features = false, optional = true }
 # `rand_core` is required by the `rust` backend.
 rand_core = { workspace = true, default-features = false }
-rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
+# TODO(eric): Make this optional, it should only be needed by
+# `test_util`.
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false, optional = true }
 serde_repr = { version = "0.1", default-features = false, optional = true }
 sha2 = { version = "0.10", default-features = false }
 sha3-utils = { version = "0.3.0", default-features = false }
-siphasher = { version = "1", default-features = false }
 spin = { workspace = true, default-features = false, features = ["mutex", "once", "spin_mutex"], optional = true }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
 typenum = { version = "1", default-features = false, features = ["const-generics"] }
@@ -206,7 +180,7 @@ zeroize = { version = "1", default-features = false, features = ["zeroize_derive
 # examples.
 aranya-crypto-core = { path = ".", features = ["alloc", "test_util"] }
 
-postcard = { workspace = true, features = ["alloc", "heapless"] }
+postcard = { workspace = true, features = ["alloc", "experimental-derive", "heapless"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false }
@@ -219,7 +193,6 @@ features = [
 	"clone-aead",
 	"committing-aead",
 	"ed25519_batch",
-	"fs-keystore",
 	"rand_compat",
 	"std",
 	"test_util",
@@ -233,10 +206,8 @@ always_include_features = [
 	"clone-aead",
 	"committing-aead",
 	"ed25519_batch",
-	"fs-keystore",
 	"getrandom",
 	"hazmat",
-	"proptest",
 	"rand_compat",
 	"std",
 	"test_util",

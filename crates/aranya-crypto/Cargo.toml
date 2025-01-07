@@ -22,6 +22,7 @@ default = [
 alloc = [
 	"aes-gcm/alloc",
 	"aranya-buggy/alloc",
+	"aranya-crypto-core/alloc",
 	"der/alloc",
 	"ecdsa/alloc",
 	"postcard/alloc",
@@ -109,6 +110,7 @@ std = [
 	"aes-gcm/std",
 	"aranya-base58/std",
 	"aranya-buggy/std",
+	"aranya-crypto-core/std",
 	"byteorder/std",
 	"ciborium-io?/std",
 	"ciborium?/std",
@@ -157,6 +159,7 @@ trng = [
 [dependencies]
 aranya-base58 = { version = "0.1.0", path = "../aranya-base58", default-features = false }
 aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
+aranya-crypto-core = { version = "0.1.0", path = "../aranya-crypto-core", default-features = false }
 aranya-crypto-derive = { version = "0.2.0", path = "../aranya-crypto-derive" }
 aranya-trouble = { version = "0.1.0", path = "../aranya-trouble", default-features = false }
 

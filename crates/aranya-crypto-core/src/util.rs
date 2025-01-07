@@ -1,38 +1,6 @@
-#![allow(unused)]
 #![forbid(unsafe_code)]
 
-use core::{cmp, ops::Add};
-
-use generic_array::{sequence::Concat, typenum::Sum, ArrayLength, GenericArray};
-use serde::{Deserialize, Serialize};
-
-/// A ciphertext, overhead (e.g., tag) tuple.
-#[derive(Serialize, Deserialize)]
-pub struct Ciphertext<C, O> {
-    pub(crate) ciphertext: C,
-    pub(crate) overhead: O,
-}
-
-impl<N, M> Ciphertext<GenericArray<u8, N>, GenericArray<u8, M>>
-where
-    N: ArrayLength + Add<M>,
-    M: ArrayLength,
-    Sum<N, M>: ArrayLength,
-{
-    /// Converts the ciphertext into a contiguous array.
-    pub fn into_bytes(self) -> GenericArray<u8, Sum<N, M>> {
-        self.ciphertext.concat(self.overhead)
-    }
-}
-
-/// Returns `min(x, usize::MAX)`.
-pub const fn saturate(x: u64) -> usize {
-    if x > (usize::MAX as u64) {
-        usize::MAX
-    } else {
-        x as usize
-    }
-}
+use core::cmp;
 
 /// Copy from `src` to `dst`.
 pub fn copy<T: Copy>(dst: &mut [T], src: &[T]) -> usize {
@@ -48,51 +16,3 @@ macro_rules! const_assert {
     }
 }
 pub(crate) use const_assert;
-
-/// Invokes `$name` at some indeterminate time before `fn main`.
-macro_rules! ctor {
-    ($name:expr) => {
-        const _: () = {
-            extern "C" fn init() {
-                $name()
-            }
-
-            #[used]
-            // mach-o uses __mod_init_func
-            // - https://stackoverflow.com/a/30703178
-            // - https://opensource.apple.com/source/dyld/dyld-239.3/src/dyldInitialization.cpp
-            #[cfg_attr(
-                any(
-                    target_os = "macos",
-                    target_os = "ios",
-                    target_os = "tvos",
-                    target_os = "watchos"
-                ),
-                link_section = "__DATA,__mod_init_func"
-            )]
-            // ELF uses .init_array
-            // - https://refspecs.linuxfoundation.org/LSB_1.1.0/gLSB/specialsections.html
-            #[cfg_attr(
-                all(
-                    unix,
-                    not(any(target_os = "macos", target_os = "ios", target_os = "tvos"))
-                ),
-                link_section = ".init_array"
-            )]
-            // The only LLVM toolchain that uses .ctors is mingw.
-            #[cfg_attr(
-                all(target_os = "windows", target_env = "gnu"),
-                link_section = ".ctors"
-            )]
-            // Windows (outside of mingw) uses .CRT$XCU.
-            #[cfg_attr(all(windows, not(target_env = "gnu")), link_section = ".CRT$XCU")]
-            static __CTOR: extern "C" fn() = init;
-
-            // AIX uses -wl,-binitfini:$name
-            // I don't think VxWorks has any support for this,
-            // even though it uses ELF.
-            #[cfg(any(target_os = "aix", target_os = "vxworks",))]
-            compile_error("VxWorks and AIX are currently unsupported");
-        };
-    };
-}

@@ -32,6 +32,7 @@ use crate::{
     csprng::{Csprng, Random},
     kdf::{Expand, Kdf, KdfError, Prk},
     keys::{raw_key, SecretKey, SecretKeyBytes},
+    util::const_assert,
     zeroize::Zeroize,
 };
 

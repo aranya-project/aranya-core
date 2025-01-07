@@ -5,9 +5,6 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
-#[macro_use]
-mod util;
-
 pub(crate) use aranya_crypto_derive::AlgId;
 pub mod aead;
 pub mod asn1;
@@ -30,6 +27,7 @@ pub mod mac;
 pub mod rust;
 pub mod signer;
 pub mod test_util;
+mod util;
 pub mod zeroize;
 
 pub use aead::{BufferTooSmallError, OpenError, SealError};
@@ -44,6 +42,5 @@ pub use kdf::KdfError;
 pub use kem::{EcdhError, KemError};
 pub use mac::MacError;
 pub use signer::SignerError;
-pub use siphasher;
 pub use subtle;
 pub use typenum;
