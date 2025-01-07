@@ -69,7 +69,8 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 /// - Elsewhere, this uses a naive spinlock.
 ///
 /// The implementation is taken from the Go standard library, see
-/// <https://git.spideroak-inc.com/spideroak-inc/flow3/blob/d65610cc6c543cc302f40939fff1ed6165e9f8b3/policy/shm/mutex.go>
+///  <https://git.spideroak-inc.com/spideroak-inc/flow3/blob/d65610cc6c543cc302f40939fff1ed6165e9f8b3/policy/shm/mutex.go>
+/// TODO: (scott) Should this be removed? the mutex.go does not exist in the current aranya fast channels codebase.
 #[repr(C, align(8))]
 #[derive(Default, Debug)]
 pub(crate) struct Mutex<T: ?Sized> {

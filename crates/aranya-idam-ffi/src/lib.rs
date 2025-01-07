@@ -14,9 +14,9 @@
 //! available by a particular module. For details on the
 //! cryptographic APIs used by IdAM, see [IDAM crypto].
 //!
-//! [IDAM crypto]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/idam_crypto.md
+//! [IDAM crypto]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/idam-crypto-apis/src/idam_crypto.md
 //! [default policy]: https://github.com/aranya-project/aranya/blob/main/crates/aranya-daemon/src/policy.md
-//! [policy lang]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/policy-v1.md
+//! [policy lang]: https://github.com/aranya-project/aranya-docs/blob/main/src/policy-v1.md
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest)), no_std)]

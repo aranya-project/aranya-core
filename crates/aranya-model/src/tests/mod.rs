@@ -1415,6 +1415,7 @@ fn should_create_clients_with_args() {
 }
 
 /// Test for <https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues/917>.
+/// TODO: (scott) Is this something we want to keep for internal reference? It's not much use to open source contributors.
 #[test]
 fn test_storage_fact_issue_917() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
