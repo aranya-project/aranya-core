@@ -16,7 +16,6 @@ workspace = true
 [features]
 default = [
 	"getrandom",
-	#"trng",
 ]
 
 # Enable allocations.
