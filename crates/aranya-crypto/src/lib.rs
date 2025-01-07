@@ -56,6 +56,7 @@ pub mod keystore;
 mod misc;
 mod policy;
 pub mod test_util;
+mod tests;
 
 // Re-export `$name` without inlining it.
 macro_rules! reexport {
