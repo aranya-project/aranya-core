@@ -5,6 +5,8 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
+#[cfg(feature = "bench")]
+mod bench;
 mod data;
 mod derive;
 mod error;
@@ -17,6 +19,8 @@ mod tests;
 
 pub use aranya_policy_ast as ast;
 pub use aranya_policy_module::*;
+#[cfg(feature = "bench")]
+pub use bench::*;
 pub use data::*;
 pub use error::*;
 pub use io::*;
