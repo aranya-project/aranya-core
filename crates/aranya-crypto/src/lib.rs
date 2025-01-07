@@ -80,6 +80,9 @@ pub use aranya_crypto_core::{
     signer::{self, SignerError},
     subtle, typenum, zeroize,
 };
+#[cfg(feature = "hazmat")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
+pub use aranya_crypto_core::{dhkem_impl, hkdf_impl, hmac_impl};
 pub use ciphersuite::*;
 pub use engine::{Engine, UnwrapError, WrapError};
 pub use error::*;

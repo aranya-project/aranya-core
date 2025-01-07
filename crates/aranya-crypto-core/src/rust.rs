@@ -1,14 +1,6 @@
 //! [RustCrypto] cryptography.
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! [RustCrypto]: https://github.com/RustCrypto
-
-#![cfg(not(fips))]
-#![cfg_attr(docsrs, doc(cfg(not(fips))))]
 
 use core::{borrow::Borrow, fmt, result::Result};
 

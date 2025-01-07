@@ -1,9 +1,4 @@
 //! Key Encapsulation Mechanisms.
-//!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
 
 #![forbid(unsafe_code)]
 
@@ -15,6 +10,7 @@ use core::{
     result::Result,
 };
 
+#[doc(inline)]
 pub use crate::hpke::KemId;
 use crate::{
     csprng::Csprng,
@@ -542,17 +538,9 @@ type PubKeyData<T> = <<T as Ecdh>::PublicKey as PublicKey>::Data;
 /// - `sk`: The [`DecapKey`] to use.
 /// - `pk`: The [`EncapKey`] to use.
 ///
-/// # ⚠️ Warning
-/// <div class="warning">
-/// This is a low-level feature. You should not be using it
-/// unless you understand what you are doing.
-/// </div>
-///
 /// # Example
 ///
 /// ```rust,ignore
-/// # #[cfg(feature = "hazmat")]
-/// # fn main() {
 /// use aranya_crypto_core::dhkem_impl;
 /// dhkem_impl! {
 ///     DhKemP256HkdfSha256,
@@ -562,10 +550,8 @@ type PubKeyData<T> = <<T as Ecdh>::PublicKey as PublicKey>::Data;
 ///     P256PrivateKey,
 ///     P256PublicKey,
 /// }
-/// # }
 /// ```
-#[cfg_attr(feature = "hazmat", macro_export)]
-#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
+#[macro_export]
 macro_rules! dhkem_impl {
     ($name:ident, $doc:expr, $ecdh:ty, $kdf:ty, $sk:ident, $pk:ident $(,)?) => {
         #[doc = concat!($doc, ".")]

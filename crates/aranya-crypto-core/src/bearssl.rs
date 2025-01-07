@@ -1,16 +1,9 @@
 //! [BearSSL] cryptography.
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! [BearSSL]: https://bearssl.org/
 
 #![cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
 #![cfg(feature = "bearssl")]
-#![cfg(not(fips))]
-#![cfg_attr(docsrs, doc(cfg(not(fips))))]
 
 use core::{
     borrow::Borrow,

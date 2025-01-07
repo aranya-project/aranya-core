@@ -1,15 +1,8 @@
 //! HKDF per [RFC 5869].
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! [RFC 5869]: https://www.rfc-editor.org/rfc/rfc5869
 
 #![forbid(unsafe_code)]
-#![cfg_attr(docsrs, doc(cfg(not(fips))))]
-#![cfg(not(fips))]
 
 use core::marker::PhantomData;
 
@@ -150,8 +143,6 @@ impl<H: Hash> Hkdf<H> {
 /// # Example
 ///
 /// ```rust
-/// # #[cfg(feature = "hazmat")]
-/// # {
 /// use aranya_crypto_core::{
 ///     hash::{Block, Digest, Hash, HashId},
 ///     hkdf_impl,
@@ -178,10 +169,8 @@ impl<H: Hash> Hkdf<H> {
 /// }
 ///
 /// hkdf_impl!(HkdfSha256, "HMAC-SHA-256", Sha256);
-/// # }
 /// ```
-#[cfg_attr(feature = "hazmat", macro_export)]
-#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
+#[macro_export]
 macro_rules! hkdf_impl {
     ($name:ident, $doc_name:expr, $hash:ident) => {
         #[doc = concat!($doc_name, ".")]

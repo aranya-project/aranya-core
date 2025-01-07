@@ -1,4 +1,12 @@
-//! Low level Aranya cryptography
+//! Low level Aranya cryptography.
+//!
+//! # Warning
+//!
+//! The cryptography in this crate is low-level and can very
+//! easily be misused. Unless you explicitly know what you're
+//! doing, use [`aranya-crypto`] instead.
+//!
+//! [`aranya-crypto`]: https://docs.rs/aranya-crypto
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -13,7 +21,6 @@ pub mod csprng;
 pub mod default;
 pub mod ec;
 pub mod ed25519;
-mod error;
 pub mod hash;
 pub mod hex;
 pub mod hkdf;
@@ -30,17 +37,7 @@ pub mod test_util;
 mod util;
 pub mod zeroize;
 
-pub use aead::{BufferTooSmallError, OpenError, SealError};
 pub use aranya_buggy;
-pub use csprng::{Csprng, Random};
-pub use default::Rng;
-pub use error::*;
 pub use generic_array;
-pub use hpke::HpkeError;
-pub use import::{ExportError, ImportError};
-pub use kdf::KdfError;
-pub use kem::{EcdhError, KemError};
-pub use mac::MacError;
-pub use signer::SignerError;
 pub use subtle;
 pub use typenum;

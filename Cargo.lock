@@ -250,7 +250,6 @@ dependencies = [
  "rand",
  "rustix",
  "serde",
- "serde_json",
  "siphasher",
  "subtle",
  "tempfile",

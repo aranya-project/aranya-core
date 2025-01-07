@@ -1,10 +1,5 @@
 //! Hybrid Public Key Encryption per [RFC 9180].
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! ## Notation
 //!
 //! - `sk`: a private key; shorthand for "*S*ecret *K*ey"

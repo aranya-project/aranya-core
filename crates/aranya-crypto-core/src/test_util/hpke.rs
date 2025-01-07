@@ -61,10 +61,6 @@ pub use for_each_hpke_test;
 /// This macro expands into a bunch of individual `#[test]`
 /// functions.
 ///
-/// This is used by
-/// [`test_ciphersuite`][super::test_ciphersuite], but can also
-/// be used manually.
-///
 /// # Example
 ///
 /// ```

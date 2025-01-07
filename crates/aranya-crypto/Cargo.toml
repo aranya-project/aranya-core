@@ -100,7 +100,6 @@ std = [
 	"proptest?/std",
 	"rustix?/std",
 	"serde/std",
-	"serde_json?/std",
 	"siphasher/std",
 	"subtle/std",
 	"zeroize/std",
@@ -112,8 +111,6 @@ test_util = [
 	"proptest",
 
 	"aranya-crypto-core/test_util",
-
-	"dep:serde_json",
 ]
 
 # Use a system provided TRNG for the default CSPRNG.
@@ -135,7 +132,6 @@ proptest = { workspace = true, default-features = false, features = ["alloc"], o
 proptest-derive = { workspace = true, optional = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-serde_json = { version = "1", default-features = false, optional = true }
 siphasher = { version = "1", default-features = false }
 subtle = { version = "2.5", default-features = false, features = ["core_hint_black_box"] }
 typenum = { version = "1", default-features = false, features = ["const-generics"] }
@@ -149,7 +145,6 @@ aranya-crypto = { path = ".", features = ["alloc", "test_util"] }
 postcard = { workspace = true, features = ["alloc", "heapless"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-serde_json = { version = "1", default-features = false }
 tempfile = { version = "3" }
 
 [[example]]

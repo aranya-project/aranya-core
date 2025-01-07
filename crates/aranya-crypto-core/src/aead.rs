@@ -1,11 +1,6 @@
 //! Authenticated Encryption with Additional Associated Data per
 //! [RFC 5116].
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! [RFC 5116]: https://www.rfc-editor.org/rfc/rfc5116
 
 use core::{
@@ -27,6 +22,7 @@ use typenum::{
     Unsigned, U16, U65536,
 };
 
+#[doc(inline)]
 pub use crate::hpke::AeadId;
 use crate::{
     csprng::{Csprng, Random},
@@ -1052,18 +1048,17 @@ mod committing {
     /// # Example
     ///
     /// ```rust,ignore
-    /// # #[cfg(all(feature = "committing-aead", feature = "hazmat"))]
-    /// # fn main() {
+    /// # #[cfg(feature = "committing-aead")]
+    /// # {
     /// use aranya_crypto_core::utc_aead;
     /// utc_aead!(Cmt1Aes256Gcm, Aes256Gcm, Aes256, "CMT-1 AES-256-GCM.");
     /// # }
     /// ```
-    #[cfg_attr(feature = "hazmat", macro_export)]
-    #[cfg_attr(docsrs, doc(cfg(all(feature = "committing-aead", feature = "hazmat"))))]
+    #[cfg_attr(feature = "committing-aead", macro_export)]
+    #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
     macro_rules! utc_aead {
         ($name:ident, $inner:ty, $cipher:ty, $doc:expr) => {
             #[doc = $doc]
-            #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
             pub struct $name {
                 key: <$inner as $crate::aead::Aead>::Key,
             }
@@ -1325,14 +1320,14 @@ mod committing {
     /// # Example
     ///
     /// ```rust,ignore
-    /// # #[cfg(all(feature = "committing-aead", feature = "hazmat"))]
-    /// # fn main() {
+    /// # #[cfg(feature = "committing-aead")]
+    /// # {
     /// use aranya_crypto_core::hte_aead;
     /// hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
     /// # }
     /// ```
-    #[cfg_attr(feature = "hazmat", macro_export)]
-    #[cfg_attr(docsrs, doc(cfg(all(feature = "committing-aead", feature = "hazmat"))))]
+    #[cfg_attr(feature = "committing-aead", macro_export)]
+    #[cfg_attr(docsrs, doc(cfg(feature = "committing-aead")))]
     macro_rules! hte_aead {
         ($name:ident, $inner:ty, $hash:ty, $doc:expr) => {
             #[doc = $doc]
