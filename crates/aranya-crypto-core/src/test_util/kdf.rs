@@ -14,14 +14,14 @@ use crate::kdf::{Kdf, KdfError};
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::rust::HkdfSha256;
+/// use aranya_crypto_core::rust::HkdfSha256;
 ///
 /// macro_rules! run_test {
 ///     ($test:ident) => {
-///         aranya_crypto::test_util::kdf::$test::<HkdfSha256>();
+///         aranya_crypto_core::test_util::kdf::$test::<HkdfSha256>();
 ///     }
 /// }
-/// aranya_crypto::for_each_kdf_test!(run_test);
+/// aranya_crypto_core::for_each_kdf_test!(run_test);
 /// ```
 #[macro_export]
 macro_rules! for_each_kdf_test {
@@ -46,7 +46,7 @@ macro_rules! for_each_kdf_test {
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{test_kdf, rust::HkdfSha256};
+/// use aranya_crypto_core::{test_kdf, rust::HkdfSha256};
 ///
 /// // Without test vectors.
 /// test_kdf!(hkdf_sha256, HkdfSha256);

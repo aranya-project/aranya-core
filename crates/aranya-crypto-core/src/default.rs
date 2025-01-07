@@ -30,8 +30,8 @@ use crate::csprng::Csprng;
 /// created with [`Rng::new`]. For example:
 ///
 /// ```
-/// # use aranya_crypto::csprng::Csprng;
-/// use aranya_crypto::Rng;
+/// # use aranya_crypto_core::csprng::Csprng;
+/// use aranya_crypto_core::Rng;
 ///
 /// fn foo<R: Csprng>(_rng: &mut R) {}
 ///

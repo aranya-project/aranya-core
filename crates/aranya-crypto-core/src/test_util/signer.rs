@@ -19,13 +19,13 @@ use crate::{
 /// ```
 /// use aranya_crypto_core::{Rng, rust::P256};
 ///
-/// # aranya_crypto::__doctest_os_hardware_rand!();
+/// # aranya_crypto_core::__doctest_os_hardware_rand!();
 /// macro_rules! run_test {
 ///     ($test:ident) => {
-///         aranya_crypto::test_util::signer::$test::<P256, _>(&mut Rng);
+///         aranya_crypto_core::test_util::signer::$test::<P256, _>(&mut Rng);
 ///     };
 /// }
-/// aranya_crypto::for_each_signer_test!(run_test);
+/// aranya_crypto_core::for_each_signer_test!(run_test);
 /// ```
 #[macro_export]
 macro_rules! for_each_signer_test {
@@ -55,7 +55,7 @@ pub use for_each_signer_test;
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{test_signer, rust::P256};
+/// use aranya_crypto_core::{test_signer, rust::P256};
 ///
 /// // Without test vectors.
 /// test_signer!(p256, P256);

@@ -253,7 +253,7 @@ impl From<InvalidNonceSize> for OpenError {
 /// It can be decremented to track usage. For example:
 ///
 /// ```rust
-/// # use aranya_crypto::aead::Lifetime;
+/// # use aranya_crypto_core::aead::Lifetime;
 /// let mut remain = Lifetime::Messages(3);
 /// assert_eq!(remain, 3);
 ///
@@ -1053,7 +1053,7 @@ mod committing {
     /// ```rust,ignore
     /// # #[cfg(all(feature = "committing-aead", feature = "hazmat"))]
     /// # fn main() {
-    /// use aranya_crypto::utc_aead;
+    /// use aranya_crypto_core::utc_aead;
     /// utc_aead!(Cmt1Aes256Gcm, Aes256Gcm, Aes256, "CMT-1 AES-256-GCM.");
     /// # }
     /// ```
@@ -1326,7 +1326,7 @@ mod committing {
     /// ```rust,ignore
     /// # #[cfg(all(feature = "committing-aead", feature = "hazmat"))]
     /// # fn main() {
-    /// use aranya_crypto::hte_aead;
+    /// use aranya_crypto_core::hte_aead;
     /// hte_aead!(Cmt4Aes256Gcm, Cmt1Aes256Gcm, Sha256, "CMT-4 AES-256-GCM.");
     /// # }
     /// ```

@@ -138,7 +138,7 @@ raw_key! {
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::raw_key;
+/// use aranya_crypto_core::raw_key;
 ///
 /// raw_key! {
 ///     /// Some documentation.

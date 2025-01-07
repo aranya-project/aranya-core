@@ -18,15 +18,15 @@ use crate::{
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{Rng, rust::Aes256Gcm};
+/// use aranya_crypto_core::{Rng, rust::Aes256Gcm};
 ///
-/// # aranya_crypto::__doctest_os_hardware_rand!();
+/// # aranya_crypto_core::__doctest_os_hardware_rand!();
 /// macro_rules! run_test {
 ///     ($test:ident) => {
-///         aranya_crypto::test_util::aead::$test::<Aes256Gcm, _>(&mut Rng);
+///         aranya_crypto_core::test_util::aead::$test::<Aes256Gcm, _>(&mut Rng);
 ///     };
 /// }
-/// aranya_crypto::for_each_aead_test!(run_test);
+/// aranya_crypto_core::for_each_aead_test!(run_test);
 /// ```
 #[macro_export]
 macro_rules! for_each_aead_test {
@@ -59,7 +59,7 @@ pub use for_each_aead_test;
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{test_aead, rust::Aes256Gcm};
+/// use aranya_crypto_core::{test_aead, rust::Aes256Gcm};
 ///
 /// // Without test vectors.
 /// test_aead!(aes256gcm, Aes256Gcm);

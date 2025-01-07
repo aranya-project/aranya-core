@@ -151,8 +151,8 @@ impl<H: Hash> Hkdf<H> {
 ///
 /// ```rust
 /// # #[cfg(feature = "hazmat")]
-/// # fn main() {
-/// use aranya_crypto::{
+/// # {
+/// use aranya_crypto_core::{
 ///     hash::{Block, Digest, Hash, HashId},
 ///     hkdf_impl,
 ///     typenum::U32,

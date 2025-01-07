@@ -182,8 +182,8 @@ impl<'a, N: ArrayLength> TryFrom<&'a [u8]> for Tag<N> {
 ///
 /// ```rust
 /// # #[cfg(feature = "hazmat")]
-/// # fn main() {
-/// use aranya_crypto::{
+/// # {
+/// use aranya_crypto_core::{
 ///     hash::{Block, Digest, Hash, HashId},
 ///     hmac_impl,
 ///     typenum::U32,

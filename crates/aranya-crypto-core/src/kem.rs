@@ -553,7 +553,7 @@ type PubKeyData<T> = <<T as Ecdh>::PublicKey as PublicKey>::Data;
 /// ```rust,ignore
 /// # #[cfg(feature = "hazmat")]
 /// # fn main() {
-/// use aranya_crypto::dhkem_impl;
+/// use aranya_crypto_core::dhkem_impl;
 /// dhkem_impl! {
 ///     DhKemP256HkdfSha256,
 ///     "DHKEM(P256, HKDF-SHA256)",
