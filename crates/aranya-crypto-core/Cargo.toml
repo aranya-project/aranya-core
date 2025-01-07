@@ -16,6 +16,7 @@ workspace = true
 [features]
 default = [
 	"getrandom",
+	#"trng",
 ]
 
 # Enable allocations.
@@ -109,6 +110,7 @@ std = [
 	"postcard/use-std",
 	"rand?/std",
 	"rand?/std_rng",
+	"rand_chacha?/std",
 	"rand_core/std",
 	"serde/std",
 	"serde_json?/std",
@@ -134,6 +136,7 @@ trng = [
 	"dep:aes",
 	"dep:lazy_static",
 	"dep:spin",
+	"dep:rand_chacha",
 ]
 
 [dependencies]
@@ -159,6 +162,7 @@ p384 = { version = "0.13", default-features = false, features = ["ecdh", "ecdsa"
 # Required by `aranya_crypto_derive::AlgId`.
 postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
 rand = { workspace = true, default-features = false, optional = true }
+rand_chacha = { version = "0.3", default-features = false, optional = true }
 # `rand_core` is required by the `rust` backend.
 rand_core = { workspace = true, default-features = false }
 # TODO(eric): Make this optional, it should only be needed by
