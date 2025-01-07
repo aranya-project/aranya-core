@@ -45,59 +45,46 @@
 #[macro_use]
 mod util;
 
-pub(crate) use aranya_crypto_derive::AlgId;
-pub mod aead;
 pub mod afc;
 pub mod apq;
 mod aranya;
-pub mod asn1;
-pub mod bearssl;
 mod ciphersuite;
-pub mod csprng;
 pub mod default;
-pub mod ec;
-pub mod ed25519;
 pub mod engine;
 mod error;
 mod groupkey;
-pub mod hash;
-pub mod hex;
-pub mod hkdf;
-pub mod hmac;
-pub mod hpke;
 pub mod id;
-pub mod import;
-pub mod kdf;
-pub mod kem;
-pub mod keys;
 pub mod keystore;
-pub mod mac;
 mod misc;
 mod policy;
-pub mod rust;
-pub mod signer;
 pub mod test_util;
-pub mod zeroize;
 
-pub use aead::{BufferTooSmallError, OpenError, SealError};
 pub use aranya::*;
 pub use aranya_buggy;
+#[cfg(feature = "bearssl")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
+pub use aranya_crypto_core::bearssl;
+pub use aranya_crypto_core::{
+    aead::{self, BufferTooSmallError, OpenError, SealError},
+    asn1,
+    csprng::{self, Csprng, Random},
+    default::Rng,
+    ec, ed25519, generic_array, hash, hex, hkdf, hmac,
+    hpke::{self, HpkeError},
+    import::{self, ExportError, ImportError},
+    kdf::{self, KdfError},
+    kem::{self, EcdhError, KemError},
+    keys,
+    mac::{self, MacError},
+    rust,
+    signer::{self, SignerError},
+    subtle, typenum, zeroize,
+};
 pub use ciphersuite::*;
-pub use csprng::{Csprng, Random};
-pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};
 pub use error::*;
-pub use generic_array;
 pub use groupkey::*;
-pub use hpke::HpkeError;
 pub use id::{Id, Identified};
-pub use import::{ExportError, ImportError};
-pub use kdf::KdfError;
-pub use kem::{EcdhError, KemError};
 pub use keystore::{KeyStore, KeyStoreExt};
-pub use mac::MacError;
 pub use policy::*;
-pub use signer::SignerError;
 pub use siphasher;
-pub use subtle;
-pub use typenum;

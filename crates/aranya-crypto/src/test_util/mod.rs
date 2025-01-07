@@ -10,29 +10,25 @@
 #![cfg_attr(docsrs, doc(cfg(feature = "test_util")))]
 #![forbid(unsafe_code)]
 
-pub mod aead;
 pub mod ciphersuite;
 pub mod engine;
-pub mod hash;
-pub mod hpke;
-pub mod kdf;
-pub mod mac;
-pub mod signer;
-pub mod vectors;
 
 use core::{
     fmt::{self, Debug},
     marker::PhantomData,
 };
 
-pub use aead::test_aead;
+pub use aranya_crypto_core::test_util::{
+    aead::{self, test_aead},
+    hash::{self, test_hash},
+    hpke::{self, test_hpke},
+    kdf::{self, test_kdf},
+    mac::{self, test_mac},
+    signer::{self, test_signer},
+    vectors,
+};
 pub use ciphersuite::test_ciphersuite;
 pub use engine::test_engine;
-pub use hash::test_hash;
-pub use hpke::test_hpke;
-pub use kdf::test_kdf;
-pub use mac::test_mac;
-pub use signer::test_signer;
 use subtle::{Choice, ConstantTimeEq};
 use typenum::U64;
 use zeroize::ZeroizeOnDrop;
@@ -91,17 +87,6 @@ macro_rules! assert_ct_ne {
     };
 }
 pub(super) use assert_ct_ne;
-
-/// Checks that each byte in `data` is zero.
-macro_rules! assert_all_zero {
-    ($data:expr) => {
-        let data: &[u8] = &$data.as_ref();
-        for c in data {
-            assert_eq!(*c, 0, "Default must return all zeros");
-        }
-    };
-}
-pub(super) use assert_all_zero;
 
 /// A shim that declares `OS_hardware_rand` for doctests.
 #[macro_export]

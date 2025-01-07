@@ -437,6 +437,6 @@ impl Display for IdError {
 
 impl From<PkError> for IdError {
     fn from(err: PkError) -> Self {
-        Self(err.0)
+        Self(err.msg())
     }
 }

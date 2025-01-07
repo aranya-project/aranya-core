@@ -63,6 +63,7 @@ clone-aead = []
 # is enabled and the current architecture is little-endian."
 ed25519_batch = [
 	"alloc",
+
 	"ed25519-dalek/batch",
 ]
 
@@ -90,6 +91,7 @@ std = [
 	# `Csprng` support for `OsRng`. Doing this makes the
 	# `#[cfg(...)]` blocks easier to manage.
 	"getrandom",
+
 	# Pull in `rand` for `ThreadRng`.
 	"dep:rand",
 

@@ -116,11 +116,12 @@ impl<N: ArrayLength> Tag<N> {
         self.0.len()
     }
 
-    // NB: this is intentionally not public because the only safe
-    // way to use a MAC is to compare it for equality using
-    // `ConstantTimeEq`. It's needed by the `hkdf` module,
+    // NB: this is hidden because the only safe way to use a MAC
+    // is to compare it for equality using `ConstantTimeEq`. It's
+    // needed by the `hkdf` module and `aranya-crypto` crates,
     // however.
-    pub(crate) fn into_array(self) -> GenericArray<u8, N> {
+    #[doc(hidden)]
+    pub fn into_array(self) -> GenericArray<u8, N> {
         self.0.into_array()
     }
 }

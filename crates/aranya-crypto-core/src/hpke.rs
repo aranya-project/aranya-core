@@ -725,7 +725,9 @@ impl<A: Aead + IndCca2> SealCtx<A> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = A::OVERHEAD;
 
-    pub(crate) fn new(
+    // Exported for `aranya-crypto`. Do not use.
+    #[doc(hidden)]
+    pub fn new(
         key: &KeyData<A>,
         base_nonce: &Nonce<A::NonceSize>,
         seq: Seq,
@@ -895,7 +897,9 @@ impl<A: Aead + IndCca2> OpenCtx<A> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = A::OVERHEAD;
 
-    pub(crate) fn new(
+    // Exported for `aranya-crypto`. Do not use.
+    #[doc(hidden)]
+    pub fn new(
         key: &KeyData<A>,
         base_nonce: &Nonce<A::NonceSize>,
         seq: Seq,
@@ -1021,7 +1025,10 @@ impl Seq {
     }
 
     /// Returns the maximum allowed sequence number.
-    pub(crate) const fn max<N: ArrayLength>() -> u64 {
+    ///
+    /// Exported for `aranya-crypto`. Do not use.
+    #[doc(hidden)]
+    pub const fn max<N: ArrayLength>() -> u64 {
         // 1<<(8*N) - 1
         let shift = 8usize.saturating_mul(N::USIZE);
         match 1u64.checked_shl(shift as u32) {

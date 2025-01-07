@@ -166,6 +166,14 @@ pub trait SigningKey<T: Signer + ?Sized>: SecretKey {
 #[derive(Debug, Eq, PartialEq)]
 pub struct PkError(pub(crate) &'static str);
 
+impl PkError {
+    // Exported for `aranya-crypto`. Do not use.
+    #[doc(hidden)]
+    pub const fn msg(&self) -> &'static str {
+        self.0
+    }
+}
+
 impl fmt::Display for PkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
