@@ -6,6 +6,8 @@ use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 use typenum::U64;
 
+#[doc(inline)]
+pub use crate::Rng;
 use crate::{
     aead::{Aead, Nonce, Tag},
     ciphersuite::CipherSuite,
@@ -21,7 +23,6 @@ use crate::{
     keys::{SecretKey, SecretKeyBytes},
     mac::Mac,
     signer::Signer,
-    Rng,
 };
 
 /// The default [`CipherSuite`].
