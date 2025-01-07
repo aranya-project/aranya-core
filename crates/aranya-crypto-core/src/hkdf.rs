@@ -132,13 +132,7 @@ impl<H: Hash> Hkdf<H> {
     }
 }
 
-/// Implement [`Hkdf`] for `$name`.
-///
-/// # ⚠️ Warning
-/// <div class="warning">
-/// This is a low-level feature. You should not be using it
-/// unless you understand what you are doing.
-/// </div>
+/// Implements [`Hkdf`].
 ///
 /// # Example
 ///

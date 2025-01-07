@@ -164,7 +164,7 @@ impl<'a, N: ArrayLength> TryFrom<&'a [u8]> for Tag<N> {
     }
 }
 
-/// Implement [`Hmac`] for `$name`.
+/// Implements [`Hmac`].
 ///
 /// # Example
 ///
