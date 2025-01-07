@@ -278,6 +278,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-crypto-core"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "aranya-base58",
+ "aranya-bearssl-sys",
+ "aranya-buggy",
+ "aranya-crypto-core",
+ "aranya-crypto-derive",
+ "aranya-trouble",
+ "byteorder",
+ "cfg-if",
+ "ciborium",
+ "ciborium-io",
+ "crypto-common",
+ "der",
+ "ecdsa",
+ "ed25519-dalek",
+ "elliptic-curve",
+ "generic-array 1.1.1",
+ "getrandom",
+ "lazy_static",
+ "more-asserts",
+ "p256",
+ "p384",
+ "postcard",
+ "proptest",
+ "proptest-derive",
+ "rand",
+ "rand_core",
+ "rustix",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "sha2",
+ "sha3-utils",
+ "siphasher",
+ "spin 0.9.8",
+ "subtle",
+ "tempfile",
+ "typenum",
+ "wycheproof",
+ "zeroize",
+]
+
+[[package]]
 name = "aranya-crypto-derive"
 version = "0.2.0"
 dependencies = [
