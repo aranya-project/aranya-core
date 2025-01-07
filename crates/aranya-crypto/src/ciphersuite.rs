@@ -114,3 +114,69 @@ impl SuiteIds {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "bearssl")]
+    mod bearssl {
+        use crate::{
+            bearssl::{
+                Aes256Gcm, DhKemP256HkdfSha256, DhKemP521HkdfSha512, HkdfSha256, HkdfSha384,
+                HkdfSha512, HmacSha512, Sha512, P256, P384, P521,
+            },
+            test_util::{test_ciphersuite, TestCs},
+        };
+
+        test_ciphersuite!(p256, TestCs<
+            Aes256Gcm,
+            Sha512,
+            HkdfSha256,
+            DhKemP256HkdfSha256,
+            HmacSha512,
+            P256,
+        >);
+        test_ciphersuite!(p384, TestCs<
+            Aes256Gcm,
+            Sha512,
+            HkdfSha384,
+            DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
+            HmacSha512,
+            P384,
+        >);
+        test_ciphersuite!(p521, TestCs<
+            Aes256Gcm,
+            Sha512,
+            HkdfSha512,
+            DhKemP521HkdfSha512,
+            HmacSha512,
+            P521,
+        >);
+    }
+
+    mod rust {
+        use crate::{
+            rust::{
+                Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, Sha512, P256,
+                P384,
+            },
+            test_util::{test_ciphersuite, TestCs},
+        };
+
+        test_ciphersuite!(p256, TestCs<
+            Aes256Gcm,
+            Sha512,
+            HkdfSha256,
+            DhKemP256HkdfSha256,
+            HmacSha512,
+            P256,
+        >);
+        test_ciphersuite!(p384, TestCs<
+            Aes256Gcm,
+            Sha512,
+            HkdfSha384,
+            DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
+            HmacSha512,
+            P384,
+        >);
+    }
+}

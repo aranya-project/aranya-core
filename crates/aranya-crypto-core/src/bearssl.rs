@@ -1194,37 +1194,6 @@ mod tests {
         }
     }
 
-    // Test some [`CipherSuite`] configurations.
-    mod ciphersuite_tests {
-        use super::*;
-        use crate::test_util::{test_ciphersuite, TestCs};
-
-        test_ciphersuite!(p256, TestCs<
-            Aes256Gcm,
-            Sha512,
-            HkdfSha256,
-            DhKemP256HkdfSha256,
-            HmacSha512,
-            P256,
-        >);
-        test_ciphersuite!(p384, TestCs<
-            Aes256Gcm,
-            Sha512,
-            HkdfSha384,
-            DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
-            HmacSha512,
-            P384,
-        >);
-        test_ciphersuite!(p521, TestCs<
-            Aes256Gcm,
-            Sha512,
-            HkdfSha512,
-            DhKemP521HkdfSha512,
-            HmacSha512,
-            P521,
-        >);
-    }
-
     mod aead_tests {
         use super::*;
         use crate::test_util::test_aead;
