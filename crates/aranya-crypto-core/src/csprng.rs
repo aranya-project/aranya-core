@@ -428,20 +428,20 @@ pub(crate) mod trng {
         /// Sanity check that two [`ThreadRng`]s are different.
         #[test]
         fn test_thread_rng() {
-            fn get_bytes(rng: &ThreadRng) -> [u8; 32] {
+            fn get_bytes(rng: &mut ThreadRng) -> [u8; 32] {
                 let mut b = [0; 32];
                 rng.fill_bytes(&mut b);
                 b
             }
             let mut rng = thread_rng();
             assert_ne!(get_bytes(&mut rng), get_bytes(&mut rng));
-            assert_ne!(get_bytes(&thread_rng()), get_bytes(&thread_rng()));
-            assert_ne!(get_bytes(&thread_rng()), [0; 32]);
+            assert_ne!(get_bytes(&mut thread_rng()), get_bytes(&mut thread_rng()));
+            assert_ne!(get_bytes(&mut thread_rng()), [0; 32]);
 
             let rng = thread_rng();
-            let a = rng.clone();
-            let b = thread_rng();
-            assert_ne!(get_bytes(&a), get_bytes(&b));
+            let mut a = rng.clone();
+            let mut b = thread_rng();
+            assert_ne!(get_bytes(&mut a), get_bytes(&mut b));
         }
     }
 }
