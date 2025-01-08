@@ -1195,9 +1195,6 @@ fn test_match_default() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_return() -> anyhow::Result<()> {
-    // See https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues/800
-    // TODO: (scott) Is this something we want to keep for internal reference?
-
     let text = r#"
         action foo(val int) {
             check val == bar()
