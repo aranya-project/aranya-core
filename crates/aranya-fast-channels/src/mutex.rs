@@ -67,8 +67,8 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 /// - On macOS + `libc`, this uses the "ulock" API.
 /// - On Linux + `libc`, this uses futexes.
 /// - Elsewhere, this uses a naive spinlock.
+/// 
 ///   The implementation is taken from the Go standard library.
-
 #[repr(C, align(8))]
 #[derive(Default, Debug)]
 pub(crate) struct Mutex<T: ?Sized> {
