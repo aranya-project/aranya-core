@@ -16,6 +16,7 @@ workspace = true
 [features]
 default = [
 	"getrandom",
+	"trng",
 ]
 
 # Enable allocations.
@@ -34,6 +35,7 @@ alloc = [
 # Enable BearSSL.
 bearssl = [
 	"dep:aranya-bearssl-sys",
+	"dep:spin",
 ]
 
 # Enable committing AEAD implementations.

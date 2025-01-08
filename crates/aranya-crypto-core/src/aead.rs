@@ -777,7 +777,7 @@ impl<N: ArrayLength> ConstantTimeEq for Nonce<N> {
 }
 
 impl<N: ArrayLength> Random for Nonce<N> {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: &R) -> Self {
         Self(Random::random(rng))
     }
 }

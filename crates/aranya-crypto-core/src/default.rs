@@ -50,7 +50,7 @@ impl Rng {
 }
 
 impl Csprng for Rng {
-    fn fill_bytes(&mut self, dst: &mut [u8]) {
+    fn fill_bytes(&self, dst: &mut [u8]) {
         cfg_if! {
             if #[cfg(feature = "trng")] {
                 crate::csprng::trng::thread_rng().fill_bytes(dst)

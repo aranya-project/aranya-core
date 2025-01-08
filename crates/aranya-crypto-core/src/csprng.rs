@@ -21,16 +21,16 @@ pub trait Csprng {
     ///
     /// If the underlying CSPRNG encounters a fatal error, it
     /// must immediately panic or abort the program.
-    fn fill_bytes(&mut self, dst: &mut [u8]);
+    fn fill_bytes(&self, dst: &mut [u8]);
 
-    /// Returns a fixed-number of cryptographically secure,
+    /// Returns a fixed-number of cryptographically secure
     /// pseudorandom bytes.
     ///
     /// # Notes
     ///
     /// Once (if) `const_generic_exprs` is stabilized, `T` will
     /// become `const N: usize`.
-    fn bytes<T: AsMut<[u8]> + Default>(&mut self) -> T
+    fn bytes<T: AsMut<[u8]> + Default>(&self) -> T
     where
         Self: Sized,
     {
@@ -40,8 +40,8 @@ pub trait Csprng {
     }
 }
 
-impl<R: Csprng + ?Sized> Csprng for &mut R {
-    fn fill_bytes(&mut self, dst: &mut [u8]) {
+impl<R: Csprng + ?Sized> Csprng for &R {
+    fn fill_bytes(&self, dst: &mut [u8]) {
         (**self).fill_bytes(dst)
     }
 }
@@ -49,24 +49,26 @@ impl<R: Csprng + ?Sized> Csprng for &mut R {
 #[cfg(all(feature = "getrandom", feature = "rand_compat"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "getrandom", feature = "rand_compat"))))]
 impl Csprng for rand_core::OsRng {
-    fn fill_bytes(&mut self, dst: &mut [u8]) {
-        rand_core::RngCore::fill_bytes(self, dst)
+    fn fill_bytes(&self, dst: &mut [u8]) {
+        rand_core::RngCore::fill_bytes(&mut Self, dst)
     }
 }
 
 #[cfg(all(feature = "rand_compat", feature = "std"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "rand_compat", feature = "std"))))]
 impl Csprng for rand::rngs::ThreadRng {
-    fn fill_bytes(&mut self, dst: &mut [u8]) {
-        rand_core::RngCore::fill_bytes(self, dst)
+    fn fill_bytes(&self, dst: &mut [u8]) {
+        // NB: This clones an `Rc`.
+        let mut rng = self.clone();
+        rand_core::RngCore::fill_bytes(&mut rng, dst)
     }
 }
 
 #[cfg(feature = "rand_compat")]
-impl rand_core::CryptoRng for &mut dyn Csprng {}
+impl rand_core::CryptoRng for &dyn Csprng {}
 
 #[cfg(feature = "rand_compat")]
-impl rand_core::RngCore for &mut dyn Csprng {
+impl rand_core::RngCore for &dyn Csprng {
     fn next_u32(&mut self) -> u32 {
         rand_core::impls::next_u32_via_fill(self)
     }
@@ -88,11 +90,11 @@ impl rand_core::RngCore for &mut dyn Csprng {
 /// Implemented by types that can generate random instances.
 pub trait Random {
     /// Generates a random instance of itself.
-    fn random<R: Csprng>(rng: &mut R) -> Self;
+    fn random<R: Csprng>(rng: &R) -> Self;
 }
 
 impl<N: ArrayLength> Random for GenericArray<u8, N> {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: &R) -> Self {
         let mut v = Self::default();
         rng.fill_bytes(&mut v);
         v
@@ -100,7 +102,7 @@ impl<N: ArrayLength> Random for GenericArray<u8, N> {
 }
 
 impl<const N: usize> Random for [u8; N] {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: &R) -> Self {
         let mut v = [0u8; N];
         rng.fill_bytes(&mut v);
         v
@@ -111,7 +113,7 @@ macro_rules! rand_int_impl {
     ($($name:ty)* $(,)?) => {
         $(
             impl $crate::csprng::Random for $name {
-                fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+                fn random<R: $crate::csprng::Csprng>(rng: &R) -> Self {
                     let mut v = [0u8; ::core::mem::size_of::<$name>()];
                     rng.fill_bytes(&mut v);
                     <$name>::from_le_bytes(v)
@@ -156,18 +158,17 @@ pub(crate) mod trng {
     }
 
     impl Csprng for ThreadRng {
-        fn fill_bytes(&mut self, dst: &mut [u8]) {
-            self.0.fill_bytes(dst);
-            self.0.reseed();
+        fn fill_bytes(&self, dst: &mut [u8]) {
+            self.0.fill_bytes_and_reseed(dst);
         }
     }
 
-    // If `std` is enabled, use a thread-local CSPRNG.
+    // If `std` is enabled, use a true thread-local CSPRNG.
     #[cfg(feature = "std")]
     mod inner {
         use std::{cell::UnsafeCell, rc::Rc};
 
-        use super::{ChaCha8Csprng, Csprng, FastKeyErasureCsprng, HkdfSha512, OsTrng};
+        use super::{ChaCha8Csprng, HkdfSha512, OsTrng};
 
         thread_local! {
             static THREAD_RNG: Rc<UnsafeCell<ChaCha8Csprng>> =
@@ -185,21 +186,18 @@ pub(crate) mod trng {
             rng: Rc<UnsafeCell<ChaCha8Csprng>>,
         }
 
-        impl Csprng for ThreadRng {
+        impl ThreadRng {
             #[inline(always)]
-            fn fill_bytes(&mut self, dst: &mut [u8]) {
-                // SAFETY: `rng` is a thread-local value.
+            pub(super) fn fill_bytes_and_reseed(&self, dst: &mut [u8]) {
+                // SAFETY:
+                //
+                // - `ThreadRng` is `!Sync`, so `self` can't be
+                //   accessed concurrently.
+                //
+                // - `UnsafeCell::get` always returns a non-null
+                //   pointer, so the dereference is safe.
                 let rng = unsafe { &mut *self.rng.get() };
-                rng.fill_bytes(dst);
-            }
-        }
-
-        impl FastKeyErasureCsprng for ThreadRng {
-            #[inline(always)]
-            fn reseed(&mut self) {
-                // SAFETY: `rng` is a thread-local value.
-                let rng = unsafe { &mut *self.rng.get() };
-                rng.reseed();
+                rng.fill_bytes_and_reseed(dst);
             }
         }
     }
@@ -211,7 +209,7 @@ pub(crate) mod trng {
         use lazy_static::lazy_static;
         use spin::mutex::SpinMutex;
 
-        use super::{ChaCha8Csprng, Csprng, FastKeyErasureCsprng, HkdfSha512, OsTrng};
+        use super::{ChaCha8Csprng, HkdfSha512, OsTrng};
 
         lazy_static! {
             static ref THREAD_RNG: SpinMutex<ChaCha8Csprng> =
@@ -219,31 +217,17 @@ pub(crate) mod trng {
         }
 
         pub(super) fn thread_rng() -> ThreadRng {
-            // Make a copy, then reseed and publish the reseeded
-            // state. This removes the locking code from
-            // `fill_bytes` at the expense of an extra reseeding.
-            let mut rng = THREAD_RNG.lock();
-            let old = rng.clone();
-            rng.reseed();
-            ThreadRng { rng: old }
+            ThreadRng
         }
 
         #[derive(Clone)]
-        pub(super) struct ThreadRng {
-            rng: ChaCha8Csprng,
-        }
+        pub(super) struct ThreadRng;
 
-        impl Csprng for ThreadRng {
+        impl ThreadRng {
             #[inline(always)]
-            fn fill_bytes(&mut self, dst: &mut [u8]) {
-                self.rng.fill_bytes(dst);
-            }
-        }
-
-        impl FastKeyErasureCsprng for ThreadRng {
-            #[inline(always)]
-            fn reseed(&mut self) {
-                self.rng.reseed();
+            pub(super) fn fill_bytes_and_reseed(&self, dst: &mut [u8]) {
+                let mut rng = THREAD_RNG.lock();
+                rng.fill_bytes_and_reseed(dst);
             }
         }
     }
@@ -265,10 +249,13 @@ pub(crate) mod trng {
         }
     }
 
-    /// A ChaCha8 CSPRNG.
+    /// A ChaCha8 fast key erasure CSPRNG.
     ///
     /// The implementation is taken from
     /// https://github.com/golang/go/blob/b50ccef67a5cd4a2919131cfeb6f3a21d6742385/src/crypto/internal/sysrand/rand_plan9.go
+    ///
+    /// For more information on "fast key erasure", see
+    /// <https://blog.cr.yp.to/20170723-random.html>.
     #[derive(Clone)]
     struct ChaCha8Csprng {
         rng: ChaCha8Rng,
@@ -292,10 +279,12 @@ pub(crate) mod trng {
             Self::from_seed(seed)
         }
 
-        /// Fills `dst` with cryptographically secure bytes.
+        /// Fills `dst` with cryptographically secure bytes, then
+        /// reseeds itself.
         #[inline(always)]
-        fn fill_bytes(&mut self, dst: &mut [u8]) {
+        fn fill_bytes_and_reseed(&mut self, dst: &mut [u8]) {
             self.rng.fill_bytes(dst);
+            self.reseed();
         }
 
         /// Reseeds the CSPRNG.
@@ -363,14 +352,6 @@ pub(crate) mod trng {
         key
     }
 
-    /// A forward-secure CSPRNG.
-    ///
-    /// For more information, see
-    /// <https://blog.cr.yp.to/20170723-random.html>.
-    trait FastKeyErasureCsprng: Csprng {
-        fn reseed(&mut self);
-    }
-
     #[cfg(test)]
     mod tests {
         use rand::{rngs::OsRng, RngCore};
@@ -434,9 +415,10 @@ pub(crate) mod trng {
             assert_eq!(got, WANT);
         }
 
-        /// Test that reseeding changes the CSPRNG state.
+        /// Test that reseeding `ChaCha8Csprng` changes its
+        /// state.
         #[test]
-        fn test_reseed() {
+        fn test_chacha8csprng_reseed() {
             const SEED: [u8; 32] = *b"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
             let mut rng = ChaCha8Csprng::from_seed(SEED);
             let old = rng.rng.get_seed();
@@ -448,15 +430,20 @@ pub(crate) mod trng {
         /// Sanity check that two [`ThreadRng`]s are different.
         #[test]
         fn test_thread_rng() {
-            fn get_bytes<R: AsMut<ThreadRng>>(mut rng: R) -> [u8; 4096] {
-                let mut b = [0u8; 4096];
-                rng.as_mut().fill_bytes(&mut b);
+            fn get_bytes(rng: &ThreadRng) -> [u8; 32] {
+                let mut b = [0; 32];
+                rng.fill_bytes(&mut b);
                 b
             }
             let mut rng = thread_rng();
             assert_ne!(get_bytes(&mut rng), get_bytes(&mut rng));
-            assert_ne!(get_bytes(thread_rng()), get_bytes(thread_rng()));
-            assert_ne!(get_bytes(thread_rng()), [0u8; 4096])
+            assert_ne!(get_bytes(&thread_rng()), get_bytes(&thread_rng()));
+            assert_ne!(get_bytes(&thread_rng()), [0; 32]);
+
+            let rng = thread_rng();
+            let a = rng.clone();
+            let b = thread_rng();
+            assert_ne!(get_bytes(&a), get_bytes(&b));
         }
     }
 }
