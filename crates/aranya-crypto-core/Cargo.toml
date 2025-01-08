@@ -134,8 +134,8 @@ test_util = [
 trng = [
 	"dep:aes",
 	"dep:lazy_static",
-	"dep:spin",
 	"dep:rand_chacha",
+	"dep:spin",
 ]
 
 [dependencies]
