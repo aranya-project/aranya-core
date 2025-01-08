@@ -1415,7 +1415,7 @@ fn should_create_clients_with_args() {
 }
 
 #[test]
-fn test_storage_fact_issue() {
+fn test_storage_fact() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
     let mut test_model = RuntimeModel::new(basic_clients);
 
