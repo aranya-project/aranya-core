@@ -536,7 +536,7 @@ where
 struct Command([u8; 32]);
 
 impl Random for Command {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: &R) -> Self {
         Self(Random::random(rng))
     }
 }
