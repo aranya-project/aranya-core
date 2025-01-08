@@ -83,8 +83,8 @@ impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
 
     /// Creates an [`Engine`] using entropy from `rng` and
     /// returns it and the generated key.
-    pub fn from_entropy(mut rng: R) -> (Self, <S::Aead as Aead>::Key) {
-        let key = <S::Aead as Aead>::Key::new(&mut rng);
+    pub fn from_entropy(rng: R) -> (Self, <S::Aead as Aead>::Key) {
+        let key = <S::Aead as Aead>::Key::new(&rng);
         let eng = Self::new(&key, rng);
         (eng, key)
     }
