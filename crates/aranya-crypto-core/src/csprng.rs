@@ -46,6 +46,12 @@ impl<R: Csprng + ?Sized> Csprng for &R {
     }
 }
 
+impl<R: Csprng + ?Sized> Csprng for &mut R {
+    fn fill_bytes(&self, dst: &mut [u8]) {
+        (**self).fill_bytes(dst)
+    }
+}
+
 #[cfg(all(feature = "getrandom", feature = "rand_compat"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "getrandom", feature = "rand_compat"))))]
 impl Csprng for rand_core::OsRng {
@@ -68,7 +74,30 @@ impl Csprng for rand::rngs::ThreadRng {
 impl rand_core::CryptoRng for &dyn Csprng {}
 
 #[cfg(feature = "rand_compat")]
+impl rand_core::CryptoRng for &mut dyn Csprng {}
+
+#[cfg(feature = "rand_compat")]
 impl rand_core::RngCore for &dyn Csprng {
+    fn next_u32(&mut self) -> u32 {
+        rand_core::impls::next_u32_via_fill(self)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        rand_core::impls::next_u64_via_fill(self)
+    }
+
+    fn fill_bytes(&mut self, dst: &mut [u8]) {
+        Csprng::fill_bytes(self, dst);
+    }
+
+    fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), rand_core::Error> {
+        Csprng::fill_bytes(self, dst);
+        Ok(())
+    }
+}
+
+#[cfg(feature = "rand_compat")]
+impl rand_core::RngCore for &mut dyn Csprng {
     fn next_u32(&mut self) -> u32 {
         rand_core::impls::next_u32_via_fill(self)
     }
