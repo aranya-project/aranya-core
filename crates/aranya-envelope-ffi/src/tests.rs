@@ -13,7 +13,7 @@ use crate::{Envelope, Ffi};
 type E = DefaultEngine<Rng>;
 
 /// Returns a random number in [0, max).
-fn intn<R: Csprng>(rng: &mut R, max: usize) -> usize {
+fn intn<R: Csprng>(rng: &R, max: usize) -> usize {
     if max.is_power_of_two() {
         return usize::random(rng) & (max - 1);
     }
@@ -24,7 +24,7 @@ fn intn<R: Csprng>(rng: &mut R, max: usize) -> usize {
         }
     }
 }
-fn rand_vec<R: Csprng>(rng: &mut R, max: usize) -> Vec<u8> {
+fn rand_vec<R: Csprng>(rng: &R, max: usize) -> Vec<u8> {
     let n = intn(rng, max);
     let mut data = vec![0u8; n];
     rng.fill_bytes(&mut data);
@@ -32,7 +32,7 @@ fn rand_vec<R: Csprng>(rng: &mut R, max: usize) -> Vec<u8> {
 }
 
 impl Random for Envelope {
-    fn random<R: Csprng>(rng: &mut R) -> Self {
+    fn random<R: Csprng>(rng: &R) -> Self {
         Self {
             parent_id: Id::random(rng),
             command_id: Id::random(rng),
