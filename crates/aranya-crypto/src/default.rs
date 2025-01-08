@@ -128,7 +128,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
         let mut tag = Tag::<S::Aead>::default();
         // TODO(eric): we should probably ensure that we do not
         // repeat nonces.
-        let nonce = Nonce::<_>::random(&mut self.rng);
+        let nonce = Nonce::<_>::random(&self.rng);
         let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
             eng_id: S::ID,
             alg_id: T::ID,
