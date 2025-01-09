@@ -61,7 +61,7 @@ impl Hsm {
         static HSM: OnceLock<RwLock<Hsm>> = OnceLock::new();
         HSM.get_or_init(|| {
             RwLock::new(Self {
-                aead: Aes256Gcm::new(&Random::random(&mut Rng)),
+                aead: Aes256Gcm::new(&Random::random(&Rng)),
                 keys: Default::default(),
             })
         })

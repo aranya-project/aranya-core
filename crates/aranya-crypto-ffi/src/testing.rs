@@ -145,7 +145,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
         let Signed {
             mut signature,
@@ -313,7 +313,7 @@ where
         };
         let ffi = Ffi::new(store);
 
-        let command = postcard::to_allocvec(&Command::random(&mut eng))
+        let command = postcard::to_allocvec(&Command::random(&eng))
             .expect("should be able to encode `Command`");
 
         let seal_ctx = CommandContext::Seal(SealContext {

@@ -336,7 +336,7 @@ fn test_ffi_derive() {
     // Positive test for `identity`.
     {
         let a = Id::default();
-        let b = Id::random(&mut Rng);
+        let b = Id::random(&Rng);
 
         state.push(b);
         state.push(a);
