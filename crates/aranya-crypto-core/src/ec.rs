@@ -1,9 +1,4 @@
 //! Elliptic curve utilities.
-//!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
 
 use core::{
     borrow::{Borrow, BorrowMut},

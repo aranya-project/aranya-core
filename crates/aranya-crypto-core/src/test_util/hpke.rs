@@ -21,8 +21,8 @@ use crate::{
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{
-///     Rng,
+/// use aranya_crypto_core::{
+///     default::Rng,
 ///     rust::{
 ///         Aes256Gcm,
 ///         DhKemP256HkdfSha256,
@@ -31,10 +31,10 @@ use crate::{
 ///     test_hpke,
 /// };
 ///
-/// # aranya_crypto::__doctest_os_hardware_rand!();
+/// # aranya_crypto_core::__doctest_os_hardware_rand!();
 /// macro_rules! run_test {
 ///     ($test:ident) => {
-///         aranya_crypto::test_util::hpke::$test::<
+///         aranya_crypto_core::test_util::hpke::$test::<
 ///             DhKemP256HkdfSha256,
 ///             HkdfSha256,
 ///             Aes256Gcm,
@@ -42,7 +42,7 @@ use crate::{
 ///         >(&mut Rng);
 ///     };
 /// }
-/// aranya_crypto::for_each_hpke_test!(run_test);
+/// aranya_crypto_core::for_each_hpke_test!(run_test);
 /// ```
 #[macro_export]
 macro_rules! for_each_hpke_test {
@@ -61,14 +61,10 @@ pub use for_each_hpke_test;
 /// This macro expands into a bunch of individual `#[test]`
 /// functions.
 ///
-/// This is used by
-/// [`test_ciphersuite`][super::test_ciphersuite], but can also
-/// be used manually.
-///
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{
+/// use aranya_crypto_core::{
 ///     rust::{
 ///         Aes256Gcm,
 ///         DhKemP256HkdfSha256,
@@ -108,7 +104,7 @@ macro_rules! test_hpke {
                 #[test]
                 fn $test() {
                     $crate::test_util::hpke::$test::<$kem, $kdf, $aead, _>(
-                        &mut $crate::Rng,
+                        &mut $crate::default::Rng,
                     )
                 }
             };

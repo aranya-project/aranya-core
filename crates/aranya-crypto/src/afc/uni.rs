@@ -1,6 +1,5 @@
 use aranya_buggy::BugExt;
 use serde::{Deserialize, Serialize};
-use subtle::{Choice, ConstantTimeEq};
 
 use super::{
     keys::{OpenKey, SealKey, Seq},
@@ -18,6 +17,7 @@ use crate::{
     import::ImportError,
     kem::Kem,
     misc::sk_misc,
+    subtle::{Choice, ConstantTimeEq},
     CipherSuite, Engine,
 };
 

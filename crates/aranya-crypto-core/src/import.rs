@@ -1,9 +1,4 @@
 //! Importing and exporting data.
-//!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
 
 use core::{
     fmt::{self, Display},
