@@ -231,7 +231,7 @@ impl<T: Signer + ?Sized> SigningKey<SignerWithDefaults<T>> for SigningKeyWithDef
 impl<T: Signer + ?Sized> SecretKey for SigningKeyWithDefaults<T> {
     type Size = <T::SigningKey as SecretKey>::Size;
 
-    fn new<R: Csprng>(rng: &mut R) -> Self {
+    fn new<R: Csprng>(rng: &R) -> Self {
         Self(T::SigningKey::new(rng))
     }
 

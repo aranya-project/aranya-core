@@ -235,7 +235,7 @@ macro_rules! ecdh_impl {
             type Size = FieldBytesSize<$curve>;
 
             #[inline]
-            fn new<R: Csprng>(rng: &mut R) -> Self {
+            fn new<R: Csprng>(rng: &R) -> Self {
                 let sk = NonZeroScalar::random(&mut RngWrapper(rng));
                 Self(sk)
             }
@@ -372,7 +372,7 @@ macro_rules! ecdsa_impl {
             type Size = FieldBytesSize<$curve>;
 
             #[inline]
-            fn new<R: Csprng>(rng: &mut R) -> Self {
+            fn new<R: Csprng>(rng: &R) -> Self {
                 let sk = ecdsa::SigningKey::random(&mut RngWrapper(rng));
                 Self(sk)
             }
@@ -542,7 +542,7 @@ hmac_impl!(HmacSha384, "HMAC-SHA384", Sha384);
 hmac_impl!(HmacSha512, "HMAC-SHA512", Sha512);
 
 /// Translates [`Csprng`] to [`RngCore`].
-struct RngWrapper<'a, R>(&'a mut R);
+struct RngWrapper<'a, R>(&'a R);
 
 impl<R> CryptoRng for RngWrapper<'_, R> {}
 

@@ -17,7 +17,7 @@ mod custom_id_tests {
 
     #[test]
     fn json_roundtrip() {
-        let id: MyId = aranya_crypto::Id::random(&mut aranya_crypto::Rng).into();
+        let id: MyId = aranya_crypto::Id::random(&aranya_crypto::Rng).into();
         let ser = serde_json::to_string(&id).unwrap();
         assert_eq!(ser, format!("\"{id}\""));
         let got: MyId = serde_json::from_str(&ser).unwrap();
@@ -26,7 +26,7 @@ mod custom_id_tests {
 
     #[test]
     fn postcard_roundtrip() {
-        let id: MyId = aranya_crypto::Id::random(&mut aranya_crypto::Rng).into();
+        let id: MyId = aranya_crypto::Id::random(&aranya_crypto::Rng).into();
         let ser = postcard::to_allocvec(&id).unwrap();
         assert_eq!(id.as_bytes(), ser);
         let got: MyId = postcard::from_bytes(&ser).unwrap();

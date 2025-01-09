@@ -64,7 +64,7 @@ impl Id {
     }
 
     /// Creates a random ID.
-    pub fn random<R: Csprng>(rng: &mut R) -> Self {
+    pub fn random<R: Csprng>(rng: &R) -> Self {
         let mut b = [0u8; 64];
         rng.fill_bytes(&mut b);
         Self(b)

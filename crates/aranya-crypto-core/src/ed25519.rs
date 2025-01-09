@@ -70,7 +70,7 @@ impl signer::SigningKey<Ed25519> for SigningKey {
 impl SecretKey for SigningKey {
     type Size = U32;
 
-    fn new<R: Csprng>(rng: &mut R) -> Self {
+    fn new<R: Csprng>(rng: &R) -> Self {
         let mut sk = dalek::SecretKey::default();
         rng.fill_bytes(&mut sk);
         Self(dalek::SigningKey::from_bytes(&sk))
