@@ -5,9 +5,6 @@ extern crate alloc;
 use alloc::vec;
 use core::ops::Add;
 
-use generic_array::ArrayLength;
-use typenum::{Sum, U64};
-
 use super::{assert_ct_eq, assert_ct_ne};
 use crate::{
     aead::{Aead, OpenError},
@@ -23,8 +20,10 @@ use crate::{
     csprng::Random,
     engine::Engine,
     error::Error,
+    generic_array::ArrayLength,
     groupkey::{Context, EncryptedGroupKey, GroupKey},
     id::Id,
+    typenum::{Sum, U64},
     CipherSuite,
 };
 

@@ -1,15 +1,8 @@
 //! HMAC per [FIPS PUB 198-1]
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! [FIPS PUB 198-1]: https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.198-1.pdf
 
 #![forbid(unsafe_code)]
-#![cfg_attr(docsrs, doc(cfg(not(fips))))]
-#![cfg(not(fips))]
 
 use core::{
     borrow::{Borrow, BorrowMut},
@@ -116,11 +109,12 @@ impl<N: ArrayLength> Tag<N> {
         self.0.len()
     }
 
-    // NB: this is intentionally not public because the only safe
-    // way to use a MAC is to compare it for equality using
-    // `ConstantTimeEq`. It's needed by the `hkdf` module,
+    // NB: this is hidden because the only safe way to use a MAC
+    // is to compare it for equality using `ConstantTimeEq`. It's
+    // needed by the `hkdf` module and `aranya-crypto` crates,
     // however.
-    pub(crate) fn into_array(self) -> GenericArray<u8, N> {
+    #[doc(hidden)]
+    pub fn into_array(self) -> GenericArray<u8, N> {
         self.0.into_array()
     }
 }
@@ -170,20 +164,12 @@ impl<'a, N: ArrayLength> TryFrom<&'a [u8]> for Tag<N> {
     }
 }
 
-/// Implement [`Hmac`] for `$name`.
-///
-/// # ⚠️ Warning
-/// <div class="warning">
-/// This is a low-level feature. You should not be using it
-/// unless you understand what you are doing.
-/// </div>
+/// Implements [`Hmac`].
 ///
 /// # Example
 ///
 /// ```rust
-/// # #[cfg(feature = "hazmat")]
-/// # fn main() {
-/// use aranya_crypto::{
+/// use aranya_crypto_core::{
 ///     hash::{Block, Digest, Hash, HashId},
 ///     hmac_impl,
 ///     typenum::U32,
@@ -209,10 +195,8 @@ impl<'a, N: ArrayLength> TryFrom<&'a [u8]> for Tag<N> {
 /// }
 ///
 /// hmac_impl!(HmacSha256, "HMAC-SHA-256", Sha256);
-/// # }
 /// ```
-#[cfg_attr(feature = "hazmat", macro_export)]
-#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
+#[macro_export]
 macro_rules! hmac_impl {
     ($name:ident, $doc:expr, $hash:ident) => {
         #[doc = concat!($doc, ".")]

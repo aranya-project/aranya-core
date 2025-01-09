@@ -234,18 +234,37 @@ dependencies = [
 name = "aranya-crypto"
 version = "0.2.1"
 dependencies = [
- "aes",
- "aes-gcm",
  "aranya-base58",
- "aranya-bearssl-sys",
  "aranya-buggy",
  "aranya-crypto",
- "aranya-crypto-derive",
+ "aranya-crypto-core",
  "aranya-trouble",
  "byteorder",
  "cfg-if",
  "ciborium",
  "ciborium-io",
+ "postcard",
+ "proptest",
+ "proptest-derive",
+ "rand",
+ "rustix",
+ "serde",
+ "serde_json",
+ "siphasher",
+ "tempfile",
+]
+
+[[package]]
+name = "aranya-crypto-core"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "aranya-bearssl-sys",
+ "aranya-buggy",
+ "aranya-crypto-core",
+ "aranya-crypto-derive",
+ "cfg-if",
  "crypto-common",
  "der",
  "ecdsa",
@@ -258,17 +277,13 @@ dependencies = [
  "p256",
  "p384",
  "postcard",
- "proptest",
- "proptest-derive",
  "rand",
  "rand_core",
- "rustix",
  "serde",
  "serde_json",
  "serde_repr",
  "sha2",
  "sha3-utils",
- "siphasher",
  "spin 0.9.8",
  "subtle",
  "tempfile",
@@ -706,6 +721,7 @@ dependencies = [
  "aranya-base58",
  "aranya-buggy",
  "aranya-crypto",
+ "aranya-crypto-core",
  "aranya-trouble",
 ]
 
@@ -716,6 +732,7 @@ dependencies = [
  "aranya-base58",
  "aranya-buggy",
  "aranya-crypto",
+ "aranya-crypto-core",
  "aranya-crypto-ffi",
  "aranya-device-ffi",
  "aranya-envelope-ffi",

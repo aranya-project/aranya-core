@@ -3,10 +3,7 @@
 use core::{marker::PhantomData, result::Result};
 
 use aranya_buggy::Bug;
-use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
-use subtle::{Choice, ConstantTimeEq};
-use typenum::U64;
 
 use crate::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError, Tag},
@@ -15,11 +12,14 @@ use crate::{
     csprng::{Csprng, Random},
     engine::unwrapped,
     error::Error,
+    generic_array::GenericArray,
     hash::{tuple_hash, Digest, Hash},
     hmac::Hmac,
     id::{custom_id, Id, IdError, Identified},
     import::Import,
     kdf,
+    subtle::{Choice, ConstantTimeEq},
+    typenum::U64,
     zeroize::{Zeroize, ZeroizeOnDrop},
     CipherSuite,
 };

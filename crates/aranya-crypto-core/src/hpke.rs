@@ -1,10 +1,5 @@
 //! Hybrid Public Key Encryption per [RFC 9180].
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! ## Notation
 //!
 //! - `sk`: a private key; shorthand for "*S*ecret *K*ey"
@@ -655,7 +650,9 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> SendCtx<K, F, A> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = SealCtx::<A>::OVERHEAD;
 
-    pub(crate) fn into_raw_parts(self) -> Option<(KeyData<A>, Nonce<A::NonceSize>)> {
+    // Exposed for `aranya-crypto`, do not use.
+    #[doc(hidden)]
+    pub fn into_raw_parts(self) -> Option<(KeyData<A>, Nonce<A::NonceSize>)> {
         match self.seal {
             Either::Left(_) => None,
             Either::Right((key, base_nonce)) => Some((key, base_nonce)),
@@ -723,7 +720,9 @@ impl<A: Aead + IndCca2> SealCtx<A> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = A::OVERHEAD;
 
-    pub(crate) fn new(
+    // Exported for `aranya-crypto`. Do not use.
+    #[doc(hidden)]
+    pub fn new(
         key: &KeyData<A>,
         base_nonce: &Nonce<A::NonceSize>,
         seq: Seq,
@@ -794,7 +793,9 @@ impl<K: Kem, F: Kdf, A: Aead + IndCca2> RecvCtx<K, F, A> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = OpenCtx::<A>::OVERHEAD;
 
-    pub(crate) fn into_raw_parts(self) -> Option<(KeyData<A>, Nonce<A::NonceSize>)> {
+    // Exposed for `aranya-crypto`, do not use.
+    #[doc(hidden)]
+    pub fn into_raw_parts(self) -> Option<(KeyData<A>, Nonce<A::NonceSize>)> {
         match self.open {
             Either::Left(_) => None,
             Either::Right((key, base_nonce)) => Some((key, base_nonce)),
@@ -891,7 +892,9 @@ impl<A: Aead + IndCca2> OpenCtx<A> {
     /// The size in bytes of the overhead added to the plaintext.
     pub const OVERHEAD: usize = A::OVERHEAD;
 
-    pub(crate) fn new(
+    // Exported for `aranya-crypto`. Do not use.
+    #[doc(hidden)]
+    pub fn new(
         key: &KeyData<A>,
         base_nonce: &Nonce<A::NonceSize>,
         seq: Seq,
@@ -1017,7 +1020,10 @@ impl Seq {
     }
 
     /// Returns the maximum allowed sequence number.
-    pub(crate) const fn max<N: ArrayLength>() -> u64 {
+    ///
+    /// Exported for `aranya-crypto`. Do not use.
+    #[doc(hidden)]
+    pub const fn max<N: ArrayLength>() -> u64 {
         // 1<<(8*N) - 1
         let shift = 8usize.saturating_mul(N::USIZE);
         match 1u64.checked_shl(shift as u32) {

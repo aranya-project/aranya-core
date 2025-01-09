@@ -1,9 +1,4 @@
 //! Basic keys and key material.
-//!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
 
 use core::{borrow::Borrow, fmt::Debug, iter::IntoIterator, mem, result::Result};
 
@@ -138,7 +133,7 @@ raw_key! {
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::raw_key;
+/// use aranya_crypto_core::raw_key;
 ///
 /// raw_key! {
 ///     /// Some documentation.

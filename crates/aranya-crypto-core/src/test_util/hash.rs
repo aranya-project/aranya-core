@@ -7,14 +7,14 @@ use crate::hash::Hash;
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::rust::Sha256;
+/// use aranya_crypto_core::rust::Sha256;
 ///
 /// macro_rules! run_test {
 ///     ($test:ident) => {
-///         aranya_crypto::test_util::hash::$test::<Sha256>();
+///         aranya_crypto_core::test_util::hash::$test::<Sha256>();
 ///     };
 /// }
-/// aranya_crypto::for_each_hash_test!(run_test);
+/// aranya_crypto_core::for_each_hash_test!(run_test);
 /// ```
 #[macro_export]
 macro_rules! for_each_hash_test {
@@ -32,14 +32,10 @@ pub use for_each_hash_test;
 /// This macro expands into a bunch of individual `#[test]`
 /// functions.
 ///
-/// This is used by
-/// [`test_ciphersuite`][super::test_ciphersuite], but can also
-/// be used manually.
-///
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{test_hash, rust::Sha256};
+/// use aranya_crypto_core::{test_hash, rust::Sha256};
 ///
 /// test_hash!(sha256, Sha256);
 /// ```

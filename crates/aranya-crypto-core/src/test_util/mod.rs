@@ -1,5 +1,4 @@
-//! Utilities for testing [`Engine`][crate::Engine],
-//! [`CipherSuite`], and cryptography implementations.
+//! Utilities for testing cryptography implementations.
 //!
 //! If you implement any traits in this crate it is **very
 //! highly** recommended that you use these tests.
@@ -10,41 +9,36 @@
 #![cfg_attr(docsrs, doc(cfg(feature = "test_util")))]
 #![forbid(unsafe_code)]
 
-pub mod ciphersuite;
-pub mod engine;
+pub mod aead;
+pub mod hash;
+pub mod hpke;
+pub mod kdf;
+pub mod mac;
+pub mod signer;
+pub mod vectors;
 
 use core::{
     fmt::{self, Debug},
     marker::PhantomData,
 };
 
-pub use aranya_crypto_core::test_util::{
-    aead::{self, test_aead},
-    hash::{self, test_hash},
-    hpke::{self, test_hpke},
-    kdf::{self, test_kdf},
-    mac::{self, test_mac},
-    signer::{self, test_signer},
-    vectors,
-};
-pub use ciphersuite::test_ciphersuite;
-pub use engine::test_engine;
+pub use aead::test_aead;
+pub use hash::test_hash;
+pub use hpke::test_hpke;
+pub use kdf::test_kdf;
+pub use mac::test_mac;
+pub use signer::test_signer;
+use subtle::{Choice, ConstantTimeEq};
+use zeroize::ZeroizeOnDrop;
 
 use crate::{
-    aead::{Aead, AeadId, IndCca2, Lifetime, OpenError, SealError},
-    ciphersuite::CipherSuite,
+    aead::{Aead, AeadId, Lifetime, OpenError, SealError},
     csprng::Csprng,
-    hash::Hash,
     import::{ExportError, Import, ImportError},
     kdf::{Kdf, KdfError, KdfId, Prk},
-    kem::Kem,
     keys::{PublicKey, SecretKey, SecretKeyBytes},
     mac::{Mac, MacId},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
-    subtle::{Choice, ConstantTimeEq},
-    typenum::U64,
-    zeroize::ZeroizeOnDrop,
-    Id,
 };
 
 #[macro_export]
@@ -62,13 +56,13 @@ pub use __apply;
 #[macro_export]
 macro_rules! assert_ct_eq {
     ($lhs:expr, $rhs:expr) => {
-        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)))
+        assert!(bool::from(::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)))
     };
     ($lhs:expr, $rhs:expr, ) => {
         $crate::assert_ct_eq!($lhs, $rhs)
     };
     ($lhs:expr, $rhs:expr, $($args:tt)+) => {
-        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)), $($args)+)
+        assert!(bool::from(::subtle::ConstantTimeEq::ct_eq(&$lhs, &$rhs)), $($args)+)
     };
 }
 pub(super) use assert_ct_eq;
@@ -77,16 +71,27 @@ pub(super) use assert_ct_eq;
 #[macro_export]
 macro_rules! assert_ct_ne {
     ($lhs:expr, $rhs:expr) => {
-        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)))
+        assert!(bool::from(::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)))
     };
     ($lhs:expr, $rhs:expr, ) => {
         $crate::assert_ct_ne!($lhs, $rhs)
     };
     ($lhs:expr, $rhs:expr, $($args:tt)+) => {
-        assert!(bool::from($crate::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)), $($args)+)
+        assert!(bool::from(::subtle::ConstantTimeEq::ct_ne(&$lhs, &$rhs)), $($args)+)
     };
 }
 pub(super) use assert_ct_ne;
+
+/// Checks that each byte in `data` is zero.
+macro_rules! assert_all_zero {
+    ($data:expr) => {
+        let data: &[u8] = &$data.as_ref();
+        for c in data {
+            assert_eq!(*c, 0, "Default must return all zeros");
+        }
+    };
+}
+pub(super) use assert_all_zero;
 
 /// A shim that declares `OS_hardware_rand` for doctests.
 #[macro_export]
@@ -329,32 +334,4 @@ impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for SignatureWithDefaults<T> {
     fn import(data: &'a [u8]) -> Result<Self, ImportError> {
         Ok(Self(T::Signature::import(data)?))
     }
-}
-
-/// A test [`CipherSuite`].
-pub struct TestCs<
-    A: Aead + IndCca2,
-    H: Hash<DigestSize = U64>,
-    F: Kdf,
-    K: Kem,
-    M: Mac<KeySize = U64, TagSize = U64>,
-    S: Signer,
->(PhantomData<(A, H, F, K, M, S)>);
-
-impl<A, H, F, K, M, S> CipherSuite for TestCs<A, H, F, K, M, S>
-where
-    A: Aead + IndCca2,
-    H: Hash<DigestSize = U64>,
-    F: Kdf,
-    K: Kem,
-    M: Mac<KeySize = U64, TagSize = U64>,
-    S: Signer,
-{
-    const ID: Id = Id::default();
-    type Aead = A;
-    type Hash = H;
-    type Kdf = F;
-    type Kem = K;
-    type Mac = M;
-    type Signer = S;
 }

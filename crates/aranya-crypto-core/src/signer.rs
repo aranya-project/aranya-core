@@ -1,9 +1,4 @@
 //! Digital Signatures.
-//!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
 
 #![forbid(unsafe_code)]
 
@@ -165,6 +160,14 @@ pub trait SigningKey<T: Signer + ?Sized>: SecretKey {
 /// Handles Public Key errors
 #[derive(Debug, Eq, PartialEq)]
 pub struct PkError(pub(crate) &'static str);
+
+impl PkError {
+    // Exported for `aranya-crypto`. Do not use.
+    #[doc(hidden)]
+    pub const fn msg(&self) -> &'static str {
+        self.0
+    }
+}
 
 impl fmt::Display for PkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -6,11 +6,9 @@
 
 use core::{borrow::Borrow, fmt, ops::Add, result::Result};
 
-use generic_array::{ArrayLength, GenericArray};
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
-use typenum::{Sum, U64};
 
 use crate::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
@@ -19,6 +17,7 @@ use crate::{
     csprng::{Csprng, Random},
     engine::unwrapped,
     error::Error,
+    generic_array::{ArrayLength, GenericArray},
     hash::tuple_hash,
     hex::ToHex,
     hmac::Hmac,
@@ -30,6 +29,7 @@ use crate::{
     keys::{PublicKey, SecretKey},
     misc::{ciphertext, key_misc},
     signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+    typenum::{Sum, U64},
     zeroize::{Zeroize, ZeroizeOnDrop},
     CipherSuite,
 };
