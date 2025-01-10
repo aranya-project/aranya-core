@@ -921,6 +921,9 @@ where
         label_type: LabelType,
         this_data: &Struct,
     ) -> Result<(), MachineError> {
+        #[cfg(feature = "bench")]
+        self.stopwatch.start(format!("setup_command: {}", name).as_str());
+
         self.setup_function(&Label::new(name, label_type))?;
 
         // Verify 'this' arg matches command's fields
@@ -954,6 +957,10 @@ where
         self.scope
             .set("this", Value::Struct(this_data.to_owned()))
             .map_err(|e| self.err(e))?;
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.stop();
+
         Ok(())
     }
 
@@ -1001,7 +1008,7 @@ where
         Args::Item: Into<Value>,
     {
         #[cfg(feature = "bench")]
-        self.stopwatch.start("setup_action");
+        self.stopwatch.start(format!("setup_action: {}", name).as_str());
 
         // verify number and types of arguments
         let arg_def = self.machine.action_defs.get(name).ok_or(MachineError::new(
@@ -1065,9 +1072,6 @@ where
         name: &str,
         this_data: &Struct,
     ) -> Result<ExitReason, MachineError> {
-        #[cfg(feature = "bench")]
-        self.stopwatch.start("call_seal");
-
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
         // Seal/Open pushes the argument and defines it itself, because
@@ -1076,24 +1080,15 @@ where
         self.ipush(this_data.to_owned())?;
         let result = self.run();
 
-        #[cfg(feature = "bench")]
-        self.stopwatch.stop();
-
         result
     }
 
     /// Call the open block on an envelope struct to produce a command struct.
     #[allow(clippy::let_and_return)]
     pub fn call_open(&mut self, name: &str, envelope: Struct) -> Result<ExitReason, MachineError> {
-        #[cfg(feature = "bench")]
-        self.stopwatch.start("call_open");
-
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
         let result = self.run();
-
-        #[cfg(feature = "bench")]
-        self.stopwatch.stop();
 
         result
     }
