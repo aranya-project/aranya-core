@@ -6,7 +6,7 @@
 //! cryptography is centralized inside of the *cryptography
 //! engine*. The cryptographic APIs provided by the cryptography
 //! engine are described in multiple documents, including the
-//! [IDAM] and [IDAM crypto] specs.
+//! [IDAM crypto] spec.
 //!
 //! While it's generally referred to as *the* cryptography
 //! engine, it's important to note that there can be multiple
@@ -34,8 +34,8 @@
 //! contextual binding purposes. Among other things, this helps
 //! prevent cross-version attacks.
 //!
-//! [IDAM crypto]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/37bfddf39c37ae258615e8bf2617432aaf8d453a/idam_crypto.md
-//! [IDAM]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/8bf06fdfdb4521f96892de9eff8c7b2908413ace/src/idam.md
+// TODO: Once the idam_crypto doc gets open sourced this link should be updated. <https://github.com/aranya-project/aranya-docs/issues/17>
+//! [IDAM crypto]: <https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/idam-crypto-apis/src/idam_crypto.md>
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
