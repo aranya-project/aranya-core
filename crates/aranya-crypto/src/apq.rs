@@ -118,7 +118,7 @@ custom_id! {
 /// A [symmetric key] used to encrypt queue messages for
 /// a particular topic.
 ///
-/// [symmetric key]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#topickey
+/// [symmetric key]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#topickey
 pub struct TopicKey<CS: CipherSuite> {
     // TopicKey is quite similar to GroupKey. However, unlike
     // GroupKey, we do not compute the key from the seed each
@@ -338,7 +338,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
 
     /// Derives a key for [`Self::open`] and [`Self::seal`].
     ///
-    /// See <https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#topickey-generation>
+    /// See <https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#topickey-generation>
     fn derive_key(
         seed: &[u8; 64],
         version: Version,
@@ -367,7 +367,7 @@ ciphertext!(EncryptedTopicKey, U64, "An encrypted [`TopicKey`].");
 
 /// The private half of a [SenderSigningKey].
 ///
-/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
+/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
 pub struct SenderSigningKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
 
 key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
@@ -461,7 +461,7 @@ unwrapped! {
 
 /// The public half of a [SenderSigningKey].
 ///
-/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#sendersigningkey
+/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
 pub struct SenderVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
 impl<CS: CipherSuite> SenderVerifyingKey<CS> {
@@ -495,7 +495,7 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
 
 /// The private half of a [SenderKey].
 ///
-/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
+/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
 pub struct SenderSecretKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
@@ -517,12 +517,12 @@ unwrapped! {
 
 /// The public half of a [SenderKey].
 ///
-/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#senderkey
+/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
 pub struct SenderPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
 
 /// The private half of a [ReceiverKey].
 ///
-/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
+/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
 pub struct ReceiverSecretKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
@@ -590,7 +590,7 @@ unwrapped! {
 
 /// The public half of a [ReceiverKey].
 ///
-/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/apq/blob/spec/design.md#receiverkey
+/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
 pub struct ReceiverPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
 
 impl<CS: CipherSuite> ReceiverPublicKey<CS> {
