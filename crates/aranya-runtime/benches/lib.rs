@@ -80,7 +80,7 @@ policy-version: 1
         }
 
         action run() {
-            // TODO can't publish multiple commands form one action (#883). But we must publish something.
+            // TODO can't publish multiple commands form one action (#15). But we must publish something.
             publish DoSomething {}
 
             map F[i:?] as f {                
