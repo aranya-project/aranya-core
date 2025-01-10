@@ -8,15 +8,15 @@ use crate::{csprng::Csprng, keys::SecretKey, mac::Mac};
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{Rng, rust::HmacSha256};
+/// use aranya_crypto_core::{default::Rng, rust::HmacSha256};
 ///
-/// # aranya_crypto::__doctest_os_hardware_rand!();
+/// # aranya_crypto_core::__doctest_os_hardware_rand!();
 /// macro_rules! run_test {
 ///     ($test:ident) => {
-///         aranya_crypto::test_util::mac::$test::<HmacSha256, _>(&mut Rng);
+///         aranya_crypto_core::test_util::mac::$test::<HmacSha256, _>(&mut Rng);
 ///     }
 /// }
-/// aranya_crypto::for_each_mac_test!(run_test);
+/// aranya_crypto_core::for_each_mac_test!(run_test);
 /// ```
 #[macro_export]
 macro_rules! for_each_mac_test {
@@ -37,14 +37,10 @@ macro_rules! for_each_mac_test {
 /// This macro expands into a bunch of individual `#[test]`
 /// functions.
 ///
-/// This is used by
-/// [`test_ciphersuite`][super::test_ciphersuite], but can also
-/// be used manually.
-///
 /// # Example
 ///
 /// ```
-/// use aranya_crypto::{test_mac, rust::HmacSha256};
+/// use aranya_crypto_core::{test_mac, rust::HmacSha256};
 ///
 /// // Without test vectors.
 /// test_mac!(hmac_sha256, HmacSha256);
@@ -67,7 +63,7 @@ macro_rules! test_mac {
             ($test:ident) => {
                 #[test]
                 fn $test() {
-                    $crate::test_util::mac::$test::<$mac, _>(&mut $crate::Rng)
+                    $crate::test_util::mac::$test::<$mac, _>(&mut $crate::default::Rng)
                 }
             };
         }

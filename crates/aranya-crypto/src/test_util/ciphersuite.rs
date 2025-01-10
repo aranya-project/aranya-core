@@ -19,40 +19,40 @@ macro_rules! test_ciphersuite {
             #[allow(unused_imports)]
             use super::*;
 
-            $crate::test_ciphersuite!($cs);
+            $crate::test_util::test_ciphersuite!($cs);
         }
     };
     ($cs:ty) => {
-        $crate::test_aead!(aead, <$cs as $crate::CipherSuite>::Aead);
-        $crate::test_aead!(
+        $crate::test_util::test_aead!(aead, <$cs as $crate::CipherSuite>::Aead);
+        $crate::test_util::test_aead!(
             aead_with_defaults,
             $crate::test_util::AeadWithDefaults<
                 <$cs as $crate::CipherSuite>::Aead,
             >
         );
 
-        $crate::test_hash!(hash, <$cs as $crate::CipherSuite>::Hash);
+        $crate::test_util::test_hash!(hash, <$cs as $crate::CipherSuite>::Hash);
 
-        $crate::test_hpke!(hpke,
+        $crate::test_util::test_hpke!(hpke,
             <$cs as $crate::CipherSuite>::Kem,
             <$cs as $crate::CipherSuite>::Kdf,
             <$cs as $crate::CipherSuite>::Aead,
         );
 
-        $crate::test_kdf!(kdf, <$cs as $crate::CipherSuite>::Kdf);
-        $crate::test_kdf!(
+        $crate::test_util::test_kdf!(kdf, <$cs as $crate::CipherSuite>::Kdf);
+        $crate::test_util::test_kdf!(
             kdf_with_defaults,
             $crate::test_util::KdfWithDefaults<<$cs as $crate::CipherSuite>::Kdf>
         );
 
-        $crate::test_mac!(mac, <$cs as $crate::CipherSuite>::Mac);
-        $crate::test_mac!(
+        $crate::test_util::test_mac!(mac, <$cs as $crate::CipherSuite>::Mac);
+        $crate::test_util::test_mac!(
             mac_with_defaults,
             $crate::test_util::MacWithDefaults<<$cs as $crate::CipherSuite>::Mac>
         );
 
-        $crate::test_signer!(signer, <$cs as $crate::CipherSuite>::Signer);
-        $crate::test_signer!(
+        $crate::test_util::test_signer!(signer, <$cs as $crate::CipherSuite>::Signer);
+        $crate::test_util::test_signer!(
             signer_with_defaults,
             $crate::test_util::SignerWithDefaults<<$cs as $crate::CipherSuite>::Signer>
         );

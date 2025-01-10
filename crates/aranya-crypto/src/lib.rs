@@ -6,7 +6,7 @@
 //! cryptography is centralized inside of the *cryptography
 //! engine*. The cryptographic APIs provided by the cryptography
 //! engine are described in multiple documents, including the
-//! [IDAM] and [IDAM crypto] specs.
+//! [IDAM crypto] spec.
 //!
 //! While it's generally referred to as *the* cryptography
 //! engine, it's important to note that there can be multiple
@@ -34,70 +34,91 @@
 //! contextual binding purposes. Among other things, this helps
 //! prevent cross-version attacks.
 //!
-//! [IDAM crypto]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/37bfddf39c37ae258615e8bf2617432aaf8d453a/idam_crypto.md
-//! [IDAM]: https://git.spideroak-inc.com/spideroak-inc/flow3-docs/blob/8bf06fdfdb4521f96892de9eff8c7b2908413ace/src/idam.md
+// TODO: Once the idam_crypto doc gets open sourced this link should be updated. <https://github.com/aranya-project/aranya-docs/issues/17>
+//! [IDAM crypto]: <https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/idam-crypto-apis/src/idam_crypto.md>
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
+#![cfg_attr(not(all(test, feature = "trng")), forbid(unsafe_code))]
 #![warn(missing_docs)]
 
-#[macro_use]
-mod util;
-
-pub(crate) use aranya_crypto_derive::AlgId;
-pub mod aead;
 pub mod afc;
 pub mod apq;
 mod aranya;
-pub mod asn1;
-pub mod bearssl;
 mod ciphersuite;
-pub mod csprng;
 pub mod default;
-pub mod ec;
-pub mod ed25519;
 pub mod engine;
 mod error;
 mod groupkey;
-pub mod hash;
-pub mod hex;
-pub mod hkdf;
-pub mod hmac;
-pub mod hpke;
 pub mod id;
-pub mod import;
-pub mod kdf;
-pub mod kem;
-pub mod keys;
 pub mod keystore;
-pub mod mac;
 mod misc;
 mod policy;
-pub mod rust;
-pub mod signer;
 pub mod test_util;
-pub mod zeroize;
+mod tests;
 
-pub use aead::{BufferTooSmallError, OpenError, SealError};
+// Re-export `$name` without inlining it.
+macro_rules! reexport {
+    ($($name:ident),* $(,)?) => {
+        $(
+            /// # Warning
+            ///
+            /// This is a low-level module. You should not be
+            /// using it directly unless you are implementing an
+            /// engine.
+            #[doc(no_inline)]
+            pub use aranya_crypto_core::$name;
+        )*
+    }
+}
+reexport! {
+    aead,
+    asn1,
+    csprng,
+    ec,
+    ed25519,
+    hash,
+    hex,
+    hkdf,
+    hmac,
+    hpke,
+    import,
+    kdf,
+    kem,
+    keys,
+    mac,
+    rust,
+    signer,
+}
+
 pub use aranya::*;
 pub use aranya_buggy;
+#[doc(no_inline)]
+#[cfg(feature = "bearssl")]
+#[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
+pub use aranya_crypto_core::bearssl;
+pub use aranya_crypto_core::{
+    aead::{BufferTooSmallError, OpenError, SealError},
+    csprng::{Csprng, Random},
+    generic_array,
+    hpke::HpkeError,
+    import::{ExportError, ImportError},
+    kdf::KdfError,
+    kem::{EcdhError, KemError},
+    mac::MacError,
+    signer::SignerError,
+    subtle, typenum, zeroize,
+};
+#[cfg(feature = "hazmat")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
+pub use aranya_crypto_core::{dhkem_impl, hkdf_impl, hmac_impl};
 pub use ciphersuite::*;
-pub use csprng::{Csprng, Random};
 pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};
 pub use error::*;
-pub use generic_array;
 pub use groupkey::*;
-pub use hpke::HpkeError;
 pub use id::{Id, Identified};
-pub use import::{ExportError, ImportError};
-pub use kdf::KdfError;
-pub use kem::{EcdhError, KemError};
 pub use keystore::{KeyStore, KeyStoreExt};
-pub use mac::MacError;
 pub use policy::*;
-pub use signer::SignerError;
 pub use siphasher;
-pub use subtle;
-pub use typenum;

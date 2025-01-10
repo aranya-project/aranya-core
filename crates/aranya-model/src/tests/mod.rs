@@ -1414,9 +1414,8 @@ fn should_create_clients_with_args() {
     assert_eq!(effects, expected);
 }
 
-/// Test for <https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues/917>.
 #[test]
-fn test_storage_fact_issue_917() {
+fn test_storage_fact() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
     let mut test_model = RuntimeModel::new(basic_clients);
 

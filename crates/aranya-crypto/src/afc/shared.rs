@@ -1,11 +1,10 @@
-use subtle::{Choice, ConstantTimeEq};
-
 use crate::{
     csprng::{Csprng, Random},
     import::{ExportError, Import, ImportError},
     kem::{DecapKey, Kem},
     keys::{SecretKey, SecretKeyBytes},
     signer::PkError,
+    subtle::{Choice, ConstantTimeEq},
     zeroize::ZeroizeOnDrop,
     CipherSuite,
 };

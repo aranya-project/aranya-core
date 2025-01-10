@@ -115,17 +115,21 @@ pub(crate) fn parse(item: TokenStream) -> syn::Result<TokenStream> {
 
         quote! {
             impl #name {
-                pub(crate) const fn to_u16(self) -> u16 {
+                /// Converts the algorithm ID to a `u16`.
+                pub const fn to_u16(self) -> u16 {
                     match self {
                         #(#to_mappings),*,
                     }
                 }
 
-                pub(crate) const fn to_be_bytes(self) -> [u8; 2] {
+                /// Converts the algorithm ID to a big-endian
+                /// byte array.
+                pub const fn to_be_bytes(self) -> [u8; 2] {
                     self.to_u16().to_be_bytes()
                 }
 
-                pub(crate) const fn try_from_u16(__id: u16) -> ::core::result::Result<Self, #error> {
+                /// Tries to parse the algorithm ID.
+                pub const fn try_from_u16(__id: u16) -> ::core::result::Result<Self, #error> {
                     match __id {
                         #(#from_mappings),*,
                     }

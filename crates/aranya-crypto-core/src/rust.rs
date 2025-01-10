@@ -1,14 +1,6 @@
 //! [RustCrypto] cryptography.
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! [RustCrypto]: https://github.com/RustCrypto
-
-#![cfg(not(fips))]
-#![cfg_attr(docsrs, doc(cfg(not(fips))))]
 
 use core::{borrow::Borrow, fmt, result::Result};
 
@@ -576,29 +568,6 @@ impl<R: Csprng> RngCore for RngWrapper<'_, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Test some [`CipherSuite`] configurations.
-    mod ciphersuite_tests {
-        use super::*;
-        use crate::test_util::{test_ciphersuite, TestCs};
-
-        test_ciphersuite!(p256, TestCs<
-            Aes256Gcm,
-            Sha512,
-            HkdfSha256,
-            DhKemP256HkdfSha256,
-            HmacSha512,
-            P256,
-        >);
-        test_ciphersuite!(p384, TestCs<
-            Aes256Gcm,
-            Sha512,
-            HkdfSha384,
-            DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
-            HmacSha512,
-            P384,
-        >);
-    }
 
     mod aead_tests {
         use super::*;
