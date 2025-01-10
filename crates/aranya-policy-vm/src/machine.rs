@@ -964,7 +964,8 @@ where
         this_data: &Struct,
     ) -> Result<(), MachineError> {
         #[cfg(feature = "bench")]
-        self.stopwatch.start(format!("setup_command: {}", name).as_str());
+        self.stopwatch
+            .start(format!("setup_command: {}", name).as_str());
 
         self.setup_function(&Label::new(name, label_type))?;
 
@@ -1050,7 +1051,8 @@ where
         Args::Item: Into<Value>,
     {
         #[cfg(feature = "bench")]
-        self.stopwatch.start(format!("setup_action: {}", name).as_str());
+        self.stopwatch
+            .start(format!("setup_action: {}", name).as_str());
 
         // verify number and types of arguments
         let arg_def = self.machine.action_defs.get(name).ok_or(MachineError::new(
