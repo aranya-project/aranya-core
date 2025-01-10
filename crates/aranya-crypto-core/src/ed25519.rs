@@ -6,11 +6,6 @@
 //! that it might not be interoperable with all Ed25519
 //! implementations.
 //!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
-//!
 //! [ed25519-dalek]: https://github.com/dalek-cryptography/ed25519-dalek
 //! [weak-key]: https://github.com/dalek-cryptography/ed25519-dalek/tree/58a967f6fb28806a21180c880bbec4fdeb907aef#weak-key-forgery-and-verify_strict
 

@@ -1,9 +1,4 @@
 //! ASN.1 utility routines.
-//!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
 
 #![forbid(unsafe_code)]
 

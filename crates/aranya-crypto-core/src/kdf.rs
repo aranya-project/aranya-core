@@ -1,9 +1,4 @@
 //! Key Derivation Functions.
-//!
-//! # Warning
-//!
-//! This is a low-level module. You should not be be directly
-//! using it directly unless you are implementing an engine.
 
 #![forbid(unsafe_code)]
 
@@ -17,6 +12,7 @@ use typenum::{
     Const, Unsigned, U32, U64, U65536,
 };
 
+#[doc(inline)]
 pub use crate::hpke::KdfId;
 use crate::{keys::SecretKeyBytes, zeroize::ZeroizeOnDrop};
 

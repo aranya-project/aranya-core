@@ -1,9 +1,4 @@
 //! Cryptographically Secure Random Number Generators.
-//!
-//! # Warning
-//!
-//! This is a low-level module. You should not be using it
-//! directly unless you are implementing an engine.
 
 use generic_array::{ArrayLength, GenericArray};
 #[cfg(all(feature = "getrandom", not(target_os = "vxworks")))]
@@ -115,8 +110,8 @@ impl<const N: usize> Random for [u8; N] {
 macro_rules! rand_int_impl {
     ($($name:ty)* $(,)?) => {
         $(
-            impl $crate::Random for $name {
-                fn random<R: $crate::Csprng>(rng: &mut R) -> Self {
+            impl $crate::csprng::Random for $name {
+                fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
                     let mut v = [0u8; ::core::mem::size_of::<$name>()];
                     rng.fill_bytes(&mut v);
                     <$name>::from_le_bytes(v)
