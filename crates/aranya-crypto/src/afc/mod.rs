@@ -17,7 +17,7 @@
 //! then encrypted to ourself using HPKE and the encapsulation
 //! and ciphertext are added to the command.
 //!
-//! [AFC]: https://git.spideroak-inc.com/spideroak-inc/afc
+//! [AFC]: https://github.com/aranya-project/aranya-core/tree/main/crates/aranya-fast-channels
 
 mod bidi;
 mod keys;
