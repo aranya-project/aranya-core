@@ -1,165 +1,9 @@
 
 # cargo-vet imports lock
 
-[[publisher.aranya-afc-util]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-base58]]
-version = "0.1.0"
-when = "2024-10-16"
-user-id = 293722
-user-login = "aranya-project-bot"
-
 [[publisher.aranya-bearssl-sys]]
 version = "0.1.0"
 when = "2024-10-15"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-buggy]]
-version = "0.1.0"
-when = "2024-10-16"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-capi-codegen]]
-version = "0.1.0"
-when = "2024-11-08"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-capi-core]]
-version = "0.1.0"
-when = "2024-11-08"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-capi-macro]]
-version = "0.1.0"
-when = "2024-11-08"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-crypto]]
-version = "0.2.1"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-crypto-derive]]
-version = "0.2.0"
-when = "2024-12-04"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-crypto-ffi]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-device-ffi]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-envelope-ffi]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-fast-channels]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-idam-ffi]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-libc]]
-version = "0.1.0"
-when = "2024-11-08"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-perspective-ffi]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-ast]]
-version = "0.1.0"
-when = "2024-10-16"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-compiler]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-derive]]
-version = "0.2.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-ifgen]]
-version = "0.3.1"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-ifgen-build]]
-version = "0.1.0"
-when = "2024-10-16"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-ifgen-macro]]
-version = "0.2.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-lang]]
-version = "0.1.0"
-when = "2024-10-16"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-module]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-policy-vm]]
-version = "0.3.1"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-runtime]]
-version = "0.3.0"
-when = "2024-12-19"
-user-id = 293722
-user-login = "aranya-project-bot"
-
-[[publisher.aranya-trouble]]
-version = "0.1.0"
-when = "2024-10-16"
 user-id = 293722
 user-login = "aranya-project-bot"
 
@@ -296,10 +140,37 @@ criteria = "safe-to-deploy"
 version = "0.4.0"
 notes = "No `unsafe` code and only uses `std` in ways one would expect the crate to do so."
 
+[[audits.bytecode-alliance.audits.errno]]
+who = "Dan Gohman <dev@sunfishcode.online>"
+criteria = "safe-to-deploy"
+version = "0.3.0"
+notes = "This crate uses libc and windows-sys APIs to get and set the raw OS error value."
+
+[[audits.bytecode-alliance.audits.errno]]
+who = "Dan Gohman <dev@sunfishcode.online>"
+criteria = "safe-to-deploy"
+delta = "0.3.0 -> 0.3.1"
+notes = "Just a dependency version bump and a bug fix for redox"
+
+[[audits.bytecode-alliance.audits.errno]]
+who = "Dan Gohman <dev@sunfishcode.online>"
+criteria = "safe-to-deploy"
+delta = "0.3.9 -> 0.3.10"
+
+[[audits.bytecode-alliance.audits.futures]]
+who = "Joel Dice <joel.dice@gmail.com>"
+criteria = "safe-to-deploy"
+version = "0.3.31"
+
 [[audits.bytecode-alliance.audits.futures-core]]
 who = "Pat Hickey <pat@moreproductive.org>"
 criteria = "safe-to-deploy"
 delta = "0.3.28 -> 0.3.31"
+
+[[audits.bytecode-alliance.audits.futures-executor]]
+who = "Joel Dice <joel.dice@gmail.com>"
+criteria = "safe-to-deploy"
+version = "0.3.31"
 
 [[audits.bytecode-alliance.audits.futures-sink]]
 who = "Pat Hickey <pat@moreproductive.org>"
@@ -1593,6 +1464,12 @@ criteria = "safe-to-deploy"
 delta = "1.8.0 -> 1.8.1"
 aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
 
+[[audits.mozilla.audits.errno]]
+who = "Mike Hommey <mh+mozilla@glandium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.1 -> 0.3.3"
+aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
+
 [[audits.mozilla.audits.fnv]]
 who = "Bobby Holley <bobbyholley@gmail.com>"
 criteria = "safe-to-deploy"
@@ -1781,6 +1658,18 @@ criteria = "safe-to-deploy"
 delta = "0.10.3 -> 0.10.4"
 notes = "Adds panics to prevent a block size of zero from causing unsoundness."
 aggregated-from = "https://raw.githubusercontent.com/zcash/zcash/master/qa/supply-chain/audits.toml"
+
+[[audits.zcash.audits.errno]]
+who = "Jack Grigg <jack@electriccoin.co>"
+criteria = "safe-to-deploy"
+delta = "0.3.3 -> 0.3.8"
+aggregated-from = "https://raw.githubusercontent.com/zcash/zcash/master/qa/supply-chain/audits.toml"
+
+[[audits.zcash.audits.errno]]
+who = "Daira-Emma Hopwood <daira@jacaranda.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.8 -> 0.3.9"
+aggregated-from = "https://raw.githubusercontent.com/zcash/librustzcash/main/supply-chain/audits.toml"
 
 [[audits.zcash.audits.oorandom]]
 who = "Jack Grigg <jack@electriccoin.co>"
