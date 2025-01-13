@@ -6,13 +6,12 @@
 #![allow(clippy::unwrap_used)]
 
 use std::{
-    net::{Ipv4Addr, SocketAddr},
     ops::DerefMut,
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
@@ -21,8 +20,7 @@ use aranya_runtime::{
     ClientState, GraphId, Sink, SyncRequester,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
-use quinn::{Endpoint, ServerConfig};
-use rustls::{Certificate, PrivateKey};
+use s2n_quic::Server;
 use tokio::{
     runtime::Runtime,
     sync::{mpsc, Mutex as TMutex},
@@ -92,6 +90,14 @@ fn add_commands(
     }
 }
 
+fn get_server(cert: String, key: String) -> Result<Server> {
+    let server = Server::builder()
+        .with_tls((&cert[..], &key[..]))?
+        .with_io("127.0.0.1:0")?
+        .start()?;
+    Ok(server)
+}
+
 // benchmark the time to sync a command.
 fn sync_bench(c: &mut Criterion) {
     let rt = Runtime::new().expect("error creating runtime");
@@ -101,34 +107,35 @@ fn sync_bench(c: &mut Criterion) {
             // setup
             let request_sink = Arc::new(TMutex::new(CountSink::new()));
             let request_client = Arc::new(TMutex::new(create_client()));
-            let (key, cert) = certs().expect("generating certs failed");
-            let server_addr1 =
-                get_server_addr(key.clone(), cert.clone()).expect("getting server addr failed");
+            let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])
+                .expect("error generating cert");
+            let key = cert.serialize_private_key_pem();
+            let cert = cert.serialize_pem().expect("error serilizing cert");
+            let server1 = get_server(cert.clone(), key.clone()).expect("error getting server");
             let (tx1, _) = mpsc::unbounded_channel();
             let syncer1 = Arc::new(TMutex::new(
                 Syncer::new(
-                    &[cert.clone()],
+                    &*cert.clone(),
                     request_client.clone(),
                     request_sink.clone(),
                     tx1,
-                    server_addr1.local_addr().expect("error getting local addr"),
+                    server1.local_addr().expect("error getting local addr"),
                 )
                 .expect("Syncer creation must succeed"),
             ));
 
             let response_sink = Arc::new(TMutex::new(CountSink::new()));
             let response_client = Arc::new(TMutex::new(create_client()));
-            let server_addr2 =
-                get_server_addr(key.clone(), cert.clone()).expect("getting server addr failed");
-            let addr2 = server_addr2.local_addr().expect("error getting local addr");
+            let server2 = get_server(cert.clone(), key.clone()).expect("error getting server");
+            let server2_addr = server2.local_addr().expect("error getting local addr");
             let (tx2, rx2) = mpsc::unbounded_channel();
             let syncer2 = Arc::new(TMutex::new(
                 Syncer::new(
-                    &[cert.clone()],
+                    &*cert,
                     response_client.clone(),
                     response_sink.clone(),
                     tx2,
-                    server_addr2.local_addr().expect("error getting local addr"),
+                    server2_addr,
                 )
                 .expect("Syncer creation must succeed"),
             ));
@@ -139,7 +146,7 @@ fn sync_bench(c: &mut Criterion) {
             )
             .expect("creating graph failed");
 
-            let task = tokio::spawn(run_syncer(syncer2.clone(), server_addr2, rx2));
+            let task = tokio::spawn(run_syncer(syncer2.clone(), server2, rx2));
             add_commands(
                 response_client.lock().await.deref_mut(),
                 storage_id,
@@ -150,7 +157,7 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
-                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), addr2);
+                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server2_addr);
                 if let Err(e) = syncer1
                     .lock()
                     .await
@@ -170,26 +177,6 @@ fn sync_bench(c: &mut Criterion) {
             elapsed
         });
     });
-}
-
-fn get_server_addr(key: PrivateKey, cert: Certificate) -> Result<Endpoint> {
-    let mut server_config = ServerConfig::with_single_cert(vec![cert], key)?;
-    let transport_config =
-        Arc::get_mut(&mut server_config.transport).context("unique transport")?;
-    transport_config.max_concurrent_uni_streams(0_u8.into());
-    let endpoint = Endpoint::server(
-        server_config,
-        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0),
-    )?;
-    Ok(endpoint)
-}
-
-fn certs() -> Result<(PrivateKey, Certificate)> {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
-    Ok((
-        PrivateKey(cert.serialize_private_key_der()),
-        Certificate(cert.serialize_der()?),
-    ))
 }
 
 criterion_group!(
