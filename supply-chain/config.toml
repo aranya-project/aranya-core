@@ -32,82 +32,85 @@ url = "https://raw.githubusercontent.com/mozilla/supply-chain/main/audits.toml"
 url = "https://raw.githubusercontent.com/zcash/rust-ecosystem/main/supply-chain/audits.toml"
 
 [policy.aranya-afc-util]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-base58]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-buggy]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-capi-codegen]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-capi-core]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-capi-macro]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-crypto]
-audit-as-crates-io = true
+audit-as-crates-io = false
+
+[policy.aranya-crypto-core]
+audit-as-crates-io = false
 
 [policy.aranya-crypto-derive]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-crypto-ffi]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-device-ffi]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-envelope-ffi]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-fast-channels]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-idam-ffi]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-libc]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-perspective-ffi]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-ast]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-compiler]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-derive]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-ifgen]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-ifgen-build]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-ifgen-macro]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-lang]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-module]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-policy-vm]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-runtime]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [policy.aranya-trouble]
-audit-as-crates-io = true
+audit-as-crates-io = false
 
 [[exemptions.addr2line]]
 version = "0.24.2"
@@ -337,10 +340,6 @@ criteria = "safe-to-deploy"
 version = "1.0.0"
 criteria = "safe-to-run"
 
-[[exemptions.errno]]
-version = "0.3.10"
-criteria = "safe-to-deploy"
-
 [[exemptions.fastrand]]
 version = "2.3.0"
 criteria = "safe-to-deploy"
@@ -348,14 +347,6 @@ criteria = "safe-to-deploy"
 [[exemptions.ff]]
 version = "0.13.0"
 criteria = "safe-to-deploy"
-
-[[exemptions.futures]]
-version = "0.3.31"
-criteria = "safe-to-run"
-
-[[exemptions.futures-executor]]
-version = "0.3.31"
-criteria = "safe-to-run"
 
 [[exemptions.generic-array]]
 version = "0.14.7"
