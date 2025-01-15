@@ -297,7 +297,7 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     pc: usize,
     /// I/O callbacks
     io: &'a RefCell<M>,
-    /// Execution Contexts (actually used for more than Commands)
+    /// Execution Context (actually used for more than Commands)
     ctx: CommandContext<'a>,
     // Cursors for `QueryStart` results
     query_iter_stack: Vec<M::QueryIterator>,
@@ -825,7 +825,6 @@ where
             }
             Instruction::Serialize => {
                 let command_struct: Struct = self.ipop()?;
-                // NOTE: we don't pop the context; it needs to remain on the stack for the seal FFI call.
                 let CommandContext::Seal(SealContext { name, .. }) = self.ctx else {
                     return Err(self.err(MachineErrorType::BadState("Serialize: no seal context")));
                 };
