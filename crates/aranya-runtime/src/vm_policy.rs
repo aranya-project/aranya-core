@@ -266,7 +266,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
             &self.engine,
             &self.ffis,
         ));
-        let mut rs = self.machine.create_run_state(&io, &ctx);
+        let mut rs = self.machine.create_run_state(&io, ctx);
         let self_data = Struct::new(name, fields);
         match rs.call_command_policy(&self_data.name, &self_data, envelope.clone().into()) {
             Ok(reason) => match reason {
@@ -275,12 +275,15 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                 ExitReason::Check => {
                     info!("Check {}", self.source_location(&rs));
                     // Construct a new recall context from the policy context
-                    let CommandContext::Policy(policy_ctx) = ctx.clone() else {
-                        error!("Non-policy context while evaluating rule: {ctx:?}");
+                    let CommandContext::Policy(policy_ctx) = rs.get_context() else {
+                        error!(
+                            "Non-policy context while evaluating rule: {:?}",
+                            rs.get_context()
+                        );
                         return Err(EngineError::InternalError);
                     };
                     let recall_ctx = CommandContext::Recall(policy_ctx.clone());
-                    rs.set_context(&recall_ctx);
+                    rs.set_context(recall_ctx);
                     self.recall_internal(recall, &mut rs, name, &self_data, envelope)
                 }
                 ExitReason::Panic => {
@@ -343,7 +346,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
             &self.ffis,
         ));
         let ctx = CommandContext::Open(OpenContext { name });
-        let mut rs = self.machine.create_run_state(&io, &ctx);
+        let mut rs = self.machine.create_run_state(&io, ctx);
         let status = rs.call_open(name, envelope.into());
         match status {
             Ok(reason) => match reason {
@@ -531,7 +534,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             head_id: ctx_parent.id.into(),
         });
         {
-            let mut rs = self.machine.create_run_state(&io, &ctx);
+            let mut rs = self.machine.create_run_state(&io, ctx);
             let mut exit_reason = match args {
                 Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
                 Cow::Owned(args) => rs.call_action(name, args),
@@ -558,8 +561,8 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         io.safe_borrow_mut()?
                             .publish(command_struct.name.clone(), fields);
 
-                        let seal_ctx = ctx.seal_from_action(&command_struct.name)?;
-                        let mut rs_seal = self.machine.create_run_state(&io, &seal_ctx);
+                        let seal_ctx = rs.get_context().seal_from_action(&command_struct.name)?;
+                        let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
                         match rs_seal
                             .call_seal(&command_struct.name, &command_struct)
                             .map_err(|e| {
@@ -628,6 +631,10 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                                 error!("{e}");
                                 EngineError::Write
                             })?;
+
+                        // After publishing a new command, the RunState's context must be updated to reflect the new head
+                        let new_ctx = rs.get_context().with_new_head(new_command.id().into())?;
+                        rs.set_context(new_ctx);
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {

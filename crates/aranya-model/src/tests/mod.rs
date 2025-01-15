@@ -1414,6 +1414,8 @@ fn should_create_clients_with_args() {
     assert_eq!(effects, expected);
 }
 
+/// Test for <https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues/917>.
+/// TODO update comment to explain what is being tested, rather than the old issue number.
 #[test]
 fn test_storage_fact() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
@@ -1500,12 +1502,26 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
             .ok_or("Relationship effect is missing a field")
     };
     let mut expected_parent_id = eff1.command.into_id();
+    println!(
+        "command_id: {:?}, parent_id: {}",
+        eff1.command.into_id(),
+        retrieve_id("parent_id", eff1)?
+    );
 
     for eff in [eff2, eff3] {
+        // command's id and its parent_id must be different
+        assert_ne!(eff.command.into_id(), retrieve_id("parent_id", eff)?);
+
         // Observe that the actual 'parent_id' of the command that created this effect
         // is equal to the expected 'parent_id'
         let actual_parent_id = retrieve_id("parent_id", eff)?;
         assert_eq!(expected_parent_id, actual_parent_id);
+
+        println!(
+            "command_id: {:?}, parent_id: {}",
+            eff.command.into_id(),
+            actual_parent_id
+        );
 
         // Update the expected 'parent_id' with the 'command_id' of the command that created the
         // current effect so that it can be used in the next loop iteration
