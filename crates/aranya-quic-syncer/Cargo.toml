@@ -15,10 +15,8 @@ aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["std"]
 aranya-crypto = { version = "0.2.0", path = "../aranya-crypto", features = ["std"] }
 aranya-runtime = { version = "0.3.0", path = "../aranya-runtime", features = ["std"] }
 
-bytes = { workspace = true }
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
-rustls = { workspace = true, default-features = false, features = ["quic"] }
 s2n-quic = { workspace = true }
 thiserror = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["sync"] }
