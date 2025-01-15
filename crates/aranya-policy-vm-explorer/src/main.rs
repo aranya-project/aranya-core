@@ -278,7 +278,7 @@ fn main() -> anyhow::Result<()> {
                     name: &name,
                     head_id: Id::default(),
                 });
-                rs = machine.create_run_state(&io, &ctx);
+                rs = machine.create_run_state(&io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
                 rs.setup_action(action, call_args)?;
             } else if let Some(command) = args.command {
@@ -289,7 +289,7 @@ fn main() -> anyhow::Result<()> {
                     author: Id::default().into(),
                     version: Id::default(),
                 });
-                rs = machine.create_run_state(&io, &ctx);
+                rs = machine.create_run_state(&io, ctx);
                 let fields: BTreeMap<String, Value> = args
                     .args
                     .into_iter()

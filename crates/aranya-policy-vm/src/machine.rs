@@ -214,7 +214,7 @@ impl Machine {
     pub fn create_run_state<'a, M>(
         &'a self,
         io: &'a RefCell<M>,
-        ctx: &'a CommandContext<'a>,
+        ctx: CommandContext<'a>,
     ) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
@@ -228,7 +228,7 @@ impl Machine {
         name: &str,
         args: Args,
         io: &'_ RefCell<M>,
-        ctx: &'_ CommandContext<'_>,
+        ctx: CommandContext<'_>,
     ) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
@@ -246,7 +246,7 @@ impl Machine {
         this_data: &Struct,
         envelope: Struct,
         io: &'_ RefCell<M>,
-        ctx: &'_ CommandContext<'_>,
+        ctx: CommandContext<'_>,
     ) -> Result<ExitReason, MachineError>
     where
         M: MachineIO<MachineStack>,
@@ -298,7 +298,7 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     /// I/O callbacks
     io: &'a RefCell<M>,
     /// Execution Contexts (actually used for more than Commands)
-    ctx: &'a CommandContext<'a>,
+    ctx: CommandContext<'a>,
     // Cursors for `QueryStart` results
     query_iter_stack: Vec<M::QueryIterator>,
 }
@@ -311,7 +311,7 @@ where
     pub fn new(
         machine: &'a Machine,
         io: &'a RefCell<M>,
-        ctx: &'a CommandContext<'a>,
+        ctx: CommandContext<'a>,
     ) -> RunState<'a, M> {
         RunState {
             machine,
@@ -325,10 +325,15 @@ where
         }
     }
 
+    /// Returns the current context
+    pub fn get_context(&self) -> &CommandContext<'a> {
+        &self.ctx
+    }
+
     /// Set the internal context object to a new reference. The old reference is not
     /// preserved. This is a hack to allow a policy context to mutate into a recall context
     /// when recall happens.
-    pub fn set_context(&mut self, ctx: &'a CommandContext<'a>) {
+    pub fn set_context(&mut self, ctx: CommandContext<'a>) {
         self.ctx = ctx;
     }
 
@@ -554,7 +559,7 @@ where
             Instruction::ExtCall(module, proc) => {
                 self.io
                     .safe_borrow_mut()?
-                    .call(module, proc, &mut self.stack, self.ctx)?;
+                    .call(module, proc, &mut self.stack, &self.ctx)?;
             }
             Instruction::Exit(reason) => return Ok(MachineStatus::Exited(reason)),
             Instruction::Add | Instruction::Sub => {
@@ -706,7 +711,7 @@ where
                 let s: Struct = self.ipop()?;
                 self.validate_struct_schema(&s)?;
                 let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
-                let (command, recall) = match self.ctx {
+                let (command, recall) = match &self.ctx {
                     CommandContext::Policy(ctx) => (ctx.id, false),
                     CommandContext::Recall(ctx) => (ctx.id, true),
                     _ => {
@@ -842,7 +847,7 @@ where
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
-                let &CommandContext::Open(OpenContext { name, .. }) = self.ctx else {
+                let &CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
                     return Err(MachineError::from_position(
                         MachineErrorType::InvalidInstruction,
                         self.pc,

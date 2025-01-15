@@ -42,7 +42,7 @@ fn test_pop() {
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_policy("test");
     let machine = Machine::new([Instruction::Pop]);
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     // Add something to the stack
     rs.stack.push(5).unwrap();
@@ -63,7 +63,7 @@ fn test_swap_empty() {
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_policy("test");
     let machine = Machine::new([Instruction::Swap(1)]);
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     // Empty stack - should fail
     let result = rs.step();
@@ -78,7 +78,7 @@ fn test_swap_top() {
         // Swap with self (first) - should fail
         Instruction::Swap(0),
     ]);
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     rs.stack.push(5).unwrap();
     assert!(rs
@@ -91,7 +91,7 @@ fn test_swap_middle() {
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_policy("test");
     let machine = Machine::new([Instruction::Swap(1)]);
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     // Swap with second - should succeed
     rs.stack.push(3).unwrap();
@@ -108,7 +108,7 @@ fn test_dup_underflow() {
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_policy("test");
     let machine = Machine::new([Instruction::Dup(2)]);
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     // Try to dup with invalid stack index - should fail
     rs.stack.push(3).unwrap();
@@ -122,7 +122,7 @@ fn test_dup() {
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_policy("test");
     let machine = Machine::new([Instruction::Dup(1)]);
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     // Dup second value in stack - should succeed.
     rs.stack.push(3).unwrap();
@@ -149,7 +149,7 @@ fn test_add() {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy("test");
         let machine = Machine::new([Instruction::Add]);
-        let mut rs = machine.create_run_state(&io, &ctx);
+        let mut rs = machine.create_run_state(&io, ctx);
 
         // adds t.0+t.1
         rs.stack.push(t.0).unwrap();
@@ -174,7 +174,7 @@ fn test_add_overflow() {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy("test");
         let machine = Machine::new([Instruction::Add]);
-        let mut rs = machine.create_run_state(&io, &ctx);
+        let mut rs = machine.create_run_state(&io, ctx);
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
@@ -196,7 +196,7 @@ fn test_sub() {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy("test");
         let machine = Machine::new([Instruction::Sub]);
-        let mut rs = machine.create_run_state(&io, &ctx);
+        let mut rs = machine.create_run_state(&io, ctx);
 
         // sub t.0-t.1
         rs.stack.push(t.0).unwrap();
@@ -223,7 +223,7 @@ fn test_sub_overflow() {
         let io = RefCell::new(TestIO::new());
         let ctx = dummy_ctx_policy("test");
         let machine = Machine::new([Instruction::Sub]);
-        let mut rs = machine.create_run_state(&io, &ctx);
+        let mut rs = machine.create_run_state(&io, ctx);
 
         rs.stack.push(p.0).unwrap();
         rs.stack.push(p.1).unwrap();
@@ -348,7 +348,7 @@ fn test_extcall() {
     ]);
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action("test");
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     rs.run().expect("Should succeed").success();
 
@@ -369,7 +369,7 @@ fn test_extcall_invalid_module() {
     ]);
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action("test");
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     assert_eq!(
         rs.run().unwrap_err(),
@@ -386,7 +386,7 @@ fn test_extcall_invalid_proc() {
     ]);
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action("test");
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     assert_eq!(
         rs.run().unwrap_err(),
@@ -406,7 +406,7 @@ fn test_extcall_invalid_arg() {
     ]);
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action("test");
-    let mut rs = machine.create_run_state(&io, &ctx);
+    let mut rs = machine.create_run_state(&io, ctx);
 
     // Empty stack - should fail
     assert_eq!(
@@ -462,7 +462,7 @@ fn general_test_harness<F, G>(
     instructions: &[Instruction],
     mut machine_closure: F,
     mut rs_closure: G,
-    ctx: &CommandContext<'_>,
+    ctx: CommandContext<'_>,
 ) where
     F: FnMut(&mut Machine) -> anyhow::Result<()>,
     G: FnMut(&mut RunState<'_, TestIO>) -> anyhow::Result<()>,
@@ -472,7 +472,7 @@ fn general_test_harness<F, G>(
     machine_closure(&mut m).unwrap();
 
     let io = RefCell::new(TestIO::new());
-    let mut rs = m.create_run_state(&io, &ctx);
+    let mut rs = m.create_run_state(&io, ctx);
     rs_closure(&mut rs).unwrap();
 }
 
@@ -481,7 +481,7 @@ fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType
 
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_policy("test");
-    let mut rs = m.create_run_state(&io, &ctx);
+    let mut rs = m.create_run_state(&io, ctx);
     assert_eq!(rs.run(), Err(MachineError::new(error_type)));
 }
 
@@ -664,7 +664,7 @@ fn test_errors() {
             );
             Ok(())
         },
-        &ctx,
+        ctx.to_owned(),
     );
 
     // InvalidAddress: Set PC to a label of the wrong type
@@ -684,7 +684,7 @@ fn test_errors() {
             );
             Ok(())
         },
-        &ctx,
+        ctx,
     );
 
     // InvalidInstruction: Swap of depth zero
