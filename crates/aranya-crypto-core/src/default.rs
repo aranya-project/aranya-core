@@ -9,14 +9,12 @@ use crate::csprng::Csprng;
 /// Certain feature flags will change the default CSPRNG:
 ///
 /// - `trng`: Uses a TRNG provided by the system.
-/// - `std`: Uses a thread-local CSPRNG seeded from the system
-///   CSPRNG.
-/// - `libc`: Uses the system CSPRNG.
+/// - `getrandom`: Uses the system CSPRNG.
 ///
-/// The `libc` flag is enabled by default.
+/// The `getrandom` flag is enabled by default.
 ///
-/// If all of those feature flags are disabled, `Rng` invokes the
-/// following routine:
+/// If none of those feature flags are disabled, `Rng` invokes
+/// the following routine:
 ///
 /// ```
 /// extern "C" {
@@ -56,9 +54,6 @@ impl Csprng for Rng {
         cfg_if! {
             if #[cfg(feature = "trng")] {
                 crate::csprng::trng::thread_rng().fill_bytes(dst)
-            } else if #[cfg(feature = "std")] {
-                // Try to use `ThreadRng` if possible.
-                rand_core::RngCore::fill_bytes(&mut rand::thread_rng(), dst)
             } else if #[cfg(feature = "getrandom")] {
                 getrandom::getrandom(dst).expect("should not fail")
             } else {
@@ -75,9 +70,11 @@ impl Csprng for Rng {
 }
 
 #[cfg(feature = "rand_compat")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_compat")))]
 impl rand_core::CryptoRng for Rng {}
 
 #[cfg(feature = "rand_compat")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_compat")))]
 impl rand_core::RngCore for Rng {
     fn next_u32(&mut self) -> u32 {
         rand_core::impls::next_u32_via_fill(self)
