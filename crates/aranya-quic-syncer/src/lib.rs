@@ -18,7 +18,6 @@ use aranya_runtime::{
     ClientError, ClientState, PeerCache, Storage as _, StorageError, SubscribeResult, SyncError,
     SyncRequestMessage, SyncRequester, SyncResponder, SyncType, MAX_SYNC_MESSAGE_SIZE,
 };
-use bytes::Bytes;
 use heapless::{FnvIndexMap, Vec};
 use s2n_quic::{
     client::Connect,
@@ -44,9 +43,6 @@ pub enum QuicSyncError {
     /// An error interacting with the runtime client.
     #[error("client error: {0}")]
     Client(#[from] ClientError),
-    /// A tls error from configuring certificates
-    #[error("rustls error: {0}")]
-    Rustls(#[from] rustls::Error),
     /// An error writing to the quic stream
     #[error("connect error: {0}")]
     Connect(#[from] connection::Error),
@@ -65,12 +61,15 @@ pub enum QuicSyncError {
     /// A PostCard error
     #[error("postcard error")]
     PostCard(#[from] postcard::Error),
-    /// An error doing a conversion
-    #[error("Convert error")]
-    Convert(#[from] std::convert::Infallible),
     /// An unexpected bug
     #[error(transparent)]
     Bug(#[from] Bug),
+}
+
+impl From<core::convert::Infallible> for QuicSyncError {
+    fn from(value: core::convert::Infallible) -> Self {
+        match value {}
+    }
 }
 
 /// Runs a server listening for sync requests from other peers.
@@ -136,14 +135,12 @@ where
     S: Sink<<EN as Engine>::Effect>,
 {
     if let Ok(Some(req)) = stream.receive().await {
-        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-        let target = {
-            let len = syncer.lock().await.dispatch(&req, &mut buffer).await?;
-            &buffer[..len]
-        };
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let len = syncer.lock().await.dispatch(&req, &mut buffer).await?;
+        buffer.truncate(len);
 
-        if !target.is_empty() {
-            stream.send(Bytes::copy_from_slice(target)).await?;
+        if len > 0 {
+            stream.send(buffer.into()).await?;
         }
     }
     Ok(())
@@ -156,7 +153,7 @@ where
     SP: StorageProvider,
     S: Sink<<EN as Engine>::Effect>,
 {
-    client: Client,
+    quic_client: Client,
     remote_heads: BTreeMap<SocketAddr, PeerCache>,
     sender: mpsc::UnboundedSender<GraphId>,
     subscriptions: FnvIndexMap<SocketAddr, Subscription, MAXIMUM_SUBSCRIPTIONS>,
@@ -184,7 +181,7 @@ where
             .with_io("0.0.0.0:0")?
             .start()?;
         Ok(Syncer {
-            client,
+            quic_client: client,
             remote_heads: BTreeMap::new(),
             sender,
             subscriptions: FnvIndexMap::new(),
@@ -204,7 +201,7 @@ where
         sink: &mut S,
         storage_id: GraphId,
     ) -> Result<usize, QuicSyncError> {
-        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(syncer.server_addr()).or_default();
         let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
@@ -213,13 +210,15 @@ where
         }
 
         let mut conn = self
-            .client
+            .quic_client
             .connect(Connect::new(syncer.server_addr()).with_server_name("localhost"))
             .await?;
         conn.keep_alive(true)?;
         let mut stream = conn.open_bidirectional_stream().await?;
 
-        stream.send(Bytes::copy_from_slice(&buffer[0..len])).await?;
+        buffer.truncate(len);
+        buffer.shrink_to_fit();
+        stream.send(buffer.into()).await?;
         let mut received_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
         while let Some(chunk) = stream.receive().await? {
             received_data
@@ -262,13 +261,15 @@ where
         )?;
 
         let mut conn = self
-            .client
+            .quic_client
             .connect(Connect::new(peer_addr).with_server_name("localhost"))
             .await?;
         conn.keep_alive(true)?;
         let mut stream = conn.open_bidirectional_stream().await?;
 
-        stream.send(Bytes::copy_from_slice(&buffer[0..len])).await?;
+        buffer.truncate(len);
+        buffer.shrink_to_fit();
+        stream.send(buffer.into()).await?;
         if let Some(resp) = stream.receive().await? {
             let result: SubscribeResult = postcard::from_bytes(&resp)?;
             match result {
@@ -290,13 +291,15 @@ where
         let len = sync_requester.unsubscribe(&mut buffer)?;
 
         let mut conn = self
-            .client
+            .quic_client
             .connect(Connect::new(peer_addr).with_server_name("localhost"))
             .await?;
         conn.keep_alive(true)?;
         let mut stream = conn.open_bidirectional_stream().await?;
 
-        stream.send(Bytes::copy_from_slice(&buffer[0..len])).await?;
+        buffer.truncate(len);
+        buffer.shrink_to_fit();
+        stream.send(buffer.into()).await?;
         Ok(())
     }
 
@@ -408,7 +411,7 @@ where
                 commands,
             })?;
             assert!(response_syncer.ready());
-            let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_syncer.push(
                 &mut target,
                 self.client_state.lock().await.provider(),
@@ -418,16 +421,16 @@ where
                 if len as u64 > subscription.remaining_bytes {
                     subscription.remaining_bytes = 0;
                 } else {
-                    let message = &target[..len];
+                    target.truncate(len);
 
                     let mut conn = self
-                        .client
+                        .quic_client
                         .connect(Connect::new(*addr).with_server_name("localhost"))
                         .await?;
                     conn.keep_alive(true)?;
                     let mut stream = conn.open_bidirectional_stream().await?;
 
-                    stream.send(Bytes::copy_from_slice(message)).await?;
+                    stream.send(target.into()).await?;
                     subscription.remaining_bytes = subscription
                         .remaining_bytes
                         .checked_sub(len as u64)
