@@ -1,12 +1,10 @@
 extern crate alloc;
-extern crate std;
 
 use alloc::{boxed::Box, rc::Rc, string::String, vec, vec::Vec};
 use core::{
     cell::RefCell,
     ops::{Deref, DerefMut},
 };
-use std::sync::RwLock;
 
 use aranya_buggy::{BugExt, SafeBorrow};
 use aranya_crypto::Id;
@@ -14,6 +12,7 @@ use aranya_policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError,
     MachineErrorType, MachineIO, MachineIOError, MachineStack,
 };
+use spin::Mutex;
 use tracing::error;
 
 use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
@@ -51,7 +50,7 @@ pub struct VmPolicyIO<'o, P, S, E, FFI> {
     facts: Rc<RefCell<&'o mut P>>,
     sink: Rc<RefCell<&'o mut S>>,
     publish_stack: Vec<(String, Vec<KVPair>)>,
-    engine: &'o RwLock<E>,
+    engine: &'o Mutex<E>,
     ffis: &'o [FFI],
 }
 
@@ -63,7 +62,7 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     pub fn new(
         facts: Rc<RefCell<&'o mut P>>,
         sink: Rc<RefCell<&'o mut S>>,
-        engine: &'o RwLock<E>,
+        engine: &'o Mutex<E>,
         ffis: &'o [FFI],
     ) -> VmPolicyIO<'o, P, S, E, FFI> {
         VmPolicyIO {
@@ -162,7 +161,7 @@ where
     ) -> Result<(), MachineError> {
         let sink = &mut self
             .engine
-            .write()
+            .try_lock()
             .assume("should be able to borrow sink")?;
         self.ffis.get(module).map_or(
             Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(

@@ -115,13 +115,11 @@
 //! effects from a policy document.
 
 extern crate alloc;
-extern crate std;
 
 use alloc::{
     borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, sync::Arc, vec::Vec,
 };
 use core::{borrow::Borrow, cell::RefCell, fmt};
-use std::sync::RwLock;
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
@@ -195,7 +193,7 @@ macro_rules! vm_effect {
 /// A [Policy] implementation that uses the Policy VM.
 pub struct VmPolicy<E> {
     machine: Machine,
-    engine: RwLock<E>,
+    engine: Mutex<E>,
     ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
     // TODO(chip): replace or fill this with priorities from attributes
     priority_map: Arc<BTreeMap<String, u32>>,
@@ -211,7 +209,7 @@ impl<E> VmPolicy<E> {
         let priority_map = VmPolicy::<E>::get_command_priorities(&machine)?;
         Ok(Self {
             machine,
-            engine: RwLock::new(engine),
+            engine: Mutex::new(engine),
             ffis,
             priority_map: Arc::new(priority_map),
         })
