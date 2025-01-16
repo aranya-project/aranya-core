@@ -109,9 +109,6 @@ audit-as-crates-io = false
 [policy.aranya-runtime]
 audit-as-crates-io = false
 
-[policy.aranya-trouble]
-audit-as-crates-io = false
-
 [[exemptions.addr2line]]
 version = "0.24.2"
 criteria = "safe-to-deploy"
