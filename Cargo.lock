@@ -283,10 +283,13 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "sha2",
+ "sha3",
+ "sha3-kmac",
  "sha3-utils",
  "spin 0.9.8",
  "subtle",
  "tempfile",
+ "tuple-hash",
  "typenum",
  "wycheproof",
  "zeroize",
@@ -2640,6 +2643,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha3"
+version = "0.10.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
+dependencies = [
+ "digest",
+ "keccak",
+]
+
+[[package]]
+name = "sha3-kmac"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6bd61ee2e7e938038c05b68ce0a80134c317aea4d2c0cc2a72f5a8d43c0fca3d"
+dependencies = [
+ "generic-array 1.1.1",
+ "sha3",
+ "sha3-utils",
+]
+
+[[package]]
 name = "sha3-utils"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3090,6 +3114,17 @@ checksum = "04659ddb06c87d233c566112c1c9c5b9e98256d9af50ec3bc9c8327f873a7568"
 dependencies = [
  "quote",
  "syn 2.0.90",
+]
+
+[[package]]
+name = "tuple-hash"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d4c9748876f276cba00de5dc03818a20a4e5a0c2e35965697d3cf2a9c30c9eb2"
+dependencies = [
+ "generic-array 1.1.1",
+ "sha3",
+ "sha3-utils",
 ]
 
 [[package]]

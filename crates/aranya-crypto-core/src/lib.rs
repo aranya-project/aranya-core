@@ -32,9 +32,12 @@ pub mod kem;
 pub mod keys;
 pub mod mac;
 pub mod rust;
+pub mod sha3;
 pub mod signer;
 pub mod test_util;
+pub mod traits;
 mod util;
+pub mod xof;
 pub mod zeroize;
 
 pub use aranya_buggy;
