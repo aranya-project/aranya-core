@@ -155,16 +155,16 @@ action invalidate() {
 "#;
 
 #[derive(Debug, Default)]
-struct TestSink {
+pub struct TestSink {
     expect: Vec<VmEffectData>,
 }
 
 impl TestSink {
-    fn new() -> Self {
+    pub fn new() -> Self {
         TestSink { expect: Vec::new() }
     }
 
-    fn add_expectation(&mut self, expect: VmEffectData) {
+    pub fn add_expectation(&mut self, expect: VmEffectData) {
         self.expect.push(expect);
     }
 }
