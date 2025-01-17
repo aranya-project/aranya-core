@@ -22,7 +22,7 @@ use aranya_runtime::{
     ClientState, Engine, GraphId, StorageProvider, SyncRequester,
 };
 use clap::Parser;
-use quinn::ServerConfig;
+use s2n_quic::Server;
 use tokio::sync::{mpsc, Mutex as TMutex};
 
 /// An error returned by the syncer.
@@ -92,20 +92,30 @@ async fn sync_peer<EN, SP, S>(
     }
 }
 
+fn get_server(cert: String, key: String, addr: SocketAddr) -> Result<Server> {
+    let server = Server::builder()
+        .with_tls((&cert[..], &key[..]))?
+        .with_io(addr)?
+        .start()?;
+    Ok(server)
+}
+
 #[tokio::main]
 async fn run(options: Opt) -> Result<()> {
     let dirs = directories_next::ProjectDirs::from("org", "spideroak", "aranya")
         .expect("unable to load directory");
     let path = dirs.data_local_dir();
-    let cert_path = path.join("cert.der");
-    let key_path = path.join("key.der");
-    let (cert, key) = match fs::read(&cert_path).and_then(|x| Ok((x, fs::read(&key_path)?))) {
+    let cert_path = path.join("cert.pem");
+    let key_path = path.join("key.pem");
+    let (cert, key) = match fs::read_to_string(&cert_path)
+        .and_then(|cert| fs::read_to_string(&key_path).map(|key| (cert, key)))
+    {
         Ok(x) => x,
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
             let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])
                 .expect("error generating cert");
-            let key = cert.serialize_private_key_der();
-            let cert = cert.serialize_der().expect("error serializing cert");
+            let key = cert.serialize_private_key_pem();
+            let cert = cert.serialize_pem().expect("error serializing cert");
             fs::create_dir_all(path).context("failed to create certificate directory")?;
             fs::write(&cert_path, &cert).context("failed to write certificate")?;
             fs::write(&key_path, &key).context("failed to write private key")?;
@@ -121,24 +131,14 @@ async fn run(options: Opt) -> Result<()> {
 
     let client = Arc::new(TMutex::new(ClientState::new(engine, storage)));
     let sink = Arc::new(TMutex::new(PrintSink {}));
-    let key = rustls::PrivateKey(key);
-    let cert = rustls::Certificate(cert);
-    let cert_chain = vec![cert];
+    let server = get_server(cert.clone(), key, options.listen)?;
     let (tx1, _) = mpsc::unbounded_channel();
-    let mut server_config = ServerConfig::with_single_cert(cert_chain.clone(), key.clone())?;
-    let transport_config =
-        Arc::get_mut(&mut server_config.transport).expect("error creating transport config");
-    transport_config.max_concurrent_uni_streams(0_u8.into());
-    let endpoint =
-        quinn::Endpoint::server(server_config, options.listen).map_err(|e| SyncError {
-            error_msg: e.to_string(),
-        })?;
     let syncer = Arc::new(TMutex::new(Syncer::new(
-        &cert_chain,
+        &cert[..],
         client.clone(),
         sink.clone(),
         tx1,
-        endpoint.local_addr()?,
+        server.local_addr()?,
     )?));
 
     let storage_id;
@@ -166,7 +166,7 @@ async fn run(options: Opt) -> Result<()> {
     }
 
     let (_, rx1) = mpsc::unbounded_channel();
-    let task = tokio::spawn(run_syncer(syncer.clone(), endpoint, rx1));
+    let task = tokio::spawn(run_syncer(syncer.clone(), server, rx1));
     // Initial sync to sync the Init command
     if !options.new_graph {
         sync_peer(

@@ -4,7 +4,7 @@
 
 use std::{
     collections::BTreeMap,
-    net::{Ipv4Addr, SocketAddr},
+    net::SocketAddr,
     ops::DerefMut,
     sync::Arc,
     time::{Duration, SystemTime},
@@ -19,7 +19,12 @@ use aranya_runtime::{
     SyncRequestMessage, SyncRequester, SyncResponder, SyncType, MAX_SYNC_MESSAGE_SIZE,
 };
 use heapless::{FnvIndexMap, Vec};
-use quinn::{ClientConfig, ConnectError, ConnectionError, Endpoint, ReadToEndError, WriteError};
+use s2n_quic::{
+    client::Connect,
+    connection, provider,
+    stream::{self, BidirectionalStream},
+    Client, Connection, Server,
+};
 use tokio::{
     select,
     sync::{mpsc, Mutex as TMutex},
@@ -38,21 +43,15 @@ pub enum QuicSyncError {
     /// An error interacting with the runtime client.
     #[error("client error: {0}")]
     Client(#[from] ClientError),
-    /// A tls error from configuring certificates
-    #[error("rustls error: {0}")]
-    Rustls(#[from] rustls::Error),
     /// An error writing to the quic stream
-    #[error("write error: {0}")]
-    Write(#[from] WriteError),
-    /// An error reading from the quic stream
-    #[error("read error: {0}")]
-    Read(#[from] ReadToEndError),
-    /// An error when creating a connection
     #[error("connect error: {0}")]
-    Connect(#[from] ConnectError),
-    /// An error during connection
-    #[error("connection error: {0}")]
-    Connection(#[from] ConnectionError),
+    Connect(#[from] connection::Error),
+    /// An error using a stream
+    #[error("stream error: {0}")]
+    Stream(#[from] stream::Error),
+    /// An error using a provider
+    #[error("provider start error: {0}")]
+    ProviderStart(#[from] provider::StartError),
     /// An IO error binding the socket
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
@@ -67,10 +66,16 @@ pub enum QuicSyncError {
     Bug(#[from] Bug),
 }
 
+impl From<core::convert::Infallible> for QuicSyncError {
+    fn from(value: core::convert::Infallible) -> Self {
+        match value {}
+    }
+}
+
 /// Runs a server listening for sync requests from other peers.
 pub async fn run_syncer<EN, SP, S>(
     syncer: Arc<TMutex<Syncer<EN, SP, S>>>,
-    endpoint: Endpoint,
+    mut server: Server,
     mut receiver: mpsc::UnboundedReceiver<GraphId>,
 ) where
     EN: Engine,
@@ -79,7 +84,7 @@ pub async fn run_syncer<EN, SP, S>(
 {
     loop {
         select! {
-            Some(conn) = endpoint.accept() => {
+            Some(conn) = server.accept() => {
                 if let Err(e) = handle_connection(conn, syncer.clone()).await {
                     error!(cause = ?e, "sync error");
                 }
@@ -95,7 +100,7 @@ pub async fn run_syncer<EN, SP, S>(
 }
 
 async fn handle_connection<EN, SP, S>(
-    conn: quinn::Connecting,
+    mut conn: Connection,
     dispatcher: Arc<TMutex<Syncer<EN, SP, S>>>,
 ) -> Result<(), QuicSyncError>
 where
@@ -103,23 +108,25 @@ where
     SP: StorageProvider,
     S: Sink<<EN as Engine>::Effect>,
 {
-    let connection = conn.await?;
-    let stream = connection.accept_bi().await;
+    let stream = conn.accept_bidirectional_stream().await;
     let stream = match stream {
-        Err(ConnectionError::ApplicationClosed { .. }) => {
+        Err(connection::Error::EndpointClosing { .. }) => {
             return Ok(());
         }
         Err(e) => {
             return Err(e.into());
         }
-        Ok(s) => s,
+        Ok(None) => {
+            return Ok(());
+        }
+        Ok(Some(s)) => s,
     };
     handle_request(stream, dispatcher).await?;
     Ok(())
 }
 
 async fn handle_request<EN, SP, S>(
-    (mut send, mut recv): (quinn::SendStream, quinn::RecvStream),
+    mut stream: BidirectionalStream,
     syncer: Arc<TMutex<Syncer<EN, SP, S>>>,
 ) -> Result<(), QuicSyncError>
 where
@@ -127,18 +134,14 @@ where
     SP: StorageProvider,
     S: Sink<<EN as Engine>::Effect>,
 {
-    let req = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
-
-    let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let target = {
+    if let Ok(Some(req)) = stream.receive().await {
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let len = syncer.lock().await.dispatch(&req, &mut buffer).await?;
-        &buffer[..len]
-    };
+        buffer.truncate(len);
 
-    if !target.is_empty() {
-        send.write_all(target).await?;
-        // Gracefully terminate the stream
-        send.finish().await?;
+        if len > 0 {
+            stream.send(buffer.into()).await?;
+        }
     }
     Ok(())
 }
@@ -150,11 +153,11 @@ where
     SP: StorageProvider,
     S: Sink<<EN as Engine>::Effect>,
 {
-    endpoint: Endpoint,
+    quic_client: Client,
     remote_heads: BTreeMap<SocketAddr, PeerCache>,
     sender: mpsc::UnboundedSender<GraphId>,
     subscriptions: FnvIndexMap<SocketAddr, Subscription, MAXIMUM_SUBSCRIPTIONS>,
-    client: Arc<TMutex<ClientState<EN, SP>>>,
+    client_state: Arc<TMutex<ClientState<EN, SP>>>,
     sink: Arc<TMutex<S>>,
     server_addr: SocketAddr,
 }
@@ -166,27 +169,23 @@ where
     S: Sink<<EN as Engine>::Effect>,
 {
     /// Create a sync client with the given certificate chain.
-    pub fn new(
-        cert_chain: &[rustls::Certificate],
-        client: Arc<TMutex<ClientState<EN, SP>>>,
+    pub fn new<T: provider::tls::Provider>(
+        cert: T,
+        client_state: Arc<TMutex<ClientState<EN, SP>>>,
         sink: Arc<TMutex<S>>,
         sender: mpsc::UnboundedSender<GraphId>,
         server_addr: SocketAddr,
     ) -> Result<Syncer<EN, SP, S>, QuicSyncError> {
-        let mut certs = rustls::RootCertStore::empty();
-        for cert in cert_chain {
-            certs.add(cert)?;
-        }
-        let client_cfg = ClientConfig::with_root_certificates(certs);
-        let client_addr = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0);
-        let mut endpoint = Endpoint::client(client_addr)?;
-        endpoint.set_default_client_config(client_cfg);
+        let client = Client::builder()
+            .with_tls(cert)?
+            .with_io("0.0.0.0:0")?
+            .start()?;
         Ok(Syncer {
-            endpoint,
+            quic_client: client,
             remote_heads: BTreeMap::new(),
             sender,
             subscriptions: FnvIndexMap::new(),
-            client,
+            client_state,
             sink,
             server_addr,
         })
@@ -202,7 +201,7 @@ where
         sink: &mut S,
         storage_id: GraphId,
     ) -> Result<usize, QuicSyncError> {
-        let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
+        let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
         let heads = self.remote_heads.entry(syncer.server_addr()).or_default();
         let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
@@ -210,18 +209,25 @@ where
             bug!("length should fit in buffer");
         }
 
-        let conn = self
-            .endpoint
-            .connect(syncer.server_addr(), "localhost")?
+        let mut conn = self
+            .quic_client
+            .connect(Connect::new(syncer.server_addr()).with_server_name("localhost"))
             .await?;
-        let (mut send, mut recv) = conn.open_bi().await?;
+        conn.keep_alive(true)?;
+        let mut stream = conn.open_bidirectional_stream().await?;
 
-        send.write_all(&buffer[0..len]).await?;
-        send.finish().await?;
-        let resp = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
+        buffer.truncate(len);
+        buffer.shrink_to_fit();
+        stream.send(buffer.into()).await?;
+        let mut received_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
+        while let Some(chunk) = stream.receive().await? {
+            received_data
+                .extend_from_slice(&chunk)
+                .expect("Failed to extend received data from slice");
+        }
         // An empty response means we're up to date and there's nothing to sync.
-        if !resp.is_empty() {
-            if let Some(cmds) = syncer.receive(&resp)? {
+        if !received_data.is_empty() {
+            if let Some(cmds) = syncer.receive(&received_data)? {
                 received = cmds.len();
                 let mut trx = client.transaction(storage_id);
                 client.add_commands(&mut trx, sink, &cmds, heads)?;
@@ -229,7 +235,7 @@ where
                 self.push(storage_id)?;
             }
         }
-        conn.close(0u32.into(), b"done");
+        conn.close(0u32.into());
         Ok(received)
     }
 
@@ -254,17 +260,24 @@ where
             max_bytes,
         )?;
 
-        let conn = self.endpoint.connect(peer_addr, "localhost")?.await?;
-        let (mut send, mut recv) = conn.open_bi().await?;
+        let mut conn = self
+            .quic_client
+            .connect(Connect::new(peer_addr).with_server_name("localhost"))
+            .await?;
+        conn.keep_alive(true)?;
+        let mut stream = conn.open_bidirectional_stream().await?;
 
-        send.write_all(&buffer[0..len]).await?;
-        send.finish().await?;
-        let resp = recv.read_to_end(MAX_SYNC_MESSAGE_SIZE).await?;
-        let result: SubscribeResult = postcard::from_bytes(&resp)?;
-        conn.close(0u32.into(), b"done");
-        match result {
-            SubscribeResult::Success => Ok(()),
-            SubscribeResult::TooManySubscriptions => bug!("TooManySubscriptions"),
+        buffer.truncate(len);
+        buffer.shrink_to_fit();
+        stream.send(buffer.into()).await?;
+        if let Some(resp) = stream.receive().await? {
+            let result: SubscribeResult = postcard::from_bytes(&resp)?;
+            match result {
+                SubscribeResult::Success => Ok(()),
+                SubscribeResult::TooManySubscriptions => bug!("TooManySubscriptions"),
+            }
+        } else {
+            Ok(())
         }
     }
 
@@ -277,12 +290,16 @@ where
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let len = sync_requester.unsubscribe(&mut buffer)?;
 
-        let conn = self.endpoint.connect(peer_addr, "localhost")?.await?;
-        let (mut send, _) = conn.open_bi().await?;
+        let mut conn = self
+            .quic_client
+            .connect(Connect::new(peer_addr).with_server_name("localhost"))
+            .await?;
+        conn.keep_alive(true)?;
+        let mut stream = conn.open_bidirectional_stream().await?;
 
-        send.write_all(&buffer[0..len]).await?;
-        send.finish().await?;
-        conn.close(0u32.into(), b"done");
+        buffer.truncate(len);
+        buffer.shrink_to_fit();
+        stream.send(buffer.into()).await?;
         Ok(())
     }
 
@@ -298,7 +315,7 @@ where
         let len = match sync_type {
             SyncType::Poll { request, address } => {
                 let response_cache = self.remote_heads.entry(address).or_default();
-                let mut client = self.client.lock().await;
+                let mut client = self.client_state.lock().await;
                 let mut response_syncer = SyncResponder::new(self.server_addr);
                 response_syncer.receive(request)?;
                 assert!(response_syncer.ready());
@@ -324,7 +341,7 @@ where
                 ) {
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(address).or_default();
-                        let mut client = self.client.lock().await;
+                        let mut client = self.client_state.lock().await;
                         let storage = client.provider().get_storage(storage_id)?;
                         for command in commands {
                             // We only need to check commands that are a part of our graph.
@@ -357,7 +374,7 @@ where
                     if !cmds.is_empty() {
                         {
                             let response_cache = self.remote_heads.entry(address).or_default();
-                            let mut client = self.client.lock().await;
+                            let mut client = self.client_state.lock().await;
                             let mut trx = client.transaction(storage_id);
                             let mut sink_guard = self.sink.lock().await;
                             let sink = sink_guard.deref_mut();
@@ -394,23 +411,26 @@ where
                 commands,
             })?;
             assert!(response_syncer.ready());
-            let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
+            let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
             let len = response_syncer.push(
                 &mut target,
-                self.client.lock().await.provider(),
+                self.client_state.lock().await.provider(),
                 response_cache,
             )?;
             if len > 0 {
                 if len as u64 > subscription.remaining_bytes {
                     subscription.remaining_bytes = 0;
                 } else {
-                    let message = &target[..len];
+                    target.truncate(len);
 
-                    let conn = self.endpoint.connect(*addr, "localhost")?.await?;
-                    let (mut send, _) = conn.open_bi().await?;
-                    send.write_all(message).await?;
-                    // Gracefully terminate the stream
-                    send.finish().await?;
+                    let mut conn = self
+                        .quic_client
+                        .connect(Connect::new(*addr).with_server_name("localhost"))
+                        .await?;
+                    conn.keep_alive(true)?;
+                    let mut stream = conn.open_bidirectional_stream().await?;
+
+                    stream.send(target.into()).await?;
                     subscription.remaining_bytes = subscription
                         .remaining_bytes
                         .checked_sub(len as u64)

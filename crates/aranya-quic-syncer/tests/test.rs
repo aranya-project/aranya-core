@@ -1,11 +1,6 @@
-use std::{
-    net::{Ipv4Addr, SocketAddr},
-    ops::DerefMut,
-    sync::Arc,
-    time::Duration,
-};
+use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use aranya_buggy::BugExt;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
@@ -15,19 +10,20 @@ use aranya_runtime::{
     storage::{memory::MemStorageProvider, StorageProvider},
     ClientState, GraphId, SyncRequester,
 };
-use quinn::{Endpoint, ServerConfig};
-use rustls::{Certificate, PrivateKey};
+use s2n_quic::{provider::congestion_controller::Bbr, Server};
 use tokio::sync::{mpsc, Mutex as TMutex};
 
 #[test_log::test(tokio::test)]
 async fn test_sync() -> Result<()> {
     let client1 = make_client();
     let sink1 = Arc::new(TMutex::new(TestSink::new()));
-    let (key, cert) = certs()?;
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
+    let key = cert.serialize_private_key_pem();
+    let cert = cert.serialize_pem()?;
     let (tx, rx) = mpsc::unbounded_channel();
-    let server_addr1 = get_server_endpoint(key.clone(), cert.clone())?;
+    let server_addr1 = get_server(cert.clone(), key.clone())?;
     let syncer1 = Arc::new(TMutex::new(Syncer::new(
-        &[cert.clone()],
+        &*cert.clone(),
         client1.clone(),
         sink1.clone(),
         tx,
@@ -44,6 +40,8 @@ async fn test_sync() -> Result<()> {
     )?;
 
     let addr1 = spawn_syncer(syncer1.clone(), rx, server_addr1)?;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    syncer1.lock().await.push(storage_id)?;
 
     for i in 0..6 {
         let action = TestActions::SetValue(i, i);
@@ -59,9 +57,9 @@ async fn test_sync() -> Result<()> {
         sink2.lock().await.add_expectation(TestEffect::Got(i));
     }
     let (tx, _) = mpsc::unbounded_channel();
-    let server_addr2 = get_server_endpoint(key.clone(), cert.clone())?;
+    let server_addr2 = get_server(cert.clone(), key)?;
     let mut syncer2 = Syncer::new(
-        &[cert],
+        &*cert,
         client2.clone(),
         sink2.clone(),
         tx,
@@ -84,11 +82,13 @@ async fn test_sync() -> Result<()> {
 async fn test_sync_subscribe() -> Result<()> {
     let client1 = make_client();
     let sink1 = Arc::new(TMutex::new(TestSink::new()));
-    let (key, cert) = certs()?;
+    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
+    let key = cert.serialize_private_key_pem();
+    let cert = cert.serialize_pem()?;
     let (tx1, rx1) = mpsc::unbounded_channel();
-    let server_addr1 = get_server_endpoint(key.clone(), cert.clone())?;
+    let server_addr1 = get_server(cert.clone(), key.clone())?;
     let syncer1 = Arc::new(TMutex::new(Syncer::new(
-        &[cert.clone()],
+        &*cert.clone(),
         client1.clone(),
         sink1.clone(),
         tx1,
@@ -98,9 +98,9 @@ async fn test_sync_subscribe() -> Result<()> {
     let client2 = make_client();
     let sink2 = Arc::new(TMutex::new(TestSink::new()));
     let (tx2, rx2) = mpsc::unbounded_channel();
-    let server_addr2 = get_server_endpoint(key.clone(), cert.clone())?;
+    let server_addr2 = get_server(cert.clone(), key.clone())?;
     let syncer2 = Arc::new(TMutex::new(Syncer::new(
-        &[cert.clone()],
+        &*cert,
         client2.clone(),
         sink2.clone(),
         tx2,
@@ -235,6 +235,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .await
         .unsubscribe(SyncRequester::new(storage_id, &mut Rng, addr2), addr1)
         .await?;
+    tokio::time::sleep(Duration::from_millis(100)).await;
 
     value = value.checked_add(1).assume("must not overflow")?;
     let action = TestActions::SetValue(value, value);
@@ -255,22 +256,19 @@ async fn test_sync_subscribe() -> Result<()> {
     Ok(())
 }
 
-fn get_server_endpoint(key: PrivateKey, cert: Certificate) -> Result<Endpoint> {
-    let mut server_config = ServerConfig::with_single_cert(vec![cert], key)?;
-    let transport_config =
-        Arc::get_mut(&mut server_config.transport).context("unique transport")?;
-    transport_config.max_concurrent_uni_streams(0_u8.into());
-    let endpoint = Endpoint::server(
-        server_config,
-        SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 0),
-    )?;
-    Ok(endpoint)
+fn get_server(cert: String, key: String) -> Result<Server> {
+    let server = Server::builder()
+        .with_tls((&cert[..], &key[..]))?
+        .with_io("127.0.0.1:0")?
+        .with_congestion_controller(Bbr::default())?
+        .start()?;
+    Ok(server)
 }
 
 fn spawn_syncer<EN, SP, S>(
     syncer: Arc<TMutex<Syncer<EN, SP, S>>>,
     receiver: mpsc::UnboundedReceiver<GraphId>,
-    endpoint: Endpoint,
+    server: Server,
 ) -> Result<SocketAddr>
 where
     EN: Engine + Send + 'static,
@@ -278,16 +276,9 @@ where
     S: Sink<<EN as Engine>::Effect> + Send + 'static,
     <SP as StorageProvider>::Perspective: Send,
 {
-    tokio::spawn(run_syncer(syncer.clone(), endpoint.clone(), receiver));
-    Ok(endpoint.local_addr()?)
-}
-
-fn certs() -> Result<(PrivateKey, Certificate)> {
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
-    Ok((
-        PrivateKey(cert.serialize_private_key_der()),
-        Certificate(cert.serialize_der()?),
-    ))
+    let server_addr = server.local_addr()?;
+    tokio::spawn(run_syncer(syncer, server, receiver));
+    Ok(server_addr)
 }
 
 fn make_client() -> Arc<TMutex<ClientState<TestEngine, MemStorageProvider>>> {
