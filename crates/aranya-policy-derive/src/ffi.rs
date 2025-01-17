@@ -279,7 +279,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 #[doc(hidden)]
                 #[allow(non_snake_case)]
                 fn call<__E: #crypto::engine::Engine>(
-                    &mut self,
+                    &self,
                     __proc: usize,
                     __stack: &mut impl #vm::Stack,
                     __ctx: &#vm::CommandContext<'_>,

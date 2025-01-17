@@ -14,7 +14,7 @@ use crate::FfiPerspective;
 #[test]
 fn test_head_id() {
     let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
-    let mut perspective = FfiPerspective {};
+    let perspective = FfiPerspective {};
     let head_id = Id::default();
 
     {

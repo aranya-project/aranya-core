@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::string::String;
 use core::fmt;
 
+use aranya_buggy::Bug;
 use aranya_crypto::Id;
 use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 
@@ -21,6 +22,8 @@ pub enum MachineIOError {
     FactNotFound,
     /// Some internal operation has failed
     Internal,
+    /// Bug
+    Bug(Bug),
 }
 
 impl fmt::Display for MachineIOError {
@@ -29,6 +32,7 @@ impl fmt::Display for MachineIOError {
             MachineIOError::FactExists => write!(f, "Fact exists"),
             MachineIOError::FactNotFound => write!(f, "Fact not found"),
             MachineIOError::Internal => write!(f, "Internal error"),
+            MachineIOError::Bug(bug) => write!(f, "{bug}"),
         }
     }
 }
@@ -38,6 +42,12 @@ impl core::error::Error for MachineIOError {}
 impl From<MachineIOError> for MachineError {
     fn from(value: MachineIOError) -> Self {
         MachineError::new(MachineErrorType::IO(value))
+    }
+}
+
+impl From<Bug> for MachineIOError {
+    fn from(bug: Bug) -> Self {
+        Self::Bug(bug)
     }
 }
 

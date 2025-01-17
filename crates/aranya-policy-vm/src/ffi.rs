@@ -20,7 +20,7 @@ pub trait FfiModule {
     /// Invokes a function in the module.
     /// `procedure` is the index in [`functions`][Self::SCHEMA].
     fn call<E: Engine>(
-        &mut self,
+        &self,
         procedure: usize,
         stack: &mut impl Stack,
         ctx: &CommandContext<'_>,
