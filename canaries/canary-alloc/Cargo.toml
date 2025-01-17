@@ -13,4 +13,3 @@ aranya-buggy = { path = "../../crates/aranya-buggy" }
 aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false }
 # `aranya-crypto` enables `getrandom` by default.
 aranya-crypto-core = { path = "../../crates/aranya-crypto-core", default-features = false }
-aranya-trouble = { path = "../../crates/aranya-trouble" }

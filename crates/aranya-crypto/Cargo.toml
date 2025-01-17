@@ -117,7 +117,6 @@ trng = ["aranya-crypto-core/trng"]
 aranya-base58 = { version = "0.1.0", path = "../aranya-base58", default-features = false }
 aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
 aranya-crypto-core = { version = "0.1.0", path = "../aranya-crypto-core", default-features = false }
-aranya-trouble = { version = "0.1.0", path = "../aranya-trouble", default-features = false }
 
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }

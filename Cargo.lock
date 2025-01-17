@@ -238,7 +238,6 @@ dependencies = [
  "aranya-buggy",
  "aranya-crypto",
  "aranya-crypto-core",
- "aranya-trouble",
  "byteorder",
  "cfg-if",
  "ciborium",
@@ -575,10 +574,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aranya-trouble"
-version = "0.1.0"
-
-[[package]]
 name = "atomic-polyfill"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -723,7 +718,6 @@ dependencies = [
  "aranya-buggy",
  "aranya-crypto",
  "aranya-crypto-core",
- "aranya-trouble",
 ]
 
 [[package]]
@@ -743,7 +737,6 @@ dependencies = [
  "aranya-policy-module",
  "aranya-policy-vm",
  "aranya-runtime",
- "aranya-trouble",
 ]
 
 [[package]]
