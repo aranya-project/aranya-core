@@ -1414,10 +1414,10 @@ fn should_create_clients_with_args() {
     assert_eq!(effects, expected);
 }
 
-/// Test for <https://git.spideroak-inc.com/spideroak-inc/flow3-rs/issues/917>.
-/// TODO update comment to explain what is being tested, rather than the old issue number.
+/// If there are no facts when writing a fact perspective, we skip writing it and just return its prior.
+/// When starting a perspective from the middle of a segment with no facts, we previously would grab the wrong fact index, by taking that prior's prior to apply 0 fact updates to it.
 #[test]
-fn test_storage_fact() {
+fn test_storage_fact_index() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
     let mut test_model = RuntimeModel::new(basic_clients);
 
