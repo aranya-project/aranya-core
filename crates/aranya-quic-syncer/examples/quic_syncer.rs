@@ -10,7 +10,7 @@
 //! Peer 2
 //! cargo run --example quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --storage $STORAGE_ID
 
-use std::{error::Error, fmt, fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
+use std::{fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
 
 use anyhow::{bail, Context, Result};
 use aranya_crypto::Rng;
@@ -26,21 +26,10 @@ use quinn::ServerConfig;
 use tokio::sync::{mpsc, Mutex as TMutex};
 
 /// An error returned by the syncer.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("SyncError: {error_msg}")]
 struct SyncError {
     error_msg: String,
-}
-
-impl fmt::Display for SyncError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SyncError: {}", self.error_msg)
-    }
-}
-
-impl Error for SyncError {
-    fn description(&self) -> &str {
-        &self.error_msg
-    }
 }
 
 #[derive(Parser, Debug)]

@@ -11,7 +11,7 @@ use alloc::{
     collections::btree_map::{self, BTreeMap},
     vec::Vec,
 };
-use core::{fmt, marker::PhantomData, ops::Deref};
+use core::marker::PhantomData;
 
 use super::{Entry, ErrorKind, KeyStore, Occupied, Vacant};
 use crate::{engine::WrappedKey, id::Id};
@@ -109,9 +109,11 @@ impl<T: WrappedKey> Occupied<T> for OccupiedEntry<'_, T> {
 }
 
 /// An error returned by [`MemStore`].
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("{err}")]
 pub struct Error {
     kind: ErrorKind,
+    #[source]
     err: Box<dyn core::error::Error + Send + Sync + 'static>,
 }
 
@@ -120,18 +122,6 @@ impl Error {
     #[inline]
     pub fn downcast_ref<T: core::error::Error + 'static>(&self) -> Option<&T> {
         self.err.downcast_ref::<T>()
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.err)
-    }
-}
-
-impl core::error::Error for Error {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        Some(self.err.deref())
     }
 }
 
@@ -152,27 +142,13 @@ impl super::Error for Error {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("unable to encode key")]
 struct EncodingError;
 
-impl fmt::Display for EncodingError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unable to encode key")
-    }
-}
-
-impl core::error::Error for EncodingError {}
-
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("unable to decode key")]
 struct DecodingError;
-
-impl fmt::Display for DecodingError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unable to decode key")
-    }
-}
-
-impl core::error::Error for DecodingError {}
 
 #[cfg(test)]
 mod tests {

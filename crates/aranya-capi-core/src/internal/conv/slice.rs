@@ -1,6 +1,6 @@
 //! Slice conversions.
 
-use core::{error, fmt, slice};
+use core::slice;
 
 fn check_len(len: usize) -> Result<(), InvalidSlice> {
     isize::try_from(len)
@@ -80,16 +80,9 @@ pub unsafe fn try_from_raw_parts_mut<'a, T>(
 
 /// The error from [`try_as_slice`][crate::try_as_slice] and
 /// [`try_as_mut_slice`][crate::try_as_mut_slice].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{0}")]
 pub struct InvalidSlice(&'static str);
-
-impl fmt::Display for InvalidSlice {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
-}
-
-impl error::Error for InvalidSlice {}
 
 /// Evaluates to a slice, or returns an error if `$ptr` is
 /// invalid or `$ptr` and `$len` do not match.

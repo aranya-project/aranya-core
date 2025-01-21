@@ -23,6 +23,7 @@ aranya-policy-vm = { version = "0.3.0", path = "../aranya-policy-vm" }
 aranya-runtime = { version = "0.3.0", path = "../aranya-runtime" }
 
 serde = { workspace = true, optional = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }

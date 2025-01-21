@@ -4,7 +4,6 @@ mod protocol;
 use crate::tests::protocol::*;
 
 use std::fs::File;
-use std::io::Error;
 
 use std::collections::BTreeMap;
 
@@ -37,36 +36,12 @@ enum Actions {
     AutoMerge,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 enum TestError {
-    Client(ClientError),
-    Engine(engine::EngineError),
-    Io(Error),
-    SerdeYaml(serde_yaml::Error),
-}
-
-impl From<ClientError> for TestError {
-    fn from(err: ClientError) -> Self {
-        TestError::Client(err)
-    }
-}
-
-impl From<std::io::Error> for TestError {
-    fn from(err: std::io::Error) -> Self {
-        TestError::Io(err)
-    }
-}
-
-impl From<serde_yaml::Error> for TestError {
-    fn from(err: serde_yaml::Error) -> Self {
-        TestError::SerdeYaml(err)
-    }
-}
-
-impl From<engine::EngineError> for TestError {
-    fn from(err: engine::EngineError) -> Self {
-        TestError::Engine(err)
-    }
+    Client(#[from] ClientError),
+    Engine(#[from] engine::EngineError),
+    Io(#[from] std::io::Error),
+    SerdeYaml(#[from] serde_yaml::Error),
 }
 
 fn read(file: &str) -> Result<Vec<Actions>,TestError> {

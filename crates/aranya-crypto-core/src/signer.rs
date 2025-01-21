@@ -2,12 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-use core::{
-    borrow::Borrow,
-    fmt::{self, Debug},
-    num::NonZeroU16,
-    result::Result,
-};
+use core::{borrow::Borrow, fmt::Debug, num::NonZeroU16, result::Result};
 
 use aranya_buggy::Bug;
 
@@ -19,55 +14,24 @@ use crate::{
 };
 
 /// An error from a [`Signer`].
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SignerError {
     /// An unknown or internal error has occurred.
+    #[error("{0}")]
     Other(&'static str),
     /// The imported signature is invalid.
-    Encoding(EncodingError),
+    #[error(transparent)]
+    Encoding(#[from] EncodingError),
     /// The signature could not be verified.
+    #[error("unable to verify signature")]
     Verification,
     /// [`Signer::verify_batch`] was called with different
     /// lengths for messages, signatures, or verifying keys.
+    #[error("invalid `verify_batch` lengths")]
     InvalidBatchLengths,
     /// An internal error was discovered.
-    Bug(Bug),
-}
-
-impl fmt::Display for SignerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Other(msg) => write!(f, "{}", msg),
-            Self::Encoding(err) => write!(f, "{}", err),
-            Self::Verification => write!(f, "unable to verify signature"),
-            Self::InvalidBatchLengths => write!(f, "invalid `verify_batch` lengths"),
-            Self::Bug(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl core::error::Error for SignerError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Other(_) => None,
-            Self::Encoding(err) => Some(err),
-            Self::Verification => None,
-            Self::InvalidBatchLengths => None,
-            Self::Bug(err) => Some(err),
-        }
-    }
-}
-
-impl From<EncodingError> for SignerError {
-    fn from(err: EncodingError) -> Self {
-        Self::Encoding(err)
-    }
-}
-
-impl From<Bug> for SignerError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
 
 /// Digital signature algorithm identifiers.
@@ -158,7 +122,8 @@ pub trait SigningKey<T: Signer + ?Sized>: SecretKey {
 }
 
 /// Handles Public Key errors
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{0}")]
 pub struct PkError(pub(crate) &'static str);
 
 impl PkError {
@@ -168,14 +133,6 @@ impl PkError {
         self.0
     }
 }
-
-impl fmt::Display for PkError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl core::error::Error for PkError {}
 
 /// An asymmetric public key used to verify digital signatures.
 pub trait VerifyingKey<T: Signer + ?Sized>: PublicKey {

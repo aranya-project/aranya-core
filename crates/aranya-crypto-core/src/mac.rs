@@ -1,11 +1,6 @@
 //! Message Authentication Codes.
 
-use core::{
-    array::TryFromSliceError,
-    fmt::{self, Debug},
-    num::NonZeroU16,
-    result::Result,
-};
+use core::{array::TryFromSliceError, num::NonZeroU16, result::Result};
 
 use generic_array::{ArrayLength, GenericArray};
 use subtle::{Choice, ConstantTimeEq};
@@ -20,24 +15,15 @@ use crate::{
 };
 
 /// An error from a [`Mac`].
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MacError {
     /// The key provided to [`Mac::new`] is insecure.
+    #[error("insecure key")]
     InsecureKey,
     /// The MAC (authentication tag) could not be verified.
+    #[error("unable to verify MAC")]
     Verification,
 }
-
-impl fmt::Display for MacError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InsecureKey => write!(f, "insecure key"),
-            Self::Verification => write!(f, "unable to verify MAC"),
-        }
-    }
-}
-
-impl core::error::Error for MacError {}
 
 /// MAC algorithm identifiers.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, AlgId)]

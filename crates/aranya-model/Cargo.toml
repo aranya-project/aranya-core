@@ -15,6 +15,7 @@ aranya-policy-vm = { version = "0.3.0", path = "../aranya-policy-vm" }
 aranya-runtime = { version = "0.3.0", path = "../aranya-runtime", features = ["testing"] }
 
 anyhow = { workspace = true }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 aranya-crypto-ffi = { path = "../aranya-crypto-ffi" }

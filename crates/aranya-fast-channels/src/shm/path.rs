@@ -8,16 +8,9 @@ use cfg_if::cfg_if;
 use crate::errno::Errno;
 
 /// The path is invalid.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{0}")]
 pub struct InvalidPathError(&'static str);
-
-impl core::error::Error for InvalidPathError {}
-
-impl fmt::Display for InvalidPathError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 const fn bad_path(msg: &'static str) -> Result<(), InvalidPathError> {
     Err(InvalidPathError(msg))

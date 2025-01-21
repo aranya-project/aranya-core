@@ -3,8 +3,6 @@
 //! An [`Engine`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
-use core::fmt;
-
 use aranya_buggy::Bug;
 use serde::{Deserialize, Serialize};
 
@@ -15,36 +13,21 @@ use crate::{
 };
 
 /// An error returned by the runtime engine.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum EngineError {
+    #[error("read error")]
     Read,
+    #[error("write error")]
     Write,
+    #[error("check error")]
     Check,
+    #[error("panic")]
     Panic,
+    #[error("internal error")]
     InternalError,
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
-
-impl fmt::Display for EngineError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read => write!(f, "read error"),
-            Self::Write => write!(f, "write error "),
-            Self::Check => write!(f, "check error"),
-            Self::Panic => write!(f, "panic"),
-            Self::InternalError => write!(f, "internal error"),
-            Self::Bug(b) => write!(f, "{b}"),
-        }
-    }
-}
-
-impl From<Bug> for EngineError {
-    fn from(value: Bug) -> Self {
-        EngineError::Bug(value)
-    }
-}
-
-impl core::error::Error for EngineError {}
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolicyId(usize);

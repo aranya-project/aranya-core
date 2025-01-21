@@ -15,6 +15,7 @@ aranya-policy-ast = { version = "0.1.0", path = "../aranya-policy-ast" }
 proptest = { workspace = true, default-features = false, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
+thiserror = { workspace = true }
 
 [features]
 default = []
@@ -31,6 +32,7 @@ std = [
 	"aranya-crypto/std",
 	"aranya-policy-ast/std",
 	"serde/std",
+	"thiserror/std",
 ]
 
 testing = []

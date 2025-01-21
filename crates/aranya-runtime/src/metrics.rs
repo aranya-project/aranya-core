@@ -2,10 +2,7 @@
 //!
 //! [`Metrics`] provide an API to collect information about operations preformed within the Aranya runtime.
 
-use core::{
-    fmt::{self, Display},
-    time::Duration,
-};
+use core::time::Duration;
 
 /// [`Metrics`] provides an interface to push a named [`Metric`] to a collection.
 pub trait Metrics {
@@ -20,17 +17,10 @@ pub enum Metric {
     Duration(Duration),
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum MetricError {
+    #[error("metric type is incompatible")]
     IncorrectType,
+    #[error("metric cannot be found")]
     UnknownMetric,
-}
-
-impl Display for MetricError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::IncorrectType => write!(f, "metric type is incompatible"),
-            Self::UnknownMetric => write!(f, "Metric cannot be found"),
-        }
-    }
 }

@@ -11,22 +11,27 @@ use crate::io::MachineIOError;
 /// Possible machine errors.
 // TODO(chip): These should be elaborated with additional data, and/or
 // more fine grained types.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum MachineErrorType {
     /// Stack underflow - an operation tried to consume a value from an
     /// empty stack.
+    #[error("stack underflow")]
     StackUnderflow,
     /// Stack overflow - an operation tried to push a value onto a full
     /// stack.
+    #[error("stack overflow")]
     StackOverflow,
     /// Name already defined - an attempt was made to define a name
     /// that was already defined. Parameter is the name.
+    #[error("name `{0}` already defined")]
     AlreadyDefined(String),
     /// Name not defined - an attempt was made to access a name that
     /// has not been defined. Parameter is the name.
+    #[error("name `{0}` not defined")]
     NotDefined(String),
     /// Invalid type - An operation was given a value of the wrong
     /// type. E.g. addition with strings.
+    #[error("expected type {want}, but got {got}: {msg}")]
     InvalidType {
         /// Expected type name
         want: String,
@@ -37,77 +42,57 @@ pub enum MachineErrorType {
     },
     /// Invalid struct member - An attempt to access a member not
     /// present in a struct. Parameter is the key name.
+    #[error("invalid struct member `{0}`")]
     InvalidStructMember(String),
     /// Invalid fact - An attempt was made to use a fact in a way
     /// that does not match the Fact schema.
+    #[error("invalid fact: {0}")]
     InvalidFact(String),
     /// Invalid schema - An attempt to publish a Command struct or emit
     /// an Effect that does not match its definition.
+    #[error("invalid schema: {0}")]
     InvalidSchema(String),
     /// Unresolved target - A branching instruction attempted to jump
     /// to a target whose address has not yet been resolved.
+    #[error("unresolved branch/jump target: {0}")]
     UnresolvedTarget(Label),
     /// Invalid address - An attempt to execute an instruction went
     /// beyond instruction bounds, or an action/command lookup did not
     /// find an address for the given name.
+    #[error("invalid address: {0}")]
     InvalidAddress(String),
     /// Bad state - Some internal state is invalid and execution cannot
     /// continue.
+    #[error("bad state: {0}")]
     BadState(&'static str),
     /// IntegerOverflow occurs when an instruction wraps an integer above
     /// the max value or below the min value.
+    #[error("integer wrap")]
     IntegerOverflow,
     /// Invalid instruction - An instruction was used in the wrong
     /// context, or some information encoded into an instruction is
     /// invalid. E.g. a Swap(0)
+    #[error("invalid instruction")]
     InvalidInstruction,
     /// An instruction has done something wrong with the call stack, like
     /// `Return`ed without a `Call`.
+    #[error("call stack")]
     CallStack,
     /// IO Error - Some machine I/O operation caused an error
+    #[error("IO: {0}")]
     IO(MachineIOError),
     /// FFI module name not found.
+    #[error("FFI module not defined: {0}")]
     FfiModuleNotDefined(usize),
     /// FFI module was found, but the procedure index is invalid.
+    #[error("FFI proc {0} not defined in module {1}")]
     FfiProcedureNotDefined(String, usize),
     /// An implementation bug
+    #[error("bug: {0}")]
     Bug(Bug),
     /// Unknown - every other possible problem
+    #[error("unknown error: {0}")]
     Unknown(String),
-}
-
-impl fmt::Display for MachineErrorType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MachineErrorType::StackUnderflow => write!(f, "stack underflow"),
-            MachineErrorType::StackOverflow => write!(f, "stack overflow"),
-            MachineErrorType::AlreadyDefined(s) => write!(f, "name `{}` already defined", s),
-            MachineErrorType::NotDefined(s) => write!(f, "name `{}` not defined", s),
-            MachineErrorType::InvalidType { want, got, msg } => {
-                write!(f, "expected type {}, but got {}: {}", want, got, msg)
-            }
-            MachineErrorType::InvalidStructMember(k) => write!(f, "invalid struct member `{}`", k),
-            MachineErrorType::InvalidFact(s) => write!(f, "invalid fact: {}", s),
-            MachineErrorType::InvalidSchema(s) => write!(f, "invalid schema: {}", s),
-            MachineErrorType::UnresolvedTarget(label) => {
-                write!(f, "unresolved branch/jump target: {}", label)
-            }
-            MachineErrorType::InvalidAddress(label) => write!(f, "invalid address: {}", label),
-            MachineErrorType::BadState(s) => write!(f, "Bad state: {}", s),
-            MachineErrorType::IntegerOverflow => write!(f, "integer wrap"),
-            MachineErrorType::InvalidInstruction => write!(f, "invalid instruction"),
-            MachineErrorType::CallStack => write!(f, "call stack"),
-            MachineErrorType::IO(e) => write!(f, "IO: {}", e),
-            MachineErrorType::FfiModuleNotDefined(module) => {
-                write!(f, "FFI module not defined: {}", module)
-            }
-            MachineErrorType::FfiProcedureNotDefined(module, proc) => {
-                write!(f, "FFI proc {} not defined in module {}", proc, module)
-            }
-            MachineErrorType::Bug(bug) => write!(f, "Bug: {}", bug),
-            MachineErrorType::Unknown(reason) => write!(f, "unknown error: {}", reason),
-        }
-    }
 }
 
 impl MachineErrorType {
@@ -124,8 +109,6 @@ impl MachineErrorType {
         }
     }
 }
-
-impl core::error::Error for MachineErrorType {}
 
 impl From<Infallible> for MachineErrorType {
     fn from(err: Infallible) -> Self {
@@ -162,9 +145,10 @@ struct MachineErrorSource {
 }
 
 /// An error returned by [`Machine`][crate::machine::Machine].
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub struct MachineError {
     /// The type of the error
+    #[source]
     pub err_type: MachineErrorType,
     /// The source code information, if it exists
     source: Option<MachineErrorSource>,
@@ -220,11 +204,6 @@ impl fmt::Display for MachineError {
         }
     }
 }
-
-// Implementing Display and deriving Debug implements
-// error::Error with default behavior by declaring this empty
-// implementation.
-impl core::error::Error for MachineError {}
 
 impl From<MachineErrorType> for MachineError {
     fn from(value: MachineErrorType) -> Self {

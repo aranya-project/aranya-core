@@ -1,4 +1,4 @@
-use core::{alloc::LayoutError, convert::Infallible, fmt};
+use core::{alloc::LayoutError, convert::Infallible};
 
 use aranya_buggy::Bug;
 use aranya_crypto::{
@@ -12,40 +12,54 @@ use crate::{buf::AllocError, errno::Errno, header::HeaderError, state::ChannelId
 pub type Result<T> = core::result::Result<T, Error>;
 
 /// An error returned from this API.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum Error {
     /// An internal bug was discovered.
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
     /// The header is invalid.
-    InvalidHeader(HeaderError),
+    #[error(transparent)]
+    InvalidHeader(#[from] HeaderError),
     /// The channel could not be found.
+    #[error("channel not found: {0}")]
     NotFound(ChannelId),
     /// The input is too large.
+    #[error("input too large")]
     InputTooLarge,
     /// The output buffer is too small.
+    #[error("output buffer too small")]
     BufferTooSmall,
     /// The cryptographic key has expired and must be rotated.
+    #[error("peer's key is expired")]
     KeyExpired,
     /// The ciphertext could not be authenticated.
+    #[error("authentication failure")]
     Authentication,
     /// Some other cryptographic error occurred.
-    Crypto(aranya_crypto::Error),
+    #[error("other cryptographic error: {0}")]
+    Crypto(#[from] aranya_crypto::Error),
     /// An implementation of [`Buf`][crate::Buf] was unable to
     /// allocate memory.
-    Allocation(AllocError),
+    #[error(transparent)]
+    Allocation(#[from] AllocError),
     /// A libc function failed.
-    Errno(Errno),
+    #[error(transparent)]
+    Errno(#[from] Errno),
     /// The argument is invalid.
     ///
     /// This exists primarily for the C API.
+    #[error("invalid argument: {0}")]
     InvalidArgument(&'static str),
     /// Invalid memory layout.
-    MemoryLayout(LayoutError),
+    #[error("invalid memory layout: {0}")]
+    MemoryLayout(#[from] LayoutError),
     /// Not enough space to add a new node.
+    #[error("out of space for new nodes")]
     OutOfSpace,
     /// The shared memory state failed.
     #[cfg(any(feature = "sdlib", feature = "posix"))]
-    SharedMem(crate::shm::Error),
+    #[error(transparent)]
+    SharedMem(#[from] crate::shm::Error),
     /// The state is corrupted.
     ///
     /// In general, this error is only returned when a more
@@ -53,63 +67,8 @@ pub enum Error {
     ///
     /// For example, if the `shm` feature is enabled then
     /// [`Error::SharedMem`] will likely be returned instead.
+    #[error("{0}")]
     Corrupted(&'static str),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bug(err) => write!(f, "{err}"),
-            Self::InvalidHeader(err) => write!(f, "{err}"),
-            Self::NotFound(ch) => write!(f, "channel not found: {ch}"),
-            Self::InputTooLarge => write!(f, "input too large"),
-            Self::BufferTooSmall => write!(f, "output buffer too small"),
-            Self::Authentication => write!(f, "authentication failure"),
-            Self::Crypto(err) => write!(f, "other cryptographic error: {err}"),
-            Self::KeyExpired => write!(f, "peer's key is expired"),
-            Self::Allocation(err) => write!(f, "{err}"),
-            Self::Errno(err) => write!(f, "{err}"),
-            Self::InvalidArgument(msg) => write!(f, "invalid argument: {msg}"),
-            Self::MemoryLayout(err) => write!(f, "invalid memory layout: {err}"),
-            Self::OutOfSpace => write!(f, "out of space for new nodes"),
-            #[cfg(any(feature = "sdlib", feature = "posix"))]
-            Self::SharedMem(err) => write!(f, "{err}"),
-            Self::Corrupted(msg) => write!(f, "{msg}"),
-        }
-    }
-}
-
-impl core::error::Error for Error {}
-
-impl From<Bug> for Error {
-    fn from(value: Bug) -> Self {
-        Self::Bug(value)
-    }
-}
-
-impl From<Errno> for Error {
-    fn from(value: Errno) -> Self {
-        Self::Errno(value)
-    }
-}
-
-impl From<LayoutError> for Error {
-    fn from(value: LayoutError) -> Self {
-        Self::MemoryLayout(value)
-    }
-}
-
-impl From<AllocError> for Error {
-    fn from(value: AllocError) -> Self {
-        Self::Allocation(value)
-    }
-}
-
-#[cfg(any(feature = "sdlib", feature = "posix"))]
-impl From<crate::shm::Error> for Error {
-    fn from(value: crate::shm::Error) -> Self {
-        Self::SharedMem(value)
-    }
 }
 
 #[cfg(any(feature = "sdlib", feature = "posix"))]
@@ -122,12 +81,6 @@ impl From<crate::shm::Corrupted> for Error {
 impl From<Infallible> for Error {
     fn from(v: Infallible) -> Self {
         match v {}
-    }
-}
-
-impl From<HeaderError> for Error {
-    fn from(err: HeaderError) -> Self {
-        Self::InvalidHeader(err)
     }
 }
 

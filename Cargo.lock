@@ -136,6 +136,7 @@ dependencies = [
  "serde",
  "siphasher",
  "spin 0.9.8",
+ "thiserror 2.0.7",
  "tracing",
 ]
 
@@ -151,6 +152,7 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
+ "thiserror 2.0.7",
 ]
 
 [[package]]
@@ -214,6 +216,7 @@ dependencies = [
  "ciborium-io",
  "const_format",
  "libc",
+ "thiserror 2.0.7",
  "tracing",
  "tracing-subscriber",
  "tracing-test",
@@ -252,6 +255,7 @@ dependencies = [
  "serde_json",
  "siphasher",
  "tempfile",
+ "thiserror 2.0.7",
 ]
 
 [[package]]
@@ -288,6 +292,7 @@ dependencies = [
  "spin 0.9.8",
  "subtle",
  "tempfile",
+ "thiserror 2.0.7",
  "typenum",
  "wycheproof",
  "zeroize",
@@ -312,6 +317,7 @@ dependencies = [
  "aranya-policy-vm",
  "postcard",
  "serde",
+ "thiserror 2.0.7",
  "tracing",
 ]
 
@@ -329,6 +335,7 @@ version = "0.3.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
+ "thiserror 2.0.7",
  "tracing",
 ]
 
@@ -349,6 +356,7 @@ dependencies = [
  "log",
  "serde",
  "serial_test",
+ "thiserror 2.0.7",
 ]
 
 [[package]]
@@ -359,6 +367,7 @@ dependencies = [
  "aranya-idam-ffi",
  "aranya-policy-vm",
  "postcard",
+ "thiserror 2.0.7",
  "tracing",
 ]
 
@@ -369,6 +378,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "memchr",
+ "thiserror 2.0.7",
  "tracing",
 ]
 
@@ -391,6 +401,7 @@ dependencies = [
  "serde",
  "tempfile",
  "test-log",
+ "thiserror 2.0.7",
 ]
 
 [[package]]
@@ -406,6 +417,7 @@ name = "aranya-policy-ast"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "thiserror 2.0.7",
 ]
 
 [[package]]
@@ -419,6 +431,7 @@ dependencies = [
  "aranya-policy-module",
  "ciborium",
  "clap",
+ "thiserror 2.0.7",
 ]
 
 [[package]]
@@ -443,6 +456,7 @@ dependencies = [
  "aranya-runtime",
  "goldenfile",
  "serde",
+ "thiserror 2.0.7",
 ]
 
 [[package]]
@@ -491,6 +505,7 @@ dependencies = [
  "proptest",
  "proptest-derive",
  "serde",
+ "thiserror 2.0.7",
 ]
 
 [[package]]
@@ -509,6 +524,7 @@ dependencies = [
  "ciborium",
  "heapless 0.8.0",
  "postcard",
+ "thiserror 2.0.7",
 ]
 
 [[package]]

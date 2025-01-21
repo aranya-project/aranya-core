@@ -7,16 +7,9 @@ use rustix::io::Errno;
 
 use crate::keystore::{self, ErrorKind};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, thiserror::Error)]
+#[error("unexpected EOF")]
 pub(crate) struct UnexpectedEof;
-
-impl fmt::Display for UnexpectedEof {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unexpected EOF")
-    }
-}
-
-impl core::error::Error for UnexpectedEof {}
 
 /// An error returned by [`super::Store`].
 #[derive(Debug)]
@@ -193,16 +186,9 @@ fn downcast_ref<T: 'static, E: 'static>(err: &E) -> Option<&T> {
 }
 
 /// The root keystore directory was deleted.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
+#[error("root keystore directory deleted")]
 pub struct RootDeleted(pub(crate) ());
-
-impl core::error::Error for RootDeleted {}
-
-impl fmt::Display for RootDeleted {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("root keystore directory deleted")
-    }
-}
 
 #[cfg(test)]
 mod tests {

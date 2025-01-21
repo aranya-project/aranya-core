@@ -1,16 +1,18 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use core::{fmt, ops::Deref};
+use core::fmt;
 
 use aranya_crypto::{id::IdError, signer::PkError, Id, ImportError, UnwrapError};
 use aranya_policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
 
 /// An error returned by `Ffi`.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("{err}")]
 pub struct Error {
     kind: ErrorKind,
+    #[source]
     err: Box<dyn core::error::Error + Send + Sync + 'static>,
 }
 
@@ -35,18 +37,6 @@ impl Error {
     #[inline]
     pub const fn kind(&self) -> ErrorKind {
         self.kind
-    }
-}
-
-impl core::error::Error for Error {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        Some(self.err.deref())
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.err.fmt(f)
     }
 }
 
@@ -172,37 +162,16 @@ impl fmt::Display for ErrorKind {
 }
 
 /// Unable to find a key in the [`KeyStore`][aranya_crypto::KeyStore].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("invalid command ID")]
 pub struct InvalidCmdId(pub(crate) ());
 
-impl core::error::Error for InvalidCmdId {}
-
-impl fmt::Display for InvalidCmdId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid command ID")
-    }
-}
-
 /// Unable to find a key in the [`KeyStore`][aranya_crypto::KeyStore].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("key not found: {0}")]
 pub struct KeyNotFound(pub(crate) Id);
 
-impl core::error::Error for KeyNotFound {}
-
-impl fmt::Display for KeyNotFound {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "key not found: {}", self.0)
-    }
-}
-
 /// A method was called in the wrong context.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{0}")]
 pub struct WrongContext(pub(crate) &'static str);
-
-impl core::error::Error for WrongContext {}
-
-impl fmt::Display for WrongContext {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}

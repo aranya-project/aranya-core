@@ -7,41 +7,18 @@ pub mod newtype;
 pub mod ptr;
 pub mod slice;
 
-use core::{error, fmt};
-
 use crate::safe::{Error, InvalidPtr};
 
 /// Errors returned by the various conversion macros.
 // TODO(eric): Get rid of this? It's unused.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ConvError {
     /// For pointers to `T`.
-    Default(InvalidPtr),
+    #[error(transparent)]
+    Default(#[from] InvalidPtr),
     /// For pointers to `Safe<T>`.
-    Safe(Error),
-}
-
-impl error::Error for ConvError {}
-
-impl fmt::Display for ConvError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Default(err) => write!(f, "{err}"),
-            Self::Safe(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl From<InvalidPtr> for ConvError {
-    fn from(err: InvalidPtr) -> Self {
-        Self::Default(err)
-    }
-}
-
-impl From<Error> for ConvError {
-    fn from(err: Error) -> Self {
-        Self::Safe(err)
-    }
+    #[error(transparent)]
+    Safe(#[from] Error),
 }
 
 /// TODO

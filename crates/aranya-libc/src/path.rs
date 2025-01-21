@@ -11,16 +11,9 @@ use core::{
 };
 
 /// The input to `Path` is missing a null byte.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[error("missing null byte")]
 pub struct MissingNullByte(());
-
-impl core::error::Error for MissingNullByte {}
-
-impl fmt::Display for MissingNullByte {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        "missing null byte".fmt(f)
-    }
-}
 
 /// A borrowed file path.
 #[repr(transparent)]

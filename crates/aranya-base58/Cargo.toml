@@ -18,12 +18,13 @@ default = []
 # Enable alloc
 alloc = ["aranya-buggy/alloc"]
 # Enable std
-std = ["alloc", "aranya-buggy/std"]
+std = ["alloc", "aranya-buggy/std", "thiserror/std"]
 
 [dependencies]
 aranya-buggy = { version = "0.1.0", path = "../aranya-buggy" }
 
 byteorder = { workspace = true, default-features = false }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 criterion = { version = "0.5" }

@@ -109,4 +109,4 @@ impl From<Bug> for ParseError {
 }
 
 // Implement default Error via Display and Debug
-impl std::error::Error for ParseError {}
+impl core::error::Error for ParseError {}

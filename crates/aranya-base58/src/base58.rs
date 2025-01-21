@@ -63,28 +63,13 @@ pub trait ToBase58 {
 }
 
 /// The Base58 could not be decoded.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, thiserror::Error)]
 pub enum DecodeError {
+    #[error("bad input")]
     BadInput,
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
-
-impl From<Bug> for DecodeError {
-    fn from(bug: Bug) -> Self {
-        DecodeError::Bug(bug)
-    }
-}
-
-impl fmt::Display for DecodeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::BadInput => write!(f, "bad input"),
-            Self::Bug(bug) => write!(f, "{bug}"),
-        }
-    }
-}
-
-impl core::error::Error for DecodeError {}
 
 // Generate PartialEq for $lhs and $rhs.
 macro_rules! impl_eq {

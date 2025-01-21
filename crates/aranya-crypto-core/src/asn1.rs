@@ -20,33 +20,24 @@ use crate::{
 };
 
 /// An error returned when a signature's encoding is invalid.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum EncodingError {
     /// An unknown or internal error has occurred.
+    #[error("{0}")]
     Other(&'static str),
     /// Either `r` or `s` are too large.
+    #[error("integer out of range")]
     OutOfRange,
     /// Unable to parse an ASN.1 DER encoded signature.
+    #[error("{0}")]
     Der(der::Error),
     /// The input is too large.
+    #[error("DER input too large")]
     TooLarge,
     /// An implementaion error.
-    Bug(Bug),
+    #[error("implementation bug: {}", .0.msg())]
+    Bug(#[from] Bug),
 }
-
-impl fmt::Display for EncodingError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Other(msg) => write!(f, "{}", msg),
-            Self::OutOfRange => write!(f, "integer out of range"),
-            Self::Der(err) => write!(f, "{}", err),
-            Self::TooLarge => write!(f, "DER input too large"),
-            Self::Bug(bug) => write!(f, "implementaion bug: {}", bug.msg()),
-        }
-    }
-}
-
-impl core::error::Error for EncodingError {}
 
 impl From<der::Error> for EncodingError {
     fn from(err: der::Error) -> Self {
@@ -57,12 +48,6 @@ impl From<der::Error> for EncodingError {
 impl From<EncodingError> for ImportError {
     fn from(_err: EncodingError) -> Self {
         Self::InvalidSyntax
-    }
-}
-
-impl From<Bug> for EncodingError {
-    fn from(bug: Bug) -> Self {
-        Self::Bug(bug)
     }
 }
 
