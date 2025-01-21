@@ -6,6 +6,7 @@ pub use hpke::MessageLimitReached;
 
 use super::shared::{RawOpenKey, RawSealKey};
 use crate::{
+    aead,
     hpke::{self, HpkeError, OpenCtx, SealCtx},
     import::ImportError,
     CipherSuite,
@@ -169,10 +170,19 @@ pub enum SealError {
     MessageLimitReached,
     /// Some other error occurred.
     #[error(transparent)]
-    Other(#[from] HpkeError),
+    Other(HpkeError),
     /// An internal bug was discovered.
     #[error(transparent)]
     Bug(#[from] Bug),
+}
+
+impl From<HpkeError> for SealError {
+    fn from(err: HpkeError) -> Self {
+        match err {
+            HpkeError::MessageLimitReached => Self::MessageLimitReached,
+            err => Self::Other(err),
+        }
+    }
 }
 
 /// A decryption key.
@@ -245,8 +255,18 @@ pub enum OpenError {
     MessageLimitReached,
     /// Some other error occurred.
     #[error(transparent)]
-    Other(#[from] HpkeError),
+    Other(HpkeError),
     /// An internal bug was discovered.
     #[error(transparent)]
     Bug(#[from] Bug),
+}
+
+impl From<HpkeError> for OpenError {
+    fn from(err: HpkeError) -> Self {
+        match err {
+            HpkeError::Open(aead::OpenError::Authentication) => Self::Authentication,
+            HpkeError::MessageLimitReached => Self::MessageLimitReached,
+            err => Self::Other(err),
+        }
+    }
 }

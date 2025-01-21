@@ -1,4 +1,4 @@
-use core::{convert::Infallible, fmt, str};
+use core::{convert::Infallible, str};
 
 use aranya_buggy::Bug;
 
