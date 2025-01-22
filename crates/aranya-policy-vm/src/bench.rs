@@ -41,14 +41,14 @@
 extern crate alloc;
 
 use alloc::{collections::BTreeMap, string::String, vec, vec::Vec};
-use core::{
-    fmt::{self, Display},
-    ops::Div,
-};
+use core::{fmt::Display, ops::Div};
 use std::{
+    fmt,
     sync::{Mutex, MutexGuard},
     time::{Duration, Instant},
 };
+
+use table_formatter::{cell, table, table::Align};
 
 /// Measures and records times for named tasks.
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -164,10 +164,40 @@ impl BenchMeasurements {
 
     /// Prints benchmarking stats
     pub fn print_stats(&self) {
-        println!("----- Benchmark Results: -----");
-        for stat in self.stats() {
-            println!("{}", stat);
-        }
+        let header = vec![
+            cell!("Name"),
+            cell!("# Samples"),
+            cell!("Best"),
+            cell!("Worst"),
+            cell!("Mean"),
+            cell!("SD"),
+        ];
+        let cells = {
+            self.stats()
+                .iter()
+                .map(|s| {
+                    vec![
+                        cell!(s.name.clone()),
+                        cell!(s.num_samples, align = Align::Right),
+                        cell!(format!("{:?}", s.best), align = Align::Right),
+                        cell!(format!("{:?}", s.worst), align = Align::Right),
+                        cell!(format!("{:?}", s.mean), align = Align::Right),
+                        cell!(format!("{:?}", s.std_dev), align = Align::Right),
+                    ]
+                })
+                .collect()
+        };
+        let table = table! {
+            header
+            ---
+            cells
+        };
+        let mut buf = vec![];
+        table.render(&mut buf).expect("table should render");
+        println!(
+            "{}",
+            String::from_utf8(buf).expect("table should convert to string")
+        );
     }
 }
 
