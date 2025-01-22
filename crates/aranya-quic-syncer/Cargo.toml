@@ -17,8 +17,7 @@ aranya-runtime = { version = "0.3.0", path = "../aranya-runtime", features = ["s
 
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }
-quinn = { workspace = true }
-rustls = { workspace = true, default-features = false, features = ["quic"] }
+s2n-quic = { workspace = true }
 thiserror = { workspace = true, features = ["std"] }
 tokio = { workspace = true, features = ["sync"] }
 tracing = { workspace = true }
