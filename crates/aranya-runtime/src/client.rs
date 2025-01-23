@@ -142,16 +142,24 @@ where
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
-        request_heads: &mut PeerCache,
     ) -> Result<usize, ClientError> {
-        let count = trx.add_commands(
-            commands,
-            &mut self.provider,
-            &mut self.engine,
-            sink,
-            request_heads,
-        )?;
+        let count = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
         Ok(count)
+    }
+
+    pub fn update_heads(
+        &mut self,
+        storage_id: GraphId,
+        commands: &[impl Command],
+        request_heads: &mut PeerCache,
+    ) -> Result<(), ClientError> {
+        let storage = self.provider.get_storage(storage_id)?;
+        for command in commands {
+            if let Some(loc) = storage.get_location(command.address()?)? {
+                request_heads.add_command(storage, command.address()?, loc)?;
+            }
+        }
+        Ok(())
     }
 
     /// Performs an `action`, writing the results to `sink`.

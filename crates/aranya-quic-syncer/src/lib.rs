@@ -230,8 +230,9 @@ where
             if let Some(cmds) = syncer.receive(&received_data)? {
                 received = cmds.len();
                 let mut trx = client.transaction(storage_id);
-                client.add_commands(&mut trx, sink, &cmds, heads)?;
+                client.add_commands(&mut trx, sink, &cmds)?;
                 client.commit(&mut trx, sink)?;
+                client.update_heads(storage_id, &cmds, heads)?;
                 self.push(storage_id)?;
             }
         }
@@ -378,8 +379,9 @@ where
                             let mut trx = client.transaction(storage_id);
                             let mut sink_guard = self.sink.lock().await;
                             let sink = sink_guard.deref_mut();
-                            client.add_commands(&mut trx, sink, &cmds, response_cache)?;
+                            client.add_commands(&mut trx, sink, &cmds)?;
                             client.commit(&mut trx, sink)?;
+                            client.update_heads(storage_id, &cmds, response_cache)?;
                         }
                         self.push(storage_id)?;
                     }
