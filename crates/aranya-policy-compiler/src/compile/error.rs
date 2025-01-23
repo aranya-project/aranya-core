@@ -7,21 +7,14 @@ use aranya_policy_module::CodeMap;
 use crate::compile::StatementContext;
 
 /// Describes the call color in an [CompileErrorType::InvalidCallColor].
-#[derive(Debug, PartialEq)]
-pub enum CallColor {
+#[derive(Debug, PartialEq, thiserror::Error)]
+pub enum InvalidCallColor {
     /// The call is a pure function
+    #[error("pure function not allowed in finish context")]
     Pure,
     /// The call is a finish function
+    #[error("finish function not allowed in expression")]
     Finish,
-}
-
-impl fmt::Display for CallColor {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Pure => write!(f, "pure function not allowed in finish context"),
-            Self::Finish => write!(f, "finish function not allowed in expression"),
-        }
-    }
 }
 
 /// Errors that can occur during compilation.
@@ -37,8 +30,8 @@ pub enum CompileErrorType {
     #[error("invalid type: {0}")]
     InvalidType(String),
     /// Invalid call color - Tried to make a function call to the wrong type of function.
-    #[error("{0}")]
-    InvalidCallColor(CallColor),
+    #[error(transparent)]
+    InvalidCallColor(#[from] InvalidCallColor),
     /// Resolution of branch targets failed to find a valid target
     #[error("bad branch target: {0}")]
     BadTarget(String),
