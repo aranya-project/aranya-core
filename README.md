@@ -2,6 +2,8 @@
 
 This repo is a cargo workspace for the Rust implementation for the core of the Aranya platform.
 
+More documentation on Aranya is provided here: [Aranya Documentation](https://aranya-project.github.io/aranya-docs/).
+
 ## Cargo Make
 
 This repo uses `cargo-make` as a task runner.
