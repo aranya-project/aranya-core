@@ -64,8 +64,7 @@ impl fmt::Display for BufferTooSmallError {
 impl core::error::Error for BufferTooSmallError {}
 
 /// An error from a [`Nonce`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[error("nonce size is invalid")]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct InvalidNonceSize;
 
 impl InvalidNonceSize {
@@ -75,35 +74,34 @@ impl InvalidNonceSize {
     }
 }
 
+impl fmt::Display for InvalidNonceSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl core::error::Error for InvalidNonceSize {}
+
 /// An error from an [`Aead`] seal.
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum SealError {
     /// An internal bug was discovered.
-    #[error(transparent)]
-    Bug(#[from] Bug),
+    Bug(Bug),
     /// An unknown or internal error has occurred.
-    #[error("{0}")]
     Other(&'static str),
     /// The size of the key is incorrect.
-    #[error("invalid key size")]
     InvalidKeySize,
     /// The size of the nonce is incorrect.
-    #[error(transparent)]
-    InvalidNonceSize(#[from] InvalidNonceSize),
+    InvalidNonceSize(InvalidNonceSize),
     /// The size of the overhead is incorrect.
-    #[error("invalid overhead size")]
     InvalidOverheadSize,
     /// The plaintext is too long.
-    #[error("plaintext too long")]
     PlaintextTooLong,
     /// The additional data is too long.
-    #[error("additional data too long")]
     AdditionalDataTooLong,
     /// The output buffer is too small.
-    #[error(transparent)]
-    BufferTooSmall(#[from] BufferTooSmallError),
+    BufferTooSmall(BufferTooSmallError),
     /// The plaintext could not be encrypted.
-    #[error("encryption error")]
     Encryption,
 }
 
@@ -124,38 +122,68 @@ impl SealError {
     }
 }
 
+impl fmt::Display for SealError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bug(err) => write!(f, "{}", err),
+            Self::BufferTooSmall(err) => write!(f, "{}", err),
+            Self::InvalidNonceSize(err) => write!(f, "{}", err),
+            _ => write!(f, "{}", self.as_str()),
+        }
+    }
+}
+
+impl core::error::Error for SealError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::Bug(err) => Some(err),
+            Self::BufferTooSmall(err) => Some(err),
+            Self::InvalidNonceSize(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<BufferTooSmallError> for SealError {
+    fn from(value: BufferTooSmallError) -> Self {
+        SealError::BufferTooSmall(value)
+    }
+}
+
+impl From<Bug> for SealError {
+    fn from(value: Bug) -> Self {
+        SealError::Bug(value)
+    }
+}
+
+impl From<InvalidNonceSize> for SealError {
+    fn from(value: InvalidNonceSize) -> Self {
+        SealError::InvalidNonceSize(value)
+    }
+}
+
 /// An error from an [`Aead`] open.
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum OpenError {
     /// An internal bug was discovered.
-    #[error(transparent)]
-    Bug(#[from] Bug),
+    Bug(Bug),
     /// An unknown or internal error has occurred.
-    #[error("{0}")]
     Other(&'static str),
     /// The size of the key is incorrect.
-    #[error("invalid key size")]
     InvalidKeySize,
     /// The size of the nonce is incorrect.
-    #[error(transparent)]
-    InvalidNonceSize(#[from] InvalidNonceSize),
+    InvalidNonceSize(InvalidNonceSize),
     /// The size of the overhead is incorrect.
-    #[error("invalid overhead size")]
     InvalidOverheadSize,
     /// The plaintext is too long.
-    #[error("plaintext too long")]
     PlaintextTooLong,
     /// The ciphertext is too long.
-    #[error("ciphertext too long")]
     CiphertextTooLong,
     /// The additional data is too long.
-    #[error("additional data too long")]
     AdditionalDataTooLong,
     /// The output buffer is too small.
-    #[error(transparent)]
-    BufferTooSmall(#[from] BufferTooSmallError),
+    BufferTooSmall(BufferTooSmallError),
     /// The ciphertext could not be authenticated.
-    #[error("authentication error")]
     Authentication,
 }
 
@@ -174,6 +202,46 @@ impl OpenError {
             Self::Authentication => "authentication error",
             Self::BufferTooSmall(err) => err.as_str(),
         }
+    }
+}
+
+impl fmt::Display for OpenError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bug(err) => write!(f, "{}", err),
+            Self::BufferTooSmall(err) => write!(f, "{}", err),
+            Self::InvalidNonceSize(err) => write!(f, "{}", err),
+            _ => write!(f, "{}", self.as_str()),
+        }
+    }
+}
+
+impl core::error::Error for OpenError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::Bug(err) => Some(err),
+            Self::BufferTooSmall(err) => Some(err),
+            Self::InvalidNonceSize(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<BufferTooSmallError> for OpenError {
+    fn from(value: BufferTooSmallError) -> Self {
+        OpenError::BufferTooSmall(value)
+    }
+}
+
+impl From<Bug> for OpenError {
+    fn from(value: Bug) -> Self {
+        OpenError::Bug(value)
+    }
+}
+
+impl From<InvalidNonceSize> for OpenError {
+    fn from(value: InvalidNonceSize) -> Self {
+        OpenError::InvalidNonceSize(value)
     }
 }
 
@@ -764,7 +832,7 @@ pub trait Cmt4Aead: Cmt3Aead {}
 
 #[cfg(feature = "committing-aead")]
 mod committing {
-    use core::{marker::PhantomData, num::NonZeroU64, result::Result};
+    use core::{fmt, marker::PhantomData, num::NonZeroU64, result::Result};
 
     use aranya_buggy::{Bug, BugExt};
     use generic_array::{ArrayLength, GenericArray};
@@ -904,14 +972,12 @@ mod committing {
     }
 
     /// An error occurred during the UNAE-then-Commit transform.
-    #[derive(Debug, Eq, PartialEq, thiserror::Error)]
+    #[derive(Debug, Eq, PartialEq)]
     pub enum UtcError {
         /// An internal bug was discovered.
-        #[error("bug: {0}")]
-        Bug(#[from] Bug),
+        Bug(Bug),
         /// The transformed AEAD key could not be imported.
-        #[error("unable to import HtE transformed key: {0}")]
-        Import(#[from] ImportError),
+        Import(ImportError),
     }
 
     impl UtcError {
@@ -920,6 +986,36 @@ mod committing {
                 Self::Bug(_) => "bug",
                 Self::Import(_) => "unable to import HtE transformed key",
             }
+        }
+    }
+
+    impl fmt::Display for UtcError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Bug(err) => write!(f, "{}: {err}", self.as_str()),
+                Self::Import(err) => write!(f, "{}: {err}", self.as_str()),
+            }
+        }
+    }
+
+    impl core::error::Error for UtcError {
+        fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+            match self {
+                Self::Bug(err) => Some(err),
+                Self::Import(err) => Some(err),
+            }
+        }
+    }
+
+    impl From<Bug> for UtcError {
+        fn from(err: Bug) -> Self {
+            Self::Bug(err)
+        }
+    }
+
+    impl From<ImportError> for UtcError {
+        fn from(err: ImportError) -> Self {
+            Self::Import(err)
         }
     }
 
@@ -1148,14 +1244,12 @@ mod committing {
     pub(crate) use utc_aead;
 
     /// An error occurred during the Hash-then-Encrypt transform.
-    #[derive(Debug, Eq, PartialEq, thiserror::Error)]
+    #[derive(Debug, Eq, PartialEq)]
     pub enum HteError {
         /// The current AEAD key could not be exported.
-        #[error("unable to export inner secret key: {0}")]
-        Export(#[from] ExportError),
+        Export(ExportError),
         /// The transformed AEAD key could not be imported.
-        #[error("unable to import HtE transformed key: {0}")]
-        Import(#[from] ImportError),
+        Import(ImportError),
     }
 
     impl HteError {
@@ -1164,6 +1258,36 @@ mod committing {
                 Self::Export(_) => "unable to export inner secret key",
                 Self::Import(_) => "unable to import HtE transformed key",
             }
+        }
+    }
+
+    impl fmt::Display for HteError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Export(err) => write!(f, "{}: {err}", self.as_str()),
+                Self::Import(err) => write!(f, "{}: {err}", self.as_str()),
+            }
+        }
+    }
+
+    impl core::error::Error for HteError {
+        fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+            match self {
+                Self::Export(err) => Some(err),
+                Self::Import(err) => Some(err),
+            }
+        }
+    }
+
+    impl From<ExportError> for HteError {
+        fn from(err: ExportError) -> Self {
+            Self::Export(err)
+        }
+    }
+
+    impl From<ImportError> for HteError {
+        fn from(err: ImportError) -> Self {
+            Self::Import(err)
         }
     }
 

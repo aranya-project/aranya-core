@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-use core::{iter::IntoIterator, mem, result::Result};
+use core::{fmt, iter::IntoIterator, mem, result::Result};
 
 use aranya_buggy::Bug;
 use generic_array::{ArrayLength, ConstArrayLength, GenericArray, IntoArrayLength};
@@ -17,15 +17,37 @@ pub use crate::hpke::KdfId;
 use crate::{keys::SecretKeyBytes, zeroize::ZeroizeOnDrop};
 
 /// An error from a [`Kdf`].
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum KdfError {
     /// The requested output from a KDF exceeded
     /// [`Kdf::MAX_OUTPUT`].
-    #[error("requested KDF output too long")]
     OutputTooLong,
     /// An internal bug was discovered.
-    #[error(transparent)]
-    Bug(#[from] Bug),
+    Bug(Bug),
+}
+
+impl fmt::Display for KdfError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::OutputTooLong => write!(f, "requested KDF output too long"),
+            Self::Bug(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl core::error::Error for KdfError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::Bug(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<Bug> for KdfError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
+    }
 }
 
 /// An extract-then-expand Key Derivation Function (KDF) as

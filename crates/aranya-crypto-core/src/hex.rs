@@ -184,18 +184,33 @@ where
 }
 
 /// The hexadecimal string could not be decoded.
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Error {
     /// Either `dst` was too short or the length of `src` was not
     /// a multiple of two.
-    #[error("invalid `dst` length")]
     InvalidLength,
     /// The input was not a valid hexadecimal string.
-    #[error("invalid hexadecimal encoding")]
     InvalidEncoding,
     /// An implmentation error.
-    #[error("implementation bug: {0}")]
-    Bug(#[from] Bug),
+    Bug(Bug),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidLength => write!(f, "invalid `dst` length"),
+            Self::InvalidEncoding => write!(f, "invalid hexadecimal encoding"),
+            Self::Bug(bug) => write!(f, "implementation bug: {}", bug),
+        }
+    }
+}
+
+impl core::error::Error for Error {}
+
+impl From<Bug> for Error {
+    fn from(bug: Bug) -> Self {
+        Self::Bug(bug)
+    }
 }
 
 /// Encodes `src` into `dst` as hexadecimal in constant time and

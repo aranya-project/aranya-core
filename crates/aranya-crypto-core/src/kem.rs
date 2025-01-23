@@ -2,7 +2,13 @@
 
 #![forbid(unsafe_code)]
 
-use core::{array::TryFromSliceError, borrow::Borrow, marker::PhantomData, result::Result};
+use core::{
+    array::TryFromSliceError,
+    borrow::Borrow,
+    fmt::{self, Debug, Display},
+    marker::PhantomData,
+    result::Result,
+};
 
 #[doc(inline)]
 pub use crate::hpke::KemId;
@@ -16,29 +22,64 @@ use crate::{
 };
 
 /// An error from a [`Kem`].
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum KemError {
     /// The imported secret key is invalid.
-    #[error("invalid secret key data")]
     InvalidDecapKeyFormat,
     /// The imported public key is invalid.
-    #[error("invalid public key data")]
     InvalidEncapKeyFormat,
     /// KEM encapsulation failed.
-    #[error("encapsulation failed")]
     Encap,
     /// Unable to decapsulate the ephemeral symmetric key.
-    #[error("unable to decapsulate symmetric key")]
     Decapsulation,
     /// A DHKEM operation failed.
-    #[error(transparent)]
-    DhKem(#[from] DhKemError),
+    DhKem(DhKemError),
     /// A public key could not be imported.
-    #[error(transparent)]
-    Import(#[from] ImportError),
+    Import(ImportError),
     /// A public key could not be read.
-    #[error(transparent)]
-    PublicKey(#[from] PkError),
+    PublicKey(PkError),
+}
+
+impl Display for KemError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidDecapKeyFormat => write!(f, "invalid secret key data"),
+            Self::InvalidEncapKeyFormat => write!(f, "invalid public key data"),
+            Self::Encap => write!(f, "encapsulation failed"),
+            Self::Decapsulation => write!(f, "unable to decapsulate symmetric key"),
+            Self::DhKem(err) => write!(f, "{}", err),
+            Self::Import(err) => write!(f, "{}", err),
+            Self::PublicKey(err) => write!(f, "{}", err),
+        }
+    }
+}
+
+impl core::error::Error for KemError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::DhKem(err) => Some(err),
+            Self::Import(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<DhKemError> for KemError {
+    fn from(err: DhKemError) -> Self {
+        Self::DhKem(err)
+    }
+}
+
+impl From<ImportError> for KemError {
+    fn from(err: ImportError) -> Self {
+        Self::Import(err)
+    }
+}
+
+impl From<PkError> for KemError {
+    fn from(err: PkError) -> Self {
+        Self::PublicKey(err)
+    }
 }
 
 /// A Key Encapsulation Mechanism (KEM).
@@ -162,12 +203,21 @@ pub trait DecapKey: SecretKey {
 pub trait EncapKey: PublicKey {}
 
 /// An error from an [`Ecdh`].
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum EcdhError {
     /// An unknown or internal error has occurred.
-    #[error("{0}")]
     Other(&'static str),
 }
+
+impl Display for EcdhError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Other(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+impl core::error::Error for EcdhError {}
 
 /// Elliptic Curve Diffie Hellman key exchange.
 ///
@@ -246,17 +296,34 @@ impl<const N: usize> TryFrom<&[u8]> for SharedSecret<N> {
 }
 
 /// An error from a DHKEM.
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum DhKemError {
     /// An ECDH operation failed.
-    #[error(transparent)]
-    Ecdh(#[from] EcdhError),
+    Ecdh(EcdhError),
     /// A KDF operation failed.
-    #[error(transparent)]
-    Kdf(#[from] KdfError),
+    Kdf(KdfError),
     /// A DH key could not be imported.
-    #[error(transparent)]
-    Import(#[from] ImportError),
+    Import(ImportError),
+}
+
+impl Display for DhKemError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ecdh(err) => write!(f, "{}", err),
+            Self::Kdf(err) => write!(f, "{}", err),
+            Self::Import(err) => write!(f, "{}", err),
+        }
+    }
+}
+
+impl core::error::Error for DhKemError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::Ecdh(err) => Some(err),
+            Self::Kdf(err) => Some(err),
+            Self::Import(err) => Some(err),
+        }
+    }
 }
 
 /// Implements [`Kem`] for an [`Ecdh`] and [`Kdf`].

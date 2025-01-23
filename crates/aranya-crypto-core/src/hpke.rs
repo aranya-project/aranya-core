@@ -123,9 +123,16 @@ impl<'a, T> Mode<'a, T> {
 }
 
 /// The PSK or its ID are empty.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[error("invalid pre-shared key: PSK or PSK ID are empty")]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct InvalidPsk;
+
+impl Display for InvalidPsk {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("invalid pre-shared key: PSK or PSK ID are empty")
+    }
+}
+
+impl core::error::Error for InvalidPsk {}
 
 /// A pre-shared key and its ID.
 #[cfg_attr(test, derive(Debug))]
@@ -296,33 +303,97 @@ impl Display for AeadId {
 }
 
 /// An error from an [`Hpke`].
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum HpkeError {
     /// An AEAD seal operation failed.
-    #[error(transparent)]
-    Seal(#[from] SealError),
+    Seal(SealError),
     /// An AEAD open operation failed.
-    #[error(transparent)]
-    Open(#[from] OpenError),
+    Open(OpenError),
     /// A KDF operation failed.
-    #[error(transparent)]
-    Kdf(#[from] KdfError),
+    Kdf(KdfError),
     /// A KEM operation failed.
-    #[error(transparent)]
-    Kem(#[from] KemError),
+    Kem(KemError),
     /// A key could not be imported.
-    #[error(transparent)]
-    Import(#[from] ImportError),
+    Import(ImportError),
     /// A key could not be exported.
-    #[error(transparent)]
-    Export(#[from] ExportError),
+    Export(ExportError),
     /// The encryption context has been used to send the maximum
     /// number of messages.
-    #[error("message limit reached")]
     MessageLimitReached,
     /// An internal bug was discovered.
-    #[error(transparent)]
-    Bug(#[from] Bug),
+    Bug(Bug),
+}
+
+impl Display for HpkeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Seal(err) => write!(f, "{}", err),
+            Self::Open(err) => write!(f, "{}", err),
+            Self::Kdf(err) => write!(f, "{}", err),
+            Self::Kem(err) => write!(f, "{}", err),
+            Self::Import(err) => write!(f, "{}", err),
+            Self::Export(err) => write!(f, "{}", err),
+            Self::MessageLimitReached => write!(f, "message limit reached"),
+            Self::Bug(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl core::error::Error for HpkeError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::Seal(err) => Some(err),
+            Self::Open(err) => Some(err),
+            Self::Kdf(err) => Some(err),
+            Self::Kem(err) => Some(err),
+            Self::Import(err) => Some(err),
+            Self::Export(err) => Some(err),
+            Self::MessageLimitReached => None,
+            Self::Bug(err) => Some(err),
+        }
+    }
+}
+
+impl From<SealError> for HpkeError {
+    fn from(err: SealError) -> Self {
+        Self::Seal(err)
+    }
+}
+
+impl From<OpenError> for HpkeError {
+    fn from(err: OpenError) -> Self {
+        Self::Open(err)
+    }
+}
+
+impl From<KdfError> for HpkeError {
+    fn from(err: KdfError) -> Self {
+        Self::Kdf(err)
+    }
+}
+
+impl From<KemError> for HpkeError {
+    fn from(err: KemError) -> Self {
+        Self::Kem(err)
+    }
+}
+
+impl From<ImportError> for HpkeError {
+    fn from(err: ImportError) -> Self {
+        Self::Import(err)
+    }
+}
+
+impl From<ExportError> for HpkeError {
+    fn from(err: ExportError) -> Self {
+        Self::Export(err)
+    }
+}
+
+impl From<Bug> for HpkeError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
+    }
 }
 
 impl From<MessageLimitReached> for HpkeError {
@@ -903,9 +974,16 @@ impl<A: Aead + IndCca2> OpenCtx<A> {
 }
 
 /// HPKE's message limit has been reached.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
-#[error("message limit reached")]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct MessageLimitReached;
+
+impl Display for MessageLimitReached {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("message limit reached")
+    }
+}
+
+impl core::error::Error for MessageLimitReached {}
 
 /// Sequence numbers ensure nonce uniqueness.
 #[derive(Copy, Clone, Debug, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]

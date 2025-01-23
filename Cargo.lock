@@ -298,7 +298,6 @@ dependencies = [
  "spin 0.9.8",
  "subtle",
  "tempfile",
- "thiserror 2.0.7",
  "typenum",
  "wycheproof",
  "zeroize",

@@ -1,6 +1,10 @@
 //! Importing and exporting data.
 
-use core::{ops::Range, result::Result};
+use core::{
+    fmt::{self, Display},
+    ops::Range,
+    result::Result,
+};
 
 use aranya_buggy::Bug;
 use generic_array::{ArrayLength, GenericArray};
@@ -8,8 +12,7 @@ use generic_array::{ArrayLength, GenericArray};
 use crate::signer::PkError;
 
 /// A slice could not be converted to a fixed-size buffer.
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
-#[error("invalid size data: got {got}, want {start}..{end}", start = self.want.start, end = self.want.end)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct InvalidSizeError {
     /// The incorrect data size.
     pub got: usize,
@@ -17,28 +20,75 @@ pub struct InvalidSizeError {
     pub want: Range<usize>,
 }
 
+impl Display for InvalidSizeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "invalid size data: got {}, want {}..{}",
+            self.got, self.want.start, self.want.end
+        )
+    }
+}
+
+impl core::error::Error for InvalidSizeError {}
+
 /// An error that occured while importing data.
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ImportError {
     /// An unknown or internal error has occurred.
-    #[error("{0}")]
     Other(&'static str),
     /// The data is an incorrect size.
-    #[error(transparent)]
-    InvalidSize(#[from] InvalidSizeError),
+    InvalidSize(InvalidSizeError),
     /// The data is syntactically invalid.
-    #[error("data is syntactically invalid")]
     InvalidSyntax,
     /// The data came from a different context (e.g., a different
     /// `Engine`).
-    #[error("data came from a different context")]
     InvalidContext,
     /// An internal bug was discovered.
-    #[error(transparent)]
-    Bug(#[from] Bug),
+    Bug(Bug),
     /// The Public Key is invalid.
-    #[error(transparent)]
-    PkError(#[from] PkError),
+    PkError(PkError),
+}
+
+impl Display for ImportError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Other(msg) => write!(f, "{}", msg),
+            Self::InvalidSize(err) => write!(f, "{}", err),
+            Self::InvalidSyntax => write!(f, "data is syntactically invalid"),
+            Self::InvalidContext => write!(f, "data came from a different context"),
+            Self::Bug(err) => write!(f, "{}", err),
+            Self::PkError(err) => write!(f, "{}", err),
+        }
+    }
+}
+
+impl core::error::Error for ImportError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::InvalidSize(err) => Some(err),
+            Self::Bug(err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl From<InvalidSizeError> for ImportError {
+    fn from(err: InvalidSizeError) -> Self {
+        Self::InvalidSize(err)
+    }
+}
+
+impl From<Bug> for ImportError {
+    fn from(err: Bug) -> Self {
+        Self::Bug(err)
+    }
+}
+
+impl From<PkError> for ImportError {
+    fn from(err: PkError) -> Self {
+        Self::PkError(err)
+    }
 }
 
 /// Shorthand for creating an [`InvalidSizeError`] when importing
@@ -116,12 +166,21 @@ pub trait Import<T>: Sized {
 }
 
 /// An error that occurs while exporting secret key material.
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ExportError {
     /// An unknown or internal error has occurred.
-    #[error("{0}")]
     Other(&'static str),
     /// The key is opaque and does not expose its key material.
-    #[error("the key is opaque and cannot be exported")]
     Opaque,
 }
+
+impl Display for ExportError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Other(msg) => write!(f, "{}", msg),
+            Self::Opaque => write!(f, "the key is opaque and cannot be exported"),
+        }
+    }
+}
+
+impl core::error::Error for ExportError {}

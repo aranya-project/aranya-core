@@ -9,7 +9,7 @@ use core::{fmt, ops::Deref};
 ///
 /// This is useful for third-party types that have not adapted to the recently stabilized
 /// `error-in-core` feature and thus do not implement the trait when `std` is not available.
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 #[repr(transparent)]
 pub struct Trouble<E>(pub E);
 
