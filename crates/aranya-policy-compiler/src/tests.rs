@@ -5,7 +5,7 @@ use aranya_policy_ast::{FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{ffi::ModuleSchema, Label, LabelType, ModuleData, Value};
 
-use crate::{validate::validate, InvalidCallColor, CompileError, CompileErrorType, Compiler};
+use crate::{validate::validate, CompileError, CompileErrorType, Compiler, InvalidCallColor};
 
 #[test]
 fn test_compile() -> anyhow::Result<()> {
@@ -192,7 +192,10 @@ fn test_function_wrong_color_pure() -> anyhow::Result<()> {
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
-    assert_eq!(err, CompileErrorType::InvalidCallColor(InvalidCallColor::Pure));
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidCallColor(InvalidCallColor::Pure)
+    );
 
     Ok(())
 }

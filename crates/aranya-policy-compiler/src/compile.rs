@@ -21,7 +21,7 @@ use ast::{
 };
 pub(crate) use target::CompileTarget;
 
-pub use self::error::{InvalidCallColor, CompileError, CompileErrorType};
+pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
 use self::types::{IdentifierTypeStack, Typeish};
 
 enum FunctionColor {
@@ -595,7 +595,9 @@ impl<'a> CompileState<'a> {
                 // Check that this function is the right color - only
                 // pure functions are allowed in expressions.
                 if let FunctionColor::Finish = signature.color {
-                    return Err(self.err(CompileErrorType::InvalidCallColor(InvalidCallColor::Finish)));
+                    return Err(
+                        self.err(CompileErrorType::InvalidCallColor(InvalidCallColor::Finish))
+                    );
                 }
                 // For now all we can do is check that the argument
                 // list has the same length.
