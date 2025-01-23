@@ -78,8 +78,6 @@ impl From<crate::shm::Corrupted> for Error {
     }
 }
 
-
-
 impl From<Infallible> for Error {
     fn from(v: Infallible) -> Self {
         match v {}
