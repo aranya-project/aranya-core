@@ -91,7 +91,6 @@ std = [
 
 	"aranya-base58/std",
 	"aranya-buggy/std",
-	"spideroak-crypto/std",
 	"byteorder/std",
 	"ciborium-io?/std",
 	"ciborium?/std",
@@ -100,6 +99,7 @@ std = [
 	"rustix?/std",
 	"serde/std",
 	"siphasher/std",
+	"spideroak-crypto/std",
 ]
 
 # Include testing utilities.

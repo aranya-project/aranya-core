@@ -18,6 +18,8 @@ use core::{
     marker::PhantomData,
 };
 
+pub use ciphersuite::test_ciphersuite;
+pub use engine::test_engine;
 pub use spideroak_crypto::test_util::{
     aead::{self, test_aead},
     hash::{self, test_hash},
@@ -27,8 +29,6 @@ pub use spideroak_crypto::test_util::{
     signer::{self, test_signer},
     vectors,
 };
-pub use ciphersuite::test_ciphersuite;
-pub use engine::test_engine;
 
 use crate::{
     aead::{Aead, AeadId, IndCca2, Lifetime, OpenError, SealError},

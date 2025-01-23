@@ -250,7 +250,7 @@ name = "aranya-crypto"
 version = "0.2.1"
 dependencies = [
  "aranya-base58",
- "aranya-buggy 0.1.0",
+ "aranya-buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "aranya-crypto",
  "aranya-trouble",
  "byteorder",

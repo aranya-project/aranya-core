@@ -94,6 +94,15 @@ reexport! {
 
 pub use aranya::*;
 pub use aranya_buggy;
+pub use ciphersuite::*;
+pub use default::Rng;
+pub use engine::{Engine, UnwrapError, WrapError};
+pub use error::*;
+pub use groupkey::*;
+pub use id::{Id, Identified};
+pub use keystore::{KeyStore, KeyStoreExt};
+pub use policy::*;
+pub use siphasher;
 #[doc(no_inline)]
 #[cfg(feature = "bearssl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
@@ -113,12 +122,3 @@ pub use spideroak_crypto::{
 #[cfg(feature = "hazmat")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
 pub use spideroak_crypto::{dhkem_impl, hkdf_impl, hmac_impl};
-pub use ciphersuite::*;
-pub use default::Rng;
-pub use engine::{Engine, UnwrapError, WrapError};
-pub use error::*;
-pub use groupkey::*;
-pub use id::{Id, Identified};
-pub use keystore::{KeyStore, KeyStoreExt};
-pub use policy::*;
-pub use siphasher;
