@@ -149,7 +149,7 @@ dependencies = [
 name = "aranya-base58"
 version = "0.1.0"
 dependencies = [
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "byteorder",
  "criterion",
  "flate2",
@@ -178,6 +178,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-buggy"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd12ad901a90557f29d9cdfc4486083576b80644e0b9aeaa857e66c644e5cb8f"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "aranya-capi-codegen"
 version = "0.1.0"
 dependencies = [
@@ -198,7 +207,7 @@ name = "aranya-capi-codegen-test"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-capi-codegen",
  "aranya-capi-core",
  "quote",
@@ -213,7 +222,7 @@ dependencies = [
 name = "aranya-capi-core"
 version = "0.1.0"
 dependencies = [
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-capi-macro",
  "aranya-libc",
  "cfg-if",
@@ -241,9 +250,8 @@ name = "aranya-crypto"
 version = "0.2.1"
 dependencies = [
  "aranya-base58",
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-crypto",
- "aranya-crypto-core",
  "aranya-trouble",
  "byteorder",
  "cfg-if",
@@ -257,56 +265,8 @@ dependencies = [
  "serde",
  "serde_json",
  "siphasher",
+ "spideroak-crypto",
  "tempfile",
-]
-
-[[package]]
-name = "aranya-crypto-core"
-version = "0.1.0"
-dependencies = [
- "aes",
- "aes-gcm",
- "aranya-bearssl-sys",
- "aranya-buggy",
- "aranya-crypto-core",
- "aranya-crypto-derive",
- "cfg-if",
- "crypto-common",
- "der",
- "ecdsa",
- "ed25519-dalek",
- "elliptic-curve",
- "generic-array 1.1.1",
- "getrandom 0.2.15",
- "lazy_static",
- "more-asserts",
- "p256",
- "p384",
- "postcard",
- "rand 0.8.5",
- "rand_chacha 0.3.1",
- "rand_core 0.6.4",
- "serde",
- "serde_json",
- "serde_repr",
- "sha2",
- "sha3-utils",
- "spin 0.9.8",
- "subtle",
- "tempfile",
- "typenum",
- "wycheproof",
- "zeroize",
-]
-
-[[package]]
-name = "aranya-crypto-derive"
-version = "0.2.0"
-dependencies = [
- "prettyplease",
- "proc-macro2",
- "quote",
- "syn 2.0.90",
 ]
 
 [[package]]
@@ -342,7 +302,7 @@ dependencies = [
 name = "aranya-fast-channels"
 version = "0.3.0"
 dependencies = [
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-crypto",
  "aranya-fast-channels",
  "byteorder",
@@ -419,7 +379,7 @@ name = "aranya-policy-compiler"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-policy-ast",
  "aranya-policy-lang",
  "aranya-policy-module",
@@ -478,7 +438,7 @@ name = "aranya-policy-lang"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-policy-ast",
  "clap",
  "markdown",
@@ -504,7 +464,7 @@ name = "aranya-policy-vm"
 version = "0.3.1"
 dependencies = [
  "anyhow",
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-crypto",
  "aranya-policy-ast",
  "aranya-policy-compiler",
@@ -534,7 +494,7 @@ name = "aranya-quic-syncer"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-crypto",
  "aranya-runtime",
  "clap",
@@ -555,7 +515,7 @@ dependencies = [
 name = "aranya-runtime"
 version = "0.3.0"
 dependencies = [
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-crypto",
  "aranya-libc",
  "aranya-policy-compiler",
@@ -774,9 +734,8 @@ name = "canary-alloc"
 version = "0.0.0"
 dependencies = [
  "aranya-base58",
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-crypto",
- "aranya-crypto-core",
  "aranya-trouble",
 ]
 
@@ -785,9 +744,8 @@ name = "canary-std"
 version = "0.0.0"
 dependencies = [
  "aranya-base58",
- "aranya-buggy",
+ "aranya-buggy 0.1.0",
  "aranya-crypto",
- "aranya-crypto-core",
  "aranya-crypto-ffi",
  "aranya-device-ffi",
  "aranya-envelope-ffi",
@@ -3008,6 +2966,57 @@ checksum = "c970269d99b64e60ec3bd6ad27270092a5394c4e309314b18ae3fe575695fbe8"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "spideroak-crypto"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c082b70bbce9ea6b6e054172625c95cafbe5ccd8f27a104b1862e2b7a3fe27d5"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "aranya-bearssl-sys",
+ "aranya-buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cfg-if",
+ "crypto-common",
+ "der",
+ "ecdsa",
+ "ed25519-dalek",
+ "elliptic-curve",
+ "generic-array 1.1.1",
+ "getrandom 0.2.15",
+ "lazy_static",
+ "more-asserts",
+ "p256",
+ "p384",
+ "postcard",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_json",
+ "serde_repr",
+ "sha2",
+ "sha3-utils",
+ "spideroak-crypto-derive",
+ "spin 0.9.8",
+ "subtle",
+ "typenum",
+ "wycheproof",
+ "zeroize",
+]
+
+[[package]]
+name = "spideroak-crypto-derive"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c17eb41e55e0b7786ee1ab9c618babb79c4d643771c85be8f9dbceb623e1235c"
+dependencies = [
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.90",
 ]
 
 [[package]]

@@ -21,19 +21,19 @@ default = [
 # Enable allocations.
 alloc = [
 	"aranya-buggy/alloc",
-	"aranya-crypto-core/alloc",
 	"postcard/alloc",
 	"rustix?/alloc",
+	"spideroak-crypto/alloc",
 ]
 
 # Enable BearSSL.
-bearssl = ["aranya-crypto-core/bearssl"]
+bearssl = ["spideroak-crypto/bearssl"]
 
 # Enable committing AEAD implementations.
-committing-aead = ["aranya-crypto-core/committing-aead"]
+committing-aead = ["spideroak-crypto/committing-aead"]
 
 # Implement `Clone` for the built-in AEADs.
-clone-aead = ["aranya-crypto-core/clone-aead"]
+clone-aead = ["spideroak-crypto/clone-aead"]
 
 # Enable Ed25519 batch signature verification.
 #
@@ -55,7 +55,7 @@ clone-aead = ["aranya-crypto-core/clone-aead"]
 ed25519_batch = [
 	"alloc",
 
-	"aranya-crypto-core/ed25519_batch",
+	"spideroak-crypto/ed25519_batch",
 ]
 
 # Enable the file system backed `KeyStore`.
@@ -70,16 +70,16 @@ fs-keystore = [
 # Enable `getrandom` support.
 #
 # NB: `getrandom` does not support VxWorks < 7.
-getrandom = ["aranya-crypto-core/getrandom"]
+getrandom = ["spideroak-crypto/getrandom"]
 
 # Enable cryptographically hazardous code.
-hazmat = ["aranya-crypto-core/hazmat"]
+hazmat = ["spideroak-crypto/hazmat"]
 
 # Enable `proptest::arbitrary::Arbitrary` implemenations
 proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
 
 # Enable compat with the `rand`, `rand_core`, etc. crates.
-rand_compat = ["aranya-crypto-core/rand_compat"]
+rand_compat = ["spideroak-crypto/rand_compat"]
 
 # Use std.
 std = [
@@ -91,7 +91,7 @@ std = [
 
 	"aranya-base58/std",
 	"aranya-buggy/std",
-	"aranya-crypto-core/std",
+	"spideroak-crypto/std",
 	"byteorder/std",
 	"ciborium-io?/std",
 	"ciborium?/std",
@@ -107,17 +107,18 @@ test_util = [
 	"alloc",
 	"proptest",
 
-	"aranya-crypto-core/test_util",
+	"spideroak-crypto/test_util",
 ]
 
 # Use a system provided TRNG for the default CSPRNG.
-trng = ["aranya-crypto-core/trng"]
+trng = ["spideroak-crypto/trng"]
 
 [dependencies]
 aranya-base58 = { version = "0.1.0", path = "../aranya-base58", default-features = false }
 aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
-aranya-crypto-core = { version = "0.1.0", path = "../aranya-crypto-core", default-features = false }
 aranya-trouble = { version = "0.1.0", path = "../aranya-trouble", default-features = false }
+
+spideroak-crypto = { version = "0.1.0", default-features = false }
 
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }

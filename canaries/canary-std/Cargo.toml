@@ -18,13 +18,6 @@ aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false,
 	"proptest",
 	"rand_compat",
 ] }
-# `aranya-crypto-core` enables `getrandom` by default.
-aranya-crypto-core = { path = "../../crates/aranya-crypto-core", default-features = false, features = [
-	"alloc",
-	"committing-aead",
-	"clone-aead",
-	"rand_compat",
-] }
 aranya-crypto-ffi = { path = "../../crates/aranya-crypto-ffi", features = ["alloc"] }
 aranya-device-ffi = { path = "../../crates/aranya-device-ffi", features = ["alloc"] }
 aranya-envelope-ffi = { path = "../../crates/aranya-envelope-ffi", features = ["alloc"] }

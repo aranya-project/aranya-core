@@ -68,7 +68,7 @@ macro_rules! reexport {
             /// using it directly unless you are implementing an
             /// engine.
             #[doc(no_inline)]
-            pub use aranya_crypto_core::$name;
+            pub use spideroak_crypto::$name;
         )*
     }
 }
@@ -97,8 +97,8 @@ pub use aranya_buggy;
 #[doc(no_inline)]
 #[cfg(feature = "bearssl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
-pub use aranya_crypto_core::bearssl;
-pub use aranya_crypto_core::{
+pub use spideroak_crypto::bearssl;
+pub use spideroak_crypto::{
     aead::{BufferTooSmallError, OpenError, SealError},
     csprng::{Csprng, Random},
     generic_array,
@@ -112,7 +112,7 @@ pub use aranya_crypto_core::{
 };
 #[cfg(feature = "hazmat")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
-pub use aranya_crypto_core::{dhkem_impl, hkdf_impl, hmac_impl};
+pub use spideroak_crypto::{dhkem_impl, hkdf_impl, hmac_impl};
 pub use ciphersuite::*;
 pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};

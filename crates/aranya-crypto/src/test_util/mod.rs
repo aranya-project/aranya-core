@@ -18,7 +18,7 @@ use core::{
     marker::PhantomData,
 };
 
-pub use aranya_crypto_core::test_util::{
+pub use spideroak_crypto::test_util::{
     aead::{self, test_aead},
     hash::{self, test_hash},
     hpke::{self, test_hpke},
