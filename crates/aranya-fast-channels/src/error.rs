@@ -71,13 +71,6 @@ pub enum Error {
     Corrupted(&'static str),
 }
 
-#[cfg(any(feature = "sdlib", feature = "posix"))]
-impl From<crate::shm::Corrupted> for Error {
-    fn from(value: crate::shm::Corrupted) -> Self {
-        Self::SharedMem(crate::shm::Error::Corrupted(value))
-    }
-}
-
 impl From<Infallible> for Error {
     fn from(v: Infallible) -> Self {
         match v {}
