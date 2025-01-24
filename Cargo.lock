@@ -157,15 +157,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aranya-buggy"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd12ad901a90557f29d9cdfc4486083576b80644e0b9aeaa857e66c644e5cb8f"
-dependencies = [
- "cfg-if",
-]
-
-[[package]]
 name = "aranya-capi-codegen"
 version = "0.1.0"
 dependencies = [
@@ -2938,14 +2929,14 @@ dependencies = [
 
 [[package]]
 name = "spideroak-crypto"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c082b70bbce9ea6b6e054172625c95cafbe5ccd8f27a104b1862e2b7a3fe27d5"
+checksum = "0b7f7b5e13ffafecdad70d27d6bff3159d5f6619e4a4a462d2294bdf8d7c63e0"
 dependencies = [
  "aes",
  "aes-gcm",
  "aranya-bearssl-sys",
- "aranya-buggy",
+ "buggy",
  "cfg-if",
  "crypto-common",
  "der",
