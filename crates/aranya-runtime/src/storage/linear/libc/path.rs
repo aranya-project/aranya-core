@@ -5,9 +5,9 @@ extern crate std;
 
 use core::{fmt, ops::Deref};
 
-use aranya_buggy::{Bug, BugExt};
 use aranya_crypto::id::{String64, ToBase58};
 pub use aranya_libc::{MissingNullByte, Path, PathBuf};
+use buggy::{Bug, BugExt};
 
 use crate::GraphId;
 

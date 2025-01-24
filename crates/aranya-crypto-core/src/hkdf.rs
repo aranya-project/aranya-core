@@ -6,7 +6,7 @@
 
 use core::marker::PhantomData;
 
-use aranya_buggy::BugExt;
+use buggy::BugExt;
 use generic_array::GenericArray;
 use typenum::{Prod, U255};
 

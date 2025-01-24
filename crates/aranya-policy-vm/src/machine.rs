@@ -9,13 +9,13 @@ use alloc::{
 };
 use core::fmt::{self, Display};
 
-use aranya_buggy::BugExt;
 use aranya_policy_ast as ast;
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
     LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
     ValueConversionError,
 };
+use buggy::BugExt;
 use heapless::Vec as HVec;
 
 use crate::{

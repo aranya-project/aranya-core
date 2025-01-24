@@ -7,7 +7,7 @@ use core::{
     ptr,
 };
 
-use aranya_buggy::BugExt;
+use buggy::BugExt;
 use cfg_if::cfg_if;
 use libc::{
     off_t, MAP_FAILED, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, PROT_READ, PROT_WRITE, S_IRUSR, S_IWUSR,

@@ -237,17 +237,17 @@ impl<T: ?Sized> Mutex<T> {
         feature = "libc",
         any(target_os = "linux", target_os = "macos")
     ))]
-    pub(crate) fn sys_unlock(&self) -> Result<(), ::aranya_buggy::Bug> {
+    pub(crate) fn sys_unlock(&self) -> Result<(), ::buggy::Bug> {
         #[cfg(target_os = "linux")]
         use crate::mutex::linux::futex_wake;
         #[cfg(target_os = "macos")]
         use crate::mutex::macos::futex_wake;
 
         match self.key.swap(Self::MUTEX_UNLOCKED, Ordering::SeqCst) {
-            Self::MUTEX_UNLOCKED => ::aranya_buggy::bug!("unlock of locked mutex"),
+            Self::MUTEX_UNLOCKED => ::buggy::bug!("unlock of locked mutex"),
             Self::MUTEX_SLEEPING => futex_wake(&self.key, 1)?,
             Self::MUTEX_LOCKED => {}
-            _ => ::aranya_buggy::bug!("invalid mutex state"),
+            _ => ::buggy::bug!("invalid mutex state"),
         };
         Ok(())
     }
@@ -257,7 +257,7 @@ impl<T: ?Sized> Mutex<T> {
 mod linux {
     use core::{ptr, sync::atomic::AtomicU32};
 
-    use aranya_buggy::{Bug, BugExt};
+    use buggy::{Bug, BugExt};
     use libc::{c_int, syscall, timespec, SYS_futex, FUTEX_WAIT, FUTEX_WAKE};
 
     use crate::errno::{errno, Errno};

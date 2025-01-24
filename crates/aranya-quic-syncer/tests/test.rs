@@ -1,7 +1,6 @@
 use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use aranya_buggy::BugExt;
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
@@ -10,6 +9,7 @@ use aranya_runtime::{
     storage::{memory::MemStorageProvider, StorageProvider},
     ClientState, GraphId, SyncRequester,
 };
+use buggy::BugExt;
 use s2n_quic::{provider::congestion_controller::Bbr, Server};
 use tokio::sync::{mpsc, Mutex as TMutex};
 

@@ -22,7 +22,7 @@ use core::{
     result::Result,
 };
 
-use aranya_buggy::{bug, Bug, BugExt};
+use buggy::{bug, Bug, BugExt};
 use generic_array::ArrayLength;
 use subtle::{Choice, ConstantTimeEq};
 

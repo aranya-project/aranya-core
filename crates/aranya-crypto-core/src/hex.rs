@@ -8,7 +8,7 @@ use core::{
     str,
 };
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 use generic_array::{functional::FunctionalSequence, ArrayLength, GenericArray};
 use subtle::{Choice, ConditionallySelectable};
 use typenum::{

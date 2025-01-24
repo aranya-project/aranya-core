@@ -12,7 +12,7 @@ use core::{
     result::Result,
 };
 
-use aranya_buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt};
 use generic_array::{ArrayLength, GenericArray, IntoArrayLength};
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConstantTimeEq};
@@ -834,7 +834,7 @@ pub trait Cmt4Aead: Cmt3Aead {}
 mod committing {
     use core::{fmt, marker::PhantomData, num::NonZeroU64, result::Result};
 
-    use aranya_buggy::{Bug, BugExt};
+    use buggy::{Bug, BugExt};
     use generic_array::{ArrayLength, GenericArray};
     use typenum::{
         type_operators::{IsGreaterOrEqual, IsLess},
@@ -1109,7 +1109,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (dst, cx) = $crate::aranya_buggy::BugExt::assume(
+                    let (dst, cx) = $crate::buggy::BugExt::assume(
                         dst.split_last_chunk_mut::<{Self::COMMITMENT_SIZE}>(),
                         "`COMMITMENT_SIZE` fits in `out`",
                     )?;
@@ -1142,7 +1142,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (tag, cx) = $crate::aranya_buggy::BugExt::assume(
+                    let (tag, cx) = $crate::buggy::BugExt::assume(
                         overhead.split_last_chunk_mut::<{Self::COMMITMENT_SIZE}>(),
                         "`COMMITMENT_SIZE` fits in `overhead`",
                     )?;
@@ -1175,7 +1175,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (ciphertext, got_cx) = $crate::aranya_buggy::BugExt::assume(
+                    let (ciphertext, got_cx) = $crate::buggy::BugExt::assume(
                         ciphertext.split_last_chunk::<{Self::COMMITMENT_SIZE}>(),
                         "`COMMITMENT_SIZE` fits in `ciphertext`",
                     )?;
@@ -1214,7 +1214,7 @@ mod committing {
                         additional_data,
                     )?;
 
-                    let (overhead, got_cx) = $crate::aranya_buggy::BugExt::assume(
+                    let (overhead, got_cx) = $crate::buggy::BugExt::assume(
                         overhead.split_last_chunk::<{Self::COMMITMENT_SIZE}>(),
                         "`COMMITMENT_SIZE` fits in `overhead`",
                     )?;

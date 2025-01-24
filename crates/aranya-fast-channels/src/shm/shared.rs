@@ -7,13 +7,13 @@ use core::{
     sync::atomic::{AtomicU32, AtomicUsize, Ordering},
 };
 
-use aranya_buggy::{Bug, BugExt};
 use aranya_crypto::{
     aead::Aead,
     afc::{RawOpenKey, RawSealKey, Seq},
     hash::tuple_hash,
     CipherSuite, Csprng, Random,
 };
+use buggy::{Bug, BugExt};
 use cfg_if::cfg_if;
 
 use super::{

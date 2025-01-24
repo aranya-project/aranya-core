@@ -420,11 +420,11 @@ impl<S, O> Debug for Directed<S, O> {
 
 #[cfg(test)]
 mod test {
-    use aranya_buggy::Bug;
     use aranya_crypto::{
         afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
         CipherSuite, Rng,
     };
+    use buggy::Bug;
 
     use crate::{
         error::Error,
