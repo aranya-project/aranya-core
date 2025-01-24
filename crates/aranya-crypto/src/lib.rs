@@ -93,7 +93,7 @@ reexport! {
 }
 
 pub use aranya::*;
-pub use aranya_buggy;
+pub use buggy;
 pub use ciphersuite::*;
 pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};

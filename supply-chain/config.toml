@@ -37,9 +37,6 @@ audit-as-crates-io = false
 [policy.aranya-base58]
 audit-as-crates-io = false
 
-[policy.aranya-buggy]
-audit-as-crates-io = false
-
 [policy.aranya-capi-codegen]
 audit-as-crates-io = false
 
@@ -101,9 +98,6 @@ audit-as-crates-io = false
 audit-as-crates-io = false
 
 [policy.aranya-runtime]
-audit-as-crates-io = false
-
-[policy.aranya-trouble]
 audit-as-crates-io = false
 
 [[exemptions.addr2line]]

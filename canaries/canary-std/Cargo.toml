@@ -9,7 +9,6 @@ rust-version.workspace = true
 [dependencies]
 # aranya-afc-util = { path = "../../crates/aranya-afc-util", features = ["alloc"] }
 aranya-base58 = { path = "../../crates/aranya-base58", features = ["alloc"] }
-aranya-buggy = { path = "../../crates/aranya-buggy", features = ["alloc"] }
 # `aranya-crypto` enables `getrandom` by default.
 aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false, features = [
 	"alloc",
@@ -28,4 +27,3 @@ aranya-policy-module = { path = "../../crates/aranya-policy-module" }
 aranya-policy-vm = { path = "../../crates/aranya-policy-vm", features = ["derive"] }
 # These features must also be no-std.
 aranya-runtime = { path = "../../crates/aranya-runtime", features = ["testing"] }
-aranya-trouble = { path = "../../crates/aranya-trouble" }

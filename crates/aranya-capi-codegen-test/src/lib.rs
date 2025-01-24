@@ -6,11 +6,11 @@ pub mod generated;
 
 use std::{ffi::c_char, mem::MaybeUninit};
 
-use aranya_buggy::Bug;
 use aranya_capi_core::{
     safe::{TypeId, Typed},
     write_c_str, ExtendedError, InvalidArg, WriteCStrError,
 };
+use buggy::Bug;
 use tracing::warn;
 
 #[derive(Debug, thiserror::Error)]

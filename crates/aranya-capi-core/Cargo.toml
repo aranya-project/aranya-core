@@ -24,15 +24,15 @@ debug = ["aranya-capi-macro/debug"]
 
 # Enable `std`.
 std = [
-	"aranya-buggy/std",
 	"aranya-libc/std",
+	"buggy/std",
 	"ciborium-io?/std",
 ]
 
 [dependencies]
-aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
 aranya-capi-macro = { version = "0.1.0", path = "../aranya-capi-macro", default-features = false }
 aranya-libc = { version = "0.1.0", path = "../aranya-libc", default-features = false }
+buggy = { version = "0.1.0", default-features = false }
 
 cfg-if = { workspace = true, default-features = false }
 const_format = { version = "0.2.31", default-features = false, features = ["assertcp"] }

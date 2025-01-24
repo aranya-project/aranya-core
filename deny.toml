@@ -139,7 +139,6 @@ exceptions = [
     { allow = ["AGPL-3.0"], crate = "aranya-policy-module" },
     { allow = ["AGPL-3.0"], crate = "aranya-policy-vm" },
     { allow = ["AGPL-3.0"], crate = "aranya-runtime" },
-    { allow = ["AGPL-3.0"], crate = "aranya-trouble" },
 ]
 
 # Some crates don't have (easily) machine readable licensing information,

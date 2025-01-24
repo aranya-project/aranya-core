@@ -7,9 +7,9 @@ when = "2024-10-15"
 user-id = 293722
 user-login = "aranya-project-bot"
 
-[[publisher.aranya-buggy]]
+[[publisher.buggy]]
 version = "0.1.0"
-when = "2024-10-16"
+when = "2025-01-24"
 user-id = 293722
 user-login = "aranya-project-bot"
 

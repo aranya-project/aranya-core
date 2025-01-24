@@ -1,6 +1,6 @@
 //! Default implementations.
 
-use aranya_buggy::BugExt;
+use buggy::BugExt;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 pub use spideroak_crypto::default::Rng;

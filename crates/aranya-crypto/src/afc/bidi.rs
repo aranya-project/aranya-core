@@ -1,4 +1,4 @@
-use aranya_buggy::BugExt;
+use buggy::BugExt;
 use serde::{Deserialize, Serialize};
 
 use super::{
