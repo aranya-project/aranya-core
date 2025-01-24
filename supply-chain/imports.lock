@@ -27,6 +27,18 @@ user-id = 3788
 user-login = "emilio"
 user-name = "Emilio Cobos Álvarez"
 
+[[publisher.spideroak-crypto]]
+version = "0.1.0"
+when = "2025-01-23"
+user-id = 293722
+user-login = "aranya-project-bot"
+
+[[publisher.spideroak-crypto-derive]]
+version = "0.1.0"
+when = "2025-01-23"
+user-id = 293722
+user-login = "aranya-project-bot"
+
 [audits.actix.audits]
 
 [[audits.bytecode-alliance.wildcard-audits.bumpalo]]

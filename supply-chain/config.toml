@@ -34,9 +34,6 @@ url = "https://raw.githubusercontent.com/zcash/rust-ecosystem/main/supply-chain/
 [policy.aranya-afc-util]
 audit-as-crates-io = false
 
-[policy.aranya-base58]
-audit-as-crates-io = false
-
 [policy.aranya-capi-codegen]
 audit-as-crates-io = false
 
@@ -47,12 +44,6 @@ audit-as-crates-io = false
 audit-as-crates-io = false
 
 [policy.aranya-crypto]
-audit-as-crates-io = false
-
-[policy.aranya-crypto-core]
-audit-as-crates-io = false
-
-[policy.aranya-crypto-derive]
 audit-as-crates-io = false
 
 [policy.aranya-crypto-ffi]

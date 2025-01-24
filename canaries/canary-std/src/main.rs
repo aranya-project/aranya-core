@@ -2,9 +2,7 @@
 #![no_std]
 #![no_main]
 
-extern crate aranya_base58;
 extern crate aranya_crypto;
-extern crate aranya_crypto_core;
 extern crate aranya_crypto_ffi;
 extern crate aranya_device_ffi;
 extern crate aranya_envelope_ffi;
