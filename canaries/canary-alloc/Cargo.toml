@@ -7,6 +7,5 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-aranya-base58 = { path = "../../crates/aranya-base58" }
 # `aranya-crypto` enables `getrandom` by default.
 aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false }

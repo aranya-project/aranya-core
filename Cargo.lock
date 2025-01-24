@@ -146,20 +146,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aranya-base58"
-version = "0.1.0"
-dependencies = [
- "buggy",
- "byteorder",
- "criterion",
- "flate2",
- "hex",
- "rand 0.8.5",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "aranya-bearssl-sys"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -242,7 +228,6 @@ dependencies = [
 name = "aranya-crypto"
 version = "0.2.1"
 dependencies = [
- "aranya-base58",
  "aranya-crypto",
  "buggy",
  "byteorder",
@@ -257,6 +242,7 @@ dependencies = [
  "serde",
  "serde_json",
  "siphasher",
+ "spideroak-base58",
  "spideroak-crypto",
  "tempfile",
 ]
@@ -730,7 +716,6 @@ checksum = "325918d6fe32f23b19878fe4b34794ae41fc19ddbe53b10571a4874d44ffd39b"
 name = "canary-alloc"
 version = "0.0.0"
 dependencies = [
- "aranya-base58",
  "aranya-crypto",
 ]
 
@@ -738,7 +723,6 @@ dependencies = [
 name = "canary-std"
 version = "0.0.0"
 dependencies = [
- "aranya-base58",
  "aranya-crypto",
  "aranya-crypto-ffi",
  "aranya-device-ffi",
@@ -953,15 +937,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16b80225097f2e5ae4e7179dd2266824648f3e2f49d9134d584b76389d31c4c3"
 dependencies = [
  "libc",
-]
-
-[[package]]
-name = "crc32fast"
-version = "1.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a97769d94ddab943e4510d138150169a2758b5ef3eb191a9ee688de3e23ef7b3"
-dependencies = [
- "cfg-if",
 ]
 
 [[package]]
@@ -1308,16 +1283,6 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
-
-[[package]]
-name = "flate2"
-version = "1.0.35"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c936bfdafb507ebbf50b8074c54fa31c5be9a1e7e5f467dd659697041407d07c"
-dependencies = [
- "crc32fast",
- "miniz_oxide",
-]
 
 [[package]]
 name = "fnv"
@@ -2959,6 +2924,16 @@ checksum = "c970269d99b64e60ec3bd6ad27270092a5394c4e309314b18ae3fe575695fbe8"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "spideroak-base58"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09b719743eccf9f6ef06ac55f6b315a9c825bf26500b7c703ad7978a92aedf9f"
+dependencies = [
+ "buggy",
+ "byteorder",
 ]
 
 [[package]]

@@ -89,7 +89,6 @@ std = [
 	# `#[cfg(...)]` blocks easier to manage.
 	"getrandom",
 
-	"aranya-base58/std",
 	"buggy/std",
 	"byteorder/std",
 	"ciborium-io?/std",
@@ -99,6 +98,7 @@ std = [
 	"rustix?/std",
 	"serde/std",
 	"siphasher/std",
+	"spideroak-base58/std",
 	"spideroak-crypto/std",
 ]
 
@@ -114,9 +114,9 @@ test_util = [
 trng = ["spideroak-crypto/trng"]
 
 [dependencies]
-aranya-base58 = { version = "0.1.0", path = "../aranya-base58", default-features = false }
 buggy = { version = "0.1.0", default-features = false }
 
+spideroak-base58 = { version = "0.1.0", default-features = false }
 spideroak-crypto = { version = "0.1.0", default-features = false }
 
 byteorder = { workspace = true, default-features = false }

@@ -2,7 +2,6 @@
 
 use core::{any::Any, marker::PhantomData, ops::Deref};
 
-use aranya_base58::{String64, ToBase58};
 use buggy::BugExt;
 use cfg_if::cfg_if;
 use ciborium as cbor;
@@ -13,6 +12,7 @@ use rustix::{
     io::{self, Errno},
     path::Arg,
 };
+use spideroak_base58::{String64, ToBase58};
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
