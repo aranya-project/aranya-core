@@ -15,7 +15,6 @@ extern crate aranya_policy_ast;
 extern crate aranya_policy_module;
 extern crate aranya_policy_vm;
 extern crate aranya_runtime;
-extern crate aranya_trouble;
 
 #[cfg(target_os = "none")] // hack to please rust-analyzer
 #[panic_handler]

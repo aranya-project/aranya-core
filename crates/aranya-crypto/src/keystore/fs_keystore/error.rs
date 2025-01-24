@@ -1,7 +1,6 @@
 use core::fmt;
 
 use aranya_buggy::Bug;
-use aranya_trouble::Trouble;
 use ciborium as cbor;
 use rustix::io::Errno;
 
@@ -69,7 +68,7 @@ impl From<UnexpectedEof> for Error {
 
 impl From<Errno> for Error {
     fn from(err: Errno) -> Self {
-        <Self as keystore::Error>::other(Trouble(err))
+        <Self as keystore::Error>::other(err)
     }
 }
 
@@ -161,7 +160,7 @@ impl Repr {
         match self {
             Self::AlreadyExists => None,
             Self::UnexpectedEof(err) => Some(err),
-            Self::Errno(err) => Some(Trouble::cast(err)),
+            Self::Errno(err) => Some(err),
             Self::Encode(err) => Some(err),
             Self::Decode(err) => Some(err),
             Self::Bug(err) => Some(err),

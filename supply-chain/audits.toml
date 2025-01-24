@@ -158,9 +158,3 @@ criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
 start = "2024-10-16"
 end = "2025-12-19"
-
-[[trusted.aranya-trouble]]
-criteria = "safe-to-deploy"
-user-id = 293722 # aranya-project-bot
-start = "2024-10-16"
-end = "2025-12-19"

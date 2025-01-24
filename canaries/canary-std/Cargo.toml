@@ -35,4 +35,3 @@ aranya-policy-module = { path = "../../crates/aranya-policy-module" }
 aranya-policy-vm = { path = "../../crates/aranya-policy-vm", features = ["derive"] }
 # These features must also be no-std.
 aranya-runtime = { path = "../../crates/aranya-runtime", features = ["testing"] }
-aranya-trouble = { path = "../../crates/aranya-trouble" }
