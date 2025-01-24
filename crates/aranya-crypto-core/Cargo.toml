@@ -21,7 +21,7 @@ default = [
 # Enable allocations.
 alloc = [
 	"aes-gcm/alloc",
-	"aranya-buggy/alloc",
+	"buggy/alloc",
 	"der/alloc",
 	"ecdsa/alloc",
 	"postcard/alloc",
@@ -96,7 +96,7 @@ std = [
 	"dep:rand",
 
 	"aes-gcm/std",
-	"aranya-buggy/std",
+	"buggy/std",
 	"crypto-common/std",
 	"der/std",
 	"der/std",
@@ -139,8 +139,8 @@ trng = [
 ]
 
 [dependencies]
-aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
 aranya-crypto-derive = { version = "0.2.0", path = "../aranya-crypto-derive" }
+buggy = { version = "0.1.0", default-features = false }
 
 aranya-bearssl-sys = { version = "0.1.0", optional = true }
 

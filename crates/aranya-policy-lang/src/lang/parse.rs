@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 
-use aranya_buggy::BugExt;
 use aranya_policy_ast::{self as ast, AstNode, MapStatement, Version};
 use ast::{EnumDefinition, EnumReference, Expression, FactField, MatchPattern};
+use buggy::BugExt;
 use pest::{
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},

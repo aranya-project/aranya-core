@@ -1,8 +1,8 @@
 use std::fmt;
 
-use aranya_buggy::Bug;
 use aranya_policy_ast as ast;
 use aranya_policy_module::CodeMap;
+use buggy::Bug;
 
 use crate::compile::StatementContext;
 

@@ -20,8 +20,8 @@ default = [
 
 # Enable allocations.
 alloc = [
-	"aranya-buggy/alloc",
 	"aranya-crypto-core/alloc",
+	"buggy/alloc",
 	"postcard/alloc",
 	"rustix?/alloc",
 ]
@@ -90,8 +90,8 @@ std = [
 	"getrandom",
 
 	"aranya-base58/std",
-	"aranya-buggy/std",
 	"aranya-crypto-core/std",
+	"buggy/std",
 	"byteorder/std",
 	"ciborium-io?/std",
 	"ciborium?/std",
@@ -115,8 +115,8 @@ trng = ["aranya-crypto-core/trng"]
 
 [dependencies]
 aranya-base58 = { version = "0.1.0", path = "../aranya-base58", default-features = false }
-aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", default-features = false }
 aranya-crypto-core = { version = "0.1.0", path = "../aranya-crypto-core", default-features = false }
+buggy = { version = "0.1.0", default-features = false }
 
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }

@@ -10,7 +10,7 @@ use core::{
     result::Result,
 };
 
-use aranya_buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt};
 use der::{asn1::UintRef, Decode, Encode, Header, Reader, SliceReader, SliceWriter, Tag};
 
 use crate::{

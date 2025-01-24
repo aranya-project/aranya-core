@@ -7,11 +7,11 @@ extern crate alloc;
 
 use alloc::{collections::BTreeMap, sync::Arc};
 
-use aranya_buggy::{Bug, BugExt};
 use aranya_crypto::{
     afc::{OpenKey, SealKey},
     CipherSuite,
 };
+use buggy::{Bug, BugExt};
 
 use crate::{
     error::Error,

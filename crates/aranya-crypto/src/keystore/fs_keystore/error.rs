@@ -1,6 +1,6 @@
 use core::fmt;
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 use ciborium as cbor;
 use rustix::io::Errno;
 

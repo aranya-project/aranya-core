@@ -9,7 +9,7 @@ use core::{
     result::Result,
 };
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 
 use crate::{
     asn1::EncodingError,

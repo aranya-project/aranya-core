@@ -1,7 +1,7 @@
 //! Default implementations.
 
-use aranya_buggy::BugExt;
 pub use aranya_crypto_core::default::Rng;
+use buggy::BugExt;
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 

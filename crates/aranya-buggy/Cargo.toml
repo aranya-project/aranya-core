@@ -1,5 +1,5 @@
 [package]
-name = "aranya-buggy"
+name = "buggy"
 description = "A less panicky replacement for unreachable!() and unwrap"
 version = "0.1.0"
 authors.workspace = true

@@ -4,7 +4,6 @@
 use core::fmt;
 use std::vec::Vec;
 
-use aranya_buggy::{bug, Bug};
 use aranya_crypto::{
     aead::{Aead, OpenError},
     csprng::Csprng,
@@ -22,6 +21,7 @@ use aranya_crypto::{
     zeroize::ZeroizeOnDrop,
     CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
 };
+use buggy::{bug, Bug};
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 

@@ -37,7 +37,7 @@ pub mod test_util;
 mod util;
 pub mod zeroize;
 
-pub use aranya_buggy;
+pub use buggy;
 pub use generic_array;
 pub use subtle;
 pub use typenum;

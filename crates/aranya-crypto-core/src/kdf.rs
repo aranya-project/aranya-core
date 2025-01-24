@@ -4,7 +4,7 @@
 
 use core::{fmt, iter::IntoIterator, mem, result::Result};
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 use generic_array::{ArrayLength, ConstArrayLength, GenericArray, IntoArrayLength};
 use subtle::{Choice, ConstantTimeEq};
 use typenum::{

@@ -7,7 +7,7 @@
 //!
 //! # Usage
 //! ```
-//! use aranya_buggy::{bug, Bug, BugExt};
+//! use buggy::{bug, Bug, BugExt};
 //!
 //! #[derive(Debug)]
 //! enum MyError {
@@ -144,8 +144,8 @@ impl<T, E: fmt::Display> BugExt<T> for Result<T, E> {
 ///
 /// # Usage
 /// ```
-/// # use aranya_buggy::bug;
-/// # fn main() -> Result<(), aranya_buggy::Bug> {
+/// # use buggy::bug;
+/// # fn main() -> Result<(), buggy::Bug> {
 /// # let frobs = 1;
 /// let inverse = match frobs {
 ///     0 => 1,

@@ -49,10 +49,10 @@ macro_rules! little_endian {
             }
 
             impl ::core::convert::TryFrom<&[u8]> for $name {
-                type Error = ::aranya_buggy::Bug;
+                type Error = ::buggy::Bug;
 
                 fn try_from(b: &[u8]) -> ::core::result::Result<Self, Self::Error> {
-                    use ::aranya_buggy::BugExt;
+                    use ::buggy::BugExt;
                     let v = <$type>::from_le_bytes(b.try_into().assume("incorrect size")?);
                     Ok(Self(v))
                 }

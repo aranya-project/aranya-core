@@ -149,7 +149,7 @@ dependencies = [
 name = "aranya-base58"
 version = "0.1.0"
 dependencies = [
- "aranya-buggy",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder",
  "criterion",
  "flate2",
@@ -168,13 +168,6 @@ dependencies = [
  "bindgen 0.70.1",
  "cc",
  "glob",
-]
-
-[[package]]
-name = "aranya-buggy"
-version = "0.1.0"
-dependencies = [
- "cfg-if",
 ]
 
 [[package]]
@@ -198,9 +191,9 @@ name = "aranya-capi-codegen-test"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "aranya-buggy",
  "aranya-capi-codegen",
  "aranya-capi-core",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote",
  "syn 2.0.90",
  "thiserror 2.0.7",
@@ -213,9 +206,9 @@ dependencies = [
 name = "aranya-capi-core"
 version = "0.1.0"
 dependencies = [
- "aranya-buggy",
  "aranya-capi-macro",
  "aranya-libc",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cfg-if",
  "ciborium-io",
  "const_format",
@@ -241,9 +234,9 @@ name = "aranya-crypto"
 version = "0.2.1"
 dependencies = [
  "aranya-base58",
- "aranya-buggy",
  "aranya-crypto",
  "aranya-crypto-core",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder",
  "cfg-if",
  "ciborium",
@@ -266,9 +259,9 @@ dependencies = [
  "aes",
  "aes-gcm",
  "aranya-bearssl-sys",
- "aranya-buggy",
  "aranya-crypto-core",
  "aranya-crypto-derive",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cfg-if",
  "crypto-common",
  "der",
@@ -341,9 +334,9 @@ dependencies = [
 name = "aranya-fast-channels"
 version = "0.3.0"
 dependencies = [
- "aranya-buggy",
  "aranya-crypto",
  "aranya-fast-channels",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder",
  "cfg-if",
  "const_format",
@@ -418,10 +411,10 @@ name = "aranya-policy-compiler"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "aranya-buggy",
  "aranya-policy-ast",
  "aranya-policy-lang",
  "aranya-policy-module",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ciborium",
  "clap",
 ]
@@ -477,8 +470,8 @@ name = "aranya-policy-lang"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "aranya-buggy",
  "aranya-policy-ast",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap",
  "markdown",
  "pest",
@@ -503,7 +496,6 @@ name = "aranya-policy-vm"
 version = "0.3.1"
 dependencies = [
  "anyhow",
- "aranya-buggy",
  "aranya-crypto",
  "aranya-policy-ast",
  "aranya-policy-compiler",
@@ -511,6 +503,7 @@ dependencies = [
  "aranya-policy-lang",
  "aranya-policy-module",
  "aranya-policy-vm",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ciborium",
  "heapless 0.8.0",
  "postcard",
@@ -533,9 +526,9 @@ name = "aranya-quic-syncer"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "aranya-buggy",
  "aranya-crypto",
  "aranya-runtime",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap",
  "criterion",
  "directories-next",
@@ -554,7 +547,6 @@ dependencies = [
 name = "aranya-runtime"
 version = "0.3.0"
 dependencies = [
- "aranya-buggy",
  "aranya-crypto",
  "aranya-libc",
  "aranya-policy-compiler",
@@ -562,6 +554,7 @@ dependencies = [
  "aranya-policy-module",
  "aranya-policy-vm",
  "aranya-runtime",
+ "buggy 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "dot-writer",
  "heapless 0.8.0",
  "postcard",
@@ -747,6 +740,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "buggy"
+version = "0.1.0"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
+name = "buggy"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8a411728d8b4a7e6cbbda3f13a2f202a1fdc7244c14300c1f84c4d1c0139052"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -769,7 +778,6 @@ name = "canary-alloc"
 version = "0.0.0"
 dependencies = [
  "aranya-base58",
- "aranya-buggy",
  "aranya-crypto",
  "aranya-crypto-core",
 ]
@@ -779,7 +787,6 @@ name = "canary-std"
 version = "0.0.0"
 dependencies = [
  "aranya-base58",
- "aranya-buggy",
  "aranya-crypto",
  "aranya-crypto-core",
  "aranya-crypto-ffi",

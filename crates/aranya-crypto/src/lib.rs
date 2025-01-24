@@ -93,7 +93,6 @@ reexport! {
 }
 
 pub use aranya::*;
-pub use aranya_buggy;
 #[doc(no_inline)]
 #[cfg(feature = "bearssl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
@@ -113,6 +112,7 @@ pub use aranya_crypto_core::{
 #[cfg(feature = "hazmat")]
 #[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
 pub use aranya_crypto_core::{dhkem_impl, hkdf_impl, hmac_impl};
+pub use buggy;
 pub use ciphersuite::*;
 pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};
