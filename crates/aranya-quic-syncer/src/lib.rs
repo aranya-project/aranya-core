@@ -414,11 +414,8 @@ where
             })?;
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-            let len = response_syncer.push(
-                &mut target,
-                self.client_state.lock().await.provider(),
-                response_cache,
-            )?;
+            let len =
+                response_syncer.push(&mut target, self.client_state.lock().await.provider())?;
             if len > 0 {
                 if len as u64 > subscription.remaining_bytes {
                     subscription.remaining_bytes = 0;

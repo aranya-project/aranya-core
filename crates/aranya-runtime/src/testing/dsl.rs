@@ -754,7 +754,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         request_state.commit(&mut request_trx, sink)?;
-        request_state.update_heads(storage_id, &cmds, response_cache)?;
+        request_state.update_heads(storage_id, &cmds, request_cache)?;
     };
 
     Ok((sent, received))
