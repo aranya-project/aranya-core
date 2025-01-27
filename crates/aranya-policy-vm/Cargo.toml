@@ -21,18 +21,18 @@ derive = []
 
 # Enable `std`.
 std = [
-	"aranya-buggy/std",
 	"aranya-crypto/std",
 	"aranya-policy-ast/std",
+	"buggy/std",
 	"thiserror/std",
 ]
 
 [dependencies]
-aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["alloc"] }
 aranya-crypto = { version = "0.2.1", path = "../aranya-crypto", default-features = false }
 aranya-policy-ast = { version = "0.1.0", path = "../aranya-policy-ast" }
 aranya-policy-derive = { version = "0.2.0", path = "../aranya-policy-derive" }
 aranya-policy-module = { version = "0.3.0", path = "../aranya-policy-module" }
+buggy = { version = "0.1.0", features = ["alloc"] }
 
 heapless = { workspace = true }
 postcard = { workspace = true, features = ["alloc"] }

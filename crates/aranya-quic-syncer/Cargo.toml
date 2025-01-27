@@ -11,9 +11,9 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["std"] }
 aranya-crypto = { version = "0.2.0", path = "../aranya-crypto", features = ["std"] }
 aranya-runtime = { version = "0.3.0", path = "../aranya-runtime", features = ["std"] }
+buggy = { version = "0.1.0", features = ["std"] }
 
 heapless = { workspace = true, features = ["serde"] }
 postcard = { workspace = true, features = ["alloc"] }

@@ -15,10 +15,10 @@ workspace = true
 default = []
 
 [dependencies]
-aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["std"] }
 aranya-policy-ast = { version = "0.1.0", path = "../aranya-policy-ast" }
 aranya-policy-lang = { version = "0.1.0", path = "../aranya-policy-lang" }
 aranya-policy-module = { version = "0.3.0", path = "../aranya-policy-module", features = ["std"] }
+buggy = { version = "0.1.0", features = ["std"] }
 
 ciborium = { version = "0.2" }
 clap = { version = "4.4", features = ["derive"] }

@@ -1,10 +1,10 @@
 use core::{alloc::LayoutError, convert::Infallible};
 
-use aranya_buggy::Bug;
 use aranya_crypto::{
     afc::{OpenError, SealError},
     ImportError,
 };
+use buggy::Bug;
 
 use crate::{buf::AllocError, errno::Errno, header::HeaderError, state::ChannelId};
 

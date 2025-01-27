@@ -1,10 +1,10 @@
-use aranya_buggy::BugExt;
 #[doc(inline)]
 pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
     afc::{AuthData, OpenKey, SealKey},
     zeroize::Zeroize,
 };
+use buggy::BugExt;
 
 #[allow(unused_imports)]
 use crate::features::*;

@@ -3,7 +3,7 @@
 //! An [`Engine`] stores policies for an application. A [`Policy`] is required
 //! to process [`Command`]s and defines how the runtime's graph is constructed.
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{

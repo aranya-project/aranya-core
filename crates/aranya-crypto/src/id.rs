@@ -8,7 +8,6 @@ use core::{
     str::FromStr,
 };
 
-pub use aranya_base58::{DecodeError, String64, ToBase58};
 use postcard::experimental::max_size::MaxSize;
 #[cfg(feature = "proptest")]
 #[doc(hidden)]
@@ -18,6 +17,7 @@ use serde::{
     ser::SerializeTuple,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+pub use spideroak_base58::{DecodeError, String64, ToBase58};
 
 use crate::{
     ciphersuite::SuiteIds,

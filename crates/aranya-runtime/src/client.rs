@@ -1,6 +1,6 @@
 use alloc::{collections::BinaryHeap, vec::Vec};
 
-use aranya_buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt};
 use tracing::trace;
 
 use crate::{

@@ -119,11 +119,11 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::fmt;
 
-use aranya_buggy::bug;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     OpenContext, PolicyContext, RunState, SealContext, Struct, Value,
 };
+use buggy::bug;
 use spin::Mutex;
 use tracing::{error, info, instrument};
 

@@ -1,6 +1,6 @@
 use core::{cmp::Ordering, fmt};
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 use byteorder::{ByteOrder, LittleEndian};
 pub use hpke::MessageLimitReached;
 

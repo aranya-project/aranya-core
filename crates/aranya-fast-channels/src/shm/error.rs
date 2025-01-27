@@ -1,6 +1,6 @@
 use core::{convert::Infallible, str};
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 
 use super::{
     le::{U32, U64},

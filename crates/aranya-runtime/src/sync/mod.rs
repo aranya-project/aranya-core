@@ -1,6 +1,6 @@
 //! Interface for syncing state between clients.
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 

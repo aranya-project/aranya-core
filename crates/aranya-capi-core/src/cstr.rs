@@ -1,6 +1,6 @@
 use core::{cmp, ffi::c_char, fmt, fmt::Write, mem::MaybeUninit};
 
-use aranya_buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt};
 
 /// The error returned by [`write_c_str`].
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]

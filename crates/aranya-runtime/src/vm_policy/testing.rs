@@ -3,9 +3,9 @@
 use alloc::vec::Vec;
 use core::convert::Infallible;
 
-use aranya_buggy::{bug, BugExt};
 use aranya_crypto::UserId;
 use aranya_policy_vm::{ffi::ffi, CommandContext, MachineError};
+use buggy::{bug, BugExt};
 
 use crate::CommandId;
 

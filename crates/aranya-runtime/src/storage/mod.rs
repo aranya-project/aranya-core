@@ -8,7 +8,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use aranya_buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, Command, CommandId, PolicyId, Prior};

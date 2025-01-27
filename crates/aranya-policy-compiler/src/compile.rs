@@ -8,7 +8,6 @@ use std::{
     ops::Range,
 };
 
-use aranya_buggy::{Bug, BugExt};
 use aranya_policy_ast::{self as ast, AstNode, FactCountType, FunctionCall, VType};
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
@@ -19,6 +18,7 @@ use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
+use buggy::{Bug, BugExt};
 pub(crate) use target::CompileTarget;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};

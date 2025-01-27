@@ -5,7 +5,6 @@ use std::{
     sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use aranya_buggy::{Bug, BugExt};
 use aranya_crypto::{
     aead::{Aead, Nonce},
     csprng::Random,
@@ -18,6 +17,7 @@ use aranya_crypto::{
     signer::PkError,
     Rng,
 };
+use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 /// An error returned by [`Hsm`].

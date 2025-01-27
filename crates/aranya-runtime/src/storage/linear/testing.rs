@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 
-use aranya_buggy::BugExt;
+use buggy::BugExt;
 use spin::mutex::Mutex;
 
 use super::io;
