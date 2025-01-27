@@ -12,7 +12,7 @@
 
 use std::{fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
@@ -134,12 +134,12 @@ async fn run(options: Opt) -> Result<()> {
                 TestActions::Init(0),
                 sink.lock().await.deref_mut(),
             )
-            .map_err(|e| anyhow!("SyncError: {e}"))?;
+            .context("sync error")?;
         println!("Storage id: {}", storage_id)
     } else if let Some(id) = options.storage_id {
         storage_id = id;
     } else {
-        return Err(anyhow!("SyncError: storage id is missing"));
+        bail!("storage id is missing");
     }
 
     let (_, rx1) = mpsc::unbounded_channel();
@@ -163,7 +163,7 @@ async fn run(options: Opt) -> Result<()> {
                 .lock()
                 .await
                 .action(storage_id, sink.lock().await.deref_mut(), action)
-                .map_err(|e| anyhow!("SyncError: {e}"))?;
+                .context("sync error")?;
         } else {
             sync_peer(
                 client.lock().await.deref_mut(),
