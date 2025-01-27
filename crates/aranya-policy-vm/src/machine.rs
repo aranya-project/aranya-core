@@ -137,6 +137,8 @@ pub struct Machine {
     pub fact_defs: BTreeMap<String, ast::FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Enum definitions
+    pub enum_defs: BTreeMap<String, Vec<String>>,
     /// Command attributes
     pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Mapping between program instructions and original code
@@ -158,6 +160,7 @@ impl Machine {
             command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
+            enum_defs: BTreeMap::new(),
             command_attributes: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
@@ -173,6 +176,7 @@ impl Machine {
             command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
+            enum_defs: BTreeMap::new(),
             command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
@@ -189,6 +193,7 @@ impl Machine {
                 command_defs: m.command_defs,
                 fact_defs: m.fact_defs,
                 struct_defs: m.struct_defs,
+                enum_defs: m.enum_defs,
                 command_attributes: m.command_attributes,
                 codemap: m.codemap,
                 globals: m.globals,
@@ -197,6 +202,7 @@ impl Machine {
     }
 
     /// Converts the `Machine` into a `Module`.
+    /// NOTE this is not used
     pub fn into_module(self) -> Module {
         Module {
             data: ModuleData::V0(ModuleV0 {
@@ -206,6 +212,7 @@ impl Machine {
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
+                enum_defs: self.enum_defs,
                 command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,

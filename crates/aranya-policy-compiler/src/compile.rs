@@ -92,8 +92,6 @@ struct CompileState<'a> {
     identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
-    /// name/value mappings for enums, e.g. `"Color"->["Red", "Green"]`
-    enum_values: BTreeMap<&'a str, Vec<&'a str>>,
     /// Determines if one compiles with debug functionality,
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
@@ -203,27 +201,25 @@ impl<'a> CompileState<'a> {
         &mut self,
         enum_def: &'a EnumDefinition,
     ) -> Result<(), CompileError> {
-        let enum_name = enum_def.identifier.as_ref();
+        let enum_name = enum_def.identifier.clone();
         // ensure enum name is unique
-        if self.enum_values.contains_key(enum_name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(
-                enum_def.identifier.to_owned(),
-            )));
+        if self.m.enum_defs.contains_key(&enum_name) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(enum_name)));
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = Vec::<&str>::new();
+        let mut values = Vec::<String>::new();
         for value_name in enum_def.values.iter() {
-            if values.contains(&value_name.as_str()) {
+            if values.contains(&value_name) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                     "{}::{}",
                     enum_name, value_name
                 ))));
             }
-            values.push(value_name);
+            values.push(value_name.to_owned());
         }
 
-        self.enum_values.insert(enum_name, values);
+        self.m.enum_defs.insert(enum_name, values);
 
         Ok(())
     }
@@ -732,12 +728,12 @@ impl<'a> CompileState<'a> {
             }
             Expression::EnumReference(e) => {
                 // get enum by name
-                let enum_def = self.enum_values.get(e.identifier.as_str()).ok_or_else(|| {
+                let enum_def = self.m.enum_defs.get(&e.identifier).ok_or_else(|| {
                     self.err(CompileErrorType::NotDefined(e.identifier.to_owned()))
                 })?;
 
                 // verify that the given name is a member of the enum
-                if !enum_def.contains(&e.value.as_str()) {
+                if !enum_def.contains(&e.value) {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "{}::{}",
                         e.identifier, e.value
@@ -1982,7 +1978,6 @@ impl<'a> Compiler<'a> {
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(),
             ffi_modules: self.ffi_modules,
-            enum_values: BTreeMap::new(),
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
         };
