@@ -3,7 +3,7 @@ use alloc::{
     string::{String, ToString},
 };
 
-use aranya_buggy::{Bug, BugExt};
+use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::Prior;

@@ -1,10 +1,10 @@
 use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Ordering};
 
-use aranya_buggy::BugExt;
 use aranya_crypto::{
     afc::{RawOpenKey, RawSealKey},
     CipherSuite, Csprng,
 };
+use buggy::BugExt;
 
 use super::{
     error::{corrupted, Corrupted, Error},

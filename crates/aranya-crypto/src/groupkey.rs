@@ -2,7 +2,7 @@
 
 use core::{marker::PhantomData, result::Result};
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{

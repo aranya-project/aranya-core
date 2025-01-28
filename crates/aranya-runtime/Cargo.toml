@@ -12,7 +12,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-aranya-buggy = { version = "0.1.0", path = "../aranya-buggy", features = ["alloc"] }
+buggy = { version = "0.1.0", features = ["alloc"] }
 # `aranya-crypto` enables `getrandom` by default.
 aranya-crypto = { version = "0.2.1", path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
 aranya-libc = { version = "0.1.0", path = "../aranya-libc", default-features = false, optional = true }
@@ -57,10 +57,10 @@ libc = [
 ]
 
 std = [
-	"aranya-buggy/std",
 	"aranya-crypto/std",
 	"aranya-libc?/std",
 	"aranya-policy-vm/std",
+	"buggy/std",
 	"postcard/use-std",
 	"serde/std",
 	"spin/std",

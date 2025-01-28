@@ -60,9 +60,9 @@ args = ["deny", "check"]
 
 [tasks.cargo-vet]
 category = "security"
-install_crate = { crate_name = "cargo-vet", version = "0.10.0", binary = "cargo-vet", test_arg = "-V" }
 command = "cargo"
 args = ["vet", "check"]
+dependencies = ["install-cargo-vet"]
 
 
 # Correctness
@@ -82,7 +82,7 @@ dependencies = ["check-fmt-rust", "check-fmt-toml"]
 description = "Check file formatting"
 
 [tasks.fmt]
-dependencies = ["fmt-rust", "fmt-toml"]
+dependencies = ["fmt-rust", "fmt-toml", "fmt-cargo-vet"]
 description = "Format files"
 
 [tasks.check-fmt-rust]
@@ -112,6 +112,13 @@ category = "correctness"
 description = "Format toml"
 script = "git ls-files -z '*.toml' | xargs -0 taplo fmt"
 dependencies = ["install-taplo"]
+
+[tasks.fmt-cargo-vet]
+category = "correctness"
+description = "Format cargo vet files"
+command = "cargo"
+args = ["vet", "fmt"]
+dependencies = ["install-cargo-vet"]
 
 [tasks.install-taplo]
 private = true
@@ -188,6 +195,10 @@ description = "Install nightly rust"
 # First check if the toolchain is installed, because that is much faster.
 # Don't do this if you want to keep a rolling channel up-to-date.
 script = "rustup run ${NIGHTLY} true 2>/dev/null || rustup toolchain install ${NIGHTLY} --profile minimal -c rustfmt"
+
+[tasks.install-cargo-vet]
+private = true
+install_crate = { crate_name = "cargo-vet", version = "0.10.0", binary = "cargo-vet", test_arg = "-V" }
 
 [tasks.git-unchanged]
 description = "Verify files are unchanged"

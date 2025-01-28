@@ -6,7 +6,7 @@ use core::{
     ptr,
 };
 
-use aranya_buggy::BugExt;
+use buggy::BugExt;
 use libc::off_t;
 
 use super::{

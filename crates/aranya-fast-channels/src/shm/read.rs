@@ -5,11 +5,11 @@ use core::{
     sync::atomic::Ordering,
 };
 
-use aranya_buggy::BugExt;
 use aranya_crypto::{
     afc::{OpenKey, SealKey},
     CipherSuite,
 };
+use buggy::BugExt;
 
 use super::{
     error::Error,

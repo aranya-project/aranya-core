@@ -10,7 +10,6 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use aranya_buggy::{bug, Bug, BugExt};
 use aranya_crypto::{Csprng, Rng};
 use aranya_runtime::{
     engine::{Engine, Sink},
@@ -19,6 +18,7 @@ use aranya_runtime::{
     SyncRequestMessage, SyncRequester, SyncResponder, SyncType, COMMAND_RESPONSE_MAX,
     MAX_SYNC_MESSAGE_SIZE,
 };
+use buggy::{bug, Bug, BugExt};
 use heapless::{FnvIndexMap, Vec};
 use s2n_quic::{
     client::Connect,

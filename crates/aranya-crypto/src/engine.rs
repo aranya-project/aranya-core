@@ -14,7 +14,7 @@ use core::{
     result::Result,
 };
 
-use aranya_buggy::Bug;
+use buggy::Bug;
 use postcard::experimental::max_size::MaxSize;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 

@@ -13,7 +13,7 @@ use alloc::{
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use aranya_buggy::{bug, Bug, BugExt};
+use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 use yoke::{Yoke, Yokeable};
 
@@ -21,7 +21,6 @@ use crate::{
     Address, Checkpoint, ClientError, ClientState, Command, CommandId, CommandRecall, Engine, Fact,
     FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
     Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
-    MAX_COMMAND_LENGTH,
 };
 
 type Bytes = Box<[u8]>;
@@ -407,9 +406,8 @@ where
     fn add_command(&mut self, command: &impl Command) -> Result<usize, StorageError> {
         let command = SessionCommand::from_cmd(self.session.storage_id, command)?;
         self.session.head = command.address()?;
-        let mut buf = [0u8; MAX_COMMAND_LENGTH];
-        let bytes = postcard::to_slice(&command, &mut buf).assume("can serialize")?;
-        self.message_sink.consume(bytes);
+        let bytes = postcard::to_allocvec(&command).assume("serialize session command")?;
+        self.message_sink.consume(&bytes);
 
         Ok(0)
     }

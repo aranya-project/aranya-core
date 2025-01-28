@@ -1,5 +1,5 @@
-use aranya_buggy::BugExt;
 use aranya_policy_ast as ast;
+use buggy::BugExt;
 use markdown::{
     mdast::{Node, Yaml},
     to_mdast, ParseOptions,

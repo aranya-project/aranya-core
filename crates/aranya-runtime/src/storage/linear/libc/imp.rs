@@ -1,11 +1,11 @@
 use alloc::sync::Arc;
 use core::{cmp::Ordering, hash::Hasher};
 
-use aranya_buggy::{bug, BugExt};
 use aranya_libc::{
     self as libc, Errno, OwnedFd, Path, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
     O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
+use buggy::{bug, BugExt};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::error;
 

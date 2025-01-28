@@ -11,8 +11,8 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-aranya-buggy = { version = "0.1.0", path = "../aranya-buggy" }
 aranya-capi-core = { version = "0.1.0", path = "../aranya-capi-core", features = ["debug"] }
+buggy = { version = "0.1.0" }
 
 thiserror = { workspace = true }
 tracing = { workspace = true }

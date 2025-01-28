@@ -6,7 +6,7 @@ pub mod conv;
 pub mod error;
 pub mod util;
 
-pub use aranya_buggy;
+pub use buggy;
 pub use cfg_if;
 pub use const_format;
 pub use tracing;

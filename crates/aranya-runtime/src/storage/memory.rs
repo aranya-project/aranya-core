@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::ops::{Bound, Deref};
 
-use aranya_buggy::{bug, Bug, BugExt};
+use buggy::{bug, Bug, BugExt};
 use vec1::Vec1;
 
 use crate::{

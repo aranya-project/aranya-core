@@ -1,7 +1,7 @@
 use alloc::vec;
 use core::mem;
 
-use aranya_buggy::{bug, BugExt};
+use buggy::{bug, BugExt};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 

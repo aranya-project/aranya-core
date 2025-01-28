@@ -2,10 +2,7 @@
 #![no_std]
 #![no_main]
 
-extern crate aranya_base58;
-extern crate aranya_buggy;
 extern crate aranya_crypto;
-extern crate aranya_crypto_core;
 extern crate aranya_crypto_ffi;
 extern crate aranya_device_ffi;
 extern crate aranya_envelope_ffi;
@@ -15,7 +12,6 @@ extern crate aranya_policy_ast;
 extern crate aranya_policy_module;
 extern crate aranya_policy_vm;
 extern crate aranya_runtime;
-extern crate aranya_trouble;
 
 #[cfg(target_os = "none")] // hack to please rust-analyzer
 #[panic_handler]

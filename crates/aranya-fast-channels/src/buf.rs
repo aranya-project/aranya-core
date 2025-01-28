@@ -8,8 +8,8 @@ use core::{
     slice,
 };
 
-use aranya_buggy::{Bug, BugExt};
 use aranya_crypto::zeroize::Zeroize;
+use buggy::{Bug, BugExt};
 
 /// Unable to allocate memory.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
