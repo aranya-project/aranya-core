@@ -20,6 +20,7 @@ pub mod vectors;
 use core::{
     fmt::{self, Debug},
     marker::PhantomData,
+    ops::Deref,
 };
 
 pub use aead::test_aead;
@@ -36,7 +37,7 @@ use crate::{
     csprng::Csprng,
     import::{ExportError, Import, ImportError},
     kdf::{Kdf, KdfError, KdfId, Prk},
-    keys::{PublicKey, SecretKey, SecretKeyBytes},
+    keys::{KeyDeref, PublicKey, SecretKey, SecretKeyBytes},
     mac::{Mac, MacId},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
 };
@@ -196,7 +197,7 @@ impl<T: Mac> Mac for MacWithDefaults<T> {
     type Key = T::Key;
     type KeySize = T::KeySize;
 
-    fn new(key: &Self::Key) -> Self {
+    fn new(key: <Self::Key as KeyDeref>::KeyTarget<'_>) -> Self {
         Self(T::new(key))
     }
 

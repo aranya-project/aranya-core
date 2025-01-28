@@ -20,6 +20,7 @@ use crate::{
     import::Import,
     kdf::Kdf,
     kem::{Ecdh, Kem},
+    keys::KeyDeref,
     mac::Mac,
     signer::{Signer, VerifyingKey},
 };
@@ -563,7 +564,7 @@ where
                 // Skip insecure keys.
                 Err(_) => continue,
             };
-            let mut h = T::new(&key);
+            let mut h = T::new(key.key_deref());
 
             // Update one character at a time.
             for c in tc.msg.iter() {

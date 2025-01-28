@@ -18,6 +18,7 @@ use core::{
     marker::PhantomData,
 };
 
+use aranya_crypto_core::keys::KeyDeref;
 pub use aranya_crypto_core::test_util::{
     aead::{self, test_aead},
     hash::{self, test_hash},
@@ -191,7 +192,7 @@ impl<T: Mac> Mac for MacWithDefaults<T> {
     type Key = T::Key;
     type KeySize = T::KeySize;
 
-    fn new(key: &Self::Key) -> Self {
+    fn new(key: <Self::Key as KeyDeref>::KeyTarget<'_>) -> Self {
         Self(T::new(key))
     }
 

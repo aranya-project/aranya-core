@@ -4,6 +4,7 @@ use core::{
     array::TryFromSliceError,
     fmt::{self, Debug},
     num::NonZeroU16,
+    ops::Deref,
     result::Result,
 };
 
@@ -15,7 +16,7 @@ use typenum::{
 };
 
 use crate::{
-    keys::{raw_key, SecretKey},
+    keys::{raw_key, KeyDeref, SecretKey},
     AlgId,
 };
 
@@ -83,14 +84,14 @@ pub trait Mac: Clone + Sized {
     type TagSize: ArrayLength + IsGreaterOrEqual<U32> + IsLess<U65536> + 'static;
 
     /// The key used by the [`Mac`].
-    type Key: SecretKey<Size = Self::KeySize>;
+    type Key: SecretKey<Size = Self::KeySize> + KeyDeref;
     /// The size in octets of a key used by this [`Mac`].
     ///
     /// Must be at least 16 octets and less than 2¹⁶ octets.
     type KeySize: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static;
 
     /// Creates a new [`Mac`].
-    fn new(key: &Self::Key) -> Self;
+    fn new(key: <Self::Key as KeyDeref>::KeyTarget<'_>) -> Self;
 
     /// Adds `data` to the running tag.
     fn update(&mut self, data: &[u8]);
@@ -113,7 +114,7 @@ pub trait Mac: Clone + Sized {
     /// While this function is provided by default,
     /// implementations of [`Mac`] are encouraged to provide
     /// optimized "single-shot" implementations.
-    fn mac(key: &Self::Key, data: &[u8]) -> Self::Tag {
+    fn mac(key: <Self::Key as KeyDeref>::KeyTarget<'_>, data: &[u8]) -> Self::Tag {
         let mut h = Self::new(key);
         h.update(data);
         h.tag()

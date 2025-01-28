@@ -13,6 +13,13 @@ use crate::{
     zeroize::ZeroizeOnDrop,
 };
 
+pub trait KeyDeref {
+    type KeyTarget<'k>
+    where
+        Self: 'k;
+    fn key_deref(&self) -> Self::KeyTarget<'_>;
+}
+
 /// A fixed-length secret key.
 ///
 /// Secret keys are either symmetric keys (e.g., for AES) or
@@ -154,6 +161,13 @@ macro_rules! raw_key {
         #[derive(::core::clone::Clone, $crate::zeroize::ZeroizeOnDrop)]
         #[repr(transparent)]
         $vis struct $name<N: ::generic_array::ArrayLength>($crate::keys::SecretKeyBytes<N>);
+
+        impl<N: ::generic_array::ArrayLength> $crate::keys::KeyDeref for $name<N> {
+            type KeyTarget<'k> = &'k Self;
+            fn key_deref(&self) -> &Self {
+                &self
+            }
+        }
 
         impl<N: ::generic_array::ArrayLength> $name<N> {
             /// Creates a new raw key.

@@ -1,7 +1,11 @@
 //! [`Mac`] tests.
 
 use super::{assert_ct_eq, assert_ct_ne};
-use crate::{csprng::Csprng, keys::SecretKey, mac::Mac};
+use crate::{
+    csprng::Csprng,
+    keys::{KeyDeref, SecretKey},
+    mac::Mac,
+};
 
 /// Invokes `callback` for each MAC test.
 ///
@@ -86,17 +90,17 @@ const DATA: &[u8] = b"hello, world!";
 /// Basic positive test.
 pub fn test_default<T: Mac, R: Csprng>(rng: &mut R) {
     let key = T::Key::new(rng);
-    let tag1 = T::mac(&key, DATA);
-    let tag2 = T::mac(&key, DATA);
+    let tag1 = T::mac(key.key_deref(), DATA);
+    let tag2 = T::mac(key.key_deref(), DATA);
     assert_ct_eq!(tag1, tag2, "tags should be the same");
 }
 
 /// Tests that [`Mac::update`] is the same as [`Mac::mac`].
 pub fn test_update<T: Mac, R: Csprng>(rng: &mut R) {
     let key = T::Key::new(rng);
-    let tag1 = T::mac(&key, DATA);
+    let tag1 = T::mac(key.key_deref(), DATA);
     let tag2 = {
-        let mut h = T::new(&key);
+        let mut h = T::new(key.key_deref());
         for c in DATA {
             h.update(&[*c]);
         }
@@ -108,9 +112,9 @@ pub fn test_update<T: Mac, R: Csprng>(rng: &mut R) {
 /// Test [`Mac::verify`].
 pub fn test_verify<T: Mac, R: Csprng>(rng: &mut R) {
     let key = T::Key::new(rng);
-    let tag1 = T::mac(&key, DATA);
+    let tag1 = T::mac(key.key_deref(), DATA);
 
-    let mut h = T::new(&key);
+    let mut h = T::new(key.key_deref());
     for c in DATA {
         h.update(&[*c]);
     }
@@ -123,15 +127,15 @@ pub fn test_different_keys<T: Mac, R: Csprng>(rng: &mut R) {
     let key2 = T::Key::new(rng);
     assert_ct_ne!(key1, key2, "keys should differ");
 
-    let tag1 = T::mac(&key1, DATA);
-    let tag2 = T::mac(&key2, DATA);
+    let tag1 = T::mac(key1.key_deref(), DATA);
+    let tag2 = T::mac(key2.key_deref(), DATA);
     assert_ct_ne!(tag1, tag2, "tags should differ");
 }
 
 /// Negative test for MACs of different data.
 pub fn test_different_data<T: Mac, R: Csprng>(rng: &mut R) {
     let key = T::Key::new(rng);
-    let tag1 = T::mac(&key, b"hello");
-    let tag2 = T::mac(&key, b"world");
+    let tag1 = T::mac(key.key_deref(), b"hello");
+    let tag2 = T::mac(key.key_deref(), b"world");
     assert_ct_ne!(tag1, tag2, "tags should differ");
 }
