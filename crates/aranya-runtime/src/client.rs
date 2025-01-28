@@ -5,8 +5,8 @@ use aranya_buggy::{Bug, BugExt};
 use tracing::trace;
 
 use crate::{
-    Command, CommandId, Engine, EngineError, GraphId, Location, PeerCache, Perspective, Policy,
-    Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
+    Address, Command, CommandId, Engine, EngineError, GraphId, Location, PeerCache, Perspective,
+    Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 mod session;
@@ -150,13 +150,13 @@ where
     pub fn update_heads(
         &mut self,
         storage_id: GraphId,
-        commands: &[impl Command],
+        commands: &[Address],
         request_heads: &mut PeerCache,
     ) -> Result<(), ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
         for command in commands {
-            if let Some(loc) = storage.get_location(command.address()?)? {
-                request_heads.add_command(storage, command.address()?, loc)?;
+            if let Some(loc) = storage.get_location(*command)? {
+                request_heads.add_command(storage, *command, loc)?;
             }
         }
         Ok(())
