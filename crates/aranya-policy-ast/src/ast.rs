@@ -96,6 +96,7 @@ impl<T> Deref for AstNode<T> {
 #[rkyv(bytecheck(
     bounds(
         __C: rkyv::validation::ArchiveContext,
+        __C::Error: rkyv::rancor::Source,
     )
 ))]
 pub enum VType {
