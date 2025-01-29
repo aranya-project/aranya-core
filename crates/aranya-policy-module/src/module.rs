@@ -65,7 +65,17 @@ pub enum ModuleData {
 }
 
 /// The Version 0 module format
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 #[serde(deny_unknown_fields)]
 pub struct ModuleV0 {
     /// Program memory
@@ -76,7 +86,7 @@ pub struct ModuleV0 {
     pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Command definitions
     pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
-    /// Fact definitions
+    /// Fact definition
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct definitions
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
