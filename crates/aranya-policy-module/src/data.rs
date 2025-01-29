@@ -93,7 +93,30 @@ impl<T: Typed> Typed for Option<T> {
 }
 
 /// All of the value types allowed in the VM
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+// Trait bounds required for serialization
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+// Trait bounds required for deserialization
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+// Bounds for validation during bytechecking (validating archived data)
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+    )
+))]
 pub enum Value {
     /// Integer (64-bit signed)
     Int(i64),
@@ -104,7 +127,7 @@ pub enum Value {
     /// Bytes
     Bytes(Vec<u8>),
     /// Struct
-    Struct(Struct),
+    Struct(#[rkyv(omit_bounds)] Struct),
     /// Fact
     Fact(Fact),
     /// A unique identifier.
@@ -518,7 +541,20 @@ impl Display for Value {
 
 /// The subset of Values that can be hashed. Only these types of values
 /// can be used in the key portion of a Fact.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub enum HashableValue {
     /// An integer.
@@ -587,7 +623,20 @@ impl Display for HashableValue {
 
 /// One labeled value in a fact key. A sequence of FactKeys mapped to
 /// a sequence of FactValues comprises a Fact.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct FactKey {
     /// key name
@@ -613,7 +662,17 @@ impl Display for FactKey {
 }
 
 /// One labeled value in a fact value.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct FactValue {
     /// value name
     pub identifier: String,
@@ -702,13 +761,35 @@ impl From<FactValue> for KVPair {
 }
 
 /// A Fact
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+    )
+))]
 pub struct Fact {
     /// The name of the fact
     pub name: String,
     /// The keys of the fact
+    #[rkyv(omit_bounds)]
     pub keys: FactKeyList,
     /// The values of the fact
+    #[rkyv(omit_bounds)]
     pub values: FactValueList,
 }
 
@@ -781,11 +862,32 @@ impl Display for Fact {
 }
 
 /// A Struct value
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(serialize_bounds(
+    __S: rkyv::ser::Writer + rkyv::ser::Allocator,
+    __S::Error: rkyv::rancor::Source,
+))]
+#[rkyv(deserialize_bounds(__D::Error: rkyv::rancor::Source))]
+#[rkyv(bytecheck(
+    bounds(
+        __C: rkyv::validation::ArchiveContext,
+    )
+))]
 pub struct Struct {
     /// The name of the struct
     pub name: String,
     /// the fields of the struct
+    #[rkyv(omit_bounds)]
     pub fields: BTreeMap<String, Value>,
 }
 

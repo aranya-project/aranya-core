@@ -21,6 +21,7 @@ std = ["thiserror/std"]
 
 [dependencies]
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
+rkyv = { version = "0.8.10", default-features = false, features = ["alloc"]}
 thiserror = { workspace = true }
 
 [package.metadata.docs.rs]

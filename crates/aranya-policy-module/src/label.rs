@@ -6,7 +6,20 @@ use core::fmt::{self, Display};
 use serde::{Deserialize, Serialize};
 
 /// Types of Labels
-#[derive(Debug, Clone, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialOrd,
+    Ord,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+#[rkyv(derive(Ord, PartialOrd, Eq, PartialEq))]
 pub enum LabelType {
     /// This label represents the entry point of an action
     Action,
@@ -40,7 +53,21 @@ impl Display for LabelType {
 }
 
 /// Labels are branch targets and execution entry points.
-#[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialOrd,
+    Ord,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
+// Ensures what is archived (zero-copy serialized representation) derives these traits. Necessarily derived in fields as well
+#[rkyv(derive(Ord, PartialOrd, Eq, PartialEq))]
 pub struct Label {
     /// The address of the label
     pub name: String,
