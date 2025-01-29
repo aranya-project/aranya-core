@@ -2,9 +2,9 @@ extern crate alloc;
 
 use alloc::string::String;
 
-use buggy::Bug;
 use aranya_crypto::Id;
 use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
+use buggy::Bug;
 
 use super::Stack;
 use crate::{

@@ -29,7 +29,7 @@ std = [
 	"postcard/use-std",
 	"serde/std",
 	"siphasher?/std",
-	"spin?/std",
+	"spin/std",
 	"thiserror/std",
 	"tracing/std",
 ]
@@ -40,7 +40,6 @@ testing = [
 
 	"dep:indexmap",
 	"dep:siphasher",
-	"dep:spin",
 ]
 
 [dependencies]
@@ -52,7 +51,7 @@ indexmap = { version = "2.1", default-features = false, optional = true }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 siphasher = { version = "1", default-features = false, optional = true }
-spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"], optional = true }
+spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 

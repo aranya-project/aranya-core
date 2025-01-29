@@ -1,17 +1,17 @@
 extern crate alloc;
 
-use alloc::{boxed::Box, rc::Rc, string::String, vec, vec::Vec};
+use alloc::{boxed::Box, string::String, vec, vec::Vec};
 use core::{
     cell::RefCell,
     ops::{Deref, DerefMut},
 };
 
-use aranya_buggy::{BugExt, SafeBorrow};
 use aranya_crypto::Id;
 use aranya_policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError,
     MachineErrorType, MachineIO, MachineIOError, MachineStack,
 };
+use buggy::BugExt;
 use spin::Mutex;
 use tracing::error;
 
@@ -47,8 +47,8 @@ where
 
 /// Implements the `MachineIO` interface for [VmPolicy](super::VmPolicy).
 pub struct VmPolicyIO<'o, P, S, E, FFI> {
-    facts: Rc<RefCell<&'o mut P>>,
-    sink: Rc<RefCell<&'o mut S>>,
+    facts: &'o RefCell<&'o mut P>,
+    sink: &'o RefCell<&'o mut S>,
     publish_stack: Vec<(String, Vec<KVPair>)>,
     engine: &'o Mutex<E>,
     ffis: &'o [FFI],
@@ -60,8 +60,8 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     /// Creates a new `VmPolicyIO` for a [`crate::storage::FactPerspective`] and a
     /// [`crate::engine::Sink`].
     pub fn new(
-        facts: Rc<RefCell<&'o mut P>>,
-        sink: Rc<RefCell<&'o mut S>>,
+        facts: &'o RefCell<&'o mut P>,
+        sink: &'o RefCell<&'o mut S>,
         engine: &'o Mutex<E>,
         ffis: &'o [FFI],
     ) -> VmPolicyIO<'o, P, S, E, FFI> {
@@ -98,7 +98,10 @@ where
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
         let value = ser_values(value)?;
-        self.facts.safe_borrow_mut()?.insert(name, keys, value);
+        self.facts
+            .try_borrow_mut()
+            .map_err(|_| MachineIOError::Internal)?
+            .insert(name, keys, value);
         Ok(())
     }
 
@@ -108,7 +111,10 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
-        self.facts.safe_borrow_mut()?.delete(name, keys);
+        self.facts
+            .try_borrow_mut()
+            .map_err(|_| MachineIOError::Internal)?
+            .delete(name, keys);
         Ok(())
     }
 
@@ -120,7 +126,8 @@ where
         let keys = ser_keys(key);
         let iter = self
             .facts
-            .safe_borrow_mut()?
+            .try_borrow_mut()
+            .map_err(|_| MachineIOError::Internal)?
             .query_prefix(&name, &keys)
             .map_err(|e| {
                 error!("query failed: {e}");

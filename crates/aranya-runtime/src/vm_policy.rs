@@ -258,12 +258,9 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
     where
         P: FactPerspective,
     {
-        let io = RefCell::new(VmPolicyIO::new(
-            Rc::new(RefCell::new(facts)),
-            Rc::new(RefCell::new(sink)),
-            &self.engine,
-            &self.ffis,
-        ));
+        let facts = RefCell::new(facts);
+        let sink = RefCell::new(sink);
+        let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let mut rs = self.machine.create_run_state(&io, ctx);
         let self_data = Struct::new(name, fields);
         match rs.call_command_policy(&self_data.name, &self_data, envelope.clone().into()) {
@@ -336,13 +333,10 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
     where
         P: FactPerspective,
     {
+        let facts = RefCell::new(facts);
         let mut sink = NullSink;
-        let io = RefCell::new(VmPolicyIO::new(
-            Rc::new(RefCell::new(facts)),
-            Rc::new(RefCell::new(&mut sink)),
-            &self.engine,
-            &self.ffis,
-        ));
+        let sink2 = RefCell::new(&mut sink);
+        let io = RefCell::new(VmPolicyIO::new(&facts, &sink2, &self.engine, &self.ffis));
         let ctx = CommandContext::Open(OpenContext { name });
         let mut rs = self.machine.create_run_state(&io, ctx);
         let status = rs.call_open(name, envelope.into());
@@ -521,12 +515,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let ctx_parent = parent.unwrap_or_default();
         let facts = Rc::new(RefCell::new(facts));
         let sink = Rc::new(RefCell::new(sink));
-        let io = RefCell::new(VmPolicyIO::new(
-            Rc::clone(&facts),
-            Rc::clone(&sink),
-            &self.engine,
-            &self.ffis,
-        ));
+        let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let ctx = CommandContext::Action(ActionContext {
             name,
             head_id: ctx_parent.id.into(),
@@ -549,14 +538,17 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                     }
                     ExitReason::Yield => {
                         // Command was published.
-                        let command_struct: Struct =
-                            rs.stack.pop().assume("should have command struct")?;
+                        let command_struct: Struct = rs.stack.pop().map_err(|e| {
+                            error!("should have command struct: {e}");
+                            EngineError::InternalError
+                        })?;
 
                         let fields = command_struct
                             .fields
                             .iter()
                             .map(|(k, v)| KVPair::new(k, v.clone()));
-                        io.safe_borrow_mut()?
+                        io.try_borrow_mut()
+                            .map_err(|_| EngineError::InternalError)?
                             .publish(command_struct.name.clone(), fields);
 
                         let seal_ctx = rs.get_context().seal_from_action(&command_struct.name)?;
@@ -577,8 +569,10 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         }
 
                         // Grab sealed envelope from stack
-                        let envelope_struct: Struct =
-                            rs_seal.stack.pop().assume("Expected a sealed envelope")?;
+                        let envelope_struct: Struct = rs_seal.stack.pop().map_err(|e| {
+                            error!("Expected a sealed envelope {e}");
+                            EngineError::InternalError
+                        })?;
                         let envelope = Envelope::try_from(envelope_struct).map_err(|e| {
                             error!("Malformed envelope: {e}");
                             EngineError::InternalError

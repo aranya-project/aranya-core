@@ -11,7 +11,7 @@ use core::{cell::RefCell, result::Result};
 use aranya_crypto::{
     self,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    aranya_buggy::{Bug, BugExt, SafeBorrow},
+    buggy::Bug,
     CipherSuite, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
     KeyStoreExt, UnwrapError, UserId, WrapError,
 };
@@ -20,6 +20,7 @@ use aranya_policy_vm::{
     CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
     ValueConversionError,
 };
+use spin::Mutex;
 
 use crate::shared::decode_enc_pk;
 
@@ -29,16 +30,16 @@ macro_rules! error {
 }
 
 /// An [`FfiModule`][aranya_policy_vm::ffi::FfiModule] for AFC.
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct Ffi<S> {
-    store: RefCell<S>,
+    store: Mutex<S>,
 }
 
 impl<S: KeyStore> Ffi<S> {
     /// Creates a new FFI module.
     pub const fn new(store: S) -> Self {
         Self {
-            store: RefCell::new(store),
+            store: Mutex::new(store),
         }
     }
 
@@ -92,7 +93,8 @@ function create_bidi_channel(
 
         let our_sk = &self
             .store
-            .safe_borrow()?
+            .try_lock()
+            .ok_or_else(|| FfiError::KeyStore)?
             .get_key(eng, our_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
@@ -110,7 +112,8 @@ function create_bidi_channel(
         let key_id = peer.id().into();
         let wrapped = eng.wrap(author)?;
         self.store
-            .safe_borrow_mut()?
+            .try_lock()
+            .ok_or_else(|| FfiError::KeyStore)?
             .try_insert(key_id, wrapped)
             .map_err(|err| {
                 error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
@@ -149,7 +152,8 @@ function create_uni_channel(
 
         let our_sk = &self
             .store
-            .safe_borrow()?
+            .try_lock()
+            .ok_or_else(|| FfiError::KeyStore)?
             .get_key(eng, author_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
@@ -167,8 +171,8 @@ function create_uni_channel(
         let key_id = peer.id().into();
         let wrapped = eng.wrap(author)?;
         self.store
-            .try_borrow_mut()
-            .assume("should be able to borrow store")?
+            .try_lock()
+            .ok_or_else(|| FfiError::KeyStore)?
             .try_insert(key_id, wrapped)
             .map_err(|err| {
                 error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");

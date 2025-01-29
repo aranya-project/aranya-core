@@ -1,6 +1,6 @@
-use aranya_buggy::{bug, Bug};
 pub use aranya_crypto::Id;
 use aranya_crypto::UserId;
+use buggy::{bug, Bug};
 
 /// Context for actions
 #[derive(Clone, Debug, PartialEq, Eq)]
