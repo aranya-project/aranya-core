@@ -85,7 +85,7 @@ where
 
     /// Call external function, e.g., one defined in an `FfiModule`.
     fn call(
-        &mut self,
+        &self,
         module: usize,
         procedure: usize,
         stack: &mut S,

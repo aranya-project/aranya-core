@@ -160,7 +160,7 @@ where
     }
 
     fn call(
-        &mut self,
+        &self,
         module: usize,
         procedure: usize,
         stack: &mut MachineStack,

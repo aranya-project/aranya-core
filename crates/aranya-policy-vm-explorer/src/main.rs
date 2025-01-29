@@ -214,7 +214,7 @@ where
     }
 
     fn call(
-        &mut self,
+        &self,
         module: usize,
         _procedure: usize,
         _stack: &mut S,

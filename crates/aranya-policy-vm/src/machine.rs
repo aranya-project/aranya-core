@@ -12,13 +12,14 @@ use core::{
     fmt::{self, Display},
 };
 
+use aranya_crypto::Id;
 use aranya_policy_ast as ast;
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
     LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
     ValueConversionError,
 };
-use buggy::BugExt;
+use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
 
 use crate::{
@@ -335,6 +336,12 @@ where
     /// when recall happens.
     pub fn set_context(&mut self, ctx: CommandContext<'a>) {
         self.ctx = ctx;
+    }
+
+    /// Update the context with a new head ID, e.g. after publishing a command.
+    pub fn update_context_with_new_head(&mut self, new_head_id: Id) -> Result<(), Bug> {
+        self.ctx = self.ctx.with_new_head(new_head_id)?;
+        Ok(())
     }
 
     /// Returns a string describing the source code at the current PC,

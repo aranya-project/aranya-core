@@ -625,8 +625,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
-                        let new_ctx = rs.get_context().with_new_head(new_command.id().into())?;
-                        rs.set_context(new_ctx);
+                        rs.update_context_with_new_head(new_command.id().into())?;
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {

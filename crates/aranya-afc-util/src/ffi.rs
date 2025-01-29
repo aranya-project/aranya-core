@@ -6,7 +6,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::{cell::RefCell, result::Result};
+use core::result::Result;
 
 use aranya_crypto::{
     self,
