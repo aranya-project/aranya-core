@@ -1,5 +1,4 @@
 use alloc::{collections::BinaryHeap, vec::Vec};
-use core::fmt;
 
 use buggy::{Bug, BugExt};
 use tracing::trace;
@@ -15,40 +14,22 @@ mod transaction;
 pub use self::{session::Session, transaction::Transaction};
 
 /// An error returned by the runtime client.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ClientError {
+    #[error("no such parent: {0}")]
     NoSuchParent(CommandId),
+    #[error("engine error: {0}")]
     EngineError(EngineError),
-    StorageError(StorageError),
+    #[error("storage error: {0}")]
+    StorageError(#[from] StorageError),
+    #[error("init error")]
     InitError,
+    #[error("not authorized")]
     NotAuthorized,
-    SessionDeserialize(postcard::Error),
-    Bug(Bug),
-}
-
-impl fmt::Display for ClientError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NoSuchParent(id) => write!(f, "no such parent: {id}"),
-            Self::EngineError(e) => write!(f, "engine error: {e}"),
-            Self::StorageError(e) => write!(f, "storage error: {e}"),
-            Self::InitError => write!(f, "init error"),
-            Self::NotAuthorized => write!(f, "not authorized"),
-            Self::SessionDeserialize(e) => write!(f, "session deserialize error: {e}"),
-            Self::Bug(bug) => write!(f, "{bug}"),
-        }
-    }
-}
-
-impl core::error::Error for ClientError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::EngineError(e) => Some(e),
-            Self::StorageError(e) => Some(e),
-            Self::Bug(e) => Some(e),
-            _ => None,
-        }
-    }
+    #[error("session deserialize error: {0}")]
+    SessionDeserialize(#[from] postcard::Error),
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
 
 impl From<EngineError> for ClientError {
@@ -57,18 +38,6 @@ impl From<EngineError> for ClientError {
             EngineError::Check => Self::NotAuthorized,
             _ => Self::EngineError(error),
         }
-    }
-}
-
-impl From<StorageError> for ClientError {
-    fn from(error: StorageError) -> Self {
-        ClientError::StorageError(error)
-    }
-}
-
-impl From<Bug> for ClientError {
-    fn from(error: Bug) -> Self {
-        ClientError::Bug(error)
     }
 }
 

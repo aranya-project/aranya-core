@@ -12,6 +12,7 @@ rust-version.workspace = true
 cfg-if = { workspace = true, default-features = false }
 libc = { workspace = true, default-features = false }
 memchr = { version = "2.7.2", default-features = false }
+thiserror = { workspace = true }
 tracing = { workspace = true, default-features = false }
 
 [features]
@@ -20,6 +21,7 @@ default = []
 std = [
 	"libc/std",
 	"memchr/std",
+	"thiserror/std",
 	"tracing/std",
 ]
 

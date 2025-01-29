@@ -7,16 +7,9 @@ use serde::{Deserialize, Serialize};
 
 /// An invalid version string was provided to
 /// [`Version::from_str`].
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, thiserror::Error)]
+#[error("invalid version string")]
 pub struct InvalidVersion;
-
-impl fmt::Display for InvalidVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid version string")
-    }
-}
-
-impl core::error::Error for InvalidVersion {}
 
 /// Policy language version
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]

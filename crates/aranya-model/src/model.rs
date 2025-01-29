@@ -4,11 +4,7 @@
 
 extern crate alloc;
 use alloc::{collections::BTreeMap, vec::Vec};
-use core::{
-    cell::RefCell,
-    fmt::{self, Debug, Display},
-    mem,
-};
+use core::{cell::RefCell, fmt::Debug, mem};
 use std::{collections::btree_map::Entry, marker::PhantomData};
 
 use anyhow::Result;
@@ -65,74 +61,29 @@ where
 }
 
 /// An error returned by the model engine.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ModelError {
-    Client(ClientError),
+    #[error(transparent)]
+    Client(#[from] ClientError),
+    #[error("client not found")]
     ClientNotFound,
+    #[error("graph not found")]
     GraphNotFound,
+    #[error("duplicate client")]
     DuplicateClient,
+    #[error("duplicate graph")]
     DuplicateGraph,
-    Engine(EngineError),
-    Sync(SyncError),
-    VmPolicy(VmPolicyError),
-    Parse(ParseError),
-    Compile(CompileError),
+    #[error(transparent)]
+    Engine(#[from] EngineError),
+    #[error(transparent)]
+    Sync(#[from] SyncError),
+    #[error(transparent)]
+    VmPolicy(#[from] VmPolicyError),
+    #[error(transparent)]
+    Parse(#[from] ParseError),
+    #[error(transparent)]
+    Compile(#[from] CompileError),
 }
-
-impl From<ClientError> for ModelError {
-    fn from(err: ClientError) -> Self {
-        ModelError::Client(err)
-    }
-}
-
-impl From<EngineError> for ModelError {
-    fn from(err: EngineError) -> Self {
-        ModelError::Engine(err)
-    }
-}
-
-impl From<SyncError> for ModelError {
-    fn from(err: SyncError) -> Self {
-        ModelError::Sync(err)
-    }
-}
-
-impl From<VmPolicyError> for ModelError {
-    fn from(err: VmPolicyError) -> Self {
-        ModelError::VmPolicy(err)
-    }
-}
-
-impl From<ParseError> for ModelError {
-    fn from(err: ParseError) -> Self {
-        ModelError::Parse(err)
-    }
-}
-
-impl From<CompileError> for ModelError {
-    fn from(err: CompileError) -> Self {
-        ModelError::Compile(err)
-    }
-}
-
-impl Display for ModelError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Client(err) => write!(f, "{}", err),
-            Self::ClientNotFound => write!(f, "client not found"),
-            Self::GraphNotFound => write!(f, "graph not found"),
-            Self::DuplicateClient => write!(f, "duplicate client"),
-            Self::DuplicateGraph => write!(f, "duplicate graph"),
-            Self::Engine(err) => write!(f, "{}", err),
-            Self::Sync(err) => write!(f, "{}", err),
-            Self::VmPolicy(err) => write!(f, "{}", err),
-            Self::Parse(err) => write!(f, "{}", err),
-            Self::Compile(err) => write!(f, "{}", err),
-        }
-    }
-}
-
-impl core::error::Error for ModelError {}
 
 /// Proxy ID for clients
 #[repr(transparent)]

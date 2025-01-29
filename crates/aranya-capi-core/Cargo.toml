@@ -27,6 +27,7 @@ std = [
 	"aranya-libc/std",
 	"buggy/std",
 	"ciborium-io?/std",
+	"thiserror/std",
 ]
 
 [dependencies]
@@ -36,6 +37,7 @@ buggy = { version = "0.1.0", default-features = false }
 
 cfg-if = { workspace = true, default-features = false }
 const_format = { version = "0.2.31", default-features = false, features = ["assertcp"] }
+thiserror = { workspace = true }
 tracing = { workspace = true, default-features = false }
 
 ciborium-io = { version = "0.2.2", default-features = false, optional = true }

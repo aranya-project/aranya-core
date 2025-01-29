@@ -21,30 +21,23 @@ use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 /// An error returned by [`Hsm`].
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum HsmError {
     /// Unable to authenticate the wrapped key.
+    #[error("unable to authenticate")]
     Authentication,
     /// The key was not found.
+    #[error("key not found: {0}")]
     NotFound(KeyId),
     /// Wrong key type.
+    #[error("wrong key type")]
     WrongKeyType,
     /// An internal bug was discovered.
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
     /// The Public Key is invalid.
-    PkError(PkError),
-}
-
-impl From<Bug> for HsmError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
-}
-
-impl From<PkError> for HsmError {
-    fn from(err: PkError) -> Self {
-        Self::PkError(err)
-    }
+    #[error(transparent)]
+    PkError(#[from] PkError),
 }
 
 /// A pretend hardware security module.

@@ -428,16 +428,9 @@ pub trait Identified {
 }
 
 /// An error that may occur when accessing an Id
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{0}")]
 pub struct IdError(&'static str);
-
-impl core::error::Error for IdError {}
-
-impl Display for IdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 impl From<PkError> for IdError {
     fn from(err: PkError) -> Self {

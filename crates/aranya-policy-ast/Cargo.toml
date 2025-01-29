@@ -17,10 +17,11 @@ workspace = true
 default = []
 
 # Enable `std`.
-std = []
+std = ["thiserror/std"]
 
 [dependencies]
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
+thiserror = { workspace = true }
 
 [package.metadata.docs.rs]
 all-features = true

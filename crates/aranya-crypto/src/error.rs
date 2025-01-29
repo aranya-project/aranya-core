@@ -1,7 +1,5 @@
 #![forbid(unsafe_code)]
 
-use core::fmt;
-
 use buggy::Bug;
 
 use crate::{
@@ -18,171 +16,58 @@ use crate::{
 
 /// Encompasses the different errors directly returned by this
 /// crate.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 #[non_exhaustive]
 pub enum Error {
     /// An argument was invalid.
     ///
     /// It describes why the argument is invalid.
+    #[error("invalid argument: {0}")]
     InvalidArgument(&'static str),
     /// An internal bug was discovered.
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
 
     /// An AEAD seal failure.
-    Seal(SealError),
+    #[error(transparent)]
+    Seal(#[from] SealError),
     /// An AEAD open failure.
-    Open(OpenError),
+    #[error(transparent)]
+    Open(#[from] OpenError),
     /// An ECDH failure.
-    Ecdh(EcdhError),
+    #[error(transparent)]
+    Ecdh(#[from] EcdhError),
     /// An HPKE failure.
-    Hpke(HpkeError),
+    #[error(transparent)]
+    Hpke(#[from] HpkeError),
     /// A KDF failure.
-    Kdf(KdfError),
+    #[error(transparent)]
+    Kdf(#[from] KdfError),
     /// A KEM failure.
-    Kem(KemError),
+    #[error(transparent)]
+    Kem(#[from] KemError),
     /// A MAC failure.
-    Mac(MacError),
+    #[error(transparent)]
+    Mac(#[from] MacError),
     /// A digital signature failure.
-    Signer(SignerError),
+    #[error(transparent)]
+    Signer(#[from] SignerError),
     /// An import failure.
-    Import(ImportError),
+    #[error(transparent)]
+    Import(#[from] ImportError),
     /// An export failure.
-    Export(ExportError),
+    #[error(transparent)]
+    Export(#[from] ExportError),
     /// A key wrapping failure.
-    Wrap(WrapError),
+    #[error(transparent)]
+    Wrap(#[from] WrapError),
     /// A key unwrapping failure.
-    Unwrap(UnwrapError),
+    #[error(transparent)]
+    Unwrap(#[from] UnwrapError),
     /// An identifier failure.
-    Id(IdError),
+    #[error(transparent)]
+    Id(#[from] IdError),
     /// A public key failure.
-    Pk(PkError),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidArgument(msg) => write!(f, "invalid argument: {}", msg),
-            Self::Bug(err) => write!(f, "{}", err),
-
-            Self::Seal(err) => write!(f, "{}", err),
-            Self::Open(err) => write!(f, "{}", err),
-            Self::Ecdh(err) => write!(f, "{}", err),
-            Self::Hpke(err) => write!(f, "{}", err),
-            Self::Kdf(err) => write!(f, "{}", err),
-            Self::Kem(err) => write!(f, "{}", err),
-            Self::Mac(err) => write!(f, "{}", err),
-            Self::Signer(err) => write!(f, "{}", err),
-            Self::Import(err) => write!(f, "{}", err),
-            Self::Export(err) => write!(f, "{}", err),
-            Self::Wrap(err) => write!(f, "{}", err),
-            Self::Unwrap(err) => write!(f, "{}", err),
-            Self::Id(err) => write!(f, "{}", err),
-            Self::Pk(err) => write!(f, "{}", err),
-        }
-    }
-}
-
-impl core::error::Error for Error {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Bug(err) => Some(err),
-            Self::Seal(err) => Some(err),
-            Self::Open(err) => Some(err),
-            Self::Ecdh(err) => Some(err),
-            Self::Hpke(err) => Some(err),
-            Self::Kdf(err) => Some(err),
-            Self::Kem(err) => Some(err),
-            Self::Mac(err) => Some(err),
-            Self::Signer(err) => Some(err),
-            Self::Import(err) => Some(err),
-            Self::Export(err) => Some(err),
-            Self::Wrap(err) => Some(err),
-            Self::Unwrap(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl From<Bug> for Error {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
-}
-
-impl From<SealError> for Error {
-    fn from(err: SealError) -> Self {
-        Self::Seal(err)
-    }
-}
-
-impl From<OpenError> for Error {
-    fn from(err: OpenError) -> Self {
-        Self::Open(err)
-    }
-}
-
-impl From<HpkeError> for Error {
-    fn from(err: HpkeError) -> Self {
-        Self::Hpke(err)
-    }
-}
-
-impl From<KdfError> for Error {
-    fn from(err: KdfError) -> Self {
-        Self::Kdf(err)
-    }
-}
-
-impl From<KemError> for Error {
-    fn from(err: KemError) -> Self {
-        Self::Kem(err)
-    }
-}
-
-impl From<MacError> for Error {
-    fn from(err: MacError) -> Self {
-        Self::Mac(err)
-    }
-}
-
-impl From<SignerError> for Error {
-    fn from(err: SignerError) -> Self {
-        Self::Signer(err)
-    }
-}
-
-impl From<ImportError> for Error {
-    fn from(err: ImportError) -> Self {
-        Self::Import(err)
-    }
-}
-
-impl From<ExportError> for Error {
-    fn from(err: ExportError) -> Self {
-        Self::Export(err)
-    }
-}
-
-impl From<WrapError> for Error {
-    fn from(err: WrapError) -> Self {
-        Self::Wrap(err)
-    }
-}
-
-impl From<UnwrapError> for Error {
-    fn from(err: UnwrapError) -> Self {
-        Self::Unwrap(err)
-    }
-}
-
-impl From<IdError> for Error {
-    fn from(err: IdError) -> Self {
-        Self::Id(err)
-    }
-}
-
-impl From<PkError> for Error {
-    fn from(err: PkError) -> Self {
-        Self::Pk(err)
-    }
+    #[error(transparent)]
+    Pk(#[from] PkError),
 }

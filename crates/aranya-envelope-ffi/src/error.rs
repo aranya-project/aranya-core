@@ -1,15 +1,17 @@
 extern crate alloc;
 
 use alloc::boxed::Box;
-use core::{fmt, ops::Deref};
+use core::fmt;
 
 use aranya_policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
 
 /// An error returned by `Ffi`.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("{err}")]
 pub struct Error {
     kind: ErrorKind,
+    #[source]
     err: Box<dyn core::error::Error + Send + Sync + 'static>,
 }
 
@@ -34,18 +36,6 @@ impl Error {
     #[inline]
     pub const fn kind(&self) -> ErrorKind {
         self.kind
-    }
-}
-
-impl core::error::Error for Error {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        Some(self.err.deref())
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.err.fmt(f)
     }
 }
 
@@ -81,13 +71,6 @@ impl fmt::Display for ErrorKind {
 }
 
 /// A method was called in the wrong context.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("{0}")]
 pub struct WrongContext(pub(crate) &'static str);
-
-impl core::error::Error for WrongContext {}
-
-impl fmt::Display for WrongContext {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}

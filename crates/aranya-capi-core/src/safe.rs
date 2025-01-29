@@ -2,7 +2,6 @@
 
 use core::{
     cmp::Ordering,
-    error,
     ffi::c_char,
     fmt,
     hash::{Hash, Hasher},
@@ -27,47 +26,26 @@ use crate::{
 };
 
 /// Errors returned by [`Safe`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum Error {
     /// The address of a [`Safe`] changed.
+    #[error("address changed")]
     AddrChanged,
     /// A [`Safe`] is already initialized.
+    #[error("already initialized")]
     AlreadyInitialized,
     /// The pointer is invalid.
-    InvalidPtr(InvalidPtr),
+    #[error(transparent)]
+    InvalidPtr(#[from] InvalidPtr),
     /// The slice is invalid.
-    InvalidSlice(InvalidSlice),
+    #[error(transparent)]
+    InvalidSlice(#[from] InvalidSlice),
     /// The type identifier is invalid for `T`.
+    #[error("invalid type")]
     InvalidType,
     /// The type is uninitialized.
+    #[error("uninitialized")]
     Uninitialized,
-}
-
-impl error::Error for Error {}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::AddrChanged => f.write_str("address changed"),
-            Self::AlreadyInitialized => f.write_str("already initializes"),
-            Self::InvalidPtr(err) => write!(f, "{err}"),
-            Self::InvalidSlice(err) => write!(f, "{err}"),
-            Self::InvalidType => f.write_str("invalid type"),
-            Self::Uninitialized => f.write_str("uninitialized"),
-        }
-    }
-}
-
-impl From<InvalidPtr> for Error {
-    fn from(err: InvalidPtr) -> Self {
-        Self::InvalidPtr(err)
-    }
-}
-
-impl From<InvalidSlice> for Error {
-    fn from(err: InvalidSlice) -> Self {
-        Self::InvalidSlice(err)
-    }
 }
 
 /// A wrapper around `T` that attemps to limit the scope of
@@ -839,16 +817,9 @@ impl ciborium_io::Write for &mut Buffer<'_, u8> {
 }
 
 /// Not enough space to write data to [`Writer`].
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("buffer out of space")]
 pub struct OutOfSpace(());
-
-impl error::Error for OutOfSpace {}
-
-impl fmt::Display for OutOfSpace {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "buffer out of space")
-    }
-}
 
 /// A non-null, suitably aligned pointer.
 #[repr(transparent)]
@@ -1028,11 +999,13 @@ impl<T: ?Sized> fmt::Pointer for Valid<T> {
 }
 
 /// Describes why a raw pointer is invalid.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum InvalidPtr {
     /// The pointer is null.
+    #[error("null pointer")]
     Null,
     /// The pointer is unaligned.
+    #[error("unaligned pointer")]
     Unaligned,
 }
 
@@ -1045,14 +1018,6 @@ impl InvalidPtr {
         }
     }
 }
-
-impl fmt::Display for InvalidPtr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl error::Error for InvalidPtr {}
 
 #[repr(transparent)]
 struct Hex(usize);

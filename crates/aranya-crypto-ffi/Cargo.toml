@@ -30,6 +30,7 @@ std = [
 	"aranya-policy-vm/std",
 	"postcard/use-std",
 	"serde/std",
+	"thiserror/std",
 ]
 
 # Enable the `testing` module.
@@ -45,6 +46,7 @@ aranya-policy-vm = { version = "0.3.0", path = "../aranya-policy-vm", default-fe
 
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"], optional = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

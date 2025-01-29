@@ -24,6 +24,7 @@ std = [
 	"aranya-crypto/std",
 	"aranya-policy-ast/std",
 	"buggy/std",
+	"thiserror/std",
 ]
 
 [dependencies]
@@ -35,6 +36,7 @@ buggy = { version = "0.1.0", features = ["alloc"] }
 
 heapless = { workspace = true }
 postcard = { workspace = true, features = ["alloc"] }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }

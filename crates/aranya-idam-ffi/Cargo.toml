@@ -26,6 +26,7 @@ std = [
 	"aranya-crypto/std",
 	"aranya-policy-vm/std",
 	"postcard/use-std",
+	"thiserror/std",
 ]
 
 # Enable the testing feature.
@@ -35,6 +36,7 @@ testing = []
 aranya-crypto = { version = "0.2.1", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { version = "0.3.0", path = "../aranya-policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

@@ -162,40 +162,18 @@ impl<CS: CipherSuite> SealKey<CS> {
 }
 
 /// An error from [`SealKey`].
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum SealError {
     /// The maximum nuumber of messages have been encrypted with
     /// this particular key.
+    #[error("message limit reached")]
     MessageLimitReached,
     /// Some other error occurred.
+    #[error(transparent)]
     Other(HpkeError),
     /// An internal bug was discovered.
-    Bug(Bug),
-}
-
-impl fmt::Display for SealError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::MessageLimitReached => f.write_str("message limit reached"),
-            Self::Other(err) => write!(f, "{err}"),
-            Self::Bug(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl core::error::Error for SealError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Other(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl From<Bug> for SealError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
 
 impl From<HpkeError> for SealError {
@@ -263,46 +241,24 @@ impl<CS: CipherSuite> OpenKey<CS> {
 }
 
 /// An error from [`OpenKey`].
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum OpenError {
     /// The ciphertext could not be authenticated.
+    #[error("authentication error")]
     Authentication,
     /// The sequence number is out of range.
     ///
     /// Note that [`SealKey`] will never produce sequence numbers
     /// that are out of range. See
     /// [`SealError::MessageLimitReached`] for more information.
+    #[error("message limit reached")]
     MessageLimitReached,
     /// Some other error occurred.
+    #[error(transparent)]
     Other(HpkeError),
     /// An internal bug was discovered.
-    Bug(Bug),
-}
-
-impl fmt::Display for OpenError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Authentication => f.write_str("authentication error"),
-            Self::MessageLimitReached => f.write_str("message limit reached"),
-            Self::Other(err) => write!(f, "{err}"),
-            Self::Bug(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl core::error::Error for OpenError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Other(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl From<Bug> for OpenError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
 
 impl From<HpkeError> for OpenError {

@@ -10,7 +10,7 @@
 //! Peer 2
 //! cargo run --example quic_syncer -- --listen 127.0.0.1:5002 --peer 127.0.0.1:5001 --storage $STORAGE_ID
 
-use std::{error::Error, fmt, fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
+use std::{fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
 
 use anyhow::{bail, Context, Result};
 use aranya_crypto::Rng;
@@ -24,24 +24,6 @@ use aranya_runtime::{
 use clap::Parser;
 use s2n_quic::Server;
 use tokio::sync::{mpsc, Mutex as TMutex};
-
-/// An error returned by the syncer.
-#[derive(Debug)]
-struct SyncError {
-    error_msg: String,
-}
-
-impl fmt::Display for SyncError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SyncError: {}", self.error_msg)
-    }
-}
-
-impl Error for SyncError {
-    fn description(&self) -> &str {
-        &self.error_msg
-    }
-}
 
 #[derive(Parser, Debug)]
 #[clap(name = "server")]
@@ -152,17 +134,12 @@ async fn run(options: Opt) -> Result<()> {
                 TestActions::Init(0),
                 sink.lock().await.deref_mut(),
             )
-            .map_err(|e| SyncError {
-                error_msg: e.to_string(),
-            })?;
+            .context("sync error")?;
         println!("Storage id: {}", storage_id)
     } else if let Some(id) = options.storage_id {
         storage_id = id;
     } else {
-        return Err(SyncError {
-            error_msg: "storage id is missing".to_string(),
-        }
-        .into());
+        bail!("storage id is missing");
     }
 
     let (_, rx1) = mpsc::unbounded_channel();
@@ -186,9 +163,7 @@ async fn run(options: Opt) -> Result<()> {
                 .lock()
                 .await
                 .action(storage_id, sink.lock().await.deref_mut(), action)
-                .map_err(|e| SyncError {
-                    error_msg: e.to_string(),
-                })?;
+                .context("sync error")?;
         } else {
             sync_peer(
                 client.lock().await.deref_mut(),
