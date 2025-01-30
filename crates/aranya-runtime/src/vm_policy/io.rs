@@ -100,7 +100,7 @@ where
         let value = ser_values(value)?;
         self.facts
             .try_borrow_mut()
-            .map_err(|_| MachineIOError::Internal)?
+            .assume("should be able to borrow facts")?
             .insert(name, keys, value);
         Ok(())
     }
@@ -113,7 +113,7 @@ where
         let keys = ser_keys(key);
         self.facts
             .try_borrow_mut()
-            .map_err(|_| MachineIOError::Internal)?
+            .assume("should be able to borrow facts")?
             .delete(name, keys);
         Ok(())
     }
@@ -127,7 +127,7 @@ where
         let iter = self
             .facts
             .try_borrow_mut()
-            .map_err(|_| MachineIOError::Internal)?
+            .assume("should be able to borrow facts")?
             .query_prefix(&name, &keys)
             .map_err(|e| {
                 error!("query failed: {e}");

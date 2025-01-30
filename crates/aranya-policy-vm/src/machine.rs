@@ -566,7 +566,7 @@ where
             Instruction::ExtCall(module, proc) => {
                 self.io
                     .try_borrow_mut()
-                    .map_err(|_| self.err(MachineErrorType::IO(crate::MachineIOError::Internal)))?
+                    .assume("should be able to borrow io")?
                     .call(module, proc, &mut self.stack, &self.ctx)?;
             }
             Instruction::Exit(reason) => return Ok(MachineStatus::Exited(reason)),
@@ -688,14 +688,14 @@ where
                 let f: Fact = self.ipop()?;
                 self.io
                     .try_borrow_mut()
-                    .map_err(|_| self.err(MachineErrorType::IO(crate::MachineIOError::Internal)))?
+                    .assume("should be able to borrow io")?
                     .fact_insert(f.name, f.keys, f.values)?;
             }
             Instruction::Delete => {
                 let f: Fact = self.ipop()?;
                 self.io
                     .try_borrow_mut()
-                    .map_err(|_| self.err(MachineErrorType::IO(crate::MachineIOError::Internal)))?
+                    .assume("should be able to borrow io")?
                     .fact_delete(f.name, f.keys)?;
             }
             Instruction::Update => {
@@ -705,9 +705,7 @@ where
                     let mut iter = self
                         .io
                         .try_borrow()
-                        .map_err(|_| {
-                            self.err(MachineErrorType::IO(crate::MachineIOError::Internal))
-                        })?
+                        .assume("should be able to borrow io")?
                         .fact_query(fact_from.name.clone(), fact_from.keys)?;
                     iter.next().ok_or_else(|| {
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
@@ -715,11 +713,11 @@ where
                 };
                 self.io
                     .try_borrow_mut()
-                    .map_err(|_| self.err(MachineErrorType::IO(crate::MachineIOError::Internal)))?
+                    .assume("should be able to borrow io")?
                     .fact_delete(fact_from.name, replaced_fact.0)?;
                 self.io
                     .try_borrow_mut()
-                    .map_err(|_| self.err(MachineErrorType::IO(crate::MachineIOError::Internal)))?
+                    .assume("should be able to borrow io")?
                     .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
             Instruction::Emit => {
@@ -737,7 +735,7 @@ where
                 };
                 self.io
                     .try_borrow_mut()
-                    .map_err(|_| self.err(MachineErrorType::IO(crate::MachineIOError::Internal)))?
+                    .assume("should be able to borrow io")?
                     .effect(s.name, fields, command, recall);
             }
             Instruction::Query => {
@@ -750,9 +748,7 @@ where
                     let mut iter = self
                         .io
                         .try_borrow()
-                        .map_err(|_| {
-                            self.err(MachineErrorType::IO(crate::MachineIOError::Internal))
-                        })?
+                        .assume("should be able to borrow io")?
                         .fact_query(qf.name.clone(), qf.keys.clone())?;
                     // Find the first match, or the first error
                     iter.find_map(|r| match r {
@@ -787,9 +783,7 @@ where
                     let mut iter = self
                         .io
                         .try_borrow()
-                        .map_err(|_| {
-                            self.err(MachineErrorType::IO(crate::MachineIOError::Internal))
-                        })?
+                        .assume("should be able to borrow io")?
                         .fact_query(fact.name.to_owned(), fact.keys.to_owned())?;
 
                     while count < limit {
@@ -815,7 +809,7 @@ where
                 let iter = self
                     .io
                     .try_borrow()
-                    .map_err(|_| self.err(MachineErrorType::IO(crate::MachineIOError::Internal)))?
+                    .assume("should be able to borrow io")?
                     .fact_query(fact.name, fact.keys)?;
                 self.query_iter_stack.push(iter);
             }

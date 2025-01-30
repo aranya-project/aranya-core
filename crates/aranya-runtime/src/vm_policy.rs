@@ -125,7 +125,7 @@ use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     OpenContext, PolicyContext, RunState, Stack, Struct, Value,
 };
-use buggy::bug;
+use buggy::{bug, BugExt};
 use spin::Mutex;
 use tracing::{error, info, instrument};
 
@@ -548,7 +548,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             .iter()
                             .map(|(k, v)| KVPair::new(k, v.clone()));
                         io.try_borrow_mut()
-                            .map_err(|_| EngineError::InternalError)?
+                            .assume("should be able to borrow io")?
                             .publish(command_struct.name.clone(), fields);
 
                         let seal_ctx = rs.get_context().seal_from_action(&command_struct.name)?;
