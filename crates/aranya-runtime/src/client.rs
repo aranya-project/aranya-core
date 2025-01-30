@@ -150,7 +150,7 @@ where
     pub fn update_heads(
         &mut self,
         storage_id: GraphId,
-        commands: &[Address],
+        addrs: impl IntoIterator<Item = Address>,
         request_heads: &mut PeerCache,
     ) -> Result<(), ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
