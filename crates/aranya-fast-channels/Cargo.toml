@@ -45,6 +45,7 @@ sdlib = ["libc"]
 std = [
 	"alloc",
 	"aranya-crypto/std",
+	"thiserror/std",
 ]
 
 # Include testing utilities.
@@ -91,6 +92,7 @@ hex = { version = "0.4", default-features = false, features = ["std"], optional 
 libc = { workspace = true, default-features = false, optional = true }
 log = { workspace = true, default-features = false, optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 aranya-fast-channels = { path = ".", features = ["testing"] }

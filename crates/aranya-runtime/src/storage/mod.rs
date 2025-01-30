@@ -72,57 +72,32 @@ impl fmt::Display for Location {
 }
 
 /// An error returned by [`Storage`] or [`StorageProvider`].
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StorageError {
+    #[error("storage already exists")]
     StorageExists,
+    #[error("no such storage")]
     NoSuchStorage,
+    #[error("segment index {} is out of bounds", .0.segment)]
     SegmentOutOfBounds(Location),
+    #[error("command index {} is out of bounds in segment {}", .0.command, .0.segment)]
     CommandOutOfBounds(Location),
+    #[error("IO error")]
     IoError,
+    #[error("not a merge command")]
     NotMerge,
+    #[error("command with id {0} not found")]
     NoSuchId(CommandId),
+    #[error("policy mismatch")]
     PolicyMismatch,
+    #[error("cannot write an empty perspective")]
     EmptyPerspective,
+    #[error("segment must be a descendant of the head for commit")]
     HeadNotAncestor,
+    #[error("command's parents do not match the perspective head")]
     PerspectiveHeadMismatch,
-    Bug(Bug),
-}
-
-impl fmt::Display for StorageError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::StorageExists => write!(f, "storage already exists"),
-            Self::NoSuchStorage => write!(f, "no such storage"),
-            Self::SegmentOutOfBounds(loc) => {
-                write!(f, "segment index {} is out of bounds", loc.segment)
-            }
-            Self::CommandOutOfBounds(loc) => write!(
-                f,
-                "command index {} is out of bounds in segment {}",
-                loc.command, loc.segment
-            ),
-            Self::IoError => write!(f, "IO error"),
-            Self::NotMerge => write!(f, "not a merge command"),
-            Self::NoSuchId(id) => write!(f, "command with id {id} not found"),
-            Self::PolicyMismatch => write!(f, "policy mismatch"),
-            Self::EmptyPerspective => write!(f, "cannot write an empty perspective"),
-            Self::HeadNotAncestor => {
-                write!(f, "segment must be a descendant of the head for commit")
-            }
-            Self::PerspectiveHeadMismatch => {
-                write!(f, "command's parents do not match the perspective head")
-            }
-            Self::Bug(bug) => write!(f, "{bug}"),
-        }
-    }
-}
-
-impl core::error::Error for StorageError {}
-
-impl From<Bug> for StorageError {
-    fn from(bug: Bug) -> Self {
-        Self::Bug(bug)
-    }
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
 
 /// Handle to storage implementations used by the runtime.

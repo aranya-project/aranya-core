@@ -7,12 +7,7 @@
 
 #![forbid(unsafe_code)]
 
-use core::{
-    convert::Infallible,
-    fmt::{self, Debug, Display},
-    hash::Hash,
-    result::Result,
-};
+use core::{convert::Infallible, fmt::Debug, hash::Hash, result::Result};
 
 use buggy::Bug;
 use postcard::experimental::max_size::MaxSize;
@@ -276,7 +271,8 @@ pub(crate) use __unwrapped_inner;
 
 /// Returned when converting [`UnwrappedKey`]s to concrete key
 /// types.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
+#[error("wrong key type: got {got}, expected {expected}")]
 pub struct WrongKeyType {
     /// The type of key received.
     pub got: &'static str,
@@ -284,78 +280,24 @@ pub struct WrongKeyType {
     pub expected: &'static str,
 }
 
-impl Display for WrongKeyType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "wrong key type: got {}, expected {}",
-            self.got, self.expected
-        )
-    }
-}
-
-impl core::error::Error for WrongKeyType {}
-
 /// An error from [`Engine::wrap`].
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum WrapError {
     /// An unknown or internal error has occurred.
+    #[error("unable to wrap key: {0}")]
     Other(&'static str),
     /// The secret key data cannot be exported.
-    Export(ExportError),
+    #[error("unable to wrap key: {0}")]
+    Export(#[from] ExportError),
     /// The encoded secret key cannot be encrypted.
-    Seal(SealError),
+    #[error("unable to wrap key: {0}")]
+    Seal(#[from] SealError),
     /// A bug was discovered.
-    Bug(Bug),
+    #[error("unable to wrap key: {0}")]
+    Bug(#[from] Bug),
     /// An error occurred accessing the unique ID.
-    Id(IdError),
-}
-
-impl Display for WrapError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unable to wrap key: ")?;
-        match self {
-            Self::Other(msg) => write!(f, "{}", msg),
-            Self::Export(err) => write!(f, "{}", err),
-            Self::Seal(err) => write!(f, "{}", err),
-            Self::Bug(err) => write!(f, "{}", err),
-            Self::Id(err) => write!(f, "{}", err),
-        }
-    }
-}
-
-impl core::error::Error for WrapError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Export(err) => Some(err),
-            Self::Seal(err) => Some(err),
-            Self::Bug(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl From<SealError> for WrapError {
-    fn from(err: SealError) -> Self {
-        Self::Seal(err)
-    }
-}
-
-impl From<ExportError> for WrapError {
-    fn from(err: ExportError) -> Self {
-        Self::Export(err)
-    }
-}
-
-impl From<IdError> for WrapError {
-    fn from(err: IdError) -> Self {
-        Self::Id(err)
-    }
-}
-impl From<Bug> for WrapError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
+    #[error("unable to wrap key: {0}")]
+    Id(#[from] IdError),
 }
 
 impl From<Infallible> for WrapError {
@@ -365,64 +307,23 @@ impl From<Infallible> for WrapError {
 }
 
 /// An error from [`Engine::unwrap`].
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum UnwrapError {
     /// An unknown or internal error has occurred.
+    #[error("unable to unwrap key: {0}")]
     Other(&'static str),
     /// The wrapped key could not be decrypted.
-    Open(OpenError),
+    #[error("unable to unwrap key: {0}")]
+    Open(#[from] OpenError),
     /// The unwrapped secret key data cannot be imported.
-    Import(ImportError),
+    #[error("unable to unwrap key: {0}")]
+    Import(#[from] ImportError),
     /// Could not convert the [`UnwrappedKey`] to `T`.
-    WrongKeyType(WrongKeyType),
+    #[error("unable to unwrap key: {0}")]
+    WrongKeyType(#[from] WrongKeyType),
     /// A bug was discovered.
-    Bug(Bug),
-}
-
-impl Display for UnwrapError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unable to unwrap key: ")?;
-        match self {
-            Self::Other(msg) => write!(f, "{}", msg),
-            Self::Open(err) => write!(f, "{}", err),
-            Self::Import(err) => write!(f, "{}", err),
-            Self::WrongKeyType(err) => write!(f, "{}", err),
-            Self::Bug(err) => write!(f, "{}", err),
-        }
-    }
-}
-
-impl core::error::Error for UnwrapError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Import(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl From<OpenError> for UnwrapError {
-    fn from(err: OpenError) -> Self {
-        Self::Open(err)
-    }
-}
-
-impl From<ImportError> for UnwrapError {
-    fn from(err: ImportError) -> Self {
-        Self::Import(err)
-    }
-}
-
-impl From<WrongKeyType> for UnwrapError {
-    fn from(err: WrongKeyType) -> Self {
-        Self::WrongKeyType(err)
-    }
-}
-
-impl From<Bug> for UnwrapError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
+    #[error("unable to unwrap key: {0}")]
+    Bug(#[from] Bug),
 }
 
 impl From<Infallible> for UnwrapError {

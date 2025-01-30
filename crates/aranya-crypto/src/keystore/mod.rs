@@ -1,7 +1,5 @@
 //! Wrapped cryptographic key storage.
 
-use core::fmt;
-
 use crate::{
     engine::{Engine, UnwrappedKey, WrappedKey},
     id::Id,
@@ -82,16 +80,9 @@ pub trait Occupied<T: WrappedKey> {
     fn remove(self) -> Result<T, Self::Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("key already exists")]
 struct DuplicateKey;
-
-impl fmt::Display for DuplicateKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "key already exists")
-    }
-}
-
-impl core::error::Error for DuplicateKey {}
 
 /// An error returned by [`KeyStore`].
 pub trait Error: core::error::Error + Send + Sync + 'static + Sized {

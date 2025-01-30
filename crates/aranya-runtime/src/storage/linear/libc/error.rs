@@ -1,4 +1,4 @@
-use core::{convert::Infallible, fmt};
+use core::convert::Infallible;
 
 use aranya_libc::Errno;
 use tracing::error;
@@ -6,26 +6,9 @@ use tracing::error;
 use crate::StorageError;
 
 /// An error returned by this module.
-#[derive(Debug)]
-pub struct Error(Errno);
-
-impl core::error::Error for Error {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        Some(&self.0)
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl From<Errno> for Error {
-    fn from(err: Errno) -> Self {
-        Self(err)
-    }
-}
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct Error(#[from] Errno);
 
 impl From<Infallible> for Error {
     fn from(err: Infallible) -> Self {

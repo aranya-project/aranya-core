@@ -1,21 +1,13 @@
 extern crate alloc;
 
 use alloc::{borrow::ToOwned, string::String, vec, vec::Vec};
-use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
 /// An error for a range that doesn't exist. Used in [CodeMap].
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
+#[error("range error")]
 pub struct RangeError;
-
-impl fmt::Display for RangeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Range Error")
-    }
-}
-
-impl core::error::Error for RangeError {}
 
 /// This is a simplified version of Pest's `Span`. We can't use Pest's version because we
 /// need to work in `no_std` environments.

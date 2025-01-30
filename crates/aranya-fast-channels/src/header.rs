@@ -1,5 +1,3 @@
-use core::fmt;
-
 use aranya_crypto::afc::Seq;
 use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
@@ -141,35 +139,20 @@ impl DataHeader {
 }
 
 /// The header was invalid.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum HeaderError {
     /// An internal bug was discovered.
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
     /// The size of the header is invalid.
+    #[error("invalid header size")]
     InvalidSize,
-    /// Unknown APS protocol version.
+    /// Unknown AFC protocol version.
+    #[error("unknown AFC protocol version")]
     UnknownVersion,
     /// The `MsgType` is invalid.
+    #[error("invalid `MsgType`")]
     InvalidMsgType,
-}
-
-impl fmt::Display for HeaderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bug(err) => write!(f, "{err}"),
-            Self::InvalidSize => f.write_str("invalid header size"),
-            Self::UnknownVersion => f.write_str("unknown APS protocol version"),
-            Self::InvalidMsgType => f.write_str("invalid `MsgType`"),
-        }
-    }
-}
-
-impl core::error::Error for HeaderError {}
-
-impl From<Bug> for HeaderError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
 }
 
 /// The APS protocol version.

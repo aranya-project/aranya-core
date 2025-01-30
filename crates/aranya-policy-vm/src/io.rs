@@ -1,7 +1,6 @@
 extern crate alloc;
 
 use alloc::string::String;
-use core::fmt;
 
 use aranya_crypto::Id;
 use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
@@ -13,27 +12,18 @@ use crate::{
 };
 
 /// An I/O error.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum MachineIOError {
     /// Attempted to create a fact that already exists
+    #[error("fact exists")]
     FactExists,
     /// Attempt to access a fact that does not exist)
+    #[error("fact not found")]
     FactNotFound,
     /// Some internal operation has failed
+    #[error("internal error")]
     Internal,
 }
-
-impl fmt::Display for MachineIOError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            MachineIOError::FactExists => write!(f, "Fact exists"),
-            MachineIOError::FactNotFound => write!(f, "Fact not found"),
-            MachineIOError::Internal => write!(f, "Internal error"),
-        }
-    }
-}
-
-impl core::error::Error for MachineIOError {}
 
 impl From<MachineIOError> for MachineError {
     fn from(value: MachineIOError) -> Self {

@@ -100,6 +100,7 @@ std = [
 	"siphasher/std",
 	"spideroak-base58/std",
 	"spideroak-crypto/std",
+	"thiserror/std",
 ]
 
 # Include testing utilities.
@@ -129,6 +130,7 @@ proptest-derive = { workspace = true, optional = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 siphasher = { version = "1", default-features = false }
+thiserror = { workspace = true }
 
 [dev-dependencies]
 # A little bit of a hack: always certain features for tests and

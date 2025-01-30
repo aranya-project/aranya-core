@@ -1,5 +1,3 @@
-use core::fmt;
-
 #[doc(inline)]
 pub use aranya_crypto::afc::Seq;
 use aranya_crypto::{
@@ -325,32 +323,11 @@ impl<'a> Message<'a> {
 }
 
 /// An error from [`Message::try_parse`].
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ParseError {
     /// The header is invalid.
-    Header(HeaderError),
-}
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Header(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl core::error::Error for ParseError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Header(err) => Some(err),
-        }
-    }
-}
-
-impl From<HeaderError> for ParseError {
-    fn from(err: HeaderError) -> Self {
-        Self::Header(err)
-    }
+    #[error(transparent)]
+    Header(#[from] HeaderError),
 }
 
 /// The payload of a [`Message`].

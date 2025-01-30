@@ -1,31 +1,16 @@
-use core::{cmp, error, ffi::c_char, fmt, fmt::Write, mem::MaybeUninit};
+use core::{cmp, ffi::c_char, fmt, fmt::Write, mem::MaybeUninit};
 
 use buggy::{Bug, BugExt};
 
 /// The error returned by [`write_c_str`].
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum WriteCStrError {
     /// An internal bug was discovered.
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
     /// The provided buffer is too small.
+    #[error("buffer is too small")]
     BufferTooSmall,
-}
-
-impl error::Error for WriteCStrError {}
-
-impl fmt::Display for WriteCStrError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bug(err) => write!(f, "{err}"),
-            Self::BufferTooSmall => write!(f, "buffer is too small"),
-        }
-    }
-}
-
-impl From<Bug> for WriteCStrError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
 }
 
 /// Writes `src` as a null-terminated C string to `dst`.

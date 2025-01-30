@@ -57,43 +57,14 @@ macro_rules! assert_ffi_safe {
 }
 pub(crate) use assert_ffi_safe;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum PageSizeError {
     /// `sysconf` failed.
-    Errno(Errno),
+    #[error("unable to get page size: {0}")]
+    Errno(#[from] Errno),
     /// A bug was discovered.
-    Bug(Bug),
-}
-
-impl core::error::Error for PageSizeError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Errno(err) => Some(err),
-            Self::Bug(err) => Some(err),
-        }
-    }
-}
-
-impl fmt::Display for PageSizeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "unable to get page size: ")?;
-        match self {
-            Self::Errno(err) => write!(f, "{err}"),
-            Self::Bug(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl From<Bug> for PageSizeError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
-}
-
-impl From<Errno> for PageSizeError {
-    fn from(err: Errno) -> Self {
-        Self::Errno(err)
-    }
+    #[error("unable to get page size: {0}")]
+    Bug(#[from] Bug),
 }
 
 /// Returns the current page size if the `libc` feature is

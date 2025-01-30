@@ -34,16 +34,9 @@ impl Display for Version {
 }
 
 /// Unsupported [`Module`] version.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[error("unsupported module version")]
 pub struct UnsupportedVersion(());
-
-impl core::error::Error for UnsupportedVersion {}
-
-impl Display for UnsupportedVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("unsupported module version")
-    }
-}
 
 /// The serializable state of
 /// a [`Machine`](../policy_vm/struct.Machine.html).

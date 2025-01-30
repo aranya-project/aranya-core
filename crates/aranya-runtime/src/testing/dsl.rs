@@ -312,53 +312,25 @@ impl Display for TestRule {
 }
 
 /// An error result from a test.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 #[allow(dead_code)] // fields used only via `Debug`
 pub enum TestError {
-    Storage(StorageError),
-    Client(ClientError),
-    Engine(EngineError),
-    Sync(SyncError),
-    SerdeJson(serde_json::Error),
+    #[error(transparent)]
+    Storage(#[from] StorageError),
+    #[error(transparent)]
+    Client(#[from] ClientError),
+    #[error(transparent)]
+    Engine(#[from] EngineError),
+    #[error(transparent)]
+    Sync(#[from] SyncError),
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
+    #[error("missing client")]
     MissingClient,
+    #[error("missing graph {0}")]
     MissingGraph(u64),
-    Bug(Bug),
-}
-
-impl From<Bug> for TestError {
-    fn from(bug: Bug) -> Self {
-        Self::Bug(bug)
-    }
-}
-
-impl From<StorageError> for TestError {
-    fn from(error: StorageError) -> Self {
-        TestError::Storage(error)
-    }
-}
-
-impl From<ClientError> for TestError {
-    fn from(err: ClientError) -> Self {
-        TestError::Client(err)
-    }
-}
-
-impl From<SyncError> for TestError {
-    fn from(err: SyncError) -> Self {
-        TestError::Sync(err)
-    }
-}
-
-impl From<serde_json::Error> for TestError {
-    fn from(err: serde_json::Error) -> Self {
-        TestError::SerdeJson(err)
-    }
-}
-
-impl From<EngineError> for TestError {
-    fn from(err: EngineError) -> Self {
-        TestError::Engine(err)
-    }
+    #[error(transparent)]
+    Bug(#[from] Bug),
 }
 
 /// Provides [`StorageProvider`] impls for testing.

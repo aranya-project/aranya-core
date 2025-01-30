@@ -30,6 +30,7 @@ std = [
 	"serde/std",
 	"siphasher?/std",
 	"spin?/std",
+	"thiserror/std",
 	"tracing/std",
 ]
 
@@ -52,6 +53,7 @@ postcard = { workspace = true, default-features = false, features = ["heapless"]
 serde = { workspace = true, default-features = false, features = ["derive"] }
 siphasher = { version = "1", default-features = false, optional = true }
 spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"], optional = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

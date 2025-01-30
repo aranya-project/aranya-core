@@ -6,7 +6,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::{fmt, result::Result};
+use core::result::Result;
 
 use aranya_crypto::{
     self,
@@ -171,48 +171,29 @@ function create_uni_channel(
 }
 
 /// An error returned by [`Ffi`].
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub(crate) enum FfiError {
     /// The [`aranya_crypto`] crate failed.
-    Crypto(aranya_crypto::Error),
+    #[error("crypto error: {0}")]
+    Crypto(#[from] aranya_crypto::Error),
     /// An error occurred while manipulating the [`Stack`].
-    Stack(MachineErrorType),
+    #[error("unable to manipulate stack: {0}")]
+    Stack(#[from] MachineErrorType),
     /// Unable to find a particular key.
+    #[error("unable to find key")]
     KeyNotFound,
     /// Unable to encode/decode some input.
+    #[error("unable to decode type")]
     Encoding,
     /// AFC failed.
-    Afc(aranya_fast_channels::Error),
+    #[error("AFC error: {0}")]
+    Afc(#[from] aranya_fast_channels::Error),
     /// Unable to wrap a key.
-    Wrap(WrapError),
+    #[error(transparent)]
+    Wrap(#[from] WrapError),
     /// The keystore failed.
+    #[error("keystore failure")]
     KeyStore,
-}
-
-impl fmt::Display for FfiError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Crypto(err) => write!(f, "crypto error: {err}"),
-            Self::Stack(err) => write!(f, "unable to manipulate stack: {err}"),
-            Self::KeyNotFound => write!(f, "unable to find key"),
-            Self::Encoding => write!(f, "unable to decode type"),
-            Self::Afc(err) => write!(f, "AFC error: {err}"),
-            Self::Wrap(err) => write!(f, "{err}"),
-            Self::KeyStore => write!(f, "keystore failure"),
-        }
-    }
-}
-
-impl core::error::Error for FfiError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Crypto(err) => Some(err),
-            Self::Stack(err) => Some(err),
-            Self::Afc(err) => Some(err),
-            Self::Wrap(err) => Some(err),
-            _ => None,
-        }
-    }
 }
 
 impl From<FfiError> for MachineError {
@@ -225,12 +206,6 @@ impl From<FfiError> for MachineError {
     }
 }
 
-impl From<aranya_crypto::Error> for FfiError {
-    fn from(err: aranya_crypto::Error) -> Self {
-        Self::Crypto(err)
-    }
-}
-
 impl From<ImportError> for FfiError {
     fn from(err: ImportError) -> Self {
         Self::Crypto(err.into())
@@ -240,24 +215,6 @@ impl From<ImportError> for FfiError {
 impl From<UnwrapError> for FfiError {
     fn from(err: UnwrapError) -> Self {
         Self::Crypto(err.into())
-    }
-}
-
-impl From<MachineErrorType> for FfiError {
-    fn from(err: MachineErrorType) -> Self {
-        Self::Stack(err)
-    }
-}
-
-impl From<aranya_fast_channels::Error> for FfiError {
-    fn from(err: aranya_fast_channels::Error) -> Self {
-        Self::Afc(err)
-    }
-}
-
-impl From<WrapError> for FfiError {
-    fn from(err: WrapError) -> Self {
-        Self::Wrap(err)
     }
 }
 

@@ -10,10 +10,11 @@ use serde::{Deserialize, Serialize};
 
 use super::ffi::Type;
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 /// Indicates that the Value conversion has failed
 pub enum ValueConversionError {
     /// A conversion was attempted to a type that is not compatible with this Value
+    #[error("expected type {want}, but got {got}: {msg}")]
     InvalidType {
         /// Expected type name
         want: String,
@@ -23,10 +24,13 @@ pub enum ValueConversionError {
         msg: String,
     },
     /// A struct conversion found a field mismatch between types
+    #[error("invalid struct member `{0}`")]
     InvalidStructMember(String),
     /// The target type does not have sufficient range to represent this Value
+    #[error("value out of range")]
     OutOfRange,
     /// Some internal state is corrupt
+    #[error("bad state")]
     BadState,
 }
 
@@ -44,23 +48,6 @@ impl ValueConversionError {
         }
     }
 }
-
-impl Display for ValueConversionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ValueConversionError::InvalidType { want, got, msg } => {
-                write!(f, "expected type {want}, but got {got}: {msg}")
-            }
-            ValueConversionError::InvalidStructMember(k) => {
-                write!(f, "invalid struct member `{}`", k)
-            }
-            ValueConversionError::OutOfRange => write!(f, "value out of range"),
-            ValueConversionError::BadState => write!(f, "bad state"),
-        }
-    }
-}
-
-impl core::error::Error for ValueConversionError {}
 
 /// Allows a type to be used by FFI derive.
 // TODO(eric): move this into `super::ffi`?

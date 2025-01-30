@@ -1,7 +1,6 @@
 extern crate alloc;
 
 use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc};
-use core::fmt;
 
 use aranya_crypto::UserId;
 use aranya_policy_vm::{Struct, Value};
@@ -166,21 +165,12 @@ fn get<T: TryFrom<Value>>(
         .map_err(|_| EnvelopeError::InvalidType(key))
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum EnvelopeError {
+    #[error("invalid struct name {0:?}")]
     InvalidName(String),
+    #[error("missing field {0:?}")]
     MissingField(&'static str),
+    #[error("invalid type for field {0:?}")]
     InvalidType(&'static str),
 }
-
-impl fmt::Display for EnvelopeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidName(name) => write!(f, "invalid struct name {name:?}"),
-            Self::MissingField(field) => write!(f, "missing field {field:?}"),
-            Self::InvalidType(field) => write!(f, "invalid type for field {field:?}"),
-        }
-    }
-}
-
-impl core::error::Error for EnvelopeError {}

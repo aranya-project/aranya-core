@@ -36,7 +36,7 @@ use tracing::error;
 const MAXIMUM_SUBSCRIPTIONS: usize = 32;
 
 /// An error running the quic sync client or server.
-#[derive(thiserror::Error, Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum QuicSyncError {
     /// A sync protocol error.
     #[error("sync error: {0}")]

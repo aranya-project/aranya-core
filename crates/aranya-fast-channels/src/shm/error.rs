@@ -1,4 +1,4 @@
-use core::{convert::Infallible, fmt, str};
+use core::{convert::Infallible, str};
 
 use buggy::Bug;
 
@@ -10,88 +10,42 @@ use super::{
 use crate::errno::Errno;
 
 /// An error that occurred while using shared memory.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum Error {
     /// An internal bug was discovered.
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
     /// A system call failed.
-    Errno(Errno),
+    #[error(transparent)]
+    Errno(#[from] Errno),
     /// The argument is invalid.
+    #[error("{0}")]
     InvalidArgument(&'static str),
     /// The shared memory path is invalid.
-    InvalidPath(InvalidPathError),
+    #[error(transparent)]
+    InvalidPath(#[from] InvalidPathError),
     /// The shared memory is corrupted.
-    Corrupted(Corrupted),
+    #[error(transparent)]
+    Corrupted(#[from] Corrupted),
     /// The nodes could not be represented in memory.
-    Layout(LayoutError),
+    #[error(transparent)]
+    Layout(#[from] LayoutError),
     /// Not enough space to add a new channel.
+    #[error("out of space")]
     OutOfSpace,
 }
 
-impl core::error::Error for Error {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Bug(err) => Some(err),
-            Self::Errno(err) => Some(err),
-            Self::InvalidPath(err) => Some(err),
-            Self::Layout(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bug(err) => write!(f, "{err}"),
-            Self::Errno(err) => write!(f, "{err}"),
-            Self::InvalidArgument(msg) => write!(f, "{msg}"),
-            Self::InvalidPath(err) => write!(f, "{err}"),
-            Self::Corrupted(err) => write!(f, "{err}"),
-            Self::Layout(err) => write!(f, "{err}"),
-            Self::OutOfSpace => write!(f, "out of space"),
-        }
-    }
-}
-
-impl From<Bug> for Error {
-    fn from(value: Bug) -> Self {
-        Self::Bug(value)
-    }
-}
-
-impl From<Errno> for Error {
-    fn from(value: Errno) -> Self {
-        Self::Errno(value)
-    }
-}
-
-impl From<InvalidPathError> for Error {
-    fn from(value: InvalidPathError) -> Self {
-        Self::InvalidPath(value)
-    }
-}
-
-impl From<Corrupted> for Error {
-    fn from(value: Corrupted) -> Self {
-        Self::Corrupted(value)
-    }
-}
-
-impl From<LayoutError> for Error {
-    fn from(value: LayoutError) -> Self {
-        Self::Layout(value)
-    }
-}
-
 /// Explains what part of the state is corrupted.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum Corrupted {
     /// An internal bug was discovered.
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
     /// The `SharedMem`'s magic value was incorrect.
+    #[error("invalid `SharedMem` magic: {0}")]
     SharedMemMagic(u32),
     /// The `SharedMem`'s size is incorrect.
+    #[error("invalid SharedMem size: wanted {want}, got {got}")]
     SharedMemSize {
         /// The size in bytes of the shared memory.
         got: u64,
@@ -99,18 +53,25 @@ pub enum Corrupted {
         want: u64,
     },
     /// The `SharedMem`'s page alignment is incorrect.
+    #[error("invalid SharedMem page alignment: {0}")]
     SharedMemPageAlignment(bool),
     /// The `SharedMem`'s key size is incorrect.
+    #[error("invalid SharedMem key size: {0}")]
     SharedMemKeySize(u64),
     /// The `ChanList`'s magic value was incorrect.
+    #[error("invalid `ChanList` magic: {0}")]
     ChanListMagic(u32),
     /// The `ShmChan`'s magic value was incorrect.
+    #[error("invalid `ShmChan` magic: {0}")]
     ChanMagic(u32),
     /// The `ShmChan`'s type was incorrect.
+    #[error("invalid `ShmChan` direction: {0}")]
     ChanDirection(u32),
     /// Unable to compute the layout.
-    Layout(LayoutError),
+    #[error(transparent)]
+    Layout(#[from] LayoutError),
     /// Incompatible version.
+    #[error("invalid SharedMem version: wanted {want}, got {got}")]
     SharedMemVersion {
         /// The version returned from the memory.
         got: u32,
@@ -118,42 +79,13 @@ pub enum Corrupted {
         want: u32,
     },
     /// Something else is corrupt.
+    #[error("{0}")]
     Other(&'static str),
-}
-
-impl fmt::Display for Corrupted {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bug(err) => write!(f, "{err}"),
-            Self::ChanMagic(magic) => write!(f, "invalid `ShmChan` magic: {magic}"),
-            Self::ChanListMagic(magic) => write!(f, "invalid `ChanList` magic: {magic}"),
-            Self::ChanDirection(typ) => write!(f, "invalid `ShmChan` direction: {typ}"),
-            Self::SharedMemMagic(magic) => write!(f, "invalid `SharedMem` magic: {magic}"),
-            Self::SharedMemSize { want, got } => {
-                write!(f, "invalid SharedMem size: got={got}, want={want} ")
-            }
-            Self::SharedMemPageAlignment(aligned) => {
-                write!(f, "invalid SharedMem page alignment: {aligned}")
-            }
-            Self::SharedMemKeySize(size) => write!(f, "invalid SharedMem key size: {size}"),
-            Self::Layout(err) => write!(f, "{err}"),
-            Self::SharedMemVersion { got, want } => {
-                write!(f, "invalid SharedMem version: got {got} want {want}")
-            }
-            Self::Other(msg) => write!(f, "{msg}"),
-        }
-    }
 }
 
 impl From<Infallible> for Corrupted {
     fn from(v: Infallible) -> Self {
         match v {}
-    }
-}
-
-impl From<Bug> for Corrupted {
-    fn from(v: Bug) -> Self {
-        Self::Bug(v)
     }
 }
 
@@ -199,58 +131,17 @@ pub(super) const fn corrupted(msg: &'static str) -> Corrupted {
     Corrupted::Other(msg)
 }
 
-impl From<LayoutError> for Corrupted {
-    fn from(value: LayoutError) -> Self {
-        Self::Layout(value)
-    }
-}
-
 /// A wrapper around [`LayoutError`][core::alloc::LayoutError]
 /// that includes [`Bug`].
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
 pub enum LayoutError {
     /// An internal bug was discovered.
-    Bug(Bug),
+    #[error(transparent)]
+    Bug(#[from] Bug),
     /// Unable to get the current page size.
-    PageSize(PageSizeError),
+    #[error(transparent)]
+    PageSize(#[from] PageSizeError),
     /// See [`LayoutError`][core::alloc::LayoutError].
-    Layout(core::alloc::LayoutError),
-}
-
-impl core::error::Error for LayoutError {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Bug(err) => Some(err),
-            Self::PageSize(err) => Some(err),
-            Self::Layout(err) => Some(err),
-        }
-    }
-}
-
-impl fmt::Display for LayoutError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bug(err) => write!(f, "{err}"),
-            Self::PageSize(err) => write!(f, "{err}"),
-            Self::Layout(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl From<Bug> for LayoutError {
-    fn from(err: Bug) -> Self {
-        Self::Bug(err)
-    }
-}
-
-impl From<PageSizeError> for LayoutError {
-    fn from(err: PageSizeError) -> Self {
-        Self::PageSize(err)
-    }
-}
-
-impl From<core::alloc::LayoutError> for LayoutError {
-    fn from(err: core::alloc::LayoutError) -> Self {
-        Self::Layout(err)
-    }
+    #[error(transparent)]
+    Layout(#[from] core::alloc::LayoutError),
 }

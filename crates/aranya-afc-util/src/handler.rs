@@ -1,7 +1,5 @@
 //! An effect handler for AFC.
 
-use core::fmt;
-
 use aranya_crypto::{
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
@@ -380,49 +378,27 @@ impl<S, O> From<UniKey<S, O>> for Directed<S, O> {
 }
 
 /// An error returned by [`Handler`].
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The current user is not the author of the command.
+    #[error("not command author")]
     NotAuthor,
     /// The current user is not the recipient of the command.
+    #[error("not command recipient")]
     NotRecipient,
     /// The keystore failed.
+    #[error("keystore failure")]
     KeyStore,
     /// Unable to find a particular key.
+    #[error("unable to find key")]
     KeyNotFound,
     /// Unable to transform key.
+    #[error("unable to transform key")]
     Transform,
     /// Unable to encode/decode a key.
+    #[error("unable to encode/decode")]
     Encoding,
     /// A `crypto` crate error.
-    Crypto(aranya_crypto::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NotAuthor => write!(f, "not command author"),
-            Self::NotRecipient => write!(f, "not command recipient"),
-            Self::KeyStore => write!(f, "keystore failure"),
-            Self::KeyNotFound => write!(f, "unable to find key"),
-            Self::Transform => write!(f, "unable to transform key"),
-            Self::Encoding => write!(f, "unable to encode/decode"),
-            Self::Crypto(err) => write!(f, "{err}"),
-        }
-    }
-}
-
-impl core::error::Error for Error {
-    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
-        match self {
-            Self::Crypto(err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl From<aranya_crypto::Error> for Error {
-    fn from(err: aranya_crypto::Error) -> Self {
-        Self::Crypto(err)
-    }
+    #[error(transparent)]
+    Crypto(#[from] aranya_crypto::Error),
 }

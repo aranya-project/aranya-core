@@ -7,82 +7,66 @@ use buggy::Bug;
 use crate::compile::StatementContext;
 
 /// Describes the call color in an [CompileErrorType::InvalidCallColor].
-#[derive(Debug, PartialEq)]
-pub enum CallColor {
+#[derive(Debug, PartialEq, thiserror::Error)]
+pub enum InvalidCallColor {
     /// The call is a pure function
+    #[error("pure function not allowed in finish context")]
     Pure,
     /// The call is a finish function
+    #[error("finish function not allowed in expression")]
     Finish,
 }
 
 /// Errors that can occur during compilation.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum CompileErrorType {
     /// Invalid statement - a statement was used in an invalid context.
+    #[error("invalid statement in {0} context")]
     InvalidStatement(StatementContext),
     /// Invalid expression - the expression does not make sense in context.
+    #[error("invalid expression: {0:?}")]
     InvalidExpression(ast::Expression),
     /// Invalid type
+    #[error("invalid type: {0}")]
     InvalidType(String),
     /// Invalid call color - Tried to make a function call to the wrong type of function.
-    InvalidCallColor(CallColor),
+    #[error(transparent)]
+    InvalidCallColor(#[from] InvalidCallColor),
     /// Resolution of branch targets failed to find a valid target
+    #[error("bad branch target: {0}")]
     BadTarget(String),
     /// An argument to a function or an item in an expression did not
     /// make sense
+    #[error("bad argument: {0}")]
     BadArgument(String),
     /// A thing referenced is not defined
+    #[error("not defined: {0}")]
     NotDefined(String),
     /// A thing by that name has already been defined
+    #[error("already defined: {0}")]
     AlreadyDefined(String),
     /// A keyword collision occurs with that identifier
+    #[error("reserved identifier: {0}")]
     ReservedIdentifier(String),
     /// Expected value was missing
+    #[error("missing: {0}")]
     Missing(String),
     /// Fact literal doesn't match definition
+    #[error("fact literal does not match definition: {0}")]
     InvalidFactLiteral(String),
     /// A pure function has no return statement
+    #[error("function has no return statement")]
     NoReturn,
     /// A validation step failed
+    #[error("validation failed")]
     Validation,
     /// An implementation bug
-    Bug(Bug),
+    #[error("bug: {0}")]
+    Bug(#[from] Bug),
     /// All other errors
+    #[error("unknown error: {0}")]
     Unknown(String),
 }
-
-impl fmt::Display for CompileErrorType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidStatement(c) => write!(f, "Invalid statement in {} context", c),
-            Self::InvalidExpression(e) => write!(f, "Invalid expression: {:?}", e),
-            Self::InvalidType(s) => write!(f, "Invalid type: {}", s),
-            Self::InvalidCallColor(cc) => match cc {
-                CallColor::Pure => write!(f, "Pure function not allowed in finish context"),
-                CallColor::Finish => write!(f, "Finish function not allowed in expression"),
-            },
-            Self::BadTarget(s) => write!(f, "Bad branch target: {}", s),
-            Self::BadArgument(s) => write!(f, "Bad argument: {}", s),
-            Self::NotDefined(s) => write!(f, "Not defined: {}", s),
-            Self::AlreadyDefined(s) => write!(f, "Already defined: {}", s),
-            Self::ReservedIdentifier(s) => write!(f, "Reserved identifier: {}", s),
-            Self::Missing(s) => write!(f, "Missing: {}", s),
-            Self::InvalidFactLiteral(s) => write!(f, "Fact literal does not match definition: {s}"),
-            Self::NoReturn => write!(f, "Function has no return statement"),
-            Self::Validation => write!(f, "Validation failed"),
-            Self::Bug(bug) => write!(f, "Bug: {}", bug),
-            Self::Unknown(s) => write!(f, "Unknown error: {}", s),
-        }
-    }
-}
-
-impl From<Bug> for CompileErrorType {
-    fn from(value: Bug) -> Self {
-        CompileErrorType::Bug(value)
-    }
-}
-
-impl core::error::Error for CompileErrorType {}
 
 // TODO(chip): this is identical to MachineErrorSource and could
 // probably be merged with it. I'm keeping it separate for now as I

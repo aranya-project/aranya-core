@@ -139,60 +139,29 @@ impl fmt::Display for InvalidArg<'_> {
 }
 
 /// The reason for an [`InvalidArg`].
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum InvalidArgReason {
     /// A pointer argument is invalid.
-    InvalidPtr(InvalidPtr),
+    #[error(transparent)]
+    InvalidPtr(#[from] InvalidPtr),
     /// A [`Safe`][safe::Safe] argument is invalid.
-    InvalidSafe(safe::Error),
+    #[error(transparent)]
+    InvalidSafe(#[from] safe::Error),
     /// A (pointer, length) argument is invalid.
     ///
     /// NB: This is NOT a Rust slice.
-    InvalidSlice(InvalidSlice),
+    #[error(transparent)]
+    InvalidSlice(#[from] InvalidSlice),
     /// The string did not contain valid UTF-8.
-    InvalidUtf8(Utf8Error),
+    #[error(transparent)]
+    InvalidUtf8(#[from] Utf8Error),
     /// Some other reason.
+    #[error("{0}")]
     Other(&'static str),
-}
-
-impl fmt::Display for InvalidArgReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::InvalidPtr(err) => write!(f, "{err}"),
-            Self::InvalidSafe(err) => write!(f, "{err}"),
-            Self::InvalidSlice(err) => write!(f, "{err}"),
-            Self::InvalidUtf8(err) => write!(f, "{err}"),
-            Self::Other(reason) => write!(f, "{reason}"),
-        }
-    }
 }
 
 impl From<&'static str> for InvalidArgReason {
     fn from(err: &'static str) -> Self {
         Self::Other(err)
-    }
-}
-
-impl From<safe::Error> for InvalidArgReason {
-    fn from(err: safe::Error) -> Self {
-        Self::InvalidSafe(err)
-    }
-}
-
-impl From<InvalidPtr> for InvalidArgReason {
-    fn from(err: InvalidPtr) -> Self {
-        Self::InvalidPtr(err)
-    }
-}
-
-impl From<InvalidSlice> for InvalidArgReason {
-    fn from(err: InvalidSlice) -> Self {
-        Self::InvalidSlice(err)
-    }
-}
-
-impl From<Utf8Error> for InvalidArgReason {
-    fn from(err: Utf8Error) -> Self {
-        Self::InvalidUtf8(err)
     }
 }
