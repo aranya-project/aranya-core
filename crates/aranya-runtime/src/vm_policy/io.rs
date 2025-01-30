@@ -166,10 +166,7 @@ where
         stack: &mut MachineStack,
         ctx: &CommandContext<'_>,
     ) -> Result<(), MachineError> {
-        let sink = &mut self
-            .engine
-            .try_lock()
-            .assume("should be able to borrow sink")?;
+        let sink = &mut self.engine.lock();
         self.ffis.get(module).map_or(
             Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,

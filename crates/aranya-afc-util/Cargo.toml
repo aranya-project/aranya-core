@@ -46,7 +46,7 @@ testing = [
 aranya-crypto = { version = "0.2.1", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 aranya-fast-channels = { version = "0.3.0", path = "../aranya-fast-channels", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { version = "0.3.0", path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
-
+buggy = { version = "0.1.0", default-features = false }
 indexmap = { version = "2.1", default-features = false, optional = true }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }

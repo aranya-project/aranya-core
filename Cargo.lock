@@ -137,6 +137,7 @@ dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
  "aranya-policy-vm",
+ "buggy",
  "indexmap",
  "postcard",
  "serde",

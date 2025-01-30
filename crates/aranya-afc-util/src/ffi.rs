@@ -11,7 +11,6 @@ use core::result::Result;
 use aranya_crypto::{
     self,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    buggy::Bug,
     CipherSuite, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
     KeyStoreExt, UnwrapError, UserId, WrapError,
 };
@@ -20,6 +19,7 @@ use aranya_policy_vm::{
     CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
     ValueConversionError,
 };
+use buggy::Bug;
 use spin::Mutex;
 
 use crate::shared::decode_enc_pk;
@@ -30,7 +30,6 @@ macro_rules! error {
 }
 
 /// An [`FfiModule`][aranya_policy_vm::ffi::FfiModule] for AFC.
-// #[derive(Clone)]
 pub struct Ffi<S> {
     store: Mutex<S>,
 }
@@ -93,8 +92,7 @@ function create_bidi_channel(
 
         let our_sk = &self
             .store
-            .try_lock()
-            .ok_or_else(|| FfiError::KeyStore)?
+            .lock()
             .get_key(eng, our_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
@@ -112,8 +110,7 @@ function create_bidi_channel(
         let key_id = peer.id().into();
         let wrapped = eng.wrap(author)?;
         self.store
-            .try_lock()
-            .ok_or_else(|| FfiError::KeyStore)?
+            .lock()
             .try_insert(key_id, wrapped)
             .map_err(|err| {
                 error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
@@ -152,8 +149,7 @@ function create_uni_channel(
 
         let our_sk = &self
             .store
-            .try_lock()
-            .ok_or_else(|| FfiError::KeyStore)?
+            .lock()
             .get_key(eng, author_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
@@ -171,8 +167,7 @@ function create_uni_channel(
         let key_id = peer.id().into();
         let wrapped = eng.wrap(author)?;
         self.store
-            .try_lock()
-            .ok_or_else(|| FfiError::KeyStore)?
+            .lock()
             .try_insert(key_id, wrapped)
             .map_err(|err| {
                 error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
