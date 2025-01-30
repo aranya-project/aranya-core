@@ -235,7 +235,7 @@ where
                 client.commit(&mut trx, sink)?;
                 let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
                     cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
-                client.update_heads(storage_id, &addresses, heads)?;
+                client.update_heads(storage_id, addresses, heads)?;
                 self.push(storage_id)?;
             }
         }
@@ -346,7 +346,7 @@ where
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(address).or_default();
                         let mut client = self.client_state.lock().await;
-                        client.update_heads(storage_id, &commands, response_cache)?;
+                        client.update_heads(storage_id, commands, response_cache)?;
                         postcard::to_slice(&SubscribeResult::Success, target)?.len()
                     }
                     Err(_) => {
@@ -380,7 +380,7 @@ where
                             client.commit(&mut trx, sink)?;
                             let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
                                 cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
-                            client.update_heads(storage_id, &addresses[..], response_cache)?;
+                            client.update_heads(storage_id, addresses, response_cache)?;
                         }
                         self.push(storage_id)?;
                     }

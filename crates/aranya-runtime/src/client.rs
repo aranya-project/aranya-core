@@ -123,9 +123,9 @@ where
         request_heads: &mut PeerCache,
     ) -> Result<(), ClientError> {
         let storage = self.provider.get_storage(storage_id)?;
-        for command in commands {
-            if let Some(loc) = storage.get_location(*command)? {
-                request_heads.add_command(storage, *command, loc)?;
+        for address in addrs {
+            if let Some(loc) = storage.get_location(address)? {
+                request_heads.add_command(storage, address, loc)?;
             }
         }
         Ok(())
