@@ -841,11 +841,13 @@ where
                 }
             }
             Instruction::Serialize => {
-                let command_struct: Struct = self.ipop()?;
                 let CommandContext::Seal(SealContext { name, .. }) = self.ctx else {
-                    return Err(self.err(MachineErrorType::BadState("Serialize: no seal context")));
+                    return Err(self.err(MachineErrorType::BadState(
+                        "Serialize: expected seal context",
+                    )));
                 };
 
+                let command_struct: Struct = self.ipop()?;
                 if command_struct.name != *name {
                     return Err(MachineError::from_position(
                         MachineErrorType::BadState(
