@@ -50,9 +50,8 @@ impl CipherSuite for DefaultCipherSuite {
 ///
 /// # Notes
 ///
-/// It's mostly useful for tests as its [`CipherSuite::ID`]
-/// constant is all zeros and the user must store the root
-/// encryption key somewhere.
+/// It's mostly useful for tests as the user must store the
+/// root encryption key somewhere.
 pub struct DefaultEngine<R: Csprng = Rng, S: CipherSuite = DefaultCipherSuite> {
     aead: S::Aead,
     rng: R,
