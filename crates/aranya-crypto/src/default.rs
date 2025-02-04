@@ -45,13 +45,7 @@ impl CipherSuite for DefaultCipherSuite {
     type Signer = crate::ed25519::Ed25519;
 }
 
-/// A basic [`Engine`] implementation that wraps keys with
-/// its [`Aead`].
-///
-/// # Notes
-///
-/// It's mostly useful for tests as the user must store the
-/// root encryption key somewhere.
+/// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
 pub struct DefaultEngine<R: Csprng = Rng, S: CipherSuite = DefaultCipherSuite> {
     aead: S::Aead,
     rng: R,
