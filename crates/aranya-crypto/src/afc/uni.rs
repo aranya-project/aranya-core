@@ -172,7 +172,6 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         tuple_hash::<CS::Hash, _>([
             "AfcUnidirectionalKey".as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            CS::ID.as_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.seal_id.as_bytes(),
             self.open_id.as_bytes(),

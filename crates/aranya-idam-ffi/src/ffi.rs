@@ -297,7 +297,7 @@ function compute_change_id(
         new_cmd_id: Id,
         current_change_id: Id,
     ) -> Result<Id, Error> {
-        // ChangeID = H("ID-v1" || eng_id || suites || data || tag)
+        // ChangeID = H("ID-v1" || suites || data || tag)
         Ok(Id::new::<E::CS>(
             current_change_id.as_bytes(),
             new_cmd_id.as_bytes(),
