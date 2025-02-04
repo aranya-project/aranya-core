@@ -37,7 +37,12 @@ use crate::{
 pub struct DefaultCipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
-    const ID: Id = Id::default();
+    const ID: Id = Id::from_bytes([
+        51, 244, 75, 255, 238, 5, 240, 8, 8, 220, 253, 185, 241, 82, 136, 13, 166, 50, 185, 192,
+        48, 161, 84, 163, 123, 232, 93, 28, 131, 7, 157, 176, 144, 37, 88, 123, 171, 14, 110, 5,
+        108, 255, 234, 16, 99, 130, 56, 246, 187, 223, 31, 14, 200, 55, 6, 26, 52, 112, 193, 42, 5,
+        112, 18, 227,
+    ]);
 
     type Aead = crate::rust::Aes256Gcm;
     type Hash = crate::rust::Sha512;
