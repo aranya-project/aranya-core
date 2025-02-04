@@ -4,8 +4,8 @@ use std::{
     fmt::Display,
 };
 
-use aranya_policy_ast as ast;
-use ast::{Expression, VType};
+use aranya_policy_ast::{self as ast};
+use ast::VType;
 
 use crate::{compile::CompileState, CompileErrorType};
 
@@ -14,11 +14,11 @@ use crate::{compile::CompileState, CompileErrorType};
 pub struct TypeError(Cow<'static, str>);
 
 impl TypeError {
-    fn new(msg: &'static str) -> TypeError {
+    pub(super) fn new(msg: &'static str) -> TypeError {
         TypeError(Cow::from(msg))
     }
 
-    fn new_owned(msg: String) -> TypeError {
+    pub(super) fn new_owned(msg: String) -> TypeError {
         TypeError(Cow::from(msg))
     }
 }
@@ -37,7 +37,7 @@ impl From<TypeError> for CompileErrorType {
 
 /// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
 /// scope" is the one on the top of the stack.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IdentifierTypeStack {
     globals: HashMap<String, Typeish>,
     locals: Vec<Vec<HashMap<String, Typeish>>>,
@@ -164,7 +164,7 @@ pub enum Typeish {
 
 impl Typeish {
     /// If `self` is `Type(x)`, map `x` to `y` via `f()`
-    fn map_vtype<F>(self, f: F) -> Typeish
+    pub fn map_vtype<F>(self, f: F) -> Typeish
     where
         F: Fn(VType) -> VType,
     {
@@ -175,7 +175,7 @@ impl Typeish {
     }
 
     /// If `self` is `Type(x)`, map `x` to `y` as a Result via `f()`
-    fn map_result<F>(self, f: F) -> Result<Typeish, TypeError>
+    pub fn map_result<F>(self, f: F) -> Result<Typeish, TypeError>
     where
         F: Fn(VType) -> Result<Typeish, TypeError>,
     {
@@ -206,6 +206,21 @@ impl Typeish {
             _ => true,
         }
     }
+
+    /// If self is not indeterminate and not the target type, return a [`TypeError`]
+    pub fn check_type(
+        self,
+        target_type: VType,
+        errmsg: &'static str,
+    ) -> Result<Typeish, TypeError> {
+        self.map_result(|t| {
+            if t != target_type {
+                Err(TypeError::new(errmsg))
+            } else {
+                Ok(Typeish::Type(t))
+            }
+        })
+    }
 }
 
 impl Display for Typeish {
@@ -219,7 +234,7 @@ impl Display for Typeish {
 
 impl CompileState<'_> {
     /// Construct a struct's type, or error if the struct is not defined.
-    fn struct_type(&self, s: &ast::NamedStruct) -> Result<Typeish, TypeError> {
+    pub(super) fn struct_type(&self, s: &ast::NamedStruct) -> Result<Typeish, TypeError> {
         if self.m.struct_defs.contains_key(&s.identifier) {
             Ok(Typeish::Type(VType::Struct(s.identifier.clone())))
         } else {
@@ -232,7 +247,7 @@ impl CompileState<'_> {
 
     /// Construct the type of a query based on its fact argument, or error if the fact is
     /// not defined.
-    fn query_fact_type(&self, f: &ast::FactLiteral) -> Result<Typeish, TypeError> {
+    pub(super) fn query_fact_type(&self, f: &ast::FactLiteral) -> Result<Typeish, TypeError> {
         if self.m.fact_defs.contains_key(&f.identifier) {
             Ok(Typeish::Type(VType::Struct(f.identifier.clone())))
         } else {
@@ -246,9 +261,11 @@ impl CompileState<'_> {
     /// If two types are defined, and are the same, the result is that type. If they are
     /// different, it is a type error. If either type is indeterminate, the type is
     /// indeterminate.
-    fn unify_pair(&self, left: &Expression, right: &Expression) -> Result<Typeish, TypeError> {
-        let left_type = self.calculate_expression_type(left)?;
-        let right_type = self.calculate_expression_type(right)?;
+    pub(super) fn unify_pair(
+        &self,
+        left_type: Typeish,
+        right_type: Typeish,
+    ) -> Result<Typeish, TypeError> {
         if left_type.is_equal(&right_type) {
             Ok(left_type)
         } else if left_type.is_indeterminate() || right_type.is_indeterminate() {
@@ -260,196 +277,16 @@ impl CompileState<'_> {
         }
     }
 
-    /// Attempt to determine the type of an expression
-    pub fn calculate_expression_type(&self, expression: &Expression) -> Result<Typeish, TypeError> {
-        match expression {
-            Expression::Int(_) => Ok(Typeish::Type(VType::Int)),
-            Expression::String(_) => Ok(Typeish::Type(VType::String)),
-            Expression::Bool(_) => Ok(Typeish::Type(VType::Bool)),
-            Expression::Optional(t) => match t {
-                Some(t) => {
-                    let inner_type = self.calculate_expression_type(t)?;
-                    Ok(inner_type.map_vtype(|v| VType::Optional(Box::new(v))))
-                }
-                None => Ok(Typeish::Indeterminate),
-            },
-            Expression::NamedStruct(s) => self.struct_type(s),
-            Expression::InternalFunction(f) => match f {
-                ast::InternalFunction::Query(f) => Ok(self
-                    .query_fact_type(f)?
-                    .map_vtype(|t| VType::Optional(Box::new(t)))),
-                ast::InternalFunction::Exists(_) => Ok(Typeish::Type(VType::Bool)),
-                ast::InternalFunction::If(c, t, f) => {
-                    let condition_type = self.calculate_expression_type(c)?;
-                    if !condition_type.is_maybe(&VType::Bool) {
-                        return Err(TypeError::new("if condition must be a boolean expression"));
-                    }
-                    // The type of `if` is whatever the subexpressions
-                    // are, as long as they are the same type
-                    self.unify_pair(t, f)
-                }
-                ast::InternalFunction::Serialize(_) => {
-                    // TODO(chip): Use information about which command
-                    // we're in to throw an error when this is used on a
-                    // struct that is not the current command struct
-                    Ok(Typeish::Type(VType::Bytes))
-                }
-                ast::InternalFunction::Deserialize(_) => {
-                    // TODO(chip): Use information about which command
-                    // we're in to determine this concretely
-                    Ok(Typeish::Indeterminate)
-                }
-                ast::InternalFunction::FactCount(cmp_type, _, _) => match cmp_type {
-                    ast::FactCountType::UpTo => Ok(Typeish::Type(VType::Int)),
-                    _ => Ok(Typeish::Type(VType::Bool)),
-                },
-            },
-            Expression::FunctionCall(f) => {
-                if let Some(func_def) = self.function_signatures.get(f.identifier.as_str()) {
-                    match &func_def.color {
-                        super::FunctionColor::Pure(t) => Ok(Typeish::Type(t.clone())),
-                        super::FunctionColor::Finish => Err(TypeError::new("Finish functions are not allowed outside of finish blocks or finish functions")),
-                    }
-                } else {
-                    Err(TypeError::new_owned(format!(
-                        "Function `{}` not defined",
-                        f.identifier
-                    )))
-                }
-            }
-            Expression::ForeignFunctionCall(f) => {
-                if self.stub_ffi {
-                    return Ok(Typeish::Indeterminate);
-                }
-                let module = self
-                    .ffi_modules
-                    .iter()
-                    .find(|m| m.name == f.module)
-                    .ok_or_else(|| {
-                        TypeError::new_owned(format!("Module `{}` not found", f.module))
-                    })?;
-                let ffi_def = module.functions.iter().find(|mf| mf.name == f.identifier);
-                if let Some(ffi_def) = ffi_def {
-                    Ok(Typeish::Type(VType::from(&ffi_def.return_type)))
-                } else {
-                    Err(TypeError::new_owned(format!(
-                        "Foreign function `{}::{}` not defined",
-                        module.name, f.identifier
-                    )))
-                }
-            }
-            Expression::Identifier(i) => {
-                let t = self
-                    .identifier_types
-                    .get(i)
-                    .map_err(|_| TypeError::new_owned(format!("Unknown identifier `{}`", i)))?;
-                Ok(t)
-            }
-            Expression::Add(left, right) | Expression::Subtract(left, right) => {
-                let inner_type = self.unify_pair(left, right)?;
-                inner_type.map_result(|t| {
-                    if t != VType::Int {
-                        Err(TypeError::new("Cannot do math on non-int types"))
-                    } else {
-                        Ok(Typeish::Type(t))
-                    }
-                })
-            }
-            Expression::And(left, right) | Expression::Or(left, right) => {
-                let inner_type = self.unify_pair(left, right)?;
-                inner_type.map_result(|t| {
-                    if t != VType::Bool {
-                        Err(TypeError::new(
-                            "Cannot use boolean operator on non-bool types",
-                        ))
-                    } else {
-                        Ok(Typeish::Type(t))
-                    }
-                })
-            }
-            Expression::Dot(e, field) => {
-                let inner_type = self.calculate_expression_type(e)?;
-                inner_type.map_result(|t| {
-                    let VType::Struct(name) = &t else {
-                        return Err(TypeError::new("Expression left of `.` is not a struct"));
-                    };
-                    let Some(struct_def) = self.m.struct_defs.get(name) else {
-                        return Err(TypeError::new_owned(format!(
-                            "Struct `{}` not defined",
-                            name
-                        )));
-                    };
-                    match struct_def.iter().find(|f| &f.identifier == field) {
-                        Some(field_def) => Ok(Typeish::Type(field_def.field_type.clone())),
-                        None => Err(TypeError::new_owned(format!(
-                            "Struct `{}` has no member `{}`",
-                            name, field
-                        ))),
-                    }
-                })
-            }
-            Expression::Equal(left, right) | Expression::NotEqual(left, right) => {
-                // We don't actually care what types the subexpressions
-                // are as long as they can be tested for equality.
-                let _ = self.unify_pair(left, right)?;
-                Ok(Typeish::Type(VType::Bool))
-            }
-            Expression::GreaterThan(left, right)
-            | Expression::LessThan(left, right)
-            | Expression::GreaterThanOrEqual(left, right)
-            | Expression::LessThanOrEqual(left, right) => {
-                let inner_type = self.unify_pair(left, right)?;
-                inner_type.map_result(|t| {
-                    if t != VType::Int {
-                        Err(TypeError::new("Cannot compare non-int expressions"))
-                    } else {
-                        Ok(Typeish::Type(VType::Bool))
-                    }
-                })
-            }
-            Expression::Negative(e) => {
-                let inner_type = self.calculate_expression_type(e)?;
-                inner_type.map_result(|t| {
-                    if t != VType::Int {
-                        Err(TypeError::new("Cannot negate non-int expression"))
-                    } else {
-                        Ok(Typeish::Type(t))
-                    }
-                })
-            }
-            Expression::Not(e) => {
-                let inner_type = self.calculate_expression_type(e)?;
-                inner_type.map_result(|t| {
-                    if t != VType::Bool {
-                        Err(TypeError::new("Cannot invert non-boolean expression"))
-                    } else {
-                        Ok(Typeish::Type(t))
-                    }
-                })
-            }
-            Expression::Unwrap(e) | Expression::CheckUnwrap(e) => {
-                let inner_type = self.calculate_expression_type(e)?;
-                inner_type.map_result(|t| {
-                    if let VType::Optional(t) = t {
-                        Ok(Typeish::Type(*t))
-                    } else {
-                        Err(TypeError::new("Cannot unwrap non-option expression"))
-                    }
-                })
-            }
-            Expression::Is(a, _) => {
-                let inner_type = self.calculate_expression_type(a)?;
-                inner_type.map_result(|t| {
-                    if let VType::Optional(_) = t {
-                        Ok(Typeish::Type(VType::Bool))
-                    } else {
-                        Err(TypeError::new(
-                            "`is` must operate on an optional expression`",
-                        ))
-                    }
-                })
-            }
-            Expression::EnumReference(e) => Ok(Typeish::Type(VType::Enum(e.identifier.clone()))),
-        }
+    /// Like [`unify_pair`], except additionally the pair is checked against `target_type`
+    /// and an error is produced if they don't match.
+    pub(super) fn unify_pair_as(
+        &self,
+        left_type: Typeish,
+        right_type: Typeish,
+        target_type: VType,
+        errmsg: &'static str,
+    ) -> Result<Typeish, TypeError> {
+        self.unify_pair(left_type, right_type)?
+            .check_type(target_type, errmsg)
     }
 }

@@ -308,6 +308,8 @@ pub enum Expression {
     CheckUnwrap(Box<Expression>),
     /// `expr is Some`, `expr is None`
     Is(Box<Expression>, bool),
+    /// A block expression
+    Block(Vec<AstNode<Statement>>, Box<Expression>),
 }
 
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose

@@ -162,9 +162,26 @@ deserialize = { "deserialize(" ~ expression ~ ")" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
 internal_function = _{ query | exists | count_up_to | at_least | at_most | exactly | if_e | serialize | deserialize }
+// A block expression is a series of statements followed by an expression
+// the statement list is separated for easier parsing
+block_statement_list = { statements* }
+block_expression = { "{" ~ block_statement_list ~ ":" ~ expression ~ "}" }
 // An atom is any of the literals, an internal function,
 // a function call, an identifier, or a parenthetical sub-expression.
-atom = _{ int_literal | string_literal | bool_literal | optional_literal | named_struct_literal | internal_function | function_call | foreign_function_call | enum_reference | identifier | "(" ~ expression ~ ")" }
+atom = _{
+    int_literal |
+    string_literal |
+    bool_literal |
+    optional_literal |
+    named_struct_literal |
+    internal_function |
+    function_call |
+    foreign_function_call |
+    enum_reference |
+    identifier |
+    block_expression |
+    "(" ~ expression ~ ")"
+}
 
 // ## Infix operators
 add = { "+" }
