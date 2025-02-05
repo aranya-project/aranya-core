@@ -2245,7 +2245,7 @@ fn test_block_expression() -> anyhow::Result<()> {
     let policy_text = r#"
         command TestCommand {
             fields {
-                    x int
+                x int
             }
 
             seal { return None }
@@ -2259,31 +2259,32 @@ fn test_block_expression() -> anyhow::Result<()> {
             let a = 3
             let b = 4
             let x = {
-                    let c = 5
-                    : a + b + c
+                let c = 5
+                : a + b + c
             }
 
             publish TestCommand {
-                    x: x
+                x: x
             }
         }
     "#
     .trim();
 
     let policy = parse_policy_str(policy_text, Version::V1)?;
-    let mut io = TestIO::new();
+    let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
-    let mut machine = Machine::from_module(module)?;
+    let machine = Machine::from_module(module)?;
     let name = "test";
     let args: [Value; 0] = [];
     let ctx = dummy_ctx_action(name);
-    let r = machine.call_action(name, args, &mut io, &ctx)?;
+    let mut rs = machine.create_run_state(&io, ctx);
+    let r = call_action(&mut rs, &io, name, args)?;
     assert_eq!(r, ExitReason::Normal);
 
     assert_eq!(
-        io.publish_stack.last(),
+        io.borrow_mut().publish_stack.last(),
         Some(&(
             "TestCommand".to_string(),
             vec![KVPair::new("x", Value::Int(12))]
