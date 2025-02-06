@@ -210,7 +210,7 @@ impl<'a> CompileState<'a> {
         // Add values to enum, checking for duplicates
         let mut values = Vec::<String>::new();
         for value_name in enum_def.values.iter() {
-            if values.contains(&value_name) {
+            if values.contains(value_name) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                     "{}::{}",
                     enum_name, value_name

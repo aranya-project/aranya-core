@@ -1973,9 +1973,18 @@ fn test_enum_parse() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
 
-    machine.parse_enum("Drink").expect_err("msg");
-    machine.parse_enum("Drink::").expect_err("msg");
-    machine.parse_enum("Coffee").expect_err("msg");
+    assert_eq!(
+        machine.parse_enum("Drink").unwrap_err().err_type,
+        MachineErrorType::invalid_type("<Enum>::<Value>", "Drink", "invalid enum reference")
+    );
+    assert_eq!(
+        machine.parse_enum("Drink::").unwrap_err().err_type,
+        MachineErrorType::NotDefined("no value `` in enum `Drink`".to_owned())
+    );
+    assert_eq!(
+        machine.parse_enum("Coffee").unwrap_err().err_type,
+        MachineErrorType::invalid_type("<Enum>::<Value>", "Coffee", "invalid enum reference")
+    );
     assert_eq!(
         machine.parse_enum("Drink::Water")?,
         Value::Enum("Drink".to_owned(), 0)
@@ -1985,10 +1994,8 @@ fn test_enum_parse() -> anyhow::Result<()> {
         Value::Enum("Drink".to_owned(), 1)
     );
     assert_eq!(
-        machine.parse_enum("Drink::Tea"),
-        Err(MachineError::new(MachineErrorType::NotDefined(
-            "no value Tea in enum Drink".to_owned()
-        )))
+        machine.parse_enum("Drink::Tea").unwrap_err().err_type,
+        MachineErrorType::NotDefined("no value `Tea` in enum `Drink`".to_owned())
     );
 
     Ok(())
