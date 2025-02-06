@@ -123,7 +123,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
                     ));
                 }
 
-                match val.as_str() {
+                match val {
                     #(
                         #var_vals => ::core::result::Result::Ok(Self::#var_idents),
                     )*

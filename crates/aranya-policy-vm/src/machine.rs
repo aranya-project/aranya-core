@@ -220,6 +220,27 @@ impl Machine {
         }
     }
 
+    /// Parses an enum reference (e.g. "Color::Red") into a [Value::Enum].
+    pub fn parse_enum(&self, value: &str) -> Result<Value, MachineError> {
+        let mut parts = value.splitn(2, "::");
+        let name = parts.next().ok_or(MachineErrorType::invalid_type(
+            "<Enum>::<Value>",
+            value,
+            "invalid enum reference",
+        ))?;
+        let value = parts.next().ok_or_else(|| {
+            MachineErrorType::invalid_type("<Enum>::<Value>", value, "missing enum value")
+        })?;
+        let values = self
+            .enum_defs
+            .get(name)
+            .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!("enum {name}")))?;
+        let value_index = values.iter().position(|v| v == value).ok_or_else(|| {
+            MachineErrorType::NotDefined(alloc::format!("no value {value} in enum {name}"))
+        })?;
+        Ok(Value::Enum(name.to_owned(), value_index))
+    }
+
     /// Create a RunState associated with this Machine.
     pub fn create_run_state<'a, M>(
         &'a self,

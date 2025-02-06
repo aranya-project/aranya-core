@@ -1923,7 +1923,9 @@ fn test_enum_reference() -> anyhow::Result<()> {
         &mut rs,
         &io,
         "test",
-        [Value::Enum("Drink".to_owned(), "Coffee".to_owned())],
+        [machine
+            .parse_enum("Drink::Coffee")
+            .expect("enum ref is valid")],
     )?
     .success();
 
@@ -1963,6 +1965,33 @@ where
         er = rs.run()?;
     }
     Ok(er)
+}
+
+#[test]
+fn test_enum_parse() -> anyhow::Result<()> {
+    let policy = parse_policy_str("enum Drink { Water, Coffee }", Version::V1)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+
+    machine.parse_enum("Drink").expect_err("msg");
+    machine.parse_enum("Drink::").expect_err("msg");
+    machine.parse_enum("Coffee").expect_err("msg");
+    assert_eq!(
+        machine.parse_enum("Drink::Water")?,
+        Value::Enum("Drink".to_owned(), 0)
+    );
+    assert_eq!(
+        machine.parse_enum("Drink::Coffee")?,
+        Value::Enum("Drink".to_owned(), 1)
+    );
+    assert_eq!(
+        machine.parse_enum("Drink::Tea"),
+        Err(MachineError::new(MachineErrorType::NotDefined(
+            "no value Tea in enum Drink".to_owned()
+        )))
+    );
+
+    Ok(())
 }
 
 // Module support
