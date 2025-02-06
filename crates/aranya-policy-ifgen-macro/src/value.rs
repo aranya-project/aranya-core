@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{spanned::Spanned, Fields, Item, ItemEnum, ItemStruct};
 
 use crate::common::get_derive;
@@ -98,7 +98,10 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
     }
 
     let var_idents: Vec<_> = enumeration.variants.iter().map(|f| &f.ident).collect();
-    let var_vals: Vec<_> = var_idents.iter().map(|id| id.to_string()).collect();
+    let var_const_names: Vec<_> = var_idents
+        .iter()
+        .map(|id| format_ident!("__{ident}__{id}"))
+        .collect();
 
     let derive = get_derive();
 
@@ -123,9 +126,11 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
                     ));
                 }
 
+                #( const #var_const_names: usize = #ident::#var_idents as usize; )*
+
                 match val {
                     #(
-                        #var_vals => ::core::result::Result::Ok(Self::#var_idents),
+                        #var_const_names => ::core::result::Result::Ok(Self::#var_idents),
                     )*
                     _ => ::core::result::Result::Err(::aranya_policy_ifgen::ValueConversionError::OutOfRange),
                 }
@@ -134,11 +139,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
 
         impl ::core::convert::From<#ident> for ::aranya_policy_ifgen::Value {
             fn from(e: #ident) -> Self {
-                match e {
-                    #(
-                        #ident::#var_idents => ::aranya_policy_ifgen::Value::Enum(#enum_ident.into(), #var_vals.into()),
-                    )*
-                }
+                ::aranya_policy_ifgen::Value::Enum(#enum_ident.into(), e as usize)
             }
         }
     })
