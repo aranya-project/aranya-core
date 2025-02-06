@@ -110,7 +110,7 @@ pub enum Value {
     /// A unique identifier.
     Id(Id),
     /// Enumeration value
-    Enum(String, String),
+    Enum(String, usize),
     /// Empty optional value
     None,
 }
