@@ -4,11 +4,6 @@ This repo is a cargo workspace for the Rust implementation for the core of the A
 
 More documentation on Aranya is provided here: [Aranya Documentation](https://aranya-project.github.io/aranya-docs/).
 
-# Contributing
-
-Our `CONTRIBUTING.md` is located in the aranya-project organization's `.github` repo:
-[CONTRIBUTING.md](https://github.com/aranya-project/.github/blob/main/CONTRIBUTING.md)
-
 ## Cargo Make
 
 This repo uses `cargo-make` as a task runner.
@@ -38,3 +33,12 @@ makers unit-tests
 # run correctness checks
 makers correctness
 ```
+
+## Contributing
+
+Find information on contributing to the Aranya project in
+[`CONTRIBUTING.md`](https://github.com/aranya-project/.github/blob/main/CONTRIBUTING.md).
+
+## Maintainers
+
+This repository is maintained by software engineers employed at [SpiderOak](https://spideroak.com/)
