@@ -4,6 +4,17 @@ This repo is a cargo workspace for the Rust implementation for the core of the A
 
 More documentation on Aranya is provided here: [Aranya Documentation](https://aranya-project.github.io/aranya-docs/).
 
+## What's Contained In This Repo
+
+This repository includes all the main components of Aranya that are needed for
+the core functionality to work. This is a library that includes the storage
+module (for DAG and FactDB), crypto module (with default crypto engine
+automatically selected), sync engine, and runtime client (including policy VM).
+
+Additionally, includes [Aranya Fast Channels](crates/aranya-fast-channels/) to
+enable encrypted channels between 2 peers allowing either unidirectional or
+bidirectional communication.
+
 ## Cargo Make
 
 This repo uses `cargo-make` as a task runner.
