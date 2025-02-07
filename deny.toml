@@ -100,7 +100,7 @@ allow = [
     "BSD-3-Clause",
     "ISC",
     "MIT",
-    # "MPL-2.0", # unused
+    "MPL-2.0",
     "OpenSSL",
     "Unicode-3.0",
     "Zlib",
@@ -238,6 +238,7 @@ skip = [
     "hash32@0.2.1",
     "heapless@0.7.17",
     "itertools@0.10.5",
+    "itertools@0.11.0",
     "rand@0.7.3",
     "rand_chacha@0.2.2",
     "rand_core@0.5.1",

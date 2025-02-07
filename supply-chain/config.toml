@@ -237,6 +237,10 @@ criteria = "safe-to-deploy"
 version = "1.0.3"
 criteria = "safe-to-deploy"
 
+[[exemptions.colored]]
+version = "2.2.0"
+criteria = "safe-to-deploy"
+
 [[exemptions.console]]
 version = "0.15.10"
 criteria = "safe-to-run"
@@ -467,6 +471,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.itertools]]
 version = "0.10.3"
+criteria = "safe-to-deploy"
+
+[[exemptions.itertools]]
+version = "0.11.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.itertools]]
@@ -887,6 +895,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.syn]]
 version = "2.0.90"
+criteria = "safe-to-deploy"
+
+[[exemptions.table_formatter]]
+version = "0.6.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.tempfile]]
