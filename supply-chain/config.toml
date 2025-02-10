@@ -153,10 +153,6 @@ criteria = "safe-to-deploy"
 version = "1.1.2"
 criteria = "safe-to-deploy"
 
-[[exemptions.autocfg]]
-version = "1.4.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.aws-lc-rs]]
 version = "1.12.0"
 criteria = "safe-to-deploy"
@@ -697,10 +693,6 @@ criteria = "safe-to-deploy"
 version = "0.6.29"
 criteria = "safe-to-deploy"
 
-[[exemptions.regex-syntax]]
-version = "0.8.5"
-criteria = "safe-to-deploy"
-
 [[exemptions.rfc6979]]
 version = "0.4.0"
 criteria = "safe-to-deploy"
@@ -718,10 +710,6 @@ version = "0.38.42"
 criteria = "safe-to-deploy"
 
 [[exemptions.rustls]]
-version = "0.21.12"
-criteria = "safe-to-deploy"
-
-[[exemptions.rustls]]
 version = "0.23.21"
 criteria = "safe-to-deploy"
 
@@ -731,10 +719,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.rustls-pki-types]]
 version = "1.10.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.rustls-webpki]]
-version = "0.101.7"
 criteria = "safe-to-deploy"
 
 [[exemptions.rustls-webpki]]
@@ -801,10 +785,6 @@ criteria = "safe-to-run"
 version = "1.2.0"
 criteria = "safe-to-deploy"
 
-[[exemptions.sct]]
-version = "0.7.1"
-criteria = "safe-to-deploy"
-
 [[exemptions.sdd]]
 version = "3.0.5"
 criteria = "safe-to-run"
@@ -857,10 +837,6 @@ criteria = "safe-to-deploy"
 version = "0.4.9"
 criteria = "safe-to-deploy"
 
-[[exemptions.smallvec]]
-version = "1.13.2"
-criteria = "safe-to-deploy"
-
 [[exemptions.socket2]]
 version = "0.5.8"
 criteria = "safe-to-deploy"
@@ -875,18 +851,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.spki]]
 version = "0.7.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.stable_deref_trait]]
-version = "1.2.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.strum]]
-version = "0.26.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.strum_macros]]
-version = "0.26.4"
 criteria = "safe-to-deploy"
 
 [[exemptions.syn]]
@@ -987,14 +951,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.unicode-id]]
 version = "0.3.5"
-criteria = "safe-to-deploy"
-
-[[exemptions.unicode-segmentation]]
-version = "1.12.0"
-criteria = "safe-to-run"
-
-[[exemptions.unicode-width]]
-version = "0.1.14"
 criteria = "safe-to-deploy"
 
 [[exemptions.unsafe-libyaml]]
@@ -1133,26 +1089,10 @@ criteria = "safe-to-run"
 version = "0.5.2"
 criteria = "safe-to-run"
 
-[[exemptions.yoke]]
-version = "0.7.5"
-criteria = "safe-to-deploy"
-
-[[exemptions.yoke-derive]]
-version = "0.7.5"
-criteria = "safe-to-deploy"
-
 [[exemptions.zerocopy]]
 version = "0.7.35"
 criteria = "safe-to-deploy"
 
 [[exemptions.zerocopy-derive]]
 version = "0.7.35"
-criteria = "safe-to-deploy"
-
-[[exemptions.zerofrom]]
-version = "0.1.5"
-criteria = "safe-to-deploy"
-
-[[exemptions.zerofrom-derive]]
-version = "0.1.5"
 criteria = "safe-to-deploy"
