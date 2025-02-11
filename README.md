@@ -4,22 +4,19 @@ Aranya is lovingly crafted and supported by [SpiderOak](https://spideroak.com/).
 Aranya is licensed under the [AGPL](LICENSE.md)- if you want to use it
 commercially, drop us a line!
 
-## What is it?
-
-This repo is a cargo workspace for the Rust implementation for the core of the Aranya platform.
-
-More documentation on Aranya is provided here: [Aranya Documentation](https://aranya-project.github.io/aranya-docs/).
-
 ## What's Contained In This Repo
 
-This repository includes all the main components of Aranya that are needed for
-the core functionality to work. This is a library that includes the storage
-module (for DAG and FactDB), crypto module (with default crypto engine
-automatically selected), sync engine, and runtime client (including policy VM).
+This repo is a cargo workspace for the Rust implementation for the core of the
+Aranya platform. This is a library that includes the storage module (for DAG
+and FactDB), crypto module (with default crypto engine automatically selected),
+sync engine, and runtime client (including policy VM).
 
 Additionally, includes [Aranya Fast Channels](crates/aranya-fast-channels/) to
 enable encrypted channels between 2 peers allowing either unidirectional or
 bidirectional communication.
+
+More documentation on Aranya is provided here:
+[Aranya Documentation](https://aranya-project.github.io/aranya-docs/).
 
 ## Cargo Make
 
