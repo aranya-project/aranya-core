@@ -1,5 +1,11 @@
 # Aranya Core
 
+Aranya is lovingly crafted and supported by [SpiderOak](https://spideroak.com/).
+Aranya is licensed under the [AGPL](LICENSE.md)- if you want to use it
+commercially, drop us a line!
+
+## What is it?
+
 This repo is a cargo workspace for the Rust implementation for the core of the Aranya platform.
 
 More documentation on Aranya is provided here: [Aranya Documentation](https://aranya-project.github.io/aranya-docs/).
