@@ -150,7 +150,8 @@ where
     ) {
         let fields: Vec<_> = fields.into_iter().collect();
         self.sink
-            .borrow_mut() // TODO use non-panicking borrow
+            .try_borrow_mut()
+            .expect("should be able to borrow sink")
             .consume(VmEffect {
                 name,
                 fields,
