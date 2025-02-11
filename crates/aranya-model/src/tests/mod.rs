@@ -1414,10 +1414,10 @@ fn should_create_clients_with_args() {
     assert_eq!(effects, expected);
 }
 
-/// If there are no facts when writing a fact perspective, we skip writing it and just return its prior.
-/// When starting a perspective from the middle of a segment with no facts, we previously would grab the wrong fact index, by taking that prior's prior to apply 0 fact updates to it.
+// If there are no facts when writing a fact perspective, we skip writing it and just return its prior.
+// When starting a perspective from the middle of a segment with no facts, we previously would grab the wrong fact index, by taking that prior's prior to apply 0 fact updates to it.
 #[test]
-fn test_storage_fact_index() {
+fn test_storage_fact_creturns_correct_index() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -1448,7 +1448,7 @@ fn test_storage_fact_index() {
     }
 }
 
-/// Ensure multiple commands are all published, and each command has the correct parent ID.
+// Ensure multiple commands are all published, and each command has the correct parent ID.
 #[test]
 fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &'static str> {
     // Create our client factory, this will be responsible for creating all our clients.
@@ -1502,12 +1502,6 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
             .ok_or("Relationship effect is missing a field")
     };
     let mut expected_parent_id = eff1.command.into_id();
-    println!(
-        "command_id: {:?}, parent_id: {}",
-        eff1.command.into_id(),
-        retrieve_id("parent_id", eff1)?
-    );
-
     for eff in [eff2, eff3] {
         // command's id and its parent_id must be different
         assert_ne!(eff.command.into_id(), retrieve_id("parent_id", eff)?);
@@ -1516,12 +1510,6 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
         // is equal to the expected 'parent_id'
         let actual_parent_id = retrieve_id("parent_id", eff)?;
         assert_eq!(expected_parent_id, actual_parent_id);
-
-        println!(
-            "command_id: {:?}, parent_id: {}",
-            eff.command.into_id(),
-            actual_parent_id
-        );
 
         // Update the expected 'parent_id' with the 'command_id' of the command that created the
         // current effect so that it can be used in the next loop iteration
