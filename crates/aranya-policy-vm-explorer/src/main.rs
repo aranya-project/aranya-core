@@ -1,6 +1,7 @@
 #![warn(clippy::arithmetic_side_effects)]
 
 use std::{
+    cell::RefCell,
     collections::{hash_map, BTreeMap, HashMap},
     fs::OpenOptions,
     io::{stdin, Read},
@@ -213,7 +214,7 @@ where
     }
 
     fn call(
-        &mut self,
+        &self,
         module: usize,
         _procedure: usize,
         _stack: &mut S,
@@ -251,7 +252,7 @@ fn main() -> anyhow::Result<()> {
             anyhow::bail!("Compilation failed: {e}");
         }
     };
-    let mut io = MachExpIO::new();
+    let io = RefCell::new(MachExpIO::new());
 
     let mode = if args.exec {
         Mode::Exec
@@ -277,7 +278,7 @@ fn main() -> anyhow::Result<()> {
                     name: &name,
                     head_id: Id::default(),
                 });
-                rs = machine.create_run_state(&mut io, &ctx);
+                rs = machine.create_run_state(&io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
                 rs.setup_action(action, call_args)?;
             } else if let Some(command) = args.command {
@@ -288,7 +289,7 @@ fn main() -> anyhow::Result<()> {
                     author: Id::default().into(),
                     version: Id::default(),
                 });
-                rs = machine.create_run_state(&mut io, &ctx);
+                rs = machine.create_run_state(&io, ctx);
                 let fields: BTreeMap<String, Value> = args
                     .args
                     .into_iter()
@@ -315,8 +316,11 @@ fn main() -> anyhow::Result<()> {
                     Err(e) => println!("execution stopped: {}", e),
                 }
             }
+
+            drop(rs);
+
             println!("Facts:");
-            for ((name, k), v) in &io.facts {
+            for ((name, k), v) in &io.borrow().facts {
                 print!("  {}[", name);
                 for e in k {
                     print!("{}", e);
@@ -328,7 +332,7 @@ fn main() -> anyhow::Result<()> {
                 println!("}}");
             }
             println!("Effects:");
-            for (name, fields) in &io.effects {
+            for (name, fields) in &io.borrow().effects {
                 println!("  {} {{", name);
                 for f in fields {
                     println!("    {}", f);
@@ -336,7 +340,7 @@ fn main() -> anyhow::Result<()> {
                 println!("  }}");
             }
             println!("Published Commands:");
-            for (name, fields) in &io.commands {
+            for (name, fields) in &io.borrow().commands {
                 println!("  {} {{", name);
                 for f in fields {
                     println!("    {}", f);

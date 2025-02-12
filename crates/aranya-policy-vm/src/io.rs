@@ -4,6 +4,7 @@ use alloc::string::String;
 
 use aranya_crypto::Id;
 use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
+use buggy::Bug;
 
 use super::Stack;
 use crate::{
@@ -23,11 +24,20 @@ pub enum MachineIOError {
     /// Some internal operation has failed
     #[error("internal error")]
     Internal,
+    /// Bug
+    #[error("bug: {0}")]
+    Bug(Bug),
 }
 
 impl From<MachineIOError> for MachineError {
     fn from(value: MachineIOError) -> Self {
         MachineError::new(MachineErrorType::IO(value))
+    }
+}
+
+impl From<Bug> for MachineIOError {
+    fn from(bug: Bug) -> Self {
+        Self::Bug(bug)
     }
 }
 
@@ -75,7 +85,7 @@ where
 
     /// Call external function, e.g., one defined in an `FfiModule`.
     fn call(
-        &mut self,
+        &self,
         module: usize,
         procedure: usize,
         stack: &mut S,

@@ -7,15 +7,19 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::fmt::{self, Display};
+use core::{
+    cell::RefCell,
+    fmt::{self, Display},
+};
 
+use aranya_crypto::Id;
 use aranya_policy_ast as ast;
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
     LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
     ValueConversionError,
 };
-use buggy::BugExt;
+use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
 
 use crate::{
@@ -210,8 +214,8 @@ impl Machine {
     /// Create a RunState associated with this Machine.
     pub fn create_run_state<'a, M>(
         &'a self,
-        io: &'a mut M,
-        ctx: &'a CommandContext<'_>,
+        io: &'a RefCell<M>,
+        ctx: CommandContext<'a>,
     ) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
@@ -224,8 +228,8 @@ impl Machine {
         &mut self,
         name: &str,
         args: Args,
-        io: &mut M,
-        ctx: &CommandContext<'_>,
+        io: &'_ RefCell<M>,
+        ctx: CommandContext<'_>,
     ) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
@@ -242,8 +246,8 @@ impl Machine {
         name: &str,
         this_data: &Struct,
         envelope: Struct,
-        io: &mut M,
-        ctx: &CommandContext<'_>,
+        io: &'_ RefCell<M>,
+        ctx: CommandContext<'_>,
     ) -> Result<ExitReason, MachineError>
     where
         M: MachineIO<MachineStack>,
@@ -293,9 +297,9 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     /// The program counter
     pc: usize,
     /// I/O callbacks
-    io: &'a mut M,
+    io: &'a RefCell<M>,
     /// Execution Context (actually used for more than Commands)
-    ctx: &'a CommandContext<'a>,
+    ctx: CommandContext<'a>,
     // Cursors for `QueryStart` results
     query_iter_stack: Vec<M::QueryIterator>,
 }
@@ -307,8 +311,8 @@ where
     /// Create a new, empty MachineState
     pub fn new(
         machine: &'a Machine,
-        io: &'a mut M,
-        ctx: &'a CommandContext<'_>,
+        io: &'a RefCell<M>,
+        ctx: CommandContext<'a>,
     ) -> RunState<'a, M> {
         RunState {
             machine,
@@ -322,11 +326,22 @@ where
         }
     }
 
+    /// Returns the current context
+    pub fn get_context(&self) -> &CommandContext<'a> {
+        &self.ctx
+    }
+
     /// Set the internal context object to a new reference. The old reference is not
     /// preserved. This is a hack to allow a policy context to mutate into a recall context
     /// when recall happens.
-    pub fn set_context(&mut self, ctx: &'a CommandContext<'_>) {
+    pub fn set_context(&mut self, ctx: CommandContext<'a>) {
         self.ctx = ctx;
+    }
+
+    /// Update the context with a new head ID, e.g. after publishing a command.
+    pub fn update_context_with_new_head(&mut self, new_head_id: Id) -> Result<(), Bug> {
+        self.ctx = self.ctx.with_new_head(new_head_id)?;
+        Ok(())
     }
 
     /// Returns a string describing the source code at the current PC,
@@ -549,7 +564,10 @@ where
                 self.scope.exit_function().map_err(|e| self.err(e))?;
             }
             Instruction::ExtCall(module, proc) => {
-                self.io.call(module, proc, &mut self.stack, self.ctx)?;
+                self.io
+                    .try_borrow_mut()
+                    .assume("should be able to borrow io")?
+                    .call(module, proc, &mut self.stack, &self.ctx)?;
             }
             Instruction::Exit(reason) => return Ok(MachineStatus::Exited(reason)),
             Instruction::Add | Instruction::Sub => {
@@ -659,39 +677,54 @@ where
                 self.ipush(v)?;
             }
             Instruction::Publish => {
-                let s: Struct = self.ipop()?;
-                self.validate_struct_schema(&s)?;
+                let command_struct: Struct = self.ipop()?;
+                self.validate_struct_schema(&command_struct)?;
+                self.ipush(Value::Struct(command_struct))?;
 
-                let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
-
-                self.io.publish(s.name, fields);
+                self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;
+                return Ok(MachineStatus::Exited(ExitReason::Yield));
             }
             Instruction::Create => {
                 let f: Fact = self.ipop()?;
-                self.io.fact_insert(f.name, f.keys, f.values)?;
+                self.io
+                    .try_borrow_mut()
+                    .assume("should be able to borrow io")?
+                    .fact_insert(f.name, f.keys, f.values)?;
             }
             Instruction::Delete => {
                 let f: Fact = self.ipop()?;
-                self.io.fact_delete(f.name, f.keys)?;
+                self.io
+                    .try_borrow_mut()
+                    .assume("should be able to borrow io")?
+                    .fact_delete(f.name, f.keys)?;
             }
             Instruction::Update => {
                 let fact_to: Fact = self.ipop()?;
                 let fact_from: Fact = self.ipop()?;
                 let replaced_fact = {
-                    let mut iter = self.io.fact_query(fact_from.name.clone(), fact_from.keys)?;
+                    let mut iter = self
+                        .io
+                        .try_borrow()
+                        .assume("should be able to borrow io")?
+                        .fact_query(fact_from.name.clone(), fact_from.keys)?;
                     iter.next().ok_or_else(|| {
                         self.err(MachineErrorType::InvalidFact(fact_from.name.clone()))
                     })??
                 };
-                self.io.fact_delete(fact_from.name, replaced_fact.0)?;
                 self.io
+                    .try_borrow_mut()
+                    .assume("should be able to borrow io")?
+                    .fact_delete(fact_from.name, replaced_fact.0)?;
+                self.io
+                    .try_borrow_mut()
+                    .assume("should be able to borrow io")?
                     .fact_insert(fact_to.name, fact_to.keys, fact_to.values)?;
             }
             Instruction::Emit => {
                 let s: Struct = self.ipop()?;
                 self.validate_struct_schema(&s)?;
                 let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
-                let (command, recall) = match self.ctx {
+                let (command, recall) = match &self.ctx {
                     CommandContext::Policy(ctx) => (ctx.id, false),
                     CommandContext::Recall(ctx) => (ctx.id, true),
                     _ => {
@@ -700,7 +733,10 @@ where
                         )
                     }
                 };
-                self.io.effect(s.name, fields, command, recall);
+                self.io
+                    .try_borrow_mut()
+                    .assume("should be able to borrow io")?
+                    .effect(s.name, fields, command, recall);
             }
             Instruction::Query => {
                 let qf: Fact = self.ipop()?;
@@ -709,7 +745,11 @@ where
                 self.validate_fact_literal(&qf)?;
 
                 let result = {
-                    let mut iter = self.io.fact_query(qf.name.clone(), qf.keys.clone())?;
+                    let mut iter = self
+                        .io
+                        .try_borrow()
+                        .assume("should be able to borrow io")?
+                        .fact_query(qf.name.clone(), qf.keys.clone())?;
                     // Find the first match, or the first error
                     iter.find_map(|r| match r {
                         Ok(f) => {
@@ -742,6 +782,8 @@ where
                 {
                     let mut iter = self
                         .io
+                        .try_borrow()
+                        .assume("should be able to borrow io")?
                         .fact_query(fact.name.to_owned(), fact.keys.to_owned())?;
 
                     while count < limit {
@@ -764,7 +806,11 @@ where
             Instruction::QueryStart => {
                 let fact: Fact = self.ipop()?;
                 self.validate_fact_literal(&fact)?;
-                let iter = self.io.fact_query(fact.name, fact.keys)?;
+                let iter = self
+                    .io
+                    .try_borrow()
+                    .assume("should be able to borrow io")?
+                    .fact_query(fact.name, fact.keys)?;
                 self.query_iter_stack.push(iter);
             }
             Instruction::QueryNext(ident) => {
@@ -796,33 +842,30 @@ where
             }
             Instruction::Serialize => {
                 let CommandContext::Seal(SealContext { name, .. }) = self.ctx else {
-                    return Err(MachineError::from_position(
-                        MachineErrorType::InvalidInstruction,
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    ));
+                    return Err(self.err(MachineErrorType::BadState(
+                        "Serialize: expected seal context",
+                    )));
                 };
+
                 let command_struct: Struct = self.ipop()?;
-                if &command_struct.name != name {
+                if command_struct.name != *name {
                     return Err(MachineError::from_position(
-                        MachineErrorType::InvalidInstruction,
+                        MachineErrorType::BadState(
+                            "Serialize: context name doesn't match command name",
+                        ),
                         self.pc,
                         self.machine.codemap.as_ref(),
                     ));
                 }
                 let bytes = postcard::to_allocvec(&command_struct).map_err(|_| {
-                    MachineError::from_position(
-                        MachineErrorType::Unknown(String::from(
-                            "could not serialize command Struct",
-                        )),
-                        self.pc,
-                        self.machine.codemap.as_ref(),
-                    )
+                    self.err(MachineErrorType::Unknown(String::from(
+                        "could not serialize command Struct",
+                    )))
                 })?;
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
-                let CommandContext::Open(OpenContext { name, .. }) = self.ctx else {
+                let &CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
                     return Err(MachineError::from_position(
                         MachineErrorType::InvalidInstruction,
                         self.pc,
@@ -837,7 +880,7 @@ where
                         self.machine.codemap.as_ref(),
                     )
                 })?;
-                if name != &s.name {
+                if name != s.name {
                     return Err(MachineError::from_position(
                         MachineErrorType::InvalidInstruction,
                         self.pc,
@@ -870,7 +913,7 @@ where
 
     /// Set the program counter to the given label.
     pub fn set_pc_by_label(&mut self, label: &Label) -> Result<(), MachineError> {
-        let addr = self
+        let addr: &usize = self
             .machine
             .labels
             .get(label)
