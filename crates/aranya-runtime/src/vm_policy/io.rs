@@ -1,13 +1,18 @@
 extern crate alloc;
 
 use alloc::{boxed::Box, string::String, vec, vec::Vec};
-use core::ops::{Deref, DerefMut};
+use core::{
+    cell::RefCell,
+    ops::{Deref, DerefMut},
+};
 
 use aranya_crypto::Id;
 use aranya_policy_vm::{
     ffi::FfiModule, CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError,
     MachineErrorType, MachineIO, MachineIOError, MachineStack,
 };
+use buggy::BugExt;
+use spin::Mutex;
 use tracing::error;
 
 use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
@@ -16,7 +21,7 @@ use crate::{FactPerspective, Keys, Query, Sink, VmEffect};
 pub trait FfiCallable<E> {
     /// Invokes a function in the module.
     fn call(
-        &mut self,
+        &self,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext<'_>,
@@ -30,7 +35,7 @@ where
     E: aranya_crypto::Engine,
 {
     fn call(
-        &mut self,
+        &self,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext<'_>,
@@ -42,11 +47,11 @@ where
 
 /// Implements the `MachineIO` interface for [VmPolicy](super::VmPolicy).
 pub struct VmPolicyIO<'o, P, S, E, FFI> {
-    facts: &'o mut P,
-    sink: &'o mut S,
+    facts: &'o RefCell<&'o mut P>,
+    sink: &'o RefCell<&'o mut S>,
     publish_stack: Vec<(String, Vec<KVPair>)>,
-    engine: &'o mut E,
-    ffis: &'o mut [FFI],
+    engine: &'o Mutex<E>,
+    ffis: &'o [FFI],
 }
 
 pub type FfiList<'a, E> = &'a mut [&'a mut dyn FfiCallable<E>];
@@ -55,10 +60,10 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     /// Creates a new `VmPolicyIO` for a [`crate::storage::FactPerspective`] and a
     /// [`crate::engine::Sink`].
     pub fn new(
-        facts: &'o mut P,
-        sink: &'o mut S,
-        engine: &'o mut E,
-        ffis: &'o mut [FFI],
+        facts: &'o RefCell<&'o mut P>,
+        sink: &'o RefCell<&'o mut S>,
+        engine: &'o Mutex<E>,
+        ffis: &'o [FFI],
     ) -> VmPolicyIO<'o, P, S, E, FFI> {
         VmPolicyIO {
             facts,
@@ -93,7 +98,10 @@ where
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
         let value = ser_values(value)?;
-        self.facts.insert(name, keys, value);
+        self.facts
+            .try_borrow_mut()
+            .assume("should be able to borrow facts")?
+            .insert(name, keys, value);
         Ok(())
     }
 
@@ -103,7 +111,10 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
-        self.facts.delete(name, keys);
+        self.facts
+            .try_borrow_mut()
+            .assume("should be able to borrow facts")?
+            .delete(name, keys);
         Ok(())
     }
 
@@ -113,10 +124,15 @@ where
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
         let keys = ser_keys(key);
-        let iter = self.facts.query_prefix(&name, &keys).map_err(|e| {
-            error!("query failed: {e}");
-            MachineIOError::Internal
-        })?;
+        let iter = self
+            .facts
+            .try_borrow_mut()
+            .assume("should be able to borrow facts")?
+            .query_prefix(&name, &keys)
+            .map_err(|e| {
+                error!("query failed: {e}");
+                MachineIOError::Internal
+            })?;
         Ok(VmFactCursor { iter })
     }
 
@@ -133,26 +149,30 @@ where
         recalled: bool,
     ) {
         let fields: Vec<_> = fields.into_iter().collect();
-        self.sink.consume(VmEffect {
-            name,
-            fields,
-            command: command.into(),
-            recalled,
-        });
+        self.sink
+            .try_borrow_mut()
+            .expect("should be able to borrow sink")
+            .consume(VmEffect {
+                name,
+                fields,
+                command: command.into(),
+                recalled,
+            });
     }
 
     fn call(
-        &mut self,
+        &self,
         module: usize,
         procedure: usize,
         stack: &mut MachineStack,
         ctx: &CommandContext<'_>,
     ) -> Result<(), MachineError> {
-        self.ffis.get_mut(module).map_or(
+        let sink = &mut self.engine.lock();
+        self.ffis.get(module).map_or(
             Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,
             ))),
-            |ffi| ffi.call(procedure, stack, ctx, self.engine),
+            |ffi| ffi.call(procedure, stack, ctx, sink),
         )
     }
 }
