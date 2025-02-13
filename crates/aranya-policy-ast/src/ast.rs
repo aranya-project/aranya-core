@@ -16,8 +16,11 @@ pub struct InvalidVersion;
 pub enum Version {
     /// Version 1, the initial version of the "new" policy
     /// language.
-    #[default]
+    #[deprecated]
     V1,
+    /// Version 2, the second version of the policy language
+    #[default]
+    V2,
 }
 
 // This supports the command-line tools, allowing automatic
@@ -25,18 +28,22 @@ pub enum Version {
 impl FromStr for Version {
     type Err = InvalidVersion;
 
+    #[allow(deprecated)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
             "v1" => Ok(Version::V1),
+            "v2" => Ok(Version::V2),
             _ => Err(InvalidVersion),
         }
     }
 }
 
 impl fmt::Display for Version {
+    #[allow(deprecated)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::V1 => write!(f, "v1"),
+            Self::V2 => write!(f, "v2"),
         }
     }
 }

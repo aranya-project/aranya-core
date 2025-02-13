@@ -12,6 +12,20 @@ use super::{
 use crate::lang::{ChunkParser, ParseErrorKind};
 
 #[test]
+#[allow(deprecated)]
+fn accept_only_latest_lang_version() -> Result<(), PestError<Rule>> {
+    let src = "function f() int { return 0 }";
+    assert_eq!(
+        parse_policy_str(src, Version::V1)
+            .expect_err("should not accept V1")
+            .kind,
+        ParseErrorKind::InvalidVersion
+    );
+    parse_policy_str(src, Version::V2).expect("should accept V2");
+    Ok(())
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_atom_number() -> Result<(), PestError<Rule>> {
     let mut pair = PolicyParser::parse(Rule::atom, "12345")?;
@@ -350,7 +364,7 @@ fn parse_command_attributes() {
             }
         }
     "#;
-    let policy = parse_policy_str(src, Version::V1).expect("should parse");
+    let policy = parse_policy_str(src, Version::V2).expect("should parse");
     let command_def = &policy.commands[0];
 
     let (id, value) = &command_def.attributes[0];
@@ -494,7 +508,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
 
     "#;
 
-    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
 
     assert_eq!(
         policy.facts,
@@ -1031,7 +1045,7 @@ fn parse_policy_immutable_facts() -> Result<(), ParseError> {
         immutable fact B[]=>{}
     "#;
 
-    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
     assert_eq!(
         policy.facts,
         vec![
@@ -1061,7 +1075,7 @@ fn parse_policy_immutable_facts() -> Result<(), ParseError> {
 
 #[test]
 fn empty_policy() -> Result<(), ParseError> {
-    let policy = parse_policy_str("", Version::V1)?;
+    let policy = parse_policy_str("", Version::V2)?;
     assert!(policy.facts.is_empty());
     assert!(policy.actions.is_empty());
     assert!(policy.effects.is_empty());
@@ -1074,7 +1088,7 @@ fn empty_policy() -> Result<(), ParseError> {
 #[test]
 fn parse_markdown() {
     let md = r#"---
-policy-version: 1
+policy-version: 2
 ---
 
 # A fact
@@ -1096,7 +1110,7 @@ action foo() {
 
     let policy = parse_policy_document(md).unwrap_or_else(|e| panic!("{e}"));
 
-    assert!(policy.version == Version::V1);
+    assert!(policy.version == Version::V2);
     assert!(policy.facts.len() == 1);
     assert!(policy.actions.len() == 1);
 }
@@ -1110,7 +1124,7 @@ fn parse_bytes() {
     "#
     .trim();
 
-    parse_policy_str(text, Version::V1).unwrap_or_else(|e| panic!("{e}"));
+    parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
 }
 
 #[test]
@@ -1126,7 +1140,7 @@ fn parse_struct() {
     "#
     .trim();
 
-    let policy = parse_policy_str(text, Version::V1).unwrap_or_else(|e| panic!("{e}"));
+    let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         policy.structs,
         vec![AstNode::new(
@@ -1182,7 +1196,7 @@ fn parse_enum_definition() {
     "#
     .trim();
 
-    let policy = parse_policy_str(text, Version::V1).unwrap_or_else(|e| panic!("{e}"));
+    let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         policy.enums,
         vec![AstNode::new(
@@ -1236,7 +1250,7 @@ fn enum_arm_should_be_limited_to_literals() {
     ];
 
     for text in policies {
-        let err = parse_policy_str(text, Version::V1).unwrap_err();
+        let err = parse_policy_str(text, Version::V2).unwrap_err();
         assert_eq!(err.kind, ParseErrorKind::InvalidType);
     }
 }
@@ -1320,7 +1334,7 @@ fn parse_seal_open() {
         }
     "#
     .trim();
-    let policy = parse_policy_str(text, Version::V1).unwrap_or_else(|e| panic!("{e}"));
+    let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         policy.commands,
         vec![AstNode::new(
@@ -1368,7 +1382,7 @@ fn parse_serialize_deserialize() {
         }
     "#
     .trim();
-    let policy = parse_policy_str(text, Version::V1).unwrap_or_else(|e| panic!("{e}"));
+    let policy = parse_policy_str(text, Version::V2).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(
         policy.commands,
         vec![AstNode::new(
@@ -1444,7 +1458,7 @@ fn parse_keyword_collision() -> anyhow::Result<()> {
     ];
 
     for text in texts {
-        let policy = parse_policy_str(text, Version::V1);
+        let policy = parse_policy_str(text, Version::V2);
         assert!(policy.is_err_and(|result| result.kind == ParseErrorKind::ReservedIdentifier))
     }
     Ok(())
@@ -1469,7 +1483,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
         }
     "#;
 
-    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
 
     assert_eq!(
         policy.global_lets,
@@ -1560,7 +1574,7 @@ fn test_fact_key_can_have_bind_value() -> anyhow::Result<()> {
             let x = query A[i:1, j:?]
         }
     "#;
-    parse_policy_str(text, Version::V1)?;
+    parse_policy_str(text, Version::V2)?;
     Ok(())
 }
 
@@ -1571,7 +1585,7 @@ fn test_ffi_use() -> anyhow::Result<()> {
         use perspective
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     assert_eq!(policy.ffi_imports.len(), 2);
     assert_eq!(policy.ffi_imports[0], "crypto".to_string());
     assert_eq!(policy.ffi_imports[1], "perspective".to_string());
@@ -1583,7 +1597,7 @@ fn test_ffi_use_bad_identifier() -> anyhow::Result<()> {
     let texts = vec!["use one, two", "use _"];
 
     for text in texts {
-        let err = parse_policy_str(text, Version::V1).unwrap_err().kind;
+        let err = parse_policy_str(text, Version::V2).unwrap_err().kind;
         assert_eq!(err, ParseErrorKind::Syntax);
     }
 
@@ -1616,7 +1630,7 @@ fn test_if_statement() -> anyhow::Result<()> {
             }
         }
     "#;
-    parse_policy_str(text, Version::V1)?;
+    parse_policy_str(text, Version::V2)?;
     Ok(())
 }
 
@@ -1629,7 +1643,7 @@ fn test_action_call() -> anyhow::Result<()> {
     }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     assert_eq!(
         policy.actions[1],
         AstNode {
@@ -1661,7 +1675,7 @@ fn test_map_statement() {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
     assert_eq!(
         policy.actions[0].statements,
         vec![AstNode {
@@ -1691,7 +1705,7 @@ fn test_block_expression() {
     }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
     assert_eq!(
         policy.actions[0].statements,
         vec![AstNode {

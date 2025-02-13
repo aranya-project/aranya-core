@@ -1385,6 +1385,13 @@ pub fn parse_policy_chunk(
     policy: &mut ast::Policy,
     offset: usize,
 ) -> Result<(), ParseError> {
+    if policy.version != Version::V2 {
+        return Err(ParseError::new(
+            ParseErrorKind::InvalidVersion,
+            "Supported version is V2".to_string(),
+            None,
+        ));
+    }
     let chunk = PolicyParser::parse(Rule::file, data)
         .map_err(|e| mangle_pest_error(offset, &policy.text, e))?;
     let pratt = get_pratt_parser();
