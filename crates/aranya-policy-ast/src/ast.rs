@@ -31,8 +31,8 @@ impl FromStr for Version {
     #[allow(deprecated)]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
-            "v1" => Ok(Version::V1),
-            "v2" => Ok(Version::V2),
+            "1" => Ok(Version::V1),
+            "2" => Ok(Version::V2),
             _ => Err(InvalidVersion),
         }
     }
@@ -42,8 +42,8 @@ impl fmt::Display for Version {
     #[allow(deprecated)]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::V1 => write!(f, "v1"),
-            Self::V2 => write!(f, "v2"),
+            Self::V1 => write!(f, "1"),
+            Self::V2 => write!(f, "2"),
         }
     }
 }

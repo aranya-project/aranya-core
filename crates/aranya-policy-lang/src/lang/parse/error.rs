@@ -29,7 +29,7 @@ pub enum ParseErrorKind {
     /// The right side of a dot operator is not an identifier.
     InvalidMember,
     /// The policy version expressed in the front matter is not valid.
-    InvalidVersion,
+    InvalidVersion { found: String, required: String },
     /// Some part of an expression is badly formed.
     Expression,
     /// The Pest parser was unable to parse the document.
@@ -69,14 +69,16 @@ impl ParseError {
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefix = match self.kind {
+        let prefix = match &self.kind {
             ParseErrorKind::InvalidType => "Invalid type",
             ParseErrorKind::InvalidStatement => "Invalid statement",
             ParseErrorKind::InvalidNumber => "Invalid number",
             ParseErrorKind::InvalidString => "Invalid string",
             ParseErrorKind::InvalidFunctionCall => "Invalid function call",
             ParseErrorKind::InvalidMember => "Invalid member",
-            ParseErrorKind::InvalidVersion => "Invalid policy version",
+            ParseErrorKind::InvalidVersion { found, required } => {
+                &{ format!("Invalid policy version {found}, supported version is {required}") }
+            }
             ParseErrorKind::Expression => "Invalid expression",
             ParseErrorKind::Syntax => "Syntax error",
             ParseErrorKind::FrontMatter => "Front matter YAML parse error",

@@ -19,7 +19,10 @@ fn accept_only_latest_lang_version() -> Result<(), PestError<Rule>> {
         parse_policy_str(src, Version::V1)
             .expect_err("should not accept V1")
             .kind,
-        ParseErrorKind::InvalidVersion
+        ParseErrorKind::InvalidVersion {
+            found: "1".to_string(),
+            required: "2".to_string()
+        }
     );
     parse_policy_str(src, Version::V2).expect("should accept V2");
     Ok(())

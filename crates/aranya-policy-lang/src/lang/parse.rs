@@ -1387,8 +1387,11 @@ pub fn parse_policy_chunk(
 ) -> Result<(), ParseError> {
     if policy.version != Version::V2 {
         return Err(ParseError::new(
-            ParseErrorKind::InvalidVersion,
-            "Supported version is V2".to_string(),
+            ParseErrorKind::InvalidVersion {
+                found: policy.version.to_string(),
+                required: "2".to_string(),
+            },
+            "please update `policy-version` to 2".to_string(),
             None,
         ));
     }
