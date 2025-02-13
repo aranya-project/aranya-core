@@ -6,8 +6,7 @@ use std::{
 
 use anyhow::Context;
 use aranya_policy_lang::lang::{
-    extract_policy, get_pratt_parser, parse_expression, parse_policy_str, PolicyParser, Rule,
-    Version,
+    extract_policy, get_pratt_parser, parse_policy_str, ChunkParser, PolicyParser, Rule, Version,
 };
 use clap::{Parser, ValueEnum};
 use pest::Parser as PestParser;
@@ -70,7 +69,9 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
 
             let token = pairs.next().context("No tokens")?;
 
-            let ast = parse_expression(token, &get_pratt_parser())?;
+            let pratt = get_pratt_parser();
+            let mut p = ChunkParser::new(0, &pratt);
+            let ast = p.parse_expression(token)?;
 
             Ok(format!("{:#?}", ast))
         }

@@ -51,7 +51,7 @@ fn test_undefined_struct() -> anyhow::Result<()> {
             .compile()
             .expect_err("compilation succeeded where it should fail")
             .err_type,
-        CompileErrorType::InvalidType(String::from("Struct `Bar` not defined")),
+        CompileErrorType::NotDefined(String::from("Struct `Bar` not defined")),
     );
 
     Ok(())
@@ -91,10 +91,7 @@ fn test_function_not_defined() -> anyhow::Result<()> {
         .expect_err("compilation succeeded where it should fail")
         .err_type;
 
-    assert_eq!(
-        err,
-        CompileErrorType::InvalidType(String::from("Function `g` not defined"))
-    );
+    assert_eq!(err, CompileErrorType::NotDefined(String::from("g")));
 
     Ok(())
 }
@@ -220,9 +217,7 @@ fn test_function_wrong_color_finish() -> anyhow::Result<()> {
 
     assert_eq!(
         err,
-        CompileErrorType::InvalidType(String::from(
-            "Finish functions are not allowed outside of finish blocks or finish functions"
-        ))
+        CompileErrorType::InvalidCallColor(InvalidCallColor::Finish)
     );
 
     Ok(())
@@ -1424,7 +1419,7 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
                 map Pet[name:?] as p {}
             }
         "#,
-            CompileErrorType::InvalidType(String::from("Unknown identifier `p`")),
+            CompileErrorType::NotDefined(String::from("Unknown identifier `p`")),
         ),
         // `as` should not be available after `map` block
         (
@@ -1435,7 +1430,7 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
                 check p == None
             }
         "#,
-            CompileErrorType::InvalidType(String::from("Unknown identifier `p`")),
+            CompileErrorType::NotDefined(String::from("Unknown identifier `p`")),
         ),
         // vars defined inside map should not be accessible outside it
         (
@@ -1448,7 +1443,7 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
                 check n == 42 // should not be accessible outside the block
             }
         "#,
-            CompileErrorType::InvalidType(String::from("Unknown identifier `n`")),
+            CompileErrorType::NotDefined(String::from("Unknown identifier `n`")),
         ),
     ];
 
@@ -1476,22 +1471,6 @@ fn test_type_errors() -> anyhow::Result<()> {
     let cases = [
         Case {
             t: r#"
-                function f() bool {
-                    let x = Foo{}
-                }
-            "#,
-            e: "Struct `Foo` not defined",
-        },
-        Case {
-            t: r#"
-                function f() bool {
-                    let x = query Foo[]
-                }
-            "#,
-            e: "Fact `Foo` not defined",
-        },
-        Case {
-            t: r#"
                 function f(x int) bool {
                     return x + "foo"
                 }
@@ -1505,47 +1484,6 @@ fn test_type_errors() -> anyhow::Result<()> {
                 }
             "#,
             e: "if condition must be a boolean expression",
-        },
-        Case {
-            t: r#"
-                finish function f() {}
-                function g() bool {
-                    return f()
-                }
-            "#,
-            e: "Finish functions are not allowed outside of finish blocks or finish functions",
-        },
-        Case {
-            t: r#"
-                function g() bool {
-                    return f()
-                }
-            "#,
-            e: "Function `f` not defined",
-        },
-        Case {
-            t: r#"
-                function g() bool {
-                    return x::f()
-                }
-            "#,
-            e: "Module `x` not found",
-        },
-        Case {
-            t: r#"
-                function g() bool {
-                    return test::f()
-                }
-            "#,
-            e: "Foreign function `test::f` not defined",
-        },
-        Case {
-            t: r#"
-                function g() bool {
-                    return x
-                }
-            "#,
-            e: "Unknown identifier `x`",
         },
         Case {
             t: r#"
@@ -1634,7 +1572,7 @@ fn test_type_errors() -> anyhow::Result<()> {
                     return x is None
                 }
             "#,
-            e: "`is` must operate on an optional expression`",
+            e: "`is` must operate on an optional expression",
         },
         Case {
             t: r#"
@@ -1668,7 +1606,7 @@ fn test_type_errors() -> anyhow::Result<()> {
         },
     ];
 
-    for c in cases {
+    for (i, c) in cases.iter().enumerate() {
         let policy = parse_policy_str(c.t, Version::V1)?;
         let err = Compiler::new(&policy)
             .ffi_modules(FAKE_SCHEMA)
@@ -1676,9 +1614,39 @@ fn test_type_errors() -> anyhow::Result<()> {
             .expect_err("Did not get error")
             .err_type;
         let CompileErrorType::InvalidType(s) = err else {
-            return Err(anyhow!("Did not get InvalidType: {}", err));
+            return Err(anyhow!(
+                "Did not get InvalidType for case {i}: {err:?} ({err})"
+            ));
         };
         assert_eq!(s, c.e);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_optional_types() -> anyhow::Result<()> {
+    let cases = [
+        "42 == unwrap None",
+        "42 == unwrap Some 42",
+        "None is Some",
+        "None is None",
+        "(Some 42) is Some",
+        "(Some 42) is None",
+    ];
+
+    for (i, c) in cases.iter().enumerate() {
+        let policy_text = format!(
+            r#"
+            function f() bool {{
+                return {c}
+            }}"#
+        );
+        let policy = parse_policy_str(&policy_text, Version::V1)?;
+        Compiler::new(&policy)
+            .ffi_modules(FAKE_SCHEMA)
+            .compile()
+            .unwrap_or_else(|e| panic!("Got error in case {i}: {e}"));
     }
 
     Ok(())

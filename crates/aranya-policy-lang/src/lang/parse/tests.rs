@@ -9,7 +9,7 @@ use super::{
     ast, ast::AstNode, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError,
     PolicyParser, Rule, Version,
 };
-use crate::lang::ParseErrorKind;
+use crate::lang::{ChunkParser, ParseErrorKind};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -144,8 +144,9 @@ fn parse_expression_pratt() -> Result<(), ParseError> {
         .trim(),
     )?;
     let pratt = get_pratt_parser();
+    let mut p = ChunkParser::new(0, &pratt);
     let expr = pairs.next().unwrap();
-    let expr_parsed = super::parse_expression(expr, &pratt)?;
+    let expr_parsed = p.parse_expression(expr)?;
     assert_eq!(
         expr_parsed,
         Expression::Unwrap(Box::new(Expression::FunctionCall(ast::FunctionCall {
@@ -223,11 +224,12 @@ fn parse_expression_errors() -> Result<(), ParseError> {
             rule: Rule::expression,
         },
     ];
+    let pratt = get_pratt_parser();
+    let mut p = ChunkParser::new(0, &pratt);
     for case in cases {
         let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
-        let pratt = get_pratt_parser();
         let expr = pairs.next().unwrap();
-        match super::parse_expression(expr, &pratt) {
+        match p.parse_expression(expr) {
             Ok(_) => panic!("{}", case.description),
             Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
         }
@@ -1673,6 +1675,52 @@ fn test_map_statement() {
                 statements: vec![]
             }),
             locator: 69
+        }]
+    );
+}
+
+#[test]
+fn test_block_expression() {
+    let text = r#"
+    action foo() {
+        let x = {
+            let a = 3
+            let b = 4
+            : a + b
+        }
+    }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V1).expect("should parse");
+    assert_eq!(
+        policy.actions[0].statements,
+        vec![AstNode {
+            inner: ast::Statement::Let(ast::LetStatement {
+                identifier: "x".to_string(),
+                expression: Expression::Block(
+                    vec![
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: "a".to_string(),
+                                expression: Expression::Int(3),
+                            }),
+                            50
+                        ),
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: "b".to_string(),
+                                expression: Expression::Int(4),
+                            }),
+                            72
+                        ),
+                    ],
+                    Box::new(Expression::Add(
+                        Box::new(Expression::Identifier("a".to_string())),
+                        Box::new(Expression::Identifier("b".to_string())),
+                    ))
+                )
+            }),
+            locator: 28
         }]
     );
 }
