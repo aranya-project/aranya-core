@@ -1531,6 +1531,15 @@ fn test_type_errors() -> anyhow::Result<()> {
         },
         Case {
             t: r#"
+                struct Foo {a int}
+                function g(x struct Foo) bool {
+                    return Foo{a: false}
+                }
+            "#,
+            e: "`Struct Foo` field `a` is not int",
+        },
+        Case {
+            t: r#"
                 function g(x string) bool {
                     return x < "test"
                 }
@@ -1606,6 +1615,29 @@ fn test_type_errors() -> anyhow::Result<()> {
                 }
             "#,
             e: "Emit must be given a struct",
+        },
+        Case {
+            t: r#"
+                command Foo {
+                    seal {
+                      return serialize(3)
+                    }
+                }
+            "#,
+            e: "Serializing non-struct",
+        },
+        Case {
+            t: r#"
+                command Foo {
+                    seal {
+                        return None
+                    }
+                    open {
+                      return deserialize(3)
+                    }
+                }
+            "#,
+            e: "Deserializing non-bytes",
         },
     ];
 
