@@ -149,6 +149,12 @@ impl<'a> CompileState<'a> {
         // ensure key identifiers are unique
         let mut identifiers = BTreeSet::new();
         for key in fact.key.iter() {
+            if !key.is_hashable() {
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "Fact `{}` key field `{}` is not int, bool, string, or id",
+                    fact.identifier, key.identifier
+                ))));
+            }
             if !identifiers.insert(key.identifier.as_str()) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(key.identifier.to_owned())));
             }
@@ -356,19 +362,31 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a struct literal
     fn compile_struct_literal(&mut self, s: &NamedStruct) -> Result<(), CompileError> {
-        if !self.m.struct_defs.contains_key(&s.identifier) {
-            // Because structs are dynamically created, this is all we
-            // can check at this point. Field validation has to happen
-            // at runtime.
+        let Some(struct_def) = self.m.struct_defs.get(&s.identifier).cloned() else {
             return Err(self.err(CompileErrorType::NotDefined(format!(
                 "Struct `{}` not defined",
                 s.identifier
             ))));
-        }
+        };
         self.append_instruction(Instruction::StructNew(s.identifier.clone()));
-        for field in &s.fields {
-            self.compile_expression(&field.1)?;
-            self.append_instruction(Instruction::StructSet(field.0.clone()));
+        for (field_name, e) in &s.fields {
+            let def_field_type = struct_def
+                .iter()
+                .find(|f| &f.identifier == field_name)
+                .ok_or(self.err(CompileErrorType::InvalidType(format!(
+                    "field `{}` not found in `Struct {}`",
+                    field_name, s.identifier
+                ))))?
+                .field_type
+                .clone();
+            let t = self.compile_expression(e)?;
+            if !t.is_maybe(&def_field_type) {
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "`Struct {}` field `{}` is not {}",
+                    s.identifier, field_name, def_field_type
+                ))));
+            }
+            self.append_instruction(Instruction::StructSet(field_name.clone()));
         }
         Ok(())
     }
@@ -411,7 +429,7 @@ impl<'a> CompileState<'a> {
             ))));
         }
 
-        // Ensure the fact has all keys defined in the schema, and they have matching types.
+        // Ensure the fact has all keys defined in the schema.
         for (schema_key, lit_key) in fact_def.key.iter().zip(fact.key_fields.iter()) {
             if schema_key.identifier != lit_key.0 {
                 return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
@@ -420,24 +438,7 @@ impl<'a> CompileState<'a> {
                 ))));
             }
 
-            let Some(vtype) = field_vtype(&lit_key.1) else {
-                // If the type cannot be determined, e.g. it's an expression or query, ignore it. The machine will verify the type at runtime.
-                // TODO should we allow expressions/queries for key values?
-                continue;
-            };
-
-            // key type must be one of `HashableValue`
-            if !((vtype == VType::Int
-                || vtype == VType::Bool
-                || vtype == VType::String
-                || vtype == VType::Id)
-                && schema_key.field_type == vtype)
-            {
-                return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "Fact field `{}` must be {}",
-                    schema_key.identifier, schema_key.field_type
-                ))));
-            };
+            // Type checking handled in compile_fact_literal() now
         }
 
         match &fact.value_fields {
@@ -476,17 +477,7 @@ impl<'a> CompileState<'a> {
                     schema_value.identifier, lit_value.0
                 ))));
             }
-
-            let Some(lit_type) = field_vtype(&lit_value.1) else {
-                // Let complex expressions through, the machine will resolve and verify them.
-                continue;
-            };
-            if lit_type != schema_value.field_type {
-                return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "field `{}` type should be {}",
-                    schema_value.identifier, schema_value.field_type
-                ))));
-            }
+            // Type checking handled in compile_fact_literal() now
         }
 
         Ok(())
@@ -494,25 +485,55 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: &FactLiteral) -> Result<(), CompileError> {
+        let fact_def = self.get_fact_def(&f.identifier)?.clone();
+
         self.append_instruction(Instruction::FactNew(f.identifier.clone()));
-        for field in &f.key_fields {
-            if let FactField::Expression(e) = &field.1 {
-                self.compile_expression(e)?;
+        for (k, v) in &f.key_fields {
+            if let FactField::Expression(e) = v {
+                let def_field_type = fact_def
+                    .get_key_field(k)
+                    .ok_or(self.err(CompileErrorType::InvalidType(format!(
+                        "field `{}` not found in `Fact {}`",
+                        k, f.identifier
+                    ))))?
+                    .field_type
+                    .clone();
+                let t = self.compile_expression(e)?;
+                if !t.is_maybe(&def_field_type) {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "`Fact {}` key field `{}` is not `{}`",
+                        f.identifier, k, def_field_type
+                    ))));
+                }
             } else {
                 // Skip bind values
                 continue;
             }
-            self.append_instruction(Instruction::FactKeySet(field.0.clone()));
+            self.append_instruction(Instruction::FactKeySet(k.clone()));
         }
         if let Some(value_fields) = &f.value_fields {
-            for field in value_fields {
-                if let FactField::Expression(e) = &field.1 {
-                    self.compile_expression(e)?;
+            for (k, v) in value_fields {
+                if let FactField::Expression(e) = &v {
+                    let def_field_type = fact_def
+                        .get_value_field(k)
+                        .ok_or(self.err(CompileErrorType::InvalidType(format!(
+                            "field `{}` not found in `Fact {}`",
+                            k, f.identifier
+                        ))))?
+                        .field_type
+                        .clone();
+                    let t = self.compile_expression(e)?;
+                    if !t.is_maybe(&def_field_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "`Fact {}` value field `{}` is not `{}`",
+                            f.identifier, k, def_field_type
+                        ))));
+                    }
                 } else {
                     // Skip bind values
                     continue;
                 }
-                self.append_instruction(Instruction::FactValueSet(field.0.clone()));
+                self.append_instruction(Instruction::FactValueSet(k.clone()));
             }
         }
         Ok(())
@@ -617,7 +638,12 @@ impl<'a> CompileState<'a> {
                     ) {
                         return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
                     }
-                    self.compile_expression(e)?;
+                    let t = self.compile_expression(e)?;
+                    if !t.is_any_struct() {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "Serializing non-struct",
+                        ))));
+                    }
                     self.append_instruction(Instruction::Serialize);
 
                     // TODO(chip): Use information about which command
@@ -632,7 +658,12 @@ impl<'a> CompileState<'a> {
                     ) {
                         return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
                     }
-                    self.compile_expression(e)?;
+                    let t = self.compile_expression(e)?;
+                    if !t.is_maybe(&VType::Bytes) {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "Deserializing non-bytes",
+                        ))));
+                    }
                     self.append_instruction(Instruction::Deserialize);
 
                     // TODO(chip): Use information about which command
@@ -712,8 +743,15 @@ impl<'a> CompileState<'a> {
                     }
 
                     // push args
-                    for a in &f.arguments {
-                        self.compile_expression(a)?;
+                    for (e, arg_def) in f.arguments.iter().zip(procedure.args.iter()) {
+                        let t = self.compile_expression(e)?;
+                        let arg_type = (&arg_def.vtype).into();
+                        if !t.is_maybe(&arg_type) {
+                            return Err(self.err(CompileErrorType::InvalidType(format!(
+                                "`{}::{}` argument `{}` is not {}",
+                                f.module, f.identifier, arg_def.name, arg_type
+                            ))));
+                        }
                     }
 
                     self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
@@ -779,7 +817,9 @@ impl<'a> CompileState<'a> {
                     VType::Int,
                     "Cannot do math on non-int types",
                 )
-                .map_err(|e| self.err(e.into()))?
+                .map_err(|e| self.err(e.into()))?;
+
+                Typeish::Type(VType::Int)
             }
             Expression::And(a, b) | Expression::Or(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -796,7 +836,9 @@ impl<'a> CompileState<'a> {
                     VType::Bool,
                     "Cannot use boolean operator on non-bool types",
                 )
-                .map_err(|e| self.err(e.into()))?
+                .map_err(|e| self.err(e.into()))?;
+
+                Typeish::Type(VType::Bool)
             }
             Expression::Equal(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -896,7 +938,8 @@ impl<'a> CompileState<'a> {
 
                 inner_type
                     .check_type(VType::Int, "Cannot negate non-int expression")
-                    .map_err(|e| self.err(e.into()))?
+                    .map_err(|e| self.err(e.into()))?;
+                Typeish::Type(VType::Int)
             }
             Expression::Not(e) => {
                 // Evaluate the expression
@@ -907,7 +950,8 @@ impl<'a> CompileState<'a> {
 
                 inner_type
                     .check_type(VType::Bool, "Cannot invert non-boolean expression")
-                    .map_err(|e| self.err(e.into()))?
+                    .map_err(|e| self.err(e.into()))?;
+                Typeish::Type(VType::Bool)
             }
             Expression::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
             Expression::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
@@ -1066,7 +1110,7 @@ impl<'a> CompileState<'a> {
                         ));
                     }
 
-                    self.compile_expression(&s.expression)?;
+                    let expr_t = self.compile_expression(&s.expression)?;
 
                     let end_label = self.anonymous_label();
 
@@ -1081,7 +1125,20 @@ impl<'a> CompileState<'a> {
                             MatchPattern::Values(values) => {
                                 for value in values.iter() {
                                     self.append_instruction(Instruction::Dup(0));
-                                    self.compile_expression(value)?;
+                                    if !value.is_literal() {
+                                        return Err(self.err(CompileErrorType::InvalidType(
+                                            String::from("match arm is not a literal expression"),
+                                        )));
+                                    }
+                                    let arm_t = self.compile_expression(value)?;
+                                    if !arm_t.is_maybe_equal(&expr_t) {
+                                        return Err(self.err(CompileErrorType::InvalidType(
+                                            format!(
+                                            "match expression is `{}` but arm expression is `{}`",
+                                            expr_t, arm_t
+                                        ),
+                                        )));
+                                    }
 
                                     // if value == target, jump to start-of-arm
                                     self.append_instruction(Instruction::Eq);
@@ -1138,7 +1195,10 @@ impl<'a> CompileState<'a> {
                     let end_label = self.anonymous_label();
                     for (cond, branch) in &s.branches {
                         let next_label = self.anonymous_label();
-                        self.compile_expression(cond)?;
+                        let t = self.compile_expression(cond)?;
+                        t.check_type(VType::Bool, "if condition must be boolean")
+                            .map_err(|e| self.err(e.into()))?;
+
                         self.append_instruction(Instruction::Not);
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
                             next_label.clone(),
@@ -1155,7 +1215,23 @@ impl<'a> CompileState<'a> {
                     self.define_label(end_label, self.wp)?;
                 }
                 (ast::Statement::Publish(s), StatementContext::Action(_)) => {
-                    self.compile_expression(s)?;
+                    let t = self.compile_expression(s)?;
+                    match t {
+                        Typeish::Type(VType::Struct(n)) => {
+                            if !self.m.command_defs.contains_key(&n) {
+                                return Err(self.err(CompileErrorType::InvalidType(format!(
+                                    "`Struct {}` is not a Command struct",
+                                    n
+                                ))));
+                            }
+                        }
+                        Typeish::Type(ot) => {
+                            return Err(self.err(CompileErrorType::InvalidType(format!(
+                                "Cannot publish `{ot}`"
+                            ))))
+                        }
+                        _ => {}
+                    }
                     self.append_instruction(Instruction::Publish);
                 }
                 (ast::Statement::Return(s), StatementContext::PureFunction(fd)) => {
@@ -1255,8 +1331,8 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Dup(0));
 
                     // Verify the 'to' fact literal
-                    let fact_def = self.get_fact_def(&s.fact.identifier)?;
-                    self.verify_fact_values(&s.to, fact_def)?;
+                    let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
+                    self.verify_fact_values(&s.to, &fact_def)?;
 
                     for (k, v) in &s.to {
                         match v {
@@ -1270,7 +1346,21 @@ impl<'a> CompileState<'a> {
                                 ));
                             }
                             FactField::Expression(e) => {
-                                self.compile_expression(e)?;
+                                let def_field_type = fact_def
+                                    .get_value_field(k)
+                                    .ok_or(self.err(CompileErrorType::InvalidType(format!(
+                                        "field `{}` not found in `Fact {}`",
+                                        k, s.fact.identifier
+                                    ))))?
+                                    .field_type
+                                    .clone();
+                                let t = self.compile_expression(e)?;
+                                if !t.is_maybe(&def_field_type) {
+                                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                                        "`Fact {}` value field `{}` is not `{}`",
+                                        s.fact.identifier, k, def_field_type
+                                    ))));
+                                }
                             }
                         }
                         self.append_instruction(Instruction::FactValueSet(k.clone()));
@@ -1377,7 +1467,9 @@ impl<'a> CompileState<'a> {
                 (ast::Statement::DebugAssert(s), _) => {
                     if self.is_debug {
                         // Compile the expression within `debug_assert(e)`
-                        self.compile_expression(s)?;
+                        let t = self.compile_expression(s)?;
+                        t.check_type(VType::Bool, "debug assertion must be a boolean expression")
+                            .map_err(|e| self.err(e.into()))?;
                         // Now, branch to the next instruction if the top of the stack is true
                         let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
                         self.append_instruction(Instruction::Branch(Target::Resolved(next)));
@@ -1470,8 +1562,24 @@ impl<'a> CompileState<'a> {
         fc: &FunctionCall,
         is_finish: bool,
     ) -> Result<(), CompileError> {
-        for a in &fc.arguments {
-            self.compile_expression(a)?;
+        let arg_defs = self
+            .function_signatures
+            .get(fc.identifier.as_str())
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(fc.identifier.clone())))?
+            .args
+            .clone();
+
+        for (i, (def_t, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
+            let arg_t = self.compile_expression(arg_e)?;
+            if !arg_t.is_maybe(def_t) {
+                let arg_n = i
+                    .checked_add(1)
+                    .assume("function argument count overflow")?;
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "Argument {} in call to `{}` found `{}`, expected `{}`",
+                    arg_n, fc.identifier, arg_t, def_t
+                ))));
+            }
         }
 
         let label = Label::new(
@@ -2040,28 +2148,4 @@ where
     }
 
     None
-}
-
-/// Get the `VType` of a fact field. For values that cannot be represented as `VType`, including `Bind`, we return `None`.
-fn field_vtype(f: &FactField) -> Option<VType> {
-    match f {
-        FactField::Expression(e) => {
-            match e {
-                Expression::Int(_) => Some(VType::Int),
-                // Expression::Bytes(_) => Ok(VType::Bytes), // TODO: Bytes expression not implemented
-                Expression::Bool(_) => Some(VType::Bool),
-                Expression::String(_) => Some(VType::String),
-                // We can't resolve var names to values at the moment, so we defer to the machine.
-                Expression::Identifier(_) => None,
-                Expression::NamedStruct(s) => Some(VType::Struct(s.identifier.clone())),
-                Expression::Optional(Some(expr)) => {
-                    let field_expr = FactField::Expression(expr.as_ref().to_owned());
-                    let interior_type = field_vtype(&field_expr)?;
-                    Some(VType::Optional(Box::new(interior_type)))
-                }
-                _ => None,
-            }
-        }
-        FactField::Bind => None,
-    }
 }

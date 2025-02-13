@@ -12,7 +12,10 @@ fn test_compile() -> anyhow::Result<()> {
     let policy = parse_policy_str(
         r#"
         command Foo {
-            fields {}
+            fields {
+                a int,
+                b int
+            }
             seal { return None }
             open { return None }
             policy {
@@ -772,7 +775,7 @@ fn test_fact_bind_value_type() -> anyhow::Result<()> {
 #[test]
 fn test_fact_expression_value_type() -> anyhow::Result<()> {
     let text = r#"
-        fact Foo[i int] => {a string}
+        fact Foo[i int] => {a int}
         action test() {
             check exists Foo[i: 1] => {a: 1+1}
         }
@@ -867,8 +870,8 @@ fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
 #[test]
 fn test_serialize_deserialize() -> anyhow::Result<()> {
     let text = r#"
-        function foo() int {
-            let b = serialize(3)
+        function foo(input struct Foo) int {
+            let b = serialize(input)
             return deserialize(b)
         }
     "#;
