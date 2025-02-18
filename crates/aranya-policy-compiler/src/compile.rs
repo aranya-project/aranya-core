@@ -208,15 +208,22 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = Vec::<String>::new();
-        for value_name in enum_def.values.iter() {
-            if values.contains(value_name) {
-                return Err(self.err(CompileErrorType::AlreadyDefined(format!(
-                    "{}::{}",
-                    enum_name, value_name
-                ))));
+        let mut values = BTreeMap::new();
+        for (i, value_name) in enum_def.values.iter().enumerate() {
+            match values.entry(value_name.clone()) {
+                Entry::Occupied(_) => {
+                    return Err(self.err(CompileErrorType::AlreadyDefined(format!(
+                        "{}::{}",
+                        enum_name, value_name
+                    ))));
+                }
+                Entry::Vacant(e) => {
+                    // TODO ensure value is unique. Currently, it always will be, but if enum
+                    // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
+                    // then we'll need to ensure those are unique.
+                    e.insert(i as i64);
+                }
             }
-            values.push(value_name.to_owned());
         }
 
         self.m.enum_defs.insert(enum_name, values);
@@ -950,13 +957,13 @@ impl<'a> CompileState<'a> {
             .enum_defs
             .get(&e.identifier)
             .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.to_owned())))?;
-        let value_index = enum_def.iter().position(|v| v == &e.value).ok_or_else(|| {
+        let value = enum_def.get(&e.value).ok_or_else(|| {
             self.err(CompileErrorType::NotDefined(format!(
                 "{}::{}",
                 e.identifier, e.value
             )))
         })?;
-        Ok(Value::Enum(e.identifier.to_owned(), value_index))
+        Ok(Value::Enum(e.identifier.to_owned(), *value))
     }
 
     /// Check if finish blocks only use appropriate expressions
