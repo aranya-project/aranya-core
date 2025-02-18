@@ -221,7 +221,7 @@ impl<'a> CompileState<'a> {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
                     // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
                     // then we'll need to ensure those are unique.
-                    e.insert(i as i64);
+                    e.insert(i64::try_from(i).expect("should set enum value to index"));
                 }
             }
         }
@@ -1749,45 +1749,28 @@ impl<'a> CompileState<'a> {
         self.compile_command_seal(command, command_node.locator)?;
         self.compile_command_open(command, command_node.locator)?;
 
-        // Command attributes
-
-        // Resolve attribute expressions to values
-        let attr_values = command
-            .attributes
-            .iter()
-            .map(|(k, v)| {
-                let value = self
-                    .expression_value(v)
-                    .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(v.clone())))?;
-                Ok::<(String, Value), CompileError>((k.clone(), value))
-            })
-            .collect::<Result<BTreeMap<String, Value>, CompileError>>()?;
-
-        // Get command attribute dict for this command
-        let command_attrs = self
-            .m
-            .command_attributes
-            .entry(command.identifier.to_owned())
-            .or_default();
-
-        // Set attribute values
-        for (name, expr) in &command.attributes {
-            match command_attrs.entry(name.clone()) {
-                Entry::Vacant(e) => match attr_values.get(e.key()) {
-                    Some(value) => {
-                        e.insert(value.clone());
-                    }
-                    None => {
-                        return Err(self.err(CompileErrorType::InvalidExpression(expr.clone())));
-                    }
-                },
+        // attributes
+        let mut attr_values = BTreeMap::new();
+        for (name, value_expr) in command.attributes.iter() {
+            match attr_values.entry(name.clone()) {
+                Entry::Vacant(e) => {
+                    let value = self.expression_value(value_expr).ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidExpression(value_expr.clone()))
+                    })?;
+                    e.insert(value);
+                }
                 Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(name.clone())));
                 }
             }
         }
+        if !attr_values.is_empty() {
+            self.m
+                .command_attributes
+                .insert(command.identifier.clone(), attr_values);
+        }
 
-        // add command fields to compile target
+        // fields
         match self.m.command_defs.entry(command_node.identifier.clone()) {
             Entry::Vacant(e) => {
                 let map = command_node
