@@ -3,7 +3,10 @@
 use anyhow::anyhow;
 use aranya_policy_ast::{FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
-use aranya_policy_module::{ffi::ModuleSchema, Label, LabelType, ModuleData, Value};
+use aranya_policy_module::{
+    ffi::{self, ModuleSchema},
+    Label, LabelType, ModuleData, Value,
+};
 
 use crate::{validate::validate, CompileError, CompileErrorType, Compiler, InvalidCallColor};
 
@@ -1461,7 +1464,14 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
 
 const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
     name: "test",
-    functions: &[],
+    functions: &[ffi::Func {
+        name: "doit",
+        args: &[ffi::Arg {
+            name: "x",
+            vtype: ffi::Type::Int,
+        }],
+        return_type: ffi::Type::Bool,
+    }],
     structs: &[],
 }];
 
@@ -1639,12 +1649,100 @@ fn test_type_errors() -> anyhow::Result<()> {
             "#,
             e: "Deserializing non-bytes",
         },
+        Case {
+            t: r#"
+                function bar(x int) bool {
+                    return false
+                }
+                function foo() bool {
+                    return bar(Some 3)
+                }
+            "#,
+            e: "Argument 1 (`x`) in call to `bar` found `optional int`, expected `int`",
+        },
+        Case {
+            t: r#"
+                use test
+                function foo() bool {
+                    return test::doit(Some 3)
+                }
+            "#,
+            e: "Argument 1 (`x`) in FFI call to `test::doit` found `optional int`, not `int`",
+        },
+        Case {
+            t: r#"
+                function foo(x int) bool {
+                    match x {
+                        "foo" => {
+                        }
+                    }
+                }
+            "#,
+            e: "match expression is `int` but arm expression 1 is `string`",
+        },
+        Case {
+            t: r#"
+                function foo(x int) bool {
+                    if 3 {
+                    }
+                }
+            "#,
+            e: "if condition must be boolean",
+        },
+        Case {
+            t: r#"
+                function foo(x int) bool {
+                    if 3 {
+                    }
+                }
+            "#,
+            e: "if condition must be boolean",
+        },
+        Case {
+            t: r#"
+                action foo() {
+                    publish 3
+                }
+            "#,
+            e: "Cannot publish `int`, must be a command struct",
+        },
+        Case {
+            t: r#"
+                struct Foo {}
+                action foo() {
+                    publish Foo {}
+                }
+            "#,
+            e: "Struct `Foo` is not a Command struct",
+        },
+        Case {
+            t: r#"
+                fact Foo[x int]=>{y bool}
+                command MangleFoo {
+                    policy {
+                        finish {
+                            update Foo[x: 0]=>{y: ?} to {y: 3}
+                        }
+                    }
+                }
+            "#,
+            e: "Fact `Foo` value field `y` found `int`, not `bool`",
+        },
+        Case {
+            t: r#"
+                action foo() {
+                    debug_assert(3)
+                }
+            "#,
+            e: "debug assertion must be a boolean expression",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
         let policy = parse_policy_str(c.t, Version::V2)?;
         let err = Compiler::new(&policy)
             .ffi_modules(FAKE_SCHEMA)
+            .debug(true) // forced on to enable debug_assert()
             .compile()
             .expect_err("Did not get error")
             .err_type;
