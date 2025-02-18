@@ -502,7 +502,7 @@ impl<'a> CompileState<'a> {
                 let def_field_type = fact_def
                     .get_key_field(k)
                     .ok_or(self.err(CompileErrorType::InvalidType(format!(
-                        "field `{}` not found in `Fact {}`",
+                        "field `{}` not found in Fact `{}`",
                         k, f.identifier
                     ))))?
                     .field_type
@@ -510,7 +510,7 @@ impl<'a> CompileState<'a> {
                 let t = self.compile_expression(e)?;
                 if !t.is_maybe(&def_field_type) {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
-                        "`Fact {}` key field `{}` is not `{}`",
+                        "Fact `{}` key field `{}` is not `{}`",
                         f.identifier, k, def_field_type
                     ))));
                 }
@@ -526,7 +526,7 @@ impl<'a> CompileState<'a> {
                     let def_field_type = fact_def
                         .get_value_field(k)
                         .ok_or(self.err(CompileErrorType::InvalidType(format!(
-                            "field `{}` not found in `Fact {}`",
+                            "field `{}` not found in Fact `{}`",
                             k, f.identifier
                         ))))?
                         .field_type
@@ -534,7 +534,7 @@ impl<'a> CompileState<'a> {
                     let t = self.compile_expression(e)?;
                     if !t.is_maybe(&def_field_type) {
                         return Err(self.err(CompileErrorType::InvalidType(format!(
-                            "`Fact {}` value field `{}` is not `{}`",
+                            "Fact `{}` value field `{}` is not `{}`",
                             f.identifier, k, def_field_type
                         ))));
                     }
@@ -1131,7 +1131,7 @@ impl<'a> CompileState<'a> {
                     // 1. Generate branching instructions, and arm-start labels
                     let mut arm_labels: Vec<Label> = vec![];
 
-                    for arm in s.arms.iter() {
+                    for (i, arm) in s.arms.iter().enumerate() {
                         let arm_label = self.anonymous_label();
                         arm_labels.push(arm_label.clone());
 
@@ -1146,10 +1146,12 @@ impl<'a> CompileState<'a> {
                                     }
                                     let arm_t = self.compile_expression(value)?;
                                     if !arm_t.is_maybe_equal(&expr_t) {
+                                        let arm_n =
+                                            i.checked_add(1).assume("match arm count overflow")?;
                                         return Err(self.err(CompileErrorType::InvalidType(
                                             format!(
-                                            "match expression is `{}` but arm expression is `{}`",
-                                            expr_t, arm_t
+                                            "match expression is `{}` but arm expression {} is `{}`",
+                                            expr_t, arm_n, arm_t
                                         ),
                                         )));
                                     }
@@ -1234,14 +1236,14 @@ impl<'a> CompileState<'a> {
                         Typeish::Type(VType::Struct(n)) => {
                             if !self.m.command_defs.contains_key(&n) {
                                 return Err(self.err(CompileErrorType::InvalidType(format!(
-                                    "`Struct {}` is not a Command struct",
+                                    "Struct `{}` is not a Command struct",
                                     n
                                 ))));
                             }
                         }
                         Typeish::Type(ot) => {
                             return Err(self.err(CompileErrorType::InvalidType(format!(
-                                "Cannot publish `{ot}`"
+                                "Cannot publish `{ot}`, must be a command struct"
                             ))))
                         }
                         _ => {}
@@ -1363,7 +1365,7 @@ impl<'a> CompileState<'a> {
                                 let def_field_type = fact_def
                                     .get_value_field(k)
                                     .ok_or(self.err(CompileErrorType::InvalidType(format!(
-                                        "field `{}` not found in `Fact {}`",
+                                        "field `{}` not found in Fact `{}`",
                                         k, s.fact.identifier
                                     ))))?
                                     .field_type
@@ -1371,8 +1373,8 @@ impl<'a> CompileState<'a> {
                                 let t = self.compile_expression(e)?;
                                 if !t.is_maybe(&def_field_type) {
                                     return Err(self.err(CompileErrorType::InvalidType(format!(
-                                        "`Fact {}` value field `{}` is not `{}`",
-                                        s.fact.identifier, k, def_field_type
+                                        "Fact `{}` value field `{}` found `{}`, not `{}`",
+                                        s.fact.identifier, k, t, def_field_type
                                     ))));
                                 }
                             }
