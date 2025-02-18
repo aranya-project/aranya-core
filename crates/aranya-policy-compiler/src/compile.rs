@@ -34,10 +34,11 @@ enum FunctionColor {
 }
 
 /// This is like [FunctionDefinition](ast::FunctionDefinition), but
-/// stripped down to only include positional argument types and return
-/// type. Covers both regular (pure) functions and finish functions.
+/// stripped down to only include positional argument names/types and
+/// return type. Covers both regular (pure) functions and finish
+/// functions.
 struct FunctionSignature {
-    args: Vec<VType>,
+    args: Vec<(String, VType)>,
     color: FunctionColor,
 }
 
@@ -248,7 +249,11 @@ impl<'a> CompileState<'a> {
         match self.function_signatures.entry(def.identifier.as_str()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
-                    args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
+                    args: def
+                        .arguments
+                        .iter()
+                        .map(|a| (a.identifier.clone(), a.field_type.clone()))
+                        .collect(),
                     color: FunctionColor::Pure(def.return_type.clone()),
                 };
                 Ok(e.insert(signature))
@@ -271,7 +276,11 @@ impl<'a> CompileState<'a> {
         match self.function_signatures.entry(def.identifier.as_str()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
-                    args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
+                    args: def
+                        .arguments
+                        .iter()
+                        .map(|a| (a.identifier.clone(), a.field_type.clone()))
+                        .collect(),
                     color: FunctionColor::Finish,
                 };
                 Ok(e.insert(signature))
@@ -743,13 +752,18 @@ impl<'a> CompileState<'a> {
                     }
 
                     // push args
-                    for (e, arg_def) in f.arguments.iter().zip(procedure.args.iter()) {
-                        let t = self.compile_expression(e)?;
-                        let arg_type = (&arg_def.vtype).into();
-                        if !t.is_maybe(&arg_type) {
+                    for (i, (arg_def, arg_e)) in
+                        procedure.args.iter().zip(f.arguments.iter()).enumerate()
+                    {
+                        let arg_t = self.compile_expression(arg_e)?;
+                        let arg_def_vtype = (&arg_def.vtype).into();
+                        if !arg_t.is_maybe(&arg_def_vtype) {
+                            let arg_n = i
+                                .checked_add(1)
+                                .assume("function argument count overflow")?;
                             return Err(self.err(CompileErrorType::InvalidType(format!(
-                                "`{}::{}` argument `{}` is not {}",
-                                f.module, f.identifier, arg_def.name, arg_type
+                                "Argument {} (`{}`) in FFI call to `{}::{}` found `{}`, not `{}`",
+                                arg_n, arg_def.name, f.module, f.identifier, arg_t, arg_def_vtype
                             ))));
                         }
                     }
@@ -1569,15 +1583,16 @@ impl<'a> CompileState<'a> {
             .args
             .clone();
 
-        for (i, (def_t, arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate() {
+        for (i, ((def_name, def_t), arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate()
+        {
             let arg_t = self.compile_expression(arg_e)?;
             if !arg_t.is_maybe(def_t) {
                 let arg_n = i
                     .checked_add(1)
                     .assume("function argument count overflow")?;
                 return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "Argument {} in call to `{}` found `{}`, expected `{}`",
-                    arg_n, fc.identifier, arg_t, def_t
+                    "Argument {} (`{}`) in call to `{}` found `{}`, expected `{}`",
+                    arg_n, def_name, fc.identifier, arg_t, def_t
                 ))));
             }
         }
