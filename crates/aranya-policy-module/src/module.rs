@@ -81,7 +81,7 @@ pub struct ModuleV0 {
     /// Struct definitions
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<String, Vec<String>>,
+    pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Code map

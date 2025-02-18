@@ -126,7 +126,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
                     ));
                 }
 
-                #( const #var_const_names: usize = #ident::#var_idents as usize; )*
+                #( const #var_const_names: i64 = #ident::#var_idents as i64; )*
 
                 match val {
                     #(
@@ -139,7 +139,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
 
         impl ::core::convert::From<#ident> for ::aranya_policy_ifgen::Value {
             fn from(e: #ident) -> Self {
-                ::aranya_policy_ifgen::Value::Enum(#enum_ident.into(), e as usize)
+                ::aranya_policy_ifgen::Value::Enum(#enum_ident.into(), e as i64)
             }
         }
     })
