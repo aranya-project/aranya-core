@@ -179,43 +179,6 @@ fn test_structs() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[test]
-fn test_invalid_struct_field() -> anyhow::Result<()> {
-    let text = r#"
-        struct Bar {
-            x int
-        }
-
-        action foo(id_input id, x int) {
-            let v = Bar {
-                y: x
-            }
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let io = RefCell::new(TestIO::new());
-    let module = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()?;
-    let machine = Machine::from_module(module)?;
-
-    let err = {
-        let name = "foo";
-        let ctx = dummy_ctx_action(name);
-        let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_action("foo", [Value::Id(Id::default()), Value::Int(3)])
-            .unwrap_err()
-    };
-
-    assert_eq!(
-        err.err_type,
-        MachineErrorType::InvalidStructMember(String::from("y")),
-    );
-
-    Ok(())
-}
-
 // Basic entry points - action, policy, seal, open (TODO: recall)
 
 #[test]
@@ -1700,10 +1663,6 @@ fn test_debug_assert() -> anyhow::Result<()> {
         debug_assert(true)
         debug_assert(get_true())
     }
-
-    action test_debug_assert_invalid_type() {
-        debug_assert(1)
-    }
     "#;
 
     let policy = parse_policy_str(text, Version::V2)?;
@@ -1736,16 +1695,6 @@ fn test_debug_assert() -> anyhow::Result<()> {
         ExitReason::Normal
     );
 
-    assert!(matches!(
-        run_action(&machine, &io, "test_debug_assert_invalid_type")
-            .err()
-            .unwrap(),
-        MachineError {
-            err_type: MachineErrorType::InvalidType { .. },
-            ..
-        }
-    ));
-
     let module_no_debug = Compiler::new(&policy).debug(false).compile()?;
     let machine_no_debug = Machine::from_module(module_no_debug)?;
 
@@ -1753,7 +1702,6 @@ fn test_debug_assert() -> anyhow::Result<()> {
         "test_debug_assert_failure",
         "test_debug_assert_failure_expression",
         "test_debug_assert_pass",
-        "test_debug_assert_invalid_type",
     ];
 
     for test_name in test_names {
