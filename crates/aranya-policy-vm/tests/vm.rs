@@ -1893,7 +1893,13 @@ fn test_global_let_statements() -> anyhow::Result<()> {
 #[test]
 fn test_enum_reference() -> anyhow::Result<()> {
     let text = r#"
-        effect Effect { a string }
+        command Sip {
+            seal { return None }
+            open { return None }
+            fields {
+                a string
+            }
+        }
 
         enum Drink {
             Water, Coffee
@@ -1902,10 +1908,10 @@ fn test_enum_reference() -> anyhow::Result<()> {
         action test(type enum Drink) {
             match type {
                 Drink::Water => {
-                    publish Effect { a: "bleh" }
+                    publish Sip { a: "bleh" }
                 }
                 Drink::Coffee => {
-                    publish Effect { a: "mmm" }
+                    publish Sip { a: "mmm" }
                 }
             }
         }
@@ -1934,7 +1940,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
     assert_eq!(
         io.borrow().publish_stack[0],
         (
-            String::from("Effect"),
+            String::from("Sip"),
             vec![KVPair::new("a", Value::from("mmm"))]
         )
     );
