@@ -11,18 +11,34 @@ Aranya platform. This is a library that includes the storage module (for DAG
 and FactDB), crypto module (with default crypto engine automatically selected),
 sync engine, and runtime client (including policy VM).
 
-Additionally, includes [Aranya Fast Channels](crates/aranya-fast-channels/) to
-enable encrypted channels between 2 peers allowing either unidirectional or
+It also includes [Aranya Fast Channels](crates/aranya-fast-channels/) to enable
+encrypted channels between 2 peers allowing either unidirectional or
 bidirectional communication.
 
 More documentation on Aranya is provided here:
 [Aranya Documentation](https://aranya-project.github.io/aranya-docs/).
 
-## Cargo Make
+## Get Started
+
+Aranya Core is written in Rust. Additionally, this repo contains tools for our
+C API wrappers. The full list of dependencies is below.
+
+### Dependencies
+
+- [Rust](https://www.rust-lang.org/tools/install) (Find version info in the
+[rust-toolchain.toml](rust-toolchain.toml))
+> NOTE: When building with Rust, the compiler will automatically download and
+> use the version specified by the `rust-toolchain.toml`.
+- [cargo-make](https://github.com/sagiegurari/cargo-make?tab=readme-ov-file#installation) (v0.37.23)
+- [cmake](https://cmake.org/download/) (v3.31)
+- [clang](https://releases.llvm.org/download.html) (v18.1)
+
+> NOTE: we have tested using the specified versions above. Other versions of
+> these tools may also work.
+
+### Install `cargo-make`
 
 This repo uses `cargo-make` as a task runner.
-
-### Install
 
 ```
 cargo install cargo-make --locked
