@@ -1097,7 +1097,6 @@ where
     // TODO(chip): I don't really like how V: Into<Value> works here
     // because it still means all of the args have to have the same
     // type.
-    #[allow(clippy::let_and_return)]
     pub fn call_action<Args>(&mut self, name: &str, args: Args) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
@@ -1110,7 +1109,6 @@ where
     /// Call the seal block on this command to produce an envelope. The
     /// seal block is given an implicit parameter `this` and should
     /// return an opaque envelope struct on the stack.
-    #[allow(clippy::let_and_return)]
     pub fn call_seal(
         &mut self,
         name: &str,
@@ -1122,19 +1120,14 @@ where
         // it calls through a function stub. So we just push `this_data`
         // onto the stack.
         self.ipush(this_data.to_owned())?;
-        let result = self.run();
-
-        result
+        self.run()
     }
 
     /// Call the open block on an envelope struct to produce a command struct.
-    #[allow(clippy::let_and_return)]
     pub fn call_open(&mut self, name: &str, envelope: Struct) -> Result<ExitReason, MachineError> {
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
-        let result = self.run();
-
-        result
+        self.run()
     }
 
     /// Destroy the `RunState` and return the value on top of the stack.
