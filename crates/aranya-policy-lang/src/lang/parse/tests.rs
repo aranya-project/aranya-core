@@ -12,6 +12,7 @@ use super::{
 use crate::lang::{ChunkParser, ParseErrorKind};
 
 #[test]
+#[allow(clippy::result_large_err)]
 #[allow(deprecated)]
 fn accept_only_latest_lang_version() -> Result<(), PestError<Rule>> {
     let src = "function f() int { return 0 }";
