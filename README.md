@@ -27,11 +27,9 @@ C API wrappers. The full list of dependencies is below.
 
 - [Rust](https://www.rust-lang.org/tools/install) (Find version info in the
 [rust-toolchain.toml](rust-toolchain.toml))
-> NOTE: When building with Rust, the compiler will automatically download and
+> NOTE: When building with Rust, rustup will automatically download and
 > use the version specified by the `rust-toolchain.toml`.
 - [cargo-make](https://github.com/sagiegurari/cargo-make?tab=readme-ov-file#installation) (v0.37.23)
-- [cmake](https://cmake.org/download/) (v3.31)
-- [clang](https://releases.llvm.org/download.html) (v18.1)
 
 > NOTE: we have tested using the specified versions above. Other versions of
 > these tools may also work.
