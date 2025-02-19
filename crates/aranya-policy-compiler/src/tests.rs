@@ -1194,6 +1194,38 @@ fn test_match_default_not_last() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_match_arm_should_be_limited_to_literals() -> anyhow::Result<()> {
+    let policies = vec![
+        r#"
+            action foo(x int) {
+                match x {
+                    0 + 1 => {}
+                }
+            }
+        "#,
+        r#"
+        function f() int { return 0 }
+        action foo(x int) {
+            match x {
+                f() => {}
+            }
+        }
+        "#,
+    ];
+
+    for text in policies {
+        let policy = parse_policy_str(text, Version::V2)?;
+        let res = Compiler::new(&policy).compile().unwrap_err();
+        assert_eq!(
+            res.err_type,
+            CompileErrorType::InvalidType(String::from("match arm is not a literal expression"))
+        );
+    }
+
+    Ok(())
+}
+
 // Note: this test is not exhaustive
 #[test]
 fn test_bad_statements() -> anyhow::Result<()> {
