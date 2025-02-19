@@ -15,6 +15,7 @@ use crate::lang::{ChunkParser, ParseErrorKind};
 #[allow(clippy::result_large_err)]
 #[allow(deprecated)]
 fn accept_only_latest_lang_version() -> Result<(), PestError<Rule>> {
+    // parse string literal
     let src = "function f() int { return 0 }";
     assert_eq!(
         parse_policy_str(src, Version::V1)
@@ -22,10 +23,35 @@ fn accept_only_latest_lang_version() -> Result<(), PestError<Rule>> {
             .kind,
         ParseErrorKind::InvalidVersion {
             found: "1".to_string(),
-            required: "2".to_string()
+            required: Version::V2
         }
     );
     parse_policy_str(src, Version::V2).expect("should accept V2");
+
+    // parse markdown (v1)
+    let policy_v1_md = r#"---
+policy-version: 1
+---
+
+```policy
+```    
+"#;
+    assert!(parse_policy_document(&policy_v1_md).is_err_and(|r| r.kind
+        == ParseErrorKind::InvalidVersion {
+            found: "1".to_string(),
+            required: Version::V2
+        }));
+
+    // parse markdown (v2)
+    let policy_v1_md = r#"---
+policy-version: 2
+---
+
+```policy
+```    
+"#;
+    assert!(parse_policy_document(&policy_v1_md).is_ok());
+
     Ok(())
 }
 

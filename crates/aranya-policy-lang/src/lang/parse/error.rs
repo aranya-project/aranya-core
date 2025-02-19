@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use aranya_policy_ast::Version;
 use buggy::Bug;
 use pest::{
     error::{Error as PestError, LineColLocation},
@@ -29,7 +30,7 @@ pub enum ParseErrorKind {
     /// The right side of a dot operator is not an identifier.
     InvalidMember,
     /// The policy version expressed in the front matter is not valid.
-    InvalidVersion { found: String, required: String },
+    InvalidVersion { found: String, required: Version },
     /// Some part of an expression is badly formed.
     Expression,
     /// The Pest parser was unable to parse the document.
