@@ -36,21 +36,21 @@ policy-version: 1
 ```policy
 ```    
 "#;
-    assert!(parse_policy_document(&policy_v1_md).is_err_and(|r| r.kind
+    assert!(parse_policy_document(policy_v1_md).is_err_and(|r| r.kind
         == ParseErrorKind::InvalidVersion {
             found: "1".to_string(),
             required: Version::V2
         }));
 
     // parse markdown (v2)
-    let policy_v1_md = r#"---
+    let policy_v2_md = r#"---
 policy-version: 2
 ---
 
 ```policy
 ```    
 "#;
-    assert!(parse_policy_document(&policy_v1_md).is_ok());
+    assert!(parse_policy_document(policy_v2_md).is_ok());
 
     Ok(())
 }
