@@ -152,7 +152,7 @@ impl<'a> CompileState<'a> {
         for key in fact.key.iter() {
             if !key.is_hashable() {
                 return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "Fact `{}` key field `{}` is not int, bool, string, or id",
+                    "Fact `{}` key field `{}` is not orderable; must be int, bool, string, or id",
                     fact.identifier, key.identifier
                 ))));
             }

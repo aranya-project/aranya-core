@@ -873,7 +873,7 @@ fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
 #[test]
 fn test_serialize_deserialize() -> anyhow::Result<()> {
     let text = r#"
-        function foo(input struct Foo) int {
+        function foo(input struct Foo) struct Foo {
             let b = serialize(input)
             return deserialize(b)
         }
