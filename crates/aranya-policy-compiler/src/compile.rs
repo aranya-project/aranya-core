@@ -379,17 +379,16 @@ impl<'a> CompileState<'a> {
         };
         self.append_instruction(Instruction::StructNew(s.identifier.clone()));
         for (field_name, e) in &s.fields {
-            let def_field_type = struct_def
+            let def_field_type = &struct_def
                 .iter()
                 .find(|f| &f.identifier == field_name)
                 .ok_or(self.err(CompileErrorType::InvalidType(format!(
                     "field `{}` not found in `Struct {}`",
                     field_name, s.identifier
                 ))))?
-                .field_type
-                .clone();
+                .field_type;
             let t = self.compile_expression(e)?;
-            if !t.is_maybe(&def_field_type) {
+            if !t.is_maybe(def_field_type) {
                 return Err(self.err(CompileErrorType::InvalidType(format!(
                     "`Struct {}` field `{}` is not {}",
                     s.identifier, field_name, def_field_type
