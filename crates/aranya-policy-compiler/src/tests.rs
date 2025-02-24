@@ -375,7 +375,7 @@ fn test_command_attributes() {
             );
             assert_eq!(
                 attrs.get("priority").expect("should find 3nd value"),
-                &Value::Enum("Priority".to_string(), "High".to_string())
+                &Value::Enum("Priority".to_string(), 1)
             );
         }
     }
