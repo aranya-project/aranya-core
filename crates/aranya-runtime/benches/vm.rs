@@ -1,5 +1,3 @@
-#[cfg(feature = "bench")]
-#[test]
 fn benchmark_1() {
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_document;
@@ -12,11 +10,11 @@ fn benchmark_1() {
         ClientState,
     };
 
-    let policy = parse_policy_document(TEST_POLICY_1).unwrap();
+    let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
     let module = Compiler::new(&policy)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .compile()
-        .unwrap();
+        .expect("should compile");
     let engine = TestEngine::from_module(module);
     let provider = MemStorageProvider::new();
     let mut cs = ClientState::new(engine, provider);
@@ -39,8 +37,6 @@ fn benchmark_1() {
     bench_measurements().print_stats();
 }
 
-#[cfg(feature = "bench")]
-#[test]
 fn benchmark_map() {
     let test = r#"---
 policy-version: 1
@@ -80,22 +76,18 @@ policy-version: 1
         }
 
         action run() {
-            // TODO can't publish multiple commands form one action (#15). But we must publish something.
-            publish DoSomething {}
-
             map F[i:?] as f {                
-                //publish DoSomething { f: f }
+                publish DoSomething { i: f.i }
             }
         }
 
         command DoSomething {
-            // fields { f struct F }
+            fields { i int }
             seal { return envelope::seal(serialize(this)) }
             open { return deserialize(envelope::open(envelope)) }
             policy {
                 finish {
-                    // TODO(apetkov) uncomment after #883 has been merged
-                    // update F[i:this.f.i]=>{ value:? } to { value:"updated" }
+                    update F[i:this.i]=>{ value:? } to { value:"updated" }
                 }
             }
         }
@@ -113,11 +105,11 @@ policy-version: 1
         ClientState,
     };
 
-    let policy = parse_policy_document(test).unwrap();
+    let policy = parse_policy_document(test).expect("should parse");
     let module = Compiler::new(&policy)
         .ffi_modules(&[TestFfiEnvelope::SCHEMA])
         .compile()
-        .unwrap();
+        .expect("should compile");
     let engine = TestEngine::from_module(module);
     let provider = MemStorageProvider::new();
     let mut cs = ClientState::new(engine, provider);
@@ -129,10 +121,15 @@ policy-version: 1
 
     for i in 1..10 {
         cs.action(storage_id, &mut sink, vm_action!(insert(i, i.to_string())))
-            .unwrap();
+            .expect("action `insert` failed");
     }
     cs.action(storage_id, &mut sink, vm_action!(run()))
-        .expect("could not call action");
+        .expect("action `run` failed");
 
     bench_measurements().print_stats();
+}
+
+fn main() {
+    benchmark_1();
+    benchmark_map();
 }
