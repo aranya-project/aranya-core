@@ -1556,6 +1556,45 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_if_match_block_scope() {
+    let cases = vec![
+        (
+            r#"
+            function foo() int {
+                if true { let x = 5 }
+                return x // x should not exist in the outer scope
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `x`".to_string()),
+        ),
+        (
+            r#"
+            function foo() int {
+                if true {}
+                else { let y = 0 }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
+        (
+            r#"
+            function foo(b bool) int {
+                match b {
+                    true => { let x = 0 }
+                    false => { let y = 1 }
+                }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
+    ];
+    for (text, res) in cases {
+        let policy = parse_policy_str(text, Version::V1).expect("should parse");
+        let r = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(r, res)
+    }
+}
+
 const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
     name: "test",
     functions: &[ffi::Func {
@@ -1891,7 +1930,7 @@ fn test_duplicate_definitions() -> anyhow::Result<()> {
                 function f(y int) bool {
                     match y {
                         1 => { let x = 3 }
-                        2 => { let y = 4 }
+                        2 => { let z = 4 }
                     }
                     return false
                 }
