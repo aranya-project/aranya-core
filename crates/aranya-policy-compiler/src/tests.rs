@@ -1587,6 +1587,17 @@ fn test_if_match_block_scope() {
             }"#,
             CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
         ),
+        (
+            r#"
+            function foo(b bool) int {
+                match b {
+                    true => { let x = 0 }
+                    _ => { let y = 1 }
+                }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
     ];
     for (text, res) in cases {
         let policy = parse_policy_str(text, Version::V1).expect("should parse");
