@@ -475,6 +475,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-quic-channels"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "aranya-crypto",
+ "aranya-fast-channels",
+ "aranya-runtime",
+ "buggy",
+ "bytes",
+ "clap",
+ "criterion",
+ "directories-next",
+ "heapless 0.8.0",
+ "postcard",
+ "rcgen",
+ "s2n-quic",
+ "test-log",
+ "thiserror 2.0.7",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "aranya-quic-syncer"
 version = "0.0.0"
 dependencies = [
