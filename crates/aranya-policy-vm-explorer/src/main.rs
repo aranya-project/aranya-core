@@ -248,7 +248,6 @@ fn main() -> anyhow::Result<()> {
     let machine: Machine = match Compiler::new(&policy).compile() {
         Ok(m) => Machine::from_module(m)?,
         Err(e) => {
-            println!("{}", e);
             anyhow::bail!("Compilation failed: {e}");
         }
     };
