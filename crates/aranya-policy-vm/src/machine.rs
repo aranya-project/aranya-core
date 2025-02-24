@@ -22,6 +22,8 @@ use aranya_policy_module::{
 use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
 
+#[cfg(feature = "bench")]
+use crate::bench::{bench_aggregate, Stopwatch};
 use crate::{
     error::{MachineError, MachineErrorType},
     io::MachineIO,
@@ -302,6 +304,8 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     ctx: CommandContext<'a>,
     // Cursors for `QueryStart` results
     query_iter_stack: Vec<M::QueryIterator>,
+    #[cfg(feature = "bench")]
+    stopwatch: Stopwatch,
 }
 
 impl<'a, M> RunState<'a, M>
@@ -323,6 +327,8 @@ where
             io,
             ctx,
             query_iter_stack: vec![],
+            #[cfg(feature = "bench")]
+            stopwatch: Stopwatch::new(),
         }
     }
 
@@ -429,8 +435,11 @@ where
     /// Validate a struct against defined schema.
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
-    fn validate_struct_schema(&self, s: &Struct) -> Result<(), MachineError> {
+    fn validate_struct_schema(&mut self, s: &Struct) -> Result<(), MachineError> {
         let err = self.err(MachineErrorType::InvalidSchema(s.name.clone()));
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.start("validate_struct_schema");
 
         match self.machine.struct_defs.get(&s.name) {
             Some(fields) => {
@@ -453,6 +462,10 @@ where
                         None => return Err(err),
                     }
                 }
+
+                #[cfg(feature = "bench")]
+                self.stopwatch.stop();
+
                 Ok(())
             }
             None => Err(err),
@@ -468,6 +481,7 @@ where
         // Clone the instruction so we don't take an immutable
         // reference to self while we manipulate the stack later.
         let instruction = self.machine.progmem[self.pc()].clone();
+
         match instruction {
             Instruction::Const(v) => {
                 self.ipush(v)?;
@@ -889,8 +903,9 @@ where
                 }
                 self.ipush(s)?;
             }
-            Instruction::Meta(_) => (),
+            Instruction::Meta(_m) => {}
         }
+
         self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;
 
         Ok(MachineStatus::Executing)
@@ -901,12 +916,31 @@ where
     /// with, or an error.
     pub fn run(&mut self) -> Result<ExitReason, MachineError> {
         loop {
-            match self
-                .step()
-                .map_err(|err| err.with_position(self.pc, self.machine.codemap.as_ref()))?
+            #[cfg(feature = "bench")]
             {
+                if let Some(instruction) = self.machine.progmem.get(self.pc()) {
+                    if let Some(name) = instruction.to_string().split_whitespace().next() {
+                        self.stopwatch.start(name);
+                    }
+                }
+            }
+
+            let result = self
+                .step()
+                .map_err(|err| err.with_position(self.pc, self.machine.codemap.as_ref()))?;
+
+            #[cfg(feature = "bench")]
+            if !self.stopwatch.measurement_stack.is_empty() {
+                self.stopwatch.stop();
+            }
+
+            match result {
                 MachineStatus::Executing => continue,
-                MachineStatus::Exited(reason) => return Ok(reason),
+                MachineStatus::Exited(reason) => {
+                    #[cfg(feature = "bench")]
+                    bench_aggregate(&mut self.stopwatch);
+                    return Ok(reason);
+                }
             };
         }
     }
@@ -929,6 +963,10 @@ where
         label_type: LabelType,
         this_data: &Struct,
     ) -> Result<(), MachineError> {
+        #[cfg(feature = "bench")]
+        self.stopwatch
+            .start(format!("setup_command: {}", name).as_str());
+
         self.setup_function(&Label::new(name, label_type))?;
 
         // Verify 'this' arg matches command's fields
@@ -962,6 +1000,10 @@ where
         self.scope
             .set("this", Value::Struct(this_data.to_owned()))
             .map_err(|e| self.err(e))?;
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.stop();
+
         Ok(())
     }
 
@@ -1008,6 +1050,10 @@ where
         Args: IntoIterator,
         Args::Item: Into<Value>,
     {
+        #[cfg(feature = "bench")]
+        self.stopwatch
+            .start(format!("setup_action: {}", name).as_str());
+
         // verify number and types of arguments
         let arg_def = self.machine.action_defs.get(name).ok_or(MachineError::new(
             MachineErrorType::NotDefined(String::from(name)),
@@ -1038,6 +1084,10 @@ where
         for a in args {
             self.ipush(a)?;
         }
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.stop();
+
         Ok(())
     }
 
@@ -1065,6 +1115,7 @@ where
         this_data: &Struct,
     ) -> Result<ExitReason, MachineError> {
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
+
         // Seal/Open pushes the argument and defines it itself, because
         // it calls through a function stub. So we just push `this_data`
         // onto the stack.
@@ -1086,7 +1137,10 @@ where
             .map_err(|t| MachineError::from_position(t, self.pc, self.machine.codemap.as_ref()))
     }
 
-    fn validate_fact_literal(&self, fact: &Fact) -> Result<(), MachineError> {
+    fn validate_fact_literal(&mut self, fact: &Fact) -> Result<(), MachineError> {
+        #[cfg(feature = "bench")]
+        self.stopwatch.start("validate_fact_literal");
+
         if !self
             .machine
             .fact_defs
@@ -1099,6 +1153,10 @@ where
                 self.machine.codemap.as_ref(),
             ));
         }
+
+        #[cfg(feature = "bench")]
+        self.stopwatch.stop();
+
         Ok(())
     }
 }
