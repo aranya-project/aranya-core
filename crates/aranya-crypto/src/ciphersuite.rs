@@ -29,7 +29,6 @@ use crate::{
     mac::{Mac, MacId},
     signer::{Signer, SignerId},
     typenum::U64,
-    Id,
 };
 
 /// The cryptographic primitives used by the cryptography engine.
@@ -52,9 +51,6 @@ use crate::{
 /// Additionally, please test your implementation using the
 /// `test_util` module.
 pub trait CipherSuite {
-    /// Uniquely identifies the [`CipherSuite`].
-    const ID: Id;
-
     /// See [`Aead`] for more information.
     type Aead: Aead + IndCca2;
     /// See [`Hash`] for more information.
