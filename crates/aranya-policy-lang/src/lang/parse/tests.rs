@@ -1216,6 +1216,32 @@ fn parse_struct() {
 }
 
 #[test]
+fn parse_struct_composition() -> Result<(), PestError<Rule>> {
+    let input = "{ ...x, c: false, }";
+
+    let struct_literal = PolicyParser::parse(Rule::struct_literal, input)?;
+
+    for field in struct_literal {
+        match field.as_rule() {
+            Rule::struct_literal_field => {
+                let mut parts = field.into_inner();
+                let field_name = parts.next().unwrap().as_str();
+                assert_eq!(field_name, "c");
+                let field_value = parts.next().unwrap().as_str();
+                assert_eq!(field_value, "false");
+            }
+            Rule::struct_composition => {
+                let identifer = field.into_inner().next().unwrap().as_str();
+                assert_eq!(identifer, "x");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    Ok(())
+}
+
+#[test]
 fn parse_enum_definition() {
     let text = r#"
         enum Color {
