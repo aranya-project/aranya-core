@@ -1,5 +1,5 @@
 ---
-policy-version: 1
+policy-version: 2
 ---
 
 This policy facilitates the full use of the `envelope_ffi`. To do that we need to
