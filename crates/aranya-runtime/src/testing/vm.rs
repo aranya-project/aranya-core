@@ -21,7 +21,7 @@ use crate::{
 
 /// The policy used by these tests.
 pub const TEST_POLICY_1: &str = r#"---
-policy-version: 1
+policy-version: 2
 ---
 
 ```policy

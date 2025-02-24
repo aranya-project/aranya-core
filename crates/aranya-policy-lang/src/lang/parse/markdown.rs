@@ -18,11 +18,14 @@ fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
     let fm: FrontMatter = serde_yaml::from_str(&yaml.value)
         .map_err(|e| ParseError::new(ParseErrorKind::FrontMatter, e.to_string(), None))?;
     let v = match fm.policy_version.as_str() {
-        "1" => Version::V1,
-        _ => {
+        "2" => Version::V2,
+        v => {
             return Err(ParseError::new(
-                ParseErrorKind::InvalidVersion,
-                fm.policy_version,
+                ParseErrorKind::InvalidVersion {
+                    found: v.to_string(),
+                    required: Version::V2,
+                },
+                "Update `policy-version`.".to_string(),
                 None,
             ))
         }
