@@ -114,6 +114,16 @@ pub enum ErrorKind {
     Other,
 }
 
+impl core::fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::AlreadyExists => write!(f, "KeyStore error: key entry already exists"),
+            Self::Other => write!(f, "KeyStore error: internal error"),
+        }
+    }
+}
+
+
 /// An extension trait.
 pub trait KeyStoreExt: KeyStore {
     /// Retrieves and unwraps the key.

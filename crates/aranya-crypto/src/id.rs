@@ -32,7 +32,7 @@ use crate::{
 
 /// A unique cryptographic ID.
 #[repr(C)]
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize, rkyv::Archive, rkyv::Deserialize, rkyv::Serialize)]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Id([u8; 64]);
 
