@@ -61,16 +61,19 @@ struct_def = _{ "{" ~ field_definition_list? ~ "}" }
 // An effect struct definition is similar but supports the additional
 // "dynamic" keyword.
 effect_struct_def = _{ "{" ~ effect_field_definition_list? ~ "}" }
+// TODO (Steve): explain about struct composition
+struct_composition = { "..." ~ identifier }
 // A struct literal field is an identifier and an expression separated
 // by a colon. The colon marks this as defining the value of the field
 // instead of its type.
 struct_literal_field = { identifier ~ ":" ~ expression }
-// A struct literal field list is a list of struct literal fields.
-struct_literal_field_list = _{ struct_literal_field ~ ("," ~ struct_literal_field)* ~ ","? }
+struct_data = _{ (struct_literal_field | struct_composition) }
+// A struct data list is a list of struct literal fields and/or struct compositions.
+struct_data_list = _{ struct_data ~ ("," ~ struct_data)* ~ ","? }
 // A struct literal is a struct literal field list surrounded by curly
 // brackets. Note that you cannot define struct values - these are only
 // used in commands.
-struct_literal = _{ "{" ~ struct_literal_field_list? ~ "}" }
+struct_literal = _{ "{" ~ struct_data_list? ~ "}" }
 // A named struct literal begins with an identifier. Effects and
 // Command literals are named struct literals.
 named_struct_literal = { identifier ~ struct_literal }
