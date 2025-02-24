@@ -19,6 +19,8 @@ use aranya_policy_vm::{
     CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
     ValueConversionError,
 };
+use buggy::Bug;
+use spin::Mutex;
 
 use crate::shared::decode_enc_pk;
 
@@ -28,15 +30,16 @@ macro_rules! error {
 }
 
 /// An [`FfiModule`][aranya_policy_vm::ffi::FfiModule] for AFC.
-#[derive(Clone)]
 pub struct Ffi<S> {
-    store: S,
+    store: Mutex<S>,
 }
 
 impl<S: KeyStore> Ffi<S> {
     /// Creates a new FFI module.
     pub const fn new(store: S) -> Self {
-        Self { store }
+        Self {
+            store: Mutex::new(store),
+        }
     }
 
     /// Decodes a [`EncryptionPublicKey`].
@@ -75,7 +78,7 @@ function create_bidi_channel(
 ) struct AfcBidiChannel
 "#)]
     pub(crate) fn create_bidi_channel<E: Engine>(
-        &mut self,
+        &self,
         _ctx: &CommandContext<'_>,
         eng: &mut E,
         parent_cmd_id: Id,
@@ -89,6 +92,7 @@ function create_bidi_channel(
 
         let our_sk = &self
             .store
+            .lock()
             .get_key(eng, our_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
@@ -105,10 +109,13 @@ function create_bidi_channel(
 
         let key_id = peer.id().into();
         let wrapped = eng.wrap(author)?;
-        self.store.try_insert(key_id, wrapped).map_err(|err| {
-            error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
-            FfiError::KeyStore
-        })?;
+        self.store
+            .lock()
+            .try_insert(key_id, wrapped)
+            .map_err(|err| {
+                error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
+                FfiError::KeyStore
+            })?;
 
         Ok(AfcBidiChannel {
             peer_encap: peer.as_bytes().to_vec(),
@@ -128,7 +135,7 @@ function create_uni_channel(
 ) struct AfcUniChannel
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(
-        &mut self,
+        &self,
         _ctx: &CommandContext<'_>,
         eng: &mut E,
         parent_cmd_id: Id,
@@ -142,6 +149,7 @@ function create_uni_channel(
 
         let our_sk = &self
             .store
+            .lock()
             .get_key(eng, author_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
@@ -158,10 +166,13 @@ function create_uni_channel(
 
         let key_id = peer.id().into();
         let wrapped = eng.wrap(author)?;
-        self.store.try_insert(key_id, wrapped).map_err(|err| {
-            error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
-            FfiError::KeyStore
-        })?;
+        self.store
+            .lock()
+            .try_insert(key_id, wrapped)
+            .map_err(|err| {
+                error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
+                FfiError::KeyStore
+            })?;
 
         Ok(AfcUniChannel {
             peer_encap: peer.as_bytes().to_vec(),
@@ -194,6 +205,9 @@ pub(crate) enum FfiError {
     /// The keystore failed.
     #[error("keystore failure")]
     KeyStore,
+    /// Bug
+    #[error("bug: {0}")]
+    Bug(Bug),
 }
 
 impl From<FfiError> for MachineError {
@@ -215,6 +229,12 @@ impl From<ImportError> for FfiError {
 impl From<UnwrapError> for FfiError {
     fn from(err: UnwrapError) -> Self {
         Self::Crypto(err.into())
+    }
+}
+
+impl From<Bug> for FfiError {
+    fn from(bug: Bug) -> Self {
+        Self::Bug(bug)
     }
 }
 

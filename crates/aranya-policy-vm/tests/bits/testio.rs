@@ -1,6 +1,8 @@
 use std::{
+    cell::RefCell,
     collections::{btree_map, BTreeMap},
     fmt,
+    ops::DerefMut,
 };
 
 use aranya_crypto::{
@@ -19,7 +21,7 @@ pub struct TestIO {
     pub facts: BTreeMap<(String, FactKeyList), FactValueList>,
     pub publish_stack: Vec<(String, Vec<KVPair>)>,
     pub effect_stack: Vec<(String, Vec<KVPair>)>,
-    pub engine: DefaultEngine<Rng, DefaultCipherSuite>,
+    pub engine: RefCell<DefaultEngine<Rng, DefaultCipherSuite>>,
     pub print_ffi: PrintFfi,
 }
 
@@ -42,7 +44,7 @@ impl TestIO {
             facts: BTreeMap::new(),
             publish_stack: vec![],
             effect_stack: vec![],
-            engine,
+            engine: RefCell::new(engine),
             print_ffi: PrintFfi {},
         }
     }
@@ -135,14 +137,18 @@ where
     }
 
     fn call(
-        &mut self,
+        &self,
         module: usize,
         procedure: usize,
         stack: &mut S,
         ctx: &CommandContext<'_>,
     ) -> Result<(), MachineError> {
         match module {
-            0 => self.print_ffi.call(procedure, stack, ctx, &mut self.engine),
+            0 => {
+                let mut engine = self.engine.borrow_mut();
+                self.print_ffi
+                    .call(procedure, stack, ctx, engine.deref_mut())
+            }
             _ => Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
                 module,
             ))),

@@ -17,6 +17,8 @@ use crate::{data::Value, Label};
 pub enum ExitReason {
     /// Execution completed without errors.
     Normal,
+    /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
+    Yield,
     /// Execution was aborted gracefully, due an error.
     Check,
     /// Execution was aborted due to an unhandled error.
@@ -35,6 +37,7 @@ impl Display for ExitReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Normal => f.write_str("normal"),
+            Self::Yield => f.write_str("yield"),
             Self::Check => f.write_str("check"),
             Self::Panic => f.write_str("panic"),
         }

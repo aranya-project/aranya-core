@@ -18,14 +18,14 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
     ffi::{FfiModule, ModuleSchema},
-    Machine,
+    Machine, Value,
 };
 use aranya_runtime::{
     memory::MemStorageProvider,
     storage::linear,
     vm_action, vm_effect,
     vm_policy::{testing::TestFfiEnvelope, VmPolicy},
-    ClientState, Engine, FfiCallable, StorageProvider,
+    ClientState, Engine, FfiCallable, StorageProvider, VmEffect,
 };
 use tempfile::tempdir;
 use test_log::test;
@@ -1414,8 +1414,10 @@ fn should_create_clients_with_args() {
     assert_eq!(effects, expected);
 }
 
+// If there are no facts when writing a fact perspective, we skip writing it and just return its prior.
+// When starting a perspective from the middle of a segment with no facts, we previously would grab the wrong fact index, by taking that prior's prior to apply 0 fact updates to it.
 #[test]
-fn test_storage_fact() {
+fn test_storage_fact_creturns_correct_index() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
     let mut test_model = RuntimeModel::new(basic_clients);
 
@@ -1444,4 +1446,76 @@ fn test_storage_fact() {
         test_model.sync(Graph::X, User::A, User::B).unwrap();
         test_model.sync(Graph::X, User::B, User::A).unwrap();
     }
+}
+
+// Ensure multiple commands are all published, and each command has the correct parent ID.
+#[test]
+fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &'static str> {
+    // Create our client factory, this will be responsible for creating all our clients.
+    let basic_clients =
+        BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
+    // Create a new model with our client factory.
+    let mut test_model = RuntimeModel::new(basic_clients);
+
+    // Create our first client.
+    test_model
+        .add_client(User::A)
+        .expect("Should create a client");
+
+    let nonce = 1;
+    // Create a graph for client A.
+    test_model
+        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .expect("Should create a graph");
+
+    // Issue the 'publish_multiple_commands' action. It will publish 3 Link commands
+    // that each will emit a 'Relationship' effect
+    let effects = test_model
+        .action(User::A, Graph::X, vm_action!(publish_multiple_commands()))
+        .expect("Should return effect");
+
+    // Ensure that only 'Relationship' effects are emitted as a result of issuing
+    // a 'publish_multiple_commands' action
+    assert!(effects.iter().all(|eff| eff.name == "Relationship"));
+
+    let [ref eff1, ref eff2, ref eff3] = effects[..] else {
+        return Err(
+            "Three effects are not emitted as a result of calling 'publish_multiple_commands'",
+        );
+    };
+
+    let retrieve_id = |field_name, eff: &VmEffect| {
+        eff.fields
+            .iter()
+            .find_map(|pair| {
+                let (k, v) = (pair.key(), pair.value());
+
+                if k == field_name {
+                    match v {
+                        Value::Id(id) => Some(*id),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            })
+            .ok_or("Relationship effect is missing a field")
+    };
+    let mut expected_parent_id = eff1.command.into_id();
+    for eff in [eff2, eff3] {
+        // command's id and its parent_id must be different
+        assert_ne!(eff.command.into_id(), retrieve_id("parent_id", eff)?);
+
+        // Observe that the actual 'parent_id' of the command that created this effect
+        // is equal to the expected 'parent_id'
+        let actual_parent_id = retrieve_id("parent_id", eff)?;
+        assert_eq!(expected_parent_id, actual_parent_id);
+
+        // Update the expected 'parent_id' with the 'command_id' of the command that created the
+        // current effect so that it can be used in the next loop iteration
+        let current_command_id = retrieve_id("command_id", eff)?;
+        expected_parent_id = current_command_id;
+    }
+
+    Ok(())
 }
