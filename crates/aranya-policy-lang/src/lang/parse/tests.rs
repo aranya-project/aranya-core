@@ -545,6 +545,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                     String::from("count"),
                                     Expression::Identifier(String::from("x")),
                                 )],
+                                sources: vec![],
                             }),
                         }),
                         227,
@@ -800,6 +801,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                             Expression::Identifier(String::from("count")),
                                         ),
                                     ],
+                                    sources: vec![],
                                 },)),
                                 1320
                             ),
@@ -921,6 +923,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                             Expression::Identifier(String::from("count")),
                                         ),
                                     ],
+                                    sources: vec![],
                                 },)),
                                 1825
                             ),
@@ -1121,7 +1124,7 @@ fn parse_struct() {
         }
 
         function convert(foo struct Foo) struct Bar {
-            return Bar {y: foo.x}
+            return Bar {...baz, y: foo.x, ...thud}
         }
     "#
     .trim();
@@ -1161,6 +1164,7 @@ fn parse_struct() {
                                     String::from("x")
                                 )
                             )],
+                            sources: vec![String::from("baz"), String::from("thud")],
                         })
                     }),
                     108
@@ -1542,6 +1546,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                                 (String::from("b"), Expression::Identifier(String::from("b")),),
                                 (String::from("c"), Expression::Identifier(String::from("c")),),
                             ],
+                            sources: vec![],
                         })),
                         183,
                     ),

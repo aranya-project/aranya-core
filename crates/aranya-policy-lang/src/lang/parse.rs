@@ -40,11 +40,11 @@ struct PairContext<'a> {
 
 impl<'a> PairContext<'a> {
     fn location_error(&self) -> ParseError {
-        ParseError::new(
-            ParseErrorKind::Unknown,
-            format!("{:?}", &self.span),
-            Some(self.span),
-        )
+        self.location_error_with_kind(ParseErrorKind::Unknown)
+    }
+
+    fn location_error_with_kind(&self, kind: ParseErrorKind) -> ParseError {
+        ParseError::new(kind, format!("{:?}", &self.span), Some(self.span))
     }
 
     /// Returns the next token from the interior Pairs in case you want
@@ -304,8 +304,12 @@ impl<'a> ChunkParser<'a> {
         let identifier = pc.consume_identifier()?;
 
         // key/expression pairs follow the identifier
-        let fields = self.parse_kv_literal_fields(pc.into_inner())?;
-        Ok(ast::NamedStruct { identifier, fields })
+        let (fields, sources) = self.parse_struct_data(pc.into_inner())?;
+        Ok(ast::NamedStruct {
+            identifier,
+            fields,
+            sources,
+        })
     }
 
     fn parse_function_call(
@@ -640,25 +644,33 @@ impl<'a> ChunkParser<'a> {
         ))
     }
 
-    /// Parses a list of Rule::struct_literal_field items into (String,
-    /// Expression) pairs.
-    ///
-    /// This is used any place where something looks like a struct literal -
-    /// fact key/values, publish, and effects.
-    fn parse_kv_literal_fields(
+    /// Parses a list of Rule::struct_data items into lists of (String,
+    /// Expression) pairs and Strings for literal fields and struct compositions, respectively.
+    fn parse_struct_data(
         &mut self,
         fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(String, Expression)>, ParseError> {
-        let mut out = vec![];
+    ) -> Result<(Vec<(String, Expression)>, Vec<String>), ParseError> {
+        let mut field_expressions = vec![];
+        let mut sources = vec![];
 
         for field in fields {
+            let rule_kind = field.as_rule();
             let pc = descend(field);
-            let identifier = pc.consume_identifier()?;
-            let expression = pc.consume_expression(self)?;
-            out.push((identifier, expression));
+            match rule_kind {
+                Rule::struct_literal_field => {
+                    let identifier = pc.consume_identifier()?;
+                    let expression = pc.consume_expression(self)?;
+                    field_expressions.push((identifier, expression));
+                }
+                Rule::struct_composition => {
+                    let identifier = pc.consume_identifier()?;
+                    sources.push(identifier);
+                }
+                _ => return Err(pc.location_error_with_kind(ParseErrorKind::Syntax)),
+            }
         }
 
-        Ok(out)
+        Ok((field_expressions, sources))
     }
 
     fn parse_fact_literal_fields(
