@@ -116,7 +116,7 @@
       "graph": 0,
       "client": 1,
       "from": 0,
-      "must_send": 3,
+      "must_send": 1,
       "must_receive": null,
       "max_syncs": 1
     }
@@ -126,7 +126,7 @@
       "graph": 0,
       "client": 0,
       "from": 1,
-      "must_send": 1,
+      "must_send": 100,
       "must_receive": null,
       "max_syncs": 1
     }
@@ -142,7 +142,7 @@
       "graph": 0,
       "client": 1,
       "from": 0,
-      "must_send": 2,
+      "must_send": 10,
       "must_receive": null,
       "max_syncs": 1
     }
@@ -152,7 +152,7 @@
       "graph": 0,
       "client": 1,
       "from": 0,
-      "must_send": 2,
+      "must_send": 1,
       "must_receive": null,
       "max_syncs": 1
     }
@@ -180,7 +180,7 @@
   {
     "AddExpectations": {
       "expectation": 1,
-      "repeat": 101
+      "repeat": 100
     }
   },
   {
@@ -188,9 +188,33 @@
       "graph": 0,
       "client": 2,
       "from": 1,
-      "must_send": 5,
+      "must_send": 11,
       "must_receive": null,
       "max_syncs": 2
+    }
+  },
+  {
+    "AddExpectations": {
+      "expectation": 1,
+      "repeat": 1
+    }
+  },
+  {
+    "Sync": {
+      "graph": 0,
+      "client": 2,
+      "from": 1,
+      "must_send": 3,
+      "must_receive": null,
+      "max_syncs": 2
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 2,
+      "clientb": 1,
+      "graph": 0,
+      "equal": true
     }
   },
   {

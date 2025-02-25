@@ -70,7 +70,7 @@ fn test_bytes() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -134,7 +134,7 @@ fn test_structs() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -193,7 +193,7 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -220,7 +220,7 @@ fn test_invalid_struct_field() -> anyhow::Result<()> {
 
 #[test]
 fn test_action() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V1)?;
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
 
     let name = "foo";
     let module = Compiler::new(&policy)
@@ -249,7 +249,7 @@ fn test_action() -> anyhow::Result<()> {
 
 #[test]
 fn test_action_wrong_args() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V1)?;
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
 
     let name = "foo";
     let module = Compiler::new(&policy).compile()?;
@@ -296,7 +296,7 @@ fn test_action_wrong_args() -> anyhow::Result<()> {
 
 #[test]
 fn test_action_call_action() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1, Version::V1).expect("should parse");
+    let policy = parse_policy_str(TEST_POLICY_1, Version::V2).expect("should parse");
     let module = Compiler::new(&policy).compile().expect("should compile");
     let machine = Machine::from_module(module).expect("should create machine");
     let io = RefCell::new(TestIO::new());
@@ -333,7 +333,7 @@ fn test_action_call_action() -> anyhow::Result<()> {
 
 #[test]
 fn test_command_policy() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V1)?;
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
 
     let name = "Foo";
     let module = Compiler::new(&policy)
@@ -364,7 +364,7 @@ fn test_command_policy() -> anyhow::Result<()> {
 
 #[test]
 fn test_command_invalid_this() {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V1).expect("should parse");
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2).expect("should parse");
 
     let name = "Foo";
     let module = Compiler::new(&policy)
@@ -442,7 +442,7 @@ fn test_command_invalid_this() {
 
 #[test]
 fn test_seal() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V1)?;
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
 
     let name = "Foo";
     let module = Compiler::new(&policy)
@@ -474,7 +474,7 @@ fn test_seal() -> anyhow::Result<()> {
 
 #[test]
 fn test_open() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V1)?;
+    let policy = parse_policy_str(TEST_POLICY_1.trim(), Version::V2)?;
 
     let name = "Foo";
     let module = Compiler::new(&policy)
@@ -499,7 +499,7 @@ fn test_open() -> anyhow::Result<()> {
 
 #[test]
 fn test_fact_create_delete() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V1)?;
+    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V2)?;
 
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -538,7 +538,7 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
 
 #[test]
 fn test_fact_query() -> anyhow::Result<()> {
-    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V1)?;
+    let policy = parse_policy_str(TEST_POLICY_2.trim(), Version::V2)?;
 
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -609,7 +609,7 @@ fn test_fact_exists() -> anyhow::Result<()> {
     }
     "#;
 
-    let policy = parse_policy_str(text.trim(), Version::V1)?;
+    let policy = parse_policy_str(text.trim(), Version::V2)?;
 
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
@@ -698,7 +698,7 @@ fn test_counting() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text.trim(), Version::V1)?;
+    let policy = parse_policy_str(text.trim(), Version::V2)?;
 
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
@@ -809,7 +809,7 @@ fn test_fact_function_return() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -907,7 +907,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
@@ -954,7 +954,7 @@ fn test_not_operator() -> anyhow::Result<()> {
             check !false
         }
     "#,
-        Version::V1,
+        Version::V2,
     )?;
 
     let name = "test";
@@ -979,7 +979,7 @@ fn test_if_true() -> anyhow::Result<()> {
     "#;
 
     let name = "foo";
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action(name);
     let module = Compiler::new(&policy)
@@ -1005,7 +1005,7 @@ fn test_if_false() -> anyhow::Result<()> {
     "#;
 
     let name = "foo";
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action(name);
     let module = Compiler::new(&policy)
@@ -1048,7 +1048,7 @@ fn test_if_branches() -> anyhow::Result<()> {
     "#;
 
     let name = "foo";
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let ctx = dummy_ctx_action(name);
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -1076,7 +1076,7 @@ fn test_if_branches() -> anyhow::Result<()> {
 #[test]
 fn test_match_first() -> anyhow::Result<()> {
     let name = "foo";
-    let policy = parse_policy_str(POLICY_MATCH, Version::V1)?;
+    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action(name);
     let module = Compiler::new(&policy).compile()?;
@@ -1098,7 +1098,7 @@ fn test_match_first() -> anyhow::Result<()> {
 #[test]
 fn test_match_second() -> anyhow::Result<()> {
     let name = "foo";
-    let policy = parse_policy_str(POLICY_MATCH, Version::V1)?;
+    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
@@ -1120,7 +1120,7 @@ fn test_match_second() -> anyhow::Result<()> {
 #[test]
 fn test_match_none() -> anyhow::Result<()> {
     let name = "foo";
-    let policy = parse_policy_str(POLICY_MATCH, Version::V1)?;
+    let policy = parse_policy_str(POLICY_MATCH, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
@@ -1155,7 +1155,7 @@ fn test_match_alternation() -> anyhow::Result<()> {
             }
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
@@ -1195,7 +1195,7 @@ fn test_match_default() -> anyhow::Result<()> {
         }
     "#;
     let name = "foo";
-    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
@@ -1227,7 +1227,7 @@ fn test_match_return() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
@@ -1241,7 +1241,7 @@ fn test_match_return() -> anyhow::Result<()> {
 #[test]
 fn test_is_some_statement() -> anyhow::Result<()> {
     let name = "check_none";
-    let policy = parse_policy_str(POLICY_IS, Version::V1)?;
+    let policy = parse_policy_str(POLICY_IS, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
@@ -1264,7 +1264,7 @@ fn test_is_some_statement() -> anyhow::Result<()> {
 #[test]
 fn test_is_none_statement() -> anyhow::Result<()> {
     let name = "check_none";
-    let policy = parse_policy_str(POLICY_IS, Version::V1)?;
+    let policy = parse_policy_str(POLICY_IS, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
@@ -1299,7 +1299,7 @@ fn test_negative_numeric_expression() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -1337,7 +1337,7 @@ fn test_negative_logical_expression() -> anyhow::Result<()> {
     }
     "#;
     let name = "foo";
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action(name);
     let module = Compiler::new(&policy)
@@ -1359,7 +1359,7 @@ fn test_negative_overflow_numeric_expression() -> anyhow::Result<()> {
     }
     "#;
     let name = "check_overflow";
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let ctx = dummy_ctx_action(name);
     let module = Compiler::new(&policy)
@@ -1395,7 +1395,7 @@ fn test_pure_function() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -1444,7 +1444,7 @@ fn test_finish_function() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -1505,7 +1505,7 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
         ],
     );
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -1575,7 +1575,7 @@ fn test_check_unwrap() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -1638,7 +1638,7 @@ fn test_envelope_in_policy_and_recall() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
@@ -1706,7 +1706,7 @@ fn test_debug_assert() -> anyhow::Result<()> {
     }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy).debug(true).compile()?;
     let machine = Machine::from_module(module)?;
@@ -1815,7 +1815,7 @@ fn test_global_let_statements() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -1913,7 +1913,7 @@ fn test_enum_reference() -> anyhow::Result<()> {
 
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
@@ -2019,7 +2019,7 @@ policy {
 }
 "#
         .trim(),
-        Version::V1,
+        Version::V2,
     )
     .unwrap();
 
@@ -2045,7 +2045,7 @@ fn test_ffi_fail_without_use() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let result = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()
@@ -2098,7 +2098,7 @@ fn test_map() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
         .compile()?;
@@ -2172,7 +2172,7 @@ fn test_optional_type_validation() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V1)?;
+    let policy = parse_policy_str(text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
@@ -2270,7 +2270,7 @@ fn test_block_expression() -> anyhow::Result<()> {
     "#
     .trim();
 
-    let policy = parse_policy_str(policy_text, Version::V1)?;
+    let policy = parse_policy_str(policy_text, Version::V2)?;
     let io = RefCell::new(TestIO::new());
     let module = Compiler::new(&policy)
         .ffi_modules(TestIO::FFI_SCHEMAS)
