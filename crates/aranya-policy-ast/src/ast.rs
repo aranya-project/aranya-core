@@ -186,6 +186,8 @@ pub struct NamedStruct {
     pub identifier: String,
     /// The fields, which are pairs of identifiers and expressions
     pub fields: Vec<(String, Expression)>,
+    /// sources is a list of identifiers
+    pub sources: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
