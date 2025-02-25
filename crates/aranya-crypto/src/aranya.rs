@@ -415,7 +415,6 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         let info = tuple_hash::<CS::Hash, _>([
             "GroupKey".as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            CS::ID.as_bytes(),
             group.as_bytes(),
         ]);
         let mut ctx =
@@ -454,7 +453,6 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
         let info = tuple_hash::<CS::Hash, _>([
             "GroupKey".as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            CS::ID.as_bytes(),
             group.as_bytes(),
         ]);
         let (enc, mut ctx) =

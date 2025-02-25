@@ -185,7 +185,6 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         tuple_hash::<CS::Hash, _>([
             Self::LABEL,
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            CS::ID.as_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.our_id.as_bytes(),
             self.their_id.as_bytes(),
@@ -201,7 +200,6 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         tuple_hash::<CS::Hash, _>([
             Self::LABEL,
             &SuiteIds::from_suite::<CS>().into_bytes(),
-            CS::ID.as_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.their_id.as_bytes(),
             self.our_id.as_bytes(),
