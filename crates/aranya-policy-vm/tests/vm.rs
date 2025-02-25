@@ -1969,7 +1969,7 @@ where
 
 #[test]
 fn test_enum_parse() -> anyhow::Result<()> {
-    let policy = parse_policy_str("enum Drink { Water, Coffee }", Version::V1)?;
+    let policy = parse_policy_str("enum Drink { Water, Coffee }", Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
 
