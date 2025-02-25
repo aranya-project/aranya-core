@@ -1982,7 +1982,7 @@ impl<'a> CompileState<'a> {
                     // Drop expression value (It's still around because of the Dup)
                     self.append_instruction(Instruction::Pop);
 
-                    self.compile_statements(&arm.statements, Scope::Same)?;
+                    self.compile_statements(&arm.statements, Scope::Layered)?;
 
                     // break out of match
                     self.append_instruction(Instruction::Jump(Target::Unresolved(

@@ -1600,7 +1600,7 @@ fn test_if_match_block_scope() {
         ),
     ];
     for (text, res) in cases {
-        let policy = parse_policy_str(text, Version::V1).expect("should parse");
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
         let r = Compiler::new(&policy).compile().unwrap_err().err_type;
         assert_eq!(r, res)
     }
