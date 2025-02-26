@@ -5,8 +5,8 @@ use buggy::{bug, BugExt};
 
 use crate::{
     Address, ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId,
-    Location, MergeIds, PeerCache, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink,
-    Storage, StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    Location, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink, Storage,
+    StorageError, StorageProvider, MAX_COMMAND_LENGTH,
 };
 
 /// Transaction used to receive many commands at once.
@@ -154,7 +154,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         provider: &mut SP,
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
-        request_heads: &mut PeerCache,
     ) -> Result<usize, ClientError> {
         let mut commands = commands.iter();
         let mut count: usize = 0;
@@ -180,8 +179,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                 // Command in current perspective.
                 continue;
             }
-            if let Some(loc) = self.locate(storage, command.address()?)? {
-                request_heads.add_command(storage, command.address()?, loc)?;
+            if (self.locate(storage, command.address()?)?).is_some() {
                 // Command already added.
                 continue;
             }
@@ -202,14 +200,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
                     count = count.checked_add(1).assume("must not overflow")?;
                 }
             };
-            if let Some(loc) = self.locate(storage, command.address()?)? {
-                request_heads.add_command(storage, command.address()?, loc)?;
-            }
         }
-        let head_location = storage.get_head()?;
-        let cmd_seg = storage.get_segment(head_location)?;
-        let command = cmd_seg.head()?;
-        request_heads.add_command(storage, command.address()?, head_location)?;
 
         Ok(count)
     }
@@ -627,7 +618,6 @@ mod test {
                     &mut client.provider,
                     &mut client.engine,
                     &mut NullSink,
-                    &mut PeerCache::new(),
                 )
                 .unwrap();
                 prior = Prior::Single(Address { id, max_cut: 0 });
@@ -645,7 +635,6 @@ mod test {
                         &mut self.client.provider,
                         &mut self.client.engine,
                         &mut NullSink,
-                        &mut PeerCache::new(),
                     )
                     .unwrap();
                 prev = Address { id, max_cut };
@@ -665,7 +654,6 @@ mod test {
                     &mut self.client.provider,
                     &mut self.client.engine,
                     &mut NullSink,
-                    &mut PeerCache::new(),
                 )
                 .unwrap();
             for &id in &ids[1..] {
@@ -684,7 +672,6 @@ mod test {
                         &mut self.client.provider,
                         &mut self.client.engine,
                         &mut NullSink,
-                        &mut PeerCache::new(),
                     )
                     .unwrap();
             }

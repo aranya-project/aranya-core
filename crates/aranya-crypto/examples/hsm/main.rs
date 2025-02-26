@@ -59,8 +59,6 @@ impl Csprng for HsmEngine {
 }
 
 impl CipherSuite for HsmEngine {
-    const ID: Id = Id::default();
-
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha512;
     type Kdf = rust::HkdfSha512;

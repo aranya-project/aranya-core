@@ -39,10 +39,9 @@ pub struct Id([u8; 64]);
 impl Id {
     /// Derives an [`Id`] from the hash of some data.
     pub fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Id {
-        // id = H("ID-v1" || eng_id || suites || data || tag)
+        // id = H("ID-v1" || suites || data || tag)
         tuple_hash::<CS::Hash, _>([
             "ID-v1".as_bytes(),
-            CS::ID.as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
             data,
             tag,

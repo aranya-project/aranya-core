@@ -381,7 +381,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         &mut self,
         target: &mut [u8],
         provider: &mut impl StorageProvider,
-        response_cache: &mut PeerCache,
     ) -> Result<usize, SyncError> {
         use SyncResponderState as S;
         let Some(storage_id) = self.storage_id else {
@@ -398,18 +397,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         };
         self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
         let (commands, command_data, index) = self.get_commands(provider)?;
-        let storage = match provider.get_storage(storage_id) {
-            Ok(s) => s,
-            Err(e) => {
-                self.state = S::Reset;
-                return Err(e.into());
-            }
-        };
-        for command in &commands {
-            if let Some(cmd_loc) = storage.get_location(command.address())? {
-                response_cache.add_command(storage, command.address(), cmd_loc)?;
-            }
-        }
         let mut length = 0;
         if !commands.is_empty() {
             let message = SyncType::Push {

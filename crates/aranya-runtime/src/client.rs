@@ -4,8 +4,8 @@ use buggy::{Bug, BugExt};
 use tracing::trace;
 
 use crate::{
-    Command, CommandId, Engine, EngineError, GraphId, Location, PeerCache, Perspective, Policy,
-    Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
+    Address, Command, CommandId, Engine, EngineError, GraphId, Location, PeerCache, Perspective,
+    Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 mod session;
@@ -111,16 +111,24 @@ where
         trx: &mut Transaction<SP, E>,
         sink: &mut impl Sink<E::Effect>,
         commands: &[impl Command],
-        request_heads: &mut PeerCache,
     ) -> Result<usize, ClientError> {
-        let count = trx.add_commands(
-            commands,
-            &mut self.provider,
-            &mut self.engine,
-            sink,
-            request_heads,
-        )?;
+        let count = trx.add_commands(commands, &mut self.provider, &mut self.engine, sink)?;
         Ok(count)
+    }
+
+    pub fn update_heads(
+        &mut self,
+        storage_id: GraphId,
+        addrs: impl IntoIterator<Item = Address>,
+        request_heads: &mut PeerCache,
+    ) -> Result<(), ClientError> {
+        let storage = self.provider.get_storage(storage_id)?;
+        for address in addrs {
+            if let Some(loc) = storage.get_location(address)? {
+                request_heads.add_command(storage, address, loc)?;
+            }
+        }
+        Ok(())
     }
 
     /// Performs an `action`, writing the results to `sink`.
