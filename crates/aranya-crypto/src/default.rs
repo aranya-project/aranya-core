@@ -37,8 +37,6 @@ use crate::{
 pub struct DefaultCipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
-    const ID: Id = Id::default();
-
     type Aead = crate::rust::Aes256Gcm;
     type Hash = crate::rust::Sha512;
     type Kdf = crate::rust::HkdfSha512;
@@ -47,14 +45,7 @@ impl CipherSuite for DefaultCipherSuite {
     type Signer = crate::ed25519::Ed25519;
 }
 
-/// A basic [`Engine`] implementation that wraps keys with
-/// its [`Aead`].
-///
-/// # Notes
-///
-/// It's mostly useful for tests as its [`CipherSuite::ID`]
-/// constant is all zeros and the user must store the root
-/// encryption key somewhere.
+/// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
 pub struct DefaultEngine<R: Csprng = Rng, S: CipherSuite = DefaultCipherSuite> {
     aead: S::Aead,
     rng: R,
@@ -101,8 +92,6 @@ impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
 // has to be a fixed size so that we can use `heapless`.
 #[derive(Serialize, MaxSize)]
 struct AuthData {
-    /// `Engine::Id`.
-    eng_id: Id,
     /// `Unwrapped::ID`.
     alg_id: AlgId,
     /// `<Unwrapped as Identified>::id`.
@@ -130,7 +119,6 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
         // repeat nonces.
         let nonce = Nonce::<_>::random(&mut self.rng);
         let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
-            eng_id: S::ID,
             alg_id: T::ID,
             key_id: id,
         })
@@ -165,7 +153,6 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
     {
         let mut data = key.ciphertext.clone();
         let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
-            eng_id: S::ID,
             alg_id: T::ID,
             key_id: key.id,
         })

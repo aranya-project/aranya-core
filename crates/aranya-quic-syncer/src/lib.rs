@@ -14,8 +14,9 @@ use aranya_crypto::{Csprng, Rng};
 use aranya_runtime::{
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
-    ClientError, ClientState, PeerCache, Storage as _, StorageError, SubscribeResult, SyncError,
-    SyncRequestMessage, SyncRequester, SyncResponder, SyncType, MAX_SYNC_MESSAGE_SIZE,
+    ClientError, ClientState, Command, PeerCache, StorageError, SubscribeResult, SyncError,
+    SyncRequestMessage, SyncRequester, SyncResponder, SyncType, COMMAND_RESPONSE_MAX,
+    MAX_SYNC_MESSAGE_SIZE,
 };
 use buggy::{bug, Bug, BugExt};
 use heapless::{FnvIndexMap, Vec};
@@ -230,8 +231,11 @@ where
             if let Some(cmds) = syncer.receive(&received_data)? {
                 received = cmds.len();
                 let mut trx = client.transaction(storage_id);
-                client.add_commands(&mut trx, sink, &cmds, heads)?;
+                client.add_commands(&mut trx, sink, &cmds)?;
                 client.commit(&mut trx, sink)?;
+                let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
+                    cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
+                client.update_heads(storage_id, addresses, heads)?;
                 self.push(storage_id)?;
             }
         }
@@ -342,13 +346,7 @@ where
                     Ok(_) => {
                         let response_cache = self.remote_heads.entry(address).or_default();
                         let mut client = self.client_state.lock().await;
-                        let storage = client.provider().get_storage(storage_id)?;
-                        for command in commands {
-                            // We only need to check commands that are a part of our graph.
-                            if let Some(cmd_loc) = storage.get_location(command)? {
-                                response_cache.add_command(storage, command, cmd_loc)?;
-                            }
-                        }
+                        client.update_heads(storage_id, commands, response_cache)?;
                         postcard::to_slice(&SubscribeResult::Success, target)?.len()
                     }
                     Err(_) => {
@@ -378,8 +376,11 @@ where
                             let mut trx = client.transaction(storage_id);
                             let mut sink_guard = self.sink.lock().await;
                             let sink = sink_guard.deref_mut();
-                            client.add_commands(&mut trx, sink, &cmds, response_cache)?;
+                            client.add_commands(&mut trx, sink, &cmds)?;
                             client.commit(&mut trx, sink)?;
+                            let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
+                                cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
+                            client.update_heads(storage_id, addresses, response_cache)?;
                         }
                         self.push(storage_id)?;
                     }
@@ -412,11 +413,8 @@ where
             })?;
             assert!(response_syncer.ready());
             let mut target = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
-            let len = response_syncer.push(
-                &mut target,
-                self.client_state.lock().await.provider(),
-                response_cache,
-            )?;
+            let len =
+                response_syncer.push(&mut target, self.client_state.lock().await.provider())?;
             if len > 0 {
                 if len as u64 > subscription.remaining_bytes {
                     subscription.remaining_bytes = 0;
