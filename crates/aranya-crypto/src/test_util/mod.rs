@@ -44,7 +44,6 @@ use crate::{
     subtle::{Choice, ConstantTimeEq},
     typenum::U64,
     zeroize::ZeroizeOnDrop,
-    Id,
 };
 
 #[macro_export]
@@ -350,7 +349,6 @@ where
     M: Mac<KeySize = U64, TagSize = U64>,
     S: Signer,
 {
-    const ID: Id = Id::default();
     type Aead = A;
     type Hash = H;
     type Kdf = F;

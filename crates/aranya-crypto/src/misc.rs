@@ -7,7 +7,6 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{
     ciphersuite::{CipherSuite, SuiteIds},
-    id::Id,
     keys::PublicKey,
     signer::{Signature, Signer},
 };
@@ -405,8 +404,6 @@ pub(crate) enum ExportedDataType {
 #[derive(Serialize, Deserialize, MaxSize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ExportedData<T> {
-    /// Uniquely identifies the [`Engine`].
-    eng_id: Id,
     /// Uniquely idenitifies the chosen algorithms.
     suite_id: SuiteIds,
     /// Uniquely idenitifes the type of data.
@@ -417,14 +414,13 @@ pub(crate) struct ExportedData<T> {
 
 impl<T> ExportedData<T> {
     pub(crate) fn valid_context<CS: CipherSuite>(&self, name: ExportedDataType) -> bool {
-        self.eng_id == CS::ID && self.suite_id == SuiteIds::from_suite::<CS>() && self.name == name
+        self.suite_id == SuiteIds::from_suite::<CS>() && self.name == name
     }
 }
 
 impl<'a, K: PublicKey> ExportedData<SerdeBorrowedKey<'a, K>> {
     pub(crate) fn from_key<CS: CipherSuite>(pk: &'a K, name: ExportedDataType) -> Self {
         Self {
-            eng_id: CS::ID,
             suite_id: SuiteIds::from_suite::<CS>(),
             name,
             data: SerdeBorrowedKey(pk),

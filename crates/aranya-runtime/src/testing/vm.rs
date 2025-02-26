@@ -21,7 +21,7 @@ use crate::{
 
 /// The policy used by these tests.
 pub const TEST_POLICY_1: &str = r#"---
-policy-version: 1
+policy-version: 2
 ---
 
 ```policy
@@ -558,7 +558,7 @@ fn test_sync<E, P, S>(
         .expect("dispatch sync response");
 
         if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
-            cs2.add_commands(&mut req_transaction, sink, &cmds, &mut PeerCache::new())
+            cs2.add_commands(&mut req_transaction, sink, &cmds)
                 .expect("add commands");
         };
     }

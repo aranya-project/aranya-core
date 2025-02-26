@@ -119,6 +119,17 @@ async fn test_sync_subscribe() -> Result<()> {
     for i in 0..6 {
         sink2.lock().await.add_expectation(TestEffect::Got(i));
     }
+    syncer1
+        .lock()
+        .await
+        .subscribe(
+            client1.lock().await.deref_mut(),
+            SyncRequester::new(storage_id, &mut Rng, addr1),
+            5,
+            u64::MAX,
+            addr2,
+        )
+        .await?;
     syncer2
         .lock()
         .await

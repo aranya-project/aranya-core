@@ -1,5 +1,5 @@
 ---
-policy-version: 1
+policy-version: 2
 ---
 
 This basic policy has the bare bones needed to make it function with the policy_vm.
