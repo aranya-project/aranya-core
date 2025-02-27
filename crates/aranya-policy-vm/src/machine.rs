@@ -220,21 +220,21 @@ impl Machine {
         }
     }
 
-    /// Parses an enum reference (e.g. "Color::Red") into a [Value::Enum].
+    /// Parses an enum reference (e.g. `Color::Red`) into a [`Value::Enum`].
     pub fn parse_enum(&self, value: &str) -> Result<Value, MachineError> {
         let invalid_enum_ref =
             || MachineErrorType::invalid_type("<Enum>::<Value>", value, "invalid enum reference");
         let mut parts = value.splitn(2, "::");
-        let name = parts.next().ok_or(invalid_enum_ref())?;
-        let variant = parts.next().ok_or(invalid_enum_ref())?;
+        let name = parts.next().ok_or_else(invalid_enum_ref)?;
+        let variant = parts.next().ok_or_else(invalid_enum_ref)?;
         let variants = self
             .enum_defs
             .get(name)
-            .ok_or(MachineErrorType::NotDefined(alloc::format!("enum {name}")))?;
+            .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!("enum {name}")))?;
         let int_value =
             variants
                 .get(variant)
-                .ok_or(MachineErrorType::NotDefined(alloc::format!(
+                .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!(
                     "no value `{variant}` in enum `{name}`"
                 )))?;
 
