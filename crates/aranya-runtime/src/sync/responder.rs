@@ -21,7 +21,7 @@ pub struct PeerCache {
 }
 
 impl PeerCache {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         PeerCache { heads: Vec::new() }
     }
 
