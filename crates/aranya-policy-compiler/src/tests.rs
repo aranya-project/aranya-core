@@ -1212,6 +1212,22 @@ fn test_match_arm_should_be_limited_to_literals() -> anyhow::Result<()> {
             }
         }
         "#,
+        r#"
+            struct Foo {
+                x int,
+                y string,
+            }
+            struct Bar {
+                y string
+            }
+            action foo(x struct Foo) {
+                let b = Bar { y: "y" }
+                match x {
+                    Foo { x: 10, ...b } => {}
+                    _ => {}
+                }
+            }
+        "#,
     ];
 
     for text in policies {

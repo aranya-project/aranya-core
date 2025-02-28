@@ -377,7 +377,9 @@ impl<'a> CompileState<'a> {
                 s.identifier
             ))));
         };
-        self.evaluate_sources(s, &struct_def)?;
+
+        let mut s = s.clone();
+        self.evaluate_sources(&mut s, &struct_def)?;
 
         self.append_instruction(Instruction::StructNew(s.identifier.clone()));
         for (field_name, e) in &s.fields {
@@ -2088,7 +2090,7 @@ impl<'a> CompileState<'a> {
     
     fn evaluate_sources(
         &self,
-        base_struct: &NamedStruct,
+        base_struct: &mut NamedStruct,
         base_struct_defns: &[FieldDefinition],
     ) -> Result<(), CompileError> {
         let source_types = base_struct
@@ -2151,6 +2153,19 @@ impl<'a> CompileState<'a> {
                                 }
                             })?;
 
+                        if let None = base_struct
+                            .fields
+                            .iter()
+                            .find(|(field_ident, _)| field_ident == &source_defn.identifier)
+                        {
+                            base_struct.fields.push((
+                                source_defn.identifier.clone(),
+                                Expression::Dot(
+                                    Box::new(Expression::Identifier(source_struct_name.clone())),
+                                    source_defn.identifier.clone(),
+                                ),
+                            ));
+                        }
                         e.insert(source_struct_type_name.clone());
                     }
                     Entry::Occupied(other) => {
