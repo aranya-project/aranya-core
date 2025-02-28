@@ -2153,10 +2153,10 @@ impl<'a> CompileState<'a> {
                                 }
                             })?;
 
-                        if let None = base_struct
+                        if !base_struct
                             .fields
                             .iter()
-                            .find(|(field_ident, _)| field_ident == &source_defn.identifier)
+                            .any(|(field_ident, _)| field_ident == &source_defn.identifier)
                         {
                             base_struct.fields.push((
                                 source_defn.identifier.clone(),

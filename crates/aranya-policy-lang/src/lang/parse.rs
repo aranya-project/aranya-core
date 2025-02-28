@@ -27,6 +27,8 @@ mod internal {
     pub struct PolicyParser;
 }
 
+type FieldsAndSources = (Vec<(String, Expression)>, Vec<String>);
+
 // Each of the rules in policy.pest becomes an enumerable value here
 // The core parser for policy documents
 pub use internal::{PolicyParser, Rule};
@@ -649,7 +651,7 @@ impl<'a> ChunkParser<'a> {
     fn parse_struct_data(
         &mut self,
         fields: Pairs<'_, Rule>,
-    ) -> Result<(Vec<(String, Expression)>, Vec<String>), ParseError> {
+    ) -> Result<FieldsAndSources, ParseError> {
         let mut field_expressions = vec![];
         let mut sources = vec![];
 
