@@ -373,6 +373,8 @@ impl<'a> CompileState<'a> {
                 s.identifier
             ))));
         };
+        self.evaluate_sources(s, &struct_def)?;
+
         self.append_instruction(Instruction::StructNew(s.identifier.clone()));
         for (field_name, e) in &s.fields {
             let def_field_type = &struct_def
@@ -2045,6 +2047,86 @@ impl<'a> CompileState<'a> {
     pub fn into_module(self) -> Module {
         self.m.into_module()
     }
+
+    fn evaluate_sources(
+        &self,
+        base_struct: &NamedStruct,
+        base_struct_defns: &[FieldDefinition],
+    ) -> Result<(), CompileError> {
+        let source_types = base_struct
+            .sources
+            .iter()
+            .map(|src_ident| {
+                self.identifier_types
+                    .get(src_ident)
+                    .map_err(|_| {
+                        self.err(CompileErrorType::NotDefined(format!(
+                            "Unknown identifier `{src_ident}`"
+                        )))
+                    })
+                    .map(|ident_type| (src_ident, ident_type))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let source_field_defns: Vec<_> = source_types
+            .into_iter()
+            .filter(|(_, src_type)| matches!(*src_type, Typeish::Type(_))) // Ignore identifiers with an indeterminate type
+            .map(|(ident, known_type)| match known_type {
+                Typeish::Type(VType::Struct(type_name)) => self
+                    .m
+                    .struct_defs
+                    .get(&type_name)
+                    .assume("identifier with a struct type has that struct already defined")
+                    .map_err(|err| self.err(err.into()))
+                    .map(|field_defns| (ident, field_defns, type_name)),
+                Typeish::Type(_) => Err(self.err(CompileErrorType::InvalidType(format!(
+                    "Expected `{ident}` to be a struct"
+                )))),
+                Typeish::Indeterminate => unreachable!(),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut seen = BTreeMap::new();
+        for (source_struct_name, field_defns, source_struct_type_name) in source_field_defns {
+            for source_defn in field_defns {
+                match seen.entry(&source_defn.identifier) {
+                    Entry::Vacant(e) => {
+                        base_struct_defns
+                            .iter()
+                            .find(|b_defn| b_defn.identifier == source_defn.identifier)
+                            .ok_or_else(|| {
+                                self.err(CompileErrorType::SourceStructTooManyFields(
+                                    source_struct_type_name.clone(),
+                                    base_struct.identifier.clone(),
+                                ))
+                            })
+                            .and_then(|base_struct_defn| {
+                                if base_struct_defn.field_type == source_defn.field_type {
+                                    Ok(())
+                                } else {
+                                    Err(self.err(CompileErrorType::InvalidType(format!(
+                                        "Expected field `{}` of `{}` to be a `{}`",
+                                        &source_defn.identifier,
+                                        source_struct_name,
+                                        base_struct_defn.field_type
+                                    ))))
+                                }
+                            })?;
+
+                        e.insert(source_struct_type_name.clone());
+                    }
+                    Entry::Occupied(other) => {
+                        let (struct_1, struct_2) =
+                            (source_struct_type_name.to_string(), other.get().to_string());
+                        return Err(
+                            self.err(CompileErrorType::DuplicateSourceFields(struct_1, struct_2))
+                        );
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 /// Flag for controling scope when compiling statement blocks.
@@ -2149,16 +2231,23 @@ fn expression_value(e: &Expression) -> Option<Value> {
         Expression::NamedStruct(NamedStruct {
             identifier: identfier,
             fields,
-        }) => Some(Value::Struct(Struct {
-            name: identfier.clone(),
-            fields: {
-                let mut value_fields = BTreeMap::new();
-                for field in fields {
-                    value_fields.insert(field.0.clone(), expression_value(&field.1)?);
-                }
-                value_fields
-            },
-        })),
+            sources,
+        }) => {
+            if sources.is_empty() {
+                Some(Value::Struct(Struct {
+                    name: identfier.clone(),
+                    fields: {
+                        let mut value_fields = BTreeMap::new();
+                        for field in fields {
+                            value_fields.insert(field.0.clone(), expression_value(&field.1)?);
+                        }
+                        value_fields
+                    },
+                }))
+            } else {
+                None
+            }
+        }
         Expression::EnumReference(e) => Some(Value::Enum(e.identifier.clone(), e.value.clone())),
         _ => None,
     }
