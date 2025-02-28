@@ -40,11 +40,11 @@ struct PairContext<'a> {
 
 impl<'a> PairContext<'a> {
     fn location_error(&self) -> ParseError {
-        self.location_error_with_kind(ParseErrorKind::Unknown)
-    }
-
-    fn location_error_with_kind(&self, kind: ParseErrorKind) -> ParseError {
-        ParseError::new(kind, format!("{:?}", &self.span), Some(self.span))
+        ParseError::new(
+            ParseErrorKind::Unknown,
+            format!("{:?}", &self.span),
+            Some(self.span),
+        )
     }
 
     /// Returns the next token from the interior Pairs in case you want
@@ -666,7 +666,7 @@ impl<'a> ChunkParser<'a> {
                     let identifier = pc.consume_identifier()?;
                     sources.push(identifier);
                 }
-                _ => return Err(pc.location_error_with_kind(ParseErrorKind::Syntax)),
+                _ => return Err(pc.location_error()),
             }
         }
 
