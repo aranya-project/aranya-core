@@ -1768,6 +1768,35 @@ fn test_type_errors() -> anyhow::Result<()> {
             "#,
             e: "debug assertion must be a boolean expression",
         },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x string }
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected field `x` of `b` to be a `int`",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(b bool) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected `b` to be a struct",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -1784,6 +1813,71 @@ fn test_type_errors() -> anyhow::Result<()> {
             ));
         };
         assert_eq!(s, c.e);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_struct_composition_errors() -> anyhow::Result<()> {
+    struct Case {
+        t: &'static str,
+        e: &'static str,
+    }
+    let cases = [
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool, z string}
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Struct Bar must be subset of Struct Foo",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool }
+                struct Thud { x int }
+                function baz(b struct Bar, t struct Thud) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b,
+                        ...t
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Struct Thud and Struct Bar have at least 1 field with the same name",
+        },
+    ];
+
+    for (i, c) in cases.iter().enumerate() {
+        let policy = parse_policy_str(c.t, Version::V2)?;
+        let err = Compiler::new(&policy)
+            .ffi_modules(FAKE_SCHEMA)
+            .debug(true) // forced on to enable debug_assert()
+            .compile()
+            .expect_err("Did not get error")
+            .err_type;
+        match err {
+            CompileErrorType::DuplicateSourceFields(_, _) => {}
+            CompileErrorType::SourceStructTooManyFields(_, _) => {}
+            err => {
+                return Err(anyhow!(
+                    "Did not get DuplicateSourceFields or SourceStructTooManyFields for case {i}: {err:?} ({err})"
+                ));
+            }
+        }
+
+        assert_eq!(err.to_string(), c.e);
     }
 
     Ok(())

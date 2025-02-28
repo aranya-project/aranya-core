@@ -60,6 +60,12 @@ pub enum CompileErrorType {
     /// A validation step failed
     #[error("validation failed")]
     Validation,
+    /// Source structs in struct composition have overlapping fields
+    #[error("Struct {0} and Struct {1} have at least 1 field with the same name")]
+    DuplicateSourceFields(String, String),
+    /// The source struct is not a subset of the base struct
+    #[error("Struct {0} must be subset of Struct {1}")]
+    SourceStructTooManyFields(String, String),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(#[from] Bug),
