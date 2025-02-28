@@ -1873,6 +1873,20 @@ fn test_struct_composition_errors() -> anyhow::Result<()> {
             "#,
             e: "Struct Thud and Struct Bar have at least 1 field with the same name",
         },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+
+                function baz() struct Foo {
+                    let new_foo = Foo {
+                        ...x
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "not defined: Unknown identifier `x`",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -1886,9 +1900,10 @@ fn test_struct_composition_errors() -> anyhow::Result<()> {
         match err {
             CompileErrorType::DuplicateSourceFields(_, _) => {}
             CompileErrorType::SourceStructTooManyFields(_, _) => {}
+            CompileErrorType::NotDefined(_) => {}
             err => {
                 return Err(anyhow!(
-                    "Did not get DuplicateSourceFields or SourceStructTooManyFields for case {i}: {err:?} ({err})"
+                    "Did not get DuplicateSourceFields, SourceStructTooManyFields, or NotDefined for case {i}: {err:?} ({err})"
                 ));
             }
         }
