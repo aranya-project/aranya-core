@@ -61,7 +61,8 @@ struct_def = _{ "{" ~ field_definition_list? ~ "}" }
 // An effect struct definition is similar but supports the additional
 // "dynamic" keyword.
 effect_struct_def = _{ "{" ~ effect_field_definition_list? ~ "}" }
-// TODO (Steve): explain about struct composition
+// Struct composition is shorthand for including the fields of some other
+// struct(s) when defining a struct literal
 struct_composition = { "..." ~ identifier }
 // A struct literal field is an identifier and an expression separated
 // by a colon. The colon marks this as defining the value of the field
