@@ -1854,7 +1854,7 @@ fn test_struct_composition_errors() -> anyhow::Result<()> {
                     return new_foo
                 }
             "#,
-            e: "Struct Bar must be subset of Struct Foo",
+            e: "Struct Bar must be a subset of Struct Foo",
         },
         Case {
             t: r#"
