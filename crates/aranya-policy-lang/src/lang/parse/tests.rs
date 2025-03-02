@@ -1220,6 +1220,7 @@ fn parse_struct() {
 }
 
 #[test]
+#[allow(clippy::result_large_err)]
 fn parse_struct_composition() -> Result<(), PestError<Rule>> {
     let input = "{ ...x, c: false, }";
 
