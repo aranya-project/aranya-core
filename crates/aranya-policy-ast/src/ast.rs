@@ -317,6 +317,8 @@ pub enum Expression {
     Is(Box<Expression>, bool),
     /// A block expression
     Block(Vec<AstNode<Statement>>, Box<Expression>),
+    /// A substruct expression
+    Substruct(Box<Expression>, String),
 }
 
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose

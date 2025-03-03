@@ -29,6 +29,8 @@ pub enum ParseErrorKind {
     InvalidFunctionCall,
     /// The right side of a dot operator is not an identifier.
     InvalidMember,
+    /// The right side of a substruct operator is not an identifier.
+    InvalidSubstruct,
     /// The policy version expressed in the front matter is not valid.
     InvalidVersion { found: String, required: Version },
     /// Some part of an expression is badly formed.
@@ -79,7 +81,8 @@ impl Display for ParseError {
             ParseErrorKind::InvalidMember => "Invalid member",
             ParseErrorKind::InvalidVersion { found, required } => {
                 &{ format!("Invalid policy version {found}, supported version is {required}") }
-            }
+            },
+            ParseErrorKind::InvalidSubstruct => "Invalid substruct operation",
             ParseErrorKind::Expression => "Invalid expression",
             ParseErrorKind::Syntax => "Syntax error",
             ParseErrorKind::FrontMatter => "Front matter YAML parse error",
