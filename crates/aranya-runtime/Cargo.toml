@@ -48,8 +48,16 @@ tempfile = { version = "3.9.0" }
 test-log = { workspace = true }
 tracing-subscriber = { workspace = true, default-features = true } # affects features used by test-log
 
+[[bench]]
+name = "vm"
+path = "benches/vm.rs"
+harness = false
+required-features = ["bench"]
+
 [features]
 default = []
+
+bench = ["aranya-policy-vm/bench"]
 
 # Enable `libc`.
 libc = [
