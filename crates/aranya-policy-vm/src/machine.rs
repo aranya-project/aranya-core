@@ -231,12 +231,9 @@ impl Machine {
             .enum_defs
             .get(name)
             .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!("enum {name}")))?;
-        let int_value =
-            variants
-                .get(variant)
-                .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!(
-                    "no value `{variant}` in enum `{name}`"
-                )))?;
+        let int_value = variants.get(variant).ok_or_else(|| {
+            MachineErrorType::NotDefined(alloc::format!("no value `{variant}` in enum `{name}`"))
+        })?;
 
         Ok(Value::Enum(name.to_owned(), *int_value))
     }
