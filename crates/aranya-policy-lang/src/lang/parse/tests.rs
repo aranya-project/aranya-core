@@ -1639,6 +1639,17 @@ fn test_if_statement() -> anyhow::Result<()> {
 }
 
 #[test]
+fn if_expression() {
+    let text = r#"
+        action test() {
+            // let a = if true { 1 } not allowed
+            let b = if true { 1 } else { 0 }
+        }
+    "#;
+    parse_policy_str(text, Version::V2).expect("should parse");
+}
+
+#[test]
 fn test_action_call() -> anyhow::Result<()> {
     let text = r#"
     action ping() {}
@@ -1741,4 +1752,123 @@ fn test_block_expression() {
             locator: 28
         }]
     );
+}
+
+#[test]
+fn parse_match_expression() {
+    let src = r#"
+        action foo(n int) {
+            let x = match n {
+                0 => {
+                    let x = true
+                    : x
+                }
+                _ => {
+                    : false
+                }
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(&src, Version::V2).expect("should parse");
+    assert_eq!(
+        policy.actions[0].statements,
+        vec![AstNode {
+            inner: ast::Statement::Let(ast::LetStatement {
+                identifier: "x".to_string(),
+                expression: Expression::MatchExpression(
+                    Box::new(Expression::Identifier("n".to_string())),
+                    vec![
+                        AstNode::new(
+                            ast::MatchArmExpression {
+                                pattern: MatchPattern::Values(vec![Expression::Int(0)]),
+                                expression: Expression::Block(
+                                    vec![AstNode::new(
+                                        ast::Statement::Let(ast::LetStatement {
+                                            identifier: "x".to_string(),
+                                            expression: Expression::Bool(true)
+                                        }),
+                                        102
+                                    )],
+                                    Box::new(Expression::Identifier("x".to_string()))
+                                )
+                            },
+                            0
+                        ),
+                        AstNode::new(
+                            ast::MatchArmExpression {
+                                pattern: MatchPattern::Default,
+                                expression: Expression::Block(
+                                    vec![],
+                                    Box::new(Expression::Bool(false))
+                                )
+                            },
+                            0
+                        )
+                    ]
+                )
+            }),
+            locator: 41
+        }]
+    );
+}
+
+#[test]
+fn match_expression() {
+    let invalid = vec![
+        (
+            // block without subexpression (`:value`)
+            r#"action foo(string status) {
+            let x = match a {
+                "ready" => {
+                    1
+                }
+                _ => {
+                    0
+                }
+            }
+        }
+        "#,
+            ParseErrorKind::Syntax,
+        ),
+        (
+            // literal expressions are not allowed
+            r#"action foo(string status) {
+            let x = match a {
+                "ready" => 1
+                _ => 0
+            }
+        }
+        "#,
+            ParseErrorKind::Syntax,
+        ),
+        (
+            // expression not assigned
+            r#"function f(n int) bool {
+                match n {
+                    0 => {
+                        :true
+                    }
+                    1 => {
+                        : false
+                    }
+                }
+            }
+            "#,
+            ParseErrorKind::Syntax,
+        ),
+        (
+            r#"function f(n int) bool {
+                return match n {}
+            }
+            "#,
+            ParseErrorKind::Syntax,
+        ),
+    ];
+
+    // mismatched arm types (can parser detect this?)
+    for (src, expected) in invalid {
+        let err_kind = parse_policy_str(&src, Version::V2).unwrap_err().kind;
+        assert_eq!(err_kind, expected);
+    }
 }

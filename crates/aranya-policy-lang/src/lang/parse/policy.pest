@@ -152,16 +152,30 @@ at_least = { "at_least" ~ int_literal ~ fact_literal}
 at_most = { "at_most" ~ int_literal ~ fact_literal }
 // count facts, returning true if the number of facts found equals the expected number
 exactly = { "exactly" ~ int_literal ~ fact_literal }
+// Similar to the `match` statement, but resolves to a value. e.g. `let x = match { ... }`
+match_expression = { "match" ~ expression ~ "{" ~ match_arm_expr* ~ "}" }
+match_arm_expr = { (match_arm_expression | match_default) ~ "=>" ~ block_expression }
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
 // first expression.
-if_e = { "if" ~ expression ~ "{" ~ expression ~ "}" ~ "else" ~ "{" ~ expression ~ "}" }
+if_expr = { "if" ~ expression ~ "{" ~ expression ~ "}" ~ "else" ~ "{" ~ expression ~ "}" }
 // serialize() and deserialize() transform command structs to/from bytes
 serialize = { "serialize(" ~ expression ~ ")" }
 deserialize = { "deserialize(" ~ expression ~ ")" }
 // Internal functions are just expressions that have their rules that
 // don't fit into the pratt parser.
-internal_function = _{ query | exists | count_up_to | at_least | at_most | exactly | if_e | serialize | deserialize }
+internal_function = _{
+    query |
+    exists |
+    count_up_to |
+    at_least |
+    at_most |
+    exactly |
+    match_expression |
+    if_expr |
+    serialize |
+    deserialize
+}
 // A block expression is a series of statements followed by an expression
 // the statement list is separated for easier parsing
 block_statement_list = { statements* }
