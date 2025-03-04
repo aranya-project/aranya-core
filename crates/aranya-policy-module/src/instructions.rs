@@ -143,6 +143,8 @@ pub enum Instruction {
     StructSet(Identifier),
     /// Get a member from the struct
     StructGet(Identifier),
+    /// Select a subset of fields from a struct
+    Substruct(Identifier),
     // context-specific
     /// Publish a struct as a command
     Publish,
@@ -203,6 +205,7 @@ impl Display for Instruction {
             Instruction::StructNew(ident) => write!(f, "struct.new {ident}"),
             Instruction::StructSet(ident) => write!(f, "struct.set {ident}"),
             Instruction::StructGet(ident) => write!(f, "struct.get {ident}"),
+            Instruction::Substruct(ident) => write!(f, "substruct {ident}"),
             Instruction::Publish => write!(f, "publish"),
             Instruction::Create => write!(f, "create"),
             Instruction::Delete => write!(f, "delete"),

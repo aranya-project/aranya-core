@@ -74,6 +74,10 @@ pub enum MachineErrorType {
     /// invalid. E.g. a Swap(0)
     #[error("invalid instruction")]
     InvalidInstruction,
+    /// Invalid Substruct operation - The struct on the RHS of the substruct
+    /// operator is not a subset of the struct on the LHS of the substruct operator
+    #[error("invalid substruct operation")]
+    InvalidSubstruct,
     /// An instruction has done something wrong with the call stack, like
     /// `Return`ed without a `Call`.
     #[error("call stack")]
