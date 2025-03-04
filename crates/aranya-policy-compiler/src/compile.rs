@@ -819,6 +819,34 @@ impl<'a> CompileState<'a> {
                     })
                     .map_err(|e| self.err(e.into()))?
             }
+            Expression::Substruct(lhs, sub) => {
+                if !self.m.struct_defs.contains_key(sub) {
+                    return Err(self.err(CompileErrorType::NotDefined(format!(
+                        "Struct `{}` not defined",
+                        sub
+                    ))));
+                }
+
+                match self.compile_expression(lhs)? {
+                    Typeish::Type(VType::Struct(lhs_struct_name)) => {
+                        if !self.m.struct_defs.contains_key(&lhs_struct_name) {
+                            return Err(self.err(CompileErrorType::NotDefined(format!(
+                                "Struct `{lhs_struct_name}` is not defined",
+                            ))));
+                        }
+                    }
+                    Typeish::Type(_) => {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Expression to the left of the substruct operator is not a struct"
+                                .to_string(),
+                        )));
+                    }
+                    _ => {}
+                }
+
+                self.append_instruction(Instruction::Substruct(sub.clone()));
+                Typeish::Type(VType::Struct(sub.clone()))
+            }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;
                 let right_type = self.compile_expression(b)?;
