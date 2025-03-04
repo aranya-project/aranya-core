@@ -1007,6 +1007,36 @@ impl<'a> CompileState<'a> {
 
                 subexpression_type
             }
+            Expression::MatchExpression(_, arms) => {
+                // Ensure all arms have the same expression type
+                let mut expr_type: Option<Typeish> = None;
+                for arm in arms {
+                    let etype = self.compile_expression(&arm.expression)?;
+                    match expr_type {
+                        None => expr_type = Some(etype),
+                        Some(ref t) => {
+                            if !t.is_equal(&etype) {
+                                return Err(self.err(CompileErrorType::InvalidType(format!(
+                                    "match arm expression type mismatch; expected {}, got {}",
+                                    t, etype
+                                ))));
+                            }
+                        }
+                    }
+                }
+
+                // There should be at least one match arm. No-arm matches are not even syntactically-correct, but we check anyway.
+                match expr_type {
+                    Some(t) => t,
+                    None => {
+                        return Err(
+                            self.err(CompileErrorType::Missing("no match arms".to_string()))
+                        );
+                    }
+                }
+
+                // TODO implement actual branching logic
+            }
         };
 
         Ok(expression_type)
