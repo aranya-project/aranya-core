@@ -22,6 +22,7 @@ fn main() -> anyhow::Result<()> {
         .init();
 
     let in_path = Path::new("src/defs.rs");
+    println!("cargo:rerun-if-changed={}", in_path.display());
     let source = fs::read_to_string(in_path)
         .with_context(|| format!("unable to read file `{}`", in_path.display()))?;
     let cfg = Config {
