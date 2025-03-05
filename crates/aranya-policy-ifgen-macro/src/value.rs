@@ -139,6 +139,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
 
         impl ::core::convert::From<#ident> for ::aranya_policy_ifgen::Value {
             fn from(e: #ident) -> Self {
+                // TODO if variant discriminants can be set to arbitrary values, we'll need to
                 ::aranya_policy_ifgen::Value::Enum(#enum_ident.into(), e as i64)
             }
         }

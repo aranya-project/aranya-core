@@ -221,7 +221,8 @@ impl<'a> CompileState<'a> {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
                     // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
                     // then we'll need to ensure those are unique.
-                    e.insert(i64::try_from(i).expect("should set enum value to index"));
+                    let n = i64::try_from(i).assume("should set enum value to index")?;
+                    e.insert(n);
                 }
             }
         }
@@ -1751,7 +1752,7 @@ impl<'a> CompileState<'a> {
 
         // attributes
         let mut attr_values = BTreeMap::new();
-        for (name, value_expr) in command.attributes.iter() {
+        for (name, value_expr) in &command.attributes {
             match attr_values.entry(name.clone()) {
                 Entry::Vacant(e) => {
                     let value = self.expression_value(value_expr).ok_or_else(|| {
@@ -1937,8 +1938,8 @@ impl<'a> CompileState<'a> {
                 name: identfier.clone(),
                 fields: {
                     let mut value_fields = BTreeMap::new();
-                    for field in fields {
-                        value_fields.insert(field.0.clone(), self.expression_value(&field.1)?);
+                    for (value, expr) in fields {
+                        value_fields.insert(value.clone(), self.expression_value(expr)?);
                     }
                     value_fields
                 },

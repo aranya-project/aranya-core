@@ -222,11 +222,13 @@ impl Machine {
 
     /// Parses an enum reference (e.g. `Color::Red`) into a [`Value::Enum`].
     pub fn parse_enum(&self, value: &str) -> Result<Value, MachineError> {
-        let invalid_enum_ref =
-            || MachineErrorType::invalid_type("<Enum>::<Value>", value, "invalid enum reference");
-        let mut parts = value.splitn(2, "::");
-        let name = parts.next().ok_or_else(invalid_enum_ref)?;
-        let variant = parts.next().ok_or_else(invalid_enum_ref)?;
+        let Some((name, variant)) = value.split_once("::") else {
+            return Err(MachineError::new(MachineErrorType::invalid_type(
+                "<Enum>::<Variant>",
+                value,
+                "invalid enum reference",
+            )));
+        };
         let variants = self
             .enum_defs
             .get(name)

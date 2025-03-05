@@ -1975,7 +1975,7 @@ fn test_enum_parse() -> anyhow::Result<()> {
 
     assert_eq!(
         machine.parse_enum("Drink").unwrap_err().err_type,
-        MachineErrorType::invalid_type("<Enum>::<Value>", "Drink", "invalid enum reference")
+        MachineErrorType::invalid_type("<Enum>::<Variant>", "Drink", "invalid enum reference")
     );
     assert_eq!(
         machine.parse_enum("Drink::").unwrap_err().err_type,
@@ -1983,7 +1983,7 @@ fn test_enum_parse() -> anyhow::Result<()> {
     );
     assert_eq!(
         machine.parse_enum("Coffee").unwrap_err().err_type,
-        MachineErrorType::invalid_type("<Enum>::<Value>", "Coffee", "invalid enum reference")
+        MachineErrorType::invalid_type("<Enum>::<Variant>", "Coffee", "invalid enum reference")
     );
     assert_eq!(
         machine.parse_enum("Drink::Water")?,
