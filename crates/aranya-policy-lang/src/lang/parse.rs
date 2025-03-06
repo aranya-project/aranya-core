@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use aranya_policy_ast::{self as ast, AstNode, MapStatement, Version};
+use aranya_policy_ast::{self as ast, AstNode, MapStatement, MatchExpression, Version};
 use ast::{EnumDefinition, EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
@@ -664,16 +664,20 @@ impl<'a> ChunkParser<'a> {
             // Remaining tokens are policy statements
             let expression = self.parse_block_expression(pc.consume()?)?;
 
+            let locator = self.add_range(&arm)?;
             arms.push(AstNode::new(
                 ast::MatchArmExpression {
                     pattern,
                     expression,
                 },
-                0,
+                locator,
             ));
         }
 
-        Ok(Expression::MatchExpression(Box::new(expression), arms))
+        Ok(Expression::Match(Box::new(MatchExpression {
+            expression,
+            arms,
+        })))
     }
 
     fn parse_counting_fn(
