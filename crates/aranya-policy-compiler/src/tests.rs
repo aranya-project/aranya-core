@@ -2097,6 +2097,27 @@ fn test_substruct_errors() -> anyhow::Result<()> {
             "#,
             e: "not defined: Struct `Foo` not defined",
         },
+        Case {
+            t: r#"
+                command Foo {
+                    fields {
+                        x int,
+                        y bool,
+                        z string,
+                    }
+                    seal { return None }
+                    open { return None }
+                }
+                struct Bar {
+                    x int,
+                    y bool,
+                }
+                action baz(source struct Bar) {
+                    publish source substruct Foo
+                }
+            "#,
+            e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -2108,10 +2129,10 @@ fn test_substruct_errors() -> anyhow::Result<()> {
             .expect_err("Did not get error")
             .err_type;
         match err {
-            CompileErrorType::NotDefined(_) => {}
+            CompileErrorType::NotDefined(_) | CompileErrorType::InvalidSubstruct(_, _) => {}
             err => {
                 return Err(anyhow!(
-                    "Did not get NotDefined for case {i}: {err:?} ({err})"
+                    "Did not get NotDefined or InvalidSubstruct for case {i}: {err:?} ({err})"
                 ));
             }
         }

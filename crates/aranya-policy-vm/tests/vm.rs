@@ -2321,7 +2321,15 @@ fn test_substruct_error() -> anyhow::Result<()> {
             y bool,
         }
         action baz(source struct Bar) {
-            publish source substruct Foo
+            let maybe_source = if true {
+                Some source
+            } else {
+                None 
+            }
+
+            let definitely_source = unwrap maybe_source
+
+            publish definitely_source substruct Foo
         }
     "#;
     let policy = parse_policy_str(policy_str, Version::V1)?;
