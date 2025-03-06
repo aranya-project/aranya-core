@@ -820,18 +820,34 @@ impl<'a> CompileState<'a> {
                     .map_err(|e| self.err(e.into()))?
             }
             Expression::Substruct(lhs, sub) => {
-                if !self.m.struct_defs.contains_key(sub) {
-                    return Err(self.err(CompileErrorType::NotDefined(format!(
-                        "Struct `{}` not defined",
-                        sub
-                    ))));
-                }
-
                 match self.compile_expression(lhs)? {
                     Typeish::Type(VType::Struct(lhs_struct_name)) => {
-                        if !self.m.struct_defs.contains_key(&lhs_struct_name) {
+                        let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name) else {
                             return Err(self.err(CompileErrorType::NotDefined(format!(
                                 "Struct `{lhs_struct_name}` is not defined",
+                            ))));
+                        };
+
+                        let Some(sub_field_defns) = self.m.struct_defs.get(sub) else {
+                            return Err(self.err(CompileErrorType::NotDefined(format!(
+                                "Struct `{sub}` not defined"
+                            ))));
+                        };
+
+                        if !sub_field_defns
+                            .iter()
+                            .all(|field_def| lhs_field_defns.contains(field_def))
+                        {
+                            return Err(self.err(CompileErrorType::InvalidSubstruct(
+                                sub.clone(),
+                                lhs_struct_name,
+                            )));
+                        }
+                    }
+                    Typeish::Indeterminate => {
+                        if !self.m.struct_defs.contains_key(sub) {
+                            return Err(self.err(CompileErrorType::NotDefined(format!(
+                                "Struct `{sub}` not defined"
                             ))));
                         }
                     }
@@ -841,7 +857,6 @@ impl<'a> CompileState<'a> {
                                 .to_string(),
                         )));
                     }
-                    _ => {}
                 }
 
                 self.append_instruction(Instruction::Substruct(sub.clone()));
