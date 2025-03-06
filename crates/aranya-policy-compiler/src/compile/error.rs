@@ -65,7 +65,7 @@ pub enum CompileErrorType {
     DuplicateSourceFields(String, String),
     /// The source struct is not a subset of the base struct
     #[error("Struct {0} must be a subset of Struct {1}")]
-    SourceStructTooManyFields(String, String),
+    SourceStructNotSubsetOfBase(String, String),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(#[from] Bug),
