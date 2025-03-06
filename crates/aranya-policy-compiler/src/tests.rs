@@ -1899,11 +1899,11 @@ fn test_struct_composition_errors() -> anyhow::Result<()> {
             .err_type;
         match err {
             CompileErrorType::DuplicateSourceFields(_, _) => {}
-            CompileErrorType::SourceStructTooManyFields(_, _) => {}
+            CompileErrorType::SourceStructNotSubsetOfBase(_, _) => {}
             CompileErrorType::NotDefined(_) => {}
             err => {
                 return Err(anyhow!(
-                    "Did not get DuplicateSourceFields, SourceStructTooManyFields, or NotDefined for case {i}: {err:?} ({err})"
+                    "Did not get DuplicateSourceFields, SourceStructNotSubsetOfBase, or NotDefined for case {i}: {err:?} ({err})"
                 ));
             }
         }

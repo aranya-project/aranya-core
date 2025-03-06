@@ -1168,7 +1168,7 @@ fn parse_struct() {
         }
 
         function convert(foo struct Foo) struct Bar {
-            return Bar {...baz, y: foo.x, ...thud}
+            return Bar { y: foo.x, ...baz, ...thud }
         }
     "#
     .trim();
@@ -1222,7 +1222,7 @@ fn parse_struct() {
 #[test]
 #[allow(clippy::result_large_err)]
 fn parse_struct_composition() -> Result<(), PestError<Rule>> {
-    let input = "{ ...x, c: false, }";
+    let input = "{ c: false, ...x }";
 
     let struct_literal = PolicyParser::parse(Rule::struct_literal, input)?;
 

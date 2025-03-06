@@ -2093,7 +2093,7 @@ impl<'a> CompileState<'a> {
         base_struct: &mut NamedStruct,
         base_struct_defns: &[FieldDefinition],
     ) -> Result<(), CompileError> {
-        let source_types = base_struct
+        let source_field_defns = base_struct
             .sources
             .iter()
             .map(|src_ident| {
@@ -2104,25 +2104,20 @@ impl<'a> CompileState<'a> {
                             "Unknown identifier `{src_ident}`"
                         )))
                     })
-                    .map(|ident_type| (src_ident, ident_type))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let source_field_defns: Vec<_> = source_types
-            .into_iter()
-            .filter(|(_, src_type)| matches!(*src_type, Typeish::Type(_))) // Ignore identifiers with an indeterminate type
-            .map(|(ident, known_type)| match known_type {
-                Typeish::Type(VType::Struct(type_name)) => self
-                    .m
-                    .struct_defs
-                    .get(&type_name)
-                    .assume("identifier with a struct type has that struct already defined")
-                    .map_err(|err| self.err(err.into()))
-                    .map(|field_defns| (ident, field_defns, type_name)),
-                Typeish::Type(_) => Err(self.err(CompileErrorType::InvalidType(format!(
-                    "Expected `{ident}` to be a struct"
-                )))),
-                Typeish::Indeterminate => unreachable!(),
+                    .and_then(|ident_type| match ident_type {
+                        Typeish::Type(VType::Struct(type_name)) => self
+                            .m
+                            .struct_defs
+                            .get(&type_name)
+                            .assume("identifier with a struct type has that struct already defined")
+                            .map_err(|err| self.err(err.into()))
+                            .map(|field_defns| (src_ident, field_defns, type_name)),
+                        Typeish::Type(_) | Typeish::Indeterminate => {
+                            Err(self.err(CompileErrorType::InvalidType(format!(
+                                "Expected `{src_ident}` to be a struct"
+                            ))))
+                        }
+                    })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -2135,7 +2130,7 @@ impl<'a> CompileState<'a> {
                             .iter()
                             .find(|b_defn| b_defn.identifier == source_defn.identifier)
                             .ok_or_else(|| {
-                                self.err(CompileErrorType::SourceStructTooManyFields(
+                                self.err(CompileErrorType::SourceStructNotSubsetOfBase(
                                     source_struct_type_name.clone(),
                                     base_struct.identifier.clone(),
                                 ))
