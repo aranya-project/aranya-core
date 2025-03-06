@@ -1776,9 +1776,9 @@ fn parse_match_expression() {
         vec![AstNode {
             inner: ast::Statement::Let(ast::LetStatement {
                 identifier: "x".to_string(),
-                expression: Expression::MatchExpression(
-                    Box::new(Expression::Identifier("n".to_string())),
-                    vec![
+                expression: Expression::Match(Box::new(ast::MatchExpression {
+                    expression: Expression::Identifier("n".to_string()),
+                    arms: vec![
                         AstNode::new(
                             ast::MatchArmExpression {
                                 pattern: MatchPattern::Values(vec![Expression::Int(0)]),
@@ -1793,7 +1793,7 @@ fn parse_match_expression() {
                                     Box::new(Expression::Identifier("x".to_string()))
                                 )
                             },
-                            0
+                            75
                         ),
                         AstNode::new(
                             ast::MatchArmExpression {
@@ -1803,10 +1803,10 @@ fn parse_match_expression() {
                                     Box::new(Expression::Bool(false))
                                 )
                             },
-                            0
+                            173
                         )
                     ]
-                )
+                }))
             }),
             locator: 41
         }]
