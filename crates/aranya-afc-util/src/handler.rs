@@ -46,7 +46,7 @@ impl<S: KeyStore> Handler<S> {
         E: Engine,
         (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E::CS>, BidiAuthorSecret<E::CS>)>,
     {
-        if self.Device_id != effect.author_id {
+        if self.device_id != effect.author_id {
             return Err(Error::NotAuthor);
         }
 
@@ -92,7 +92,7 @@ impl<S: KeyStore> Handler<S> {
         E: Engine,
         (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E::CS>, BidiPeerEncap<E::CS>)>,
     {
-        if self.Device_id != effect.peer_id {
+        if self.device_id != effect.peer_id {
             return Err(Error::NotRecipient);
         }
 
@@ -206,8 +206,8 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
     {
-        if (self.Device_id != effect.seal_id && self.Device_id != effect.open_id)
-            || self.Device_id != effect.author_id
+        if (self.device_id != effect.seal_id && self.device_id != effect.open_id)
+            || self.device_id != effect.author_id
         {
             return Err(Error::NotAuthor);
         }
@@ -236,7 +236,7 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label.to_u32(),
         };
 
-        if self.Device_id == effect.seal_id {
+        if self.device_id == effect.seal_id {
             UniKey::new(&ch, secret, UniKey::SealOnly)
         } else {
             UniKey::new(&ch, secret, UniKey::OpenOnly)
@@ -255,8 +255,8 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
     {
-        if (self.Device_id != effect.seal_id && self.Device_id != effect.open_id)
-            || self.Device_id == effect.author_id
+        if (self.device_id != effect.seal_id && self.device_id != effect.open_id)
+            || self.device_id == effect.author_id
         {
             return Err(Error::NotRecipient);
         }
@@ -282,7 +282,7 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label.to_u32(),
         };
 
-        if self.Device_id == effect.seal_id {
+        if self.device_id == effect.seal_id {
             UniKey::new(&ch, encap, UniKey::SealOnly)
         } else {
             UniKey::new(&ch, encap, UniKey::OpenOnly)
