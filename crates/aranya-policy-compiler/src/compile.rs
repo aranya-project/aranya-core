@@ -1011,8 +1011,10 @@ impl<'a> CompileState<'a> {
                 subexpression_type
             }
             Expression::Match(e) => {
-                let expr_type = self.compile_match_statement_or_expression(Either::Second(e), 0)?;
-                expr_type.unwrap_or(Typeish::Indeterminate)
+                let expr_type = self
+                    .compile_match_statement_or_expression(Either::Second(e), 0)?
+                    .assume("match expression must return a type")?;
+                expr_type
             }
         };
 
@@ -1875,6 +1877,8 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
+    /// Compile a match statement or expression
+    /// Returns the type of the `match` is an expression, or `None` if it's a statement.
     fn compile_match_statement_or_expression(
         &mut self,
         s: Either<&MatchStatement, &MatchExpression>,

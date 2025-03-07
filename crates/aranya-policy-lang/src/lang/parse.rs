@@ -662,7 +662,7 @@ impl<'a> ChunkParser<'a> {
             };
 
             // Remaining tokens are policy statements
-            let expression = self.parse_block_expression(pc.consume()?)?;
+            let expression = self.parse_expression(pc.consume()?)?;
 
             let locator = self.add_range(&arm)?;
             arms.push(AstNode::new(

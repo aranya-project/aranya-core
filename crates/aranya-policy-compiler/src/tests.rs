@@ -1246,8 +1246,8 @@ fn test_match_expression() {
             // expression type doesn't match expected type
             r#"function f(n int) bool {
                 return match n {
-                    0 => { :1 }
-                    _ => { :0 }
+                    0 => 1
+                    _ => 0
                 }
             }"#,
             CompileErrorType::InvalidType("Return value of `f()` must be bool".to_string()),
