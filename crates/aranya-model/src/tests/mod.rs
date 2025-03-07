@@ -83,7 +83,7 @@ impl ClientFactory for BasicClientFactory {
         // Configure testing FFIs
         let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> =
             vec![Box::from(TestFfiEnvelope {
-                user: DeviceId::random(&mut Rng),
+                device: DeviceId::random(&mut Rng),
             })];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
@@ -154,7 +154,7 @@ impl ClientFactory for FfiClientFactory {
 
         // Configure FFIs
         let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-            Box::from(DeviceFfi::new(bundle.user_id)),
+            Box::from(DeviceFfi::new(bundle.device_id)),
             Box::from(EnvelopeFfi),
             Box::from(PerspectiveFfi),
             Box::from(CryptoFfi::new(
@@ -192,15 +192,15 @@ where
     }
 }
 
-/// We use an enum to automatically define unique values for different users.
+/// We use an enum to automatically define unique values for different devices.
 #[derive(Copy, Clone)]
-enum User {
+enum Device {
     A,
     B,
 }
 
-impl From<User> for ProxyClientId {
-    fn from(value: User) -> Self {
+impl From<Device> for ProxyClientId {
+    fn from(value: Device) -> Self {
         Self(value as u64)
     }
 }
@@ -232,39 +232,39 @@ fn should_create_basic_client_and_add_commands() {
 
     // Create a single client
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     let nonce = 1;
     // Add a graph to our client
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Issue our first action, it will create a fact in the FactDB.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(create_action(3)))
+        .action(Device::A, Graph::X, vm_action!(create_action(3)))
         .expect("Should return effect");
     // Observe that we get back a single effect.
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 3 })]);
 
     // Issue an action to increment the value by one.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(1)))
+        .action(Device::A, Graph::X, vm_action!(increment(1)))
         .expect("Should return effect");
     // Again we check that we receive a single effect,
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 4 })]);
 
     // We issue another action to increment the count by five this time,
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(5)))
+        .action(Device::A, Graph::X, vm_action!(increment(5)))
         .expect("Should return effect");
     // again we receive a single effect back as expected,
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 9 })]);
 
     // Now we issue an action to decrease the value by one.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(decrement(1)))
+        .action(Device::A, Graph::X, vm_action!(decrement(1)))
         .expect("Should return effect");
     // We receive a single effect back as expected,
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 8 })]);
@@ -283,12 +283,12 @@ fn should_create_client_with_ffi_and_add_commands() {
 
     // Create a single client
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     // Retrieve the public keys for our client.
     let client_public_keys = test_model
-        .get_public_keys(User::A)
+        .get_public_keys(Device::A)
         .expect("could not get public keys");
 
     // Pull off the public identity key.
@@ -304,50 +304,50 @@ fn should_create_client_with_ffi_and_add_commands() {
     test_model
         .new_graph(
             Graph::X,
-            User::A,
+            Device::A,
             vm_action!(init(nonce, client_sign_pk.clone())),
         )
         .expect("Should create a graph");
 
-    // Add client keys to the fact db. Here we call the `add_user_keys` action
+    // Add client keys to the fact db. Here we call the `add_device_keys` action
     // that takes in as arguments the public identity key and public signing key.
     test_model
         .action(
-            User::A,
+            Device::A,
             Graph::X,
-            vm_action!(add_user_keys(
+            vm_action!(add_device_keys(
                 client_ident_pk.clone(),
                 client_sign_pk.clone()
             )),
         )
-        .expect("should add user");
+        .expect("should add device");
 
     // Issue the create action, it will create a fact in the FactDB with the value
     // we pass in. Note that we no longer need to pass in the signing key, the ffi
     // policy commands will be responsible for looking up signing information.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(create_action(3)))
+        .action(Device::A, Graph::X, vm_action!(create_action(3)))
         .expect("Should return effect");
     // Observe that we get back a single effect.
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 3 })]);
 
     // Issue an action to increment the value by one.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(1)))
+        .action(Device::A, Graph::X, vm_action!(increment(1)))
         .expect("Should return effect");
     // Again we check that we receive a single effect,
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 4 })]);
 
     // We issue another action to increment the count by five this time,
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(5)))
+        .action(Device::A, Graph::X, vm_action!(increment(5)))
         .expect("Should return effect");
     // again we receive a single effect back as expected,
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 9 })]);
 
     // Now we issue an action to decrease the value by one.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(decrement(1)))
+        .action(Device::A, Graph::X, vm_action!(decrement(1)))
         .expect("Should return effect");
     // We receive a single effect back as expected,
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 8 })]);
@@ -361,15 +361,15 @@ fn should_fail_duplicate_client_ids() {
     let basic_clients =
         BasicClientFactory::new(BASIC_POLICY).expect("should create client factory");
     // Create a new model with our client factory.
-    let mut test_model = RuntimeModel::<_, User, Graph>::new(basic_clients);
+    let mut test_model = RuntimeModel::<_, Device, Graph>::new(basic_clients);
 
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     // Creating a second client with an id of one will cause an error.
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect_err("Should fail client creation if proxy_id is reused");
 }
 
@@ -385,24 +385,24 @@ fn should_fail_duplicate_graph_ids() {
 
     // Create a client
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     let nonce = 1;
     // Create the first graph with an id of one
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     let nonce = 2;
     // Creating a second graph with a proxy id of one will cause an error.
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect_err("Should fail graph creation if proxy_id is reused");
 }
 
 // The client should allow the use of multiple graphs on a single client, this
-// use case could be thought of a single user that belongs to multiple teams.
+// use case could be thought of a single device that belongs to multiple teams.
 #[test]
 fn should_allow_multiple_graphs() {
     // Create our client factory, this will be responsible for creating all our clients.
@@ -412,17 +412,17 @@ fn should_allow_multiple_graphs() {
     let mut test_model = RuntimeModel::new(basic_clients);
 
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     let nonce = 1;
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     let nonce = 2;
     test_model
-        .new_graph(Graph::Y, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::Y, Device::A, vm_action!(init(nonce)))
         .expect("Should support the ability to add multiple graphs");
 }
 
@@ -438,12 +438,12 @@ fn should_sync_ffi_clients() {
 
     // Create our first client.
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     // Retrieve the public keys for the client.
     let client_one_public_keys = test_model
-        .get_public_keys(User::A)
+        .get_public_keys(Device::A)
         .expect("could not get public keys");
 
     // Pull off the public identity key of our first client.
@@ -459,46 +459,46 @@ fn should_sync_ffi_clients() {
     test_model
         .new_graph(
             Graph::X,
-            User::A,
+            Device::A,
             vm_action!(init(nonce, client_one_sign_pk.clone())),
         )
         .expect("Should create a graph");
 
-    // Add client's keys to the fact db. Here we call the `add_user_keys` action
+    // Add client's keys to the fact db. Here we call the `add_device_keys` action
     // that takes in as arguments the public identity key and public signing key.
     test_model
         .action(
-            User::A,
+            Device::A,
             Graph::X,
-            vm_action!(add_user_keys(
+            vm_action!(add_device_keys(
                 client_one_ident_pk.clone(),
                 client_one_sign_pk.clone()
             )),
         )
-        .expect("should add user");
+        .expect("should add device");
 
     // Issue the create action, it will create a fact in the FactDB with the value
     // we pass in. Note that we no longer need to pass in the signing key, the ffi
     // policy commands will be responsible for looking up signing information.
     test_model
-        .action(User::A, Graph::X, vm_action!(create_action(3)))
+        .action(Device::A, Graph::X, vm_action!(create_action(3)))
         .expect("Should return effect");
 
     // Issue an action to increment the value by one.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(1)))
+        .action(Device::A, Graph::X, vm_action!(increment(1)))
         .expect("Should return effect");
     // Check that we receive a single effect,
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 4 })]);
 
     // Create our second client.
     test_model
-        .add_client(User::B)
+        .add_client(Device::B)
         .expect("Should create a client");
 
     // Retrieve the public keys for our second client.
     let client_two_public_keys = test_model
-        .get_public_keys(User::B)
+        .get_public_keys(Device::B)
         .expect("could not get public keys");
 
     // Pull off the public identity key of our second client.
@@ -510,59 +510,59 @@ fn should_sync_ffi_clients() {
 
     // Sync client B with client A (A -> B). Syncs are unidirectional, client
     // B will receive all the new commands it doesn't yet know about from client
-    // A. At this stage of the test, that's the init, add_user_keys, create, and
+    // A. At this stage of the test, that's the init, add_device_keys, create, and
     // increment commands.
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     // Add our client's public keys to the graph.
     test_model
         .action(
-            User::B,
+            Device::B,
             Graph::X,
-            vm_action!(add_user_keys(
+            vm_action!(add_device_keys(
                 client_two_ident_pk.clone(),
                 client_two_sign_pk.clone()
             )),
         )
-        .expect("should add user");
+        .expect("should add device");
 
-    // After our sync and user key are added, we can increase the count on our
+    // After our sync and device key are added, we can increase the count on our
     // second client
     let effects = test_model
-        .action(User::B, Graph::X, vm_action!(increment(2)))
+        .action(Device::B, Graph::X, vm_action!(increment(2)))
         .expect("Should return effect");
     // Check that we get back a single effect
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 6 })]);
 
     // Perform another increment action
     let effects = test_model
-        .action(User::B, Graph::X, vm_action!(increment(3)))
+        .action(Device::B, Graph::X, vm_action!(increment(3)))
         .expect("Should return effect");
     // check that we get back our single effect
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 9 })]);
 
     // Sync client A with client B (B -> A). Client A will receive both of
-    // our increment command as well as client B's add_user_keys command.
+    // our increment command as well as client B's add_device_keys command.
     test_model
-        .sync(Graph::X, User::B, User::A)
+        .sync(Graph::X, Device::B, Device::A)
         .expect("Should sync clients");
 
     // Increment client B after syncing with client A
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(4)))
+        .action(Device::A, Graph::X, vm_action!(increment(4)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 13 })]);
 
     // Sync client B with client A (A -> B)
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     // Increment client B after syncing with client A
     let effects = test_model
-        .action(User::B, Graph::X, vm_action!(increment(5)))
+        .action(Device::B, Graph::X, vm_action!(increment(5)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 18 })]);
 }
@@ -580,31 +580,31 @@ fn should_sync_basic_clients() {
 
     // Create our first client.
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     let nonce = 1;
     // Create a graph for client A.
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Issue the create action, it will create a fact in the FactDB with the value
     // we pass in.
     test_model
-        .action(User::A, Graph::X, vm_action!(create_action(3)))
+        .action(Device::A, Graph::X, vm_action!(create_action(3)))
         .expect("Should return effect");
 
     // Issue an action to increment the value by one.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(1)))
+        .action(Device::A, Graph::X, vm_action!(increment(1)))
         .expect("Should return effect");
     // Check that we receive a single effect,
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 4 })]);
 
     // Create our second client.
     test_model
-        .add_client(User::B)
+        .add_client(Device::B)
         .expect("Should create a client");
 
     // Sync client B with client A (A -> B). Syncs are unidirectional, client
@@ -612,40 +612,40 @@ fn should_sync_basic_clients() {
     // A. At this stage of the test, that's the init, create, and
     // increment commands.
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     // Increment client B after syncing with client A.
     let effects = test_model
-        .action(User::B, Graph::X, vm_action!(increment(2)))
+        .action(Device::B, Graph::X, vm_action!(increment(2)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 6 })]);
 
     let effects = test_model
-        .action(User::B, Graph::X, vm_action!(increment(3)))
+        .action(Device::B, Graph::X, vm_action!(increment(3)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 9 })]);
 
     // Sync client A from client B (B -> A), this has both of the increment
     // commands issued on client B.
     test_model
-        .sync(Graph::X, User::B, User::A)
+        .sync(Graph::X, Device::B, Device::A)
         .expect("Should sync clients");
 
     // Increment the count of client B after syncing with client A
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(4)))
+        .action(Device::A, Graph::X, vm_action!(increment(4)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 13 })]);
 
     // Sync client B with client A (A -> B)
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     // Increment client B after syncing with client A
     let effects = test_model
-        .action(User::B, Graph::X, vm_action!(increment(5)))
+        .action(Device::B, Graph::X, vm_action!(increment(5)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 18 })]);
 }
@@ -664,51 +664,51 @@ fn should_sync_clients_with_duplicate_payloads() {
 
     // Create our first client
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     let nonce = 1;
     // Add a graph to our client
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Issue our first action, it will create a fact in the FactDB.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(create_action(1)))
+        .action(Device::A, Graph::X, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 1 })]);
 
     // Here we want to issue a series of actions that are all identical.
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(1)))
+        .action(Device::A, Graph::X, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 2 })]);
 
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(1)))
+        .action(Device::A, Graph::X, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 3 })]);
 
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(increment(1)))
+        .action(Device::A, Graph::X, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 4 })]);
 
     // Create our second client.
     test_model
-        .add_client(User::B)
+        .add_client(Device::B)
         .expect("Should create a client");
 
     // Sync client B with client A (A -> B)
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     // Now test that all of our commands have been synced and we can increase
     // our count as expected.
     let effects = test_model
-        .action(User::B, Graph::X, vm_action!(increment(1)))
+        .action(Device::B, Graph::X, vm_action!(increment(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 5 })]);
 }
@@ -730,35 +730,35 @@ fn should_allow_multiple_instances_of_model() {
 
     // Add a client to the first model
     test_model_1
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     // Add a client to the second model
     test_model_2
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     let nonce = 1;
     // Create a graph on the first model client
     test_model_1
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Issue a create action on the first model client.
     let effects = test_model_1
-        .action(User::A, Graph::X, vm_action!(create_action(1)))
+        .action(Device::A, Graph::X, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 1 })]);
 
     // Create a graph on the second model client
     let nonce = 1;
     test_model_2
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Issue an action on the second model client
     let effects = test_model_2
-        .action(User::A, Graph::X, vm_action!(create_action(1)))
+        .action(Device::A, Graph::X, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 1 })]);
 }
@@ -779,12 +779,12 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
 
     // Add a client to the first model
     test_model_1
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     // Retrieve the public keys for our client.
     let model_one_public_keys = test_model_1
-        .get_public_keys(User::A)
+        .get_public_keys(Device::A)
         .expect("should get public keys");
 
     // Pull off the public identity key.
@@ -800,38 +800,38 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
     test_model_1
         .new_graph(
             Graph::X,
-            User::A,
+            Device::A,
             vm_action!(init(nonce, model_one_sign_pk.clone())),
         )
         .expect("Should create a graph");
 
-    // Add client keys to the fact db. Here we call the `add_user_keys` action
+    // Add client keys to the fact db. Here we call the `add_device_keys` action
     // that takes in as arguments the public identity key and signing key.
     test_model_1
         .action(
-            User::A,
+            Device::A,
             Graph::X,
-            vm_action!(add_user_keys(
+            vm_action!(add_device_keys(
                 model_one_ident_pk.clone(),
                 model_one_sign_pk.clone()
             )),
         )
-        .expect("should add user");
+        .expect("should add device");
 
     // Issue a create action on the first model client
     let effects = test_model_1
-        .action(User::A, Graph::X, vm_action!(create_action(1)))
+        .action(Device::A, Graph::X, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 1 })]);
 
     // Add a client to the second model
     test_model_2
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     // Retrieve the public keys for our client.
     let model_two_public_keys = test_model_2
-        .get_public_keys(User::A)
+        .get_public_keys(Device::A)
         .expect("should get public keys");
 
     // Pull off the public identity key.
@@ -846,7 +846,7 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
     test_model_2
         .new_graph(
             Graph::X,
-            User::A,
+            Device::A,
             vm_action!(init(nonce, model_two_sign_pk.clone())),
         )
         .expect("Should create a graph");
@@ -854,18 +854,18 @@ fn should_allow_multiple_instances_of_model_with_ffi() {
     // Add client keys to the fact db.
     test_model_2
         .action(
-            User::A,
+            Device::A,
             Graph::X,
-            vm_action!(add_user_keys(
+            vm_action!(add_device_keys(
                 model_two_ident_pk.clone(),
                 model_two_sign_pk.clone()
             )),
         )
-        .expect("should add user");
+        .expect("should add device");
 
     // Issue an action on the second model client
     let effects = test_model_2
-        .action(User::A, Graph::X, vm_action!(create_action(1)))
+        .action(Device::A, Graph::X, vm_action!(create_action(1)))
         .expect("Should return effect");
     assert_eq!(effects, [vm_effect!(StuffHappened { a: 1, x: 1 })]);
 }
@@ -884,22 +884,22 @@ fn should_send_and_receive_session_data() {
     // Create two clients, one will be used to create the session commands and
     // the other will used to receive the session commands.
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
     test_model
-        .add_client(User::B)
+        .add_client(Device::B)
         .expect("Should create a client");
 
     // Initialize the graph on client A
     let nonce = 1;
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Sync the graph with client B. Currently, ephemeral commands must be run on
     // the same graph.
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     // The session actions will create ephemeral commands that will only be
@@ -912,7 +912,7 @@ fn should_send_and_receive_session_data() {
     // ephemeral commands
     let (commands, _effects) = test_model
         .session_actions(
-            User::A,
+            Device::A,
             Graph::X,
             [
                 vm_action!(create_greeting("hello")),
@@ -926,7 +926,7 @@ fn should_send_and_receive_session_data() {
     // `session_receive` is used to receive and process the ephemeral commands
     // on a new client, in this case client B.
     let effects = test_model
-        .session_receive(User::B, Graph::X, commands)
+        .session_receive(Device::B, Graph::X, commands)
         .expect("should get effect");
 
     // Observe that our create_greeting action and our verification action
@@ -940,11 +940,11 @@ fn should_send_and_receive_session_data() {
     // Now we check the graphs and verify that our ephemeral command has not
     // been persisted to either of our client graphs.
     test_model
-        .action(User::A, Graph::X, vm_action!(verify_hello()))
+        .action(Device::A, Graph::X, vm_action!(verify_hello()))
         .expect_err("should not persist fact to the graph");
 
     test_model
-        .action(User::B, Graph::X, vm_action!(verify_hello()))
+        .action(Device::B, Graph::X, vm_action!(verify_hello()))
         .expect_err("should not persist fact to the graph");
 }
 
@@ -960,15 +960,15 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
     // Create two clients, one will be used to create the session commands and the
     // other will used to receive the session commands.
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
     test_model
-        .add_client(User::B)
+        .add_client(Device::B)
         .expect("Should create a client");
 
     // Retrieve the public keys for our client.
     let client_public_keys = test_model
-        .get_public_keys(User::A)
+        .get_public_keys(Device::A)
         .expect("could not get public keys");
 
     // Pull off the public identity key.
@@ -983,28 +983,28 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
     test_model
         .new_graph(
             Graph::X,
-            User::A,
+            Device::A,
             vm_action!(init(nonce, client_sign_pk.clone())),
         )
         .expect("Should create a graph");
 
-    // Add client keys to the fact db. Here we call the `add_user_keys` action
+    // Add client keys to the fact db. Here we call the `add_device_keys` action
     // that takes in as arguments the public identity key and public signing key.
     test_model
         .action(
-            User::A,
+            Device::A,
             Graph::X,
-            vm_action!(add_user_keys(
+            vm_action!(add_device_keys(
                 client_ident_pk.clone(),
                 client_sign_pk.clone()
             )),
         )
-        .expect("should add user");
+        .expect("should add device");
 
     // Sync the graph with client B. Currently, ephemeral commands must be run on
     // the same graph.
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     // The session actions will create ephemeral commands that will only be
@@ -1017,7 +1017,7 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
     // ephemeral commands
     let (commands, _effects) = test_model
         .session_actions(
-            User::A,
+            Device::A,
             Graph::X,
             [
                 vm_action!(create_greeting("hello")),
@@ -1031,7 +1031,7 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
     // `session_receive` is used to receive and process the ephemeral commands
     // on a new client, in this case client B.
     let effects = test_model
-        .session_receive(User::B, Graph::X, commands)
+        .session_receive(Device::B, Graph::X, commands)
         .expect("should get effect");
 
     // Observe that our create_greeting action and our verification action
@@ -1045,11 +1045,11 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
     // Now we check the graphs and verify that our ephemeral command has not
     // been persisted to either of our client graphs.
     test_model
-        .action(User::A, Graph::X, vm_action!(verify_hello()))
+        .action(Device::A, Graph::X, vm_action!(verify_hello()))
         .expect_err("should not persist fact to the graph");
 
     test_model
-        .action(User::B, Graph::X, vm_action!(verify_hello()))
+        .action(Device::B, Graph::X, vm_action!(verify_hello()))
         .expect_err("should not persist fact to the graph");
 }
 
@@ -1068,33 +1068,33 @@ fn should_allow_access_to_fact_db_from_session() {
     // Create two clients, one will be used to create session commands and the
     // other will used to receive the session commands.
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
     test_model
-        .add_client(User::B)
+        .add_client(Device::B)
         .expect("Should create a client");
 
     let nonce = 1;
     // Initialize the graph on client A.
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Create an on-graph fact to later be queried from the session command.
     let _ = test_model
-        .action(User::A, Graph::X, vm_action!(create_action(42)))
+        .action(Device::A, Graph::X, vm_action!(create_action(42)))
         .expect("Should return effect");
 
     // Sync graph with client B. Currently, ephemeral commands must be run on
     // the same graph.
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     // The first half of the model session API is used to create session commands.
     // Session actions will produce a collection of commands.
     let (commands, _effects) = test_model
-        .session_actions(User::A, Graph::X, [vm_action!(get_stuff())])
+        .session_actions(Device::A, Graph::X, [vm_action!(get_stuff())])
         .expect("Should return effect");
 
     // Send commands to client B...
@@ -1102,7 +1102,7 @@ fn should_allow_access_to_fact_db_from_session() {
     // The second half of the model session API is to receive session commands
     // and process them on our second client.
     let effects = test_model
-        .session_receive(User::B, Graph::X, commands)
+        .session_receive(Device::B, Graph::X, commands)
         .expect("should get effect");
 
     // Observe that client B receives the commands from the client A session
@@ -1124,19 +1124,19 @@ fn should_store_session_data_to_graph() {
 
     // Create client, this client will be used to create the session commands.
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     let nonce = 1;
     // Initialize the graph on client A.
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // `sessions_actions` is the portion of the session api responsible for
     // creating session commands.
     let (commands, _effects) = test_model
-        .session_actions(User::A, Graph::X, [vm_action!(create_greeting("hello"))])
+        .session_actions(Device::A, Graph::X, [vm_action!(create_greeting("hello"))])
         .expect("Should return effect");
 
     // We want to test that we can take the serialized byte command from the
@@ -1154,7 +1154,7 @@ fn should_store_session_data_to_graph() {
     // `store_session_data`.
     let effects = test_model
         .action(
-            User::A,
+            Device::A,
             Graph::X,
             vm_action!(store_session_data("say_hello", session_cmd)),
         )
@@ -1170,16 +1170,16 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     let mut test_model = RuntimeModel::new(basic_clients);
 
     // Create clients
-    test_model.add_client(User::A)?;
-    test_model.add_client(User::B)?;
+    test_model.add_client(Device::A)?;
+    test_model.add_client(Device::B)?;
 
     // Create graph and sync
-    test_model.new_graph(Graph::X, User::A, vm_action!(init(42)))?;
-    test_model.sync(Graph::X, User::A, User::B)?;
+    test_model.new_graph(Graph::X, Device::A, vm_action!(init(42)))?;
+    test_model.sync(Graph::X, Device::A, Device::B)?;
 
     // Perform actions on client A session.
     let (cmds, effects) = test_model.session_actions(
-        User::A,
+        Device::A,
         Graph::X,
         [vm_action!(create_action(5)), vm_action!(increment(3))],
     )?;
@@ -1193,7 +1193,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     );
 
     // Receive commands and perform action on client B session.
-    let mut session = test_model.session(User::B, Graph::X)?;
+    let mut session = test_model.session(Device::B, Graph::X)?;
     for cmd in cmds {
         session.receive(&cmd)?;
     }
@@ -1211,7 +1211,7 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
 
     // Receive commands from client B on a new session,
     // and then perform an action afterward.
-    let mut session = test_model.session(User::A, Graph::X)?;
+    let mut session = test_model.session(Device::A, Graph::X)?;
     session.action(vm_action!(create_action(2)))?;
     for cmd in cmds {
         session.receive(&cmd)?;
@@ -1259,9 +1259,9 @@ fn should_create_clients_with_args() {
     // the graph.
     let public_keys;
 
-    // Create first client with full key bundle (user_id and sign_id)
+    // Create first client with full key bundle (device_id and sign_id)
     test_model
-        .add_client_with(User::A, {
+        .add_client_with(Device::A, {
             // Setup keystore
             let temp_dir = tempdir().expect("should create temp directory");
             let root = temp_dir.into_path().join("client");
@@ -1287,7 +1287,7 @@ fn should_create_clients_with_args() {
 
             // Configure FFIs
             let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-                Box::from(DeviceFfi::new(bundle.user_id)),
+                Box::from(DeviceFfi::new(bundle.device_id)),
                 Box::from(EnvelopeFfi),
                 Box::from(PerspectiveFfi),
                 Box::from(CryptoFfi::new(
@@ -1318,27 +1318,27 @@ fn should_create_clients_with_args() {
     test_model
         .new_graph(
             Graph::X,
-            User::A,
+            Device::A,
             vm_action!(init(nonce, client_sign_pk.clone())),
         )
         .expect("Should create a graph");
 
-    // Add client keys to the fact db. Here we call the `add_user_keys` action
+    // Add client keys to the fact db. Here we call the `add_device_keys` action
     // that takes in as arguments the public identity key and public signing key.
     test_model
         .action(
-            User::A,
+            Device::A,
             Graph::X,
-            vm_action!(add_user_keys(
+            vm_action!(add_device_keys(
                 client_ident_pk.clone(),
                 client_sign_pk.clone()
             )),
         )
-        .expect("should add user");
+        .expect("should add device");
 
-    // Create second client with minimal key bundle (only user_id)
+    // Create second client with minimal key bundle (only device_id)
     test_model
-        .add_client_with(User::B, {
+        .add_client_with(Device::B, {
             // Setup keystore
             let temp_dir = tempdir().expect("should create temp directory");
             let root = temp_dir.into_path().join("client");
@@ -1359,7 +1359,7 @@ fn should_create_clients_with_args() {
 
             // Configure FFIs
             let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> = vec![
-                Box::from(DeviceFfi::new(bundle.user_id)),
+                Box::from(DeviceFfi::new(bundle.device_id)),
                 Box::from(EnvelopeFfi),
                 Box::from(PerspectiveFfi),
                 Box::from(CryptoFfi::new(
@@ -1381,14 +1381,14 @@ fn should_create_clients_with_args() {
 
     // Sync client B with client A (A -> B). Syncs are unidirectional, client
     // B will receive all the new commands it doesn't yet know about from client
-    // A. At this stage of the test, that's the init, add_user_keys.
+    // A. At this stage of the test, that's the init, add_device_keys.
     test_model
-        .sync(Graph::X, User::A, User::B)
+        .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
     let (commands, _effects) = test_model
         .session_actions(
-            User::A,
+            Device::A,
             Graph::X,
             [
                 vm_action!(create_greeting("hello")),
@@ -1402,7 +1402,7 @@ fn should_create_clients_with_args() {
     // `session_receive` is used to receive and process the ephemeral commands
     // on a new client, in this case client B.
     let effects = test_model
-        .session_receive(User::B, Graph::X, commands)
+        .session_receive(Device::B, Graph::X, commands)
         .expect("should get effect");
 
     // Observe that our create_greeting action and our verification action
@@ -1421,30 +1421,30 @@ fn test_storage_fact_creturns_correct_index() {
     let basic_clients = BasicClientFactory::new(BASIC_POLICY).unwrap();
     let mut test_model = RuntimeModel::new(basic_clients);
 
-    test_model.add_client(User::A).unwrap();
-    test_model.add_client(User::B).unwrap();
+    test_model.add_client(Device::A).unwrap();
+    test_model.add_client(Device::B).unwrap();
 
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(1)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(1)))
         .unwrap();
 
     test_model
-        .action(User::A, Graph::X, vm_action!(create_action(42)))
+        .action(Device::A, Graph::X, vm_action!(create_action(42)))
         .unwrap();
 
-    test_model.sync(Graph::X, User::A, User::B).unwrap();
+    test_model.sync(Graph::X, Device::A, Device::B).unwrap();
 
     for _ in 0..5 {
         for _ in 0..5 {
             test_model
-                .action(User::A, Graph::X, vm_action!(get_stuff()))
+                .action(Device::A, Graph::X, vm_action!(get_stuff()))
                 .unwrap();
             test_model
-                .action(User::B, Graph::X, vm_action!(get_stuff()))
+                .action(Device::B, Graph::X, vm_action!(get_stuff()))
                 .unwrap();
         }
-        test_model.sync(Graph::X, User::A, User::B).unwrap();
-        test_model.sync(Graph::X, User::B, User::A).unwrap();
+        test_model.sync(Graph::X, Device::A, Device::B).unwrap();
+        test_model.sync(Graph::X, Device::B, Device::A).unwrap();
     }
 }
 
@@ -1459,19 +1459,19 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
 
     // Create our first client.
     test_model
-        .add_client(User::A)
+        .add_client(Device::A)
         .expect("Should create a client");
 
     let nonce = 1;
     // Create a graph for client A.
     test_model
-        .new_graph(Graph::X, User::A, vm_action!(init(nonce)))
+        .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Issue the 'publish_multiple_commands' action. It will publish 3 Link commands
     // that each will emit a 'Relationship' effect
     let effects = test_model
-        .action(User::A, Graph::X, vm_action!(publish_multiple_commands()))
+        .action(Device::A, Graph::X, vm_action!(publish_multiple_commands()))
         .expect("Should return effect");
 
     // Ensure that only 'Relationship' effects are emitted as a result of issuing

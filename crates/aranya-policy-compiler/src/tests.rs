@@ -1021,10 +1021,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
     {
         let policy = parse_policy_str(
             r#"
-        fact User[device_id int]=>{name string, email string}
+        fact Device[device_id int]=>{name string, email string}
 
         finish function too_few() {
-            create User[device_id:1]=>{name: "bob"}
+            create Device[device_id:1]=>{name: "bob"}
         }
         "#,
             Version::V2,
@@ -1040,10 +1040,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
     {
         let policy = parse_policy_str(
             r#"
-        fact User[device_id int]=>{name string, email string}
+        fact Device[device_id int]=>{name string, email string}
 
         finish function too_few() {
-            create User[device_id:1]
+            create Device[device_id:1]
         }
         "#,
             Version::V2,
@@ -1062,10 +1062,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
 #[test]
 fn test_fact_create_too_many_values() -> anyhow::Result<()> {
     let text = r#"
-        fact User[device_id int]=>{name string}
+        fact Device[device_id int]=>{name string}
 
         finish function too_many() {
-            create User[device_id:1]=>{name: "bob", email: "bob@email.com"}
+            create Device[device_id:1]=>{name: "bob", email: "bob@email.com"}
         }
     "#;
 

@@ -16,7 +16,7 @@ use crate::{
         EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
         TopicKey, Version,
     },
-    aranya::{DeviceId, Encap, EncryptionKey, IdentityKey, SigningKey as UserSigningKey},
+    aranya::{DeviceId, Encap, EncryptionKey, IdentityKey, SigningKey as DeviceSigningKey},
     csprng::Random,
     engine::Engine,
     error::Error,
@@ -175,12 +175,12 @@ macro_rules! test_engine {
 }
 pub use test_engine;
 
-/// Simple test for [`UserSigningKey`].
+/// Simple test for [`DeviceSigningKey`].
 pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &mut E) {
     const MSG: &[u8] = b"hello, world!";
     const CONTEXT: &[u8] = b"test_simple_device_signing_key_sign";
 
-    let sign_key = UserSigningKey::<E::CS>::new(eng);
+    let sign_key = DeviceSigningKey::<E::CS>::new(eng);
 
     let sig = sign_key
         .sign(MSG, CONTEXT)
@@ -308,26 +308,26 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
         .expect_err("should fail with wrong signature");
 }
 
-/// Simple positive test for wrapping [`UserSigningKey`]s.
+/// Simple positive test for wrapping [`DeviceSigningKey`]s.
 pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &mut E) {
-    let want = UserSigningKey::new(eng);
+    let want = DeviceSigningKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
-            .expect("should be able to wrap `UserSigningKey`"),
+            .expect("should be able to wrap `DeviceSigningKey`"),
     )
-    .expect("should be able to encode wrapped `UserSigningKey`");
+    .expect("should be able to encode wrapped `DeviceSigningKey`");
     let wrapped = postcard::from_bytes(&bytes)
-        .expect("should be able to decode encoded wrapped `UserSigningKey`");
-    let got: UserSigningKey<E::CS> = eng
+        .expect("should be able to decode encoded wrapped `DeviceSigningKey`");
+    let got: DeviceSigningKey<E::CS> = eng
         .unwrap(&wrapped)
-        .expect("should be able to unwrap `UserSigningKey`");
+        .expect("should be able to unwrap `DeviceSigningKey`");
     assert_eq!(want.id(), got.id());
 }
 
 /// Simple positive test for exporting the public half of
-/// [`UserSigningKey`]s.
+/// [`DeviceSigningKey`]s.
 pub fn test_simple_export_device_signing_key<E: Engine>(eng: &mut E) {
-    let want = UserSigningKey::<E::CS>::new(eng)
+    let want = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("device signing key should be valid");
     let bytes = postcard::to_allocvec(&want).expect("should be able to encode an `VerifyingKey`");
@@ -368,7 +368,7 @@ pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &mut E) {
 pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
+    let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("author signing key should be valid");
 
@@ -409,7 +409,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
+    let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("author signing key should be valid");
 
@@ -450,10 +450,10 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author_pk1 = UserSigningKey::<E::CS>::new(eng)
+    let author_pk1 = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("author 1 signing key should be valid");
-    let author_pk2 = UserSigningKey::<E::CS>::new(eng)
+    let author_pk2 = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("author 2 signing key should be valid");
 
@@ -513,7 +513,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
 pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
 
-    let author_sign_pk = UserSigningKey::<E::CS>::new(eng)
+    let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("author signing key should be valid");
 
@@ -1223,7 +1223,7 @@ pub fn test_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
     assert_bidi_keys_mismatch(eng, ck1, ck2);
 }
 
-/// Different UserIDs should create different
+/// Different DeviceIDs should create different
 /// [`BidiKeys`].
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
@@ -1566,7 +1566,7 @@ pub fn test_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
     assert_different_uni_key(eng, ck1, ck2);
 }
 
-/// Different UserIDs should create different
+/// Different DeviceIDs should create different
 /// [`UniSealKey`] and [`UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
