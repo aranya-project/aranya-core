@@ -2307,7 +2307,7 @@ fn test_struct_composition() -> anyhow::Result<()> {
             publish Foo { x: x, ...source }
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());

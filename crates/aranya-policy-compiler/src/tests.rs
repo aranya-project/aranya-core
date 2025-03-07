@@ -1,11 +1,13 @@
 #![cfg(test)]
 
+use std::collections::BTreeMap;
+
 use anyhow::anyhow;
 use aranya_policy_ast::{FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     ffi::{self, ModuleSchema},
-    Label, LabelType, ModuleData, Value,
+    Label, LabelType, ModuleData, Struct, Value,
 };
 
 use crate::{validate::validate, CompileError, CompileErrorType, Compiler, InvalidCallColor};
@@ -1910,6 +1912,59 @@ fn test_struct_composition_errors() -> anyhow::Result<()> {
 
         assert_eq!(err.to_string(), c.e);
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_struct_composition_global_let_and_command_attributes() -> anyhow::Result<()> {
+    let policy_str = r#"
+        struct Foo {
+            x int,
+            y int
+        }
+
+        let foo = Foo { x: 10, y: 20 }
+        let foo2 = Foo { x: 1000, ...foo }
+
+        command Bar {
+            attributes {
+                foo_attr: Foo { ...foo2 },
+            }
+            seal { return None }
+            open { return None }
+            policy {
+                finish {}
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(policy_str, Version::V2)?;
+    let module = Compiler::new(&policy)
+        .ffi_modules(FAKE_SCHEMA)
+        .debug(true) // forced on to enable debug_assert()
+        .compile()?;
+
+    let ModuleData::V0(mod_data) = module.data;
+
+    let expected = Value::Struct(Struct {
+        name: "Foo".to_string(),
+        fields: BTreeMap::from([
+            ("x".to_string(), Value::Int(1000)),
+            ("y".to_string(), Value::Int(20)),
+        ]),
+    });
+
+    assert_eq!(*mod_data.globals.get("foo2").unwrap(), expected);
+    assert_eq!(
+        *mod_data
+            .command_attributes
+            .get("Bar")
+            .unwrap()
+            .get("foo_attr")
+            .unwrap(),
+        expected
+    );
 
     Ok(())
 }

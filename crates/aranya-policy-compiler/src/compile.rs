@@ -1667,9 +1667,7 @@ impl<'a> CompileState<'a> {
         let identifier = &global_let.inner.identifier;
         let expression = &global_let.inner.expression;
 
-        let value = self
-            .expression_value(expression)
-            .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(expression.clone())))?;
+        let value = self.expression_value(expression)?;
         let vt = value.vtype().expect("global let expression has weird type");
 
         match self.m.globals.entry(identifier.clone()) {
@@ -1888,9 +1886,7 @@ impl<'a> CompileState<'a> {
         for (name, value_expr) in &command.attributes {
             match attr_values.entry(name.clone()) {
                 Entry::Vacant(e) => {
-                    let value = self.expression_value(value_expr).ok_or_else(|| {
-                        self.err(CompileErrorType::InvalidExpression(value_expr.clone()))
-                    })?;
+                    let value = self.expression_value(value_expr)?;
                     e.insert(value);
                 }
                 Entry::Occupied(_) => {
@@ -1968,6 +1964,10 @@ impl<'a> CompileState<'a> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
+        for struct_def in &self.policy.structs {
+            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields)?;
+        }
+
         // Compile global let statements
         for global_let in &self.policy.global_lets {
             self.compile_global_let(global_let)?;
@@ -1977,10 +1977,6 @@ impl<'a> CompileState<'a> {
             let fields: Vec<FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
             self.define_struct(&effect.inner.identifier, &fields)?;
-        }
-
-        for struct_def in &self.policy.structs {
-            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields)?;
         }
 
         // define the structs provided by FFI schema
@@ -2059,35 +2055,54 @@ impl<'a> CompileState<'a> {
     }
 
     /// Get expression value, e.g. Expression::Int => Value::Int
-    fn expression_value(&self, e: &Expression) -> Option<Value> {
+    fn expression_value(&self, e: &Expression) -> Result<Value, CompileError> {
         match e {
-            Expression::Int(v) => Some(Value::Int(*v)),
-            Expression::Bool(v) => Some(Value::Bool(*v)),
-            Expression::String(v) => Some(Value::String(v.clone())),
-            Expression::NamedStruct(NamedStruct {
-                identifier: identfier,
-                fields,
-                sources
-            }) => if sources.is_empty() {
-                Some(Value::Struct(Struct {
-                    name: identfier.clone(),
+            Expression::Int(v) => Ok(Value::Int(*v)),
+            Expression::Bool(v) => Ok(Value::Bool(*v)),
+            Expression::String(v) => Ok(Value::String(v.clone())),
+            Expression::NamedStruct(struct_ast) => {
+                let Some(struct_def) = self.m.struct_defs.get(&struct_ast.identifier).cloned()
+                else {
+                    return Err(self.err(CompileErrorType::NotDefined(format!(
+                        "Struct `{}` not defined",
+                        struct_ast.identifier
+                    ))));
+                };
+                let mut struct_ast = struct_ast.clone();
+                self.evaluate_sources(&mut struct_ast, &struct_def)?;
+
+                let NamedStruct {
+                    identifier, fields, ..
+                } = struct_ast;
+
+                Ok(Value::Struct(Struct {
+                    name: identifier.clone(),
                     fields: {
                         let mut value_fields = BTreeMap::new();
-                        for (value, expr) in fields {
-                            value_fields.insert(value.clone(), self.expression_value(expr)?);
+                        for field in fields {
+                            value_fields.insert(field.0.clone(), self.expression_value(&field.1)?);
                         }
                         value_fields
                     },
                 }))
-            } else {
-                None
+            }
+            Expression::EnumReference(e) => self.enum_value(e),
+            Expression::Dot(expr, field_ident) => match **expr {
+                Expression::Identifier(ref struct_ident) => self
+                    .m
+                    .globals
+                    .get(struct_ident)
+                    .and_then(|val| match val {
+                        Value::Struct(Struct { fields, .. }) => fields.get(field_ident).cloned(),
+                        _ => None,
+                    })
+                    .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(e.clone()))),
+                _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
             },
-                
-            Expression::EnumReference(e) => self.enum_value(e).ok(),
-            _ => None,
+            _ => Err(self.err(CompileErrorType::InvalidExpression(e.clone()))),
         }
     }
-    
+
     fn evaluate_sources(
         &self,
         base_struct: &mut NamedStruct,
