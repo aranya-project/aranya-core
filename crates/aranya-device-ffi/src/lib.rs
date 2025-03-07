@@ -8,30 +8,30 @@ mod tests;
 
 use core::convert::Infallible;
 
-use aranya_crypto::UserId;
+use aranya_crypto::DeviceId;
 use aranya_policy_vm::{ffi::ffi, CommandContext};
 
 /// Implements the FFI `Device` module
 pub struct FfiDevice {
-    id: UserId,
+    id: DeviceId,
 }
 
 #[ffi(module = "device")]
 impl FfiDevice {
-    /// Returns the current user's UserId
-    #[ffi_export(def = r#"function current_user_id() id"#)]
-    pub(crate) fn current_user_id<E: aranya_crypto::Engine>(
+    /// Returns the current device's DeviceId
+    #[ffi_export(def = r#"function current_device_id() id"#)]
+    pub(crate) fn current_device_id<E: aranya_crypto::Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
-    ) -> Result<UserId, Infallible> {
+    ) -> Result<DeviceId, Infallible> {
         Ok(self.id)
     }
 }
 
 impl FfiDevice {
-    /// Constructor for FfiDevice that initializes it with a UserId
-    pub const fn new(id: UserId) -> Self {
+    /// Constructor for FfiDevice that initializes it with a DeviceId
+    pub const fn new(id: DeviceId) -> Self {
         FfiDevice { id }
     }
 }

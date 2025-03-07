@@ -11,8 +11,8 @@ use core::result::Result;
 use aranya_crypto::{
     self,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    CipherSuite, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
-    KeyStoreExt, UnwrapError, UserId, WrapError,
+    CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
+    KeyStoreExt, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
     ffi::{ffi, Type},
@@ -83,9 +83,9 @@ function create_bidi_channel(
         eng: &mut E,
         parent_cmd_id: Id,
         our_enc_key_id: EncryptionKeyId,
-        our_id: UserId,
+        our_id: DeviceId,
         their_enc_pk: Vec<u8>,
-        their_id: UserId,
+        their_id: DeviceId,
         label: Label,
     ) -> Result<AfcBidiChannel, FfiError> {
         let label: aranya_fast_channels::Label = label.into();
@@ -141,8 +141,8 @@ function create_uni_channel(
         parent_cmd_id: Id,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,
-        seal_id: UserId,
-        open_id: UserId,
+        seal_id: DeviceId,
+        open_id: DeviceId,
         label: Label,
     ) -> Result<AfcUniChannel, FfiError> {
         let label: aranya_fast_channels::Label = label.into();

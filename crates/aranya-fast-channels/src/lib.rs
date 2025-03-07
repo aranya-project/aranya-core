@@ -90,7 +90,7 @@
 //!     )
 //!     .map_err(Error::SharedMem)?
 //! };
-//! let user1_node_id = NodeId::new(1);
+//! let device1_node_id = NodeId::new(1);
 //!
 //! let aranya_client_b: WriteState<CS, Rng> = {
 //!     let path = Path::from_bytes(b"/afc_doc_client_b\x00")
@@ -105,15 +105,15 @@
 //!     )
 //!     .map_err(Error::SharedMem)?
 //! };
-//! let user2_node_id = NodeId::new(2);
+//! let device2_node_id = NodeId::new(2);
 //!
 //! let (mut eng, _) = E::from_entropy(Rng);
 //!
-//! let user1_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let user1_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let device1_id = IdentityKey::<CS>::new(&mut eng).id()?;
+//! let device1_enc_sk = EncryptionKey::<CS>::new(&mut eng);
 //!
-//! let user2_id = IdentityKey::<CS>::new(&mut eng).id()?;
-//! let user2_enc_sk = EncryptionKey::<CS>::new(&mut eng);
+//! let device2_id = IdentityKey::<CS>::new(&mut eng).id()?;
+//! let device2_enc_sk = EncryptionKey::<CS>::new(&mut eng);
 //!
 //! // The label used for encryption and decryption.
 //! //
@@ -123,37 +123,37 @@
 //!
 //! let ch1 = BidiChannel {
 //!     parent_cmd_id: Id::random(&mut eng),
-//!     our_sk: &user1_enc_sk,
-//!     our_id: user1_id,
-//!     their_pk: &user2_enc_sk.public()?,
-//!     their_id: user2_id,
+//!     our_sk: &device1_enc_sk,
+//!     our_id: device1_id,
+//!     their_pk: &device2_enc_sk.public()?,
+//!     their_id: device2_id,
 //!     label: TOP_SECRET.to_u32(),
 //! };
 //! let BidiSecrets { author, peer } =
 //!     BidiSecrets::new(&mut eng, &ch1)?;
 //!
-//! // Inform user1 about user2.
+//! // Inform device1 about device2.
 //! let (seal, open) = BidiKeys::from_author_secret(&ch1, author)?
 //!     .into_raw_keys();
 //! aranya_client_a.add(
-//!     ChannelId::new(user2_node_id, TOP_SECRET),
+//!     ChannelId::new(device2_node_id, TOP_SECRET),
 //!     Directed::Bidirectional { seal, open },
 //! );
 //!
 //! let ch2 = BidiChannel {
 //!     parent_cmd_id: ch1.parent_cmd_id,
-//!     our_sk: &user2_enc_sk,
-//!     our_id: user2_id,
-//!     their_pk: &user1_enc_sk.public()?,
-//!     their_id: user1_id,
+//!     our_sk: &device2_enc_sk,
+//!     our_id: device2_id,
+//!     their_pk: &device1_enc_sk.public()?,
+//!     their_id: device1_id,
 //!     label: TOP_SECRET.to_u32(),
 //! };
 //!
-//! // Inform user2 about user1.
+//! // Inform device2 about device1.
 //! let (seal, open) = BidiKeys::from_peer_encap(&ch2, peer)?
 //!     .into_raw_keys();
 //! aranya_client_b.add(
-//!     ChannelId::new(user1_node_id, TOP_SECRET),
+//!     ChannelId::new(device1_node_id, TOP_SECRET),
 //!     Directed::Bidirectional { seal, open },
 //! );
 //!
@@ -184,9 +184,9 @@
 //!
 //! const GOLDEN: &str = "hello from APS!";
 //!
-//! // Have user1 encrypt data for user2.
+//! // Have device1 encrypt data for device2.
 //! let ciphertext = {
-//!     let id = ChannelId::new(user2_node_id, TOP_SECRET);
+//!     let id = ChannelId::new(device2_node_id, TOP_SECRET);
 //!     // Encryption has a little overhead, so make sure the
 //!     // ouput buffer is large enough.
 //!     let mut dst = vec![0u8; GOLDEN.len() + Client::<ReadState<CS>>::OVERHEAD];
@@ -197,17 +197,17 @@
 //! // Here is where you'd send ciphertext over the network, or
 //! // whatever makes sense for your application.
 //!
-//! // Have user2 decrypt the data from user1.
+//! // Have device2 decrypt the data from device1.
 //! let (label, seq, plaintext) = {
 //!     let mut dst = vec![0u8; ciphertext.len() - Client::<ReadState<CS>>::OVERHEAD];
-//!     let (label, seq) = afc_client_b.open(user1_node_id, &mut dst[..], &ciphertext[..])?;
+//!     let (label, seq) = afc_client_b.open(device1_node_id, &mut dst[..], &ciphertext[..])?;
 //!     (label, seq, dst)
 //! };
 //!
 //! // At this point we can now make a decision on what to do
 //! // with plaintext based on the label. We know it came from
-//! // `user1_node_id` and we know it has the label `TOP_SECRET`.
-//! // Both of those facts (`user1_node_id` and `TOP_SECRET`)
+//! // `device1_node_id` and we know it has the label `TOP_SECRET`.
+//! // Both of those facts (`device1_node_id` and `TOP_SECRET`)
 //! // have been cryptographically verified, so we can make
 //! // decisions based on them. For example, we could forward the
 //! // plaintext data on to another system that ingests "top

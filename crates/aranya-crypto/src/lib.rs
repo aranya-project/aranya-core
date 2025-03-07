@@ -12,7 +12,7 @@
 //! engine, it's important to note that there can be multiple
 //! implementations of the cryptography engine. The cryptography
 //! engine requires a particular set of primitives, but allows
-//! users to choose their own algorithms.
+//! devices to choose their own algorithms.
 //!
 //! # Design
 //!

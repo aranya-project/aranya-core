@@ -1,4 +1,4 @@
-//! Utility routines for `userkeys` and `apq`.
+//! Utility routines for `devicekeys` and `apq`.
 
 use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
 

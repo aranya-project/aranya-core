@@ -36,7 +36,7 @@ pub struct TtcTeamCreated {
 /// OwnerAdded policy effect.
 #[effect]
 pub struct OwnerAdded {
-    pub user_id: Id,
+    pub device_id: Id,
     pub name: String,
     pub ident_pk: Vec<u8>,
     pub sign_pk: Vec<u8>,
@@ -45,7 +45,7 @@ pub struct OwnerAdded {
 /// AdminAdded policy effect.
 #[effect]
 pub struct AdminAdded {
-    pub user_id: Id,
+    pub device_id: Id,
     pub name: String,
     pub ident_pk: Vec<u8>,
     pub sign_pk: Vec<u8>,
@@ -54,7 +54,7 @@ pub struct AdminAdded {
 /// OperatorAdded policy effect.
 #[effect]
 pub struct OperatorAdded {
-    pub user_id: Id,
+    pub device_id: Id,
     pub name: String,
     pub ident_pk: Vec<u8>,
     pub sign_pk: Vec<u8>,
@@ -63,7 +63,7 @@ pub struct OperatorAdded {
 /// SatelliteAdded policy effect.
 #[effect]
 pub struct SatelliteAdded {
-    pub user_id: Id,
+    pub device_id: Id,
     pub name: String,
     pub ident_pk: Vec<u8>,
     pub sign_pk: Vec<u8>,
@@ -72,22 +72,22 @@ pub struct SatelliteAdded {
 /// OwnerRemoved policy effect.
 #[effect]
 pub struct OwnerRemoved {
-    pub user_id: Id,
+    pub device_id: Id,
 }
 /// AdminRemoved policy effect.
 #[effect]
 pub struct AdminRemoved {
-    pub user_id: Id,
+    pub device_id: Id,
 }
 /// OperatorRemoved policy effect.
 #[effect]
 pub struct OperatorRemoved {
-    pub user_id: Id,
+    pub device_id: Id,
 }
 /// SatelliteRemoved policy effect.
 #[effect]
 pub struct SatelliteRemoved {
-    pub user_id: Id,
+    pub device_id: Id,
 }
 /// AfcLabelCreated policy effect.
 #[effect]
@@ -98,7 +98,7 @@ pub struct AfcLabelCreated {
 /// AfcLabelAssigned policy effect.
 #[effect]
 pub struct AfcLabelAssigned {
-    pub user_id: Id,
+    pub device_id: Id,
     pub name: String,
     pub label: i64,
     pub op: String,
@@ -106,14 +106,14 @@ pub struct AfcLabelAssigned {
 /// AfcLabelRevoked policy effect.
 #[effect]
 pub struct AfcLabelRevoked {
-    pub user_id: Id,
+    pub device_id: Id,
     pub label: i64,
 }
 /// AfcBidiChannelCreated policy effect.
 #[effect]
 pub struct AfcBidiChannelCreated {
-    pub user1: Id,
-    pub user2: Id,
+    pub device1: Id,
+    pub device2: Id,
     pub label: i64,
 }
 /// Implements all supported policy actions.
@@ -122,14 +122,14 @@ pub trait ActorExt {
     fn create_ttc_team(
         &mut self,
         ttc_team_name: String,
-        user_name: String,
+        device_name: String,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
         enc_pk: Vec<u8>,
     ) -> Result<(), ClientError>;
     fn add_owner(
         &mut self,
-        user_id: Id,
+        device_id: Id,
         name: String,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
@@ -137,7 +137,7 @@ pub trait ActorExt {
     ) -> Result<(), ClientError>;
     fn add_admin(
         &mut self,
-        user_id: Id,
+        device_id: Id,
         name: String,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
@@ -145,7 +145,7 @@ pub trait ActorExt {
     ) -> Result<(), ClientError>;
     fn add_operator(
         &mut self,
-        user_id: Id,
+        device_id: Id,
         name: String,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
@@ -153,24 +153,24 @@ pub trait ActorExt {
     ) -> Result<(), ClientError>;
     fn add_satellite(
         &mut self,
-        user_id: Id,
+        device_id: Id,
         name: String,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
         enc_pk: Vec<u8>,
     ) -> Result<(), ClientError>;
-    fn remove_owner(&mut self, user_id: Id) -> Result<(), ClientError>;
-    fn remove_admin(&mut self, user_id: Id) -> Result<(), ClientError>;
-    fn remove_operator(&mut self, user_id: Id) -> Result<(), ClientError>;
-    fn remove_satellite(&mut self, user_id: Id) -> Result<(), ClientError>;
+    fn remove_owner(&mut self, device_id: Id) -> Result<(), ClientError>;
+    fn remove_admin(&mut self, device_id: Id) -> Result<(), ClientError>;
+    fn remove_operator(&mut self, device_id: Id) -> Result<(), ClientError>;
+    fn remove_satellite(&mut self, device_id: Id) -> Result<(), ClientError>;
     fn create_afc_label(&mut self, name: String, label: i64) -> Result<(), ClientError>;
     fn assign_afc_label(
         &mut self,
-        user_id: Id,
+        device_id: Id,
         label: i64,
         op: String,
     ) -> Result<(), ClientError>;
-    fn revoke_afc_label(&mut self, user_id: Id, label: i64) -> Result<(), ClientError>;
+    fn revoke_afc_label(&mut self, device_id: Id, label: i64) -> Result<(), ClientError>;
     fn create_afc_bidi_channel(
         &mut self,
         peer_id: Id,

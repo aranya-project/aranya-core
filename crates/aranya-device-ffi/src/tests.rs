@@ -2,17 +2,17 @@
 
 use aranya_crypto::{
     default::{DefaultEngine, Rng},
-    Id, UserId,
+    DeviceId, Id,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, OpenContext, PolicyContext, SealContext};
 
 use crate::FfiDevice;
 
 #[test]
-fn test_current_user_id() {
+fn test_current_device_id() {
     let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
-    let user_id = UserId::random(&mut Rng);
-    let device = FfiDevice { id: user_id };
+    let device_id = DeviceId::random(&mut Rng);
+    let device = FfiDevice { id: device_id };
 
     let contexts = vec![
         CommandContext::Action(ActionContext {
@@ -27,21 +27,21 @@ fn test_current_user_id() {
         CommandContext::Policy(PolicyContext {
             name: "policy",
             id: Id::default(),
-            author: UserId::default(),
+            author: DeviceId::default(),
             version: Id::default(),
         }),
         CommandContext::Recall(PolicyContext {
             name: "recall",
             id: Id::default(),
-            author: UserId::default(),
+            author: DeviceId::default(),
             version: Id::default(),
         }),
     ];
 
     for context in contexts {
         let id = device
-            .current_user_id(&context, &mut eng)
+            .current_device_id(&context, &mut eng)
             .expect("Should have succeeded");
-        assert_eq!(id, user_id);
+        assert_eq!(id, device_id);
     }
 }

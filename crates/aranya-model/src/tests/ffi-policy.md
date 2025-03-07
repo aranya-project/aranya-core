@@ -47,24 +47,24 @@ effect Success {
     value bool,
 }
 
-// A user's public SigningKey.
-fact UserSignKey[user_id id]=>{key_id id, key bytes}
+// A device's public SigningKey.
+fact UserSignKey[device_id id]=>{key_id id, key bytes}
 
-// A user's public IdentityKey.
+// A device's public IdentityKey.
 //
 // NB: `key_id` is also the UserID.
-fact UserIdentKey[user_id id]=>{key bytes}
+fact DeviceIdentKey[device_id id]=>{key bytes}
 
-// A user's set of public UserKeys
+// A device's set of public UserKeys
 struct UserKeyBundle {
-    user_id id,
+    device_id id,
     ident_pk bytes,
     sign_pk bytes,
 }
 
-// Data needed to add a new user to the team.
+// Data needed to add a new device to the team.
 struct NewUser {
-    user_id id,
+    device_id id,
     ident_pk bytes,
     sign_pk_id id,
     sign_pk bytes,
@@ -76,28 +76,28 @@ function Role_User() string {
 }
 
 // Derives the key ID for each of the UserKeys in the bundle and
-// checks that `user_id` matches the ID derived from `ident_pk`.
+// checks that `device_id` matches the ID derived from `ident_pk`.
 // (The IdentityKey's ID is the UserID.)
-function authorized_user_key_ids(user_keys struct UserKeyBundle) struct NewUser {
-    let got_user_id = idam::derive_user_id(user_keys.ident_pk)
+function authorized_device_key_ids(device_keys struct UserKeyBundle) struct NewUser {
+    let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
-    check got_user_id == user_keys.user_id
+    check got_device_id == device_keys.device_id
 
-    let sign_pk_id = idam::derive_sign_key_id(user_keys.sign_pk)
+    let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
     return NewUser {
-        user_id: user_keys.user_id,
-        ident_pk: user_keys.ident_pk,
+        device_id: device_keys.device_id,
+        ident_pk: device_keys.ident_pk,
         sign_pk_id: sign_pk_id,
-        sign_pk: user_keys.sign_pk,
+        sign_pk: device_keys.sign_pk,
     }
 }
 
 // Seals a serialized basic command into an envelope, using the stored signing key for this device.
 function seal_basic_command(payload bytes) struct Envelope {
     let parent_id = perspective::head_id()
-    let author_id = device::current_user_id()
-    let author_sign_sk_id = check_unwrap query UserSignKey[user_id: author_id]=>{key_id: ?, key: ?}
+    let author_id = device::current_device_id()
+    let author_sign_sk_id = check_unwrap query UserSignKey[device_id: author_id]=>{key_id: ?, key: ?}
     let signed = crypto::sign(
         author_sign_sk_id.key_id,
         payload,
@@ -115,7 +115,7 @@ function seal_basic_command(payload bytes) struct Envelope {
 // Opens a basic command from an envelope, using the author's stored signing key.
 function open_basic_command(envelope_input struct Envelope) bytes {
     let author_id = envelope::author_id(envelope_input)
-    let author_sign_pk = check_unwrap query UserSignKey[user_id: author_id]=>{key_id: ?, key: ?}
+    let author_sign_pk = check_unwrap query UserSignKey[device_id: author_id]=>{key_id: ?, key: ?}
     let parent_id = envelope::parent_id(envelope_input)
 
     let crypto_command = crypto::verify(
@@ -151,7 +151,7 @@ command Init {
             payload,
         )
 
-        let author_id = device::current_user_id()
+        let author_id = device::current_device_id()
 
         return envelope::new(
             parent_id,
@@ -185,7 +185,7 @@ command Init {
     }
 
 }
-action add_user_keys(ident_pk bytes, sign_pk bytes) {
+action add_device_keys(ident_pk bytes, sign_pk bytes) {
     publish AddUserKeys {
         ident_pk: ident_pk,
         sign_pk: sign_pk,
@@ -208,7 +208,7 @@ command AddUserKeys {
             payload,
         )
 
-        let author_id = device::current_user_id()
+        let author_id = device::current_device_id()
 
         return envelope::new(
             parent_id,
@@ -238,20 +238,20 @@ command AddUserKeys {
 
     policy {
         let author = envelope::author_id(envelope)
-        let user_id = idam::derive_user_id(this.ident_pk)
-        check author == user_id
+        let device_id = idam::derive_device_id(this.ident_pk)
+        check author == device_id
 
-        let user_keys = UserKeyBundle {
-            user_id: author,
+        let device_keys = UserKeyBundle {
+            device_id: author,
             ident_pk: this.ident_pk,
             sign_pk: this.sign_pk,
         }
 
-        let user = authorized_user_key_ids(user_keys)
+        let device = authorized_device_key_ids(device_keys)
 
         finish {
-            create UserSignKey[user_id: user.user_id]=>{key_id: user.sign_pk_id, key: user.sign_pk}
-            create UserIdentKey[user_id: user.user_id]=>{key: user.ident_pk}
+            create UserSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
+            create DeviceIdentKey[device_id: device.device_id]=>{key: device.ident_pk}
         }
     }
 }

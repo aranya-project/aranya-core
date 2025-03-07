@@ -3,7 +3,7 @@
 
 use aranya_crypto::{
     default::{DefaultEngine, Rng},
-    Id, UserId,
+    DeviceId, Id,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext,
@@ -50,7 +50,7 @@ fn test_head_id() {
         let context = CommandContext::Policy(PolicyContext {
             name: "policy",
             id: Id::default(),
-            author: UserId::default(),
+            author: DeviceId::default(),
             version: Id::default(),
         });
         assert_eq!(
@@ -68,7 +68,7 @@ fn test_head_id() {
         let context = CommandContext::Recall(PolicyContext {
             name: "recall",
             id: Id::default(),
-            author: UserId::default(),
+            author: DeviceId::default(),
             version: Id::default(),
         });
         assert_eq!(
