@@ -1010,12 +1010,9 @@ impl<'a> CompileState<'a> {
 
                 subexpression_type
             }
-            Expression::Match(e) => {
-                let expr_type = self
-                    .compile_match_statement_or_expression(Either::Second(e), 0)?
-                    .assume("match expression must return a type")?;
-                expr_type
-            }
+            Expression::Match(e) => self
+                .compile_match_statement_or_expression(Either::Second(e), 0)?
+                .assume("match expression must return a type")?,
         };
 
         Ok(expression_type)

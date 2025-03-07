@@ -1768,7 +1768,7 @@ fn parse_match_expression() {
         }
     "#;
 
-    let policy = parse_policy_str(&src, Version::V2).expect("should parse");
+    let policy = parse_policy_str(src, Version::V2).expect("should parse");
     assert_eq!(
         policy.actions[0].statements,
         vec![AstNode {
@@ -1814,27 +1814,25 @@ fn match_expression() {
         (
             // block without subexpression (`:value`)
             r#"action foo(string status) {
-            let x = match a {
-                "ready" => {
-                    1
+                let x = match a {
+                    "ready" => {
+                        1
+                    }
+                    _ => {
+                        0
+                    }
                 }
-                _ => {
-                    0
-                }
-            }
-        }
-        "#,
+            }"#,
             ParseErrorKind::Syntax,
         ),
         (
             // literal expressions are not allowed
             r#"action foo(string status) {
-            let x = match a {
-                "ready" => 1
-                _ => 0
-            }
-        }
-        "#,
+                let x = match a {
+                    "ready" => 1
+                    _ => 0
+                }
+            }"#,
             ParseErrorKind::Syntax,
         ),
         (
@@ -1848,22 +1846,19 @@ fn match_expression() {
                         : false
                     }
                 }
-            }
-            "#,
+            }"#,
             ParseErrorKind::Syntax,
         ),
         (
             r#"function f(n int) bool {
                 return match n {}
-            }
-            "#,
+            }"#,
             ParseErrorKind::Syntax,
         ),
     ];
 
-    // mismatched arm types (can parser detect this?)
     for (src, expected) in invalid {
-        let err_kind = parse_policy_str(&src, Version::V2).unwrap_err().kind;
+        let err_kind = parse_policy_str(src, Version::V2).unwrap_err().kind;
         assert_eq!(err_kind, expected);
     }
 }
