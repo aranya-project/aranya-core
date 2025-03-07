@@ -16,7 +16,7 @@ use crate::{
         EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
         TopicKey, Version,
     },
-    aranya::{Encap, EncryptionKey, IdentityKey, SigningKey as UserSigningKey, UserId},
+    aranya::{DeviceId, Encap, EncryptionKey, IdentityKey, SigningKey as UserSigningKey},
     csprng::Random,
     engine::Engine,
     error::Error,
@@ -60,17 +60,17 @@ macro_rules! for_each_engine_test {
 
             // Aranya
 
-            test_simple_user_signing_key_sign,
+            test_simple_device_signing_key_sign,
 
             test_simple_seal_group_key,
             test_simple_wrap_group_key,
-            test_simple_wrap_user_identity_key,
-            test_simple_export_user_identity_key,
+            test_simple_wrap_device_identity_key,
+            test_simple_export_device_identity_key,
             test_simple_identity_key_sign,
-            test_simple_wrap_user_signing_key,
-            test_simple_export_user_signing_key,
-            test_simple_wrap_user_encryption_key,
-            test_simple_export_user_encryption_key,
+            test_simple_wrap_device_signing_key,
+            test_simple_export_device_signing_key,
+            test_simple_wrap_device_encryption_key,
+            test_simple_export_device_encryption_key,
 
             test_group_key_seal,
             test_group_key_open_wrong_key,
@@ -84,9 +84,9 @@ macro_rules! for_each_engine_test {
             test_simple_sender_signing_key_sign,
 
             test_simple_seal_topic_key,
-            test_simple_wrap_user_sender_secret_key,
-            test_simple_wrap_user_sender_signing_key,
-            test_simple_wrap_user_receiver_secret_key,
+            test_simple_wrap_device_sender_secret_key,
+            test_simple_wrap_device_sender_signing_key,
+            test_simple_wrap_device_receiver_secret_key,
 
             test_topic_key_seal,
             test_topic_key_open_wrong_key,
@@ -105,19 +105,19 @@ macro_rules! for_each_engine_test {
 
             test_derive_bidi_keys,
             test_derive_bidi_keys_different_labels,
-            test_derive_bidi_keys_different_user_ids,
+            test_derive_bidi_keys_different_device_ids,
             test_derive_bidi_keys_different_cmd_ids,
             test_derive_bidi_keys_different_keys,
-            test_derive_bidi_keys_same_user_id,
+            test_derive_bidi_keys_same_device_id,
             test_wrap_bidi_author_secret,
 
             test_derive_uni_key,
             test_derive_uni_key_different_labels,
-            test_derive_uni_key_different_user_ids,
+            test_derive_uni_key_different_device_ids,
             test_derive_uni_key_different_cmd_ids,
             test_derive_uni_key_different_keys,
-            test_derive_uni_seal_key_same_user_id,
-            test_derive_uni_open_key_same_user_id,
+            test_derive_uni_seal_key_same_device_id,
+            test_derive_uni_open_key_same_device_id,
             test_wrap_uni_author_secret,
         }
     };
@@ -176,9 +176,9 @@ macro_rules! test_engine {
 pub use test_engine;
 
 /// Simple test for [`UserSigningKey`].
-pub fn test_simple_user_signing_key_sign<E: Engine>(eng: &mut E) {
+pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &mut E) {
     const MSG: &[u8] = b"hello, world!";
-    const CONTEXT: &[u8] = b"test_simple_user_signing_key_sign";
+    const CONTEXT: &[u8] = b"test_simple_device_signing_key_sign";
 
     let sign_key = UserSigningKey::<E::CS>::new(eng);
 
@@ -244,7 +244,7 @@ pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`IdentityKey`]s.
-pub fn test_simple_wrap_user_identity_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_identity_key<E: Engine>(eng: &mut E) {
     let want = IdentityKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -261,7 +261,7 @@ pub fn test_simple_wrap_user_identity_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`IdentityKey`]s.
-pub fn test_simple_export_user_identity_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_identity_key<E: Engine>(eng: &mut E) {
     let want = IdentityKey::<E::CS>::new(eng)
         .public()
         .expect("identity key should be valid");
@@ -309,7 +309,7 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`UserSigningKey`]s.
-pub fn test_simple_wrap_user_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &mut E) {
     let want = UserSigningKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -326,17 +326,17 @@ pub fn test_simple_wrap_user_signing_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`UserSigningKey`]s.
-pub fn test_simple_export_user_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_signing_key<E: Engine>(eng: &mut E) {
     let want = UserSigningKey::<E::CS>::new(eng)
         .public()
-        .expect("user signing key should be valid");
+        .expect("device signing key should be valid");
     let bytes = postcard::to_allocvec(&want).expect("should be able to encode an `VerifyingKey`");
     let got = postcard::from_bytes(&bytes).expect("should be able to decode an `VerifyingKey`");
     assert_eq!(want, got);
 }
 
 /// Simple positive test for wrapping [`EncryptionKey`]s.
-pub fn test_simple_wrap_user_encryption_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_encryption_key<E: Engine>(eng: &mut E) {
     let want = EncryptionKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -353,7 +353,7 @@ pub fn test_simple_wrap_user_encryption_key<E: Engine>(eng: &mut E) {
 
 /// Simple positive test for exporting the public half of
 /// [`EncryptionKey`]s.
-pub fn test_simple_export_user_encryption_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &mut E) {
     let want = EncryptionKey::<E::CS>::new(eng)
         .public()
         .expect("encryption public key should be valid");
@@ -664,7 +664,7 @@ where
 }
 
 /// Simple positive test for wrapping [`SenderSecretKey`]s.
-pub fn test_simple_wrap_user_sender_secret_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &mut E) {
     let want = SenderSecretKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -680,7 +680,7 @@ pub fn test_simple_wrap_user_sender_secret_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`SenderSigningKey`]s.
-pub fn test_simple_wrap_user_sender_signing_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &mut E) {
     let want = SenderSigningKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -696,7 +696,7 @@ pub fn test_simple_wrap_user_sender_signing_key<E: Engine>(eng: &mut E) {
 }
 
 /// Simple positive test for wrapping [`ReceiverSecretKey`]s.
-pub fn test_simple_wrap_user_receiver_secret_key<E: Engine>(eng: &mut E) {
+pub fn test_simple_wrap_device_receiver_secret_key<E: Engine>(eng: &mut E) {
     let want = ReceiverSecretKey::new(eng);
     let bytes = postcard::to_allocvec(
         &eng.wrap(want.clone())
@@ -1227,7 +1227,7 @@ pub fn test_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
 /// [`BidiKeys`].
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_derive_bidi_keys_different_user_ids<E: Engine>(eng: &mut E) {
+pub fn test_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1252,7 +1252,7 @@ pub fn test_derive_bidi_keys_different_user_ids<E: Engine>(eng: &mut E) {
         their_pk: &sk1
             .public()
             .expect("receiver public encryption key should be valid"),
-        their_id: UserId::random(eng),
+        their_id: DeviceId::random(eng),
         label,
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
@@ -1358,9 +1358,9 @@ pub fn test_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
     assert_bidi_keys_mismatch(eng, ck1, ck2);
 }
 
-/// It is an error to use the same `UserId` when deriving
+/// It is an error to use the same `DeviceId` when deriving
 /// [`BidiKeys`].
-pub fn test_derive_bidi_keys_same_user_id<E: Engine>(eng: &mut E) {
+pub fn test_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1396,7 +1396,7 @@ pub fn test_derive_bidi_keys_same_user_id<E: Engine>(eng: &mut E) {
         let err = BidiSecrets::new(eng, &ch1)
             .err()
             .expect("should not be able to create `BidiSecrets`");
-        assert_eq!(err, Error::same_user_id());
+        assert_eq!(err, Error::same_device_id());
 
         ch1.our_id = prev;
         BidiSecrets::new(eng, &ch1).expect("unable to create `BidiSecrets`")
@@ -1406,7 +1406,7 @@ pub fn test_derive_bidi_keys_same_user_id<E: Engine>(eng: &mut E) {
     let err = BidiKeys::from_peer_encap(&ch2, peer)
         .err()
         .expect("should not be able to decrypt `BidiKeys`");
-    assert_eq!(err, Error::same_user_id());
+    assert_eq!(err, Error::same_device_id());
 }
 
 /// Simple positive test for wrapping [`BidiAuthorSecret`]s.
@@ -1570,7 +1570,7 @@ pub fn test_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
 /// [`UniSealKey`] and [`UniOpenKey`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_derive_uni_key_different_user_ids<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1595,7 +1595,7 @@ pub fn test_derive_uni_key_different_user_ids<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
-        open_id: UserId::random(eng),
+        open_id: DeviceId::random(eng),
         label,
     };
     assert_ne!(ch1.info(), ch2.info());
@@ -1694,9 +1694,9 @@ pub fn test_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
     assert_different_uni_key(eng, ck1, ck2);
 }
 
-/// It is an error to use the same `UserId` when deriving
+/// It is an error to use the same `DeviceId` when deriving
 /// [`UniSealKey`]s.
-pub fn test_derive_uni_seal_key_same_user_id<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1733,7 +1733,7 @@ pub fn test_derive_uni_seal_key_same_user_id<E: Engine>(eng: &mut E) {
         let err = UniSecrets::new(eng, &ch1)
             .err()
             .expect("should not be able to create `UniSecrets`");
-        assert_eq!(err, Error::same_user_id());
+        assert_eq!(err, Error::same_device_id());
 
         ch1.seal_id = prev;
         UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`")
@@ -1743,12 +1743,12 @@ pub fn test_derive_uni_seal_key_same_user_id<E: Engine>(eng: &mut E) {
     let err = UniSealKey::from_peer_encap(&ch2, peer)
         .err()
         .expect("should not be able to decrypt `UniSealKey`");
-    assert_eq!(err, Error::same_user_id());
+    assert_eq!(err, Error::same_device_id());
 }
 
-/// It is an error to use the same `UserId` when deriving
+/// It is an error to use the same `DeviceId` when deriving
 /// [`UniOpenKey`]s.
-pub fn test_derive_uni_open_key_same_user_id<E: Engine>(eng: &mut E) {
+pub fn test_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -1785,7 +1785,7 @@ pub fn test_derive_uni_open_key_same_user_id<E: Engine>(eng: &mut E) {
         let err = UniSecrets::new(eng, &ch1)
             .err()
             .expect("should not be able to create `UniSecrets`");
-        assert_eq!(err, Error::same_user_id());
+        assert_eq!(err, Error::same_device_id());
 
         ch1.seal_id = prev;
         UniSecrets::new(eng, &ch1).expect("unable to create `UniSecrets`")
@@ -1795,7 +1795,7 @@ pub fn test_derive_uni_open_key_same_user_id<E: Engine>(eng: &mut E) {
     let err = UniOpenKey::from_peer_encap(&ch2, peer)
         .err()
         .expect("should not be able to decrypt `UniOpenKey`");
-    assert_eq!(err, Error::same_user_id());
+    assert_eq!(err, Error::same_device_id());
 }
 
 /// Simple positive test for wrapping [`UniAuthorSecret`]s.

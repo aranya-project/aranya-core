@@ -46,7 +46,7 @@ use crate::error::{Error, WrongContext};
 /// command Foo {
 ///     seal {
 ///         let author_id = device::device_id()
-///         let author_sign_sk_id = unwrap query UserSignKey[user_id: author_id]=>{ ... }
+///         let author_sign_sk_id = unwrap query UserSignKey[device_id: author_id]=>{ ... }
 ///         let signed = crypto::sign(
 ///             author_sign_sk_id,
 ///             serialize(this),
@@ -61,7 +61,7 @@ use crate::error::{Error, WrongContext};
 ///
 ///     open {
 ///         let author_id = envelope::author_id(envelope)
-///         let author_sign_pk = unwrap query UserSignKey[user_id: author_id]=>{ ... }
+///         let author_sign_pk = unwrap query UserSignKey[device_id: author_id]=>{ ... }
 ///         let command = crypto::verify(
 ///             author_sign_pk,
 ///             envelope::payload(envelope),
@@ -80,7 +80,7 @@ pub struct Ffi;
 struct Envelope {
     // The parent command ID.
     parent_id id,
-    // The author's user ID.
+    // The author's device ID.
     author_id id,
     // Uniquely identifies the command.
     command_id id,

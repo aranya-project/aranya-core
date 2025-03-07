@@ -32,12 +32,12 @@ pub use uni::*;
 use crate::error::Error;
 
 // This is different from the rest of the `crypto` API in that it
-// allows users to directly access key material (`ChannelKeys`,
+// allows devices to directly access key material (`ChannelKeys`,
 // `ChannelKey`). Unfortunately, we have to allow this since AFC
 // needs to store the raw key material.
 
 impl Error {
-    pub(crate) const fn same_user_id() -> Self {
-        Self::InvalidArgument("same `UserId`")
+    pub(crate) const fn same_device_id() -> Self {
+        Self::InvalidArgument("same `DeviceId`")
     }
 }

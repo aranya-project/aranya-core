@@ -6,7 +6,7 @@ use super::{
     shared::{RawOpenKey, RawSealKey, RootChannelKey},
 };
 use crate::{
-    aranya::{Encap, EncryptionKey, EncryptionPublicKey, UserId},
+    aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::SuiteIds,
     csprng::Random,
     engine::unwrapped,
@@ -23,8 +23,8 @@ use crate::{
 
 /// Contextual information for a unidirectional AFC channel.
 ///
-/// In a unidirectional channel, one user is permitted to encrypt
-/// messages and one user is permitted to receive decrypt
+/// In a unidirectional channel, one device is permitted to encrypt
+/// messages and one device is permitted to receive decrypt
 /// messages.
 ///
 /// ```rust
@@ -85,37 +85,37 @@ use crate::{
 /// let parent_cmd_id = Id::random(&mut eng);
 /// let label = 42u32;
 ///
-/// let user1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user1 ID should be valid");
+/// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
+/// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
 ///
-/// let user2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
-/// let user2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("user2 ID should be valid");
+/// let device2_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
+/// let device2_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device2 ID should be valid");
 ///
-/// // user1 creates the channel keys and sends the encapsulation
-/// // to user2...
-/// let user1_ch = UniChannel {
+/// // device1 creates the channel keys and sends the encapsulation
+/// // to device2...
+/// let device1_ch = UniChannel {
 ///     parent_cmd_id,
-///     our_sk: &user1_sk,
-///     their_pk: &user2_sk.public().expect("receiver encryption key should be valid"),
-///     seal_id: user1_id,
-///     open_id: user2_id,
+///     our_sk: &device1_sk,
+///     their_pk: &device2_sk.public().expect("receiver encryption key should be valid"),
+///     seal_id: device1_id,
+///     open_id: device2_id,
 ///     label,
 /// };
-/// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &user1_ch)
+/// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `UniSecrets`");
-/// let mut user1 = key_from_author(&user1_ch, author);
+/// let mut device1 = key_from_author(&device1_ch, author);
 ///
-/// // ...and user2 decrypts the encapsulation to discover the
+/// // ...and device2 decrypts the encapsulation to discover the
 /// // channel keys.
-/// let user2_ch = UniChannel {
+/// let device2_ch = UniChannel {
 ///     parent_cmd_id,
-///     our_sk: &user2_sk,
-///     their_pk: &user1_sk.public().expect("receiver encryption key should be valid"),
-///     seal_id: user1_id,
-///     open_id: user2_id,
+///     our_sk: &device2_sk,
+///     their_pk: &device1_sk.public().expect("receiver encryption key should be valid"),
+///     seal_id: device1_id,
+///     open_id: device2_id,
 ///     label,
 /// };
-/// let user2 = key_from_peer(&user2_ch, peer);
+/// let device2 = key_from_peer(&device2_ch, peer);
 ///
 /// fn test<CS: CipherSuite>(seal: &mut SealKey<CS>, open: &OpenKey<CS>) {
 ///     const GOLDEN: &[u8] = b"hello, world!";
@@ -140,7 +140,7 @@ use crate::{
 ///     };
 ///     assert_eq!(&plaintext, GOLDEN);
 /// }
-/// test(&mut user1, &user2); // user1 -> user2
+/// test(&mut device1, &device2); // device1 -> device2
 /// # }
 /// ```
 pub struct UniChannel<'a, CS: CipherSuite> {
@@ -150,10 +150,10 @@ pub struct UniChannel<'a, CS: CipherSuite> {
     pub our_sk: &'a EncryptionKey<CS>,
     /// Their public encryption key.
     pub their_pk: &'a EncryptionPublicKey<CS>,
-    /// The user that is permitted to encrypt messages.
-    pub seal_id: UserId,
-    /// The user that is permitted to decrypt messages.
-    pub open_id: UserId,
+    /// The device that is permitted to encrypt messages.
+    pub seal_id: DeviceId,
+    /// The device that is permitted to decrypt messages.
+    pub open_id: DeviceId,
     /// The policy label applied to the channel.
     pub label: u32,
 }
@@ -252,7 +252,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
         let peer_pk = ch.their_pk;
 
         if ch.seal_id == ch.open_id {
-            return Err(Error::same_user_id());
+            return Err(Error::same_device_id());
         }
 
         let root_sk = RootChannelKey::random(eng);
@@ -295,7 +295,7 @@ macro_rules! uni_key {
                 let peer_pk = ch.their_pk;
 
                 if ch.seal_id == ch.open_id {
-                    return Err(Error::same_user_id());
+                    return Err(Error::same_device_id());
                 }
 
                 let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
@@ -327,7 +327,7 @@ macro_rules! uni_key {
                 let author_pk = ch.their_pk;
 
                 if ch.seal_id == ch.open_id {
-                    return Err(Error::same_user_id());
+                    return Err(Error::same_device_id());
                 }
 
                 let info = ch.info();

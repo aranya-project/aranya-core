@@ -7,7 +7,7 @@ use std::{fs, marker::PhantomData};
 use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     keystore::fs_keystore::Store,
-    Rng, UserId,
+    DeviceId, Rng,
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
@@ -83,7 +83,7 @@ impl ClientFactory for BasicClientFactory {
         // Configure testing FFIs
         let ffis: Vec<Box<dyn FfiCallable<DefaultEngine> + Send + 'static>> =
             vec![Box::from(TestFfiEnvelope {
-                user: UserId::random(&mut Rng),
+                user: DeviceId::random(&mut Rng),
             })];
 
         let policy = VmPolicy::new(self.machine.clone(), eng, ffis).expect("should create policy");
