@@ -1202,6 +1202,43 @@ fn test_match_return() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_match_expression() -> anyhow::Result<()> {
+    let text = r#"
+        effect F {
+            x int
+        }
+        action foo(x int) {
+            let y = match x {
+                0 => { :1 }
+                _ => { :0 }
+            }
+            publish F { x: y }
+        }
+    "#;
+    let policy = parse_policy_str(text, Version::V2)?;
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let mut rs = machine.create_run_state(&io, dummy_ctx_action("foo"));
+
+    let expectations = vec![(0, 1), (1, 0), (2, 0)];
+    for (arg, expected) in expectations {
+        call_action(&mut rs, &io, "foo", [Value::Int(arg)])?.success();
+        assert_eq!(
+            io.borrow().publish_stack[0],
+            (
+                "F".to_string(),
+                vec![KVPair::new("x", Value::Int(expected))]
+            )
+        );
+        io.borrow_mut().publish_stack.clear();
+    }
+    Ok(())
+}
+
+#[test]
 fn test_is_some_statement() -> anyhow::Result<()> {
     let name = "check_none";
     let policy = parse_policy_str(POLICY_IS, Version::V2)?;
