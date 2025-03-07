@@ -24,17 +24,17 @@ pub use responder::{PeerCache, SyncResponder, SyncResponseMessage};
 pub const PEER_HEAD_MAX: usize = 10;
 
 /// The maximum number of samples in a request
-const COMMAND_SAMPLE_MAX: usize = 100;
+const COMMAND_SAMPLE_MAX: usize = 10;
 
 /// The maximum number of missing segments that can be requested
 /// in a single message
-const REQUEST_MISSING_MAX: usize = 100;
+const REQUEST_MISSING_MAX: usize = 10;
 
 /// The maximum number of commands in a response
-pub const COMMAND_RESPONSE_MAX: usize = 100;
+pub const COMMAND_RESPONSE_MAX: usize = 10;
 
 /// The maximum number of segments which can be stored to send
-const SEGMENT_BUFFER_MAX: usize = 100;
+const SEGMENT_BUFFER_MAX: usize = 10;
 
 /// The maximum size of a sync message
 // TODO: Use postcard to calculate max size (which accounts for overhead)
