@@ -234,8 +234,8 @@ impl Root {
 
     fn validate(self) -> Result<Self, StorageError> {
         if self.checksum != self.calc_checksum() {
-            // TODO(jdygert): Isn't really a bug.
-            bug!("invalid checksum");
+            tracing::warn!("invalid checksum");
+            return Err(StorageError::IoError);
         }
         Ok(self)
     }
