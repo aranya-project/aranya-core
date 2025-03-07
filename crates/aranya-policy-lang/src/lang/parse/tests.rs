@@ -1763,9 +1763,7 @@ fn parse_match_expression() {
                     let x = true
                     : x
                 }
-                _ => {
-                    : false
-                }
+                _ => false
             }
         }
     "#;
@@ -1798,10 +1796,7 @@ fn parse_match_expression() {
                         AstNode::new(
                             ast::MatchArmExpression {
                                 pattern: MatchPattern::Default,
-                                expression: Expression::Block(
-                                    vec![],
-                                    Box::new(Expression::Bool(false))
-                                )
+                                expression: Expression::Bool(false)
                             },
                             173
                         )
