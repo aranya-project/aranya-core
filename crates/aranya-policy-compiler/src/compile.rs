@@ -382,10 +382,12 @@ impl<'a> CompileState<'a> {
             let def_field_type = &struct_def
                 .iter()
                 .find(|f| &f.identifier == field_name)
-                .ok_or(self.err(CompileErrorType::InvalidType(format!(
-                    "field `{}` not found in `Struct {}`",
-                    field_name, s.identifier
-                ))))?
+                .ok_or_else(|| {
+                    self.err(CompileErrorType::InvalidType(format!(
+                        "field `{}` not found in `Struct {}`",
+                        field_name, s.identifier
+                    )))
+                })?
                 .field_type;
             let t = self.compile_expression(e)?;
             if !t.is_maybe(def_field_type) {
@@ -498,16 +500,17 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::FactNew(f.identifier.clone()));
         for (k, v) in &f.key_fields {
             if let FactField::Expression(e) = v {
-                let def_field_type = fact_def
+                let def_field_type = &fact_def
                     .get_key_field(k)
-                    .ok_or(self.err(CompileErrorType::InvalidType(format!(
-                        "field `{}` not found in Fact `{}`",
-                        k, f.identifier
-                    ))))?
-                    .field_type
-                    .clone();
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidType(format!(
+                            "field `{}` not found in Fact `{}`",
+                            k, f.identifier
+                        )))
+                    })?
+                    .field_type;
                 let t = self.compile_expression(e)?;
-                if !t.is_maybe(&def_field_type) {
+                if !t.is_maybe(def_field_type) {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
                         "Fact `{}` key field `{}` is not `{}`",
                         f.identifier, k, def_field_type
@@ -522,16 +525,17 @@ impl<'a> CompileState<'a> {
         if let Some(value_fields) = &f.value_fields {
             for (k, v) in value_fields {
                 if let FactField::Expression(e) = &v {
-                    let def_field_type = fact_def
+                    let def_field_type = &fact_def
                         .get_value_field(k)
-                        .ok_or(self.err(CompileErrorType::InvalidType(format!(
-                            "field `{}` not found in Fact `{}`",
-                            k, f.identifier
-                        ))))?
-                        .field_type
-                        .clone();
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::InvalidType(format!(
+                                "field `{}` not found in Fact `{}`",
+                                k, f.identifier
+                            )))
+                        })?
+                        .field_type;
                     let t = self.compile_expression(e)?;
-                    if !t.is_maybe(&def_field_type) {
+                    if !t.is_maybe(def_field_type) {
                         return Err(self.err(CompileErrorType::InvalidType(format!(
                             "Fact `{}` value field `{}` is not `{}`",
                             f.identifier, k, def_field_type
@@ -1361,16 +1365,17 @@ impl<'a> CompileState<'a> {
                                 ));
                             }
                             FactField::Expression(e) => {
-                                let def_field_type = fact_def
+                                let def_field_type = &fact_def
                                     .get_value_field(k)
-                                    .ok_or(self.err(CompileErrorType::InvalidType(format!(
-                                        "field `{}` not found in Fact `{}`",
-                                        k, s.fact.identifier
-                                    ))))?
-                                    .field_type
-                                    .clone();
+                                    .ok_or_else(|| {
+                                        self.err(CompileErrorType::InvalidType(format!(
+                                            "field `{}` not found in Fact `{}`",
+                                            k, s.fact.identifier
+                                        )))
+                                    })?
+                                    .field_type;
                                 let t = self.compile_expression(e)?;
-                                if !t.is_maybe(&def_field_type) {
+                                if !t.is_maybe(def_field_type) {
                                     return Err(self.err(CompileErrorType::InvalidType(format!(
                                         "Fact `{}` value field `{}` found `{}`, not `{}`",
                                         s.fact.identifier, k, t, def_field_type
