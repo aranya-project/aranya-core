@@ -1896,9 +1896,16 @@ impl<'a> CompileState<'a> {
                 MatchPattern::Default => &[],
             })
             .collect::<Vec<&Expression>>();
-        if find_duplicate(&all_values, |v| v).is_some() {
+        if find_duplicate(&all_values, |p| p).is_some() {
             return Err(self.err_loc(
                 CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
+                locator,
+            ));
+        }
+        // find duplicate default arms
+        if find_duplicate(&patterns, |p| p).is_some() {
+            return Err(self.err_loc(
+                CompileErrorType::AlreadyDefined(String::from("duplicate match arm default value")),
                 locator,
             ));
         }

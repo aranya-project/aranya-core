@@ -1809,11 +1809,11 @@ fn parse_match_expression() {
 }
 
 #[test]
-fn match_expression() {
+fn test_match_expression() {
     let invalid = vec![
         (
             // block without subexpression (`:value`)
-            r#"action foo(string status) {
+            r#"action foo(status string) {
                 let x = match a {
                     "ready" => {
                         1
@@ -1821,16 +1821,6 @@ fn match_expression() {
                     _ => {
                         0
                     }
-                }
-            }"#,
-            ParseErrorKind::Syntax,
-        ),
-        (
-            // literal expressions are not allowed
-            r#"action foo(string status) {
-                let x = match a {
-                    "ready" => 1
-                    _ => 0
                 }
             }"#,
             ParseErrorKind::Syntax,
@@ -1850,6 +1840,7 @@ fn match_expression() {
             ParseErrorKind::Syntax,
         ),
         (
+            // empty match
             r#"function f(n int) bool {
                 return match n {}
             }"#,
