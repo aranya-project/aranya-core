@@ -1088,38 +1088,46 @@ fn test_fact_create_too_many_values() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_duplicate() -> anyhow::Result<()> {
-    let policy_str = r#"
-        command Result {
-            fields {
-                x int
+    let policy_str = [
+        (r#"
+            command Result {
+                fields {
+                    x int
+                }
+                seal { return None }
+                open { return None }
             }
-            seal { return None }
-            open { return None }
-        }
 
-        action foo(x int) {
-            match x {
-                5 => {
-                    publish Result { x: x }
-                }
-                6=> {
-                    publish Result { x: x }
-                }
-                5 => {
-                    publish Result { x: x }
+            action foo(x int) {
+                match x {
+                    5 => {
+                        publish Result { x: x }
+                    }
+                    6 => {
+                        publish Result { x: x }
+                    }
+                    5 => {
+                        publish Result { x: x }
+                    }
                 }
             }
-        }
-    "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let res = Compiler::new(&policy).compile();
-    assert!(matches!(
-        res,
-        Err(CompileError {
-            err_type: CompileErrorType::AlreadyDefined(_),
-            ..
-        })
-    ));
+        "#),
+        (r#"
+            action foo(i int) {
+                match i {
+                    1 => {}
+                    _ => {}
+                    _ => {}
+                }
+            }
+        "#),
+    ];
+
+    for str in policy_str {
+        let policy = parse_policy_str(str, Version::V2)?;
+        let err_type = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert!(matches!(err_type, CompileErrorType::AlreadyDefined(_)));
+    }
 
     Ok(())
 }
