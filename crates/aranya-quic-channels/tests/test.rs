@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use aranya_quic_channels::{run_channels, AqcChannel, AqcClient};
+use aranya_quic_channels::{run_channels, AqcClient};
 use aranya_runtime::{
     protocol::{TestActions, TestEngine, TestSink},
     storage::memory::MemStorageProvider,
@@ -9,7 +9,7 @@ use aranya_runtime::{
 };
 use bytes::Bytes;
 use s2n_quic::{provider::congestion_controller::Bbr, Server};
-use tokio::sync::{mpsc, Mutex as TMutex};
+use tokio::sync::Mutex as TMutex;
 
 #[test_log::test(tokio::test)]
 async fn test_channels() -> Result<()> {
@@ -18,15 +18,9 @@ async fn test_channels() -> Result<()> {
     let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
     let key = cert.serialize_private_key_pem();
     let cert = cert.serialize_pem()?;
-    let (tx, rx) = mpsc::channel(1);
-    let sender1 = Arc::new(TMutex::new(tx));
 
     let server1 = get_server(cert.clone(), key.clone())?;
-    let aqc_client1 = Arc::new(TMutex::new(AqcClient::new(
-        &*cert.clone(),
-        rx,
-        sender1.clone(),
-    )?));
+    let aqc_client1 = Arc::new(TMutex::new(AqcClient::new(&*cert.clone())?));
 
     let _client2 = make_client();
 
@@ -36,41 +30,52 @@ async fn test_channels() -> Result<()> {
         sink1.lock().await.deref_mut(),
     )?;
 
-    let _ = spawn_channel_listener(aqc_client1.clone(), sender1, server1)?;
+    let _ = spawn_channel_listener(aqc_client1.clone(), server1)?;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    let (tx, rx) = mpsc::channel(1);
-    let sender2 = Arc::new(TMutex::new(tx));
     let server2 = get_server(cert.clone(), key)?;
-    let aqc_client2 = Arc::new(TMutex::new(AqcClient::new(&*cert, rx, sender2.clone())?));
-    let addr2 = spawn_channel_listener(aqc_client2.clone(), sender2, server2)?;
-    let channel1 = aqc_client1.lock().await.create_channel(addr2).await?;
-    aqc_client1
-        .lock()
-        .await
-        .send_data_stream(channel1, &Bytes::from("hello"))
-        .await?;
+    let aqc_client2 = Arc::new(TMutex::new(AqcClient::new(&*cert)?));
+    let addr2 = spawn_channel_listener(aqc_client2.clone(), server2)?;
+    let mut channel1 = aqc_client1.lock().await.create_channel(addr2).await?;
     tokio::time::sleep(Duration::from_millis(100)).await;
-    let mut target = vec![0u8; 1024 * 1024];
-    if let Some((channel, len)) = aqc_client2.lock().await.receive_data_stream(&mut target)? {
-        assert_eq!(channel, channel1);
-        assert_eq!(&target[..len], b"hello");
+
+    if let Some(mut channel2) = aqc_client2.lock().await.receive_channel() {
+        // Test sending streams
+        channel1.send_stream(&Bytes::from("hello")).await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let mut target = vec![0u8; 1024 * 1024];
+        if let Some(len) = channel2.recv_stream(target.as_mut_slice()).await {
+            assert_eq!(&target[..len], b"hello");
+        } else {
+            panic!("no data received");
+        }
+        channel2.send_stream(&Bytes::from("hello2")).await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if let Some(len) = channel1.recv_stream(target.as_mut_slice()).await {
+            assert_eq!(&target[..len], b"hello2");
+        } else {
+            panic!("no data received");
+        }
+
+        // Test sending messages
+        channel1.send_message(&Bytes::from("message1")).await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if let Some(len) = channel2.recv_message(target.as_mut_slice()).await {
+            assert_eq!(&target[..len], b"message1");
+        } else {
+            panic!("no data received");
+        }
+        channel2.send_stream(&Bytes::from("message2")).await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        if let Some(len) = channel1.recv_stream(target.as_mut_slice()).await {
+            assert_eq!(&target[..len], b"message2");
+        } else {
+            panic!("no data received");
+        }
     } else {
-        panic!("no data received");
+        panic!("channel is not available");
     }
-    aqc_client2
-        .lock()
-        .await
-        .send_data_stream(channel1, &Bytes::from("hello2"))
-        .await?;
-    tokio::time::sleep(Duration::from_millis(100)).await;
-    let mut target = vec![0u8; 1024 * 1024];
-    if let Some((channel, len)) = aqc_client1.lock().await.receive_data_stream(&mut target)? {
-        assert_eq!(channel, channel1);
-        assert_eq!(&target[..len], b"hello2");
-    } else {
-        panic!("no data received");
-    }
+
     Ok(())
 }
 
@@ -85,11 +90,10 @@ fn get_server(cert: String, key: String) -> Result<Server> {
 
 fn spawn_channel_listener(
     aqc_client: Arc<TMutex<AqcClient>>,
-    sender: Arc<TMutex<mpsc::Sender<(AqcChannel, Bytes)>>>,
     server: Server,
 ) -> Result<SocketAddr> {
     let server_addr = server.local_addr()?;
-    tokio::spawn(run_channels(aqc_client, server, sender));
+    tokio::spawn(run_channels(aqc_client, server));
     Ok(server_addr)
 }
 
