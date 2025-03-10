@@ -466,10 +466,6 @@ version = "1.70.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.itertools]]
-version = "0.10.3"
-criteria = "safe-to-deploy"
-
-[[exemptions.itertools]]
 version = "0.11.0"
 criteria = "safe-to-deploy"
 
@@ -697,33 +693,13 @@ criteria = "safe-to-deploy"
 version = "0.4.0"
 criteria = "safe-to-deploy"
 
-[[exemptions.ring]]
-version = "0.16.20"
-criteria = "safe-to-run"
-
-[[exemptions.ring]]
-version = "0.17.8"
-criteria = "safe-to-deploy"
-
 [[exemptions.rustix]]
 version = "0.38.42"
 criteria = "safe-to-deploy"
 
-[[exemptions.rustls]]
-version = "0.23.21"
-criteria = "safe-to-deploy"
-
-[[exemptions.rustls-pemfile]]
-version = "2.2.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.rustls-pki-types]]
 version = "1.10.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.rustls-webpki]]
-version = "0.102.8"
-criteria = "safe-to-deploy"
+criteria = "safe-to-run"
 
 [[exemptions.rusty-fork]]
 version = "0.3.0"
@@ -753,15 +729,7 @@ criteria = "safe-to-deploy"
 version = "0.52.0"
 criteria = "safe-to-deploy"
 
-[[exemptions.s2n-quic-rustls]]
-version = "0.52.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.s2n-quic-tls]]
-version = "0.52.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.s2n-quic-tls-default]]
 version = "0.52.0"
 criteria = "safe-to-deploy"
 
@@ -840,10 +808,6 @@ criteria = "safe-to-deploy"
 [[exemptions.socket2]]
 version = "0.5.8"
 criteria = "safe-to-deploy"
-
-[[exemptions.spin]]
-version = "0.5.2"
-criteria = "safe-to-run"
 
 [[exemptions.spin]]
 version = "0.9.8"
@@ -955,10 +919,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.unsafe-libyaml]]
 version = "0.2.11"
-criteria = "safe-to-deploy"
-
-[[exemptions.untrusted]]
-version = "0.9.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.utf8parse]]

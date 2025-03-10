@@ -17,9 +17,9 @@ use tokio::sync::{mpsc, Mutex as TMutex};
 async fn test_sync() -> Result<()> {
     let client1 = make_client();
     let sink1 = Arc::new(TMutex::new(TestSink::new()));
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
-    let key = cert.serialize_private_key_pem();
-    let cert = cert.serialize_pem()?;
+    let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
+    let key = ck.key_pair.serialize_pem();
+    let cert = ck.cert.pem();
     let (tx, rx) = mpsc::unbounded_channel();
     let server_addr1 = get_server(cert.clone(), key.clone())?;
     let syncer1 = Arc::new(TMutex::new(Syncer::new(
@@ -82,9 +82,9 @@ async fn test_sync() -> Result<()> {
 async fn test_sync_subscribe() -> Result<()> {
     let client1 = make_client();
     let sink1 = Arc::new(TMutex::new(TestSink::new()));
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
-    let key = cert.serialize_private_key_pem();
-    let cert = cert.serialize_pem()?;
+    let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
+    let key = ck.key_pair.serialize_pem();
+    let cert = ck.cert.pem();
     let (tx1, rx1) = mpsc::unbounded_channel();
     let server_addr1 = get_server(cert.clone(), key.clone())?;
     let syncer1 = Arc::new(TMutex::new(Syncer::new(
