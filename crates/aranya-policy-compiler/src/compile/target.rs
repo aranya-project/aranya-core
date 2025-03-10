@@ -22,6 +22,8 @@ pub struct CompileTarget {
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    /// Enum definitions
+    pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Mapping between program instructions and original code
@@ -40,6 +42,7 @@ impl CompileTarget {
             command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
+            enum_defs: BTreeMap::new(),
             command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
@@ -56,6 +59,7 @@ impl CompileTarget {
                 command_defs: self.command_defs,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
+                enum_defs: self.enum_defs,
                 command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,

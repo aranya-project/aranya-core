@@ -26,7 +26,7 @@ tracing = { workspace = true }
 aranya-crypto = { path = "../aranya-crypto", features = ["std"] }
 
 criterion = { version = "0.5", features = ["async_tokio"] }
-rcgen = "0.11.3"
+rcgen = { version = "0.13", default-features = false, features = ["pem", "aws_lc_rs"] }
 test-log = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
 tracing-subscriber = { workspace = true, default-features = true }

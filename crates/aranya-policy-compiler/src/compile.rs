@@ -92,8 +92,6 @@ struct CompileState<'a> {
     identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
-    /// name/value mappings for enums, e.g. `"Color"->["Red", "Green"]`
-    enum_values: BTreeMap<&'a str, Vec<&'a str>>,
     /// Determines if one compiles with debug functionality,
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
@@ -203,27 +201,33 @@ impl<'a> CompileState<'a> {
         &mut self,
         enum_def: &'a EnumDefinition,
     ) -> Result<(), CompileError> {
-        let enum_name = enum_def.identifier.as_ref();
+        let enum_name = enum_def.identifier.clone();
         // ensure enum name is unique
-        if self.enum_values.contains_key(enum_name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(
-                enum_def.identifier.to_owned(),
-            )));
+        if self.m.enum_defs.contains_key(&enum_name) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(enum_name)));
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = Vec::<&str>::new();
-        for value_name in enum_def.values.iter() {
-            if values.contains(&value_name.as_str()) {
-                return Err(self.err(CompileErrorType::AlreadyDefined(format!(
-                    "{}::{}",
-                    enum_name, value_name
-                ))));
+        let mut values = BTreeMap::new();
+        for (i, value_name) in enum_def.values.iter().enumerate() {
+            match values.entry(value_name.clone()) {
+                Entry::Occupied(_) => {
+                    return Err(self.err(CompileErrorType::AlreadyDefined(format!(
+                        "{}::{}",
+                        enum_name, value_name
+                    ))));
+                }
+                Entry::Vacant(e) => {
+                    // TODO ensure value is unique. Currently, it always will be, but if enum
+                    // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
+                    // then we'll need to ensure those are unique.
+                    let n = i64::try_from(i).assume("should set enum value to index")?;
+                    e.insert(n);
+                }
             }
-            values.push(value_name);
         }
 
-        self.enum_values.insert(enum_name, values);
+        self.m.enum_defs.insert(enum_name, values);
 
         Ok(())
     }
@@ -731,24 +735,8 @@ impl<'a> CompileState<'a> {
                 t
             }
             Expression::EnumReference(e) => {
-                // get enum by name
-                let enum_def = self.enum_values.get(e.identifier.as_str()).ok_or_else(|| {
-                    self.err(CompileErrorType::NotDefined(e.identifier.to_owned()))
-                })?;
-
-                // verify that the given name is a member of the enum
-                if !enum_def.contains(&e.value.as_str()) {
-                    return Err(self.err(CompileErrorType::NotDefined(format!(
-                        "{}::{}",
-                        e.identifier, e.value
-                    ))));
-                }
-
-                self.append_instruction(Instruction::Const(Value::Enum(
-                    e.identifier.to_owned(),
-                    e.value.to_owned(),
-                )));
-
+                let value = self.enum_value(e)?;
+                self.append_instruction(Instruction::Const(value));
                 Typeish::Type(VType::Enum(e.identifier.clone()))
             }
             Expression::Dot(t, s) => {
@@ -961,6 +949,22 @@ impl<'a> CompileState<'a> {
         };
 
         Ok(expression_type)
+    }
+
+    // Get an enum value from an enum reference expression
+    fn enum_value(&self, e: &aranya_policy_ast::EnumReference) -> Result<Value, CompileError> {
+        let enum_def = self
+            .m
+            .enum_defs
+            .get(&e.identifier)
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.to_owned())))?;
+        let value = enum_def.get(&e.value).ok_or_else(|| {
+            self.err(CompileErrorType::NotDefined(format!(
+                "{}::{}",
+                e.identifier, e.value
+            )))
+        })?;
+        Ok(Value::Enum(e.identifier.to_owned(), *value))
     }
 
     /// Check if finish blocks only use appropriate expressions
@@ -1530,7 +1534,8 @@ impl<'a> CompileState<'a> {
         let identifier = &global_let.inner.identifier;
         let expression = &global_let.inner.expression;
 
-        let value = expression_value(expression)
+        let value = self
+            .expression_value(expression)
             .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(expression.clone())))?;
         let vt = value.vtype().expect("global let expression has weird type");
 
@@ -1745,30 +1750,28 @@ impl<'a> CompileState<'a> {
         self.compile_command_seal(command, command_node.locator)?;
         self.compile_command_open(command, command_node.locator)?;
 
-        // command attributes
-
-        let attr_map = self
-            .m
-            .command_attributes
-            .entry(command.identifier.to_owned())
-            .or_default();
-
-        for attr in &command.attributes {
-            match attr_map.entry(attr.0.clone()) {
+        // attributes
+        let mut attr_values = BTreeMap::new();
+        for (name, value_expr) in &command.attributes {
+            match attr_values.entry(name.clone()) {
                 Entry::Vacant(e) => {
-                    if let Some(value) = expression_value(&attr.1) {
-                        e.insert(value);
-                    } else {
-                        return Err(self.err(CompileErrorType::InvalidExpression(attr.1.clone())));
-                    }
+                    let value = self.expression_value(value_expr).ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidExpression(value_expr.clone()))
+                    })?;
+                    e.insert(value);
                 }
                 Entry::Occupied(_) => {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(attr.0.clone())));
+                    return Err(self.err(CompileErrorType::AlreadyDefined(name.clone())));
                 }
             }
         }
+        if !attr_values.is_empty() {
+            self.m
+                .command_attributes
+                .insert(command.identifier.clone(), attr_values);
+        }
 
-        // add command fields to compile target
+        // fields
         match self.m.command_defs.entry(command_node.identifier.clone()) {
             Entry::Vacant(e) => {
                 let map = command_node
@@ -1921,6 +1924,30 @@ impl<'a> CompileState<'a> {
     pub fn into_module(self) -> Module {
         self.m.into_module()
     }
+
+    /// Get expression value, e.g. Expression::Int => Value::Int
+    fn expression_value(&self, e: &Expression) -> Option<Value> {
+        match e {
+            Expression::Int(v) => Some(Value::Int(*v)),
+            Expression::Bool(v) => Some(Value::Bool(*v)),
+            Expression::String(v) => Some(Value::String(v.clone())),
+            Expression::NamedStruct(NamedStruct {
+                identifier: identfier,
+                fields,
+            }) => Some(Value::Struct(Struct {
+                name: identfier.clone(),
+                fields: {
+                    let mut value_fields = BTreeMap::new();
+                    for (value, expr) in fields {
+                        value_fields.insert(value.clone(), self.expression_value(expr)?);
+                    }
+                    value_fields
+                },
+            })),
+            Expression::EnumReference(e) => self.enum_value(e).ok(),
+            _ => None,
+        }
+    }
 }
 
 /// Flag for controling scope when compiling statement blocks.
@@ -1982,7 +2009,6 @@ impl<'a> Compiler<'a> {
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(),
             ffi_modules: self.ffi_modules,
-            enum_values: BTreeMap::new(),
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
         };
@@ -2037,29 +2063,5 @@ fn field_vtype(f: &FactField) -> Option<VType> {
             }
         }
         FactField::Bind => None,
-    }
-}
-
-/// Get expression value, e.g. Expression::Int => Value::Int
-fn expression_value(e: &Expression) -> Option<Value> {
-    match e {
-        Expression::Int(v) => Some(Value::Int(*v)),
-        Expression::Bool(v) => Some(Value::Bool(*v)),
-        Expression::String(v) => Some(Value::String(v.clone())),
-        Expression::NamedStruct(NamedStruct {
-            identifier: identfier,
-            fields,
-        }) => Some(Value::Struct(Struct {
-            name: identfier.clone(),
-            fields: {
-                let mut value_fields = BTreeMap::new();
-                for field in fields {
-                    value_fields.insert(field.0.clone(), expression_value(&field.1)?);
-                }
-                value_fields
-            },
-        })),
-        Expression::EnumReference(e) => Some(Value::Enum(e.identifier.clone(), e.value.clone())),
-        _ => None,
     }
 }

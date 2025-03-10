@@ -94,10 +94,10 @@ async fn run(options: Opt) -> Result<()> {
     {
         Ok(x) => x,
         Err(ref e) if e.kind() == io::ErrorKind::NotFound => {
-            let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])
+            let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])
                 .expect("error generating cert");
-            let key = cert.serialize_private_key_pem();
-            let cert = cert.serialize_pem().expect("error serializing cert");
+            let key = ck.key_pair.serialize_pem();
+            let cert = ck.cert.pem();
             fs::create_dir_all(path).context("failed to create certificate directory")?;
             fs::write(&cert_path, &cert).context("failed to write certificate")?;
             fs::write(&key_path, &key).context("failed to write private key")?;
