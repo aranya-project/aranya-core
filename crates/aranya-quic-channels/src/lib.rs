@@ -2,17 +2,17 @@
 
 //! An implementation of the syncer using QUIC.
 
-use std::{net::SocketAddr, sync::Arc, time::SystemTime};
+use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::{anyhow, Result};
 use aranya_fast_channels::Label;
 use bytes::Bytes;
-use heapless::FnvIndexMap;
+use heapless::Vec as HVec;
 use s2n_quic::{
     client::Connect,
     connection,
     provider::{self, StartError},
-    stream::{self, ReceiveStream, SendStream},
+    stream::{self, BidirectionalStream, ReceiveStream, SendStream},
     Client, Connection, Server,
 };
 use tokio::{
@@ -51,62 +51,89 @@ pub enum AqcError {
 }
 
 /// Runs a server listening for quic channel requests from other peers.
-pub async fn run_channels(
-    client: Arc<TMutex<AqcClient>>,
-    mut server: Server,
-    sender: Arc<TMutex<mpsc::Sender<(AqcChannel, Bytes)>>>,
-) {
+pub async fn run_channels(client: Arc<TMutex<AqcClient>>, mut server: Server) {
     loop {
         select! {
             Some(conn) = server.accept() => {
-                if let Err(e) = handle_connection(conn, client.clone(), sender.clone()).await {
-                    error!(cause = ?e, "sync error");
+                match handle_connection(conn).await {
+                    Ok(Some(channel)) => {
+                        if client
+                            .lock()
+                            .await
+                            .new_channels
+                            .push(channel).is_err() {
+                            error!("Channel full. Unable to insert channel");
+                        }
+                    },
+                    Ok(None) => {
+                        // The connection was closed.
+                    },
+                    Err(e) => {
+                        error!(cause = ?e, "connection error");
+                    }
                 }
             },
         }
     }
 }
 
-async fn handle_connection(
-    mut conn: Connection,
-    client: Arc<TMutex<AqcClient>>,
-    sender: Arc<TMutex<mpsc::Sender<(AqcChannel, Bytes)>>>,
-) -> Result<()> {
+async fn handle_connection(mut conn: Connection) -> Result<Option<AqcChannel>> {
     let stream = conn.accept_bidirectional_stream().await;
-    let stream = match stream {
-        Err(connection::Error::EndpointClosing { .. }) => {
-            return Ok(());
-        }
-        Err(e) => {
-            return Err(e.into());
-        }
-        Ok(None) => {
-            return Ok(());
-        }
-        Ok(Some(s)) => s,
-    };
-    let (recv, send) = stream.split();
-    // TODO: Use the SSL certificate to identify the channel.
-    client
-        .lock()
-        .await
-        .connections
-        .insert(
-            AqcChannel {
-                channel_id: 0,
-                label: 0.into(),
-            },
-            (send, SystemTime::now()),
-        )
-        .map_err(|_| anyhow!("Unable to insert channel"))?;
-    tokio::spawn(handle_receive(recv, sender));
-    Ok(())
+    match stream {
+        Err(connection::Error::EndpointClosing { .. }) => Ok(None),
+        Err(e) => Err(e.into()),
+        Ok(None) => Ok(None),
+        Ok(Some(stream)) => handle_bidirectional_stream(conn, stream).await,
+    }
 }
 
-async fn handle_receive(
-    mut stream: ReceiveStream,
-    sender: Arc<TMutex<mpsc::Sender<(AqcChannel, Bytes)>>>,
-) {
+async fn handle_bidirectional_stream(
+    conn: Connection,
+    stream: BidirectionalStream,
+) -> Result<Option<AqcChannel>> {
+    let (recv, send) = stream.split();
+    let (stream_sender, stream_receiver) = mpsc::channel(1);
+    let (message_sender, message_receiver) = mpsc::channel(1);
+    // TODO: Use the SSL certificate to identify the channel.
+    let channel = AqcChannel {
+        stream_receiver,
+        message_receiver,
+        send,
+    };
+    tokio::spawn(handle_stream(recv, stream_sender));
+    tokio::spawn(handle_messages(conn, message_sender));
+
+    Ok(Some(channel))
+}
+
+async fn handle_messages(mut conn: Connection, sender: mpsc::Sender<Bytes>) {
+    while let Ok(Some(stream)) = conn.accept_receive_stream().await {
+        tokio::spawn(handle_message(stream, sender.clone()));
+    }
+}
+
+async fn handle_message(mut stream: ReceiveStream, sender: mpsc::Sender<Bytes>) {
+    let mut data = Vec::new();
+    loop {
+        match stream.receive().await {
+            Ok(Some(req)) => {
+                data.extend_from_slice(&req);
+            }
+            Ok(None) => {
+                if sender.send(Bytes::from(data)).await.is_err() {
+                    debug!("error sending to channel");
+                }
+                break;
+            }
+            Err(_) => {
+                debug!("error receiving from stream");
+                break;
+            }
+        }
+    }
+}
+
+async fn handle_stream(mut stream: ReceiveStream, sender: mpsc::Sender<Bytes>) {
     loop {
         select! {
             r = stream.receive() => {
@@ -116,9 +143,7 @@ async fn handle_receive(
                         break;
                     }
                     Ok(Some(req)) => {
-                        if sender.lock().await.send(
-                            (AqcChannel { channel_id: 0, label: 0.into() }, req)
-                        ).await.is_err() {
+                        if sender.send( req).await.is_err() {
                             debug!("error sending to channel");
                         }
                     }
@@ -134,7 +159,7 @@ async fn handle_receive(
 
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
 /// Identifies a unique channel between two peers.
-pub struct AqcChannel {
+pub struct AqcChannelID {
     channel_id: u64,
     // /// The node id of the peer.
     // node_id: NodeId,
@@ -142,34 +167,30 @@ pub struct AqcChannel {
     label: Label,
 }
 
-/// FNVIndexMap requires that the size be a power of 2.
-const MAXIMUM_CONNECTIONS: usize = 32;
-
-/// An AQC client
-pub struct AqcClient {
-    quic_client: Client,
-    receiver: mpsc::Receiver<(AqcChannel, Bytes)>,
-    connections: FnvIndexMap<AqcChannel, (SendStream, SystemTime), MAXIMUM_CONNECTIONS>,
-    sender: Arc<TMutex<mpsc::Sender<(AqcChannel, Bytes)>>>,
+#[derive(Debug)]
+/// Identifies a unique channel between two peers.
+pub struct AqcChannel {
+    stream_receiver: mpsc::Receiver<Bytes>,
+    message_receiver: mpsc::Receiver<Bytes>,
+    send: SendStream,
 }
 
-impl AqcClient {
-    /// Create an Aqc client with the given certificate chain.
-    pub fn new<T: provider::tls::Provider>(
-        cert: T,
-        receiver: mpsc::Receiver<(AqcChannel, Bytes)>,
-        sender: Arc<TMutex<mpsc::Sender<(AqcChannel, Bytes)>>>,
-    ) -> Result<AqcClient, AqcError> {
-        let quic_client = Client::builder()
-            .with_tls(cert)?
-            .with_io("0.0.0.0:0")?
-            .start()?;
-        Ok(AqcClient {
-            quic_client,
-            receiver,
-            connections: FnvIndexMap::new(),
-            sender,
-        })
+impl AqcChannel {
+    /// Create a new channel with the given send stream.
+    ///
+    /// Returns the channel and the senders for the stream and message channels.
+    pub fn new(send: SendStream) -> (Self, mpsc::Sender<Bytes>, mpsc::Sender<Bytes>) {
+        let (stream_sender, stream_receiver) = mpsc::channel(1);
+        let (message_sender, message_receiver) = mpsc::channel(1);
+        (
+            Self {
+                stream_receiver,
+                message_receiver,
+                send,
+            },
+            stream_sender,
+            message_sender,
+        )
     }
 
     /// Receive the next available data from a channel. If no data is available, return None.
@@ -178,33 +199,116 @@ impl AqcClient {
     /// This method will return data as soon as it is available, and will not block.
     /// The data is not guaranteed to be complete, and may need to be called
     /// multiple times to receive all data from a message.
-    pub fn receive_data_stream(
-        &mut self,
-        target: &mut [u8],
-    ) -> Result<Option<(AqcChannel, usize)>, AqcError> {
-        match self.receiver.try_recv() {
-            Ok((channel, data)) => {
+    pub fn try_recv_stream(&mut self, target: &mut [u8]) -> Result<Option<usize>, AqcError> {
+        match self.stream_receiver.try_recv() {
+            Ok(data) => {
                 let len = data.len();
                 target[..len].copy_from_slice(&data);
-                Ok(Some((channel, len)))
+                Ok(Some(len))
             }
             Err(TryRecvError::Empty) => Ok(None),
             Err(TryRecvError::Disconnected) => Err(AqcError::ChannelClosed),
         }
     }
 
-    /// Send data to the given channel.
-    pub async fn send_data_stream(
-        &mut self,
-        channel: AqcChannel,
-        data: &[u8],
-    ) -> Result<(), AqcError> {
-        let (send, _) = self
-            .connections
-            .get_mut(&channel)
-            .ok_or(AqcError::ChannelClosed)?;
+    /// Receive the next available data from a channel. If the channel has been
+    /// closed, return None.
+    ///
+    /// This method will block until data is available to return.
+    /// The data is not guaranteed to be complete, and may need to be called
+    /// multiple times to receive all data from a message.
+    pub async fn recv_stream(&mut self, target: &mut [u8]) -> Option<usize> {
+        match self.stream_receiver.recv().await {
+            Some(data) => {
+                let len = data.len();
+                target[..len].copy_from_slice(&data);
+                Some(len)
+            }
+            None => None,
+        }
+    }
+
+    /// Receive the next available message from a channel. If no data is available, return None.
+    /// If the channel is closed, return an AqcError::ChannelClosed error.
+    ///
+    /// This method will return messages as soon as they are available, and will not block.
+    pub fn try_recv_message(&mut self, target: &mut [u8]) -> Result<Option<usize>, AqcError> {
+        match self.message_receiver.try_recv() {
+            Ok(data) => {
+                let len = data.len();
+                target[..len].copy_from_slice(&data);
+                Ok(Some(len))
+            }
+            Err(TryRecvError::Empty) => Ok(None),
+            Err(TryRecvError::Disconnected) => Err(AqcError::ChannelClosed),
+        }
+    }
+
+    /// Receive the next available message from a channel. If the channel has been
+    /// closed, return None.
+    ///
+    /// This method will block until data is available to return.
+    /// The data is not guaranteed to be complete, and may need to be called
+    /// multiple times to receive all data from a message.
+    pub async fn recv_message(&mut self, target: &mut [u8]) -> Option<usize> {
+        match self.message_receiver.recv().await {
+            Some(data) => {
+                let len = data.len();
+                target[..len].copy_from_slice(&data);
+                Some(len)
+            }
+            None => None,
+        }
+    }
+
+    /// Stream data to the given channel.
+    pub async fn send_stream(&mut self, data: &[u8]) -> Result<(), AqcError> {
+        self.send.send(Bytes::copy_from_slice(data)).await?;
+        Ok(())
+    }
+
+    /// Send a message the given channel.
+    pub async fn send_message(&mut self, data: &[u8]) -> Result<(), AqcError> {
+        let mut send = self.send.connection().open_send_stream().await?;
         send.send(Bytes::copy_from_slice(data)).await?;
         Ok(())
+    }
+
+    /// Close the given channel if it's open. If the channel is already closed, do nothing.
+    pub fn close(&mut self) {
+        const ERROR_CODE: u32 = 0;
+        self.send.connection().close(ERROR_CODE.into());
+    }
+}
+
+/// The maximum number of channels that haven't been received.
+const MAXIMUM_UNRECEIVED_CHANNELS: usize = 10;
+
+/// An AQC client
+#[derive(Debug)]
+pub struct AqcClient {
+    quic_client: Client,
+    /// Holds channels that have created, but not yet been received.
+    pub new_channels: HVec<AqcChannel, MAXIMUM_UNRECEIVED_CHANNELS>,
+}
+
+impl AqcClient {
+    /// Create an Aqc client with the given certificate chain.
+    pub fn new<T: provider::tls::Provider>(cert: T) -> Result<AqcClient, AqcError> {
+        let quic_client = Client::builder()
+            .with_tls(cert)?
+            .with_io("0.0.0.0:0")?
+            .start()?;
+        Ok(AqcClient {
+            quic_client,
+            new_channels: HVec::new(),
+        })
+    }
+
+    /// Receive the next available channel. If no channel is available, return None.
+    /// This method will return a channel created by a peer that hasn't been received yet.
+    pub fn receive_channel(&mut self) -> Option<AqcChannel> {
+        self.new_channels.pop()
     }
 
     /// Create a new channel to the given address.
@@ -214,24 +318,11 @@ impl AqcClient {
             .quic_client
             .connect(Connect::new(addr).with_server_name("localhost"))
             .await?;
-        let (recv, send) = conn.open_bidirectional_stream().await?.split();
-        let channel = AqcChannel {
-            channel_id: 0,
-            label: 0.into(),
-        };
-        self.connections
-            .insert(channel, (send, SystemTime::now()))
-            .map_err(|_| anyhow!("Unable to insert channel"))?;
-
-        tokio::spawn(handle_receive(recv, self.sender.clone()));
-        Ok(channel)
-    }
-
-    /// Close the given channel if it's open. If the channel is already closed, do nothing.
-    pub fn close_channel(&mut self, channel: AqcChannel) {
-        if let Some((send, _)) = self.connections.remove(&channel) {
-            const ERROR_CODE: u32 = 0;
-            send.connection().close(ERROR_CODE.into());
+        let stream = conn.open_bidirectional_stream().await?;
+        if let Some(channel) = handle_bidirectional_stream(conn, stream).await? {
+            Ok(channel)
+        } else {
+            Err(anyhow!("no channel created").into())
         }
     }
 }
