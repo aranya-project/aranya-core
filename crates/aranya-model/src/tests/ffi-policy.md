@@ -48,22 +48,22 @@ effect Success {
 }
 
 // A device's public SigningKey.
-fact UserSignKey[device_id id]=>{key_id id, key bytes}
+fact DeviceSignKey[device_id id]=>{key_id id, key bytes}
 
 // A device's public IdentityKey.
 //
-// NB: `key_id` is also the UserID.
+// NB: `key_id` is also the DeviceId.
 fact DeviceIdentKey[device_id id]=>{key bytes}
 
-// A device's set of public UserKeys
-struct UserKeyBundle {
+// A device's set of public DeviceKeys
+struct DeviceKeyBundle {
     device_id id,
     ident_pk bytes,
     sign_pk bytes,
 }
 
 // Data needed to add a new device to the team.
-struct NewUser {
+struct NewDevice {
     device_id id,
     ident_pk bytes,
     sign_pk_id id,
@@ -71,21 +71,21 @@ struct NewUser {
 }
 
 // Returns the role string.
-function Role_User() string {
-    return "Role::User"
+function Role_Device() string {
+    return "Role::Device"
 }
 
-// Derives the key ID for each of the UserKeys in the bundle and
+// Derives the key ID for each of the DeviceKeys in the bundle and
 // checks that `device_id` matches the ID derived from `ident_pk`.
-// (The IdentityKey's ID is the UserID.)
-function authorized_device_key_ids(device_keys struct UserKeyBundle) struct NewUser {
+// (The IdentityKey's ID is the DeviceId.)
+function authorized_device_key_ids(device_keys struct DeviceKeyBundle) struct NewDevice {
     let got_device_id = idam::derive_device_id(device_keys.ident_pk)
 
     check got_device_id == device_keys.device_id
 
     let sign_pk_id = idam::derive_sign_key_id(device_keys.sign_pk)
 
-    return NewUser {
+    return NewDevice {
         device_id: device_keys.device_id,
         ident_pk: device_keys.ident_pk,
         sign_pk_id: sign_pk_id,
@@ -97,7 +97,7 @@ function authorized_device_key_ids(device_keys struct UserKeyBundle) struct NewU
 function seal_basic_command(payload bytes) struct Envelope {
     let parent_id = perspective::head_id()
     let author_id = device::current_device_id()
-    let author_sign_sk_id = check_unwrap query UserSignKey[device_id: author_id]=>{key_id: ?, key: ?}
+    let author_sign_sk_id = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
     let signed = crypto::sign(
         author_sign_sk_id.key_id,
         payload,
@@ -115,7 +115,7 @@ function seal_basic_command(payload bytes) struct Envelope {
 // Opens a basic command from an envelope, using the author's stored signing key.
 function open_basic_command(envelope_input struct Envelope) bytes {
     let author_id = envelope::author_id(envelope_input)
-    let author_sign_pk = check_unwrap query UserSignKey[device_id: author_id]=>{key_id: ?, key: ?}
+    let author_sign_pk = check_unwrap query DeviceSignKey[device_id: author_id]=>{key_id: ?, key: ?}
     let parent_id = envelope::parent_id(envelope_input)
 
     let crypto_command = crypto::verify(
@@ -186,13 +186,13 @@ command Init {
 
 }
 action add_device_keys(ident_pk bytes, sign_pk bytes) {
-    publish AddUserKeys {
+    publish AddDeviceKeys {
         ident_pk: ident_pk,
         sign_pk: sign_pk,
     }
 }
 
-command AddUserKeys {
+command AddDeviceKeys {
     fields {
         ident_pk bytes,
         sign_pk bytes,
@@ -241,7 +241,7 @@ command AddUserKeys {
         let device_id = idam::derive_device_id(this.ident_pk)
         check author == device_id
 
-        let device_keys = UserKeyBundle {
+        let device_keys = DeviceKeyBundle {
             device_id: author,
             ident_pk: this.ident_pk,
             sign_pk: this.sign_pk,
@@ -250,7 +250,7 @@ command AddUserKeys {
         let device = authorized_device_key_ids(device_keys)
 
         finish {
-            create UserSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
+            create DeviceSignKey[device_id: device.device_id]=>{key_id: device.sign_pk_id, key: device.sign_pk}
             create DeviceIdentKey[device_id: device.device_id]=>{key: device.ident_pk}
         }
     }

@@ -12,7 +12,7 @@ use crypto
 use device
 ```
 
-## Users and Roles
+## Devices and Roles
 
 The TT&C Team has the following roles:
 
@@ -86,29 +86,29 @@ function is_valid_role(role string) bool {
 // - "Role_Operator"
 // - "Role_Satellite"
 // This can be checked with `is_valid_role`.
-fact User[device_id id]=>{role string, sign_pk_id id, enc_pk_id id}
+fact Device[device_id id]=>{role string, sign_pk_id id, enc_pk_id id}
 
 // A device's public IdentityKey.
 //
-// NB: `key_id` is also the UserID.
+// NB: `key_id` is also the DeviceId.
 fact DeviceIdentKey[key_id id]=>{key bytes}
 
 // A device's public SigningKey.
-fact UserSignKey[key_id id]=>{device_id id, key bytes}
+fact DeviceSignKey[key_id id]=>{device_id id, key bytes}
 
 // A device's public EncryptionKey.
-fact UserEncKey[key_id id]=>{device_id id, key bytes}
+fact DeviceEncKey[key_id id]=>{device_id id, key bytes}
 
 // Adds the device to the Control Plane.
-finish function add_new_device(device struct NewUser) {
-    create User[device_id: device.device_id]=>{role: device.role, sign_key_id: device.sign_pk_id, enc_key_id: device.enc_pk_id}
+finish function add_new_device(device struct NewDevice) {
+    create Device[device_id: device.device_id]=>{role: device.role, sign_key_id: device.sign_pk_id, enc_key_id: device.enc_pk_id}
     create DeviceIdentKey[key_id: device.device_id]=>{key: device.ident_pk}
-    create UserSignKey[key_id: device.sign_pk_id]=>{device_id: device.device_id, key: device.sign_pk}
-    create UserEncKey[key_id: device.enc_pk_id]=>{device_id: device.device_id, key: device.enc_pk}
+    create DeviceSignKey[key_id: device.sign_pk_id]=>{device_id: device.device_id, key: device.sign_pk}
+    create DeviceEncKey[key_id: device.enc_pk_id]=>{device_id: device.device_id, key: device.enc_pk}
 }
 
 // The argument to `add_new_device`.
-struct NewUser {
+struct NewDevice {
     device_id id,
     sign_pk_id id,
     sign_pk bytes,
@@ -118,7 +118,7 @@ struct NewUser {
 }
 
 // A device in the TT&C team.
-struct User {
+struct Device {
     device_id id,
     sign_pk_id id,
     enc_pk_id id,
@@ -126,9 +126,9 @@ struct User {
 }
 
 // Returns a device.
-function get_device(device_id id) struct User {
-    let device_info = unwrap query User[device_id: device_id]=>{role: ?, sign_pk_id: ?, enc_pk_id: ?}
-    let device = User {
+function get_device(device_id id) struct Device {
+    let device_info = unwrap query Device[device_id: device_id]=>{role: ?, sign_pk_id: ?, enc_pk_id: ?}
+    let device = Device {
         device_id: device_id,
         sign_pk_id: device_info.sign_pk_id,
         enc_pk_id: device_info.enc_pk_id,
@@ -159,27 +159,27 @@ function is_satellite(device_id id) bool {
 
 // Reports whether the device's role is `role`.
 function has_role(device_id id, role string) bool {
-    let ok = exists User[device_id: device_id]=>{role: role, sign_pk_id: ?, enc_pk_id: ?}
+    let ok = exists Device[device_id: device_id]=>{role: role, sign_pk_id: ?, enc_pk_id: ?}
     return ok
 }
 
-// Reports whether `device_id` matches the UserID derived from
-// `ident_pk`. (The IdentityKey's ID is the UserID.)
+// Reports whether `device_id` matches the DeviceId derived from
+// `ident_pk`. (The IdentityKey's ID is the DeviceId.)
 function ident_pk_matches_device_id(device_id id, ident_pk bytes) bool {
     let got_device_id = crypto_derive_key_id(ident_pk)
     return got_device_id == device_id
 }
 
 // Sanity checks the device per the stated invariants.
-function is_valid_device(device struct User) bool {
+function is_valid_device(device struct Device) bool {
     // Must have an IdentityKey
     let has_ident_key = exists DeviceIdentKey[device_id: device.device_id]=>{key: ?}
 
     // Must have a SigningKey
-    let has_sign_key = exists UserSignKey[device_id: device.device_id]=>{key: ?}
+    let has_sign_key = exists DeviceSignKey[device_id: device.device_id]=>{key: ?}
 
     // Must have an EncryptionKey
-    let has_enc_key = exists UserEncKey[device_id: device.device_id]=>{key: ?}
+    let has_enc_key = exists DeviceEncKey[device_id: device.device_id]=>{key: ?}
 
     // Must have a valid role.
     let has_valid_role = is_valid_role(device.role)
@@ -221,7 +221,7 @@ action create_ttc_team(
 effect TtcTeamCreated {
     // The name of the TT&C Team.
     name string,
-    // The UserID of the creator of the TT&C Team.
+    // The DeviceId of the creator of the TT&C Team.
     owner_id id,
 }
 
@@ -252,7 +252,7 @@ command CreateTtcTeam {
         let sign_pk_id = crypto_derive_key_id(this.sign_pk)
         let enc_pk_id = crypto_derive_key_id(this.enc_pk)
 
-        let device = NewUser {
+        let device = NewDevice {
             device_id: author,
             ident_pk: this.ident_pk,
             sign_pk_id: sign_pk_id,
@@ -333,7 +333,7 @@ action add_satellite(
     publish cmd
 }
 
-// Creates an `AddUser` command.
+// Creates an `AddDevice` command.
 function new_add_device_cmd(
     device_id id,
     name string,
@@ -341,8 +341,8 @@ function new_add_device_cmd(
     ident_pk bytes,
     enc_pk bytes,
     role string,
-) struct AddUser {
-    let cmd = AddUser {
+) struct AddDevice {
+    let cmd = AddDevice {
         device_id: device_id,
         name: name,
         ident_pk: ident_pk,
@@ -389,9 +389,9 @@ effect SatelliteAdded {
     enc_pk bytes,
 }
 
-command AddUser {
+command AddDevice {
     fields {
-        // The new device's UserID.
+        // The new device's DeviceId.
         device_id id,
         // The new device's name.
         name string,
@@ -478,7 +478,7 @@ command AddUser {
         let sign_pk_id = crypto_derive_key_id(this.sign_pk)
         let enc_pk_id = crypto_derive_key_id(this.enc_pk)
 
-        let device = NewUser {
+        let device = NewDevice {
             device_id: author,
             sign_pk_id: sign_pk_id,
             sign_pk: this.sign_pk,
@@ -539,9 +539,9 @@ action remove_satellite(device_id id) {
     publish cmd
 }
 
-// Creates a `RemoveUser` command.
-function new_remove_device_cmd(device_id id) struct RemoveUser {
-    let cmd = RemoveUser {
+// Creates a `RemoveDevice` command.
+function new_remove_device_cmd(device_id id) struct RemoveDevice {
+    let cmd = RemoveDevice {
         device_id: device,
     }
     return cmd
@@ -568,16 +568,16 @@ effect SatelliteRemoved {
 }
 
 // Deletes a device.
-finish function remove_device(device struct User) {
-    delete User[device_id: device.device_id]
+finish function remove_device(device struct Device) {
+    delete Device[device_id: device.device_id]
     delete DeviceIdentKey[key_id: device.device_id]
-    delete UserSignKey[key_id: device.sign_pk_id]
-    delete UserEncKey[key_id: device.enc_key_id]
+    delete DeviceSignKey[key_id: device.sign_pk_id]
+    delete DeviceEncKey[key_id: device.enc_key_id]
 }
 
-command RemoveUser {
+command RemoveDevice {
     fields {
-        // The UserID of the device being removed.
+        // The DeviceId of the device being removed.
         device_id id,
     }
 
@@ -596,7 +596,7 @@ command RemoveUser {
                       author.device_id == this.device_id
 
                 // But there must always be at least one owner.
-                // check at_least 2 User[device_id: ?]=>{role: "Role_Owner", sign_key_id: ?, enc_key_id: ?}
+                // check at_least 2 Device[device_id: ?]=>{role: "Role_Owner", sign_key_id: ?, enc_key_id: ?}
 
                 finish {
                     remove_device(device)
@@ -655,7 +655,7 @@ command RemoveUser {
 
 **Invariants:**
 
-- Users cannot remove themselves.
+- Devices cannot remove themselves.
 - There must always be at least one Owner.
 - Owners can only be removed by other Owners.
 - Admins can only be removed by other Admins or the
@@ -949,7 +949,7 @@ command CreateAfcBidiChannel {
         let peer = get_device(this.peer_id)
         check is_valid_device(peer) // DEBUG
 
-        // Users can't create channels with themselves.
+        // Devices can't create channels with themselves.
         check this.peer != author
 
         // Both devices must have bidirectional permissions.
@@ -1072,9 +1072,9 @@ fact AfcUniChannel[seal_id id, open_id id, label int]=>{}
 
 command CreateAfcUniChannel {
     fields {
-        // The UserID of the side that can encrypt data.
+        // The DeviceId of the side that can encrypt data.
         seal_id id,
-        // The UserID of the side that can decrypt data.
+        // The DeviceId of the side that can decrypt data.
         open_id id,
         // The label to use.
         label int,
@@ -1088,7 +1088,7 @@ command CreateAfcUniChannel {
         check author.device_id == this.seal_id ||
               author.device_id == this.open_id
 
-        // Users can't create channels with themselves.
+        // Devices can't create channels with themselves.
         check this.seal_id != this.open_id
 
         check is_valid_device(get_device(this.seal_id)) // DEBUG
