@@ -87,7 +87,7 @@ action create_action(v int) {
 }
 
 // `Create` is a command that will create a `Stuff` fact in the factDB and emit
-// the `StuffHappened` effect back to the device.
+// the `StuffHappened` effect back to the user.
 command Create {
     fields {
         key_a int,

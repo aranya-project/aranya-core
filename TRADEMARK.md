@@ -40,7 +40,7 @@ If you distribute a modified version of our software, you must remove all of our
 ### Statements about compatibility
 You may use the word marks, but not the logos, to truthfully describe the relationship between your software and ours. Any other use may imply that we have certified or approved your software.  If you wish to use our logos, please contact us to discuss license terms.
 
-### Device groups
+### User groups
 You can use the Word Marks as part of your user group name provided that:
 - The main focus of the group is our software
 - The group does not make a profit
