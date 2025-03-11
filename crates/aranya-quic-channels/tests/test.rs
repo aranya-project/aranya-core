@@ -1,6 +1,7 @@
 use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
 
 use anyhow::Result;
+use aranya_crypto::csprng::rand;
 use aranya_quic_channels::{run_channels, AqcClient};
 use aranya_runtime::{
     protocol::{TestActions, TestEngine, TestSink},
@@ -43,7 +44,7 @@ async fn test_channels() -> Result<()> {
         // Test sending streams
         channel1.send_stream(&Bytes::from("hello")).await?;
         tokio::time::sleep(Duration::from_millis(100)).await;
-        let mut target = vec![0u8; 1024 * 1024];
+        let mut target = vec![0u8; 1024 * 1024 * 2];
         if let Some(len) = channel2.recv_stream(target.as_mut_slice()).await {
             assert_eq!(&target[..len], b"hello");
         } else {
@@ -72,6 +73,37 @@ async fn test_channels() -> Result<()> {
         } else {
             panic!("no data received");
         }
+        let big_data = {
+            let mut rng = rand::thread_rng();
+            let mut data = vec![0u8; 1024 * 1024 * 3 / 2];
+            rand::Rng::fill(&mut rng, &mut data[..]);
+            Bytes::from(data)
+        };
+        channel1.send_message(&big_data).await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        // Send message should return the complete message
+        if let Some(len) = channel2.recv_message(target.as_mut_slice()).await {
+            assert_eq!(&target[..len], &big_data[..]);
+        } else {
+            panic!("no data received");
+        }
+
+        channel1.send_stream(&big_data).await?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let mut total_len: usize = 0;
+        let mut total_pieces: i32 = 0;
+        // Send stream should return the message in pieces
+        while let Some(len) = channel2.try_recv_stream(&mut target[total_len..])? {
+            total_pieces = total_pieces.checked_add(1).expect("Pieces overflow");
+            total_len = total_len.checked_add(len).expect("Length overflow");
+            if total_len >= big_data.len() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert!(total_pieces > 1);
+        assert_eq!(total_len, big_data.len());
+        assert_eq!(&target[..total_len], &big_data[..]);
     } else {
         panic!("channel is not available");
     }
