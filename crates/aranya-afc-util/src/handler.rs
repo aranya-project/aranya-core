@@ -130,11 +130,11 @@ impl<S: KeyStore> Handler<S> {
 pub struct BidiChannelCreated<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
-    /// The channel author's user ID.
+    /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encryption key ID.
     pub author_enc_key_id: EncryptionKeyId,
-    /// The channel peer's user ID.
+    /// The channel peer's device ID.
     pub peer_id: DeviceId,
     /// The channel peer's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub peer_enc_pk: &'a [u8],
@@ -149,11 +149,11 @@ pub struct BidiChannelCreated<'a> {
 pub struct BidiChannelReceived<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
-    /// The channel author's user ID.
+    /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub author_enc_pk: &'a [u8],
-    /// The channel peer's user ID.
+    /// The channel peer's device ID.
     pub peer_id: DeviceId,
     /// The channel peer's encryption key ID.
     pub peer_enc_key_id: EncryptionKeyId,
@@ -295,11 +295,11 @@ impl<S: KeyStore> Handler<S> {
 pub struct UniChannelCreated<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
-    /// The channel author's user ID.
+    /// The channel author's device ID.
     pub author_id: DeviceId,
-    /// The user ID of the Device that can encrypt messages.
+    /// The device ID of the Device that can encrypt messages.
     pub seal_id: DeviceId,
-    /// The user ID of the Device that can decrypt messages.
+    /// The device ID of the Device that can decrypt messages.
     pub open_id: DeviceId,
     /// The channel author's encryption key ID.
     pub author_enc_key_id: EncryptionKeyId,
@@ -316,11 +316,11 @@ pub struct UniChannelCreated<'a> {
 pub struct UniChannelReceived<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
-    /// The channel author's user ID.
+    /// The channel author's device ID.
     pub author_id: DeviceId,
-    /// The user ID of the Device that can encrypt messages.
+    /// The device ID of the Device that can encrypt messages.
     pub seal_id: DeviceId,
-    /// The user ID of the Device that can decrypt messages.
+    /// The device ID of the Device that can decrypt messages.
     pub open_id: DeviceId,
     /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub author_enc_pk: &'a [u8],
