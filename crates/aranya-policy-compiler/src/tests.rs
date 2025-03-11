@@ -1628,11 +1628,11 @@ fn test_type_errors() -> anyhow::Result<()> {
 fn test_optional_types() -> anyhow::Result<()> {
     let cases = [
         "42 == unwrap None",
-        "42 == unwrap Some 42",
+        "42 == unwrap Some(42)",
         "None is Some",
         "None is None",
-        "(Some 42) is Some",
-        "(Some 42) is None",
+        "(Some(42)) is Some",
+        "(Some(42)) is None",
     ];
 
     for (i, c) in cases.iter().enumerate() {
