@@ -487,7 +487,6 @@ dependencies = [
  "heapless 0.8.0",
  "rcgen",
  "s2n-quic",
- "serde",
  "test-log",
  "thiserror 2.0.7",
  "tokio",
