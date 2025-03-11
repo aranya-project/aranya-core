@@ -131,7 +131,7 @@ checksum = "c1fd03a028ef38ba2276dce7e33fcd6369c158a1bca17946c4b1b701891c1ff7"
 
 [[package]]
 name = "aranya-afc-util"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-afc-util",
  "aranya-crypto",
@@ -160,7 +160,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-codegen"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -192,7 +192,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aranya-capi-macro",
  "aranya-libc",
@@ -209,7 +209,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-macro"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aranya-capi-codegen",
  "proc-macro2",
@@ -220,7 +220,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "aranya-crypto",
  "buggy",
@@ -244,7 +244,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto-ffi"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-crypto",
  "aranya-crypto-ffi",
@@ -257,7 +257,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-device-ffi"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -265,7 +265,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-envelope-ffi"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-idam-ffi"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-crypto",
  "aranya-idam-ffi",
@@ -307,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-libc"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cfg-if",
  "libc",
@@ -340,7 +340,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-perspective-ffi"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -348,7 +348,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ast"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "thiserror 2.0.7",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-compiler"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -370,7 +370,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-derive"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "aranya-policy-lang",
  "prettyplease",
@@ -381,7 +381,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",
@@ -395,7 +395,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-build"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -408,7 +408,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-macro"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -417,7 +417,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-lang"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -432,7 +432,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-module"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-ast",
@@ -444,7 +444,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-vm"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "aranya-crypto",
@@ -498,7 +498,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-runtime"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aranya-crypto",
  "aranya-libc",
