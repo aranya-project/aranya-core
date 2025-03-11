@@ -4,6 +4,7 @@ use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref, str::FromStr};
 
 use serde::{Deserialize, Serialize};
+
 /// An invalid version string was provided to
 /// [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]

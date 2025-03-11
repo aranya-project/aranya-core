@@ -106,7 +106,7 @@ pub struct ModuleV0 {
     pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Command definitions
     pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
-    /// Fact definition
+    /// Fact definitions
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct definitions
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
