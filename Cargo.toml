@@ -49,6 +49,7 @@ proptest-derive = { version = "0.5" }
 s2n-quic = { version = "1.51.0", default-features = false, features = ["provider-address-token-default", "provider-tls-s2n"] }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
+rcgen = { version = "0.13", default-features = false, features = ["pem", "aws_lc_rs"] }
 rustix = { version = "0.38", default-features = false }
 serde = { version = "1.0.210", default-features = false }
 spin = { version = "0.9.8", default-features = false }
