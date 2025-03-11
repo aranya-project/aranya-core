@@ -1204,8 +1204,10 @@ fn test_match_return() -> anyhow::Result<()> {
 #[test]
 fn test_match_expression() -> anyhow::Result<()> {
     let text = r#"
-        effect F {
-            x int
+        command F {
+            fields { x int }
+            seal { return None }
+            open { return None }
         }
         action foo(x int) {
             let y = match x {
