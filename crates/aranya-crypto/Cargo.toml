@@ -120,6 +120,7 @@ buggy = { version = "0.1.0", default-features = false }
 spideroak-base58 = { version = "0.1.0", default-features = false }
 spideroak-crypto = { version = "0.2.0", default-features = false }
 
+bytecheck = { workspace = true }
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
 ciborium = { version = "0.2", default-features = false, optional = true }
@@ -127,11 +128,10 @@ ciborium-io = { version = "0.2", default-features = false, optional = true }
 postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
+rkyv = { workspace = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 siphasher = { version = "1", default-features = false }
-rkyv = { version = "0.8.10", default-features = false, features = ["alloc", "bytecheck"]}
-bytecheck = "0.8.0"
 thiserror = { workspace = true }
 
 [dev-dependencies]
