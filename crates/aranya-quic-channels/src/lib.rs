@@ -92,14 +92,8 @@ async fn handle_bidirectional_stream(
     stream: BidirectionalStream,
 ) -> Result<Option<AqcChannel>> {
     let (recv, send) = stream.split();
-    let (stream_sender, stream_receiver) = mpsc::channel(1);
-    let (message_sender, message_receiver) = mpsc::channel(1);
     // TODO: Use the SSL certificate to identify the channel.
-    let channel = AqcChannel {
-        stream_receiver,
-        message_receiver,
-        send,
-    };
+    let (channel, stream_sender, message_sender) = AqcChannel::new(send);
     tokio::spawn(handle_stream(recv, stream_sender));
     tokio::spawn(handle_messages(conn, message_sender));
 
