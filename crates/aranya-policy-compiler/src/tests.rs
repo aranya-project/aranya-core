@@ -3,7 +3,10 @@
 use anyhow::anyhow;
 use aranya_policy_ast::{FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
-use aranya_policy_module::{ffi::ModuleSchema, Label, LabelType, ModuleData, Value};
+use aranya_policy_module::{
+    ffi::{self, ModuleSchema},
+    Label, LabelType, ModuleData, Value,
+};
 
 use crate::{validate::validate, CompileError, CompileErrorType, Compiler, InvalidCallColor};
 
@@ -12,7 +15,10 @@ fn test_compile() -> anyhow::Result<()> {
     let policy = parse_policy_str(
         r#"
         command Foo {
-            fields {}
+            fields {
+                a int,
+                b int
+            }
             seal { return None }
             open { return None }
             policy {
@@ -772,7 +778,7 @@ fn test_fact_bind_value_type() -> anyhow::Result<()> {
 #[test]
 fn test_fact_expression_value_type() -> anyhow::Result<()> {
     let text = r#"
-        fact Foo[i int] => {a string}
+        fact Foo[i int] => {a int}
         action test() {
             check exists Foo[i: 1] => {a: 1+1}
         }
@@ -867,8 +873,8 @@ fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
 #[test]
 fn test_serialize_deserialize() -> anyhow::Result<()> {
     let text = r#"
-        function foo() int {
-            let b = serialize(3)
+        function foo(input struct Foo) struct Foo {
+            let b = serialize(input)
             return deserialize(b)
         }
     "#;
@@ -1188,6 +1194,38 @@ fn test_match_default_not_last() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_match_arm_should_be_limited_to_literals() -> anyhow::Result<()> {
+    let policies = vec![
+        r#"
+            action foo(x int) {
+                match x {
+                    0 + 1 => {}
+                }
+            }
+        "#,
+        r#"
+        function f() int { return 0 }
+        action foo(x int) {
+            match x {
+                f() => {}
+            }
+        }
+        "#,
+    ];
+
+    for text in policies {
+        let policy = parse_policy_str(text, Version::V2)?;
+        let res = Compiler::new(&policy).compile().unwrap_err();
+        assert_eq!(
+            res.err_type,
+            CompileErrorType::InvalidType(String::from("match arm is not a literal expression"))
+        );
+    }
+
+    Ok(())
+}
+
 // Note: this test is not exhaustive
 #[test]
 fn test_bad_statements() -> anyhow::Result<()> {
@@ -1458,7 +1496,14 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
 
 const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
     name: "test",
-    functions: &[],
+    functions: &[ffi::Func {
+        name: "doit",
+        args: &[ffi::Arg {
+            name: "x",
+            vtype: ffi::Type::Int,
+        }],
+        return_type: ffi::Type::Bool,
+    }],
     structs: &[],
 }];
 
@@ -1525,6 +1570,15 @@ fn test_type_errors() -> anyhow::Result<()> {
                 }
             "#,
             e: "Struct `Foo` has no member `y`",
+        },
+        Case {
+            t: r#"
+                struct Foo {a int}
+                function g(x struct Foo) bool {
+                    return Foo{a: false}
+                }
+            "#,
+            e: "`Struct Foo` field `a` is not int",
         },
         Case {
             t: r#"
@@ -1604,12 +1658,123 @@ fn test_type_errors() -> anyhow::Result<()> {
             "#,
             e: "Emit must be given a struct",
         },
+        Case {
+            t: r#"
+                command Foo {
+                    seal {
+                      return serialize(3)
+                    }
+                }
+            "#,
+            e: "Serializing non-struct",
+        },
+        Case {
+            t: r#"
+                command Foo {
+                    seal {
+                        return None
+                    }
+                    open {
+                      return deserialize(3)
+                    }
+                }
+            "#,
+            e: "Deserializing non-bytes",
+        },
+        Case {
+            t: r#"
+                function bar(x int) bool {
+                    return false
+                }
+                function foo() bool {
+                    return bar(Some(3))
+                }
+            "#,
+            e: "Argument 1 (`x`) in call to `bar` found `optional int`, expected `int`",
+        },
+        Case {
+            t: r#"
+                use test
+                function foo() bool {
+                    return test::doit(Some(3))
+                }
+            "#,
+            e: "Argument 1 (`x`) in FFI call to `test::doit` found `optional int`, not `int`",
+        },
+        Case {
+            t: r#"
+                function foo(x int) bool {
+                    match x {
+                        "foo" => {
+                        }
+                    }
+                }
+            "#,
+            e: "match expression is `int` but arm expression 1 is `string`",
+        },
+        Case {
+            t: r#"
+                function foo(x int) bool {
+                    if 3 {
+                    }
+                }
+            "#,
+            e: "if condition must be boolean",
+        },
+        Case {
+            t: r#"
+                function foo(x int) bool {
+                    if 3 {
+                    }
+                }
+            "#,
+            e: "if condition must be boolean",
+        },
+        Case {
+            t: r#"
+                action foo() {
+                    publish 3
+                }
+            "#,
+            e: "Cannot publish `int`, must be a command struct",
+        },
+        Case {
+            t: r#"
+                struct Foo {}
+                action foo() {
+                    publish Foo {}
+                }
+            "#,
+            e: "Struct `Foo` is not a Command struct",
+        },
+        Case {
+            t: r#"
+                fact Foo[x int]=>{y bool}
+                command MangleFoo {
+                    policy {
+                        finish {
+                            update Foo[x: 0]=>{y: ?} to {y: 3}
+                        }
+                    }
+                }
+            "#,
+            e: "Fact `Foo` value field `y` found `int`, not `bool`",
+        },
+        Case {
+            t: r#"
+                action foo() {
+                    debug_assert(3)
+                }
+            "#,
+            e: "debug assertion must be a boolean expression",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
         let policy = parse_policy_str(c.t, Version::V2)?;
         let err = Compiler::new(&policy)
             .ffi_modules(FAKE_SCHEMA)
+            .debug(true) // forced on to enable debug_assert()
             .compile()
             .expect_err("Did not get error")
             .err_type;

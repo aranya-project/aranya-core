@@ -778,20 +778,6 @@ impl<'a> ChunkParser<'a> {
                         .into_inner()
                         .map(|token| {
                             let expr = self.parse_expression(token.to_owned())?;
-                            // Ensure expression values are all literals
-                            if !matches!(
-                                expr,
-                                Expression::Int(_)
-                                    | Expression::String(_)
-                                    | Expression::Bool(_)
-                                    | Expression::EnumReference(_)
-                            ) {
-                                return Err(ParseError::new(
-                                    ParseErrorKind::InvalidType,
-                                    String::from("match arm value must be a literal"),
-                                    Some(token.as_span()),
-                                ));
-                            }
                             Ok(expr)
                         })
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
