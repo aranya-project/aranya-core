@@ -1687,7 +1687,7 @@ fn test_type_errors() -> anyhow::Result<()> {
                     return false
                 }
                 function foo() bool {
-                    return bar(Some 3)
+                    return bar(Some(3))
                 }
             "#,
             e: "Argument 1 (`x`) in call to `bar` found `optional int`, expected `int`",
@@ -1696,7 +1696,7 @@ fn test_type_errors() -> anyhow::Result<()> {
             t: r#"
                 use test
                 function foo() bool {
-                    return test::doit(Some 3)
+                    return test::doit(Some(3))
                 }
             "#,
             e: "Argument 1 (`x`) in FFI call to `test::doit` found `optional int`, not `int`",
