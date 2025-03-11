@@ -12,11 +12,11 @@ rust-version.workspace = true
 aranya-crypto = { version = "0.5.0", path = "../aranya-crypto", default-features = false }
 aranya-policy-ast = { version = "0.4.0", path = "../aranya-policy-ast" }
 
+bytecheck = { workspace = true }
 proptest = { workspace = true, default-features = false, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }
+rkyv = { workspace = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-rkyv = { version = "0.8.10", default-features = false, features = ["alloc", "bytecheck"]}
-bytecheck = "0.8.0"
 thiserror = { workspace = true }
 
 [features]

@@ -20,9 +20,9 @@ default = []
 std = ["thiserror/std"]
 
 [dependencies]
+bytecheck = { workspace = true }
+rkyv = { workspace = true }
 serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
-rkyv = { version = "0.8.10", default-features = false, features = ["alloc", "bytecheck"]}
-bytecheck = "0.8.0"
 thiserror = { workspace = true }
 
 [package.metadata.docs.rs]
