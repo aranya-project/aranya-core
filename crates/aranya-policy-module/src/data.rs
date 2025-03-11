@@ -788,6 +788,7 @@ pub struct Fact {
     /// The name of the fact
     pub name: String,
     /// The keys of the fact
+    #[rkyv(omit_bounds)]
     pub keys: FactKeyList,
     /// The values of the fact
     #[rkyv(omit_bounds)]
@@ -889,6 +890,7 @@ pub struct Struct {
     /// The name of the struct
     pub name: String,
     /// the fields of the struct
+    #[rkyv(omit_bounds)]
     pub fields: BTreeMap<String, Value>,
 }
 
