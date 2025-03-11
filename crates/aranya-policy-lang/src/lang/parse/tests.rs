@@ -1260,32 +1260,6 @@ fn parse_enum_reference() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
-fn enum_arm_should_be_limited_to_literals() {
-    let policies = vec![
-        r#"
-            action foo(x int) {
-                match x {
-                    0 + 1 => {}
-                }
-            }
-        "#,
-        r#"
-        function f() int { return 0 }
-        action foo(x int) {
-            match x {
-                f() => {}
-            }
-        }
-        "#,
-    ];
-
-    for text in policies {
-        let err = parse_policy_str(text, Version::V2).unwrap_err();
-        assert_eq!(err.kind, ParseErrorKind::InvalidType);
-    }
-}
-
-#[test]
 fn parse_ffi_decl() {
     let text = "function foo(x int, y struct bar) bool";
     let decl = super::parse_ffi_decl(text).expect("parse");

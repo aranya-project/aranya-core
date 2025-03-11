@@ -156,6 +156,7 @@ impl IdentifierTypeStack {
 // TODO(chip): This _should_
 // eventually go away as every expression should be well-defined by the language. But we're
 // not there yet.
+#[must_use]
 #[derive(Debug, Clone)]
 pub enum Typeish {
     Type(VType),
@@ -193,6 +194,15 @@ impl Typeish {
         }
     }
 
+    /// Two Typeish's are maybe equal if either one is indeterminate or they are the same
+    /// definite type
+    pub fn is_maybe_equal(&self, ot: &Typeish) -> bool {
+        match (self, ot) {
+            (Self::Type(x), Self::Type(y)) => x == y,
+            _ => true,
+        }
+    }
+
     /// True if the type is indeterminate
     pub fn is_indeterminate(&self) -> bool {
         matches!(self, Self::Indeterminate)
@@ -207,19 +217,26 @@ impl Typeish {
         }
     }
 
+    /// Is this a struct of any kind or indeterminate?
+    pub fn is_any_struct(&self) -> bool {
+        match self {
+            Self::Type(t) => matches!(t, VType::Struct(_)),
+            _ => true,
+        }
+    }
+
     /// If self is not indeterminate and not the target type, return a [`TypeError`]
-    pub fn check_type(
-        self,
-        target_type: VType,
-        errmsg: &'static str,
-    ) -> Result<Typeish, TypeError> {
-        self.map_result(|t| {
-            if t != target_type {
-                Err(TypeError::new(errmsg))
-            } else {
-                Ok(Typeish::Type(t))
+    pub fn check_type(&self, target_type: VType, errmsg: &'static str) -> Result<(), TypeError> {
+        match self {
+            Self::Type(t) => {
+                if t != &target_type {
+                    Err(TypeError::new(errmsg))
+                } else {
+                    Ok(())
+                }
             }
-        })
+            _ => Ok(()),
+        }
     }
 }
 
@@ -285,7 +302,7 @@ impl CompileState<'_> {
         right_type: Typeish,
         target_type: VType,
         errmsg: &'static str,
-    ) -> Result<Typeish, TypeError> {
+    ) -> Result<(), TypeError> {
         self.unify_pair(left_type, right_type)?
             .check_type(target_type, errmsg)
     }
