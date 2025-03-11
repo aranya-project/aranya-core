@@ -16,9 +16,9 @@ use tokio::sync::Mutex as TMutex;
 async fn test_channels() -> Result<()> {
     let client1 = make_client();
     let sink1 = Arc::new(TMutex::new(TestSink::new()));
-    let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
-    let key = cert.serialize_private_key_pem();
-    let cert = cert.serialize_pem()?;
+    let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])?;
+    let key = ck.key_pair.serialize_pem();
+    let cert = ck.cert.pem();
 
     let server1 = get_server(cert.clone(), key.clone())?;
     let aqc_client1 = Arc::new(TMutex::new(AqcClient::new(&*cert.clone())?));
