@@ -153,8 +153,8 @@ at_most = { "at_most" ~ int_literal ~ fact_literal }
 // count facts, returning true if the number of facts found equals the expected number
 exactly = { "exactly" ~ int_literal ~ fact_literal }
 // Similar to the `match` statement, but resolves to a value. e.g. `let x = match { ... }`
-match_expression = { "match" ~ expression ~ "{" ~ match_arm_expr* ~ "}" }
-match_arm_expr = { (match_arm_expression | match_default) ~ "=>" ~ expression }
+match_expression = { "match" ~ expression ~ "{" ~ match_expression_arm* ~ "}" }
+match_expression_arm = { (match_arm_expression | match_default) ~ "=>" ~ expression }
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
 // first expression.

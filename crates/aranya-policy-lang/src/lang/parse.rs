@@ -621,7 +621,7 @@ impl<'a> ChunkParser<'a> {
         // All remaining tokens are match arms
         let mut arms = vec![];
         for arm in pc.into_inner() {
-            assert_eq!(arm.as_rule(), Rule::match_arm_expr);
+            assert_eq!(arm.as_rule(), Rule::match_expression_arm);
             let pc = descend(arm.to_owned());
             let token = pc.consume()?;
 
@@ -666,7 +666,7 @@ impl<'a> ChunkParser<'a> {
 
             let locator = self.add_range(&arm)?;
             arms.push(AstNode::new(
-                ast::MatchArmExpression {
+                ast::MatchExpressionArm {
                     pattern,
                     expression,
                 },
