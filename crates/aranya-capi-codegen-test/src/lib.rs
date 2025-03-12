@@ -2,7 +2,10 @@ pub mod defs;
 
 #[allow(unused_qualifications, unused)]
 #[rustfmt::skip]
-pub mod generated;
+mod generated {
+    // use include to test real usage.
+    include!("generated.rs");
+}
 
 use std::{ffi::c_char, mem::MaybeUninit};
 
