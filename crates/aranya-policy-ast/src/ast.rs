@@ -386,7 +386,7 @@ pub struct MatchExpression {
     /// Value to match against
     pub expression: Expression,
     /// Match arms
-    pub arms: Vec<AstNode<MatchArmExpression>>,
+    pub arms: Vec<AstNode<MatchExpressionArm>>,
 }
 
 /// A container for one of two possible values
@@ -400,7 +400,7 @@ pub enum Either<A, B> {
 
 /// Match arm expression
 #[derive(Debug, Clone, PartialEq)]
-pub struct MatchArmExpression {
+pub struct MatchExpressionArm {
     /// value to match against the match expression
     pub pattern: MatchPattern,
     /// Expression

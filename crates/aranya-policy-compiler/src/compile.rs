@@ -1887,8 +1887,7 @@ impl<'a> CompileState<'a> {
         };
 
         // Ensure there are no duplicate arm values.
-        // NOTE This is not completely reliable, because arm values are expressions, evaluated at runtime.
-        //      We also don't check for zero arms, because that's syntactically invalid.
+        // NOTE We don't check for zero arms, because that's enforced by the parser.
         let all_values = patterns
             .iter()
             .flat_map(|pattern| match &pattern {
@@ -2003,7 +2002,7 @@ impl<'a> CompileState<'a> {
                     match expr_type {
                         None => expr_type = Some(etype),
                         Some(ref t) => {
-                            if !t.is_equal(&etype) {
+                            if !t.is_maybe_equal(&etype) {
                                 return Err(self.err(CompileErrorType::InvalidType(format!(
                                     "match arm expression type mismatch; expected {}, got {}",
                                     t, etype

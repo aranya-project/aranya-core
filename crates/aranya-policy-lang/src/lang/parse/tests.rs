@@ -1778,7 +1778,7 @@ fn parse_match_expression() {
                     expression: Expression::Identifier("n".to_string()),
                     arms: vec![
                         AstNode::new(
-                            ast::MatchArmExpression {
+                            ast::MatchExpressionArm {
                                 pattern: MatchPattern::Values(vec![Expression::Int(0)]),
                                 expression: Expression::Block(
                                     vec![AstNode::new(
@@ -1794,7 +1794,7 @@ fn parse_match_expression() {
                             75
                         ),
                         AstNode::new(
-                            ast::MatchArmExpression {
+                            ast::MatchExpressionArm {
                                 pattern: MatchPattern::Default,
                                 expression: Expression::Bool(false)
                             },
