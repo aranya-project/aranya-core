@@ -1775,10 +1775,7 @@ impl<'a> CompileState<'a> {
         locator: usize,
     ) -> Result<(), CompileError> {
         if command.seal.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing seal block in command")),
-                locator,
-            ));
+            return Ok(());
         }
 
         // fake a function def for the seal block
@@ -1825,10 +1822,7 @@ impl<'a> CompileState<'a> {
         locator: usize,
     ) -> Result<(), CompileError> {
         if command.open.is_empty() {
-            return Err(self.err_loc(
-                CompileErrorType::Unknown(String::from("Empty/missing open block in command")),
-                locator,
-            ));
+            return Ok(());
         }
 
         // fake a function def for the open block
