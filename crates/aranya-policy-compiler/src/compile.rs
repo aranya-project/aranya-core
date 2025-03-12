@@ -34,10 +34,11 @@ enum FunctionColor {
 }
 
 /// This is like [FunctionDefinition](ast::FunctionDefinition), but
-/// stripped down to only include positional argument types and return
-/// type. Covers both regular (pure) functions and finish functions.
+/// stripped down to only include positional argument names/types and
+/// return type. Covers both regular (pure) functions and finish
+/// functions.
 struct FunctionSignature {
-    args: Vec<VType>,
+    args: Vec<(String, VType)>,
     color: FunctionColor,
 }
 
@@ -92,8 +93,6 @@ struct CompileState<'a> {
     identifier_types: IdentifierTypeStack,
     /// FFI module schemas. Used to validate FFI calls.
     ffi_modules: &'a [ModuleSchema<'a>],
-    /// name/value mappings for enums, e.g. `"Color"->["Red", "Green"]`
-    enum_values: BTreeMap<&'a str, Vec<&'a str>>,
     /// Determines if one compiles with debug functionality,
     is_debug: bool,
     /// Auto-defines FFI modules for testing purposes
@@ -151,6 +150,12 @@ impl<'a> CompileState<'a> {
         // ensure key identifiers are unique
         let mut identifiers = BTreeSet::new();
         for key in fact.key.iter() {
+            if !key.is_hashable() {
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "Fact `{}` key field `{}` is not orderable; must be int, bool, string, or id",
+                    fact.identifier, key.identifier
+                ))));
+            }
             if !identifiers.insert(key.identifier.as_str()) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(key.identifier.to_owned())));
             }
@@ -203,27 +208,33 @@ impl<'a> CompileState<'a> {
         &mut self,
         enum_def: &'a EnumDefinition,
     ) -> Result<(), CompileError> {
-        let enum_name = enum_def.identifier.as_ref();
+        let enum_name = enum_def.identifier.clone();
         // ensure enum name is unique
-        if self.enum_values.contains_key(enum_name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(
-                enum_def.identifier.to_owned(),
-            )));
+        if self.m.enum_defs.contains_key(&enum_name) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(enum_name)));
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = Vec::<&str>::new();
-        for value_name in enum_def.values.iter() {
-            if values.contains(&value_name.as_str()) {
-                return Err(self.err(CompileErrorType::AlreadyDefined(format!(
-                    "{}::{}",
-                    enum_name, value_name
-                ))));
+        let mut values = BTreeMap::new();
+        for (i, value_name) in enum_def.values.iter().enumerate() {
+            match values.entry(value_name.clone()) {
+                Entry::Occupied(_) => {
+                    return Err(self.err(CompileErrorType::AlreadyDefined(format!(
+                        "{}::{}",
+                        enum_name, value_name
+                    ))));
+                }
+                Entry::Vacant(e) => {
+                    // TODO ensure value is unique. Currently, it always will be, but if enum
+                    // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
+                    // then we'll need to ensure those are unique.
+                    let n = i64::try_from(i).assume("should set enum value to index")?;
+                    e.insert(n);
+                }
             }
-            values.push(value_name);
         }
 
-        self.enum_values.insert(enum_name, values);
+        self.m.enum_defs.insert(enum_name, values);
 
         Ok(())
     }
@@ -238,7 +249,11 @@ impl<'a> CompileState<'a> {
         match self.function_signatures.entry(def.identifier.as_str()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
-                    args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
+                    args: def
+                        .arguments
+                        .iter()
+                        .map(|a| (a.identifier.clone(), a.field_type.clone()))
+                        .collect(),
                     color: FunctionColor::Pure(def.return_type.clone()),
                 };
                 Ok(e.insert(signature))
@@ -261,7 +276,11 @@ impl<'a> CompileState<'a> {
         match self.function_signatures.entry(def.identifier.as_str()) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
-                    args: def.arguments.iter().map(|a| a.field_type.clone()).collect(),
+                    args: def
+                        .arguments
+                        .iter()
+                        .map(|a| (a.identifier.clone(), a.field_type.clone()))
+                        .collect(),
                     color: FunctionColor::Finish,
                 };
                 Ok(e.insert(signature))
@@ -352,19 +371,32 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a struct literal
     fn compile_struct_literal(&mut self, s: &NamedStruct) -> Result<(), CompileError> {
-        if !self.m.struct_defs.contains_key(&s.identifier) {
-            // Because structs are dynamically created, this is all we
-            // can check at this point. Field validation has to happen
-            // at runtime.
+        let Some(struct_def) = self.m.struct_defs.get(&s.identifier).cloned() else {
             return Err(self.err(CompileErrorType::NotDefined(format!(
                 "Struct `{}` not defined",
                 s.identifier
             ))));
-        }
+        };
         self.append_instruction(Instruction::StructNew(s.identifier.clone()));
-        for field in &s.fields {
-            self.compile_expression(&field.1)?;
-            self.append_instruction(Instruction::StructSet(field.0.clone()));
+        for (field_name, e) in &s.fields {
+            let def_field_type = &struct_def
+                .iter()
+                .find(|f| &f.identifier == field_name)
+                .ok_or_else(|| {
+                    self.err(CompileErrorType::InvalidType(format!(
+                        "field `{}` not found in `Struct {}`",
+                        field_name, s.identifier
+                    )))
+                })?
+                .field_type;
+            let t = self.compile_expression(e)?;
+            if !t.is_maybe(def_field_type) {
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "`Struct {}` field `{}` is not {}",
+                    s.identifier, field_name, def_field_type
+                ))));
+            }
+            self.append_instruction(Instruction::StructSet(field_name.clone()));
         }
         Ok(())
     }
@@ -407,7 +439,7 @@ impl<'a> CompileState<'a> {
             ))));
         }
 
-        // Ensure the fact has all keys defined in the schema, and they have matching types.
+        // Ensure the fact has all keys defined in the schema.
         for (schema_key, lit_key) in fact_def.key.iter().zip(fact.key_fields.iter()) {
             if schema_key.identifier != lit_key.0 {
                 return Err(self.err(CompileErrorType::InvalidFactLiteral(format!(
@@ -416,24 +448,7 @@ impl<'a> CompileState<'a> {
                 ))));
             }
 
-            let Some(vtype) = field_vtype(&lit_key.1) else {
-                // If the type cannot be determined, e.g. it's an expression or query, ignore it. The machine will verify the type at runtime.
-                // TODO should we allow expressions/queries for key values?
-                continue;
-            };
-
-            // key type must be one of `HashableValue`
-            if !((vtype == VType::Int
-                || vtype == VType::Bool
-                || vtype == VType::String
-                || vtype == VType::Id)
-                && schema_key.field_type == vtype)
-            {
-                return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "Fact field `{}` must be {}",
-                    schema_key.identifier, schema_key.field_type
-                ))));
-            };
+            // Type checking handled in compile_fact_literal() now
         }
 
         match &fact.value_fields {
@@ -472,17 +487,7 @@ impl<'a> CompileState<'a> {
                     schema_value.identifier, lit_value.0
                 ))));
             }
-
-            let Some(lit_type) = field_vtype(&lit_value.1) else {
-                // Let complex expressions through, the machine will resolve and verify them.
-                continue;
-            };
-            if lit_type != schema_value.field_type {
-                return Err(self.err(CompileErrorType::InvalidType(format!(
-                    "field `{}` type should be {}",
-                    schema_value.identifier, schema_value.field_type
-                ))));
-            }
+            // Type checking handled in compile_fact_literal() now
         }
 
         Ok(())
@@ -490,25 +495,57 @@ impl<'a> CompileState<'a> {
 
     /// Compile instructions to construct a fact literal
     fn compile_fact_literal(&mut self, f: &FactLiteral) -> Result<(), CompileError> {
+        let fact_def = self.get_fact_def(&f.identifier)?.clone();
+
         self.append_instruction(Instruction::FactNew(f.identifier.clone()));
-        for field in &f.key_fields {
-            if let FactField::Expression(e) = &field.1 {
-                self.compile_expression(e)?;
+        for (k, v) in &f.key_fields {
+            if let FactField::Expression(e) = v {
+                let def_field_type = &fact_def
+                    .get_key_field(k)
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidType(format!(
+                            "field `{}` not found in Fact `{}`",
+                            k, f.identifier
+                        )))
+                    })?
+                    .field_type;
+                let t = self.compile_expression(e)?;
+                if !t.is_maybe(def_field_type) {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Fact `{}` key field `{}` is not `{}`",
+                        f.identifier, k, def_field_type
+                    ))));
+                }
             } else {
                 // Skip bind values
                 continue;
             }
-            self.append_instruction(Instruction::FactKeySet(field.0.clone()));
+            self.append_instruction(Instruction::FactKeySet(k.clone()));
         }
         if let Some(value_fields) = &f.value_fields {
-            for field in value_fields {
-                if let FactField::Expression(e) = &field.1 {
-                    self.compile_expression(e)?;
+            for (k, v) in value_fields {
+                if let FactField::Expression(e) = &v {
+                    let def_field_type = &fact_def
+                        .get_value_field(k)
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::InvalidType(format!(
+                                "field `{}` not found in Fact `{}`",
+                                k, f.identifier
+                            )))
+                        })?
+                        .field_type;
+                    let t = self.compile_expression(e)?;
+                    if !t.is_maybe(def_field_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "Fact `{}` value field `{}` is not `{}`",
+                            f.identifier, k, def_field_type
+                        ))));
+                    }
                 } else {
                     // Skip bind values
                     continue;
                 }
-                self.append_instruction(Instruction::FactValueSet(field.0.clone()));
+                self.append_instruction(Instruction::FactValueSet(k.clone()));
             }
         }
         Ok(())
@@ -613,7 +650,12 @@ impl<'a> CompileState<'a> {
                     ) {
                         return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
                     }
-                    self.compile_expression(e)?;
+                    let t = self.compile_expression(e)?;
+                    if !t.is_any_struct() {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "Serializing non-struct",
+                        ))));
+                    }
                     self.append_instruction(Instruction::Serialize);
 
                     // TODO(chip): Use information about which command
@@ -628,7 +670,12 @@ impl<'a> CompileState<'a> {
                     ) {
                         return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
                     }
-                    self.compile_expression(e)?;
+                    let t = self.compile_expression(e)?;
+                    if !t.is_maybe(&VType::Bytes) {
+                        return Err(self.err(CompileErrorType::InvalidType(String::from(
+                            "Deserializing non-bytes",
+                        ))));
+                    }
                     self.append_instruction(Instruction::Deserialize);
 
                     // TODO(chip): Use information about which command
@@ -708,8 +755,20 @@ impl<'a> CompileState<'a> {
                     }
 
                     // push args
-                    for a in &f.arguments {
-                        self.compile_expression(a)?;
+                    for (i, (arg_def, arg_e)) in
+                        procedure.args.iter().zip(f.arguments.iter()).enumerate()
+                    {
+                        let arg_t = self.compile_expression(arg_e)?;
+                        let arg_def_vtype = (&arg_def.vtype).into();
+                        if !arg_t.is_maybe(&arg_def_vtype) {
+                            let arg_n = i
+                                .checked_add(1)
+                                .assume("function argument count overflow")?;
+                            return Err(self.err(CompileErrorType::InvalidType(format!(
+                                "Argument {} (`{}`) in FFI call to `{}::{}` found `{}`, not `{}`",
+                                arg_n, arg_def.name, f.module, f.identifier, arg_t, arg_def_vtype
+                            ))));
+                        }
                     }
 
                     self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
@@ -731,24 +790,8 @@ impl<'a> CompileState<'a> {
                 t
             }
             Expression::EnumReference(e) => {
-                // get enum by name
-                let enum_def = self.enum_values.get(e.identifier.as_str()).ok_or_else(|| {
-                    self.err(CompileErrorType::NotDefined(e.identifier.to_owned()))
-                })?;
-
-                // verify that the given name is a member of the enum
-                if !enum_def.contains(&e.value.as_str()) {
-                    return Err(self.err(CompileErrorType::NotDefined(format!(
-                        "{}::{}",
-                        e.identifier, e.value
-                    ))));
-                }
-
-                self.append_instruction(Instruction::Const(Value::Enum(
-                    e.identifier.to_owned(),
-                    e.value.to_owned(),
-                )));
-
+                let value = self.enum_value(e)?;
+                self.append_instruction(Instruction::Const(value));
                 Typeish::Type(VType::Enum(e.identifier.clone()))
             }
             Expression::Dot(t, s) => {
@@ -791,7 +834,9 @@ impl<'a> CompileState<'a> {
                     VType::Int,
                     "Cannot do math on non-int types",
                 )
-                .map_err(|e| self.err(e.into()))?
+                .map_err(|e| self.err(e.into()))?;
+
+                Typeish::Type(VType::Int)
             }
             Expression::And(a, b) | Expression::Or(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -808,7 +853,9 @@ impl<'a> CompileState<'a> {
                     VType::Bool,
                     "Cannot use boolean operator on non-bool types",
                 )
-                .map_err(|e| self.err(e.into()))?
+                .map_err(|e| self.err(e.into()))?;
+
+                Typeish::Type(VType::Bool)
             }
             Expression::Equal(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -908,7 +955,8 @@ impl<'a> CompileState<'a> {
 
                 inner_type
                     .check_type(VType::Int, "Cannot negate non-int expression")
-                    .map_err(|e| self.err(e.into()))?
+                    .map_err(|e| self.err(e.into()))?;
+                Typeish::Type(VType::Int)
             }
             Expression::Not(e) => {
                 // Evaluate the expression
@@ -919,7 +967,8 @@ impl<'a> CompileState<'a> {
 
                 inner_type
                     .check_type(VType::Bool, "Cannot invert non-boolean expression")
-                    .map_err(|e| self.err(e.into()))?
+                    .map_err(|e| self.err(e.into()))?;
+                Typeish::Type(VType::Bool)
             }
             Expression::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
             Expression::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
@@ -961,6 +1010,22 @@ impl<'a> CompileState<'a> {
         };
 
         Ok(expression_type)
+    }
+
+    // Get an enum value from an enum reference expression
+    fn enum_value(&self, e: &aranya_policy_ast::EnumReference) -> Result<Value, CompileError> {
+        let enum_def = self
+            .m
+            .enum_defs
+            .get(&e.identifier)
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.to_owned())))?;
+        let value = enum_def.get(&e.value).ok_or_else(|| {
+            self.err(CompileErrorType::NotDefined(format!(
+                "{}::{}",
+                e.identifier, e.value
+            )))
+        })?;
+        Ok(Value::Enum(e.identifier.to_owned(), *value))
     }
 
     /// Check if finish blocks only use appropriate expressions
@@ -1062,14 +1127,14 @@ impl<'a> CompileState<'a> {
                         ));
                     }
 
-                    self.compile_expression(&s.expression)?;
+                    let expr_t = self.compile_expression(&s.expression)?;
 
                     let end_label = self.anonymous_label();
 
                     // 1. Generate branching instructions, and arm-start labels
                     let mut arm_labels: Vec<Label> = vec![];
 
-                    for arm in s.arms.iter() {
+                    for (i, arm) in s.arms.iter().enumerate() {
                         let arm_label = self.anonymous_label();
                         arm_labels.push(arm_label.clone());
 
@@ -1077,7 +1142,22 @@ impl<'a> CompileState<'a> {
                             MatchPattern::Values(values) => {
                                 for value in values.iter() {
                                     self.append_instruction(Instruction::Dup(0));
-                                    self.compile_expression(value)?;
+                                    if !value.is_literal() {
+                                        return Err(self.err(CompileErrorType::InvalidType(
+                                            String::from("match arm is not a literal expression"),
+                                        )));
+                                    }
+                                    let arm_t = self.compile_expression(value)?;
+                                    if !arm_t.is_maybe_equal(&expr_t) {
+                                        let arm_n =
+                                            i.checked_add(1).assume("match arm count overflow")?;
+                                        return Err(self.err(CompileErrorType::InvalidType(
+                                            format!(
+                                            "match expression is `{}` but arm expression {} is `{}`",
+                                            expr_t, arm_n, arm_t
+                                        ),
+                                        )));
+                                    }
 
                                     // if value == target, jump to start-of-arm
                                     self.append_instruction(Instruction::Eq);
@@ -1134,7 +1214,10 @@ impl<'a> CompileState<'a> {
                     let end_label = self.anonymous_label();
                     for (cond, branch) in &s.branches {
                         let next_label = self.anonymous_label();
-                        self.compile_expression(cond)?;
+                        let t = self.compile_expression(cond)?;
+                        t.check_type(VType::Bool, "if condition must be boolean")
+                            .map_err(|e| self.err(e.into()))?;
+
                         self.append_instruction(Instruction::Not);
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
                             next_label.clone(),
@@ -1151,7 +1234,23 @@ impl<'a> CompileState<'a> {
                     self.define_label(end_label, self.wp)?;
                 }
                 (ast::Statement::Publish(s), StatementContext::Action(_)) => {
-                    self.compile_expression(s)?;
+                    let t = self.compile_expression(s)?;
+                    match t {
+                        Typeish::Type(VType::Struct(n)) => {
+                            if !self.m.command_defs.contains_key(&n) {
+                                return Err(self.err(CompileErrorType::InvalidType(format!(
+                                    "Struct `{}` is not a Command struct",
+                                    n
+                                ))));
+                            }
+                        }
+                        Typeish::Type(ot) => {
+                            return Err(self.err(CompileErrorType::InvalidType(format!(
+                                "Cannot publish `{ot}`, must be a command struct"
+                            ))))
+                        }
+                        _ => {}
+                    }
                     self.append_instruction(Instruction::Publish);
                 }
                 (ast::Statement::Return(s), StatementContext::PureFunction(fd)) => {
@@ -1251,8 +1350,8 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Dup(0));
 
                     // Verify the 'to' fact literal
-                    let fact_def = self.get_fact_def(&s.fact.identifier)?;
-                    self.verify_fact_values(&s.to, fact_def)?;
+                    let fact_def = self.get_fact_def(&s.fact.identifier)?.clone();
+                    self.verify_fact_values(&s.to, &fact_def)?;
 
                     for (k, v) in &s.to {
                         match v {
@@ -1266,7 +1365,22 @@ impl<'a> CompileState<'a> {
                                 ));
                             }
                             FactField::Expression(e) => {
-                                self.compile_expression(e)?;
+                                let def_field_type = &fact_def
+                                    .get_value_field(k)
+                                    .ok_or_else(|| {
+                                        self.err(CompileErrorType::InvalidType(format!(
+                                            "field `{}` not found in Fact `{}`",
+                                            k, s.fact.identifier
+                                        )))
+                                    })?
+                                    .field_type;
+                                let t = self.compile_expression(e)?;
+                                if !t.is_maybe(def_field_type) {
+                                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                                        "Fact `{}` value field `{}` found `{}`, not `{}`",
+                                        s.fact.identifier, k, t, def_field_type
+                                    ))));
+                                }
                             }
                         }
                         self.append_instruction(Instruction::FactValueSet(k.clone()));
@@ -1373,7 +1487,9 @@ impl<'a> CompileState<'a> {
                 (ast::Statement::DebugAssert(s), _) => {
                     if self.is_debug {
                         // Compile the expression within `debug_assert(e)`
-                        self.compile_expression(s)?;
+                        let t = self.compile_expression(s)?;
+                        t.check_type(VType::Bool, "debug assertion must be a boolean expression")
+                            .map_err(|e| self.err(e.into()))?;
                         // Now, branch to the next instruction if the top of the stack is true
                         let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
                         self.append_instruction(Instruction::Branch(Target::Resolved(next)));
@@ -1466,8 +1582,25 @@ impl<'a> CompileState<'a> {
         fc: &FunctionCall,
         is_finish: bool,
     ) -> Result<(), CompileError> {
-        for a in &fc.arguments {
-            self.compile_expression(a)?;
+        let arg_defs = self
+            .function_signatures
+            .get(fc.identifier.as_str())
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(fc.identifier.clone())))?
+            .args
+            .clone();
+
+        for (i, ((def_name, def_t), arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate()
+        {
+            let arg_t = self.compile_expression(arg_e)?;
+            if !arg_t.is_maybe(def_t) {
+                let arg_n = i
+                    .checked_add(1)
+                    .assume("function argument count overflow")?;
+                return Err(self.err(CompileErrorType::InvalidType(format!(
+                    "Argument {} (`{}`) in call to `{}` found `{}`, expected `{}`",
+                    arg_n, def_name, fc.identifier, arg_t, def_t
+                ))));
+            }
         }
 
         let label = Label::new(
@@ -1530,7 +1663,8 @@ impl<'a> CompileState<'a> {
         let identifier = &global_let.inner.identifier;
         let expression = &global_let.inner.expression;
 
-        let value = expression_value(expression)
+        let value = self
+            .expression_value(expression)
             .ok_or_else(|| self.err(CompileErrorType::InvalidExpression(expression.clone())))?;
         let vt = value.vtype().expect("global let expression has weird type");
 
@@ -1745,30 +1879,28 @@ impl<'a> CompileState<'a> {
         self.compile_command_seal(command, command_node.locator)?;
         self.compile_command_open(command, command_node.locator)?;
 
-        // command attributes
-
-        let attr_map = self
-            .m
-            .command_attributes
-            .entry(command.identifier.to_owned())
-            .or_default();
-
-        for attr in &command.attributes {
-            match attr_map.entry(attr.0.clone()) {
+        // attributes
+        let mut attr_values = BTreeMap::new();
+        for (name, value_expr) in &command.attributes {
+            match attr_values.entry(name.clone()) {
                 Entry::Vacant(e) => {
-                    if let Some(value) = expression_value(&attr.1) {
-                        e.insert(value);
-                    } else {
-                        return Err(self.err(CompileErrorType::InvalidExpression(attr.1.clone())));
-                    }
+                    let value = self.expression_value(value_expr).ok_or_else(|| {
+                        self.err(CompileErrorType::InvalidExpression(value_expr.clone()))
+                    })?;
+                    e.insert(value);
                 }
                 Entry::Occupied(_) => {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(attr.0.clone())));
+                    return Err(self.err(CompileErrorType::AlreadyDefined(name.clone())));
                 }
             }
         }
+        if !attr_values.is_empty() {
+            self.m
+                .command_attributes
+                .insert(command.identifier.clone(), attr_values);
+        }
 
-        // add command fields to compile target
+        // fields
         match self.m.command_defs.entry(command_node.identifier.clone()) {
             Entry::Vacant(e) => {
                 let map = command_node
@@ -1921,6 +2053,30 @@ impl<'a> CompileState<'a> {
     pub fn into_module(self) -> Module {
         self.m.into_module()
     }
+
+    /// Get expression value, e.g. Expression::Int => Value::Int
+    fn expression_value(&self, e: &Expression) -> Option<Value> {
+        match e {
+            Expression::Int(v) => Some(Value::Int(*v)),
+            Expression::Bool(v) => Some(Value::Bool(*v)),
+            Expression::String(v) => Some(Value::String(v.clone())),
+            Expression::NamedStruct(NamedStruct {
+                identifier: identfier,
+                fields,
+            }) => Some(Value::Struct(Struct {
+                name: identfier.clone(),
+                fields: {
+                    let mut value_fields = BTreeMap::new();
+                    for (value, expr) in fields {
+                        value_fields.insert(value.clone(), self.expression_value(expr)?);
+                    }
+                    value_fields
+                },
+            })),
+            Expression::EnumReference(e) => self.enum_value(e).ok(),
+            _ => None,
+        }
+    }
 }
 
 /// Flag for controling scope when compiling statement blocks.
@@ -1982,7 +2138,6 @@ impl<'a> Compiler<'a> {
             statement_context: vec![],
             identifier_types: IdentifierTypeStack::new(),
             ffi_modules: self.ffi_modules,
-            enum_values: BTreeMap::new(),
             is_debug: self.is_debug,
             stub_ffi: self.stub_ffi,
         };
@@ -2014,52 +2169,4 @@ where
     }
 
     None
-}
-
-/// Get the `VType` of a fact field. For values that cannot be represented as `VType`, including `Bind`, we return `None`.
-fn field_vtype(f: &FactField) -> Option<VType> {
-    match f {
-        FactField::Expression(e) => {
-            match e {
-                Expression::Int(_) => Some(VType::Int),
-                // Expression::Bytes(_) => Ok(VType::Bytes), // TODO: Bytes expression not implemented
-                Expression::Bool(_) => Some(VType::Bool),
-                Expression::String(_) => Some(VType::String),
-                // We can't resolve var names to values at the moment, so we defer to the machine.
-                Expression::Identifier(_) => None,
-                Expression::NamedStruct(s) => Some(VType::Struct(s.identifier.clone())),
-                Expression::Optional(Some(expr)) => {
-                    let field_expr = FactField::Expression(expr.as_ref().to_owned());
-                    let interior_type = field_vtype(&field_expr)?;
-                    Some(VType::Optional(Box::new(interior_type)))
-                }
-                _ => None,
-            }
-        }
-        FactField::Bind => None,
-    }
-}
-
-/// Get expression value, e.g. Expression::Int => Value::Int
-fn expression_value(e: &Expression) -> Option<Value> {
-    match e {
-        Expression::Int(v) => Some(Value::Int(*v)),
-        Expression::Bool(v) => Some(Value::Bool(*v)),
-        Expression::String(v) => Some(Value::String(v.clone())),
-        Expression::NamedStruct(NamedStruct {
-            identifier: identfier,
-            fields,
-        }) => Some(Value::Struct(Struct {
-            name: identfier.clone(),
-            fields: {
-                let mut value_fields = BTreeMap::new();
-                for field in fields {
-                    value_fields.insert(field.0.clone(), expression_value(&field.1)?);
-                }
-                value_fields
-            },
-        })),
-        Expression::EnumReference(e) => Some(Value::Enum(e.identifier.clone(), e.value.clone())),
-        _ => None,
-    }
 }

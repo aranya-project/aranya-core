@@ -15,6 +15,7 @@ use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
 use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
+use tracing::warn;
 use yoke::{Yoke, Yokeable};
 
 use crate::{
@@ -128,7 +129,8 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
             postcard::from_bytes(command_bytes).map_err(ClientError::SessionDeserialize)?;
 
         if command.storage_id != self.storage_id {
-            bug!("ephemeral commands must be run on the same graph");
+            warn!(%command.storage_id, %self.storage_id, "ephemeral commands must be run on the same graph");
+            return Err(ClientError::NotAuthorized);
         }
 
         let policy = client.engine.get_policy(self.policy_id)?;

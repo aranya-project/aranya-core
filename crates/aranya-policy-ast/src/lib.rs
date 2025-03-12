@@ -6,5 +6,6 @@
 #![warn(missing_docs)]
 
 mod ast;
+mod util;
 
 pub use ast::*;

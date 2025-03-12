@@ -107,10 +107,10 @@ fn sync_bench(c: &mut Criterion) {
             // setup
             let request_sink = Arc::new(TMutex::new(CountSink::new()));
             let request_client = Arc::new(TMutex::new(create_client()));
-            let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()])
+            let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()])
                 .expect("error generating cert");
-            let key = cert.serialize_private_key_pem();
-            let cert = cert.serialize_pem().expect("error serilizing cert");
+            let key = ck.key_pair.serialize_pem();
+            let cert = ck.cert.pem();
             let server1 = get_server(cert.clone(), key.clone()).expect("error getting server");
             let (tx1, _) = mpsc::unbounded_channel();
             let syncer1 = Arc::new(TMutex::new(
