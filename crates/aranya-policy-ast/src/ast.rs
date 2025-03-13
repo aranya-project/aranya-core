@@ -389,13 +389,13 @@ pub struct MatchExpression {
     pub arms: Vec<AstNode<MatchExpressionArm>>,
 }
 
-/// A container for one of two possible values
+/// A container for a statement or expression
 #[derive(Debug, Clone, PartialEq)]
-pub enum Either<A, B> {
-    /// option A
-    First(A),
-    /// option B
-    Second(B),
+pub enum LanguageContext<A, B> {
+    /// statement
+    Statement(A),
+    /// expression
+    Expression(B),
 }
 
 /// Match arm expression

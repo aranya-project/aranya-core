@@ -9,8 +9,8 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, AstNode, Either, FactCountType, FunctionCall, MatchExpression, MatchStatement,
-    VType,
+    self as ast, AstNode, FactCountType, FunctionCall, LanguageContext, MatchExpression,
+    MatchStatement, VType,
 };
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
@@ -1011,7 +1011,7 @@ impl<'a> CompileState<'a> {
                 subexpression_type
             }
             Expression::Match(e) => self
-                .compile_match_statement_or_expression(Either::Second(e), 0)?
+                .compile_match_statement_or_expression(LanguageContext::Expression(e), 0)?
                 .assume("match expression must return a type")?,
         };
 
@@ -1115,7 +1115,7 @@ impl<'a> CompileState<'a> {
                     | StatementContext::CommandRecall(_),
                 ) => {
                     self.compile_match_statement_or_expression(
-                        Either::First(s),
+                        LanguageContext::Statement(s),
                         statement.locator,
                     )?;
                 }
@@ -1878,12 +1878,12 @@ impl<'a> CompileState<'a> {
     /// Returns the type of the `match` is an expression, or `None` if it's a statement.
     fn compile_match_statement_or_expression(
         &mut self,
-        s: Either<&MatchStatement, &MatchExpression>,
+        s: LanguageContext<&MatchStatement, &MatchExpression>,
         locator: usize,
     ) -> Result<Option<Typeish>, CompileError> {
         let patterns: Vec<MatchPattern> = match s {
-            Either::First(s) => s.arms.iter().map(|a| a.pattern.clone()).collect(),
-            Either::Second(e) => e.arms.iter().map(|a| a.pattern.clone()).collect(),
+            LanguageContext::Statement(s) => s.arms.iter().map(|a| a.pattern.clone()).collect(),
+            LanguageContext::Expression(e) => e.arms.iter().map(|a| a.pattern.clone()).collect(),
         };
 
         // Ensure there are no duplicate arm values.
@@ -1910,8 +1910,8 @@ impl<'a> CompileState<'a> {
         }
 
         let expr = match s {
-            Either::First(s) => &s.expression,
-            Either::Second(e) => &e.expression,
+            LanguageContext::Statement(s) => &s.expression,
+            LanguageContext::Expression(e) => &e.expression,
         };
         let expr_t = self.compile_expression(expr)?;
 
@@ -1974,7 +1974,7 @@ impl<'a> CompileState<'a> {
 
         // 2. Define arm labels, and compile instructions
         match s {
-            Either::First(s) => {
+            LanguageContext::Statement(s) => {
                 for (i, arm) in s.arms.iter().enumerate() {
                     let arm_start = arm_labels[i].to_owned();
                     self.define_label(arm_start, self.wp)?;
@@ -1990,7 +1990,7 @@ impl<'a> CompileState<'a> {
                     )));
                 }
             }
-            Either::Second(e) => {
+            LanguageContext::Expression(e) => {
                 for (i, arm) in e.arms.iter().enumerate() {
                     let arm_start = arm_labels[i].to_owned();
                     self.define_label(arm_start, self.wp)?;
