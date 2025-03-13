@@ -630,24 +630,7 @@ impl<'a> ChunkParser<'a> {
                 Rule::match_arm_expression => {
                     let values = token
                         .into_inner()
-                        .map(|token| {
-                            let expr = self.parse_expression(token.to_owned())?;
-                            // Ensure expression values are all literals
-                            if !matches!(
-                                expr,
-                                Expression::Int(_)
-                                    | Expression::String(_)
-                                    | Expression::Bool(_)
-                                    | Expression::EnumReference(_)
-                            ) {
-                                return Err(ParseError::new(
-                                    ParseErrorKind::InvalidType,
-                                    String::from("match arm value must be a literal"),
-                                    Some(token.as_span()),
-                                ));
-                            }
-                            Ok(expr)
-                        })
+                        .map(|token| self.parse_expression(token.to_owned()))
                         .collect::<Result<Vec<Expression>, ParseError>>()?;
 
                     MatchPattern::Values(values)
@@ -1577,7 +1560,3 @@ pub fn get_pratt_parser() -> PrattParser<Rule> {
 
 #[cfg(test)]
 mod tests;
-
-// fn parse_either<A, B>(pair: Pair<_, Rule>) -> Result<Either<A, B>> {
-
-// }
