@@ -1270,10 +1270,12 @@ fn test_match_expression() {
     }
 
     let valid_cases = vec![
+        // match expression type is indeterminate
         r#"function f(n int) int {
             return match n {
-                0 => { :1 }
-                _ => { :0 }
+                0 => None
+                1 => "1"
+                _ => 0
             }
         }"#,
     ];
