@@ -162,7 +162,8 @@ pub struct AqcChannelID {
 }
 
 #[derive(Debug)]
-/// Identifies a unique channel between two peers.
+/// A unique channel between two peers.
+/// Allows sending and receiving data over a channel.
 pub struct AqcChannel {
     stream_receiver: mpsc::Receiver<Bytes>,
     message_receiver: mpsc::Receiver<Bytes>,
@@ -278,7 +279,7 @@ impl AqcChannel {
 /// The maximum number of channels that haven't been received.
 const MAXIMUM_UNRECEIVED_CHANNELS: usize = 10;
 
-/// An AQC client
+/// An AQC client. Used to create and receive channels.
 #[derive(Debug)]
 pub struct AqcClient {
     quic_client: Client,
