@@ -213,7 +213,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///     },
     ///     Id,
     ///     Rng,
-    ///     UserId,
+    ///     DeviceId,
     /// };
     ///
     /// const VERSION: Version = Version::new(1);
@@ -617,7 +617,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     },
     ///     Id,
     ///     Rng,
-    ///     UserId,
+    ///     DeviceId,
     /// };
     ///
     /// const VERSION: Version = Version::new(1);

@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::iter;
 
-use aranya_crypto::{default::DefaultEngine, Csprng, Id, Random, Rng, UserId};
+use aranya_crypto::{default::DefaultEngine, Csprng, DeviceId, Id, Random, Rng};
 use aranya_policy_vm::{CommandContext, OpenContext, PolicyContext, SealContext};
 
 use crate::{Envelope, Ffi};
@@ -53,14 +53,14 @@ const OPEN_CTX: &CommandContext<'static> = &CommandContext::Open(OpenContext { n
 const POLICY_CTX: &CommandContext<'static> = &CommandContext::Policy(PolicyContext {
     name: "dummy",
     id: Id::default(),
-    author: UserId::default(),
+    author: DeviceId::default(),
     version: Id::default(),
 });
 
 const RECALL_CTX: &CommandContext<'static> = &CommandContext::Recall(PolicyContext {
     name: "dummy",
     id: Id::default(),
-    author: UserId::default(),
+    author: DeviceId::default(),
     version: Id::default(),
 });
 

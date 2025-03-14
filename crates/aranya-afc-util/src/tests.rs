@@ -6,7 +6,7 @@ use aranya_crypto::{
 };
 use aranya_fast_channels::memory::State;
 
-use crate::testing::{test_all, MemStore, TestImpl, User};
+use crate::testing::{test_all, Device, MemStore, TestImpl};
 
 struct DefaultImpl;
 
@@ -16,12 +16,12 @@ impl TestImpl for DefaultImpl {
     type Aranya = State<<Self::Engine as Engine>::CS>;
     type Store = MemStore;
 
-    fn new() -> User<Self> {
+    fn new() -> Device<Self> {
         let (eng, _) = DefaultEngine::<_>::from_entropy(Rng);
         let afc = State::new();
         let aranya = afc.clone();
         let store = MemStore::new();
-        User::new(eng, afc, aranya, store)
+        Device::new(eng, afc, aranya, store)
     }
 }
 

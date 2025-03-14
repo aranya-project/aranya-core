@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use aranya_crypto::{
-    CipherSuite, Engine, IdentityKey, IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey,
-    SigningKeyId, UserId, VerifyingKey,
+    CipherSuite, DeviceId, Engine, IdentityKey, IdentityVerifyingKey, KeyStore, KeyStoreExt,
+    SigningKey, SigningKeyId, VerifyingKey,
 };
 use serde::{Deserialize, Serialize};
 
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyBundle {
     /// See [`IdentityKey`].
-    pub user_id: UserId,
+    pub device_id: DeviceId,
     /// See [`SigningKey`].
     pub sign_id: SigningKeyId,
 }
@@ -18,7 +18,7 @@ pub struct KeyBundle {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MinKeyBundle {
     /// See [`IdentityKey`].
-    pub user_id: UserId,
+    pub device_id: DeviceId,
 }
 
 /// Public keys from key bundle.
@@ -57,7 +57,7 @@ impl KeyBundle {
             }};
         }
         Ok(Self {
-            user_id: gen!(IdentityKey),
+            device_id: gen!(IdentityKey),
             sign_id: gen!(SigningKey),
         })
     }
@@ -70,7 +70,7 @@ impl KeyBundle {
     {
         Ok(PublicKeys {
             ident_pk: store
-                .get_key::<_, IdentityKey<E::CS>>(eng, self.user_id.into())
+                .get_key::<_, IdentityKey<E::CS>>(eng, self.device_id.into())
                 .context("unable to load `IdentityKey`")?
                 .context("unable to find `IdentityKey`")?
                 .public()?,
@@ -95,7 +95,7 @@ impl MinKeyBundle {
         macro_rules! gen {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
-                let id = sk.id().expect("user ID should be valid");
+                let id = sk.id().expect("device ID should be valid");
                 let wrapped =
                     eng.wrap(sk)
                         .context(concat!("unable to wrap `", stringify!($key), "`"))?;
@@ -110,7 +110,7 @@ impl MinKeyBundle {
             }};
         }
         Ok(Self {
-            user_id: gen!(IdentityKey),
+            device_id: gen!(IdentityKey),
         })
     }
 }
