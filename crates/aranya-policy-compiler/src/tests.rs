@@ -2121,7 +2121,7 @@ fn test_substruct_errors() -> anyhow::Result<()> {
     ];
 
     for (i, c) in cases.iter().enumerate() {
-        let policy = parse_policy_str(c.t, Version::V1)?;
+        let policy = parse_policy_str(c.t, Version::V2)?;
         let err = Compiler::new(&policy)
             .ffi_modules(FAKE_SCHEMA)
             .debug(true) // forced on to enable debug_assert()

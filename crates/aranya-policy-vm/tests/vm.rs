@@ -2304,7 +2304,7 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
             publish source substruct Foo
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
@@ -2358,7 +2358,7 @@ fn test_substruct_error() -> anyhow::Result<()> {
         }
         action baz(source struct Bar) {
             let maybe_source = if true {
-                Some source
+                Some(source)
             } else {
                 None 
             }
@@ -2368,7 +2368,7 @@ fn test_substruct_error() -> anyhow::Result<()> {
             publish definitely_source substruct Foo
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V1)?;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
