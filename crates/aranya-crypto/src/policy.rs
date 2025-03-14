@@ -39,7 +39,7 @@ pub struct Cmd<'a> {
     pub data: &'a [u8],
     /// The name of the command.
     ///
-    /// E.g., `AddUser`.
+    /// E.g., `AddDevice`.
     pub name: &'a str,
     /// The parent command in the graph.
     pub parent_id: &'a Id,

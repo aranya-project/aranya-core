@@ -135,7 +135,7 @@ impl ChanOp {
     }
 }
 
-struct User<T, CS>
+struct Device<T, CS>
 where
     T: TestImpl,
     CS: CipherSuite,
@@ -145,7 +145,7 @@ where
     state: T::Aranya<CS>,
 }
 
-impl<T, CS> User<T, CS>
+impl<T, CS> Device<T, CS>
 where
     T: TestImpl,
     CS: CipherSuite,
@@ -167,8 +167,8 @@ where
 {
     /// The test name.
     name: String,
-    /// All known Aranya users.
-    users: HashMap<NodeId, User<T, E::CS>>,
+    /// All known Aranya devices.
+    devices: HashMap<NodeId, Device<T, E::CS>>,
     /// All peers that have `ChanOp` to the label.
     peers: Vec<(NodeId, Label, ChanOp)>,
     /// Selects the next `NodeId` for a client.
@@ -195,7 +195,7 @@ where
 
         Self {
             name: name.to_owned(),
-            users: HashMap::with_capacity(max_chans),
+            devices: HashMap::with_capacity(max_chans),
             peers: Vec::with_capacity(max_chans),
             next_id: Cell::new(0),
             max_chans,
@@ -218,7 +218,7 @@ where
     where
         I: IntoIterator<Item = (Label, ChanOp)>,
     {
-        let user_id = NodeId::new({
+        let device_id = NodeId::new({
             let old = self.next_id.get();
             let new = old + 1;
             self.next_id.set(new);
@@ -226,20 +226,20 @@ where
         });
 
         let States { afc, aranya } =
-            T::new_states::<E::CS>(self.name.as_str(), user_id, self.max_chans);
-        let user = User::new(&mut self.eng, aranya);
+            T::new_states::<E::CS>(self.name.as_str(), device_id, self.max_chans);
+        let device = Device::new(&mut self.eng, aranya);
         let client = Client::<T::Afc<E::CS>>::new(afc);
 
-        for (label, user_type) in labels {
+        for (label, device_type) in labels {
             // Find all the peers that we're able to create
             // channels with.
             let peers = self
                 .peers
                 .iter()
                 .filter_map(|(peer_id, peer_label, peer_type)| {
-                    if user_id != *peer_id
+                    if device_id != *peer_id
                         && *peer_label == label
-                        && user_type.can_create_channel_with(*peer_type)
+                        && device_type.can_create_channel_with(*peer_type)
                     {
                         Some((peer_id, peer_type))
                     } else {
@@ -248,44 +248,47 @@ where
                 });
             for (peer_id, peer_type) in peers {
                 let peer = self
-                    .users
+                    .devices
                     .get(peer_id)
                     .unwrap_or_else(|| panic!("`states.get` does not have {peer_id}"));
 
                 let (our_side, peer_side) = {
-                    let author = (&user, user_id, user_type);
+                    let author = (&device, device_id, device_type);
                     let peer = (peer, *peer_id, *peer_type);
                     Self::new_channel(&mut self.eng, author, peer, label)
                 };
 
                 // Register the peer.
-                user.state
+                device
+                    .state
                     .add(our_side.id, our_side.keys)
                     .unwrap_or_else(|err| {
                         panic!("{label}: add({peer_id}, ...): unable to register the peer: {err}")
                     });
 
                 // Register with the peer.
-                self.users
+                self.devices
                     .get(peer_id)
-                    .unwrap_or_else(|| panic!("`users` does not have {peer_id}"))
+                    .unwrap_or_else(|| panic!("`devices` does not have {peer_id}"))
                     .state
                     .add(peer_side.id, peer_side.keys)
                     .unwrap_or_else(|err| {
-                        panic!("{label}: add({user_id}, ...): unable to register with peer: {err}")
+                        panic!(
+                            "{label}: add({device_id}, ...): unable to register with peer: {err}"
+                        )
                     });
             }
-            self.peers.push((user_id, label, user_type));
+            self.peers.push((device_id, label, device_type));
         }
-        self.users.insert(user_id, user);
+        self.devices.insert(device_id, device);
 
-        (client, user_id)
+        (client, device_id)
     }
 
     fn new_channel(
         eng: &mut E,
-        author: (&User<T, E::CS>, NodeId, ChanOp),
-        peer: (&User<T, E::CS>, NodeId, ChanOp),
+        author: (&Device<T, E::CS>, NodeId, ChanOp),
+        peer: (&Device<T, E::CS>, NodeId, ChanOp),
         label: Label,
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
         let (author, author_op) = ((author.0, author.1), author.2);
@@ -307,8 +310,8 @@ where
 
     fn new_bidi_channel(
         eng: &mut E,
-        author: (&User<T, E::CS>, NodeId),
-        peer: (&User<T, E::CS>, NodeId),
+        author: (&Device<T, E::CS>, NodeId),
+        peer: (&Device<T, E::CS>, NodeId),
         label: Label,
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
         let (author, author_node_id) = author;
@@ -360,8 +363,8 @@ where
 
     fn new_uni_channel(
         eng: &mut E,
-        seal: (&User<T, E::CS>, NodeId),
-        open: (&User<T, E::CS>, NodeId),
+        seal: (&Device<T, E::CS>, NodeId),
+        open: (&Device<T, E::CS>, NodeId),
         label: Label,
     ) -> (TestChan<T, E::CS>, TestChan<T, E::CS>) {
         let (seal, seal_node_id) = seal;
@@ -418,7 +421,7 @@ where
         id: NodeId,
         ch: ChannelId,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.users.get(&id)?;
+        let aranya = self.devices.get(&id)?;
         Some(aranya.state.remove(ch))
     }
 
@@ -428,7 +431,7 @@ where
         &mut self,
         id: NodeId,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.users.get(&id)?;
+        let aranya = self.devices.get(&id)?;
         Some(aranya.state.remove_all())
     }
 
@@ -439,7 +442,7 @@ where
         id: NodeId,
         f: impl FnMut(ChannelId) -> bool,
     ) -> Option<Result<(), <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.users.get(&id)?;
+        let aranya = self.devices.get(&id)?;
         Some(aranya.state.remove_if(f))
     }
 
@@ -452,7 +455,7 @@ where
         id: NodeId,
         ch: ChannelId,
     ) -> Option<Result<bool, <T::Aranya<E::CS> as AranyaState>::Error>> {
-        let aranya = self.users.get(&id)?;
+        let aranya = self.devices.get(&id)?;
         Some(aranya.state.exists(ch))
     }
 }

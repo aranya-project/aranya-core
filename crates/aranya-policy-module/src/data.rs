@@ -4,7 +4,7 @@ use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec,
 use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
-use aranya_crypto::{EncryptionKeyId, UserId};
+use aranya_crypto::{DeviceId, EncryptionKeyId};
 use aranya_policy_ast::VType;
 use serde::{Deserialize, Serialize};
 
@@ -86,7 +86,7 @@ impl_typed!(bool => Bool);
 
 impl_typed!(Id => Id);
 impl_typed!(EncryptionKeyId => Id);
-impl_typed!(UserId => Id);
+impl_typed!(DeviceId => Id);
 
 impl<T: Typed> Typed for Option<T> {
     const TYPE: Type<'static> = Type::Optional(&T::TYPE);
@@ -260,8 +260,8 @@ impl From<Id> for Value {
     }
 }
 
-impl From<UserId> for Value {
-    fn from(id: UserId) -> Self {
+impl From<DeviceId> for Value {
+    fn from(id: DeviceId) -> Self {
         Value::Id(id.into())
     }
 }
@@ -378,7 +378,7 @@ impl TryFrom<Value> for Id {
     }
 }
 
-impl TryFrom<Value> for UserId {
+impl TryFrom<Value> for DeviceId {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
@@ -388,7 +388,7 @@ impl TryFrom<Value> for UserId {
             Err(ValueConversionError::invalid_type(
                 "Id",
                 value.type_name(),
-                "Value -> UserId",
+                "Value -> DeviceId",
             ))
         }
     }
