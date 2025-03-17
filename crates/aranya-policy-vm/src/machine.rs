@@ -734,12 +734,17 @@ where
                     })?;
 
                 for (field_name, field_val) in field_name_value_pairs {
-                    if !struct_def_fields.iter().any(|f| f.identifier == field_name) {
+                    let Some(field_defn) = struct_def_fields
+                        .iter()
+                        .find(|f| f.identifier == field_name)
+                    else {
+                        return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
+                    };
+
+                    if !field_val.fits_type(&field_defn.field_type) {
                         return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
                     }
 
-                    // TODO(Steve): Check that `field_val` has the correct type
-                    // This is needed for Structs that had an indeterminate type at compile time
                     target.fields.insert(field_name, field_val);
                 }
                 self.ipush(target)?;

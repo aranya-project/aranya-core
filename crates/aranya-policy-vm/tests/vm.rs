@@ -2341,61 +2341,94 @@ fn test_substruct_happy_path() -> anyhow::Result<()> {
 }
 
 #[test]
-fn test_substruct_error() -> anyhow::Result<()> {
-    let policy_str = r#"
-        command Foo {
-            fields {
-                x int,
-                y bool,
-                z string,
-            }
-            seal { return None }
-            open { return None }
-        }
-        struct Bar {
-            x int,
-            y bool,
-        }
-        action baz(source struct Bar) {
-            let maybe_source = if true {
-                Some(source)
-            } else {
-                None 
-            }
+fn test_substruct_errors() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+                command Foo {
+                    fields {
+                        x int,
+                        y bool,
+                        z string,
+                    }
+                    seal { return None }
+                    open { return None }
+                }
+                struct Bar {
+                    x int,
+                    y bool,
+                }
+                action baz(source struct Bar) {
+                    let maybe_source = if true {
+                        Some(source)
+                    } else {
+                        None 
+                    }
 
-            let definitely_source = unwrap maybe_source
+                    let definitely_source = unwrap maybe_source
 
-            publish definitely_source substruct Foo
-        }
-    "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
-    let io = RefCell::new(TestIO::new());
-    let action_name = "baz";
-    let ctx = dummy_ctx_action(action_name);
-    let mut rs = machine.create_run_state(&io, ctx);
+                    // Foo is not a subset of Bar
+                    publish definitely_source substruct Foo
+                }
+            "#,
+            "baz",
+            Err(MachineErrorType::InvalidStructMember("z".to_string())),
+            [Value::Struct(Struct::new(
+                "Bar",
+                [
+                    (String::from("x"), Value::Int(30)),
+                    (String::from("y"), Value::Bool(false)),
+                ],
+            ))],
+        ),
+        (
+            r#"
+                command Foo {
+                    fields {
+                        x string
+                    }
+                    seal { return None }
+                    open { return None }
+                }
+                struct Bar {
+                    x int,
+                }
+                action baz(source struct Bar) {
+                    let maybe_source = if true {
+                        Some(source)
+                    } else {
+                        None 
+                    }
 
-    let err_type = call_action(
-        &mut rs,
-        &io,
-        action_name,
-        [Value::Struct(Struct::new(
-            "Bar",
-            [
-                (String::from("x"), Value::Int(30)),
-                (String::from("y"), Value::Bool(false)),
-                (String::from("z"), Value::String(String::from("lorem"))),
-            ],
-        ))],
-    )
-    .expect_err("Invalid substruct operation")
-    .err_type;
-    drop(rs);
+                    let definitely_source = unwrap maybe_source
 
-    assert_eq!(
-        err_type,
-        MachineErrorType::InvalidStructMember("z".to_string())
-    );
+                    // Foo.x and Bar.x have different types
+                    publish definitely_source substruct Foo
+                }
+            "#,
+            "baz",
+            Err(MachineErrorType::InvalidStructMember("x".to_string())),
+            [Value::Struct(Struct::new(
+                "Bar",
+                [(String::from("x"), Value::Int(30))],
+            ))],
+        ),
+    ];
+
+    for (policy_str, action_name, expected, action_args) in cases {
+        let policy = parse_policy_str(policy_str, Version::V2)?;
+        let module = Compiler::new(&policy).compile()?;
+        let machine = Machine::from_module(module)?;
+        let io = RefCell::new(TestIO::new());
+        let ctx = dummy_ctx_action(action_name);
+        let mut rs = machine.create_run_state(&io, ctx);
+
+        assert_eq!(
+            rs.call_action(action_name, action_args)
+                .map_err(|e| e.err_type),
+            expected
+        )
+    }
+
     Ok(())
 }
