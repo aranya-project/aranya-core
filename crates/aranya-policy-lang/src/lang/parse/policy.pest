@@ -171,7 +171,6 @@ internal_function = _{
     at_least |
     at_most |
     exactly |
-    match_expression |
     if_expr |
     serialize |
     deserialize
@@ -188,6 +187,7 @@ atom = _{
     bool_literal |
     optional_literal |
     named_struct_literal |
+    match_expression |
     internal_function |
     function_call |
     foreign_function_call |
