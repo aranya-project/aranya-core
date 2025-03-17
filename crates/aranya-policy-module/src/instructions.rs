@@ -1,7 +1,10 @@
 extern crate alloc;
 
 use alloc::string::String;
-use core::fmt::{self, Display};
+use core::{
+    fmt::{self, Display},
+    num::NonZeroUsize,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -143,6 +146,10 @@ pub enum Instruction {
     StructSet(Identifier),
     /// Get a member from the struct
     StructGet(Identifier),
+    /// Add multiple members to the struct
+    MStructSet(NonZeroUsize),
+    /// Get multiple members from the struct
+    MStructGet(NonZeroUsize),
     /// Select a subset of fields from a struct
     Substruct(Identifier),
     // context-specific
@@ -205,6 +212,8 @@ impl Display for Instruction {
             Instruction::StructNew(ident) => write!(f, "struct.new {ident}"),
             Instruction::StructSet(ident) => write!(f, "struct.set {ident}"),
             Instruction::StructGet(ident) => write!(f, "struct.get {ident}"),
+            Instruction::MStructGet(n) => write!(f, "mstruct.get {n}"),
+            Instruction::MStructSet(n) => write!(f, "mstruct.set {n}"),
             Instruction::Substruct(ident) => write!(f, "substruct {ident}"),
             Instruction::Publish => write!(f, "publish"),
             Instruction::Create => write!(f, "create"),

@@ -717,6 +717,48 @@ where
                     .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(varname)))?;
                 self.ipush(v)?;
             }
+            Instruction::MStructSet(n) => {
+                let field_name_value_pairs = (0..n.into())
+                    .map(|_| {
+                        self.ipop_value().and_then(|field_val| {
+                            self.ipop::<String>()
+                                .map(|field_name| (field_name, field_val))
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                let mut target: Struct = self.ipop()?;
+                let struct_def_fields =
+                    self.machine.struct_defs.get(&target.name).ok_or_else(|| {
+                        self.err(MachineErrorType::InvalidSchema(target.name.clone()))
+                    })?;
+
+                for (field_name, field_val) in field_name_value_pairs {
+                    if !struct_def_fields.iter().any(|f| f.identifier == field_name) {
+                        return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
+                    }
+
+                    // TODO(Steve): Check that `field_val` has the correct type
+                    // This is needed for Structs that had an indeterminate type at compile time
+                    target.fields.insert(field_name, field_val);
+                }
+                self.ipush(target)?;
+            }
+            Instruction::MStructGet(n) => {
+                let field_names = (0..n.into())
+                    .map(|_| self.ipop::<String>())
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut s: Struct = self.ipop()?;
+
+                for field_name in field_names {
+                    let v = s.fields.remove(&field_name).ok_or_else(|| {
+                        self.err(MachineErrorType::InvalidStructMember(field_name.clone()))
+                    })?;
+
+                    self.ipush(field_name)?;
+                    self.ipush(v)?;
+                }
+            }
             Instruction::Substruct(sub_struct) => {
                 let s: Struct = self.ipop()?;
 

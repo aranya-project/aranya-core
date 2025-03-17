@@ -81,7 +81,7 @@ impl Display for ParseError {
             ParseErrorKind::InvalidMember => "Invalid member",
             ParseErrorKind::InvalidVersion { found, required } => {
                 &{ format!("Invalid policy version {found}, supported version is {required}") }
-            },
+            }
             ParseErrorKind::InvalidSubstruct => "Invalid substruct operation",
             ParseErrorKind::Expression => "Invalid expression",
             ParseErrorKind::Syntax => "Syntax error",

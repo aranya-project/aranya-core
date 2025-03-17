@@ -2393,6 +2393,9 @@ fn test_substruct_error() -> anyhow::Result<()> {
     .err_type;
     drop(rs);
 
-    assert_eq!(err_type, MachineErrorType::InvalidSubstruct);
+    assert_eq!(
+        err_type,
+        MachineErrorType::InvalidStructMember("z".to_string())
+    );
     Ok(())
 }
