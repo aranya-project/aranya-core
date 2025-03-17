@@ -150,8 +150,6 @@ pub enum Instruction {
     MStructSet(NonZeroUsize),
     /// Get multiple members from the struct
     MStructGet(NonZeroUsize),
-    /// Select a subset of fields from a struct
-    Substruct(Identifier),
     // context-specific
     /// Publish a struct as a command
     Publish,
@@ -214,7 +212,6 @@ impl Display for Instruction {
             Instruction::StructGet(ident) => write!(f, "struct.get {ident}"),
             Instruction::MStructGet(n) => write!(f, "mstruct.get {n}"),
             Instruction::MStructSet(n) => write!(f, "mstruct.set {n}"),
-            Instruction::Substruct(ident) => write!(f, "substruct {ident}"),
             Instruction::Publish => write!(f, "publish"),
             Instruction::Create => write!(f, "create"),
             Instruction::Delete => write!(f, "delete"),

@@ -759,44 +759,6 @@ where
                     self.ipush(v)?;
                 }
             }
-            Instruction::Substruct(sub_struct) => {
-                let s: Struct = self.ipop()?;
-
-                let missing_struct_def = |s| {
-                    self.err(MachineErrorType::Unknown(alloc::format!(
-                        "Struct `{s}` is not defined"
-                    )))
-                };
-
-                let s_field_defs = self
-                    .machine
-                    .struct_defs
-                    .get(&s.name)
-                    .ok_or_else(|| missing_struct_def(&s.name))?;
-                let sub_struct_field_defns = self
-                    .machine
-                    .struct_defs
-                    .get(&sub_struct)
-                    .ok_or_else(|| missing_struct_def(&sub_struct))?;
-
-                if !sub_struct_field_defns
-                    .iter()
-                    .all(|field_def| s_field_defs.contains(field_def))
-                {
-                    return Err(self.err(MachineErrorType::InvalidSubstruct));
-                }
-
-                let mut fields = s.fields.clone();
-                fields.retain(|k, _| {
-                    sub_struct_field_defns
-                        .iter()
-                        .any(|field_defn| field_defn.identifier == *k)
-                });
-                self.ipush(Struct {
-                    name: sub_struct,
-                    fields,
-                })?;
-            }
             Instruction::Publish => {
                 let command_struct: Struct = self.ipop()?;
                 self.validate_struct_schema(&command_struct)?;

@@ -857,7 +857,6 @@ impl<'a> CompileState<'a> {
                     }
                 }
 
-                // self.append_instruction(Instruction::Substruct(sub.clone()));
                 let field_count = sub_field_defns.len();
                 for field in sub_field_defns {
                     self.append_instruction(Instruction::Const(Value::String(field.identifier)));
