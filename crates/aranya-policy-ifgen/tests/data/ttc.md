@@ -12,7 +12,7 @@ use crypto
 use device
 ```
 
-## Users and Roles
+## Devices and Roles
 
 The TT&C Team has the following roles:
 
@@ -78,7 +78,7 @@ function is_valid_role(role string) bool {
     return ok
 }
 
-// A user on the team.
+// A device on the team.
 //
 // `role` must be one of:
 // - "Role_Owner"
@@ -86,30 +86,30 @@ function is_valid_role(role string) bool {
 // - "Role_Operator"
 // - "Role_Satellite"
 // This can be checked with `is_valid_role`.
-fact User[user_id id]=>{role string, sign_pk_id id, enc_pk_id id}
+fact Device[device_id id]=>{role string, sign_pk_id id, enc_pk_id id}
 
-// A user's public IdentityKey.
+// A device's public IdentityKey.
 //
-// NB: `key_id` is also the UserID.
-fact UserIdentKey[key_id id]=>{key bytes}
+// NB: `key_id` is also the DeviceId.
+fact DeviceIdentKey[key_id id]=>{key bytes}
 
-// A user's public SigningKey.
-fact UserSignKey[key_id id]=>{user_id id, key bytes}
+// A device's public SigningKey.
+fact DeviceSignKey[key_id id]=>{device_id id, key bytes}
 
-// A user's public EncryptionKey.
-fact UserEncKey[key_id id]=>{user_id id, key bytes}
+// A device's public EncryptionKey.
+fact DeviceEncKey[key_id id]=>{device_id id, key bytes}
 
-// Adds the user to the Control Plane.
-finish function add_new_user(user struct NewUser) {
-    create User[user_id: user.user_id]=>{role: user.role, sign_key_id: user.sign_pk_id, enc_key_id: user.enc_pk_id}
-    create UserIdentKey[key_id: user.user_id]=>{key: user.ident_pk}
-    create UserSignKey[key_id: user.sign_pk_id]=>{user_id: user.user_id, key: user.sign_pk}
-    create UserEncKey[key_id: user.enc_pk_id]=>{user_id: user.user_id, key: user.enc_pk}
+// Adds the device to the Control Plane.
+finish function add_new_device(device struct NewDevice) {
+    create Device[device_id: device.device_id]=>{role: device.role, sign_key_id: device.sign_pk_id, enc_key_id: device.enc_pk_id}
+    create DeviceIdentKey[key_id: device.device_id]=>{key: device.ident_pk}
+    create DeviceSignKey[key_id: device.sign_pk_id]=>{device_id: device.device_id, key: device.sign_pk}
+    create DeviceEncKey[key_id: device.enc_pk_id]=>{device_id: device.device_id, key: device.enc_pk}
 }
 
-// The argument to `add_new_user`.
-struct NewUser {
-    user_id id,
+// The argument to `add_new_device`.
+struct NewDevice {
+    device_id id,
     sign_pk_id id,
     sign_pk bytes,
     enc_pk_id id,
@@ -117,72 +117,72 @@ struct NewUser {
     role string,
 }
 
-// A user in the TT&C team.
-struct User {
-    user_id id,
+// A device in the TT&C team.
+struct Device {
+    device_id id,
     sign_pk_id id,
     enc_pk_id id,
     role string,
 }
 
-// Returns a user.
-function get_user(user_id id) struct User {
-    let user_info = unwrap query User[user_id: user_id]=>{role: ?, sign_pk_id: ?, enc_pk_id: ?}
-    let user = User {
-        user_id: user_id,
-        sign_pk_id: user_info.sign_pk_id,
-        enc_pk_id: user_info.enc_pk_id,
-        role: user_info.role,
+// Returns a device.
+function get_device(device_id id) struct Device {
+    let device_info = unwrap query Device[device_id: device_id]=>{role: ?, sign_pk_id: ?, enc_pk_id: ?}
+    let device = Device {
+        device_id: device_id,
+        sign_pk_id: device_info.sign_pk_id,
+        enc_pk_id: device_info.enc_pk_id,
+        role: device_info.role,
     }
-    return user
+    return device
 }
 
-// Reports whether the user is a Owner.
-function is_owner(user_id id) bool {
-    return has_role(user_id, "Role_Owner")
+// Reports whether the device is a Owner.
+function is_owner(device_id id) bool {
+    return has_role(device_id, "Role_Owner")
 }
 
-// Reports whether the user is a Admin.
-function is_admin(user_id id) bool {
-    return has_role(user_id, "Role_Admin")
+// Reports whether the device is a Admin.
+function is_admin(device_id id) bool {
+    return has_role(device_id, "Role_Admin")
 }
 
-// Reports whether the user is a Operator.
-function is_operator(user_id id) bool {
-    return has_role(user_id, "Role_Operator")
+// Reports whether the device is a Operator.
+function is_operator(device_id id) bool {
+    return has_role(device_id, "Role_Operator")
 }
 
-// Reports whether the user is a satellite.
-function is_satellite(user_id id) bool {
-    return has_role(user_id, "Role_Satellite")
+// Reports whether the device is a satellite.
+function is_satellite(device_id id) bool {
+    return has_role(device_id, "Role_Satellite")
 }
 
-// Reports whether the user's role is `role`.
-function has_role(user_id id, role string) bool {
-    let ok = exists User[user_id: user_id]=>{role: role, sign_pk_id: ?, enc_pk_id: ?}
+// Reports whether the device's role is `role`.
+function has_role(device_id id, role string) bool {
+    let ok = exists Device[device_id: device_id]=>{role: role, sign_pk_id: ?, enc_pk_id: ?}
     return ok
 }
 
-// Reports whether `user_id` matches the UserID derived from
-// `ident_pk`. (The IdentityKey's ID is the UserID.)
-function ident_pk_matches_user_id(user_id id, ident_pk bytes) bool {
-    let got_user_id = crypto_derive_key_id(ident_pk)
-    return got_user_id == user_id
+// Reports whether `device_id` matches the DeviceId derived from
+// `ident_pk`. (The IdentityKey's ID is the DeviceId.)
+function ident_pk_matches_device_id(device_id id, ident_pk bytes) bool {
+    let got_device_id = crypto_derive_key_id(ident_pk)
+    return got_device_id == device_id
 }
 
-// Sanity checks the user per the stated invariants.
-function is_valid_user(user struct User) bool {
+// Sanity checks the device per the stated invariants.
+function is_valid_device(device struct Device) bool {
     // Must have an IdentityKey
-    let has_ident_key = exists UserIdentKey[user_id: user.user_id]=>{key: ?}
+    let has_ident_key = exists DeviceIdentKey[device_id: device.device_id]=>{key: ?}
 
     // Must have a SigningKey
-    let has_sign_key = exists UserSignKey[user_id: user.user_id]=>{key: ?}
+    let has_sign_key = exists DeviceSignKey[device_id: device.device_id]=>{key: ?}
 
     // Must have an EncryptionKey
-    let has_enc_key = exists UserEncKey[user_id: user.user_id]=>{key: ?}
+    let has_enc_key = exists DeviceEncKey[device_id: device.device_id]=>{key: ?}
 
     // Must have a valid role.
-    let has_valid_role = is_valid_role(user.role)
+    let has_valid_role = is_valid_role(device.role)
 
     let valid = has_ident_key &&
                 has_sign_key &&
@@ -202,7 +202,7 @@ the initial owner of the Control Plane.
 // Creates the TT&C Team.
 action create_ttc_team(
     ttc_team_name string,
-    user_name string,
+    device_name string,
     ident_pk bytes,
     sign_pk bytes,
     enc_pk bytes,
@@ -210,7 +210,7 @@ action create_ttc_team(
     let cmd = CreateTtcTeam {
         ctrl_plane_name: ctrl_plane_name,
         data_plane_state: data_plane_state,
-        user_name: user_name,
+        device_name: device_name,
         ident_pk: ident_pk,
         sign_pk: sign_pk,
         enc_pk: enc_pk,
@@ -221,7 +221,7 @@ action create_ttc_team(
 effect TtcTeamCreated {
     // The name of the TT&C Team.
     name string,
-    // The UserID of the creator of the TT&C Team.
+    // The DeviceId of the creator of the TT&C Team.
     owner_id id,
 }
 
@@ -230,7 +230,7 @@ command CreateTtcTeam {
         // The name of this TT&C Team.
         ttc_team_name string,
         // The initial owner's name.
-        user_name string,
+        device_name string,
         // The initial owner's public IdentityKey.
         ident_pk bytes,
         // The initial owner's public SigningKey.
@@ -247,13 +247,13 @@ command CreateTtcTeam {
 
         // Check that the author of the command is providing the
         // correct IdentityKey.
-        check ident_pk_matches_user_id(author, this.ident_pk)
+        check ident_pk_matches_device_id(author, this.ident_pk)
 
         let sign_pk_id = crypto_derive_key_id(this.sign_pk)
         let enc_pk_id = crypto_derive_key_id(this.enc_pk)
 
-        let user = NewUser {
-            user_id: author,
+        let device = NewDevice {
+            device_id: author,
             ident_pk: this.ident_pk,
             sign_pk_id: sign_pk_id,
             sign_pk: this.sign_pk,
@@ -263,7 +263,7 @@ command CreateTtcTeam {
         }
 
         finish {
-            add_new_user(user)
+            add_new_device(device)
 
             emit TtcTeamCreated {
                 name: this.ttc_team_name,
@@ -287,63 +287,63 @@ instance, respectively, to the TT&C Team.
 ```policy
 // Adds a Owner to the TT&C Team.
 action add_owner(
-    user_id id,
+    device_id id,
     name string,
     ident_pk bytes,
     sign_pk bytes,
     enc_pk bytes,
 ) {
-    let cmd = new_add_user_cmd(user, name, ident_pk, sign_pk, enc_pk, "Role_Owner")
+    let cmd = new_add_device_cmd(device, name, ident_pk, sign_pk, enc_pk, "Role_Owner")
     publish cmd
 }
 
 // Adds a Admin to the TT&C Team.
 action add_admin(
-    user_id id,
+    device_id id,
     name string,
     ident_pk bytes,
     sign_pk bytes,
     enc_pk bytes,
 ) {
-    let cmd = new_add_user_cmd(user, name, ident_pk, sign_pk, enc_pk, "Role_Admin")
+    let cmd = new_add_device_cmd(device, name, ident_pk, sign_pk, enc_pk, "Role_Admin")
     publish cmd
 }
 
 // Adds a Operator to the TT&C Team.
 action add_operator(
-    user_id id,
+    device_id id,
     name string,
     ident_pk bytes,
     sign_pk bytes,
     enc_pk bytes,
 ) {
-    let cmd = new_add_user_cmd(user, name, ident_pk, sign_pk, enc_pk, "Role_Operator")
+    let cmd = new_add_device_cmd(device, name, ident_pk, sign_pk, enc_pk, "Role_Operator")
     publish cmd
 }
 
 // Adds a satellite to the TT&C Team.
 action add_satellite(
-    user_id id,
+    device_id id,
     name string,
     ident_pk bytes,
     sign_pk bytes,
     enc_pk bytes,
 ) {
-    let cmd = new_add_user_cmd(user, name, ident_pk, sign_pk, enc_pk, "Role_Satellite")
+    let cmd = new_add_device_cmd(device, name, ident_pk, sign_pk, enc_pk, "Role_Satellite")
     publish cmd
 }
 
-// Creates an `AddUser` command.
-function new_add_user_cmd(
-    user_id id,
+// Creates an `AddDevice` command.
+function new_add_device_cmd(
+    device_id id,
     name string,
     sign_pk bytes,
     ident_pk bytes,
     enc_pk bytes,
     role string,
-) struct AddUser {
-    let cmd = AddUser {
-        user_id: user_id,
+) struct AddDevice {
+    let cmd = AddDevice {
+        device_id: device_id,
         name: name,
         ident_pk: ident_pk,
         sign_pk: sign_pk,
@@ -355,7 +355,7 @@ function new_add_user_cmd(
 
 // A Owner was added to the TT&C Team.
 effect OwnerAdded {
-    user_id id,
+    device_id id,
     name string,
     ident_pk bytes,
     sign_pk bytes,
@@ -364,7 +364,7 @@ effect OwnerAdded {
 
 // A Admin was added to the TT&C Team.
 effect AdminAdded {
-    user_id id,
+    device_id id,
     name string,
     ident_pk bytes,
     sign_pk bytes,
@@ -373,7 +373,7 @@ effect AdminAdded {
 
 // A Operator was added to the TT&C Team.
 effect OperatorAdded {
-    user_id id,
+    device_id id,
     name string,
     ident_pk bytes,
     sign_pk bytes,
@@ -382,32 +382,32 @@ effect OperatorAdded {
 
 // A satellite was added to the Control Plane.
 effect SatelliteAdded {
-    user_id id,
+    device_id id,
     name string,
     ident_pk bytes,
     sign_pk bytes,
     enc_pk bytes,
 }
 
-command AddUser {
+command AddDevice {
     fields {
-        // The new user's UserID.
-        user_id id,
-        // The new user's name.
+        // The new device's DeviceId.
+        device_id id,
+        // The new device's name.
         name string,
-        // The new user's public IdentityKey.
+        // The new device's public IdentityKey.
         ident_pk bytes,
-        // The new user's public SigningKey.
+        // The new device's public SigningKey.
         sign_pk bytes,
-        // The new user's public EncryptionKey.
+        // The new device's public EncryptionKey.
         enc_pk bytes,
-        // The role to assign the user.
+        // The role to assign the device.
         role string,
     }
 
     policy {
-        let author = get_user(crypto_author_id(envelope))
-        check is_valid_user(author) // DEBUG
+        let author = get_device(crypto_author_id(envelope))
+        check is_valid_device(author) // DEBUG
 
         // NB: this is redundant since we match on `this.role`
         // below, but keep it until we have enum support.
@@ -418,8 +418,8 @@ command AddUser {
                 // Only Owners can create other Owners.
                 check author.role == "Role_Owner"
 
-                let add_user_effect = OwnerAdded {
-                    user_id: this.user_id,
+                let add_device_effect = OwnerAdded {
+                    device_id: this.device_id,
                     name: this.name,
                     ident_pk: this.ident_pk,
                     sign_pk: this.sign_pk,
@@ -430,8 +430,8 @@ command AddUser {
                 // Only Owners can create Admins.
                 check author.role == "Role_Owner"
 
-                let add_user_effect = AdminAdded {
-                    user_id: this.user_id,
+                let add_device_effect = AdminAdded {
+                    device_id: this.device_id,
                     name: this.name,
                     ident_pk: this.ident_pk,
                     sign_pk: this.sign_pk,
@@ -442,8 +442,8 @@ command AddUser {
                 // Only Admins can create Operators.
                 check author.role == "Role_Admin"
 
-                let add_user_effect = OperatorAdded {
-                    user_id: this.user_id,
+                let add_device_effect = OperatorAdded {
+                    device_id: this.device_id,
                     name: this.name,
                     ident_pk: this.ident_pk,
                     sign_pk: this.sign_pk,
@@ -454,8 +454,8 @@ command AddUser {
                 // Only Admins can create satellites.
                 check author.role == "Role_Admin"
 
-                let add_user_effect = SatelliteAdded {
-                    user_id: this.user_id,
+                let add_device_effect = SatelliteAdded {
+                    device_id: this.device_id,
                     name: this.name,
                     ident_pk: this.ident_pk,
                     sign_pk: this.sign_pk,
@@ -473,13 +473,13 @@ command AddUser {
 
         // Check that the author of the command is providing the
         // correct IdentityKey.
-        check ident_pk_matches_user_id(this.user_id, this.ident_pk)
+        check ident_pk_matches_device_id(this.device_id, this.ident_pk)
 
         let sign_pk_id = crypto_derive_key_id(this.sign_pk)
         let enc_pk_id = crypto_derive_key_id(this.enc_pk)
 
-        let user = NewUser {
-            user_id: author,
+        let device = NewDevice {
+            device_id: author,
             sign_pk_id: sign_pk_id,
             sign_pk: this.sign_pk,
             enc_pk_id: enc_pk_id,
@@ -488,8 +488,8 @@ command AddUser {
         }
 
         finish {
-            add_new_user(user)
-            emit add_user_effect
+            add_new_device(device)
+            emit add_device_effect
         }
     }
 
@@ -516,92 +516,92 @@ respectively, from the TT&C Team.
 
 ```policy
 // Removes a Owner from the TT&C Team.
-action remove_owner(user_id id) {
-    let cmd = new_remove_user_cmd(user)
+action remove_owner(device_id id) {
+    let cmd = new_remove_device_cmd(device)
     publish cmd
 }
 
 // Removes a Admin from the TT&C Team.
-action remove_admin(user_id id) {
-    let cmd = new_remove_user_cmd(user)
+action remove_admin(device_id id) {
+    let cmd = new_remove_device_cmd(device)
     publish cmd
 }
 
 // Removes a Operator from the TT&C Team.
-action remove_operator(user_id id) {
-    let cmd = new_remove_user_cmd(user)
+action remove_operator(device_id id) {
+    let cmd = new_remove_device_cmd(device)
     publish cmd
 }
 
 // Removes a satellite from the TT&C Team.
-action remove_satellite(user_id id) {
-    let cmd = new_remove_user_cmd(user)
+action remove_satellite(device_id id) {
+    let cmd = new_remove_device_cmd(device)
     publish cmd
 }
 
-// Creates a `RemoveUser` command.
-function new_remove_user_cmd(user_id id) struct RemoveUser {
-    let cmd = RemoveUser {
-        user_id: user,
+// Creates a `RemoveDevice` command.
+function new_remove_device_cmd(device_id id) struct RemoveDevice {
+    let cmd = RemoveDevice {
+        device_id: device,
     }
     return cmd
 }
 
 // A Owner was removed from the TT&C Team.
 effect OwnerRemoved {
-    user_id id,
+    device_id id,
 }
 
 // A Admin was removed from the TT&C Team.
 effect AdminRemoved  {
-    user_id id,
+    device_id id,
 }
 
 // A Operator was removed form the TT&C Team.
 effect OperatorRemoved {
-    user_id id,
+    device_id id,
 }
 
 // A satellite was removed from the TT&C Team.
 effect SatelliteRemoved {
-    user_id id,
+    device_id id,
 }
 
-// Deletes a user.
-finish function remove_user(user struct User) {
-    delete User[user_id: user.user_id]
-    delete UserIdentKey[key_id: user.user_id]
-    delete UserSignKey[key_id: user.sign_pk_id]
-    delete UserEncKey[key_id: user.enc_key_id]
+// Deletes a device.
+finish function remove_device(device struct Device) {
+    delete Device[device_id: device.device_id]
+    delete DeviceIdentKey[key_id: device.device_id]
+    delete DeviceSignKey[key_id: device.sign_pk_id]
+    delete DeviceEncKey[key_id: device.enc_key_id]
 }
 
-command RemoveUser {
+command RemoveDevice {
     fields {
-        // The UserID of the user being removed.
-        user_id id,
+        // The DeviceId of the device being removed.
+        device_id id,
     }
 
     policy {
-        let author = get_user(crypto_author_id(envelope))
-        check is_valid_user(author) // DEBUG
+        let author = get_device(crypto_author_id(envelope))
+        check is_valid_device(author) // DEBUG
 
-        let user = get_user(this.user_id)
-        check is_valid_user(this.user_id) // DEBUG
+        let device = get_device(this.device_id)
+        check is_valid_device(this.device_id) // DEBUG
 
-        match user.role {
+        match device.role {
             "Role_Owner" => {
                 // Owners cannot remove *other* Owners,
                 // but they can remove themselves.
                 check author.role == "Role_Owner" &&
-                      author.user_id == this.user_id
+                      author.device_id == this.device_id
 
                 // But there must always be at least one owner.
-                // check at_least 2 User[user_id: ?]=>{role: "Role_Owner", sign_key_id: ?, enc_key_id: ?}
+                // check at_least 2 Device[device_id: ?]=>{role: "Role_Owner", sign_key_id: ?, enc_key_id: ?}
 
                 finish {
-                    remove_user(user)
+                    remove_device(device)
                     emit OwnerRemoved {
-                        user_id: this.user_id,
+                        device_id: this.device_id,
                     }
                 }
             }
@@ -610,9 +610,9 @@ command RemoveUser {
                 check author.role == "Role_Owner"
 
                 finish {
-                    remove_user(user)
+                    remove_device(device)
                     emit AdminRemoved {
-                        user_id: this.user_id,
+                        device_id: this.device_id,
                     }
                 }
             }
@@ -623,9 +623,9 @@ command RemoveUser {
                       author.role == "Role_Admin"
 
                 finish {
-                    remove_user(user)
+                    remove_device(device)
                     emit OperatorRemoved {
-                        user_id: this.user_id,
+                        device_id: this.device_id,
                     }
                 }
             }
@@ -636,9 +636,9 @@ command RemoveUser {
                       author.role == "Role_Admin"
 
                 finish {
-                    remove_user(user)
+                    remove_device(device)
                     emit SatelliteRemoved {
-                        user_id: this.user_id,
+                        device_id: this.device_id,
                     }
                 }
             }
@@ -647,7 +647,7 @@ command RemoveUser {
 
     recall {
         finish {
-            afc_remove_all_channels(this.user_id)
+            afc_remove_all_channels(this.device_id)
         }
     }
 }
@@ -655,7 +655,7 @@ command RemoveUser {
 
 **Invariants:**
 
-- Users cannot remove themselves.
+- Devices cannot remove themselves.
 - There must always be at least one Owner.
 - Owners can only be removed by other Owners.
 - Admins can only be removed by other Admins or the
@@ -704,7 +704,7 @@ command CreateAfcLabel {
 
     policy {
         let author = crypto_author_id(envelope)
-        check is_valid_user(get_user(author)) // DEBUG
+        check is_valid_device(get_device(author)) // DEBUG
 
         // Only Admins can create AFC labels.
         check is_admin(author)
@@ -734,7 +734,7 @@ command CreateAfcLabel {
 
 ```policy
 /*
-// Describes what channel operations a user is permitted to use
+// Describes what channel operations a device is permitted to use
 // for a particular label.
 enum ChanOp {
     // Can only encrypt.
@@ -754,10 +754,10 @@ function is_valid_chan_op(op string) bool {
     return ok
 }
 
-// Assigns the user the AFC `label`.
-action assign_afc_label(user_id id, label int, op string) {
+// Assigns the device the AFC `label`.
+action assign_afc_label(device_id id, label int, op string) {
     let cmd = AssignAfcLabel {
-        user_id: user_id,
+        device_id: device_id,
         label: label,
         op: op,
     }
@@ -765,8 +765,8 @@ action assign_afc_label(user_id id, label int, op string) {
 }
 
 effect AfcLabelAssigned {
-    // The user being assigned the label.
-    user_id id,
+    // The device being assigned the label.
+    device_id id,
     // The name of the label being assigned.
     name string,
     // The label being assigned.
@@ -775,18 +775,18 @@ effect AfcLabelAssigned {
     op string,
 }
 
-// Records that a user is allowed to use an AFC label.
-fact AssignedAfcLabel[user_id id, label int]=>{op string}
+// Records that a device is allowed to use an AFC label.
+fact AssignedAfcLabel[device_id id, label int]=>{op string}
 
-// Reports whether the users have permission to create
+// Reports whether the devices have permission to create
 // a bidirectional channel with each other.
-function can_create_bidi_channel(user1 id, user2 id, label int) bool {
-    let user1_ok = exists AssignedAfcLabel[user_id: user1, label: label]=>{op: "ChanOp_Bidirectional"}
-    let user2_ok = exists AssignedAfcLabel[user_id: user2, label: label]=>{op: "ChanOp_Bidirectional"}
-    return user1_ok && user2_ok
+function can_create_bidi_channel(device1 id, device2 id, label int) bool {
+    let device1_ok = exists AssignedAfcLabel[device_id: device1, label: label]=>{op: "ChanOp_Bidirectional"}
+    let device2_ok = exists AssignedAfcLabel[device_id: device2, label: label]=>{op: "ChanOp_Bidirectional"}
+    return device1_ok && device2_ok
 }
 
-// Reports whether the users have permission to create
+// Reports whether the devices have permission to create
 // a unidirectional channel with each other.
 function can_create_uni_channel(send_id id, open_id id, label int) bool {
     let send_op = get_allowed_op(send_id, label)
@@ -802,15 +802,15 @@ function can_create_uni_channel(send_id id, open_id id, label int) bool {
 }
 
 // Returns the channel operation for a particular label.
-function get_allowed_op(user_id id, label int) string {
-    let user_info = unwrap query AssignedAfcLabel[user_id: user_id, label: label]=>{op: ?}
-    return user_info.op
+function get_allowed_op(device_id id, label int) string {
+    let device_info = unwrap query AssignedAfcLabel[device_id: device_id, label: label]=>{op: ?}
+    return device_info.op
 }
 
 command AssignAfcLabel {
     fields {
-        // The user being assigned the label.
-        user_id id,
+        // The device being assigned the label.
+        device_id id,
         // The label being assigned.
         label int,
         // The operations that can be performed with the label.
@@ -818,8 +818,8 @@ command AssignAfcLabel {
     }
 
     policy {
-        let author = get_user(crypto_author_id(envelope))
-        check is_valid_user(author) // DEBUG
+        let author = get_device(crypto_author_id(envelope))
+        check is_valid_device(author) // DEBUG
 
         // Only Admins are allowed to assign AFC
         // labels.
@@ -835,10 +835,10 @@ command AssignAfcLabel {
         let label = unwrap query AfcLabel[label: this.label]=>{name: ?}
 
         finish {
-            create AssignedAfcLabel[user_id: this.user_id, label: this.label]=>{op: this.op}
+            create AssignedAfcLabel[device_id: this.device_id, label: this.label]=>{op: this.op}
 
             emit AfcLabelAssigned {
-                user_id: this.user_id,
+                device_id: this.device_id,
                 name: label.name,
                 label: this.label,
                 op: this.op,
@@ -859,33 +859,33 @@ command AssignAfcLabel {
 ## RevokeAfcLabel
 
 ```policy
-// Revokes the user's access to the AFC `label`.
-action revoke_afc_label(user_id id, label int) {
+// Revokes the device's access to the AFC `label`.
+action revoke_afc_label(device_id id, label int) {
     let cmd = RevokeAfcLabel {
-        user_id: user_id,
+        device_id: device_id,
         label: label,
     }
     publish cmd
 }
 
 effect AfcLabelRevoked {
-    // The user for whom the label is being revoked.
-    user_id id,
+    // The device for whom the label is being revoked.
+    device_id id,
     // The label being revoked.
     label int,
 }
 
 command RevokeAfcLabel {
     fields {
-        // The user for whom the label is being revoked.
-        user_id id,
+        // The device for whom the label is being revoked.
+        device_id id,
         // The label being revoked.
         label int,
     }
 
     policy {
-        let author = get_user(crypto_author_id(envelope))
-        check is_valid_user(author) // DEBUG
+        let author = get_device(crypto_author_id(envelope))
+        check is_valid_device(author) // DEBUG
 
         // Only Owners or Admins are allowed to revoke
         // AFC labels.
@@ -896,10 +896,10 @@ command RevokeAfcLabel {
         check is_valid_afc_label(this.label)
 
         finish {
-            delete AssignedAfcLabel[user_id: this.user_id, label: this.label]
+            delete AssignedAfcLabel[device_id: this.device_id, label: this.label]
 
             emit AfcLabelRevoked {
-                user_id: this.user_id,
+                device_id: this.device_id,
                 label: this.label,
             }
         }
@@ -907,7 +907,7 @@ command RevokeAfcLabel {
 
     recall {
         finish {
-            afc_remove_channel(this.user_id, this.label)
+            afc_remove_channel(this.device_id, this.label)
         }
     }
 }
@@ -927,11 +927,11 @@ action create_afc_bidi_channel(peer_id id, label int) {
 }
 
 // Records that a bidirectional AFC channel has been created.
-fact AfcBidiChannel[user1 id, user2 id, label int]=>{}
+fact AfcBidiChannel[device1 id, device2 id, label int]=>{}
 
 effect AfcBidiChannelCreated {
-    user1 id,
-    user2 id,
+    device1 id,
+    device2 id,
     label int,
 }
 
@@ -944,21 +944,21 @@ command CreateAfcBidiChannel {
 
     policy {
         let author = crypto_author_id(envelope)
-        check is_valid_user(get_user(author)) // DEBUG
+        check is_valid_device(get_device(author)) // DEBUG
 
-        let peer = get_user(this.peer_id)
-        check is_valid_user(peer) // DEBUG
+        let peer = get_device(this.peer_id)
+        check is_valid_device(peer) // DEBUG
 
-        // Users can't create channels with themselves.
+        // Devices can't create channels with themselves.
         check this.peer != author
 
-        // Both users must have bidirectional permissions.
-        check can_create_bidi_channel(author.user_id, peer.user_id, this.label)
+        // Both devices must have bidirectional permissions.
+        check can_create_bidi_channel(author.device_id, peer.device_id, this.label)
 
         // It must be a valid label.
         check is_valid_afc_label(this.label)
 
-        let our_id = device_current_user_id()
+        let our_id = device_current_device_id()
 
         // Are we the intended recipient of this command?
         match this.peer == our_id {
@@ -967,41 +967,41 @@ command CreateAfcBidiChannel {
                 let author_enc_pk = get_enc_key(peer)
                 finish {
                     create AfcBidiChannel[
-                        user1: author.user_id,
-                        user2: peer.user_id,
+                        device1: author.device_id,
+                        device2: peer.device_id,
                         label: this.label,
                     ]=>{encap: encap}
 
                     // We're creating a new channel, so get rid
                     // of the existing channel, if any.
-                    afc_remove_channel(author.user_id, None)
+                    afc_remove_channel(author.device_id, None)
                     afc_store_bidi_keys_responder(
                         parent_cmd_id,
                         our_sk_id,
                         our_id,
-                        author.user_id,
+                        author.device_id,
                         author_enc_pk,
                         label,
                         this.encap,
                     )
 
                     emit AfcBidiChannelCreated {
-                        user1: author,
-                        user2: peer,
+                        device1: author,
+                        device2: peer,
                     }
                 }
             }
             false => {
                 finish {
                     create AfcBidiChannel[
-                        user1: author.user_id,
-                        user2: peer.user_id,
+                        device1: author.device_id,
+                        device2: peer.device_id,
                         label: this.label,
                     ]=>{encap: encap}
 
                     emit AfcBidiChannelCreated {
-                        user1: author.user_id,
-                        user2: peer.user_id,
+                        device1: author.device_id,
+                        device2: peer.device_id,
                     }
                 }
             }
@@ -1052,7 +1052,7 @@ action create_afc_uni_channel(seal_id id, open_id id, label int) {
     //   1. Remove the existing channel (if any) that we have
     //      with the peer.
     //   2. Store the new key.
-    let our_id = device_current_user_id()
+    let our_id = device_current_device_id()
     match our_id == seal_id {
         // We're the seal-only side.
         true => {
@@ -1072,29 +1072,29 @@ fact AfcUniChannel[seal_id id, open_id id, label int]=>{}
 
 command CreateAfcUniChannel {
     fields {
-        // The UserID of the side that can encrypt data.
+        // The DeviceId of the side that can encrypt data.
         seal_id id,
-        // The UserID of the side that can decrypt data.
+        // The DeviceId of the side that can decrypt data.
         open_id id,
         // The label to use.
         label int,
     }
 
     policy {
-        let author = get_user(crypto_author_id(envelope))
-        check is_valid_user(author) // DEBUG
+        let author = get_device(crypto_author_id(envelope))
+        check is_valid_device(author) // DEBUG
 
         // The author must be half the channel.
-        check author.user_id == this.seal_id ||
-              author.user_id == this.open_id
+        check author.device_id == this.seal_id ||
+              author.device_id == this.open_id
 
-        // Users can't create channels with themselves.
+        // Devices can't create channels with themselves.
         check this.seal_id != this.open_id
 
-        check is_valid_user(get_user(this.seal_id)) // DEBUG
-        check is_valid_user(get_user(this.open_id)) // DEBUG
+        check is_valid_device(get_device(this.seal_id)) // DEBUG
+        check is_valid_device(get_device(this.open_id)) // DEBUG
 
-        // Both users must have valid permissions.
+        // Both devices must have valid permissions.
         check can_create_uni_channel(this.seal_id, this.open_id, this.label)
 
         // It must be a valid label.
@@ -1117,9 +1117,9 @@ command CreateAfcUniChannel {
         // If this is state (3), then we're not a participant in
         // this channel, so we only need to update the fact
         // database.
-        let our_id = device_current_user_id()
+        let our_id = device_current_device_id()
         // Are we the author?
-        let is_state_1 = our_id == author.user_id
+        let is_state_1 = our_id == author.device_id
         // Are we the intended participant?
         let is_state_2 = this.seal_id == our_id ||
                          this.open_id == our_id
@@ -1129,7 +1129,7 @@ command CreateAfcUniChannel {
             // Yep, this is state (2).
             true => {
                 // Not state (1).
-                check our_id != author.user_id // DEBUG
+                check our_id != author.device_id // DEBUG
                 // Not state (3).
                 check this.seal_id == our_id ||
                       this.open_id == our_id // DEBUG

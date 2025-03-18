@@ -3,14 +3,14 @@
 use alloc::vec::Vec;
 use core::convert::Infallible;
 
-use aranya_crypto::UserId;
+use aranya_crypto::DeviceId;
 use aranya_policy_vm::{ffi::ffi, CommandContext, MachineError};
 use buggy::{bug, BugExt};
 
 use crate::CommandId;
 
 pub struct TestFfiEnvelope {
-    pub user: UserId,
+    pub device: DeviceId,
 }
 
 #[ffi(
@@ -19,7 +19,7 @@ pub struct TestFfiEnvelope {
 struct Envelope {
     // The parent command ID.
     parent_id id,
-    // The author's user ID.
+    // The author's device ID.
     author_id id,
     // Uniquely identifies the command.
     command_id id,
@@ -42,7 +42,7 @@ impl TestFfiEnvelope {
         #[derive(serde::Serialize)]
         struct HashedFields<'a> {
             parent_id: CommandId,
-            author_id: UserId,
+            author_id: DeviceId,
             payload: &'a [u8],
         }
 
@@ -51,7 +51,7 @@ impl TestFfiEnvelope {
         };
 
         let parent_id = ctx.head_id.into();
-        let author_id = self.user;
+        let author_id = self.device;
 
         let data = postcard::to_allocvec(&HashedFields {
             parent_id,
