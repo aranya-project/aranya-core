@@ -718,14 +718,15 @@ where
                 self.ipush(v)?;
             }
             Instruction::MStructSet(n) => {
-                let field_name_value_pairs = (0..n.into())
-                    .map(|_| {
-                        self.ipop_value().and_then(|field_val| {
-                            self.ipop::<String>()
-                                .map(|field_name| (field_name, field_val))
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let n: usize = n.into();
+                let mut field_name_value_pairs = Vec::with_capacity(n);
+
+                for _ in 0..n {
+                    let field_val = self.ipop_value()?;
+                    let field_name = self.ipop::<String>()?;
+
+                    field_name_value_pairs.push((field_name, field_val));
+                }
 
                 let mut target: Struct = self.ipop()?;
                 let struct_def_fields =

@@ -2124,7 +2124,6 @@ fn test_substruct_errors() -> anyhow::Result<()> {
         let policy = parse_policy_str(c.t, Version::V2)?;
         let err = Compiler::new(&policy)
             .ffi_modules(FAKE_SCHEMA)
-            .debug(true) // forced on to enable debug_assert()
             .compile()
             .expect_err("Did not get error")
             .err_type;
