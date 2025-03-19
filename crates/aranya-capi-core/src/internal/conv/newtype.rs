@@ -57,3 +57,8 @@ unsafe impl<T: NewType> NewType for ManuallyDrop<T> {
 unsafe impl<T: NewType> NewType for Pin<T> {
     type Inner = Pin<T::Inner>;
 }
+
+// SAFETY: `T` is `NewType`.
+unsafe impl<'a, T: NewType> NewType for Option<&'a T> {
+    type Inner = Option<&'a T::Inner>;
+}

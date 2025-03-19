@@ -1262,8 +1262,10 @@ fn __tramp_prefix_test_optional_ref_struct(
     _a: *const PrefixStruct,
 ) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
     #[allow(clippy::let_with_type_underscore)]
-    let _a: ::core::option::Option<&_> = __capi::try_as_opt!(_a)
-        .map(|_a| __capi::to_inner_ref!(_a));
+    let _a: ::core::option::Option<&_> = {
+        let _a = __capi::try_as_opt!(_a);
+        __capi::to_inner!(_a)
+    };
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_optional_ref_struct(_a) } {
