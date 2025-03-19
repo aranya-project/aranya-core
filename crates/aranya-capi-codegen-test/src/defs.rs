@@ -135,6 +135,7 @@ pub fn test_unit_result_struct_error() -> Result<Struct, crate::Error> {
 }
 
 pub fn test_optional_ref_struct(_a: Option<&Struct>) {}
+pub fn test_optional_mut_ref_struct(_a: Option<&mut Struct>) {}
 // pub fn test_nested_optional_ref_struct(_a: Option<&Option<&Struct>>) {}
 
 pub type SafeStruct = Safe<Struct>;

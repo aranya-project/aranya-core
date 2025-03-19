@@ -1277,6 +1277,83 @@ fn __tramp_prefix_test_optional_ref_struct(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
 )]
+pub extern "C" fn prefix_test_optional_mut_ref_struct(
+    _a: *mut PrefixStruct,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_optional_mut_ref_struct(
+            __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        _a = %__capi::internal::util::Addr::from_ptr(_a),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_optional_mut_ref_struct_ext(
+    _a: *mut PrefixStruct,
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_optional_mut_ref_struct(
+            __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_optional_mut_ref_struct(
+    _a: *mut PrefixStruct,
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    #[allow(clippy::let_with_type_underscore)]
+    let _a: ::core::option::Option<&mut _> = {
+        let _a = __capi::try_as_opt_mut!(_a);
+        __capi::to_inner!(_a)
+    };
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_optional_mut_ref_struct(_a) } {
+        __pattern => ::core::result::Result::Ok(__pattern),
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
+)]
 pub extern "C" fn prefix_test_ref_safestruct_unit(
     _a: *const PrefixSafeStruct,
 ) -> PrefixError {

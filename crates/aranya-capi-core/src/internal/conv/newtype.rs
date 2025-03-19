@@ -62,3 +62,8 @@ unsafe impl<T: NewType> NewType for Pin<T> {
 unsafe impl<'a, T: NewType> NewType for Option<&'a T> {
     type Inner = Option<&'a T::Inner>;
 }
+
+// SAFETY: `T` is `NewType`.
+unsafe impl<'a, T: NewType> NewType for Option<&'a mut T> {
+    type Inner = Option<&'a mut T::Inner>;
+}
