@@ -384,7 +384,7 @@ pub struct MatchStatement {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchExpression {
     /// Value to match against
-    pub expression: Expression,
+    pub scrutinee: Expression,
     /// Match arms
     pub arms: Vec<AstNode<MatchExpressionArm>>,
 }

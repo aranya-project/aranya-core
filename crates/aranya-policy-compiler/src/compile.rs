@@ -1911,7 +1911,7 @@ impl<'a> CompileState<'a> {
 
         let expr = match s {
             LanguageContext::Statement(s) => &s.expression,
-            LanguageContext::Expression(e) => &e.expression,
+            LanguageContext::Expression(e) => &e.scrutinee,
         };
         let expr_t = self.compile_expression(expr)?;
 

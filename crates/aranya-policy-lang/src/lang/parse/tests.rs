@@ -1775,7 +1775,7 @@ fn parse_match_expression() {
             inner: ast::Statement::Let(ast::LetStatement {
                 identifier: "x".to_string(),
                 expression: Expression::Match(Box::new(ast::MatchExpression {
-                    expression: Expression::Identifier("n".to_string()),
+                    scrutinee: Expression::Identifier("n".to_string()),
                     arms: vec![
                         AstNode::new(
                             ast::MatchExpressionArm {

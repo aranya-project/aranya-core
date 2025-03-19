@@ -616,7 +616,7 @@ impl<'a> ChunkParser<'a> {
 
     fn parse_match_expression(&mut self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
         let pc = descend(expr);
-        let expression = pc.consume_expression(self)?;
+        let scrutinee = pc.consume_expression(self)?;
 
         // All remaining tokens are match arms
         let mut arms = vec![];
@@ -658,7 +658,7 @@ impl<'a> ChunkParser<'a> {
         }
 
         Ok(Expression::Match(Box::new(MatchExpression {
-            expression,
+            scrutinee,
             arms,
         })))
     }
