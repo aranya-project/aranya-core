@@ -22,7 +22,8 @@ use buggy::{bug, Bug, BugExt};
 use heapless::{FnvIndexMap, Vec};
 use s2n_quic::{
     client::Connect,
-    connection, provider,
+    connection,
+    provider::{self},
     stream::{self, BidirectionalStream},
     Client, Connection, Server,
 };
@@ -197,14 +198,16 @@ where
     /// The sync will update your storage, not the peer's.
     pub async fn sync(
         &mut self,
-        client: &mut ClientState<EN, SP>,
-        mut syncer: SyncRequester<'_, SocketAddr>,
-        sink: &mut S,
+        peer_addr: SocketAddr,
         storage_id: GraphId,
+        max_bytes: u64,
     ) -> Result<usize, QuicSyncError> {
+        let client_state = self.client_state.clone();
+        let mut client = client_state.lock().await;
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let mut received = 0;
-        let heads = self.remote_heads.entry(syncer.server_addr()).or_default();
+        let heads = self.remote_heads.entry(peer_addr).or_default();
+        let mut syncer = SyncRequester::new(storage_id, &mut Rng, self.server_addr, max_bytes);
         let (len, _) = syncer.poll(&mut buffer, client.provider(), heads)?;
         if len > buffer.len() {
             bug!("length should fit in buffer");
@@ -212,7 +215,7 @@ where
 
         let mut conn = self
             .quic_client
-            .connect(Connect::new(syncer.server_addr()).with_server_name("localhost"))
+            .connect(Connect::new(peer_addr).with_server_name("localhost"))
             .await?;
         conn.keep_alive(true)?;
         let mut stream = conn.open_bidirectional_stream().await?;
@@ -231,11 +234,18 @@ where
             if let Some(cmds) = syncer.receive(&received_data)? {
                 received = cmds.len();
                 let mut trx = client.transaction(storage_id);
-                client.add_commands(&mut trx, sink, &cmds)?;
-                client.commit(&mut trx, sink)?;
+                {
+                    let mut sink_guard = self.sink.lock().await;
+                    let sink = sink_guard.deref_mut();
+                    client.add_commands(&mut trx, sink, &cmds)?;
+                    client.commit(&mut trx, sink)?;
+                }
                 let addresses: Vec<_, COMMAND_RESPONSE_MAX> =
                     cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
                 client.update_heads(storage_id, addresses, heads)?;
+                {
+                    drop(client);
+                }
                 self.push(storage_id)?;
             }
         }
@@ -248,21 +258,17 @@ where
     /// This will tell the peer to send new commands to us.
     pub async fn subscribe(
         &mut self,
-        client: &mut ClientState<EN, SP>,
-        mut sync_requester: SyncRequester<'_, SocketAddr>,
         remain_open: u64,
         max_bytes: u64,
         peer_addr: SocketAddr,
+        storage_id: GraphId,
     ) -> Result<(), QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
         let heads = self.remote_heads.entry(peer_addr).or_default();
-        let len = sync_requester.subscribe(
-            &mut buffer,
-            client.provider(),
-            heads,
-            remain_open,
-            max_bytes,
-        )?;
+        let mut sync_requester =
+            SyncRequester::new(storage_id, &mut Rng, self.server_addr, max_bytes);
+        let mut client = self.client_state.lock().await;
+        let len = sync_requester.subscribe(&mut buffer, client.provider(), heads, remain_open)?;
 
         let mut conn = self
             .quic_client
@@ -288,10 +294,12 @@ where
     /// Unsubscribe the specified graph to a peer at the given address.
     pub async fn unsubscribe(
         &mut self,
-        mut sync_requester: SyncRequester<'_, SocketAddr>,
         peer_addr: SocketAddr,
+        storage_id: GraphId,
     ) -> Result<(), QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];
+        let mut sync_requester =
+            SyncRequester::new(storage_id, &mut Rng, self.server_addr, u64::MAX);
         let len = sync_requester.unsubscribe(&mut buffer)?;
 
         let mut conn = self
@@ -367,6 +375,7 @@ where
                     storage_id,
                     message.session_id(),
                     self.server_addr.to_string(),
+                    u64::MAX,
                 );
                 if let Some(cmds) = sync_requester.get_sync_commands(message, remaining)? {
                     if !cmds.is_empty() {
@@ -408,7 +417,8 @@ where
             response_syncer.receive(SyncRequestMessage::SyncRequest {
                 session_id,
                 storage_id,
-                max_bytes: 0,
+                max_bytes: u64::MAX,
+                // max_bytes: subscription.remaining_bytes,
                 commands,
             })?;
             assert!(response_syncer.ready());

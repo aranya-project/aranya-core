@@ -80,6 +80,10 @@ fn default_max_syncs() -> u64 {
     1
 }
 
+fn default_max_bytes() -> u64 {
+    u64::MAX
+}
+
 /// Dispatches the SyncType contained in data.
 /// This function is only for testing using polling. In production
 /// usage the syncer implementation will handle this.
@@ -135,6 +139,8 @@ pub enum TestRule {
         must_receive: Option<usize>,
         #[serde(default = "default_max_syncs")]
         max_syncs: u64,
+        #[serde(default = "default_max_bytes")]
+        max_bytes: u64,
     },
     AddExpectation(u64),
     AddExpectations {
@@ -191,10 +197,11 @@ impl Display for TestRule {
                 must_send: None,
                 must_receive: None,
                 max_syncs,
+                max_bytes,
             } => write!(
                 f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, max_syncs,
+                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "max_syncs": {}, "max_bytes": {} }} }},"#,
+                graph, client, from, max_syncs, max_bytes
             ),
             TestRule::Sync {
                 graph,
@@ -203,10 +210,11 @@ impl Display for TestRule {
                 must_send: None,
                 must_receive: Some(must_receive),
                 max_syncs,
+                max_bytes,
             } => write!(
                 f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_receive, max_syncs,
+                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_receive": {}, "max_syncs": {}, "max_bytes": {} }} }},"#,
+                graph, client, from, must_receive, max_syncs, max_bytes,
             ),
             TestRule::Sync {
                 graph,
@@ -215,10 +223,11 @@ impl Display for TestRule {
                 must_send: Some(must_send),
                 must_receive: None,
                 max_syncs,
+                max_bytes,
             } => write!(
                 f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_send, max_syncs,
+                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "max_syncs": {}, "max_bytes": {} }} }},"#,
+                graph, client, from, must_send, max_syncs, max_bytes,
             ),
             TestRule::Sync {
                 graph,
@@ -227,10 +236,11 @@ impl Display for TestRule {
                 must_send: Some(must_send),
                 must_receive: Some(must_receive),
                 max_syncs,
+                max_bytes,
             } => write!(
                 f,
-                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "must_receive": {}, "max_syncs": {} }} }},"#,
-                graph, client, from, must_send, must_receive, max_syncs,
+                r#"{{"Sync": {{ "graph": {}, "client": {}, "from": {}, "must_send": {}, "must_receive": {}, "max_syncs": {}, "max_bytes": {} }} }},"#,
+                graph, client, from, must_send, must_receive, max_syncs, max_bytes
             ),
             TestRule::ActionSet {
                 client,
@@ -398,6 +408,7 @@ where
                                     must_send: None,
                                     must_receive: None,
                                     max_syncs: 1,
+                                    max_bytes: u64::MAX,
                                 })
                             }
                             _ => {}
@@ -412,6 +423,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
+                            max_bytes: u64::MAX,
                         })
                     }
                     // Sync other clients with client 1 so all clients have the entire graph.
@@ -423,6 +435,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
+                            max_bytes: u64::MAX,
                         })
                     }
                     // Sync the entire graph to client 0 at once.
@@ -433,6 +446,7 @@ where
                         must_send: None,
                         must_receive: None,
                         max_syncs: (commands / COMMAND_RESPONSE_MAX as u64) + 100,
+                        max_bytes: u64::MAX,
                     });
                     // Sync other clients with client 0 so other clients have any extra merges
                     // created by client 0.
@@ -444,6 +458,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs,
+                            max_bytes: u64::MAX,
                         })
                     }
                     // Compare all graphs to ensure they're the same after syncing.
@@ -480,6 +495,7 @@ where
                             must_send: None,
                             must_receive: None,
                             max_syncs: 1,
+                            max_bytes: u64::MAX,
                         });
                     }
                     generated_actions
@@ -531,6 +547,7 @@ where
                 must_send,
                 must_receive,
                 max_syncs,
+                max_bytes,
             } => {
                 let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
@@ -556,15 +573,22 @@ where
                         .get(&(graph, from, client))
                         .assume("cache must exist")?
                         .borrow_mut();
-                    let (sent, received) = sync::<<SB as StorageBackend>::StorageProvider, u64>(
-                        &mut request_cache,
-                        &mut response_cache,
-                        &mut request_client,
-                        &mut response_client,
-                        client,
-                        &mut sink,
-                        *storage_id,
-                    )?;
+                    let params = SyncParams {
+                        request: SyncState {
+                            cache: &mut request_cache,
+                            client: &mut request_client,
+                        },
+                        response: SyncState {
+                            cache: &mut response_cache,
+                            client: &mut response_client,
+                        },
+                        server_address: client,
+                        sink: &mut sink,
+                        storage_id: *storage_id,
+                        max_bytes,
+                    };
+                    let (sent, received) =
+                        sync::<<SB as StorageBackend>::StorageProvider, u64>(params)?;
                     total_received += received;
                     total_sent += sent;
                     if received < COMMAND_RESPONSE_MAX {
@@ -573,7 +597,11 @@ where
                 }
 
                 if let Some(mr) = must_receive {
-                    assert_eq!(total_received, mr);
+                    assert_eq!(
+                        total_received, mr,
+                        "total_received: {}, must_receive: {}",
+                        total_received, mr,
+                    );
                 }
 
                 if let Some(ms) = must_send {
@@ -692,31 +720,49 @@ where
 
     Ok(())
 }
+struct SyncState<'a, SP> {
+    cache: &'a mut PeerCache,
+    client: &'a mut ClientState<TestEngine, SP>,
+}
 
-fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
-    request_cache: &mut PeerCache,
-    response_cache: &mut PeerCache,
-    request_state: &mut ClientState<TestEngine, SP>,
-    response_state: &mut ClientState<TestEngine, SP>,
+struct SyncParams<'a, SP> {
+    request: SyncState<'a, SP>,
+    response: SyncState<'a, SP>,
     server_address: u64,
-    sink: &mut TestSink,
+    sink: &'a mut TestSink,
     storage_id: GraphId,
-) -> Result<(usize, usize), TestError> {
-    let mut request_syncer = SyncRequester::new(storage_id, &mut Rng, server_address);
+    max_bytes: u64,
+}
+
+fn sync<SP, A>(params: SyncParams<'_, SP>) -> Result<(usize, usize), TestError>
+where
+    SP: StorageProvider,
+    A: DeserializeOwned + Serialize,
+{
+    let mut request_syncer = SyncRequester::new(
+        params.storage_id,
+        &mut Rng,
+        params.server_address,
+        params.max_bytes,
+    );
     assert!(request_syncer.ready());
 
-    let mut request_trx = request_state.transaction(storage_id);
+    let mut request_trx = params.request.client.transaction(params.storage_id);
 
     let mut buffer = [0u8; MAX_SYNC_MESSAGE_SIZE];
-    let (len, sent) = request_syncer.poll(&mut buffer, request_state.provider(), request_cache)?;
+    let (len, sent) = request_syncer.poll(
+        &mut buffer,
+        params.request.client.provider(),
+        params.request.cache,
+    )?;
 
     let mut received = 0;
     let mut target = [0u8; MAX_SYNC_MESSAGE_SIZE];
     let len = dispatch::<A>(
         &buffer[..len],
         &mut target,
-        response_state.provider(),
-        response_cache,
+        params.response.client.provider(),
+        params.response.cache,
     )?;
 
     if len == 0 {
@@ -724,10 +770,19 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
     }
 
     if let Some(cmds) = request_syncer.receive(&target[..len])? {
-        received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
-        request_state.commit(&mut request_trx, sink)?;
+        received = params
+            .request
+            .client
+            .add_commands(&mut request_trx, params.sink, &cmds)?;
+        params
+            .request
+            .client
+            .commit(&mut request_trx, params.sink)?;
         let addresses: Vec<_> = cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();
-        request_state.update_heads(storage_id, addresses, request_cache)?;
+        params
+            .request
+            .client
+            .update_heads(params.storage_id, addresses, params.request.cache)?;
     };
 
     Ok((sent, received))
@@ -869,6 +924,7 @@ test_vectors! {
     max_cut,
     skip_list,
     many_branches,
+    max_bytes,
 }
 
 /// Used by [`test_suite`].
@@ -908,6 +964,7 @@ macro_rules! test_suite {
             max_cut,
             skip_list,
             many_branches,
+            max_bytes,
         }
     };
 }

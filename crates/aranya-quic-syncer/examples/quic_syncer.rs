@@ -13,13 +13,12 @@
 use std::{fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
 
 use anyhow::{bail, Context, Result};
-use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
     engine::Sink,
     protocol::{TestActions, TestEffect, TestEngine},
     storage::memory::MemStorageProvider,
-    ClientState, Engine, GraphId, StorageProvider, SyncRequester,
+    ClientState, Engine, GraphId, StorageProvider,
 };
 use clap::Parser;
 use s2n_quic::Server;
@@ -56,9 +55,7 @@ fn main() {
 }
 
 async fn sync_peer<EN, SP, S>(
-    client: &mut ClientState<EN, SP>,
     syncer: &mut Syncer<EN, SP, S>,
-    sink: &mut S,
     storage_id: GraphId,
     server_addr: SocketAddr,
 ) where
@@ -66,8 +63,7 @@ async fn sync_peer<EN, SP, S>(
     SP: StorageProvider,
     S: Sink<<EN as Engine>::Effect>,
 {
-    let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server_addr);
-    let fut = syncer.sync(client, sync_requester, sink, storage_id);
+    let fut = syncer.sync(server_addr, storage_id, u64::MAX);
     match fut.await {
         Ok(_) => {}
         Err(e) => println!("err: {:?}", e),
@@ -146,14 +142,7 @@ async fn run(options: Opt) -> Result<()> {
     let task = tokio::spawn(run_syncer(syncer.clone(), server, rx1));
     // Initial sync to sync the Init command
     if !options.new_graph {
-        sync_peer(
-            client.lock().await.deref_mut(),
-            syncer.lock().await.deref_mut(),
-            sink.lock().await.deref_mut(),
-            storage_id,
-            options.peer,
-        )
-        .await;
+        sync_peer(syncer.lock().await.deref_mut(), storage_id, options.peer).await;
     }
     for i in 1..6 {
         // The creator will send a message which will be read by the peer
@@ -165,14 +154,7 @@ async fn run(options: Opt) -> Result<()> {
                 .action(storage_id, sink.lock().await.deref_mut(), action)
                 .context("sync error")?;
         } else {
-            sync_peer(
-                client.lock().await.deref_mut(),
-                syncer.lock().await.deref_mut(),
-                sink.lock().await.deref_mut(),
-                storage_id,
-                options.peer,
-            )
-            .await;
+            sync_peer(syncer.lock().await.deref_mut(), storage_id, options.peer).await;
         }
         thread::sleep(time::Duration::from_secs(1));
     }

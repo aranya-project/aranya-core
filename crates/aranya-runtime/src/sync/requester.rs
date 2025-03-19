@@ -106,7 +106,12 @@ pub struct SyncRequester<'a, A> {
 
 impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
     /// Create a new [`SyncRequester`] with a random session ID.
-    pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R, server_address: A) -> Self {
+    pub fn new<R: Csprng>(
+        storage_id: GraphId,
+        rng: &mut R,
+        server_address: A,
+        max_bytes: u64,
+    ) -> Self {
         // Randomly generate session id.
         let mut dst = [0u8; 16];
         rng.fill_bytes(&mut dst);
@@ -116,7 +121,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             session_id,
             storage_id,
             state: SyncRequesterState::New,
-            max_bytes: 0,
+            max_bytes,
             next_index: 0,
             ooo_buffer: core::array::from_fn(|_| None),
             server_address,
@@ -124,12 +129,17 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
     }
 
     /// Create a new [`SyncRequester`] for an existing session.
-    pub fn new_session_id(storage_id: GraphId, session_id: u128, server_address: A) -> Self {
+    pub fn new_session_id(
+        storage_id: GraphId,
+        session_id: u128,
+        server_address: A,
+        max_bytes: u64,
+    ) -> Self {
         SyncRequester {
             session_id,
             storage_id,
             state: SyncRequesterState::Waiting,
-            max_bytes: 0,
+            max_bytes,
             next_index: 0,
             ooo_buffer: core::array::from_fn(|_| None),
             server_address,
@@ -418,12 +428,11 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
         provider: &mut impl StorageProvider,
         heads: &mut PeerCache,
         remain_open: u64,
-        max_bytes: u64,
     ) -> Result<usize, SyncError> {
         let commands = self.get_commands(provider, heads)?;
         let message = SyncType::Subscribe {
             remain_open,
-            max_bytes,
+            max_bytes: self.max_bytes,
             commands,
             address: self.server_address.clone(),
             storage_id: self.storage_id,

@@ -151,7 +151,7 @@ pub struct SyncResponder<A> {
     session_id: Option<u128>,
     storage_id: Option<GraphId>,
     state: SyncResponderState,
-    bytes_sent: u64,
+    remaining_bytes: u64,
     next_send: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
@@ -165,7 +165,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             session_id: None,
             storage_id: None,
             state: SyncResponderState::New,
-            bytes_sent: 0,
+            remaining_bytes: 0,
             next_send: 0,
             has: Vec::new(),
             to_send: Vec::new(),
@@ -251,7 +251,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             } => {
                 self.state = SyncResponderState::Start;
                 self.storage_id = Some(storage_id);
-                self.bytes_sent = max_bytes;
+                self.remaining_bytes = max_bytes;
                 self.to_send = Vec::new();
                 self.has = commands;
                 self.next_send = 0;
@@ -448,6 +448,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         let mut commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX> = Vec::new();
         let mut command_data: Vec<u8, MAX_SYNC_MESSAGE_SIZE> = Vec::new();
         let mut index = self.next_send;
+        let mut total_bytes: u64 = 0;
         for i in self.next_send..self.to_send.len() {
             if commands.is_full() {
                 break;
@@ -466,16 +467,35 @@ impl<A: Serialize + Clone> SyncResponder<A> {
 
             for command in &found {
                 let mut policy_length = 0;
+                let policy = if let Some(p) = command.policy() {
+                    policy_length = p.len();
+                    p
+                } else {
+                    &[]
+                };
 
-                if let Some(policy) = command.policy() {
-                    policy_length = policy.len();
+                let bytes = command.bytes();
+                let bytes_to_add = policy_length
+                    .checked_add(bytes.len())
+                    .and_then(|sum| sum.checked_add(size_of::<CommandMeta>()))
+                    .assume("bytes_to_add calculation must not overflow")?;
+                total_bytes = total_bytes
+                    .checked_add(
+                        bytes_to_add
+                            .try_into()
+                            .expect("bytes_to_add conversion to u64 failed"),
+                    )
+                    .assume("total_bytes mustn't overflow")?;
+                if total_bytes > self.remaining_bytes {
+                    break;
+                }
+
+                if policy_length > 0 {
                     command_data
                         .extend_from_slice(policy)
                         .ok()
                         .assume("command_data is too large")?;
                 }
-
-                let bytes = command.bytes();
                 command_data
                     .extend_from_slice(bytes)
                     .ok()
