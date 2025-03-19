@@ -2,7 +2,7 @@ extern crate alloc;
 
 use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc};
 
-use aranya_crypto::UserId;
+use aranya_crypto::DeviceId;
 use aranya_policy_vm::{Struct, Value};
 use serde::{Deserialize, Serialize};
 
@@ -16,7 +16,7 @@ use crate::{
 pub enum VmProtocolData<'a> {
     Init {
         policy: [u8; 8],
-        author_id: UserId,
+        author_id: DeviceId,
         #[serde(borrow)]
         kind: &'a str,
         #[serde(borrow)]
@@ -30,7 +30,7 @@ pub enum VmProtocolData<'a> {
     },
     Basic {
         parent: Address,
-        author_id: UserId,
+        author_id: DeviceId,
         #[serde(borrow)]
         kind: &'a str,
         #[serde(borrow)]
@@ -110,7 +110,7 @@ impl Command for VmProtocol<'_> {
 #[derive(Clone, Debug)]
 pub struct Envelope<'a> {
     pub parent_id: CommandId,
-    pub author_id: UserId,
+    pub author_id: DeviceId,
     pub command_id: CommandId,
     pub payload: Cow<'a, [u8]>,
     pub signature: Cow<'a, [u8]>,

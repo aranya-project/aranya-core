@@ -85,12 +85,12 @@ function derive_sign_key_id(
 
     /// Returns the ID of an encoded [`IdentityVerifyingKey`].
     #[ffi_export(def = r#"
-function derive_user_id(
+function derive_device_id(
     // The encoded `IdentityVerifyingKey`.
     ident_pk bytes,
 ) id
 "#)]
-    pub(crate) fn derive_user_id<E: Engine>(
+    pub(crate) fn derive_device_id<E: Engine>(
         &self,
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
@@ -118,7 +118,7 @@ function generate_group_key() struct StoredGroupKey
         Ok(StoredGroupKey { key_id, wrapped })
     }
 
-    /// Encrypts the [`GroupKey`] for another user.
+    /// Encrypts the [`GroupKey`] for another device.
     #[ffi_export(def = r#"
 function seal_group_key(
     wrapped_group_key bytes,
@@ -146,7 +146,7 @@ function seal_group_key(
         })
     }
 
-    /// Decrypts a [`GroupKey`] received from another user.
+    /// Decrypts a [`GroupKey`] received from another device.
     #[ffi_export(def = r#"
 function open_group_key(
     sealed_group_key struct SealedGroupKey,

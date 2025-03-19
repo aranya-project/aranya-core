@@ -37,7 +37,7 @@ use crate::error::Error;
 // needs to store the raw key material.
 
 impl Error {
-    pub(crate) const fn same_user_id() -> Self {
-        Self::InvalidArgument("same `UserId`")
+    pub(crate) const fn same_device_id() -> Self {
+        Self::InvalidArgument("same `DeviceId`")
     }
 }
