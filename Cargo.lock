@@ -220,7 +220,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "aranya-crypto",
  "buggy",
@@ -244,7 +244,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto-ffi"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "aranya-crypto",
  "aranya-crypto-ffi",
@@ -257,7 +257,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-device-ffi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -265,7 +265,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-envelope-ffi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -275,7 +275,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-fast-channels"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aranya-crypto",
  "aranya-fast-channels",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-idam-ffi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aranya-crypto",
  "aranya-idam-ffi",
@@ -340,7 +340,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-perspective-ffi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-vm",
@@ -356,7 +356,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-compiler"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -381,7 +381,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",
@@ -432,7 +432,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-module"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-ast",
@@ -444,7 +444,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-vm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "aranya-crypto",
@@ -498,7 +498,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-runtime"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aranya-crypto",
  "aranya-libc",
