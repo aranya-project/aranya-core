@@ -14,10 +14,10 @@ workspace = true
 default = []
 
 [dependencies]
-aranya-crypto = { version = "0.3.0", path = "../aranya-crypto" }
-aranya-policy-compiler = { version = "0.4.0", path = "../aranya-policy-compiler" }
+aranya-crypto = { version = "0.4.0", path = "../aranya-crypto" }
+aranya-policy-compiler = { version = "0.5.0", path = "../aranya-policy-compiler" }
 aranya-policy-lang = { version = "0.2.0", path = "../aranya-policy-lang" }
-aranya-policy-vm = { version = "0.4.0", path = "../aranya-policy-vm", features = ["std"] }
+aranya-policy-vm = { version = "0.5.0", path = "../aranya-policy-vm", features = ["std"] }
 
 anyhow = { workspace = true }
 clap = { version = "4.4", features = ["derive"] }
