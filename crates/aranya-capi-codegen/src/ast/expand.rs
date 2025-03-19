@@ -683,22 +683,14 @@ impl Ast {
                         // pass it to `InvalidArg` so that
                         // callers know the name of the invalid
                         // argument.
-
-                        let token_stream = match input.ty {
-                            Type::Option(_) => quote! {
-                                #[allow(clippy::let_with_type_underscore)]
-                                let #name: #ty =  #conv.map(|#name| #newtype);
-                            },
-                            _ => quote! {
-                                #[allow(clippy::let_with_type_underscore)]
-                                let #name: #ty = {
-                                    // TODO(eric): ordering?
-                                    let #name = #conv;
-                                    #newtype
-                                };
-                            },
-                        };
-                        Some(token_stream)
+                        Some(quote! {
+                            #[allow(clippy::let_with_type_underscore)]
+                            let #name: #ty = {
+                                // TODO(eric): ordering?
+                                let #name = #conv;
+                                #newtype
+                            };
+                        })
                     }
                 }
             });
@@ -1498,7 +1490,7 @@ fn unpack_helper(capi: &Ident, ident: &Ident, ty: &Type) -> Option<Expr> {
             Type::Slice(_) => Some(parse_quote!(#capi::to_inner_slice_mut!(#ident))),
             _ => None,
         },
-        Type::Option(inner) => unpack_helper(capi, ident, &inner.elem),
+        Type::Option(_) => Some(parse_quote!(#capi::to_inner!(#ident))),
         _ => None,
     }
 }
