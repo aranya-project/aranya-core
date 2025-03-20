@@ -75,7 +75,17 @@ impl<'a> Span<'a> {
 
 /// The code map contains the original source and can map VM instructions to text ranges
 /// inside that source.
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub struct CodeMap {
     /// The original policy source code
     text: String,
