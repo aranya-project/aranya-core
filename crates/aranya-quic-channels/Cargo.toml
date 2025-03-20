@@ -1,5 +1,7 @@
 [package]
 name = "aranya-quic-channels"
+description = "Peer to peer communication using QUIC with encryption protect by Aranya Policy"
+version = "0.1.0"
 publish = false
 authors.workspace = true
 edition.workspace = true
@@ -11,8 +13,8 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-aranya-fast-channels = { version = "0.3.0", path = "../aranya-fast-channels", features = ["std"] }
-aranya-runtime = { version = "0.3.0", path = "../aranya-runtime", features = ["std"] }
+aranya-fast-channels = { version = "0.5.0", path = "../aranya-fast-channels", features = ["std"] }
+aranya-runtime = { version = "0.5.0", path = "../aranya-runtime", features = ["std"] }
 bytes = { version = "1.0" }
 
 anyhow = { workspace = true }

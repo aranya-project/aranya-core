@@ -93,8 +93,7 @@ async fn handle_bidirectional_stream(
 ) -> Result<Option<AqcChannel>> {
     let (recv, send) = stream.split();
     // TODO: Use the SSL certificate to identify the channel.
-    let (channel, stream_sender, message_sender) = AqcChannel::new(send);
-    tokio::spawn(handle_stream(recv, stream_sender));
+    let (channel, message_sender) = AqcChannel::new(send, recv);
     tokio::spawn(handle_messages(conn, message_sender));
 
     Ok(Some(channel))
@@ -127,30 +126,6 @@ async fn handle_message(mut stream: ReceiveStream, sender: mpsc::Sender<Bytes>) 
     }
 }
 
-async fn handle_stream(mut stream: ReceiveStream, sender: mpsc::Sender<Bytes>) {
-    loop {
-        select! {
-            r = stream.receive() => {
-                match r {
-                    Err(_) => {
-                        debug!("error receiving from stream");
-                        break;
-                    }
-                    Ok(Some(req)) => {
-                        if sender.send( req).await.is_err() {
-                            debug!("error sending to channel");
-                        }
-                    }
-                    // The stream has been closed.
-                    Ok(None) => {
-                        break;
-                    }
-                };
-            }
-        }
-    }
-}
-
 #[derive(Eq, Hash, PartialEq, Clone, Copy, Debug)]
 /// Identifies a unique channel between two peers.
 pub struct AqcChannelID {
@@ -165,45 +140,28 @@ pub struct AqcChannelID {
 /// A unique channel between two peers.
 /// Allows sending and receiving data over a channel.
 pub struct AqcChannel {
-    stream_receiver: mpsc::Receiver<Bytes>,
     message_receiver: mpsc::Receiver<Bytes>,
-    send: SendStream,
+    receive_stream: ReceiveStream,
+    send_stream: SendStream,
 }
 
 impl AqcChannel {
     /// Create a new channel with the given send stream.
     ///
     /// Returns the channel and the senders for the stream and message channels.
-    pub fn new(send: SendStream) -> (Self, mpsc::Sender<Bytes>, mpsc::Sender<Bytes>) {
-        let (stream_sender, stream_receiver) = mpsc::channel(1);
+    pub fn new(
+        send_stream: SendStream,
+        receive_stream: ReceiveStream,
+    ) -> (Self, mpsc::Sender<Bytes>) {
         let (message_sender, message_receiver) = mpsc::channel(1);
         (
             Self {
-                stream_receiver,
                 message_receiver,
-                send,
+                send_stream,
+                receive_stream,
             },
-            stream_sender,
             message_sender,
         )
-    }
-
-    /// Receive the next available data from a channel. If no data is available, return None.
-    /// If the channel is closed, return an AqcError::ChannelClosed error.
-    ///
-    /// This method will return data as soon as it is available, and will not block.
-    /// The data is not guaranteed to be complete, and may need to be called
-    /// multiple times to receive all data from a message.
-    pub fn try_recv_stream(&mut self, target: &mut [u8]) -> Result<Option<usize>, AqcError> {
-        match self.stream_receiver.try_recv() {
-            Ok(data) => {
-                let len = data.len();
-                target[..len].copy_from_slice(&data);
-                Ok(Some(len))
-            }
-            Err(TryRecvError::Empty) => Ok(None),
-            Err(TryRecvError::Disconnected) => Err(AqcError::ChannelClosed),
-        }
     }
 
     /// Receive the next available data from a channel. If the channel has been
@@ -213,13 +171,25 @@ impl AqcChannel {
     /// The data is not guaranteed to be complete, and may need to be called
     /// multiple times to receive all data from a message.
     pub async fn recv_stream(&mut self, target: &mut [u8]) -> Option<usize> {
-        match self.stream_receiver.recv().await {
-            Some(data) => {
-                let len = data.len();
-                target[..len].copy_from_slice(&data);
-                Some(len)
+        loop {
+            select! {
+                r = self.receive_stream.receive() => {
+                    match r {
+                        Err(_) => {
+                            debug!("error receiving from stream");
+                        }
+                        Ok(Some(req)) => {
+                let len = req.len();
+                target[..len].copy_from_slice(&req);
+                return Some(len);
+                        }
+                        // The stream has been closed.
+                        Ok(None) => {
+                            return None
+                        }
+                    };
+                }
             }
-            None => None,
         }
     }
 
@@ -258,13 +228,13 @@ impl AqcChannel {
 
     /// Stream data to the given channel.
     pub async fn send_stream(&mut self, data: &[u8]) -> Result<(), AqcError> {
-        self.send.send(Bytes::copy_from_slice(data)).await?;
+        self.send_stream.send(Bytes::copy_from_slice(data)).await?;
         Ok(())
     }
 
     /// Send a message the given channel.
     pub async fn send_message(&mut self, data: &[u8]) -> Result<(), AqcError> {
-        let mut send = self.send.connection().open_send_stream().await?;
+        let mut send = self.send_stream.connection().open_send_stream().await?;
         send.send(Bytes::copy_from_slice(data)).await?;
         Ok(())
     }
@@ -272,7 +242,7 @@ impl AqcChannel {
     /// Close the given channel if it's open. If the channel is already closed, do nothing.
     pub fn close(&mut self) {
         const ERROR_CODE: u32 = 0;
-        self.send.connection().close(ERROR_CODE.into());
+        self.send_stream.connection().close(ERROR_CODE.into());
     }
 }
 

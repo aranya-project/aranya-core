@@ -93,7 +93,7 @@ async fn test_channels() -> Result<()> {
         let mut total_len: usize = 0;
         let mut total_pieces: i32 = 0;
         // Send stream should return the message in pieces
-        while let Some(len) = channel2.try_recv_stream(&mut target[total_len..])? {
+        while let Some(len) = channel2.recv_stream(&mut target[total_len..]).await {
             total_pieces = total_pieces.checked_add(1).expect("Pieces overflow");
             total_len = total_len.checked_add(len).expect("Length overflow");
             if total_len >= big_data.len() {
