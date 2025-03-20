@@ -1,11 +1,11 @@
-use alloc::{collections::BinaryHeap, vec::Vec};
+use alloc::vec::Vec;
 
 use buggy::{Bug, BugExt};
 use tracing::trace;
 
 use crate::{
     Address, Command, CommandId, Engine, EngineError, GraphId, Location, PeerCache, Perspective,
-    Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
+    Policy, Prior, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 mod session;
@@ -28,6 +28,8 @@ pub enum ClientError {
     NotAuthorized,
     #[error("session deserialize error: {0}")]
     SessionDeserialize(#[from] postcard::Error),
+    #[error("found parallel finalize commands during braid")]
+    ParallelFinalize,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -38,6 +40,12 @@ impl From<EngineError> for ClientError {
             EngineError::Check => Self::NotAuthorized,
             _ => Self::EngineError(error),
         }
+    }
+}
+
+impl From<strand_heap::ParallelFinalize> for ClientError {
+    fn from(_: strand_heap::ParallelFinalize) -> Self {
+        Self::ParallelFinalize
     }
 }
 
@@ -263,14 +271,81 @@ pub fn braid<S: Storage>(
     left: Location,
     right: Location,
 ) -> Result<Vec<Location>, ClientError> {
-    struct Strand<S> {
+    use strand_heap::{Strand, StrandHeap};
+
+    let mut braid = Vec::new();
+    let mut strands = StrandHeap::new();
+
+    trace!(%left, %right, "braiding");
+
+    for head in [left, right] {
+        strands.push(Strand::new(storage, head, None)?)?;
+    }
+
+    // Get latest command
+    while let Some(strand) = strands.pop() {
+        // Consume another command off the strand
+        let (prior, mut maybe_cached_segment) = if let Some(previous) = strand.next.previous() {
+            (Prior::Single(previous), Some(strand.segment))
+        } else {
+            (strand.segment.prior(), None)
+        };
+        if matches!(prior, Prior::Merge(..)) {
+            trace!("skipping merge command");
+        } else {
+            trace!("adding {}", strand.next);
+            braid.push(strand.next);
+        }
+
+        // Continue processing prior if not accessible from other strands.
+        'location: for location in prior {
+            for other in strands.iter() {
+                trace!("checking {}", other.next);
+                if (location.same_segment(other.next) && location.command <= other.next.command)
+                    || storage.is_ancestor(location, &other.segment)?
+                {
+                    trace!("found ancestor");
+                    continue 'location;
+                }
+            }
+
+            trace!("strand at {location}");
+            strands.push(Strand::new(
+                storage,
+                location,
+                // Taking is OK here because `maybe_cached_segment` is `Some` when
+                // the current strand has a single parent that is in the same segment
+                Option::take(&mut maybe_cached_segment),
+            )?)?;
+        }
+        if let Some(strand) = strands.lone() {
+            // No concurrency left, done.
+            let next = strand.next;
+            trace!("adding {next}");
+            braid.push(next);
+            break;
+        }
+    }
+
+    braid.reverse();
+    Ok(braid)
+}
+
+mod strand_heap {
+    use alloc::collections::BinaryHeap;
+
+    use crate::{
+        ClientError, Command, CommandId, Location, Priority, Segment, Storage, StorageError,
+    };
+
+    pub struct Strand<S> {
         key: (Priority, CommandId),
-        next: Location,
-        segment: S,
+        pub next: Location,
+        pub segment: S,
     }
 
     impl<S: Segment> Strand<S> {
-        fn new(
+        pub fn new(
             storage: &mut impl Storage<Segment = S>,
             location: Location,
             cached_segment: Option<S>,
@@ -309,60 +384,53 @@ pub fn braid<S: Storage>(
         }
     }
 
-    let mut braid = Vec::new();
-    let mut strands = BinaryHeap::new();
-
-    trace!(%left, %right, "braiding");
-
-    for head in [left, right] {
-        strands.push(Strand::new(storage, head, None)?);
+    pub struct StrandHeap<S> {
+        heap: BinaryHeap<Strand<S>>,
+        has_finalize: bool,
     }
 
-    // Get latest command
-    while let Some(strand) = strands.pop() {
-        // Consume another command off the strand
-        let (prior, mut maybe_cached_segment) = if let Some(previous) = strand.next.previous() {
-            (Prior::Single(previous), Some(strand.segment))
-        } else {
-            (strand.segment.prior(), None)
-        };
-        if matches!(prior, Prior::Merge(..)) {
-            trace!("skipping merge command");
-        } else {
-            trace!("adding {}", strand.next);
-            braid.push(strand.next);
-        }
+    #[derive(Copy, Clone, Debug, thiserror::Error)]
+    #[error("parallel finalize commands found")]
+    pub struct ParallelFinalize;
 
-        // Continue processing prior if not accessible from other strands.
-        'location: for location in prior {
-            for other in &strands {
-                trace!("checking {}", other.next);
-                if (location.same_segment(other.next) && location.command <= other.next.command)
-                    || storage.is_ancestor(location, &other.segment)?
-                {
-                    trace!("found ancestor");
-                    continue 'location;
-                }
+    impl<S> StrandHeap<S> {
+        pub const fn new() -> Self {
+            Self {
+                heap: BinaryHeap::new(),
+                has_finalize: false,
             }
-
-            trace!("strand at {location}");
-            strands.push(Strand::new(
-                storage,
-                location,
-                // Taking is OK here because `maybe_cached_segment` is `Some` when
-                // the current strand has a single parent that is in the same segment
-                Option::take(&mut maybe_cached_segment),
-            )?);
         }
-        if strands.len() == 1 {
-            // No concurrency left, done.
-            let next = strands.pop().assume("strands not empty")?.next;
-            trace!("adding {}", strand.next);
-            braid.push(next);
-            break;
+
+        pub fn push(&mut self, strand: Strand<S>) -> Result<(), ParallelFinalize> {
+            if matches!(strand.key.0, Priority::Finalize) {
+                if self.has_finalize {
+                    return Err(ParallelFinalize);
+                }
+                self.has_finalize = true;
+            }
+            self.heap.push(strand);
+            Ok(())
+        }
+
+        pub fn pop(&mut self) -> Option<Strand<S>> {
+            let strand = self.heap.pop()?;
+            if matches!(strand.key.0, Priority::Finalize) {
+                debug_assert!(self.has_finalize);
+                self.has_finalize = false;
+            }
+            Some(strand)
+        }
+
+        /// Pops last item when only one item remains.
+        pub fn lone(&mut self) -> Option<Strand<S>> {
+            if self.heap.len() != 1 {
+                return None;
+            }
+            self.heap.pop()
+        }
+
+        pub fn iter(&self) -> impl Iterator<Item = &Strand<S>> {
+            self.heap.iter()
         }
     }
-
-    braid.reverse();
-    Ok(braid)
 }
