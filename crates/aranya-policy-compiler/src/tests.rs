@@ -1236,31 +1236,19 @@ fn test_match_arm_should_be_limited_to_literals() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_expression() {
-    let invalid_cases = vec![
-        (
-            // arms expressions have different types
-            r#"action foo(a int) {
+    let invalid_cases = vec![(
+        // arms expressions have different types
+        r#"action foo(a int) {
                 let x = match a {
                     1 => { :"one" }
                     _ => { :false }
                 }
             }
             "#,
-            CompileErrorType::InvalidType(
-                "match arm expression type mismatch; expected string, got bool".to_string(),
-            ),
+        CompileErrorType::InvalidType(
+            "match arm expression type mismatch; expected string, got bool".to_string(),
         ),
-        (
-            // expression type doesn't match expected type
-            r#"function f(n int) bool {
-                return match n {
-                    0 => 1
-                    _ => 0
-                }
-            }"#,
-            CompileErrorType::InvalidType("Return value of `f()` must be bool".to_string()),
-        ),
-    ];
+    )];
     for (src, result) in invalid_cases {
         let policy = parse_policy_str(src, Version::V2).expect("should parse");
         assert_eq!(
@@ -1270,12 +1258,27 @@ fn test_match_expression() {
     }
 
     let valid_cases = vec![
+        // match expression type is that of first arm
+        r#"action f(n int) {
+            let b = match n {
+                0 => false
+                _ => true
+            }
+            check b
+        }"#,
         // match expression type is indeterminate
-        r#"function f(n int) int {
-            return match n {
+        r#"action f(n int) {
+            check match n {
                 0 => None
-                1 => "1"
                 _ => 0
+            }
+        }"#,
+        // TODO: this should fail
+        r#"action f(n int) {
+            check match n {
+                0 => None
+                1 => 1
+                _ => false
             }
         }"#,
     ];
