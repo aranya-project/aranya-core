@@ -220,9 +220,9 @@ impl<'a> CompileState<'a> {
                     ))));
                 }
                 Entry::Vacant(e) => {
-                    // TODO ensure value is unique. Currently, it always will be, but if enum
-                    // variants start allowing specific values, e.g. `enum Color { Red = 100, Green
-                    // = 200 }`, then we'll need to ensure those are unique.
+                    // TODO(aleko): ensure value is unique. Right now it always is, but if we start
+                    // allowing enum variants to have specific values then we'll need to ensure
+                    // those are unique; e.g. `enum Color { Red = 100, Green = 200 }`.
                     let n = i64::try_from(i).assume("should set enum value to index")?;
                     e.insert(n);
                 }

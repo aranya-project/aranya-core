@@ -4,7 +4,7 @@ use aranya_policy_module::Label;
 
 pub enum TraceErrorType {
     BadLabel(Label),
-    Bug, // TODO(chip) use actual Bug
+    Bug, // TODO(chip): use actual Bug
 }
 
 impl fmt::Display for TraceErrorType {
