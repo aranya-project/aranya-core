@@ -30,16 +30,14 @@ enum Mode {
 #[command(group(ArgGroup::new("mode").required(true).args(["exec", "debug", "compile"])))]
 #[command(group(ArgGroup::new("call").conflicts_with("compile").args(["action", "command"])))]
 struct Args {
-    /// The policy version. If this is set the policy is treated as raw.
-    /// Valid values are v1.
+    /// The policy version. If this is set the policy is treated as raw. Valid values are v1.
     #[arg(short, long)]
     raw_policy_version: Option<Version>,
     /// Execute the action or command and show the machine state.
     #[arg(short, long)]
     exec: bool,
-    /// Step through the execution of policy instructions one-by-one,
-    /// showing the state after each step. One instruction is executed
-    /// for each newline read from stdin.
+    /// Step through the execution of policy instructions one-by-one, showing the state after each
+    /// step. One instruction is executed for each newline read from stdin.
     #[arg(short, long)]
     debug: bool,
     /// Show only the compiled instructions and exit.
@@ -47,12 +45,10 @@ struct Args {
     compile: bool,
     /// The file to read from. If omitted, the document is read from stdin.
     file: String,
-    /// Call an action. Command-line arguments are positional arguments
-    /// to the function.
+    /// Call an action. Command-line arguments are positional arguments to the function.
     #[arg(short, long)]
     action: Option<String>,
-    /// Call a command policy block. Command-line arguments are
-    /// key:value pairs that form the `self` struct.
+    /// Call a command block. Command-line args are key:value pairs that form the `self` struct.
     #[arg(short = 'm', long)]
     command: Option<String>,
     /// Any arguments to called functions.
@@ -261,10 +257,9 @@ fn main() -> anyhow::Result<()> {
         Mode::Compile
     };
 
-    // This actually provides a pretty poor example of how you'd use
-    // the VM in practice. Normally you would just call
-    // `machine.call_command_policy()` or `machine.call_action()`,
-    // which will return the commands or effects produced.
+    // This actually provides a pretty poor example of how you'd use the VM in practice. Normally
+    // you would just call `machine.call_command_policy()` or `machine.call_action()`, which will
+    // return the commands or effects produced.
     match mode {
         Mode::Exec | Mode::Debug => {
             let name;

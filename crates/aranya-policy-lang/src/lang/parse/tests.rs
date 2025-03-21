@@ -134,8 +134,8 @@ fn parse_atom_fn() -> Result<(), PestError<Rule>> {
     // bad calls
     let cases = vec!["call(,)", "call(a a)", "call(-)"];
     for c in cases {
-        // We use Rule::function_call here directly as otherwise
-        // these bad calls fall back to parsing as identifiers.
+        // We use Rule::function_call here directly as otherwise these bad calls fall back to
+        // parsing as identifiers.
         let result = PolicyParser::parse(Rule::function_call, c);
         assert!(result.is_err());
     }
@@ -1045,8 +1045,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
     Ok(())
 }
 
-// NB: this test depends on the external file tictactoe.policy,
-// which must be kept up-to-date with this test.
+// NB: this test depends on the external file tictactoe.policy, and must be kept up-to-date!
 #[test]
 fn parse_tictactoe() {
     let text = {

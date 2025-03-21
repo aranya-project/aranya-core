@@ -3,28 +3,25 @@
 #![cfg(feature = "derive")]
 #![cfg_attr(docsrs, doc(cfg(feature = "derive")))]
 
-/// When applied to an `impl` block, [`macro@ffi`] generates an
-/// implementation of  [`FfiModule`][crate::ffi::FfiModule].
+/// When applied to an `impl` block, [`macro@ffi`] generates an implementation of
+/// [`FfiModule`][crate::ffi::FfiModule].
 ///
 /// It accepts the following arguments:
 ///
-/// - `name`: the name of the FFI module (e.g., everything before
-///   the `::` in `aranya_crypto::encrypt_data`).
+/// - `name`: the name of the FFI module (e.g., everything before the `::` in
+///   `aranya_crypto::encrypt_data`).
 ///
-/// Methods and associated functions in the `impl` block with the
-/// `#[ffi_export]` attribute are included in the FFI module's
-/// function table. Methods and associated functions without the
+/// Methods and associated functions in the `impl` block with the `#[ffi_export]` attribute are
+/// included in the FFI module's function table. Methods and associated functions without the
 /// attribute are ignored.
 ///
-/// The `#[ffi_export]` attribute has the following required
-/// arguments:
+/// The `#[ffi_export]` attribute has the following required arguments:
 ///
 /// - `def`: the definition of the function in policy DSL.
 ///
 /// # Arguments and Results
 ///
-/// Each method or associated function must take the generic
-/// parameter `E: Engine` (see
+/// Each method or associated function must take the generic parameter `E: Engine` (see
 /// [`Engine`][aranya_crypto::Engine]):
 ///
 /// ```ignore
@@ -40,21 +37,18 @@
 /// fn bar<E: Engine>(self: Box<Self>, ...)
 /// ```
 ///
-/// The parameter following the receiver, if any, must be
-/// `&CommandContext<'_, E>`:
+/// The parameter following the receiver, if any, must be `&CommandContext<'_, E>`:
 ///
 /// ```ignore
 /// fn foo<E: Engine>(&self, ctx: &CommandContext<'_, E>, ...)
 /// fn bar<E: Engine>(ctx: &CommandContext<'_, E>, ...)
 /// ```
 ///
-/// Parameters (other than the receiver and
-/// [`CommandContext`][crate::CommandContext]) must implement
-/// [`TryFrom<Value, Error = MachineErrorType>`][TryFrom].
+/// Parameters (other than the receiver and [`CommandContext`][crate::CommandContext]) must
+/// implement [`TryFrom<Value, Error = MachineErrorType>`][TryFrom].
 ///
-/// The result must be either [`()`][unit] or [`Result<T, E>`]
-/// where `T` is either [`()`][unit] or [`Into<Value>`] (see
-/// [`Value`][crate::Value]) and `E` is [`Into<MachineError>`].
+/// The result must be either [`()`][unit] or [`Result<T, E>`] where `T` is either [`()`][unit] or
+/// [`Into<Value>`] (see [`Value`][crate::Value]) and `E` is [`Into<MachineError>`].
 ///
 /// # Example
 ///
@@ -65,12 +59,7 @@
 /// use core::{convert::Infallible, marker::PhantomData};
 ///
 /// use aranya_crypto::Engine;
-/// use aranya_policy_vm::{
-///     CommandContext,
-///     ffi::ffi,
-///     MachineError,
-///     MachineErrorType,
-/// };
+/// use aranya_policy_vm::{ffi::ffi, CommandContext, MachineError, MachineErrorType};
 ///
 /// #[derive(Copy, Clone, Debug)]
 /// struct Overflow;
@@ -150,8 +139,7 @@
 ///         Ok(S1 { x })
 ///     }
 ///
-///     /// Functions without the `#[ffi_export]` macro are
-///     /// ignored.
+///     /// Functions without the `#[ffi_export]` macro are ignored.
 ///     fn ignored() {}
 /// }
 /// ```

@@ -11,8 +11,7 @@ use crate::lang::parse::Rule;
 
 /// The kinds of errors a parse operation can produce
 ///
-/// If the case contains a String, it is a message describing the item
-/// affected or a general error message.
+/// If the case contains a String, it's a message describing the affected item or a generic error.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ParseErrorKind {
     /// An invalid type specifier was found. The string describes the type.

@@ -35,8 +35,8 @@ impl From<TypeError> for CompileErrorType {
     }
 }
 
-/// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current
-/// scope" is the one on the top of the stack.
+/// Holds a stack of identifier-type mappings. Lookups traverse down the stack. The "current scope"
+/// is the one on the top of the stack.
 #[derive(Debug, Clone)]
 pub struct IdentifierTypeStack {
     globals: HashMap<String, Typeish>,
@@ -100,8 +100,8 @@ impl IdentifierTypeStack {
         }
     }
 
-    /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
-    /// found in the current scope.
+    /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not found in
+    /// the current scope.
     pub fn get(&self, name: &str) -> Result<Typeish, CompileErrorType> {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
@@ -121,8 +121,8 @@ impl IdentifierTypeStack {
         self.locals.push(vec![HashMap::new()]);
     }
 
-    /// Pop the current scope off of the type stack. It is a fatal error to pop an empty
-    /// stack, as this indicates a mistake in the compiler.
+    /// Pop the current scope off of the type stack. It is a fatal error to pop an empty stack, as
+    /// this indicates a mistake in the compiler.
     pub fn exit_function(&mut self) {
         self.locals.pop().expect("no function scope");
     }
@@ -145,17 +145,15 @@ impl IdentifierTypeStack {
     }
 }
 
-/// This is a calculated type, which may be indeterminate if we don't have all the
-/// information we need to calculate it.
+/// This is a calculated type, which may be indeterminate if we don't have all the information we
+/// need to calculate it.
 ///
-/// [`PartialEq`] and [`Eq`] are intentionally not derived, as naive equality doesn't make
-/// sense here. Use [`is_equal()`](Typeish::is_equal),
-/// [`is_indeterminate()`](Typeish::is_indeterminate), and
-/// [`is_maybe()`](Typeish::is_indeterminate).
+/// [`PartialEq`] and [`Eq`] are intentionally not derived, as naive equality doesn't make sense
+/// here. Use [`is_equal()`](Typeish::is_equal), [`is_indeterminate()`](Typeish::is_indeterminate),
+/// and [`is_maybe()`](Typeish::is_indeterminate).
 //
-// TODO(chip): This _should_
-// eventually go away as every expression should be well-defined by the language. But we're
-// not there yet.
+// TODO(chip): This _should_ eventually go away as every expression should be well-defined by the
+// language. But we're not there yet.
 #[must_use]
 #[derive(Debug, Clone)]
 pub enum Typeish {
@@ -194,8 +192,7 @@ impl Typeish {
         }
     }
 
-    /// Two Typeish's are maybe equal if either one is indeterminate or they are the same
-    /// definite type
+    /// Two Typeish's are maybe equal if either is indeterminate or they're the same definite type
     pub fn is_maybe_equal(&self, ot: &Typeish) -> bool {
         match (self, ot) {
             (Self::Type(x), Self::Type(y)) => x == y,
@@ -208,7 +205,7 @@ impl Typeish {
         matches!(self, Self::Indeterminate)
     }
 
-    /// Is this an instance of this type or an Indeterminate value? Indeterminate types
+    /// Checks if the type is an instance of self or an Indeterminate value. Indeterminate types
     /// always match.
     pub fn is_maybe(&self, ot: &VType) -> bool {
         match self {
@@ -262,8 +259,7 @@ impl CompileState<'_> {
         }
     }
 
-    /// Construct the type of a query based on its fact argument, or error if the fact is
-    /// not defined.
+    /// Construct the type of a query based on its fact argument or error if the fact isn't defined.
     pub(super) fn query_fact_type(&self, f: &ast::FactLiteral) -> Result<Typeish, TypeError> {
         if self.m.fact_defs.contains_key(&f.identifier) {
             Ok(Typeish::Type(VType::Struct(f.identifier.clone())))
@@ -275,9 +271,8 @@ impl CompileState<'_> {
         }
     }
 
-    /// If two types are defined, and are the same, the result is that type. If they are
-    /// different, it is a type error. If either type is indeterminate, the type is
-    /// indeterminate.
+    /// If two types are defined, and are the same, the result is that type. If they are different,
+    /// it is a type error. If either type is indeterminate, the type is indeterminate.
     pub(super) fn unify_pair(
         &self,
         left_type: Typeish,
@@ -294,8 +289,8 @@ impl CompileState<'_> {
         }
     }
 
-    /// Like [`unify_pair`], except additionally the pair is checked against `target_type`
-    /// and an error is produced if they don't match.
+    /// Like [`unify_pair`], except additionally the pair is checked against `target_type` and an
+    /// error is produced if they don't match.
     pub(super) fn unify_pair_as(
         &self,
         left_type: Typeish,

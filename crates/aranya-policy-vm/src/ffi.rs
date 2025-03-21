@@ -12,13 +12,11 @@ pub trait FfiModule {
     /// The error result from [`FfiModule::call`].
     type Error: Into<MachineError>;
 
-    /// A list of function definitions. Used by the
-    /// compiler to emit the stack instructions needed for
-    /// a call.
+    /// A list of function definitions. Used by the compiler to emit the stack instructions needed
+    /// for a call.
     const SCHEMA: ModuleSchema<'static>;
 
-    /// Invokes a function in the module.
-    /// `procedure` is the index in [`functions`][Self::SCHEMA].
+    /// Invokes a function in the module. `procedure` is the index in [`functions`][Self::SCHEMA].
     fn call<E: Engine>(
         &self,
         procedure: usize,

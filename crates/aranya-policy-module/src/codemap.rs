@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 #[error("range error")]
 pub struct RangeError;
 
-/// This is a simplified version of Pest's `Span`. We can't use Pest's version because we
-/// need to work in `no_std` environments.
+/// This is a simplified version of Pest's `Span`. We can't use Pest's version because we need to
+/// work in `no_std` environments.
 pub struct Span<'a> {
     text: &'a str,
     start: usize,
@@ -18,9 +18,8 @@ pub struct Span<'a> {
 }
 
 impl<'a> Span<'a> {
-    /// Create a span inside a text reference. `start` and `end` are expressed in bytes. If
-    /// the `start` or `end` do not occur on a UTF-8 character boundary, this will return
-    /// `None`.
+    /// Create a span inside a text reference. `start` and `end` are expressed in bytes. If the
+    /// `start` or `end` do not occur on a UTF-8 character boundary, this will return `None`.
     pub fn new(text: &'a str, start: usize, end: usize) -> Option<Span<'a>> {
         if text.get(start..end).is_some() {
             Some(Span { text, start, end })
@@ -39,8 +38,7 @@ impl<'a> Span<'a> {
         self.end
     }
 
-    /// Return the span as a &str. Assumes the start and end positions
-    /// are character-aligned.
+    /// Return the span as a &str. Assumes the start and end positions are character-aligned.
     pub fn as_str(&self) -> &str {
         &self.text[self.start..self.end]
     }
@@ -73,17 +71,16 @@ impl<'a> Span<'a> {
     }
 }
 
-/// The code map contains the original source and can map VM instructions to text ranges
-/// inside that source.
+/// The code map contains the original source and maps VM instructions to text ranges inside it.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CodeMap {
     /// The original policy source code
     text: String,
-    /// All of the text ranges, mapped by locator. The key is the start
-    /// of the range and the value is the end of the range.
+    /// All of the text ranges, mapped by locator. The key is the start of the range and the value
+    /// is the end of the range.
     ranges: Vec<(usize, usize)>,
-    /// A mapping between ranges of instructions and source code
-    /// locators. The instuction ranges should be non-overlapping.
+    /// A mapping between ranges of instructions and source code locators. The instuction ranges
+    /// should be non-overlapping.
     instruction_mapping: Vec<(usize, usize)>,
 }
 
@@ -97,9 +94,8 @@ impl CodeMap {
         }
     }
 
-    /// Add a new text range from its beginning and ending position
-    /// A range can only be added if the start position has not already
-    /// been added.
+    /// Add a new text range from its beginning and ending position. A range can only be added if
+    /// the start position has not already been added.
     pub fn add_text_range(&mut self, start: usize, end: usize) -> Result<(), RangeError> {
         match self.ranges.binary_search_by(|(s, _)| s.cmp(&start)) {
             Err(_) => {
@@ -110,9 +106,8 @@ impl CodeMap {
         }
     }
 
-    /// Insert a new mapping between instruction position and text
-    /// locator. You can only add a mapping for an instruction
-    /// position larger than the last instruction position inserted.
+    /// Insert a new mapping between instruction position and text locator. You can only add a
+    /// mapping for an instruction position larger than the last instruction position inserted.
     pub fn map_instruction_range(
         &mut self,
         instruction: usize,
@@ -147,8 +142,7 @@ impl CodeMap {
 
     /// Retrieve the locator for the given instruction pointer
     pub fn locator_from_instruction(&self, ip: usize) -> Result<usize, RangeError> {
-        // Unwrapping the error case of binary_search_by() will get us
-        // the closest entry prior to the target.
+        // Unwrapping binary_search_by()'s error will get us the closest entry prior to the target.
         let r = self
             .instruction_mapping
             .binary_search_by(|(i, _)| i.cmp(&ip));

@@ -34,8 +34,8 @@ use crate::{
 
 const STACK_SIZE: usize = 100;
 
-/// Compares a fact's keys and values to its schema.
-/// Bind values are omitted from keys/values, so we only compare the given keys/values. This allows us to do partial matches.
+/// Compares a fact's keys and values to its schema. Bind values are omitted from keys/values, so we
+/// only compare the given keys/values. This allows us to do partial matches.
 fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
     if fact.name != schema.identifier {
         return false;
@@ -73,7 +73,9 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
 }
 
 /// Compares a fact to the given keys and values.
-/// NOTE that Bind keys/values are not included in the fact literal (see compile_fact_literal), so we only compare key/value pairs with exact values.
+/// 
+/// NOTE that Bind keys/values are not included in the fact literal (see compile_fact_literal), so
+/// we only compare key/value pairs with exact values.
 ///
 /// Returns true if all given keys and values match the fact.
 fn fact_match(query: &Fact, keys: &[FactKey], values: &[FactValue]) -> bool {
@@ -364,9 +366,8 @@ where
         &self.ctx
     }
 
-    /// Set the internal context object to a new reference. The old reference is not
-    /// preserved. This is a hack to allow a policy context to mutate into a recall context
-    /// when recall happens.
+    /// Set the internal context object to a new reference. The old reference is not preserved. This
+    /// is a hack to allow a policy context to mutate into a recall context when recall happens.
     pub fn set_context(&mut self, ctx: CommandContext<'a>) {
         self.ctx = ctx;
     }
@@ -377,8 +378,7 @@ where
         Ok(())
     }
 
-    /// Returns a string describing the source code at the current PC,
-    /// if available.
+    /// Returns a string describing the source code at the current PC, if available.
     pub fn source_location(&self) -> Option<String> {
         let source_span = self
             .machine
@@ -399,14 +399,13 @@ where
         }
     }
 
-    /// Internal function to produce a MachineError with location
-    /// information.
+    /// Internal function to produce a MachineError with location information.
     fn err(&self, err_type: MachineErrorType) -> MachineError {
         MachineError::from_position(err_type, self.pc, self.machine.codemap.as_ref())
     }
 
-    /// Reset the machine state - undefine all named values, empty the
-    /// stack, and set the program counter to zero.
+    /// Reset the machine state - undefine all named values, empty the stack, and set the program
+    /// counter to zero.
     pub fn reset(&mut self) {
         self.scope.clear();
         self.stack.clear();
@@ -418,8 +417,8 @@ where
         self.pc
     }
 
-    /// Internal wrapper around [Stack::push] that translates
-    /// [StackError] into [MachineError] with location information.
+    /// Internal wrapper around [Stack::push] that translates [StackError] into [MachineError] with
+    /// location information.
     fn ipush<V>(&mut self, value: V) -> Result<(), MachineError>
     where
         V: Into<Value>,
@@ -427,8 +426,8 @@ where
         self.stack.push(value).map_err(|e| self.err(e))
     }
 
-    /// Internal wrapper around [Stack::pop] that translates
-    /// [StackError] into [MachineError] with location information.
+    /// Internal wrapper around [Stack::pop] that translates [StackError] into [MachineError] with
+    /// location information.
     fn ipop<V>(&mut self) -> Result<V, MachineError>
     where
         V: TryFrom<Value, Error = ValueConversionError>,
@@ -436,23 +435,22 @@ where
         self.stack.pop().map_err(|e| self.err(e))
     }
 
-    /// Internal wrapper around [Stack::pop_value] that translates
-    /// [StackError] into [MachineError] with location information.
+    /// Internal wrapper around [Stack::pop_value] that translates [StackError] into [MachineError]
+    /// with location information.
     fn ipop_value(&mut self) -> Result<Value, MachineError> {
         self.stack.pop_value().map_err(|e| self.err(e))
     }
 
-    /// Internal wrapper around [Stack::peek] that translates
-    /// [StackError] into [MachineError] with location information.
+    /// Internal wrapper around [Stack::peek] that translates [StackError] into [MachineError] with
+    /// location information.
     fn ipeek<V>(&mut self) -> Result<&mut V, MachineError>
     where
         V: ?Sized,
         Value: TryAsMut<V, Error = ValueConversionError>,
     {
-        // A little bit of chicanery - copy the PC now so we don't
-        // borrow from self when creating the error (as self.err()
-        // does). We can't do that inside the closure because peek()
-        // takes a mutable reference to self.
+        // A little bit of chicanery - copy the PC now so we don't borrow from self when creating
+        // the error (as self.err() does). We can't do that inside the closure because peek() takes
+        // a mutable reference to self.
         let pc = self.pc;
         self.stack
             .peek()
@@ -460,8 +458,7 @@ where
     }
 
     /// Validate a struct against defined schema.
-    // TODO(chip): This does not distinguish between Commands and
-    // Effects and it should.
+    // TODO(chip): This does not distinguish between Commands and Effects and it should.
     fn validate_struct_schema(&mut self, s: &Struct) -> Result<(), MachineError> {
         let err = self.err(MachineErrorType::InvalidSchema(s.name.clone()));
 
@@ -470,15 +467,13 @@ where
 
         match self.machine.struct_defs.get(&s.name) {
             Some(fields) => {
-                // Check for struct fields that do not exist in the
-                // definition.
+                // Check for struct fields that do not exist in the definition.
                 for f in &s.fields {
                     if !fields.iter().any(|v| &v.identifier == f.0) {
                         return Err(err);
                     }
                 }
-                // Ensure all defined fields exist and have the same
-                // types.
+                // Ensure all defined fields exist and have the same types.
                 for f in fields {
                     match s.fields.get(&f.identifier) {
                         Some(f) => {
@@ -499,14 +494,13 @@ where
         }
     }
 
-    /// Execute one machine instruction and return the status of the
-    /// machine or a MachineError.
+    /// Execute one machine instruction and return the status of the machine or a MachineError.
     pub fn step(&mut self) -> Result<MachineStatus, MachineError> {
         if self.pc() >= self.machine.progmem.len() {
             return Err(self.err(MachineErrorType::InvalidAddress("pc".to_owned())));
         }
-        // Clone the instruction so we don't take an immutable
-        // reference to self while we manipulate the stack later.
+        // Clone the instruction so we don't take an immutable reference to self while we manipulate
+        // the stack later.
         let instruction = self.machine.progmem[self.pc()].clone();
 
         match instruction {
@@ -556,10 +550,8 @@ where
                     return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
                 }
                 Target::Resolved(n) => {
-                    // We set the PC and return here to skip the
-                    // increment below. We could subtract 1 here to
-                    // compensate, but that doesn't work when we jump
-                    // to address 0.
+                    // We set the PC and return here to skip the increment below. We could subtract
+                    // 1 here to compensate, but that doesn't work when we jump to address 0.
                     self.pc = n;
                     return Ok(MachineStatus::Executing);
                 }
@@ -586,8 +578,8 @@ where
                 }
                 Target::Resolved(n) => {
                     self.scope.enter_function();
-                    // Store the current PC. The PC will be incremented after return,
-                    // so there's no need to increment here.
+                    // Store the current PC. The PC will be incremented after return, so there's no
+                    // need to increment here.
                     self.call_state.push(self.pc);
                     self.pc = n;
                     return Ok(MachineStatus::Executing);
@@ -667,9 +659,8 @@ where
                             )));
                         }
                     },
-                    // This leans heavily on PartialEq to do the work.
-                    // Equality depends on values having the same type and
-                    // interior value.
+                    // This leans heavily on PartialEq to do the work. Equality depends on values
+                    // having the same type and interior value.
                     Instruction::Eq => a == b,
                     _ => unreachable!(),
                 };
@@ -696,8 +687,7 @@ where
             Instruction::StructSet(field_name) => {
                 let value = self.ipop_value()?;
                 let mut s: Struct = self.ipop()?;
-                // Validate that the field is part of this structure
-                // schema.
+                // Validate that the field is part of this structure schema.
                 let struct_def_fields = self
                     .machine
                     .struct_defs
@@ -782,7 +772,8 @@ where
             Instruction::Query => {
                 let qf: Fact = self.ipop()?;
 
-                // Before we spend time fetching facts from storage, make sure the given fact literal is valid.
+                // Before we spend time fetching facts from storage, make sure the given fact
+                // literal is valid.
                 self.validate_fact_literal(&qf)?;
 
                 let result = {
@@ -938,9 +929,8 @@ where
         Ok(MachineStatus::Executing)
     }
 
-    /// Execute machine instructions while each instruction returns
-    /// MachineStatus::Executing. Returns the ExitReason it exited
-    /// with, or an error.
+    /// Execute machine instructions while each instruction returns MachineStatus::Executing.
+    /// Returns the ExitReason it exited with, or an error.
     pub fn run(&mut self) -> Result<ExitReason, MachineError> {
         loop {
             #[cfg(feature = "bench")]
@@ -1034,10 +1024,9 @@ where
         Ok(())
     }
 
-    /// Call a command policy loaded into the VM by name. Accepts a
-    /// `Struct` containing the Command's data. Returns a Vec of effect
-    /// structs or a MachineError.
-    /// If the command check-exits, its recall block will be executed.
+    /// Call a command policy loaded into the VM by name. Accepts a `Struct` containing the
+    /// Command's data. Returns a Vec of effect structs or a MachineError. If the command
+    /// check-exits, its recall block will be executed.
     pub fn call_command_policy(
         &mut self,
         name: &str,
@@ -1049,9 +1038,8 @@ where
         self.run()
     }
 
-    /// Call a command policy loaded into the VM by name. Accepts a
-    /// `Struct` containing the Command's data. Returns a Vec of effect
-    /// structs or a MachineError.
+    /// Call a command policy loaded into the VM by name. Accepts a `Struct` containing the
+    /// Command's data. Returns a Vec of effect structs or a MachineError.
     pub fn call_command_recall(
         &mut self,
         name: &str,
@@ -1118,12 +1106,11 @@ where
         Ok(())
     }
 
-    /// Call an action loaded into the VM by name. Accepts a list of
-    /// arguments to the function, which must match the number of
-    /// arguments expected. Returns a MachineError on failure.
-    // TODO(chip): I don't really like how V: Into<Value> works here
-    // because it still means all of the args have to have the same
-    // type.
+    /// Call an action loaded into the VM by name. Accepts a list of arguments to the function,
+    /// which must match the number of arguments expected. Returns a MachineError on failure.
+    // 
+    // TODO(chip): I don't really like how V: Into<Value> works here because it still means all of
+    // the args have to have the same type.
     pub fn call_action<Args>(&mut self, name: &str, args: Args) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
@@ -1133,9 +1120,8 @@ where
         self.run()
     }
 
-    /// Call the seal block on this command to produce an envelope. The
-    /// seal block is given an implicit parameter `this` and should
-    /// return an opaque envelope struct on the stack.
+    /// Call the seal block on this command to produce an envelope. The seal block is given an
+    /// implicit parameter `this` and should return an opaque envelope struct on the stack.
     pub fn call_seal(
         &mut self,
         name: &str,
@@ -1143,9 +1129,8 @@ where
     ) -> Result<ExitReason, MachineError> {
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
 
-        // Seal/Open pushes the argument and defines it itself, because
-        // it calls through a function stub. So we just push `this_data`
-        // onto the stack.
+        // Seal/Open pushes the argument and defines it itself, because it calls through a function
+        // stub. So we just push `this_data` onto the stack.
         self.ipush(this_data.to_owned())?;
         self.run()
     }

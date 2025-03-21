@@ -1,7 +1,6 @@
 //! A set of proc macros for policy lang compiler stuff.
 //!
-//! Do not use this crate directly. Use the `policy-vm` crate
-//! instead.
+//! Do not use this crate directly. Use the `policy-vm` crate instead.
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]

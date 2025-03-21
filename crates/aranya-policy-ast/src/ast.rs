@@ -5,8 +5,7 @@ use core::{fmt, ops::Deref, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
-/// An invalid version string was provided to
-/// [`Version::from_str`].
+/// An invalid version string was provided to [`Version::from_str`].
 #[derive(Copy, Clone, Debug, thiserror::Error)]
 #[error("invalid version string")]
 pub struct InvalidVersion;
@@ -14,8 +13,7 @@ pub struct InvalidVersion;
 /// Policy language version
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub enum Version {
-    /// Version 1, the initial version of the "new" policy
-    /// language.
+    /// Version 1, the initial version of the "new" policy language.
     #[deprecated]
     V1,
     /// Version 2, the second version of the policy language
@@ -23,8 +21,7 @@ pub enum Version {
     V2,
 }
 
-// This supports the command-line tools, allowing automatic
-// conversion between string arguments and the enum.
+// This is for command-line tools, allowing automatic conversion between string args and the enum.
 impl FromStr for Version {
     type Err = InvalidVersion;
 
@@ -112,8 +109,7 @@ impl fmt::Display for VType {
 
 /// An identifier and its type
 ///
-/// Field definitions are used in Command fields, fact
-/// key/value fields, and action/function arguments.
+/// Field definitions are used in Command fields, fact key/value fields, and action/function args.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
     /// the field's name
@@ -135,8 +131,7 @@ pub struct EffectFieldDefinition {
     pub dynamic: bool,
 }
 
-/// Convert from EffectFieldDefinition to FieldDefinition, losing the
-/// dynamic information.
+/// Convert from EffectFieldDefinition to FieldDefinition, losing the dynamic information.
 impl From<&EffectFieldDefinition> for FieldDefinition {
     fn from(value: &EffectFieldDefinition) -> Self {
         FieldDefinition {
@@ -319,8 +314,8 @@ pub enum Expression {
     Block(Vec<AstNode<Statement>>, Box<Expression>),
 }
 
-/// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
-/// of parsing FFI function declarations.
+/// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose of parsing
+/// FFI function declarations.
 #[derive(Debug, PartialEq)]
 pub struct FunctionDecl {
     /// The identifier of the function
@@ -360,8 +355,7 @@ pub enum MatchPattern {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MatchArm {
     /// The values to check against. Matches any value if the option is None.
-    // TODO(chip): Restrict this to only literal values so we can do
-    // exhaustive range checks.
+    // TODO(chip): Restrict this to only literal values so we can do exhaustive range checks.
     pub pattern: MatchPattern,
     /// The statements to execute if the value matches
     pub statements: Vec<AstNode<Statement>>,
@@ -431,6 +425,7 @@ pub struct ReturnStatement {
 }
 
 /// Statements in the policy language.
+/// 
 /// Not all statements are valid in all contexts.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
@@ -542,9 +537,8 @@ pub struct FunctionDefinition {
     pub statements: Vec<AstNode<Statement>>,
 }
 
-/// A finish function definition. This is slightly different than a
-/// regular function since it cannot return values and can only
-/// execute finish block statements.
+/// A finish function definition. This is slightly different than a regular function since it cannot
+/// return values and can only execute finish block statements.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinishFunctionDefinition {
     /// The name of the function

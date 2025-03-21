@@ -9,8 +9,7 @@ pub use value_analyzer::*;
 
 use super::{TraceError, TraceFailure};
 
-// Workaround for not being able to clone `Box<dyn T>`. See
-// https://stackoverflow.com/questions/30353462/how-to-clone-a-struct-storing-a-boxed-trait-object/30353928#30353928
+// Workaround for not being able to clone `Box<dyn T>`. See https://stackoverflow.com/a/30353928
 pub trait AnalyzerClone {
     fn clone_box(&self) -> Box<dyn Analyzer>;
 }
@@ -34,9 +33,8 @@ pub trait Analyzer: AnalyzerClone {
     /// Optionally initialize the analyzer using some information from the compile target.
     fn init(&mut self, _ct: &ModuleV0) {}
 
-    /// Analyzes the current instruction. This may modify its own internal state, modify the
-    /// `reqs` reference, and optionally return a string describing a failure at the current
-    /// PC.
+    /// Analyzes the current instruction. This may modify its own internal state, modify the `reqs`
+    /// reference, and optionally return a string describing a failure at the current PC.
     fn analyze_instruction(
         &mut self,
         pc: usize,

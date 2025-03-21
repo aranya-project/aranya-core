@@ -56,8 +56,8 @@ pub enum CommandContext<'a> {
 }
 
 impl<'a> CommandContext<'a> {
-    /// Try to create a new command context with a new `head_id` that uses the same name as the original
-    /// This method will fail if it's not called on an [`CommandContext::Action`]
+    /// Try to create a new command context with a new `head_id` that uses the same name as the
+    /// original. This method will fail if it's not called on an [`CommandContext::Action`]
     pub fn with_new_head(&self, new_head_id: Id) -> Result<CommandContext<'a>, Bug> {
         match &self {
             Self::Action(ref ctx) => Ok(Self::Action(ActionContext {

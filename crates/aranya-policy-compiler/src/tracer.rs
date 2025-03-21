@@ -12,16 +12,15 @@ pub struct TraceFailure {
     /// The sequence of instructions that produced this failure. The last instruction is not
     /// necessarily the instruction responsible for the failure.
     pub instruction_path: Vec<usize>,
-    /// This is the instruction responsible for the failure. This is usually the last
-    /// instruction in `instruction_path`, but not always.
+    /// This is the instruction responsible for the failure. This is usually the last instruction in
+    /// `instruction_path`, but not always.
     pub responsible_instruction: usize,
     /// The message associated with the failure.
     pub message: String,
 }
 
 /// Builds a [`TraceAnalyzer`] by adding a series of [`Analyzer`] implementations with
-/// [`add_analyzer`](TraceAnalyzerBuilder::add_analyzer) and calling
-/// [`build`](TraceAnalyzerBuilder::build).
+/// [`add_analyzer`](Self::add_analyzer) and calling [`build`](Self::build).
 ///
 /// ```ignore
 /// let module = ...; // a `Module`
@@ -66,8 +65,8 @@ impl<'a> TraceAnalyzerBuilder<'a> {
     }
 }
 
-/// Traces compiled code paths to prove properties with [`Analyzer`]s. See
-/// [`TraceAnalyzerBuilder`] to construct a [`TraceAnalyzer`].
+/// Traces compiled code paths to prove properties with [`Analyzer`]s. See [`TraceAnalyzerBuilder`]
+/// to construct a [`TraceAnalyzer`].
 #[derive(Clone)]
 pub struct TraceAnalyzer<'a> {
     /// The compiled code we're analyzing
@@ -78,8 +77,8 @@ pub struct TraceAnalyzer<'a> {
     instruction_path: Vec<usize>,
     /// Addresses we've encountered for branch instructions
     branches: Vec<usize>,
-    /// Same length as the tracers list, and indexed the same way. If the entry is `false`,
-    /// the tracer is not run.
+    /// Same length as the tracers list, and indexed the same way. If the entry is `false`, the
+    /// tracer is not run.
     tracer_enable: Vec<bool>,
     /// An HList of tracer implementations
     analyzers: Vec<Box<dyn Analyzer>>,
@@ -96,12 +95,12 @@ impl TraceAnalyzer<'_> {
         TraceError::new(etype, self.instruction_path.clone())
     }
 
-    /// Begin a trace at a [`Label`]. Returns a list of [`TraceFailure`]s or a
-    /// [`TraceError`] if tracing failed.
+    /// Begin a trace at a [`Label`]. Returns a list of [`TraceFailure`]s or a [`TraceError`] if
+    /// tracing failed.
     ///
-    /// A [`TraceFailure`] is a failure in the code being analyzed. A [`TraceError`] is an
-    /// error in the tracing process itself. e.g., if a `Label` was given that didn't exist,
-    /// that would be a [`TraceError`].
+    /// A [`TraceFailure`] is a failure in the code being analyzed. A [`TraceError`] is an error in
+    /// the tracing process itself. e.g., if a `Label` was given that didn't exist, that would be a
+    /// [`TraceError`].
     pub fn trace(self, start: &Label) -> Result<Vec<TraceFailure>, TraceError> {
         match self.ct.labels.get(start) {
             Some(pc) => self.trace_pc(*pc),
@@ -124,8 +123,8 @@ impl TraceAnalyzer<'_> {
         // Flatten failures into a single list
         let mut failures: Vec<TraceFailure> = failures.into_iter().flatten().collect();
 
-        // Multiple paths may give us the same failures. Sort them by responsible
-        // instruction and consider them identical if they have the same message.
+        // Multiple paths may give us the same failures. Sort them by responsible instruction and
+        // consider them identical if they have the same message.
         failures.sort_by(|a, b| a.responsible_instruction.cmp(&b.responsible_instruction));
         failures.dedup_by(|a, b| {
             a.message == b.message && a.responsible_instruction == b.responsible_instruction
@@ -136,11 +135,10 @@ impl TraceAnalyzer<'_> {
 
     fn trace_inner(&mut self, entry: usize) -> Result<TraceIntermediate, TraceError> {
         let mut pc = entry;
-        // Failures are organized by which analyzer produced them, so we can hand them back
-        // for post-analysis.
-        let mut failures = vec![vec![]; self.analyzers.len()];
-        // Keep track of all the branches from paths that didn't fail, for use by
+        // Failures are organized by which analyzer produced them, so we can hand them back for
         // post-analysis.
+        let mut failures = vec![vec![]; self.analyzers.len()];
+        // Keep track of all the branches from paths that didn't fail, for use by post-analysis.
         let mut successful_branch_paths = vec![];
 
         while pc < self.ct.progmem.len() {

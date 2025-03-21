@@ -16,8 +16,7 @@ use syn::{
 
 use crate::attr::{get_lit_str, Attr, Symbol};
 
-// TODO(eric): allow `#[ffi_export("foo")]` as an alternative to
-// `#[ffi_export(name = "foo")]`?
+// TODO(eric): allow `#[ffi_export("foo")]` as an alternative to `#[ffi_export(name = "foo")]`?
 
 pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let FfiAttr { module, structs } = syn::parse2(attr)?;
@@ -66,8 +65,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         }
     });
 
-    // `struct Foo { ... }` definitions as parsed from
-    // `#[ffi(def = "...")]`.
+    // `struct Foo { ... }` definitions as parsed from `#[ffi(def = "...")]`.
     let structs = structs.iter().map(|d| {
         let name = format_ident!("{}", d.identifier);
         let name_str = d.identifier.to_string();
@@ -168,8 +166,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             }
         });
 
-        // The `Func` variant identifiers mapped from
-        // `usize`:
+        // The `Func` variant identifiers mapped from `usize`:
         //    Func_some_func => Some(Func_some_func),
         //    Func_another_func => Some(Func_another_func),
         //    ...
@@ -218,8 +215,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                         let #name = #vm::Stack::pop::<#rtype>(__stack)?
                     }
                 })
-                // Arguments are pushed to the stack in argument
-                // order, so pop them in reverse order.
+                // Arguments are pushed to the stack in argument order, so pop them in reverse order
                 .rev();
 
             let name = &f.name;
@@ -303,10 +299,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                             }
                         }
                     };
-                    // TODO(eric): instead of making this
-                    // gigantic function, create a smaller
-                    // function for each case and let the
-                    // compiler decide whether they should be
+                    // TODO(eric): instead of making this gigantic function, create a smaller
+                    // function for each case and let the compiler decide whether they should be
                     // inlined.
                     match __f {
                         #(#cases),*
@@ -339,9 +333,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             #[allow(clippy::clippy::wildcard_imports)]
             use #module::*;
 
-            // TODO(eric): somehow move this out of the const
-            // wrapper. The trick is rewriting function
-            // arguments/results that use generated structs.
+            // TODO(eric): somehow move this out of the const wrapper. The trick is rewriting
+            // function arguments/results that use generated structs.
             #item
 
             // TODO(eric): make `alloc` optional.
@@ -511,13 +504,11 @@ impl Func {
             .iter()
             .any(|arg| matches!(arg, FnArg::Receiver(_)));
 
-        // The second and third arguments are `&CommandContext`
-        // and `&mut E`, which are passed in by `call`, so skip
-        // them.
+        // The second and third arguments are `&CommandContext` and `&mut E`, which are passed in by
+        // `call`, so skip them.
         //
-        // TODO(eric): we should issue a diagnostic when the
-        // first non-self argument isn't `&CommandContext` and
-        // second argument isn't `&mut E`.
+        // TODO(eric): we should issue a diagnostic when the first non-self argument isn't
+        // `&CommandContext` and second argument isn't `&mut E`.
         let num_skip = if is_method { 3 } else { 2 };
         let num_args = match item.sig.inputs.len().checked_sub(num_skip) {
             Some(n) => n,
@@ -639,8 +630,7 @@ impl ToTokens for VTypeTokens<'_> {
     }
 }
 
-/// An implementation of [`ToTokens`] that maps [`VType`] to its
-/// corresponding Rust types.
+/// An implementation of [`ToTokens`] that maps [`VType`] to its corresponding Rust types.
 struct TypeTokens<'a> {
     vtype: &'a VType,
     alloc: &'a Path,

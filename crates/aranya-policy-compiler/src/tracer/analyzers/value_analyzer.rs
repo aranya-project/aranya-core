@@ -13,8 +13,8 @@ pub struct ValueAnalyzer {
 }
 
 impl ValueAnalyzer {
-    /// `predefined` is a list of words that are understood to have been defined before
-    /// execution starts. Usually used to add things like `this` or global values.
+    /// `predefined` is a list of words that are understood to have been defined before execution
+    /// starts. Usually used to add things like `this` or global values.
     pub fn new(
         globals: impl IntoIterator<Item = String>,
         predefined: impl IntoIterator<Item = String>,

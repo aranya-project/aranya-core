@@ -33,17 +33,15 @@ enum FunctionColor {
     Finish,
 }
 
-/// This is like [FunctionDefinition](ast::FunctionDefinition), but
-/// stripped down to only include positional argument names/types and
-/// return type. Covers both regular (pure) functions and finish
-/// functions.
+/// This is like [FunctionDefinition](ast::FunctionDefinition), but stripped down to only include
+/// positional argument names/types and return type. Covers both pure functions and finish functions
 struct FunctionSignature {
     args: Vec<(String, VType)>,
     color: FunctionColor,
 }
 
-/// Enumerates all the possible contexts a statement can be in, to validate whether a
-/// statement is currently valid.
+/// Enumerates all the possible contexts a statement can be in, to validate whether a statement is
+/// currently valid.
 #[derive(Clone, Debug, PartialEq)]
 pub enum StatementContext {
     /// An action
@@ -80,14 +78,13 @@ struct CompileState<'a> {
     wp: usize,
     /// A counter used to generate temporary labels
     c: usize,
-    /// A map between function names and signatures, so that they can
-    /// be easily looked up for verification when called.
+    /// A map between function names and signatures, so that they can be easily looked up for
+    /// verification when called.
     function_signatures: BTreeMap<&'a str, FunctionSignature>,
     /// The last locator seen, for imprecise source locating.
     // TODO(chip): Push more precise source tracking further down into the AST.
     last_locator: usize,
-    /// The current statement context, implemented as a stack so that it can be
-    /// hierarchical.
+    /// The current statement context, implemented as a stack so that it can be hierarchical.
     statement_context: Vec<StatementContext>,
     /// Keeps track of identifier types in a stack of scopes
     identifier_types: IdentifierTypeStack,
@@ -124,10 +121,8 @@ impl<'a> CompileState<'a> {
         Ok(cs)
     }
 
-    /// Append an instruction to the program memory, and increment the
-    /// program counter. If no other PC manipulation has been done,
-    /// this means that the program counter points to the new
-    /// instruction.
+    /// Append an instruction to the program memory, and increment the program counter. If no other
+    /// PC manipulation has been done, this means the program counter points to the new instruction.
     fn append_instruction(&mut self, i: Instruction) {
         self.m.progmem.push(i);
         self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
@@ -226,8 +221,8 @@ impl<'a> CompileState<'a> {
                 }
                 Entry::Vacant(e) => {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
-                    // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
-                    // then we'll need to ensure those are unique.
+                    // variants start allowing specific values, e.g. `enum Color { Red = 100, Green
+                    // = 200 }`, then we'll need to ensure those are unique.
                     let n = i64::try_from(i).assume("should set enum value to index")?;
                     e.insert(n);
                 }
@@ -239,8 +234,7 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Turn a [FunctionDefinition](ast::FunctionDefinition) into a
-    /// [FunctionSignature].
+    /// Turn a [FunctionDefinition](ast::FunctionDefinition) into a [FunctionSignature].
     fn define_function_signature(
         &mut self,
         function_node: &'a AstNode<ast::FunctionDefinition>,
@@ -266,8 +260,7 @@ impl<'a> CompileState<'a> {
         }
     }
 
-    /// Turn a [FinishFunctionDefinition](ast::FinishFunctionDefinition)
-    /// into a [FunctionSignature].
+    /// Turn a [FinishFunctionDefinition](ast::FinishFunctionDefinition) into a [FunctionSignature].
     fn define_finish_function_signature(
         &mut self,
         function_node: &'a AstNode<ast::FinishFunctionDefinition>,
@@ -333,8 +326,8 @@ impl<'a> CompileState<'a> {
     }
 
     /// Resolve a target to an address from the Label mapping
-    // This is a static method because it's used after self has already
-    // been borrowed &mut in resolve_targets() below.
+    // This is a static method because it's used after self has already been borrowed &mut in
+    // resolve_targets() below.
     fn resolve_target(
         target: &mut Target,
         labels: &mut BTreeMap<Label, usize>,
@@ -428,9 +421,10 @@ impl<'a> CompileState<'a> {
         // Fetch schema
         let fact_def = self.get_fact_def(&fact.identifier)?;
 
-        // Note: Bind values exist at compile time (as FactField::Bind), so we can expect the literal
-        // key/value sets to match the schema. E.g. given `fact Foo[i int, j int]` and `query Foo[i:1, j:?]`,
-        // we will get two sequences with the same number of items. If not, abort.
+        // Note: Bind values exist at compile time (as FactField::Bind), so we can expect the
+        // literal key/value sets to match the schema; e.g. given `fact Foo[i int, j int]` and
+        // `query Foo[i:1, j:?]`, we will get two sequences with the same number of items. If not,
+        // let's abort.
 
         // key sets must have the same length
         if fact.key_fields.len() != fact_def.key.len() {
@@ -658,9 +652,8 @@ impl<'a> CompileState<'a> {
                     }
                     self.append_instruction(Instruction::Serialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to throw an error when this is used on a
-                    // struct that is not the current command struct
+                    // TODO(chip): Use information about which command we're in to throw an error
+                    // when this is used on a struct that is not the current command struct
                     Typeish::Type(VType::Bytes)
                 }
                 ast::InternalFunction::Deserialize(e) => {
@@ -678,8 +671,8 @@ impl<'a> CompileState<'a> {
                     }
                     self.append_instruction(Instruction::Deserialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to determine this concretely
+                    // TODO(chip): Use information about which command we're in to determine this
+                    // concretely
                     Typeish::Indeterminate
                 }
             },
@@ -688,17 +681,15 @@ impl<'a> CompileState<'a> {
                     .function_signatures
                     .get(&f.identifier.as_str())
                     .ok_or_else(|| self.err(CompileErrorType::NotDefined(f.identifier.clone())))?;
-                // Check that this function is the right color - only
-                // pure functions are allowed in expressions.
+                // Check that this function is the right "color" - only pure functions are allowed
+                // in expressions.
                 let FunctionColor::Pure(return_type) = signature.color.clone() else {
                     return Err(
                         self.err(CompileErrorType::InvalidCallColor(InvalidCallColor::Finish))
                     );
                 };
-                // For now all we can do is check that the argument
-                // list has the same length.
-                // TODO(chip): Do more deep type analysis to check
-                // arguments and return types.
+                // For now all we can do is check that the argument list has the same length.
+                // TODO(chip): Do more deep type analysis to check arguments and return types.
                 if signature.args.len() != f.arguments.len() {
                     return Err(self.err(CompileErrorType::BadArgument(format!(
                         "call to `{}` has {} arguments and it should have {}",
@@ -862,8 +853,8 @@ impl<'a> CompileState<'a> {
                 let right_type = self.compile_expression(b)?;
                 self.append_instruction(Instruction::Eq);
 
-                // We don't actually care what types the subexpressions
-                // are as long as they can be tested for equality.
+                // We don't actually care what types the subexpressions are as long as they can be
+                // tested for equality.
                 let _ = self
                     .unify_pair(left_type, right_type)
                     .map_err(|e| self.err(e.into()));
@@ -1060,12 +1051,11 @@ impl<'a> CompileState<'a> {
         let context = self.get_statement_context()?;
         for statement in statements {
             self.map_range(statement)?;
-            // This match statement matches on a pair of the statement and its allowable
-            // contexts, so that disallowed contexts will fall through to the default at the
-            // bottom. This only checks the context at the statement level. It cannot, for
-            // example, check whether an expression disallowed in finish context has been
-            // evaluated from deep within a call chain. Further static analysis will have to
-            // be done to ensure that.
+            // This match statement matches on a pair of the statement and its allowable contexts,
+            // so that disallowed contexts will fall through to the default at the bottom. This only
+            // checks the context at the statement level. It cannot, for example, check whether an
+            // expression disallowed in finish context has been evaluated from deep within a call
+            // chain. Further static analysis will have to be done to ensure that.
             match (&statement.inner, &context) {
                 (
                     ast::Statement::Let(s),
@@ -1092,11 +1082,9 @@ impl<'a> CompileState<'a> {
                             "check must have boolean expression",
                         ))));
                     }
-                    // The current instruction is the branch. The next
-                    // instruction is the following panic you arrive at
-                    // if the expression is false. The instruction you
-                    // branch to if the check succeeds is the
-                    // instruction after that - current instruction + 2.
+                    // The current instruction is the branch. The next instruction is the following
+                    // panic you arrive at if the expression is false. The instruction you branch to
+                    // if the check succeeds is the instruction after that (current instruction + 2)
                     let next = self.wp.checked_add(2).assume("self.wp + 2 must not wrap")?;
                     self.append_instruction(Instruction::Branch(Target::Resolved(next)));
                     self.append_instruction(Instruction::Exit(ExitReason::Check));
@@ -1108,7 +1096,8 @@ impl<'a> CompileState<'a> {
                     | StatementContext::CommandPolicy(_)
                     | StatementContext::CommandRecall(_),
                 ) => {
-                    // Ensure there are no duplicate arm values. Note that this is not completely reliable, because arm values are expressions, evaluated at runtime.
+                    // Ensure there are no duplicate arm values. Note that this is not completely
+                    // reliable, because arm values are expressions, evaluated at runtime.
                     // Note: we don't check for zero arms, because that's syntactically invalid.
                     let all_values = s
                         .arms
@@ -1171,7 +1160,7 @@ impl<'a> CompileState<'a> {
                                     arm_label.clone(),
                                 )));
 
-                                // Ensure this is the last case, and also that it's not the only case.
+                                // Ensure that this is the last case and isn't the only case.
                                 if arm != s.arms.last().expect("last arm") {
                                     return Err(self.err(CompileErrorType::Unknown(String::from(
                                         "Default match case must be last.",
@@ -1272,7 +1261,8 @@ impl<'a> CompileState<'a> {
                     self.compile_statements(s, Scope::Layered)?;
                     self.exit_statement_context();
 
-                    // Ensure `finish` is the last statement in the block. This also guarantees we can't have more than one finish block.
+                    // Ensure `finish` is the last statement in the block. This also guarantees we
+                    // can't have more than one finish block.
                     if statement != statements.last().expect("expected statement") {
                         return Err(self.err_loc(
                             CompileErrorType::Unknown(
@@ -1281,7 +1271,8 @@ impl<'a> CompileState<'a> {
                             statement.locator,
                         ));
                     }
-                    // Exit after the `finish` block. We need this because there could be more instructions following, e.g. those following `when` or `match`.
+                    // Exit after the `finish` block. We need this because there could be more
+                    // instructions following, e.g. those following `when` or `match`.
                     self.append_instruction(Instruction::Exit(ExitReason::Normal));
                 }
                 (ast::Statement::Map(map_stmt), StatementContext::Action(_action)) => {
@@ -1411,19 +1402,16 @@ impl<'a> CompileState<'a> {
                                 statement.locator,
                             )
                         })?;
-                    // Check that this function is the right color -
-                    // only finish functions are allowed in finish
-                    // blocks.
+                    // Check that this function is the right color - only finish functions are
+                    // allowed in finish blocks.
                     if let FunctionColor::Pure(_) = signature.color {
                         return Err(self.err_loc(
                             CompileErrorType::InvalidCallColor(InvalidCallColor::Pure),
                             statement.locator,
                         ));
                     }
-                    // For now all we can do is check that the argument
-                    // list has the same length.
-                    // TODO(chip): Do more deep type analysis to check
-                    // arguments and return types.
+                    // For now all we can do is check that the argument list has the same length.
+                    // TODO(chip): Do more deep type analysis to check arguments and return types.
                     if signature.args.len() != f.arguments.len() {
                         return Err(self.err_loc(
                             CompileErrorType::BadArgument(format!(
@@ -1683,7 +1671,8 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Unwraps an optional expression, placing its value on the stack. If the value is None, execution will be ended, with the given `exit_reason`.
+    /// Unwraps an optional expression, placing its value on the stack. If the value is None,
+    /// execution will be ended, with the given `exit_reason`.
     fn compile_unwrap(
         &mut self,
         e: &Expression,
@@ -1789,9 +1778,8 @@ impl<'a> CompileState<'a> {
             statements: vec![],
         };
 
-        // Create a call stub for seal. Because it is function-like and
-        // uses "return", we need something on the call stack to return
-        // to.
+        // Create a call stub for seal. Because it is function-like and uses "return", we need
+        // something on the call stack to return to.
         self.define_label(
             Label::new(&command.identifier, LabelType::CommandSeal),
             self.wp,
@@ -2013,8 +2001,8 @@ impl<'a> CompileState<'a> {
             self.define_struct(&command.identifier, &command.fields)?;
         }
 
-        // Define the finish function signatures before compiling them, so that they can be
-        // used to catch usage errors in regular functions.
+        // Define the finish function signatures before compiling them, so that they can be used to
+        // catch usage errors in regular functions.
         for function_def in &self.policy.finish_functions {
             self.define_finish_function_signature(function_def)?;
         }

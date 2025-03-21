@@ -117,8 +117,8 @@ pub enum Value {
 
 /// Trait for converting from a [`Value`], similar to [`TryFrom<Value>`].
 ///
-/// This trait allows us to add a blanket impl for `Option`, which we cannot
-/// do for `TryFrom<Value>` because of overlap and foreign type restrictions.
+/// This trait allows us to add a blanket impl for `Option`, which we cannot do for `TryFrom<Value>`
+/// because of overlap and foreign type restrictions.
 pub trait TryFromValue: Sized {
     /// Tries to convert a [`Value`] into `Self`.
     fn try_from_value(value: Value) -> Result<Self, ValueConversionError>;
@@ -145,8 +145,7 @@ pub trait TryAsMut<T: ?Sized> {
     /// The error result.
     type Error;
 
-    /// Converts this type into a mutable reference of the
-    /// (usually inferred) input type.
+    /// Converts this type into a mutable reference of the (usually inferred) input type.
     fn try_as_mut(&mut self) -> Result<&mut T, Self::Error>;
 }
 
@@ -516,8 +515,8 @@ impl Display for Value {
     }
 }
 
-/// The subset of Values that can be hashed. Only these types of values
-/// can be used in the key portion of a Fact.
+/// The subset of Values that can be hashed. Only these types of values can be used in the key
+/// portion of a Fact.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub enum HashableValue {
@@ -532,8 +531,7 @@ pub enum HashableValue {
 }
 
 impl HashableValue {
-    /// Get the ast:::Vtype. Unlike the Value version, this cannot
-    /// fail.
+    /// Get the ast:::Vtype. Unlike the Value version, this cannot fail.
     pub fn vtype(&self) -> VType {
         match self {
             HashableValue::Int(_) => VType::Int,
@@ -580,8 +578,8 @@ impl Display for HashableValue {
     }
 }
 
-/// One labeled value in a fact key. A sequence of FactKeys mapped to
-/// a sequence of FactValues comprises a Fact.
+/// One labeled value in a fact key. A sequence of FactKeys mapped to a sequence of FactValues
+/// comprises a Fact.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct FactKey {
@@ -638,9 +636,8 @@ pub type FactKeyList = Vec<FactKey>;
 /// A list of fact values.
 pub type FactValueList = Vec<FactValue>;
 
-/// A generic key/value pair. Used for Effects and Command fields.
-/// Technically identical to a FactValue but separate to distinguish
-/// usage.
+/// A generic key/value pair. Used for Effects and Command fields. Technically identical to a
+/// FactValue but separate to distinguish usage.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KVPair(String, Value);
 

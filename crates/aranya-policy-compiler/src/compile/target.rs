@@ -4,8 +4,7 @@ use aranya_policy_ast as ast;
 use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
 use ast::FactDefinition;
 
-/// This is a stripped down version of the VM `Machine` type, which exists to be a target
-/// for compilation
+/// This is a stripped-down version of the VM `Machine` type, which exists as a compilation target
 #[derive(Debug)]
 #[cfg_attr(test, derive(Clone, Eq, PartialEq))]
 pub struct CompileTarget {

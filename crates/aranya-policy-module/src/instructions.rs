@@ -17,7 +17,8 @@ use crate::{data::Value, Label};
 pub enum ExitReason {
     /// Execution completed without errors.
     Normal,
-    /// Execution is paused to return a result, which is at the top of the stack. Call `RunState::run()` again to resume.
+    /// Execution is paused to return a result, which is at the top of the stack. Call
+    /// `RunState::run()` again to resume.
     Yield,
     /// Execution was aborted gracefully, due an error.
     Check,
@@ -106,7 +107,8 @@ pub enum Instruction {
     Last,
     /// Call regular function at target
     Call(Target),
-    /// Call external function (FFI), specified by module, procedure indices. The FFI modules should be added to the MachineIO.
+    /// Call external function (FFI), specified by module, procedure indices. The FFI modules should
+    /// be added to the MachineIO.
     ExtCall(usize, usize),
     /// Return to the last address on the control flow stack
     Return,

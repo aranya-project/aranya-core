@@ -424,20 +424,17 @@ fn test_span_lookup() -> anyhow::Result<()> {
     let test_str = "I've got a lovely bunch of coconuts";
     let ranges = vec![(0, 8), (9, 23), (24, 34)];
     let mut cm = CodeMap::new(test_str, ranges);
-    // instruction ranges are inclusive of the instruction, up until
-    // the next instruction, and must be inserted in order. So the
-    // first range is 0-11, the second is 12-21, etc.
+    // instruction ranges are inclusive of the instruction, up until the next instruction, and must
+    // be inserted in order. So the first range is 0-11, the second is 12-21, etc.
     cm.map_instruction_range(0, 0)?;
     cm.map_instruction_range(12, 9)?;
     cm.map_instruction_range(22, 24)?;
 
-    // An instruction at the boundary returns the range starting
-    // at that boundary.
+    // An instruction at the boundary returns a range starting at that boundary.
     let s = cm.span_from_instruction(0)?;
     assert_eq!(s.start(), 0);
 
-    // An instruction between boundaries returns the range starting
-    // at the last instruction boundary.
+    // An instruction between boundaries returns a range starting at the last instruction boundary.
     let s = cm.span_from_instruction(3)?;
     assert_eq!(s.start(), 0);
 
@@ -450,8 +447,7 @@ fn test_span_lookup() -> anyhow::Result<()> {
     let s = cm.span_from_instruction(22)?;
     assert_eq!(s.start(), 24);
 
-    // An instruction beyond the last instruction boundary always
-    // returns the last range.
+    // An instruction beyond the last instruction boundary always returns the last range.
     let s = cm.span_from_instruction(30)?;
     assert_eq!(s.start(), 24);
 
@@ -486,9 +482,8 @@ fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType
 }
 
 #[test]
-// There are a lot of clones in here. Technically the last one isn't
-// needed, but maintenance is easier when you don't need to worry about
-// it.
+// There are a lot of clones in here. Technically the last one isn't needed, but maintenance is
+// easier when you don't need to worry about it.
 #[allow(clippy::redundant_clone)]
 fn test_errors() {
     let ctx = dummy_ctx_policy("test");
@@ -707,9 +702,9 @@ fn test_errors() {
     );
 
     // IO: Create a fact that already exists
-    // This _should_ be failing because the fact has not been declared
-    // in schema, but TestIO does not care about fact schema and the
-    // machine does not check it.
+    //
+    // This _should_ be failing because the fact has not been declared in schema, but TestIO does
+    // not care about fact schema and the machine does not check it.
     error_test_harness(
         &[
             Instruction::Const(Value::Fact(Fact {

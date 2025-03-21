@@ -27,12 +27,11 @@ mod internal {
     pub struct PolicyParser;
 }
 
-// Each of the rules in policy.pest becomes an enumerable value here
+// Each of the rules in policy.pest becomes an enumerable value here.
 // The core parser for policy documents
 pub use internal::{PolicyParser, Rule};
 
-/// Captures the iterator over a Pair's contents, and the span
-/// information for error reporting.
+/// Captures the iterator over a Pair's contents, and the span information for error reporting.
 struct PairContext<'a> {
     pairs: RefCell<Pairs<'a, Rule>>,
     span: Span<'a>,
@@ -47,8 +46,7 @@ impl<'a> PairContext<'a> {
         )
     }
 
-    /// Returns the next token from the interior Pairs in case you want
-    /// to manipulate it directly.
+    /// Returns the next token from the interior Pairs in case you want to manipulate it directly.
     fn next(&self) -> Option<Pair<'_, Rule>> {
         self.pairs.borrow_mut().next()
     }
@@ -64,8 +62,8 @@ impl<'a> PairContext<'a> {
         self.next().ok_or(errmsg)
     }
 
-    /// Consumes the next Pair out of this context and returns it if
-    /// it matches the given type. Otherwise returns an error.
+    /// Consumes the next Pair out of this context and returns it if it matches the given type.
+    /// Otherwise returns an error.
     fn consume_of_type(&self, rule: Rule) -> Result<Pair<'_, Rule>, ParseError> {
         let token = self.consume()?;
         if token.as_rule() != rule {
@@ -78,16 +76,15 @@ impl<'a> PairContext<'a> {
         Ok(token)
     }
 
-    /// Consumes the next Pair and returns it as a VType. Same error
-    /// conditions as [consume]
+    /// Consumes the next Pair and returns it as a VType. Same error conditions as [consume]
     fn consume_type(&self) -> Result<ast::VType, ParseError> {
         let token = self.consume()?;
         let vtype = ChunkParser::parse_type(token)?;
         Ok(vtype)
     }
 
-    /// Consumes the next Pair out of this context and returns it as a
-    /// string. Same error conditions as [consume].
+    /// Consumes the next Pair out of this context and returns it as a string. Same error conditions
+    /// as [consume].
     fn consume_string(&self, rule: Rule) -> Result<String, ParseError> {
         let token = self.consume_of_type(rule)?;
         Ok(token.as_str().to_owned())
@@ -98,21 +95,19 @@ impl<'a> PairContext<'a> {
         p.parse_fact_literal(token)
     }
 
-    /// Consumes the next Pair out of this context and returns it as an
-    /// [ast::Expression].
+    /// Consumes the next Pair out of this context and returns it as an [ast::Expression].
     fn consume_expression(&self, p: &mut ChunkParser<'_>) -> Result<Expression, ParseError> {
         let token = self.consume_of_type(Rule::expression)?;
         p.parse_expression(token)
     }
 
-    /// Consumes the ParserContext and returns the inner Pairs.
-    /// Destroys the span context.
+    /// Consumes the ParserContext and returns the inner Pairs. Destroys the span context.
     fn into_inner(self) -> Pairs<'a, Rule> {
         self.pairs.into_inner()
     }
 
-    /// Consumes the next Pair out of this context and returns it as a
-    /// string that is the identifier if it doesn't collide with a keyword.
+    /// Consumes the next Pair out of this context and returns it as a string that is the identifier
+    /// if it doesn't collide with a keyword.
     fn consume_identifier(&self) -> Result<String, ParseError> {
         let token = self.consume_of_type(Rule::identifier)?;
         let identifier = token.as_str().to_owned();
@@ -129,9 +124,8 @@ impl<'a> PairContext<'a> {
     }
 }
 
-/// Helper function which consumes and returns an iterator over the
-/// children of a token. Makes the parsing process a little more
-/// self-documenting.
+/// Helper function which consumes and returns an iterator over the children of a token. Makes the
+/// parsing process a little more self-documenting.
 fn descend(p: Pair<'_, Rule>) -> PairContext<'_> {
     let span = p.as_span();
     PairContext {
@@ -171,8 +165,7 @@ impl<'a> ChunkParser<'a> {
         Ok(start)
     }
 
-    /// Parse a type token (one of the types under Rule::vtype) into a
-    /// VType.
+    /// Parse a type token (one of the types under Rule::vtype) into a VType.
     fn parse_type(token: Pair<'_, Rule>) -> Result<ast::VType, ParseError> {
         match token.as_rule() {
             Rule::string_t => Ok(ast::VType::String),
@@ -348,13 +341,12 @@ impl<'a> ChunkParser<'a> {
 
     /// Parses a Rule::expression into an Expression
     ///
-    /// This uses the PrattParser to parse the syntax tree. As a part of
-    /// that process, it will further parse some atoms like function calls
-    /// and queries.
+    /// This uses the PrattParser to parse the syntax tree. As a part of that process, it will
+    /// further parse some atoms like function calls and queries.
     ///
-    /// The resulting expression tree is degree 2 - all operations are
-    /// either unary or binary. That means a string of operators with
-    /// equivalent precedence will create a lopsided tree. For example:
+    /// The resulting expression tree is degree 2 - all operations are either unary or binary. That
+    /// means a string of operators with equivalent precedence will create a lopsided tree. For
+    /// example:
     ///
     /// `A + B + C` => `Add(Add(A, B), C)`
     pub fn parse_expression(&mut self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
@@ -640,11 +632,10 @@ impl<'a> ChunkParser<'a> {
         ))
     }
 
-    /// Parses a list of Rule::struct_literal_field items into (String,
-    /// Expression) pairs.
+    /// Parses a list of Rule::struct_literal_field items into (String, Expression) pairs.
     ///
-    /// This is used any place where something looks like a struct literal -
-    /// fact key/values, publish, and effects.
+    /// This is used any place where something looks like a struct literal - fact key/values,
+    /// publish, and effects.
     fn parse_kv_literal_fields(
         &mut self,
         fields: Pairs<'_, Rule>,
@@ -1262,7 +1253,8 @@ impl<'a> ChunkParser<'a> {
         ))
     }
 
-    /// Parse a `Rule::finish_function_definition` into an [FinishFunctionDefinition](ast::FinishFunctionDefinition).
+    /// Parse a `Rule::finish_function_definition` into an
+    /// [FinishFunctionDefinition](ast::FinishFunctionDefinition).
     fn parse_finish_function_definition(
         &mut self,
         item: Pair<'_, Rule>,
@@ -1308,10 +1300,8 @@ impl<'a> ChunkParser<'a> {
 
 /// Parse a policy document string into an [Policy](ast::Policy) object.
 ///
-/// The version parameter asserts that the code conforms to that
-/// version, as the bare code does not have any way to specify its
-/// own version. This does not account for any offset for enclosing
-/// text.
+/// The version parameter asserts that the code conforms to that version, as the bare code does not
+/// have any way to specify its own version. This doesn't account for any offset for enclosing text.
 pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, ParseError> {
     let mut policy = ast::Policy::new(version, data);
 
@@ -1320,8 +1310,8 @@ pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, Par
     Ok(policy)
 }
 
-/// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset
-/// in the source text.
+/// Adjusts the positioning of a Pest [Error](pest::error::Error) to account for any offset in the
+/// source text.
 fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>) -> ParseError {
     let pos = match &mut e.location {
         InputLocation::Pos(p) => {
@@ -1357,8 +1347,8 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
 
     match &mut e.line_col {
         LineColLocation::Pos(p) => *p = line_col,
-        // FIXME(chip): I'm not sure if any possible pest error uses the Span case here, so
-        // I am not adjusting the endpoint.
+        // FIXME(chip): I'm not sure if any possible pest error uses the Span case here, so I'm not
+        // adjusting the endpoint.
         LineColLocation::Span(p, _) => *p = line_col,
     }
 
