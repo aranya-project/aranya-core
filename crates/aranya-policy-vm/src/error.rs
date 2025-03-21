@@ -26,8 +26,7 @@ pub enum MachineErrorType {
     /// Parameter is the name.
     #[error("name `{0}` not defined")]
     NotDefined(String),
-    /// Invalid type - An operation was given a value of the wrong type, e.g. addition with
-    /// strings.
+    /// Invalid type - Tried to do an operation with the wrong type, e.g. addition with strings.
     #[error("expected type {want}, but got {got}: {msg}")]
     InvalidType {
         /// Expected type name
@@ -67,8 +66,7 @@ pub enum MachineErrorType {
     /// encoded into an instruction is invalid, e.g. a Swap(0)
     #[error("invalid instruction")]
     InvalidInstruction,
-    /// An instruction has done something bad with the call stack, like `Return`ed without a
-    /// `Call`.
+    /// The program tried to do something bad with the call stack, like `Return` without a `Call`.
     #[error("call stack")]
     CallStack,
     /// IO Error - Some machine I/O operation caused an error

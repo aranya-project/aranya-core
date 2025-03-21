@@ -671,8 +671,8 @@ impl<'a> CompileState<'a> {
                     }
                     self.append_instruction(Instruction::Deserialize);
 
-                    // TODO(chip): Use information about which command we're in to determine this
-                    // concretely
+                    // TODO(chip): Use information about which command
+                    // we're in to determine this concretely
                     Typeish::Indeterminate
                 }
             },
