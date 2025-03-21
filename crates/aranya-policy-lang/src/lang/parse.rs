@@ -344,9 +344,9 @@ impl<'a> ChunkParser<'a> {
     /// This uses the PrattParser to parse the syntax tree. As a part of that process, it will
     /// further parse some atoms like function calls and queries.
     ///
-    /// The resulting expression tree is degree 2 - all operations are either unary or binary. That
-    /// means a string of operators with equivalent precedence will create a lopsided tree. For
-    /// example:
+    /// The resulting expression tree is second degree - all operations are either unary or binary.
+    /// This then means a string of operators with equivalent precedence will create a lopsided
+    /// tree. For example:
     ///
     /// `A + B + C` => `Add(Add(A, B), C)`
     pub fn parse_expression(&mut self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
