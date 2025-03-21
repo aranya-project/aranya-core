@@ -589,6 +589,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                     String::from("count"),
                                     Expression::Identifier(String::from("x")),
                                 )],
+                                sources: vec![],
                             }),
                         }),
                         227,
@@ -844,6 +845,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                             Expression::Identifier(String::from("count")),
                                         ),
                                     ],
+                                    sources: vec![],
                                 },)),
                                 1321
                             ),
@@ -965,6 +967,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                             Expression::Identifier(String::from("count")),
                                         ),
                                     ],
+                                    sources: vec![],
                                 },)),
                                 1826
                             ),
@@ -1165,7 +1168,7 @@ fn parse_struct() {
         }
 
         function convert(foo struct Foo) struct Bar {
-            return Bar {y: foo.x}
+            return Bar { y: foo.x, ...baz, ...thud }
         }
     "#
     .trim();
@@ -1205,6 +1208,7 @@ fn parse_struct() {
                                     String::from("x")
                                 )
                             )],
+                            sources: vec![String::from("baz"), String::from("thud")],
                         })
                     }),
                     108
@@ -1213,6 +1217,33 @@ fn parse_struct() {
             50
         )]
     );
+}
+
+#[test]
+#[allow(clippy::result_large_err)]
+fn parse_struct_composition() -> Result<(), PestError<Rule>> {
+    let input = "{ c: false, ...x }";
+
+    let struct_literal = PolicyParser::parse(Rule::struct_literal, input)?;
+
+    for field in struct_literal {
+        match field.as_rule() {
+            Rule::struct_literal_field => {
+                let mut parts = field.into_inner();
+                let field_name = parts.next().unwrap().as_str();
+                assert_eq!(field_name, "c");
+                let field_value = parts.next().unwrap().as_str();
+                assert_eq!(field_value, "false");
+            }
+            Rule::struct_composition => {
+                let identifer = field.into_inner().next().unwrap().as_str();
+                assert_eq!(identifer, "x");
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    Ok(())
 }
 
 #[test]
@@ -1560,6 +1591,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
                                 (String::from("b"), Expression::Identifier(String::from("b")),),
                                 (String::from("c"), Expression::Identifier(String::from("c")),),
                             ],
+                            sources: vec![],
                         })),
                         183,
                     ),
