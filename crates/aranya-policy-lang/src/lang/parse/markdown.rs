@@ -42,8 +42,7 @@ pub struct PolicyChunk {
 fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
     if let Node::Root(r) = node {
         let mut child_iter = r.children.iter();
-        // The front matter should always be the first node below the
-        // root.
+        // The front matter should always be the first node below the root.
         let version = if let Some(Node::Yaml(y)) = child_iter.next() {
             parse_front_matter(y)?
         } else {
@@ -56,17 +55,15 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
 
         let mut chunks = vec![];
 
-        // We are only looking for top level code blocks. If someone
-        // sneaks one into a table or something we won't see it.
+        // We are only looking for top level code blocks. If someone sneaks one into a table or
+        // something we won't see it.
         for c in child_iter {
             if let Node::Code(c) = c {
                 if let Some(lang) = &c.lang {
                     if lang == "policy" {
                         let position = c.position.as_ref().expect("no code block position");
-                        // The starting position of the code block is
-                        // the triple-backtick, so add three for the
-                        // backticks, six for the language tag, and
-                        // one newline.
+                        // The starting position of the code block is the triple-backtick, so add
+                        // three for the backticks, six for the language tag, and one newline.
                         let offset = position
                             .start
                             .offset
@@ -90,8 +87,8 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
     }
 }
 
-/// Parses a Markdown policy document into an AST. This AST will likely be further processed
-/// by the [`Compiler`](../../policy_vm/struct.Compiler.html).
+/// Parses a Markdown policy document into an AST. This AST will likely be further processed by the
+/// [`Compiler`](../../policy_vm/struct.Compiler.html).
 pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     let (chunks, version) = extract_policy(data)?;
     let mut policy = ast::Policy::new(version, data);
@@ -101,8 +98,7 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     Ok(policy)
 }
 
-/// Extract the policy chunks from a Markdown policy document. Returns the chunks plus the
-/// policy version.
+/// Extract the chunks from a Markdown policy document. Returns the chunks plus the policy version.
 pub fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;

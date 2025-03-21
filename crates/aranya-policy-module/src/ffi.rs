@@ -45,8 +45,7 @@ impl Type<'_> {
                     if lhs[i] != rhs[i] {
                         return false;
                     }
-                    // Cannot overflow or wrap since `i` is
-                    // `usize` and `<[_]>::len()` is at most
+                    // Cannot overflow or wrap since `i` is `usize` and `<[_]>::len()` is at most
                     // `isize::MAX`.
                     #[allow(clippy::arithmetic_side_effects)]
                     {
@@ -78,11 +77,9 @@ impl From<&Type<'_>> for VType {
 /// Describes the context in which the function can be called.
 #[derive(Clone, Debug)]
 pub enum Color<'a> {
-    /// Function is valid outside of finish blocks, and returns
-    /// a value.
+    /// Function is valid outside of finish blocks, and returns a value.
     Pure(Type<'a>),
-    /// Function is valid inside finish blocks, and does not
-    /// return a value.
+    /// Function is valid inside finish blocks, and does not return a value.
     Finish,
 }
 
@@ -125,27 +122,45 @@ pub struct Struct<'a> {
 /// };
 ///
 /// let got = arg!("string", String);
-/// let want = Arg { name: "string", vtype: Type::String };
+/// let want = Arg {
+///     name: "string",
+///     vtype: Type::String,
+/// };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("bytes", Bytes);
-/// let want = Arg { name: "bytes", vtype: Type::Bytes };
+/// let want = Arg {
+///     name: "bytes",
+///     vtype: Type::Bytes,
+/// };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("int", Int);
-/// let want = Arg { name: "int", vtype: Type::Int };
+/// let want = Arg {
+///     name: "int",
+///     vtype: Type::Int,
+/// };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("bool", Bool);
-/// let want = Arg { name: "bool", vtype: Type::Bool };
+/// let want = Arg {
+///     name: "bool",
+///     vtype: Type::Bool,
+/// };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("id", Id);
-/// let want = Arg { name: "id", vtype: Type::Id };
+/// let want = Arg {
+///     name: "id",
+///     vtype: Type::Id,
+/// };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("struct", Struct("foo"));
-/// let want = Arg { name: "struct", vtype: Type::Struct("foo") };
+/// let want = Arg {
+///     name: "struct",
+///     vtype: Type::Struct("foo"),
+/// };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("optional", Optional(&Type::Struct("bar")));

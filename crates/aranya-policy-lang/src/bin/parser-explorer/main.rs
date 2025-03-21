@@ -15,8 +15,7 @@ use pest::Parser as PestParser;
 #[command(name = "parser explorer", version)]
 #[command(about = "Converts text into AST trees for exploration and debugging")]
 struct Args {
-    /// The policy version. If this is set the policy is treated as raw.
-    /// Valid values are v1.
+    /// The policy version. If this is set the policy is treated as raw. Valid values are v1.
     #[arg(short, long)]
     raw_policy_version: Option<Version>,
     /// What to parse

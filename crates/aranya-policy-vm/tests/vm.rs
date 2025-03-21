@@ -470,8 +470,8 @@ fn test_fact_create_delete() -> anyhow::Result<()> {
     let mut machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
 
-    // We have to scope the RunState so that it and its mutable
-    // reference to IO is dropped before we inspect the IO struct.
+    // We have to scope the RunState so that it and its mutable reference to IO is dropped before we
+    // inspect the IO struct.
     {
         let name = "Set";
         let ctx = dummy_ctx_policy(name);
@@ -1492,9 +1492,8 @@ fn test_serialize_deserialize() -> anyhow::Result<()> {
     {
         let ctx = dummy_ctx_open(name);
         let mut rs = machine.create_run_state(&io, ctx);
-        // call_open expects an envelope struct, so we smuggle the bytes
-        // in through a field. The payload would normally be accessed
-        // through an FFI module.
+        // call_open expects an envelope struct, so we smuggle the bytes in through a field. The
+        // payload would normally be accessed through an FFI module.
         let envelope = Struct::new("Env", [KVPair::new("payload", Value::Bytes(this_bytes))]);
         rs.call_open(name, envelope)?.success();
         let result = rs.consume_return()?;

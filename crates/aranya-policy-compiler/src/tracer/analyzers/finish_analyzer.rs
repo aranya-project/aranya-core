@@ -36,10 +36,10 @@ impl Analyzer for FinishAnalyzer {
         Ok(AnalyzerStatus::Ok)
     }
 
-    /// This attempts to find the branch point where we veered onto the failure path. It
-    /// compares each failure's execution trace with the list of successful branches to find
-    /// the last common address. This last common ancestor should be the point at which the
-    /// decision was made to go down a path that did not have a finish block.
+    /// This attempts to find the branch point where we veered onto the failure path. It compares
+    /// each failure's execution trace with the list of successful branches to find the last common
+    /// address. This last common ancestor should be the point at which the decision was made to go
+    /// down a path that did not have a finish block.
     fn post_analyze(&mut self, failures: &mut [TraceFailure], successful_branches: &[Vec<usize>]) {
         for f in failures {
             let mut longest_common_path = 0;
@@ -62,8 +62,8 @@ impl Analyzer for FinishAnalyzer {
             if let Some(la) = last_addr {
                 f.responsible_instruction = la;
             }
-            // If we didn't find a longest common path, something weird must be going on,
-            // and we leave the TraceFailure as-is.
+            // If we didn't find a longest common path, something weird must be going on, and we
+            // leave the TraceFailure as-is.
         }
     }
 }

@@ -26,7 +26,7 @@
 //! Collect measurements from multiple stopwatches
 //!
 //! ```
-//! use aranya_policy_vm::{Stopwatch, bench_aggregate, bench_measurements};
+//! use aranya_policy_vm::{bench_aggregate, bench_measurements, Stopwatch};
 //!
 //! let mut sw1 = Stopwatch::new();
 //! let mut sw2 = Stopwatch::new();
@@ -110,7 +110,8 @@ impl BenchMeasurements {
         self.0.entry(name).or_default().push(duration);
     }
 
-    /// Computes benchmarking statistics from the accumulated measurements. The returned values are sorted by mean time, in descending order.
+    /// Computes benchmarking statistics from the accumulated measurements. The returned values are
+    /// sorted by mean time, in descending order.
     pub fn stats(&self) -> Vec<BenchStat> {
         if self.0.is_empty() {
             return vec![];

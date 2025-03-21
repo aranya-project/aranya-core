@@ -68,9 +68,8 @@ pub enum CompileErrorType {
     Unknown(String),
 }
 
-// TODO(chip): this is identical to MachineErrorSource and could
-// probably be merged with it. I'm keeping it separate for now as I
-// expect the compiler will be moved out of the VM crate.
+// TODO(chip): this is identical to MachineErrorSource and could probably be merged with it. I'm
+// keeping it separate for now as I expect the compiler will be moved out of the VM crate.
 /// The source location and text of an error
 #[derive(Debug, PartialEq)]
 struct ErrorSource {
@@ -80,8 +79,7 @@ struct ErrorSource {
     text: String,
 }
 
-/// An error produced by the compiler. May contain the textual source of
-/// an error.
+/// An error produced by the compiler. May contain the textual source of an error.
 #[derive(Debug, PartialEq)]
 pub struct CompileError {
     /// The type of the error
@@ -131,9 +129,8 @@ impl fmt::Display for CompileError {
     }
 }
 
-// Implementing Display and deriving Debug implements
-// error::Error with default behavior by declaring this empty
-// implementation.
+// Implementing Display and deriving Debug implements error::Error with default behavior by
+// declaring this empty implementation.
 impl core::error::Error for CompileError {}
 
 impl From<CompileErrorType> for CompileError {

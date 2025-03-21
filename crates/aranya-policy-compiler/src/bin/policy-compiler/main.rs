@@ -10,8 +10,7 @@ use clap::Parser;
 struct Args {
     /// The file containing policy code.
     file: PathBuf,
-    /// The output file. If omitted, the output file is the input, but with the extension
-    /// '.pmod'.
+    /// The output file. If omitted, the output file is the input, but with the extension '.pmod'.
     #[arg(short, long)]
     out: Option<PathBuf>,
     /// Be verbose

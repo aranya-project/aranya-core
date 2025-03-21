@@ -34,7 +34,8 @@ impl FfiModule for PrintFfi {
                 // pop args off the stack
                 let s: String = stack.pop()?;
 
-                // Push something (the uppercased value) back onto the stack so the caller can verify this function was called.
+                // Push something (the uppercased value) back onto the stack so the caller can
+                // verify this function was called.
                 stack
                     .push(Value::String(s.to_uppercase()))
                     .expect("can't push");

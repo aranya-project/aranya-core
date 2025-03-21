@@ -10,8 +10,7 @@ pub trait Stack {
     /// Pop a value (as a [Value]) from the stack.
     fn pop_value(&mut self) -> Result<Value, MachineErrorType>;
 
-    /// Peek a value (as a mutable reference to a [Value]) on the top
-    /// of the stack.
+    /// Peek a value (as a mutable reference to a [Value]) on the top of the stack.
     fn peek_value(&mut self) -> Result<&mut Value, MachineErrorType>;
 
     /// Push a value onto the stack.

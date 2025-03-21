@@ -38,8 +38,7 @@ impl Display for Version {
 #[error("unsupported module version")]
 pub struct UnsupportedVersion(());
 
-/// The serializable state of
-/// a [`Machine`](../policy_vm/struct.Machine.html).
+/// The serializable state of a [`Machine`](../policy_vm/struct.Machine.html).
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Module {
     /// The module data
