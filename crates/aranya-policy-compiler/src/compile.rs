@@ -5,6 +5,7 @@ mod types;
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt,
+    num::NonZeroUsize,
     ops::Range,
 };
 
@@ -818,6 +819,55 @@ impl<'a> CompileState<'a> {
                         }
                     })
                     .map_err(|e| self.err(e.into()))?
+            }
+            Expression::Substruct(lhs, sub) => {
+                self.append_instruction(Instruction::StructNew(sub.clone()));
+
+                let lhs_expression = self.compile_expression(lhs)?;
+                let Some(sub_field_defns) = self.m.struct_defs.get(sub).cloned() else {
+                    return Err(self.err(CompileErrorType::NotDefined(format!(
+                        "Struct `{sub}` not defined"
+                    ))));
+                };
+
+                match lhs_expression {
+                    Typeish::Type(VType::Struct(lhs_struct_name)) => {
+                        let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name) else {
+                            return Err(self.err(CompileErrorType::NotDefined(format!(
+                                "Struct `{lhs_struct_name}` is not defined",
+                            ))));
+                        };
+
+                        if !sub_field_defns
+                            .iter()
+                            .all(|field_def| lhs_field_defns.contains(field_def))
+                        {
+                            return Err(self.err(CompileErrorType::InvalidSubstruct(
+                                sub.clone(),
+                                lhs_struct_name,
+                            )));
+                        }
+                    }
+                    Typeish::Indeterminate => {}
+                    Typeish::Type(_) => {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Expression to the left of the substruct operator is not a struct"
+                                .to_string(),
+                        )));
+                    }
+                }
+
+                let field_count = sub_field_defns.len();
+                for field in sub_field_defns {
+                    self.append_instruction(Instruction::Const(Value::String(field.identifier)));
+                }
+
+                if let Some(field_count) = NonZeroUsize::new(field_count) {
+                    self.append_instruction(Instruction::MStructGet(field_count));
+                    self.append_instruction(Instruction::MStructSet(field_count));
+                }
+
+                Typeish::Type(VType::Struct(sub.clone()))
             }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;
