@@ -27,7 +27,7 @@ fn test_compile() -> anyhow::Result<()> {
         }
         action foo(b int) {
             let i = 4
-            let x = if b == 0 { 4+i } else { 3 }
+            let x = if b == 0 { :4+i } else { :3 }
             let y = Foo{
                 a: x,
                 b: 4
@@ -1637,7 +1637,7 @@ fn test_type_errors() -> anyhow::Result<()> {
         Case {
             t: r#"
                 function f() int {
-                    return if 0 { 3 } else { 4 }
+                    return if 0 { :3 } else { :4 }
                 }
             "#,
             e: "if condition must be a boolean expression",
@@ -2160,5 +2160,26 @@ fn test_validate_return() {
         let policy = parse_policy_str(p, Version::V2).expect("should parse");
         let m = Compiler::new(&policy).compile().expect("should compile");
         assert!(validate(&m));
+    }
+}
+
+#[test]
+fn if_expression_block() {
+    let cases = [(
+        r#"function f(n int) int {
+            let n = if n > 1 {
+                let x = n + 1
+                :x
+            } else 0
+            return n
+        }"#,
+        None,
+    )];
+
+    for (text, expected) in cases {
+        println!(">");
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let res = Compiler::new(&policy).compile().err();
+        assert_eq!(res, expected);
     }
 }
