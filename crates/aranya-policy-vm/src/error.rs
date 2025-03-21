@@ -22,11 +22,12 @@ pub enum MachineErrorType {
     /// Parameter is the name.
     #[error("name `{0}` already defined")]
     AlreadyDefined(String),
-    /// Name not defined - an attempt was made to access a name that has not been defined. Parameter
-    /// is the name.
+    /// Name not defined - an attempt was made to access a name that has not been defined.
+    /// Parameter is the name.
     #[error("name `{0}` not defined")]
     NotDefined(String),
-    /// Invalid type - An operation was given a value of the wrong type, e.g. addition with strings.
+    /// Invalid type - An operation was given a value of the wrong type, e.g. addition with
+    /// strings.
     #[error("expected type {want}, but got {got}: {msg}")]
     InvalidType {
         /// Expected type name
@@ -51,22 +52,23 @@ pub enum MachineErrorType {
     /// not yet been resolved.
     #[error("unresolved branch/jump target: {0}")]
     UnresolvedTarget(Label),
-    /// Invalid address - An attempt to execute an instruction went beyond instruction bounds, or an
-    /// action/command lookup did not find an address for the given name.
+    /// Invalid address - An attempt to execute an instruction went beyond instruction bounds, or
+    /// an action/command lookup did not find an address for the given name.
     #[error("invalid address: {0}")]
     InvalidAddress(String),
     /// Bad state - Some internal state is invalid and execution cannot continue.
     #[error("bad state: {0}")]
     BadState(&'static str),
-    /// IntegerOverflow occurs when an instruction wraps an integer above the max value or below the
-    /// min value.
+    /// IntegerOverflow occurs when an instruction wraps an integer above the max value or below
+    /// the min value.
     #[error("integer wrap")]
     IntegerOverflow,
     /// Invalid instruction - An instruction was used in the wrong context, or some information
     /// encoded into an instruction is invalid, e.g. a Swap(0)
     #[error("invalid instruction")]
     InvalidInstruction,
-    /// An instruction has done something bad with the call stack, like `Return`ed without a `Call`.
+    /// An instruction has done something bad with the call stack, like `Return`ed without a
+    /// `Call`.
     #[error("call stack")]
     CallStack,
     /// IO Error - Some machine I/O operation caused an error

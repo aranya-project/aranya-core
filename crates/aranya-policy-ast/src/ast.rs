@@ -425,7 +425,7 @@ pub struct ReturnStatement {
 }
 
 /// Statements in the policy language.
-/// 
+///
 /// Not all statements are valid in all contexts.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {

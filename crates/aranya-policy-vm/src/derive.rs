@@ -47,8 +47,8 @@
 /// Parameters (other than the receiver and [`CommandContext`][crate::CommandContext]) must
 /// implement [`TryFrom<Value, Error = MachineErrorType>`][TryFrom].
 ///
-/// The result must be either [`()`][unit] or [`Result<T, E>`] where `T` is either [`()`][unit] or
-/// [`Into<Value>`] (see [`Value`][crate::Value]) and `E` is [`Into<MachineError>`].
+/// The result must be either [`()`][unit] or [`Result<T, E>`] where `T` is either [`()`][unit]
+/// or [`Into<Value>`] (see [`Value`][crate::Value]) and `E` is [`Into<MachineError>`].
 ///
 /// # Example
 ///

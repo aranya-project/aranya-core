@@ -12,8 +12,8 @@ pub struct TraceFailure {
     /// The sequence of instructions that produced this failure. The last instruction is not
     /// necessarily the instruction responsible for the failure.
     pub instruction_path: Vec<usize>,
-    /// This is the instruction responsible for the failure. This is usually the last instruction in
-    /// `instruction_path`, but not always.
+    /// This is the instruction responsible for the failure. This is usually the last instruction
+    /// in `instruction_path`, but not always.
     pub responsible_instruction: usize,
     /// The message associated with the failure.
     pub message: String,

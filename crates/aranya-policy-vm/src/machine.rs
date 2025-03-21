@@ -73,7 +73,7 @@ fn validate_fact_schema(fact: &Fact, schema: &ast::FactDefinition) -> bool {
 }
 
 /// Compares a fact to the given keys and values.
-/// 
+///
 /// NOTE that Bind keys/values are not included in the fact literal (see compile_fact_literal), so
 /// we only compare key/value pairs with exact values.
 ///
@@ -1108,7 +1108,7 @@ where
 
     /// Call an action loaded into the VM by name. Accepts a list of arguments to the function,
     /// which must match the number of arguments expected. Returns a MachineError on failure.
-    // 
+    //
     // TODO(chip): I don't really like how V: Into<Value> works here because it still means all of
     // the args have to have the same type.
     pub fn call_action<Args>(&mut self, name: &str, args: Args) -> Result<ExitReason, MachineError>

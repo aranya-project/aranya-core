@@ -107,8 +107,8 @@ pub enum Instruction {
     Last,
     /// Call regular function at target
     Call(Target),
-    /// Call external function (FFI), specified by module, procedure indices. The FFI modules should
-    /// be added to the MachineIO.
+    /// Call external function (FFI), specified by module, procedure indices. The FFI modules
+    /// should be added to the MachineIO.
     ExtCall(usize, usize),
     /// Return to the last address on the control flow stack
     Return,
