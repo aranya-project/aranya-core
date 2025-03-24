@@ -10,6 +10,10 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+test_cfg = []
+
 [dependencies]
 aranya-capi-core = { version = "0.2.1", path = "../aranya-capi-core", features = ["debug"] }
 buggy = { version = "0.1.0" }

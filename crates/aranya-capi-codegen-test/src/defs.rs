@@ -217,3 +217,15 @@ impl From<&crate::Error> for Error {
         unimplemented!()
     }
 }
+
+#[cfg(feature = "test_cfg")]
+struct TestConfigInheritance(());
+
+#[cfg(feature = "test_cfg")]
+fn test_cfg_inheritance_fn() {}
+
+#[cfg(not(feature = "test_cfg"))]
+pub struct TestConfigInheritance2(());
+
+#[cfg(not(feature = "test_cfg"))]
+fn test_cfg_inheritance2() {}
