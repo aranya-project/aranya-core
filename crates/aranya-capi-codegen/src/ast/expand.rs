@@ -315,12 +315,6 @@ impl Ast {
         let underlying = ctx.defs.join(old.clone());
         strukt.ident = strukt.ident.with_prefix(&ctx.ty_prefix);
         let name = &strukt.ident;
-        let attrs = strukt
-            .attrs
-            .iter()
-            .filter(|attr| attr.path().is_ident("cfg"))
-            .cloned()
-            .collect::<Vec<_>>();
 
         // Generate a constructor.
         if strukt.derives.contains(DeriveTrait::Init) {
@@ -408,7 +402,7 @@ impl Ast {
             });
         }
 
-        self.add_hidden_node(ffi_wrapper(ctx, &strukt, &underlying, &attrs));
+        self.add_hidden_node(ffi_wrapper(ctx, &strukt, &underlying));
         let ty = Box::new(Type::named(parse_quote! {
             self::__hidden::#name
         }));
@@ -1610,12 +1604,7 @@ fn check_valid_input_ty(ctx: &Ctx, arg: &FnArg) -> TokenStream {
 ///
 /// The wrapper has the same memory layout as its underlying
 /// type.
-fn ffi_wrapper(
-    ctx: &Ctx,
-    strukt: &Struct,
-    underlying: &Path,
-    attrs: &Vec<Attribute>,
-) -> TokenStream {
+fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
     let capi = &ctx.capi;
     let conv = &ctx.conv;
 
@@ -1633,6 +1622,11 @@ fn ffi_wrapper(
     let types = fields.iter().map(|f| &f.ty);
     let fields = (0..fields.len())
         .map(|i| format_ident!("_{i}"))
+        .collect::<Vec<_>>();
+    let attrs = strukt
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("cfg"))
         .collect::<Vec<_>>();
 
     // All generic arguments.
