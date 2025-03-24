@@ -315,6 +315,12 @@ impl Ast {
         let underlying = ctx.defs.join(old.clone());
         strukt.ident = strukt.ident.with_prefix(&ctx.ty_prefix);
         let name = &strukt.ident;
+        let attrs = strukt
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("cfg"))
+            .cloned()
+            .collect::<Vec<_>>();
 
         // Generate a constructor.
         if strukt.derives.contains(DeriveTrait::Init) {
@@ -402,7 +408,7 @@ impl Ast {
             });
         }
 
-        self.add_hidden_node(ffi_wrapper(ctx, &strukt, &underlying));
+        self.add_hidden_node(ffi_wrapper(ctx, &strukt, &underlying, &attrs));
         let ty = Box::new(Type::named(parse_quote! {
             self::__hidden::#name
         }));
@@ -1604,7 +1610,12 @@ fn check_valid_input_ty(ctx: &Ctx, arg: &FnArg) -> TokenStream {
 ///
 /// The wrapper has the same memory layout as its underlying
 /// type.
-fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
+fn ffi_wrapper(
+    ctx: &Ctx,
+    strukt: &Struct,
+    underlying: &Path,
+    attrs: &Vec<Attribute>,
+) -> TokenStream {
     let capi = &ctx.capi;
     let conv = &ctx.conv;
 
@@ -1636,6 +1647,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
 
     let mut tokens = TokenStream::new();
     tokens.extend(quote! {
+        #(#attrs)*
         pub type #name = #wrapper<#underlying, #(#types),*>;
 
         #[repr(transparent)]
@@ -1715,6 +1727,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#(#fields),*> #conv::newtype::NewType for #wrapper<#underlying, #(#fields),*> {
             type Inner = #underlying;
         }
@@ -1750,6 +1763,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
             #(#fields : #capi::types::ByMutPtr),*
         {}
 
+        #(#attrs)*
         const _: () = {
             const GOT: usize = ::core::mem::size_of::<#name>();
             const WANT: usize = ::core::mem::size_of::<#underlying>();
@@ -1759,6 +1773,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
             // latter clobbers our spans.
             ::core::assert!(GOT == WANT, "{}", MSG);
         };
+        #(#attrs)*
         const _: () = {
             const GOT: usize = ::core::mem::align_of::<#name>();
             const WANT: usize = ::core::mem::align_of::<#underlying>();
@@ -1768,6 +1783,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
             // latter clobbers our spans.
             ::core::assert!(GOT == WANT, "{}", MSG);
         };
+        #(#attrs)*
         const _: () = {
             const GOT: bool = ::core::mem::needs_drop::<#name>();
             const WANT: bool = ::core::mem::needs_drop::<#underlying>();
