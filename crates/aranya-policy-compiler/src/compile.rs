@@ -3,7 +3,7 @@ mod target;
 mod types;
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet, HashSet},
     fmt,
     ops::Range,
 };
@@ -2108,6 +2108,8 @@ impl<'a> CompileState<'a> {
         base_struct: &mut NamedStruct,
         base_struct_defns: &[FieldDefinition],
     ) -> Result<(), CompileError> {
+        self.check_no_op_struct_comp(base_struct, base_struct_defns)?;
+
         let source_field_defns = base_struct
             .sources
             .iter()
@@ -2189,6 +2191,31 @@ impl<'a> CompileState<'a> {
             }
         }
         Ok(())
+    }
+
+    fn check_no_op_struct_comp(
+        &self,
+        strukt: &NamedStruct,
+        strukt_defns: &[FieldDefinition],
+    ) -> Result<(), CompileError> {
+        if strukt.sources.is_empty() {
+            return Ok(());
+        }
+
+        let field_idents: HashSet<_> = strukt
+            .fields
+            .iter()
+            .map(|(field_name, _)| field_name)
+            .collect();
+
+        if strukt_defns
+            .iter()
+            .all(|defn| field_idents.contains(&defn.identifier))
+        {
+            Err(self.err(CompileErrorType::NoOpStructComp))
+        } else {
+            Ok(())
+        }
     }
 }
 

@@ -66,6 +66,9 @@ pub enum CompileErrorType {
     /// The source struct is not a subset of the base struct
     #[error("Struct {0} must be a subset of Struct {1}")]
     SourceStructNotSubsetOfBase(String, String),
+    /// It is an error to add a composed struct when all fields are directly specified
+    #[error("A struct literal has all it's fields explicitly specified while also having 1 or more struct compositions")]
+    NoOpStructComp,
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(#[from] Bug),

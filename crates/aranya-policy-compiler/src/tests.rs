@@ -1878,6 +1878,21 @@ fn test_struct_composition_errors() -> anyhow::Result<()> {
         Case {
             t: r#"
                 struct Foo { x int, y bool }
+                function baz(f struct Foo) struct Foo {
+                    let new_foo = Foo {
+                        x: 3,
+                        y: true,
+                        ...f
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "A struct literal has all it's fields explicitly specified while also having 1 or more struct compositions",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
 
                 function baz() struct Foo {
                     let new_foo = Foo {
@@ -1903,9 +1918,10 @@ fn test_struct_composition_errors() -> anyhow::Result<()> {
             CompileErrorType::DuplicateSourceFields(_, _) => {}
             CompileErrorType::SourceStructNotSubsetOfBase(_, _) => {}
             CompileErrorType::NotDefined(_) => {}
+            CompileErrorType::NoOpStructComp => {}
             err => {
                 return Err(anyhow!(
-                    "Did not get DuplicateSourceFields, SourceStructNotSubsetOfBase, or NotDefined for case {i}: {err:?} ({err})"
+                    "Did not get DuplicateSourceFields, SourceStructNotSubsetOfBase, NoOpStructComp, or NotDefined for case {i}: {err:?} ({err})"
                 ));
             }
         }
