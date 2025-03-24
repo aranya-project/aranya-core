@@ -2166,12 +2166,11 @@ fn test_validate_return() {
 #[test]
 fn if_expression_block() {
     let cases = [(
-        r#"function f(n int) int {
-            let n = if n > 1 {
+        r#"action f(n int) {
+            let x = if n > 1 {
                 let x = n + 1
                 :x
-            } else 0
-            return n
+            } else { :0 }
         }"#,
         None,
     )];

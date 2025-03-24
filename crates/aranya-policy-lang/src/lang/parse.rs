@@ -703,7 +703,7 @@ impl<'a> ChunkParser<'a> {
                 Some(expr.as_span()),
             )
         })?;
-        let then_expr = self.parse_expression(token)?;
+        let then_expr = self.parse_block_expression(token)?;
 
         let token = pairs.next().ok_or_else(|| {
             ParseError::new(
@@ -712,7 +712,7 @@ impl<'a> ChunkParser<'a> {
                 Some(expr.as_span()),
             )
         })?;
-        let else_expr = self.parse_expression(token)?;
+        let else_expr = self.parse_block_expression(token)?;
 
         Ok(Expression::InternalFunction(ast::InternalFunction::If(
             Box::new(condition),

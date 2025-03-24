@@ -158,7 +158,7 @@ match_expression_arm = { (match_arm_expression | match_default) ~ "=>" ~ express
 // An if/else expression is a logical statement that returns one
 // expression or the other depending on the boolean evaluation of the
 // first expression.
-if_expr = { "if" ~ expression ~ expression ~ "else" ~ expression }
+if_expr = { "if" ~ expression ~ block_expression ~ "else" ~ block_expression }
 // serialize() and deserialize() transform command structs to/from bytes
 serialize = { "serialize(" ~ expression ~ ")" }
 deserialize = { "deserialize(" ~ expression ~ ")" }
