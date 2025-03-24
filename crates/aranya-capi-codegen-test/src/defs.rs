@@ -220,14 +220,14 @@ impl From<&crate::Error> for Error {
 
 #[cfg(feature = "test_cfg")]
 #[repr(transparent)]
-struct TestConfigInheritance(());
+pub struct TestConfigInheritance(u8);
 
 #[cfg(feature = "test_cfg")]
-fn test_cfg_inheritance_fn() {}
+pub fn test_cfg_inheritance() {}
 
 #[cfg(not(feature = "test_cfg"))]
 #[repr(transparent)]
-pub struct TestConfigInheritance2(());
+pub struct TestConfigInheritance2(u8);
 
 #[cfg(not(feature = "test_cfg"))]
-fn test_cfg_inheritance2() {}
+pub fn test_cfg_inheritance2() {}

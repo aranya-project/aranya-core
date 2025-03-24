@@ -55,6 +55,20 @@ pub enum PrefixError {
     #[capi(msg = "invalid argument")]
     InvalidArg,
 }
+#[repr(transparent)]
+#[cfg(feature = "test_cfg")]
+#[cfg(cbindgen)]
+pub struct PrefixTestConfigInheritance(::core::primitive::u8);
+#[cfg(feature = "test_cfg")]
+#[cfg(not(cbindgen))]
+pub type PrefixTestConfigInheritance = self::__hidden::PrefixTestConfigInheritance;
+#[repr(transparent)]
+#[cfg(not(feature = "test_cfg"))]
+#[cfg(cbindgen)]
+pub struct PrefixTestConfigInheritance2(::core::primitive::u8);
+#[cfg(not(feature = "test_cfg"))]
+#[cfg(not(cbindgen))]
+pub type PrefixTestConfigInheritance2 = self::__hidden::PrefixTestConfigInheritance2;
 #[no_mangle]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit0() {
@@ -2162,6 +2176,44 @@ fn ext_error_cleanup(
     }
     ::core::result::Result::Ok(())
 }
+#[no_mangle]
+#[cfg(feature = "test_cfg")]
+#[::tracing::instrument(level = "trace")]
+pub extern "C" fn prefix_test_cfg_inheritance() {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { __tramp_prefix_test_cfg_inheritance() } {
+        __pattern => __pattern,
+    }
+}
+#[cfg(feature = "test_cfg")]
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_cfg_inheritance() -> () {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_cfg_inheritance() } {
+        __pattern => __pattern,
+    }
+}
+#[no_mangle]
+#[cfg(not(feature = "test_cfg"))]
+#[::tracing::instrument(level = "trace")]
+pub extern "C" fn prefix_test_cfg_inheritance2() {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { __tramp_prefix_test_cfg_inheritance2() } {
+        __pattern => __pattern,
+    }
+}
+#[cfg(not(feature = "test_cfg"))]
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_cfg_inheritance2() -> () {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_cfg_inheritance2() } {
+        __pattern => __pattern,
+    }
+}
 #[cfg(not(cbindgen))]
 #[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -2241,6 +2293,7 @@ mod __hidden {
             }
         }
     };
+    #[cfg(not(cbindgen))]
     pub type PrefixStruct = __PrefixStructFfiWrapper<
         crate::defs::Struct,
         ::core::primitive::u32,
@@ -2310,6 +2363,7 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<_0> __capi::internal::conv::newtype::NewType
     for __PrefixStructFfiWrapper<crate::defs::Struct, _0> {
         type Inner = crate::defs::Struct;
@@ -2342,6 +2396,7 @@ mod __hidden {
     where
         _0: __capi::types::ByMutPtr,
     {}
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: usize = ::core::mem::size_of::<PrefixStruct>();
         const WANT: usize = ::core::mem::size_of::<crate::defs::Struct>();
@@ -2350,6 +2405,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: usize = ::core::mem::align_of::<PrefixStruct>();
         const WANT: usize = ::core::mem::align_of::<crate::defs::Struct>();
@@ -2358,6 +2414,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: bool = ::core::mem::needs_drop::<PrefixStruct>();
         const WANT: bool = ::core::mem::needs_drop::<crate::defs::Struct>();
@@ -2366,6 +2423,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     pub type PrefixSafeStruct = __PrefixSafeStructFfiWrapper<crate::defs::SafeStruct>;
     #[repr(transparent)]
     #[derive(Debug)]
@@ -2430,6 +2488,7 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl __capi::internal::conv::newtype::NewType
     for __PrefixSafeStructFfiWrapper<crate::defs::SafeStruct> {
         type Inner = crate::defs::SafeStruct;
@@ -2451,6 +2510,7 @@ mod __hidden {
     for __PrefixSafeStructFfiWrapper<Inner> {}
     #[automatically_derived]
     unsafe impl<Inner> __capi::types::ByMutPtr for __PrefixSafeStructFfiWrapper<Inner> {}
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: usize = ::core::mem::size_of::<PrefixSafeStruct>();
         const WANT: usize = ::core::mem::size_of::<crate::defs::SafeStruct>();
@@ -2459,6 +2519,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: usize = ::core::mem::align_of::<PrefixSafeStruct>();
         const WANT: usize = ::core::mem::align_of::<crate::defs::SafeStruct>();
@@ -2467,6 +2528,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: bool = ::core::mem::needs_drop::<PrefixSafeStruct>();
         const WANT: bool = ::core::mem::needs_drop::<crate::defs::SafeStruct>();
@@ -2637,5 +2699,265 @@ mod __hidden {
                 Self::from_underlying(other)
             }
         }
+    };
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    pub type PrefixTestConfigInheritance = __PrefixTestConfigInheritanceFfiWrapper<
+        crate::defs::TestConfigInheritance,
+    >;
+    #[repr(transparent)]
+    #[derive(Debug)]
+    pub struct __PrefixTestConfigInheritanceFfiWrapper<Inner> {
+        pub inner: Inner,
+    }
+    #[automatically_derived]
+    impl<Inner> __capi::InitDefault for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: __capi::InitDefault,
+    {
+        fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
+            <Inner as __capi::InitDefault>::init_default(unsafe {
+                ::core::mem::transmute::<
+                    &mut ::core::mem::MaybeUninit<Self>,
+                    &mut ::core::mem::MaybeUninit<Inner>,
+                >(out)
+            })
+        }
+    }
+    #[automatically_derived]
+    impl<Inner> ::core::marker::Copy for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    impl<Inner> ::core::clone::Clone for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: ::core::clone::Clone,
+    {
+        fn clone(&self) -> Self {
+            Self {
+                inner: ::core::clone::Clone::clone(&self.inner),
+            }
+        }
+    }
+    #[automatically_derived]
+    impl<Inner> ::core::ops::Deref for __PrefixTestConfigInheritanceFfiWrapper<Inner> {
+        type Target = Inner;
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
+    }
+    #[automatically_derived]
+    impl<Inner> ::core::ops::DerefMut
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.inner
+        }
+    }
+    #[automatically_derived]
+    impl<Inner> __capi::Builder for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: __capi::Builder,
+    {
+        type Output = <Inner as __capi::Builder>::Output;
+        type Error = <Inner as __capi::Builder>::Error;
+        unsafe fn build(
+            self,
+            out: &mut ::core::mem::MaybeUninit<Self::Output>,
+        ) -> ::core::result::Result<(), Self::Error> {
+            unsafe { __capi::Builder::build(self.inner, out) }
+        }
+    }
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    unsafe impl __capi::internal::conv::newtype::NewType
+    for __PrefixTestConfigInheritanceFfiWrapper<crate::defs::TestConfigInheritance> {
+        type Inner = crate::defs::TestConfigInheritance;
+    }
+    #[automatically_derived]
+    impl<Inner> __capi::types::Opaque for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: __capi::types::Opaque,
+    {}
+    #[automatically_derived]
+    unsafe impl<Inner> __capi::types::Input
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
+    #[automatically_derived]
+    unsafe impl<Inner> __capi::types::ByValue
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    unsafe impl<Inner> __capi::types::ByConstPtr
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
+    #[automatically_derived]
+    unsafe impl<Inner> __capi::types::ByMutPtr
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::size_of::<PrefixTestConfigInheritance>();
+        const WANT: usize = ::core::mem::size_of::<crate::defs::TestConfigInheritance>();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid size: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::align_of::<PrefixTestConfigInheritance>();
+        const WANT: usize = ::core::mem::align_of::<
+            crate::defs::TestConfigInheritance,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid alignment: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: bool = ::core::mem::needs_drop::<PrefixTestConfigInheritance>();
+        const WANT: bool = ::core::mem::needs_drop::<
+            crate::defs::TestConfigInheritance,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid `Drop` impl: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    pub type PrefixTestConfigInheritance2 = __PrefixTestConfigInheritance2FfiWrapper<
+        crate::defs::TestConfigInheritance2,
+    >;
+    #[repr(transparent)]
+    #[derive(Debug)]
+    pub struct __PrefixTestConfigInheritance2FfiWrapper<Inner> {
+        pub inner: Inner,
+    }
+    #[automatically_derived]
+    impl<Inner> __capi::InitDefault for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: __capi::InitDefault,
+    {
+        fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
+            <Inner as __capi::InitDefault>::init_default(unsafe {
+                ::core::mem::transmute::<
+                    &mut ::core::mem::MaybeUninit<Self>,
+                    &mut ::core::mem::MaybeUninit<Inner>,
+                >(out)
+            })
+        }
+    }
+    #[automatically_derived]
+    impl<Inner> ::core::marker::Copy for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    impl<Inner> ::core::clone::Clone for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: ::core::clone::Clone,
+    {
+        fn clone(&self) -> Self {
+            Self {
+                inner: ::core::clone::Clone::clone(&self.inner),
+            }
+        }
+    }
+    #[automatically_derived]
+    impl<Inner> ::core::ops::Deref for __PrefixTestConfigInheritance2FfiWrapper<Inner> {
+        type Target = Inner;
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
+    }
+    #[automatically_derived]
+    impl<Inner> ::core::ops::DerefMut
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.inner
+        }
+    }
+    #[automatically_derived]
+    impl<Inner> __capi::Builder for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: __capi::Builder,
+    {
+        type Output = <Inner as __capi::Builder>::Output;
+        type Error = <Inner as __capi::Builder>::Error;
+        unsafe fn build(
+            self,
+            out: &mut ::core::mem::MaybeUninit<Self::Output>,
+        ) -> ::core::result::Result<(), Self::Error> {
+            unsafe { __capi::Builder::build(self.inner, out) }
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    unsafe impl __capi::internal::conv::newtype::NewType
+    for __PrefixTestConfigInheritance2FfiWrapper<crate::defs::TestConfigInheritance2> {
+        type Inner = crate::defs::TestConfigInheritance2;
+    }
+    #[automatically_derived]
+    impl<Inner> __capi::types::Opaque for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: __capi::types::Opaque,
+    {}
+    #[automatically_derived]
+    unsafe impl<Inner> __capi::types::Input
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
+    #[automatically_derived]
+    unsafe impl<Inner> __capi::types::ByValue
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    unsafe impl<Inner> __capi::types::ByConstPtr
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
+    #[automatically_derived]
+    unsafe impl<Inner> __capi::types::ByMutPtr
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::size_of::<PrefixTestConfigInheritance2>();
+        const WANT: usize = ::core::mem::size_of::<
+            crate::defs::TestConfigInheritance2,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid size: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::align_of::<PrefixTestConfigInheritance2>();
+        const WANT: usize = ::core::mem::align_of::<
+            crate::defs::TestConfigInheritance2,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid alignment: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: bool = ::core::mem::needs_drop::<PrefixTestConfigInheritance2>();
+        const WANT: bool = ::core::mem::needs_drop::<
+            crate::defs::TestConfigInheritance2,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid `Drop` impl: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
     };
 }
