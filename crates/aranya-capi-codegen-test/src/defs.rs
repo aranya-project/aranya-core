@@ -219,12 +219,14 @@ impl From<&crate::Error> for Error {
 }
 
 #[cfg(feature = "test_cfg")]
+#[repr(transparent)]
 struct TestConfigInheritance(());
 
 #[cfg(feature = "test_cfg")]
 fn test_cfg_inheritance_fn() {}
 
 #[cfg(not(feature = "test_cfg"))]
+#[repr(transparent)]
 pub struct TestConfigInheritance2(());
 
 #[cfg(not(feature = "test_cfg"))]
