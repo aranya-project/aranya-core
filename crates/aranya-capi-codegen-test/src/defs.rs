@@ -125,6 +125,7 @@ pub fn test_unit_struct() -> Struct {
     }
 }
 pub fn test_ref_struct_unit(_a: &Struct) {}
+// pub fn test_ref_ref_struct_unit(_a: &&Struct) {}
 pub fn test_ptr_struct_unit(_a: *const Struct) {}
 pub fn test_struct_struct(a: Struct) -> Struct {
     a
@@ -132,6 +133,10 @@ pub fn test_struct_struct(a: Struct) -> Struct {
 pub fn test_unit_result_struct_error() -> Result<Struct, crate::Error> {
     Err(crate::Error::BufferTooSmall)
 }
+
+pub fn test_optional_ref_struct(_a: Option<&Struct>) {}
+pub fn test_optional_mut_ref_struct(_a: Option<&mut Struct>) {}
+// pub fn test_nested_optional_ref_struct(_a: Option<&Option<&Struct>>) {}
 
 pub type SafeStruct = Safe<Struct>;
 

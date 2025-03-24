@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://aranya.github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.2.0...aranya-capi-core-v0.2.1) - 2025-03-21
+
+### Other
+
+- Allow`Option<&T>` for fn args
+
 ## [0.2.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.1.0...aranya-capi-core-v0.2.0) - 2025-03-11
 
 ### Other

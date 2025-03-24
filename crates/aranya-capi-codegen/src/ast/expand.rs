@@ -1484,6 +1484,7 @@ fn unpack_newtype_glue(ctx: &Ctx, arg: &ExpandedArg) -> Option<Expr> {
             Type::Slice(_) => Some(parse_quote!(#capi::to_inner_slice_mut!(#ident))),
             _ => None,
         },
+        Type::Option(_) => Some(parse_quote!(#capi::to_inner!(#ident))),
         _ => None,
     }
 }
