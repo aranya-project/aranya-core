@@ -386,19 +386,6 @@ impl<CS: CipherSuite> BidiPsk<CS> {
     pub fn raw_secret_bytes(&self) -> &[u8] {
         self.psk.raw_secret_bytes()
     }
-
-    /// Returns the raw channel keys.
-    #[cfg(any(test, feature = "test_util"))]
-    pub(crate) fn as_raw_psk(&self) -> &RawPsk<CS> {
-        &self.psk
-    }
-}
-
-#[cfg(any(test, feature = "test_util"))]
-impl<CS: CipherSuite> BidiPsk<CS> {
-    pub(crate) fn psk(&self) -> &RawPsk<CS> {
-        self.as_raw_psk()
-    }
 }
 
 impl<CS: CipherSuite> fmt::Debug for BidiPsk<CS> {
