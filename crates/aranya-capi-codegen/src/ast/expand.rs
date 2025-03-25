@@ -1626,7 +1626,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
     let attrs = strukt
         .attrs
         .iter()
-        .filter(|attr| attr.path().is_ident("cfg"))
+        .filter(|attr| attr.path().is_ident("cfg") || attr.path().is_ident("cfg_attr"))
         .collect::<Vec<_>>();
 
     // All generic arguments.
