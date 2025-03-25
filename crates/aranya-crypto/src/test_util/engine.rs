@@ -2150,8 +2150,7 @@ pub fn test_aqc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
 
     ch2.their_id = ch2.our_id;
     let err = aqc::BidiPsk::from_peer_encap(&ch2, peer)
-        .err()
-        .expect("should not be able to decrypt `aqc::BidiPsk`");
+        .expect_err("should not be able to decrypt `aqc::BidiPsk`");
     assert_eq!(err, Error::same_device_id());
 }
 
@@ -2463,8 +2462,7 @@ pub fn test_aqc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
 
     ch2.seal_id = ch2.open_id;
     let err = aqc::UniSendPsk::from_peer_encap(&ch2, peer)
-        .err()
-        .expect("should not be able to decrypt `aqc::UniSendPsk`");
+        .expect_err("should not be able to decrypt `aqc::UniSendPsk`");
     assert_eq!(err, Error::same_device_id());
 }
 
@@ -2515,8 +2513,7 @@ pub fn test_aqc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
 
     ch2.seal_id = ch2.open_id;
     let err = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
-        .err()
-        .expect("should not be able to decrypt `aqc::UniRecvPsk`");
+        .expect_err("should not be able to decrypt `aqc::UniRecvPsk`");
     assert_eq!(err, Error::same_device_id());
 }
 

@@ -75,7 +75,7 @@ impl<'a, CS: CipherSuite> Import<&'a [u8]> for RootChannelKey<CS> {
 /// A raw PSK.
 #[derive(Serialize, Deserialize)]
 pub struct RawPsk<CS> {
-    // TODO(eric): support larger sizes?
+    // TODO(eric): support different sizes?
     psk: [u8; 32],
     _marker: PhantomData<CS>,
 }
@@ -95,20 +95,6 @@ impl<CS: CipherSuite> Clone for RawPsk<CS> {
             psk: self.psk,
             _marker: PhantomData,
         }
-    }
-}
-
-impl<CS: CipherSuite> ConstantTimeEq for RawPsk<CS> {
-    #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
-        self.psk.ct_eq(&other.psk)
-    }
-}
-
-impl<CS: CipherSuite> ConstantTimeEq for &RawPsk<CS> {
-    #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
-        ConstantTimeEq::ct_eq(*self, other)
     }
 }
 

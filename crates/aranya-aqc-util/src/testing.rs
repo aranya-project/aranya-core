@@ -312,7 +312,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
             author.device_id,
             peer.enc_pk.clone(),
             peer.device_id,
-            label.into(),
+            label,
         )
         .expect("author should be able to create a bidi channel");
 
@@ -380,7 +380,7 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
             peer.enc_pk.clone(),
             author.device_id,
             peer.device_id,
-            label.into(),
+            label,
         )
         .expect("author should be able to create a uni channel");
 
@@ -452,7 +452,7 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
             peer.enc_pk.clone(),
             author.device_id,
             peer.device_id,
-            label.into(),
+            label,
         )
         .expect("author should be able to create a uni channel");
 
