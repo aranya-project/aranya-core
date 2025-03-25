@@ -2300,11 +2300,13 @@ mod __hidden {
     >;
     #[repr(transparent)]
     #[derive(Debug)]
+    #[cfg(not(cbindgen))]
     pub struct __PrefixStructFfiWrapper<Inner, _0> {
         pub inner: Inner,
         _0: ::core::marker::PhantomData<_0>,
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> __capi::InitDefault for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: __capi::InitDefault,
@@ -2319,11 +2321,13 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> ::core::marker::Copy for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> ::core::clone::Clone for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: ::core::clone::Clone,
@@ -2336,6 +2340,7 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> ::core::ops::Deref for __PrefixStructFfiWrapper<Inner, _0> {
         type Target = Inner;
         fn deref(&self) -> &Self::Target {
@@ -2343,12 +2348,14 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> ::core::ops::DerefMut for __PrefixStructFfiWrapper<Inner, _0> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.inner
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> __capi::Builder for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: __capi::Builder,
@@ -2369,28 +2376,33 @@ mod __hidden {
         type Inner = crate::defs::Struct;
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> __capi::types::Opaque for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: __capi::types::Opaque,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner, _0> __capi::types::Input for __PrefixStructFfiWrapper<Inner, _0>
     where
         _0: __capi::types::Input,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner, _0> __capi::types::ByValue for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: ::core::marker::Copy,
         _0: __capi::types::ByValue,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner, _0> __capi::types::ByConstPtr
     for __PrefixStructFfiWrapper<Inner, _0>
     where
         _0: __capi::types::ByConstPtr,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner, _0> __capi::types::ByMutPtr
     for __PrefixStructFfiWrapper<Inner, _0>
     where
@@ -2427,10 +2439,12 @@ mod __hidden {
     pub type PrefixSafeStruct = __PrefixSafeStructFfiWrapper<crate::defs::SafeStruct>;
     #[repr(transparent)]
     #[derive(Debug)]
+    #[cfg(not(cbindgen))]
     pub struct __PrefixSafeStructFfiWrapper<Inner> {
         pub inner: Inner,
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::InitDefault for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: __capi::InitDefault,
@@ -2445,11 +2459,13 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::marker::Copy for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::clone::Clone for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: ::core::clone::Clone,
@@ -2461,6 +2477,7 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::ops::Deref for __PrefixSafeStructFfiWrapper<Inner> {
         type Target = Inner;
         fn deref(&self) -> &Self::Target {
@@ -2468,12 +2485,14 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::ops::DerefMut for __PrefixSafeStructFfiWrapper<Inner> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.inner
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::Builder for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: __capi::Builder,
@@ -2494,21 +2513,26 @@ mod __hidden {
         type Inner = crate::defs::SafeStruct;
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::types::Opaque for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: __capi::types::Opaque,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::Input for __PrefixSafeStructFfiWrapper<Inner> {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByValue for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByConstPtr
     for __PrefixSafeStructFfiWrapper<Inner> {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByMutPtr for __PrefixSafeStructFfiWrapper<Inner> {}
     #[cfg(not(cbindgen))]
     const _: () = {
@@ -2707,10 +2731,14 @@ mod __hidden {
     >;
     #[repr(transparent)]
     #[derive(Debug)]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     pub struct __PrefixTestConfigInheritanceFfiWrapper<Inner> {
         pub inner: Inner,
     }
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::InitDefault for __PrefixTestConfigInheritanceFfiWrapper<Inner>
     where
         Inner: __capi::InitDefault,
@@ -2725,11 +2753,15 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::marker::Copy for __PrefixTestConfigInheritanceFfiWrapper<Inner>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::clone::Clone for __PrefixTestConfigInheritanceFfiWrapper<Inner>
     where
         Inner: ::core::clone::Clone,
@@ -2741,6 +2773,8 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::ops::Deref for __PrefixTestConfigInheritanceFfiWrapper<Inner> {
         type Target = Inner;
         fn deref(&self) -> &Self::Target {
@@ -2748,6 +2782,8 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::ops::DerefMut
     for __PrefixTestConfigInheritanceFfiWrapper<Inner> {
         fn deref_mut(&mut self) -> &mut Self::Target {
@@ -2755,6 +2791,8 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::Builder for __PrefixTestConfigInheritanceFfiWrapper<Inner>
     where
         Inner: __capi::Builder,
@@ -2776,23 +2814,33 @@ mod __hidden {
         type Inner = crate::defs::TestConfigInheritance;
     }
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::types::Opaque for __PrefixTestConfigInheritanceFfiWrapper<Inner>
     where
         Inner: __capi::types::Opaque,
     {}
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::Input
     for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByValue
     for __PrefixTestConfigInheritanceFfiWrapper<Inner>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByConstPtr
     for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
     #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByMutPtr
     for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
     #[cfg(feature = "test_cfg")]
@@ -2836,10 +2884,14 @@ mod __hidden {
     >;
     #[repr(transparent)]
     #[derive(Debug)]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     pub struct __PrefixTestConfigInheritance2FfiWrapper<Inner> {
         pub inner: Inner,
     }
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::InitDefault for __PrefixTestConfigInheritance2FfiWrapper<Inner>
     where
         Inner: __capi::InitDefault,
@@ -2854,11 +2906,15 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::marker::Copy for __PrefixTestConfigInheritance2FfiWrapper<Inner>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::clone::Clone for __PrefixTestConfigInheritance2FfiWrapper<Inner>
     where
         Inner: ::core::clone::Clone,
@@ -2870,6 +2926,8 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::ops::Deref for __PrefixTestConfigInheritance2FfiWrapper<Inner> {
         type Target = Inner;
         fn deref(&self) -> &Self::Target {
@@ -2877,6 +2935,8 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::ops::DerefMut
     for __PrefixTestConfigInheritance2FfiWrapper<Inner> {
         fn deref_mut(&mut self) -> &mut Self::Target {
@@ -2884,6 +2944,8 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::Builder for __PrefixTestConfigInheritance2FfiWrapper<Inner>
     where
         Inner: __capi::Builder,
@@ -2905,23 +2967,33 @@ mod __hidden {
         type Inner = crate::defs::TestConfigInheritance2;
     }
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::types::Opaque for __PrefixTestConfigInheritance2FfiWrapper<Inner>
     where
         Inner: __capi::types::Opaque,
     {}
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::Input
     for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByValue
     for __PrefixTestConfigInheritance2FfiWrapper<Inner>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByConstPtr
     for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
     #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByMutPtr
     for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
     #[cfg(not(feature = "test_cfg"))]

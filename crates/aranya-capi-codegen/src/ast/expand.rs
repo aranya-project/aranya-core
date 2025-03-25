@@ -1646,12 +1646,14 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
 
         #[repr(transparent)]
         #[derive(Debug)]
+        #(#attrs)*
         pub struct #wrapper<#generics> {
             pub inner: #inner,
             #(#fields : ::core::marker::PhantomData<#fields>),*
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::InitDefault for #wrapper<#generics>
         where
             #inner: #capi::InitDefault,
@@ -1670,12 +1672,14 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::marker::Copy for #wrapper<#generics>
         where
             #inner: ::core::marker::Copy
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::clone::Clone for #wrapper<#generics>
         where
             #inner: ::core::clone::Clone
@@ -1689,6 +1693,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::ops::Deref for #wrapper<#generics> {
             type Target = #inner;
 
@@ -1698,6 +1703,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::ops::DerefMut for #wrapper<#generics> {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 &mut self.inner
@@ -1705,6 +1711,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::Builder for #wrapper<#generics>
         where
             #inner: #capi::Builder,
@@ -1727,18 +1734,21 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::types::Opaque for #wrapper<#generics>
         where
             #inner: #capi::types::Opaque,
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::Input for #wrapper<#generics>
         where
             #(#fields : #capi::types::Input),*
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByValue for #wrapper<#generics>
         where
             #inner: ::core::marker::Copy,
@@ -1746,12 +1756,14 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByConstPtr for #wrapper<#generics>
         where
             #(#fields : #capi::types::ByConstPtr),*
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByMutPtr for #wrapper<#generics>
         where
             #(#fields : #capi::types::ByMutPtr),*
