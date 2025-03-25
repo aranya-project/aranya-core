@@ -33,8 +33,9 @@ impl<S> Handler<S> {
 
 // Bidi impl.
 impl<S: KeyStore> Handler<S> {
-    /// Retrieves the wrapped [`BidiAuthorSecret`] and converts
-    /// it into the PSK.
+    /// Retrieves the wrapped
+    /// [`BidiAuthorSecret`][aranya_crypto::aqc::BidiAuthorSecret]
+    /// and converts it into the PSK.
     pub fn bidi_channel_created<E: Engine>(
         &mut self,
         eng: &mut E,
@@ -123,11 +124,13 @@ pub struct BidiChannelCreated<'a> {
     pub author_enc_key_id: EncryptionKeyId,
     /// The channel peer's device ID.
     pub peer_id: DeviceId,
-    /// The channel peer's encoded [`aranya_crypto::EncryptionPublicKey`].
+    /// The channel peer's encoded
+    /// [`EncryptionPublicKey`][aranya_crypto::EncryptionPublicKey].
     pub peer_enc_pk: &'a [u8],
     /// The AQC channel label.
     pub label: Label,
-    /// The unique key identifier for the [`BidiAuthorSecret`].
+    /// The unique key identifier for the
+    /// [`BidiAuthorSecret`][aranya_crypto::aqc::BidiAuthorSecret].
     pub key_id: BidiKeyId,
 }
 
@@ -138,7 +141,8 @@ pub struct BidiChannelReceived<'a> {
     pub parent_cmd_id: Id,
     /// The channel author's device ID.
     pub author_id: DeviceId,
-    /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
+    /// The channel author's encoded
+    /// [`EncryptionPublicKey`][aranya_crypto::EncryptionPublicKey].
     pub author_enc_pk: &'a [u8],
     /// The channel peer's device ID.
     pub peer_id: DeviceId,
@@ -157,8 +161,9 @@ custom_id! {
 
 // Uni impl.
 impl<S: KeyStore> Handler<S> {
-    /// Retrieves the wrapped [`UniAuthorSecret`] and converts it
-    /// into a PSK.
+    /// Retrieves the wrapped
+    /// [`UniAuthorSecret`][aranya_crypto::aqc::UniAuthorSecret]
+    /// and converts it into a PSK.
     pub fn uni_channel_created<E: Engine>(
         &mut self,
         eng: &mut E,
@@ -279,7 +284,8 @@ pub struct UniChannelCreated<'a> {
     pub peer_enc_pk: &'a [u8],
     /// The AQC channel label.
     pub label: Label,
-    /// The unique key identifier for the [`UniAuthorSecret`].
+    /// The unique key identifier for the
+    /// [`UniAuthorSecret`][aranya_crypto::aqc::UniAuthorSecret].
     pub key_id: UniKeyId,
 }
 

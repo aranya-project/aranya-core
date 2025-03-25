@@ -10,8 +10,8 @@ pub(crate) fn decode_enc_pk<CS: CipherSuite>(
     postcard::from_bytes(bytes)
 }
 
-/// Associates a [`Channel`] with Aranya policy rules that govern
-/// communication in the channel.
+/// Associates an AQC channel with Aranya policy rules that
+/// govern communication in the channel.
 ///
 /// Labels are defined inside Aranya policy.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
