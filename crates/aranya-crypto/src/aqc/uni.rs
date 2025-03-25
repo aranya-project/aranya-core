@@ -28,60 +28,36 @@ use crate::{
 /// ```rust
 /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
 /// # {
-/// use {
-///     core::borrow::{Borrow, BorrowMut},
-///     aranya_crypto::{
-///         aead::{Aead, KeyData},
-///         aqc::{
-///             AuthData,
-///             OpenKey,
-///             SealKey,
-///             UniAuthorSecret,
-///             UniChannel,
-///             UniRecvPsk,
-///             UniPeerEncap,
-///             UniSendPsk,
-///             UniSecrets,
-///         },
-///         CipherSuite,
-///         Csprng,
-///         default::{
-///             DefaultCipherSuite,
-///             DefaultEngine,
-///         },
-///         Engine,
-///         Id,
-///         IdentityKey,
-///         import::Import,
-///         keys::SecretKey,
-///         EncryptionKey,
-///         Rng,
-///     }
+/// use aranya_crypto::{
+///     aqc::{
+///         UniAuthorSecret,
+///         UniChannel,
+///         UniRecvPsk,
+///         UniPeerEncap,
+///         UniSendPsk,
+///         UniSecrets,
+///     },
+///     CipherSuite,
+///     Csprng,
+///     default::{
+///         DefaultCipherSuite,
+///         DefaultEngine,
+///     },
+///     Engine,
+///     Id,
+///     IdentityKey,
+///     import::Import,
+///     keys::SecretKey,
+///     EncryptionKey,
+///     Rng,
+///     subtle::ConstantTimeEq,
 /// };
-///
-/// fn key_from_author<CS: CipherSuite>(
-///     ch: &UniChannel<'_, CS>,
-///     secret: UniAuthorSecret<CS>,
-/// ) -> SealKey<CS> {
-///     let key = UniSendPsk::from_author_secret(ch, secret)
-///         .expect("should be able to decapsulate author secret");
-///     key.into_key().expect("should be able to create `SealKey`")
-/// }
-///
-/// fn key_from_peer<CS: CipherSuite>(
-///     ch: &UniChannel<'_, CS>,
-///     encap: UniPeerEncap<CS>,
-/// ) -> OpenKey<CS>{
-///     let key = UniRecvPsk::from_peer_encap(ch, encap)
-///         .expect("should be able to decapsulate peer key");
-///     key.into_key().expect("should be able to create `OpenKey`")
-/// }
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
 /// let parent_cmd_id = Id::random(&mut eng);
-/// let label = 42u32;
+/// let label = 42i64;
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
@@ -101,7 +77,8 @@ use crate::{
 /// };
 /// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `UniSecrets`");
-/// let mut device1 = key_from_author(&device1_ch, author);
+/// let device1_psk = UniSendPsk::from_author_secret(&device1_ch, author)
+///     .expect("unable to derive `UniSendPsk` from author secrets");
 ///
 /// // ...and device2 decrypts the encapsulation to discover the
 /// // channel keys.
@@ -113,32 +90,11 @@ use crate::{
 ///     open_id: device2_id,
 ///     label,
 /// };
-/// let device2 = key_from_peer(&device2_ch, peer);
+/// let device2_psk = UniRecvPsk::from_peer_encap(&device2_ch, peer)
+///     .expect("unable to derive `UniRecvPsk` from peer encap");
 ///
-/// fn test<CS: CipherSuite>(seal: &mut SealKey<CS>, open: &OpenKey<CS>) {
-///     const GOLDEN: &[u8] = b"hello, world!";
-///     const ADDITIONAL_DATA: &[u8] = b"authenticated, but not encrypted data";
-///
-///     let version = 4;
-///     let label = 1234;
-///     let (ciphertext, seq) = {
-///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
-///         let ad = AuthData { version, label };
-///         let seq = seal.seal(&mut dst, GOLDEN, &ad)
-///             .expect("should be able to encrypt plaintext");
-///         (dst, seq)
-///     };
-///     let plaintext = {
-///         let mut dst = vec![0u8; ciphertext.len()];
-///         let ad = AuthData { version, label };
-///         open.open(&mut dst, &ciphertext, &ad, seq)
-///             .expect("should be able to decrypt ciphertext");
-///         dst.truncate(ciphertext.len() - OpenKey::<CS>::OVERHEAD);
-///         dst
-///     };
-///     assert_eq!(&plaintext, GOLDEN);
-/// }
-/// test(&mut device1, &device2); // device1 -> device2
+/// assert_eq!(device1_psk.identity(), device2_psk.identity());
+/// assert!(bool::from(device1_psk.raw_secret_bytes().ct_eq(device2_psk.raw_secret_bytes())));
 /// # }
 /// ```
 #[derive(Debug)]
@@ -280,7 +236,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
 macro_rules! uni_key {
     ($name:ident, $doc:expr $(,)?) => {
         #[doc = $doc]
-        pub struct $name<CS: CipherSuite> {
+        pub struct $name<CS> {
             id: UniChannelId,
             psk: RawPsk<CS>,
         }
@@ -346,11 +302,21 @@ macro_rules! uni_key {
             }
 
             /// Returns the PSK identity.
+            ///
+            /// See [RFC 8446] section 4.2.11 for more information about
+            /// PSKs.
+            ///
+            /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
             pub fn identity(&self) -> UniChannelId {
                 self.id
             }
 
             /// Returns the raw PSK secret.
+            ///
+            /// See [RFC 8446] section 4.2.11 for more information about
+            /// PSKs.
+            ///
+            /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
             pub fn raw_secret_bytes(&self) -> &[u8] {
                 self.psk.raw_secret_bytes()
             }

@@ -27,70 +27,35 @@ use crate::{
 /// ```rust
 /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
 /// # {
-/// use {
-///     core::borrow::{Borrow, BorrowMut},
-///     aranya_crypto::{
-///         aead::{Aead, KeyData},
-///         aqc::{
-///             AuthData,
-///             BidiAuthorSecret,
-///             BidiChannel,
-///             BidiKeys,
-///             BidiPeerEncap,
-///             BidiSecrets,
-///             OpenKey,
-///             SealKey,
-///         },
-///         CipherSuite,
-///         Csprng,
-///         default::{
-///             DefaultCipherSuite,
-///             DefaultEngine,
-///         },
-///         Engine,
-///         Id,
-///         IdentityKey,
-///         import::Import,
-///         keys::SecretKey,
-///         EncryptionKey,
-///         Rng,
-///     }
+/// use aranya_crypto::{
+///     aqc::{
+///         BidiAuthorSecret,
+///         BidiChannel,
+///         BidiPeerEncap,
+///         BidiPsk,
+///         BidiSecrets,
+///     },
+///     CipherSuite,
+///     Csprng,
+///     default::{
+///         DefaultCipherSuite,
+///         DefaultEngine,
+///     },
+///     Engine,
+///     Id,
+///     IdentityKey,
+///     import::Import,
+///     keys::SecretKey,
+///     EncryptionKey,
+///     Rng,
+///     subtle::ConstantTimeEq,
 /// };
-///
-/// struct Keys<CS: CipherSuite> {
-///     seal: SealKey<CS>,
-///     open: OpenKey<CS>,
-/// }
-///
-/// impl<CS: CipherSuite> Keys<CS> {
-///     fn from_author(
-///         ch: &BidiChannel<'_, CS>,
-///         secret: BidiAuthorSecret<CS>,
-///     ) -> Self {
-///         let keys = BidiKeys::from_author_secret(ch, secret)
-///             .expect("should be able to create author keys");
-///         let (seal, open) = keys.into_keys()
-///             .expect("should be able to convert `BidiKeys`");
-///         Self { seal, open }
-///     }
-///
-///     fn from_peer(
-///         ch: &BidiChannel<'_, CS>,
-///         encap: BidiPeerEncap<CS>,
-///     ) -> Self {
-///         let keys = BidiKeys::from_peer_encap(ch, encap)
-///             .expect("should be able to decapsulate peer keys");
-///         let (seal, open) = keys.into_keys()
-///             .expect("should be able to convert `BidiKeys`");
-///         Self { seal, open }
-///     }
-/// }
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
 /// let parent_cmd_id = Id::random(&mut eng);
-/// let label = 42u32;
+/// let label = 42i64;
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
@@ -110,7 +75,8 @@ use crate::{
 /// };
 /// let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `BidiSecrets`");
-/// let mut device1 = Keys::from_author(&device1_ch, author);
+/// let device1_psk = BidiPsk::from_author_secret(&device1_ch, author)
+///     .expect("unable to derive `BidiPsk` from author secrets");
 ///
 /// // ...and device2 decrypts the encapsulation to discover the
 /// // channel keys.
@@ -118,37 +84,16 @@ use crate::{
 ///     parent_cmd_id,
 ///     our_sk: &device2_sk,
 ///     our_id: device2_id,
-///     their_pk: &device1_sk.public().expect("receiver encryption public key should be valid"),
+///     their_pk: &device1_sk.public()
+///         .expect("receiver encryption public key should be valid"),
 ///     their_id: device1_id,
 ///     label,
 /// };
-/// let mut device2 = Keys::from_peer(&device2_ch, peer);
+/// let device2_psk = BidiPsk::from_peer_encap(&device2_ch, peer)
+///     .expect("unable to derive `BidiPsk` from peer encap");
 ///
-/// fn test<CS: CipherSuite>(a: &mut Keys<CS>, b: &Keys<CS>) {
-///     const GOLDEN: &[u8] = b"hello, world!";
-///     const ADDITIONAL_DATA: &[u8] = b"authenticated, but not encrypted data";
-///
-///     let version = 4;
-///     let label = 1234;
-///     let (ciphertext, seq) = {
-///         let mut dst = vec![0u8; GOLDEN.len() + SealKey::<CS>::OVERHEAD];
-///         let ad = AuthData { version, label };
-///         let seq = a.seal.seal(&mut dst, GOLDEN, &ad)
-///             .expect("should be able to encrypt plaintext");
-///         (dst, seq)
-///     };
-///     let plaintext = {
-///         let mut dst = vec![0u8; ciphertext.len()];
-///         let ad = AuthData { version, label };
-///         b.open.open(&mut dst, &ciphertext, &ad, seq)
-///             .expect("should be able to decrypt ciphertext");
-///         dst.truncate(ciphertext.len() - OpenKey::<CS>::OVERHEAD);
-///         dst
-///     };
-///     assert_eq!(&plaintext, GOLDEN);
-/// }
-/// test(&mut device1, &device2); // device1 -> device2
-/// test(&mut device2, &device1); // device2 -> device1
+/// assert_eq!(device1_psk.identity(), device2_psk.identity());
+/// assert!(bool::from(device1_psk.raw_secret_bytes().ct_eq(device2_psk.raw_secret_bytes())));
 /// # }
 /// ```
 pub struct BidiChannel<'a, CS: CipherSuite> {
@@ -308,8 +253,8 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
     }
 }
 
-/// Bidirectional channel PSK.
-pub struct BidiPsk<CS: CipherSuite> {
+/// A PSK for a bidirectional channel.
+pub struct BidiPsk<CS> {
     id: BidiChannelId,
     psk: RawPsk<CS>,
 }
@@ -378,11 +323,21 @@ impl<CS: CipherSuite> BidiPsk<CS> {
     }
 
     /// Returns the PSK identity.
+    ///
+    /// See [RFC 8446] section 4.2.11 for more information about
+    /// PSKs.
+    ///
+    /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
     pub fn identity(&self) -> BidiChannelId {
         self.id
     }
 
     /// Returns the raw PSK secret.
+    ///
+    /// See [RFC 8446] section 4.2.11 for more information about
+    /// PSKs.
+    ///
+    /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
     pub fn raw_secret_bytes(&self) -> &[u8] {
         self.psk.raw_secret_bytes()
     }

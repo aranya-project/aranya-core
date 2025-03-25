@@ -1949,9 +1949,11 @@ pub fn test_aqc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
         aqc::BidiPsk::from_author_secret(&ch1, author).expect("unable to decrypt `aqc::BidiPsk`");
     let psk2 = aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt `aqc::BidiPsk`");
 
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
     // The labels are different, so the keys should also be
     // different.
-    assert_ne!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
@@ -1997,7 +1999,9 @@ pub fn test_aqc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
     let psk2 =
         aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `aqc::BidiPsk`");
 
-    assert_ne!(psk1.identity(), psk2.identity());
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
@@ -2043,7 +2047,9 @@ pub fn test_aqc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
     let psk2 =
         aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `aqc::BidiPsk`");
 
-    assert_ne!(psk1.identity(), psk2.identity());
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
@@ -2092,7 +2098,9 @@ pub fn test_aqc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
     let psk2 =
         aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `aqc::BidiPsk`");
 
-    assert_ne!(psk1.identity(), psk2.identity());
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
@@ -2262,7 +2270,9 @@ pub fn test_aqc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
     let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
-    assert_ne!(psk1.identity(), psk2.identity());
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
@@ -2307,7 +2317,9 @@ pub fn test_aqc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
     let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
-    assert_ne!(psk1.identity(), psk2.identity());
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
@@ -2352,7 +2364,9 @@ pub fn test_aqc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
     let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
-    assert_ne!(psk1.identity(), psk2.identity());
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
@@ -2396,7 +2410,9 @@ pub fn test_aqc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
     let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
-    assert_ne!(psk1.identity(), psk2.identity());
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
