@@ -841,9 +841,21 @@ impl<'a> CompileState<'a> {
                             ))));
                         };
 
+                        // Check that the struct type on the RHS is a subset of the struct expression on the LHS
                         if !sub_field_defns
                             .iter()
                             .all(|field_def| lhs_field_defns.contains(field_def))
+                        {
+                            return Err(self.err(CompileErrorType::InvalidSubstruct(
+                                sub.clone(),
+                                lhs_struct_name,
+                            )));
+                        }
+
+                        // Check that the struct type on the RHS is a strict subset of the struct expression on the LHS
+                        if lhs_field_defns
+                            .iter()
+                            .all(|field_def| sub_field_defns.contains(field_def))
                         {
                             return Err(self.err(CompileErrorType::InvalidSubstruct(
                                 sub.clone(),
