@@ -317,6 +317,8 @@ pub enum Expression {
     Is(Box<Expression>, bool),
     /// A block expression
     Block(Vec<AstNode<Statement>>, Box<Expression>),
+    /// Match expression
+    Match(Box<MatchExpression>),
 }
 
 /// Encapsulates both [FunctionDefinition] and [FinishFunctionDefinition] for the purpose
@@ -376,6 +378,33 @@ pub struct MatchStatement {
     pub expression: Expression,
     /// All of the potential match arms
     pub arms: Vec<MatchArm>,
+}
+
+/// Match statement expression
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchExpression {
+    /// Value to match against
+    pub scrutinee: Expression,
+    /// Match arms
+    pub arms: Vec<AstNode<MatchExpressionArm>>,
+}
+
+/// A container for a statement or expression
+#[derive(Debug, Clone, PartialEq)]
+pub enum LanguageContext<A, B> {
+    /// statement
+    Statement(A),
+    /// expression
+    Expression(B),
+}
+
+/// Match arm expression
+#[derive(Debug, Clone, PartialEq)]
+pub struct MatchExpressionArm {
+    /// value to match against the match expression
+    pub pattern: MatchPattern,
+    /// Expression
+    pub expression: Expression,
 }
 
 /// Test a series of conditions and execute the statements for the first true condition.

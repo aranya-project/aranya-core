@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use aranya_policy_ast::{self as ast, AstNode, MapStatement, Version};
+use aranya_policy_ast::{self as ast, AstNode, MapStatement, MatchExpression, Version};
 use ast::{EnumDefinition, EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
@@ -462,7 +462,8 @@ impl<'a> ChunkParser<'a> {
                 Rule::at_least => self.parse_counting_fn(primary, ast::FactCountType::AtLeast),
                 Rule::at_most => self.parse_counting_fn(primary, ast::FactCountType::AtMost),
                 Rule::exactly => self.parse_counting_fn(primary, ast::FactCountType::Exactly),
-                Rule::if_e => {
+                Rule::match_expression => self.parse_match_expression(primary),
+                Rule::if_expr => {
                     let mut pairs = primary.clone().into_inner();
                     let token = pairs.next().ok_or(ParseError::new(
                         ParseErrorKind::InvalidFunctionCall,
@@ -516,13 +517,7 @@ impl<'a> ChunkParser<'a> {
                     ))
                 }
                 Rule::identifier => Ok(Expression::Identifier(primary.as_str().to_owned())),
-                Rule::block_expression => {
-                    let pc = descend(primary.clone());
-                    let statements = pc.consume()?.into_inner();
-                    let statement_list = self.parse_statement_list(statements)?;
-                    let expr = pc.consume_expression(self)?;
-                    Ok(Expression::Block(statement_list, Box::new(expr)))
-                }
+                Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
                 _ => Err(ParseError::new(
                     ParseErrorKind::Expression,
@@ -609,6 +604,63 @@ impl<'a> ChunkParser<'a> {
                 )),
             })
             .parse(pairs)
+    }
+
+    fn parse_block_expression(&mut self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+        let pc = descend(expr.clone());
+        let statements = pc.consume()?.into_inner();
+        let statement_list = self.parse_statement_list(statements)?;
+        let expr = pc.consume_expression(self)?;
+        Ok(Expression::Block(statement_list, Box::new(expr)))
+    }
+
+    fn parse_match_expression(&mut self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+        let pc = descend(expr);
+        let scrutinee = pc.consume_expression(self)?;
+
+        // All remaining tokens are match arms
+        let mut arms = vec![];
+        for arm in pc.into_inner() {
+            assert_eq!(arm.as_rule(), Rule::match_expression_arm);
+            let pc = descend(arm.to_owned());
+            let token = pc.consume()?;
+
+            let pattern = match token.as_rule() {
+                Rule::match_default => MatchPattern::Default,
+                Rule::match_arm_expression => {
+                    let values = token
+                        .into_inner()
+                        .map(|token| self.parse_expression(token.to_owned()))
+                        .collect::<Result<Vec<Expression>, ParseError>>()?;
+
+                    MatchPattern::Values(values)
+                }
+                _ => {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("invalid token in match arm"),
+                        Some(token.as_span()),
+                    ))
+                }
+            };
+
+            // Remaining tokens are policy statements
+            let expression = self.parse_expression(pc.consume()?)?;
+
+            let locator = self.add_range(&arm)?;
+            arms.push(AstNode::new(
+                ast::MatchExpressionArm {
+                    pattern,
+                    expression,
+                },
+                locator,
+            ));
+        }
+
+        Ok(Expression::Match(Box::new(MatchExpression {
+            scrutinee,
+            arms,
+        })))
     }
 
     fn parse_counting_fn(
