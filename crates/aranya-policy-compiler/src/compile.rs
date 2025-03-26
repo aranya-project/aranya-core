@@ -826,13 +826,13 @@ impl<'a> CompileState<'a> {
             Expression::Substruct(lhs, sub) => {
                 self.append_instruction(Instruction::StructNew(sub.clone()));
 
-                let lhs_expression = self.compile_expression(lhs)?;
                 let Some(sub_field_defns) = self.m.struct_defs.get(sub).cloned() else {
                     return Err(self.err(CompileErrorType::NotDefined(format!(
                         "Struct `{sub}` not defined"
                     ))));
                 };
 
+                let lhs_expression = self.compile_expression(lhs)?;
                 match lhs_expression {
                     Typeish::Type(VType::Struct(lhs_struct_name)) => {
                         let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name) else {
