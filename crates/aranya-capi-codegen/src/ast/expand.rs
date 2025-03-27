@@ -1623,6 +1623,11 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
     let fields = (0..fields.len())
         .map(|i| format_ident!("_{i}"))
         .collect::<Vec<_>>();
+    let attrs = strukt
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("cfg") || attr.path().is_ident("cfg_attr"))
+        .collect::<Vec<_>>();
 
     // All generic arguments.
     let generics = {
@@ -1636,16 +1641,19 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
 
     let mut tokens = TokenStream::new();
     tokens.extend(quote! {
+        #(#attrs)*
         pub type #name = #wrapper<#underlying, #(#types),*>;
 
         #[repr(transparent)]
         #[derive(Debug)]
+        #(#attrs)*
         pub struct #wrapper<#generics> {
             pub inner: #inner,
             #(#fields : ::core::marker::PhantomData<#fields>),*
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::InitDefault for #wrapper<#generics>
         where
             #inner: #capi::InitDefault,
@@ -1664,12 +1672,14 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::marker::Copy for #wrapper<#generics>
         where
             #inner: ::core::marker::Copy
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::clone::Clone for #wrapper<#generics>
         where
             #inner: ::core::clone::Clone
@@ -1683,6 +1693,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::ops::Deref for #wrapper<#generics> {
             type Target = #inner;
 
@@ -1692,6 +1703,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::ops::DerefMut for #wrapper<#generics> {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 &mut self.inner
@@ -1699,6 +1711,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::Builder for #wrapper<#generics>
         where
             #inner: #capi::Builder,
@@ -1715,23 +1728,27 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#(#fields),*> #conv::newtype::NewType for #wrapper<#underlying, #(#fields),*> {
             type Inner = #underlying;
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::types::Opaque for #wrapper<#generics>
         where
             #inner: #capi::types::Opaque,
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::Input for #wrapper<#generics>
         where
             #(#fields : #capi::types::Input),*
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByValue for #wrapper<#generics>
         where
             #inner: ::core::marker::Copy,
@@ -1739,17 +1756,20 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByConstPtr for #wrapper<#generics>
         where
             #(#fields : #capi::types::ByConstPtr),*
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByMutPtr for #wrapper<#generics>
         where
             #(#fields : #capi::types::ByMutPtr),*
         {}
 
+        #(#attrs)*
         const _: () = {
             const GOT: usize = ::core::mem::size_of::<#name>();
             const WANT: usize = ::core::mem::size_of::<#underlying>();
@@ -1759,6 +1779,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
             // latter clobbers our spans.
             ::core::assert!(GOT == WANT, "{}", MSG);
         };
+        #(#attrs)*
         const _: () = {
             const GOT: usize = ::core::mem::align_of::<#name>();
             const WANT: usize = ::core::mem::align_of::<#underlying>();
@@ -1768,6 +1789,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
             // latter clobbers our spans.
             ::core::assert!(GOT == WANT, "{}", MSG);
         };
+        #(#attrs)*
         const _: () = {
             const GOT: bool = ::core::mem::needs_drop::<#name>();
             const WANT: bool = ::core::mem::needs_drop::<#underlying>();
