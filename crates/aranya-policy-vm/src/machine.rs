@@ -202,7 +202,6 @@ impl Machine {
     }
 
     /// Converts the `Machine` into a `Module`.
-    /// NOTE this is not used
     pub fn into_module(self) -> Module {
         Module {
             data: ModuleData::V0(ModuleV0 {
