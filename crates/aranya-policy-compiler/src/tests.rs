@@ -1,11 +1,13 @@
 #![cfg(test)]
 
+use std::collections::BTreeMap;
+
 use anyhow::anyhow;
 use aranya_policy_ast::{FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     ffi::{self, ModuleSchema},
-    Label, LabelType, ModuleData, Value,
+    Label, LabelType, ModuleData, Struct, Value,
 };
 
 use crate::{validate::validate, CompileError, CompileErrorType, Compiler, InvalidCallColor};
@@ -1220,6 +1222,22 @@ fn test_match_arm_should_be_limited_to_literals() -> anyhow::Result<()> {
             }
         }
         "#,
+        r#"
+            struct Foo {
+                x int,
+                y string,
+            }
+            struct Bar {
+                y string
+            }
+            action foo(x struct Foo) {
+                let b = Bar { y: "y" }
+                match x {
+                    Foo { x: 10, ...b } => {}
+                    _ => {}
+                }
+            }
+        "#,
     ];
 
     for text in policies {
@@ -1880,6 +1898,35 @@ fn test_type_errors() -> anyhow::Result<()> {
             "#,
             e: "debug assertion must be a boolean expression",
         },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x string }
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected field `x` of `b` to be a `int`",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(b bool) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected `b` to be a struct",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -1897,6 +1944,155 @@ fn test_type_errors() -> anyhow::Result<()> {
         };
         assert_eq!(s, c.e);
     }
+
+    Ok(())
+}
+
+#[test]
+fn test_struct_composition_errors() -> anyhow::Result<()> {
+    struct Case {
+        t: &'static str,
+        e: &'static str,
+    }
+    let cases = [
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool, z string}
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Struct Bar must be a subset of Struct Foo",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool }
+                struct Thud { x int }
+                function baz(b struct Bar, t struct Thud) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b,
+                        ...t
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Struct Thud and Struct Bar have at least 1 field with the same name",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(f struct Foo) struct Foo {
+                    let new_foo = Foo {
+                        x: 3,
+                        y: true,
+                        ...f
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "A struct literal has all it's fields explicitly specified while also having 1 or more struct compositions",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+
+                function baz() struct Foo {
+                    let new_foo = Foo {
+                        ...x
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "not defined: Unknown identifier `x`",
+        },
+    ];
+
+    for (i, c) in cases.iter().enumerate() {
+        let policy = parse_policy_str(c.t, Version::V2)?;
+        let err = Compiler::new(&policy)
+            .ffi_modules(FAKE_SCHEMA)
+            .debug(true) // forced on to enable debug_assert()
+            .compile()
+            .expect_err("Did not get error")
+            .err_type;
+        match err {
+            CompileErrorType::DuplicateSourceFields(_, _) => {}
+            CompileErrorType::SourceStructNotSubsetOfBase(_, _) => {}
+            CompileErrorType::NotDefined(_) => {}
+            CompileErrorType::NoOpStructComp => {}
+            err => {
+                return Err(anyhow!(
+                    "Did not get DuplicateSourceFields, SourceStructNotSubsetOfBase, NoOpStructComp, or NotDefined for case {i}: {err:?} ({err})"
+                ));
+            }
+        }
+
+        assert_eq!(err.to_string(), c.e);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_struct_composition_global_let_and_command_attributes() -> anyhow::Result<()> {
+    let policy_str = r#"
+        struct Foo {
+            x int,
+            y int
+        }
+
+        let foo = Foo { x: 10, y: 20 }
+        let foo2 = Foo { x: 1000, ...foo }
+
+        command Bar {
+            attributes {
+                foo_attr: Foo { ...foo2 },
+            }
+            seal { return None }
+            open { return None }
+            policy {
+                finish {}
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(policy_str, Version::V2)?;
+    let module = Compiler::new(&policy)
+        .ffi_modules(FAKE_SCHEMA)
+        .debug(true) // forced on to enable debug_assert()
+        .compile()?;
+
+    let ModuleData::V0(mod_data) = module.data;
+
+    let expected = Value::Struct(Struct {
+        name: "Foo".to_string(),
+        fields: BTreeMap::from([
+            ("x".to_string(), Value::Int(1000)),
+            ("y".to_string(), Value::Int(20)),
+        ]),
+    });
+
+    assert_eq!(*mod_data.globals.get("foo2").unwrap(), expected);
+    assert_eq!(
+        *mod_data
+            .command_attributes
+            .get("Bar")
+            .unwrap()
+            .get("foo_attr")
+            .unwrap(),
+        expected
+    );
 
     Ok(())
 }
