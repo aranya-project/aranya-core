@@ -18,6 +18,8 @@ pub struct SealContext<'a> {
     pub name: &'a str,
     /// The ID of the command at the head of the perspective
     pub head_id: Id,
+    /// The ID of the current policy.
+    pub policy_id: Id,
 }
 
 /// Context for open blocks

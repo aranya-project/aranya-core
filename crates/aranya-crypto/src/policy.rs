@@ -9,6 +9,11 @@ use crate::{
 };
 
 custom_id! {
+    /// Uniquely identifies the policy being used.
+    pub struct PolicyId;
+}
+
+custom_id! {
     /// The ID of a policy command.
     pub struct CmdId;
 }
@@ -43,6 +48,8 @@ pub struct Cmd<'a> {
     pub name: &'a str,
     /// The parent command in the graph.
     pub parent_id: &'a Id,
+    /// The policy in which the command is being evaluated.
+    pub policy_id: &'a PolicyId,
 }
 
 impl Cmd<'_> {
@@ -58,6 +65,7 @@ impl Cmd<'_> {
         //     pk,
         //     name,
         //     parent_id,
+        //     policy_id,
         //     msg,
         // )
         tuple_hash::<CS::Hash, _>([
@@ -71,6 +79,8 @@ impl Cmd<'_> {
             self.name.as_bytes(),
             // and to the parent command,
             self.parent_id.as_bytes(),
+            // and to the policy itself,
+            self.policy_id.as_bytes(),
             // and finally the command data itself.
             self.data,
         ])
