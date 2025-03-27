@@ -267,14 +267,22 @@ fn parse_expression_errors() -> Result<(), ParseError> {
             ),
             rule: Rule::expression,
         },
+        ErrorInput {
+            description: String::from("Expect Invalid substruct operation"),
+            input: r#"x substruct 4"#.to_string(),
+            error_message: String::from(
+                "Invalid substruct operation: line 1 column 3: substruct: Expression `Int(4)` to the right of the substruct operator must be an identifier",
+            ),
+            rule: Rule::expression,
+        },
     ];
     let pratt = get_pratt_parser();
     let mut p = ChunkParser::new(0, &pratt);
     for case in cases {
         let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
         let expr = pairs.next().unwrap();
-        match p.parse_expression(expr) {
-            Ok(_) => panic!("{}", case.description),
+        match p.parse_expression(expr.clone()) {
+            Ok(parsed) => panic!("{}: {:?} - {expr:?}", case.description, parsed),
             Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
         }
     }
