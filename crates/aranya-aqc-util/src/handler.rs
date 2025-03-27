@@ -66,7 +66,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.author_id,
             their_pk,
             their_id: effect.peer_id,
-            label: effect.label.to_i64(),
+            label: effect.label.into(),
         };
 
         let psk = BidiPsk::from_author_secret(&ch, secret).inspect_err(|err| {
@@ -103,7 +103,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.peer_id,
             their_pk,
             their_id: effect.author_id,
-            label: effect.label.to_i64(),
+            label: effect.label.into(),
         };
 
         let psk = BidiPsk::from_peer_encap(&ch, encap).inspect_err(|err| {
@@ -196,7 +196,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label.to_i64(),
+            label: effect.label.into(),
         };
 
         if self.device_id == effect.send_id {
@@ -246,7 +246,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label.to_i64(),
+            label: effect.label.into(),
         };
 
         if self.device_id == effect.send_id {

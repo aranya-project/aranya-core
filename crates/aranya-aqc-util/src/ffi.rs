@@ -100,7 +100,7 @@ function create_bidi_channel(
             our_id,
             their_pk,
             their_id,
-            label: label.to_i64(),
+            label: label.into(),
         };
         let secrets = BidiSecrets::new(eng, &ch)?;
 
@@ -155,7 +155,7 @@ function create_uni_channel(
             their_pk,
             seal_id,
             open_id,
-            label: label.to_i64(),
+            label: label.into(),
         };
         let secrets = UniSecrets::new(eng, &ch)?;
 
@@ -241,7 +241,8 @@ impl TryFrom<Value> for Label {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let v: i64 = value.try_into()?;
-        Ok(Label::from(v))
+        let int: i64 = value.try_into()?;
+        let x = u32::try_from(int).map_err(|_| ValueConversionError::OutOfRange)?;
+        Ok(Label::from(x))
     }
 }
