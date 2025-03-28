@@ -217,3 +217,17 @@ impl From<&crate::Error> for Error {
         unimplemented!()
     }
 }
+
+#[cfg(feature = "test_cfg")]
+#[repr(transparent)]
+pub struct TestConfigInheritance(u8);
+
+#[cfg(feature = "test_cfg")]
+pub fn test_cfg_inheritance() {}
+
+#[cfg(not(feature = "test_cfg"))]
+#[repr(transparent)]
+pub struct TestConfigInheritance2(u8);
+
+#[cfg(not(feature = "test_cfg"))]
+pub fn test_cfg_inheritance2() {}
