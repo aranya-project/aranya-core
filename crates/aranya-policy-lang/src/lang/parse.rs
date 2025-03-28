@@ -60,8 +60,7 @@ impl<'a> PairContext<'a> {
     /// Consumes the next Pair out of this context and returns it.
     /// Errors if the next pair doesn't exist.
     fn consume(&self) -> Result<Pair<'_, Rule>, ParseError> {
-        let errmsg = self.location_error();
-        self.next().ok_or(errmsg)
+        self.next().ok_or_else(|| self.location_error())
     }
 
     /// Consumes the next Pair out of this context and returns it if
@@ -192,11 +191,13 @@ impl<'a> ChunkParser<'a> {
             }
             Rule::optional_t => {
                 let mut pairs = token.clone().into_inner();
-                let token = pairs.next().ok_or(ParseError::new(
-                    ParseErrorKind::Unknown,
-                    String::from("no type following optional"),
-                    Some(token.as_span()),
-                ))?;
+                let token = pairs.next().ok_or_else(|| {
+                    ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("no type following optional"),
+                        Some(token.as_span()),
+                    )
+                })?;
                 let vtype = Self::parse_type(token)?;
                 Ok(ast::VType::Optional(Box::new(vtype)))
             }
@@ -379,11 +380,13 @@ impl<'a> ChunkParser<'a> {
                 }
                 Rule::bool_literal => {
                     let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("bad bool expression"),
-                        Some(primary.as_span()),
-                    ))?;
+                    let token = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("bad bool expression"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
                     match token.as_rule() {
                         Rule::btrue => Ok(Expression::Bool(true)),
                         Rule::bfalse => Ok(Expression::Bool(false)),
@@ -396,19 +399,23 @@ impl<'a> ChunkParser<'a> {
                 }
                 Rule::optional_literal => {
                     let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::Unknown,
-                        String::from("no token in optional literal"),
-                        Some(primary.as_span()),
-                    ))?;
+                    let token = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::Unknown,
+                            String::from("no token in optional literal"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
                     Ok(Expression::Optional(match token.as_rule() {
                         Rule::none => None,
                         Rule::some => {
-                            let token = pairs.next().ok_or(ParseError::new(
-                                ParseErrorKind::Unknown,
-                                String::from("bad Some expression"),
-                                Some(primary.as_span()),
-                            ))?;
+                            let token = pairs.next().ok_or_else(|| {
+                                ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("bad Some expression"),
+                                    Some(primary.as_span()),
+                                )
+                            })?;
                             let e = self.parse_expression(token)?;
                             Some(Box::new(e))
                         }
@@ -436,11 +443,13 @@ impl<'a> ChunkParser<'a> {
                 )?)),
                 Rule::query => {
                     let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("query requires fact literal"),
-                        Some(primary.as_span()),
-                    ))?;
+                    let token = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::InvalidFunctionCall,
+                            String::from("query requires fact literal"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
                     let fact_literal = self.parse_fact_literal(token)?;
                     Ok(Expression::InternalFunction(ast::InternalFunction::Query(
                         fact_literal,
@@ -448,11 +457,13 @@ impl<'a> ChunkParser<'a> {
                 }
                 Rule::exists => {
                     let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("exists requires fact literal"),
-                        Some(primary.as_span()),
-                    ))?;
+                    let token = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::InvalidFunctionCall,
+                            String::from("exists requires fact literal"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
                     let fact_literal = self.parse_fact_literal(token)?;
                     Ok(Expression::InternalFunction(ast::InternalFunction::Exists(
                         fact_literal,
@@ -463,42 +474,16 @@ impl<'a> ChunkParser<'a> {
                 Rule::at_most => self.parse_counting_fn(primary, ast::FactCountType::AtMost),
                 Rule::exactly => self.parse_counting_fn(primary, ast::FactCountType::Exactly),
                 Rule::match_expression => self.parse_match_expression(primary),
-                Rule::if_expr => {
-                    let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("if requires expression"),
-                        Some(primary.as_span()),
-                    ))?;
-                    let condition = self.parse_expression(token)?;
-
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("if requires then case"),
-                        Some(primary.as_span()),
-                    ))?;
-                    let then_expr = self.parse_expression(token)?;
-
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("if requires else case"),
-                        Some(primary.as_span()),
-                    ))?;
-                    let else_expr = self.parse_expression(token)?;
-
-                    Ok(Expression::InternalFunction(ast::InternalFunction::If(
-                        Box::new(condition),
-                        Box::new(then_expr),
-                        Box::new(else_expr),
-                    )))
-                }
+                Rule::if_expr => self.parse_if_expression(primary),
                 Rule::serialize => {
                     let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("empty serialize function"),
-                        Some(primary.as_span()),
-                    ))?;
+                    let token = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::InvalidFunctionCall,
+                            String::from("empty serialize function"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
                     let inner = self.parse_expression(token)?;
                     Ok(Expression::InternalFunction(
                         ast::InternalFunction::Serialize(Box::new(inner)),
@@ -506,11 +491,13 @@ impl<'a> ChunkParser<'a> {
                 }
                 Rule::deserialize => {
                     let mut pairs = primary.clone().into_inner();
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("empty deserialize function"),
-                        Some(primary.as_span()),
-                    ))?;
+                    let token = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::InvalidFunctionCall,
+                            String::from("empty deserialize function"),
+                            Some(primary.as_span()),
+                        )
+                    })?;
                     let inner = self.parse_expression(token)?;
                     Ok(Expression::InternalFunction(
                         ast::InternalFunction::Deserialize(Box::new(inner)),
@@ -579,11 +566,13 @@ impl<'a> ChunkParser<'a> {
                 Rule::is => {
                     let op_span = op.as_span();
                     let mut pairs = op.into_inner();
-                    let token = pairs.next().ok_or(ParseError::new(
-                        ParseErrorKind::InvalidFunctionCall,
-                        String::from("if requires expression"),
-                        Some(op_span),
-                    ))?;
+                    let token = pairs.next().ok_or_else(|| {
+                        ParseError::new(
+                            ParseErrorKind::InvalidFunctionCall,
+                            String::from("if requires expression"),
+                            Some(op_span),
+                        )
+                    })?;
                     let some = match token.as_rule() {
                         Rule::some => true,
                         Rule::none => false,
@@ -669,11 +658,13 @@ impl<'a> ChunkParser<'a> {
         cmp_type: ast::FactCountType,
     ) -> Result<Expression, ParseError> {
         let mut pairs = statement.clone().into_inner();
-        let token = pairs.next().ok_or(ParseError::new(
-            ParseErrorKind::Expression,
-            format!("{} requires count limit (int)", cmp_type),
-            Some(statement.as_span()),
-        ))?;
+        let token = pairs.next().ok_or_else(|| {
+            ParseError::new(
+                ParseErrorKind::Expression,
+                format!("{} requires count limit (int)", cmp_type),
+                Some(statement.as_span()),
+            )
+        })?;
         let limit = token.as_str().parse::<i64>().map_err(|e| {
             ParseError::new(
                 ParseErrorKind::InvalidNumber,
@@ -681,15 +672,53 @@ impl<'a> ChunkParser<'a> {
                 Some(statement.as_span()),
             )
         })?;
-        let token = pairs.next().ok_or(ParseError::new(
-            ParseErrorKind::Expression,
-            format!("{} requires fact literal", cmp_type),
-            Some(statement.as_span()),
-        ))?;
+        let token = pairs.next().ok_or_else(|| {
+            ParseError::new(
+                ParseErrorKind::Expression,
+                format!("{} requires fact literal", cmp_type),
+                Some(statement.as_span()),
+            )
+        })?;
         let fact = self.parse_fact_literal(token)?;
         Ok(Expression::InternalFunction(
             ast::InternalFunction::FactCount(cmp_type, limit, fact),
         ))
+    }
+
+    fn parse_if_expression(&mut self, expr: Pair<'_, Rule>) -> Result<Expression, ParseError> {
+        let mut pairs = expr.clone().into_inner();
+        let token = pairs.next().ok_or_else(|| {
+            ParseError::new(
+                ParseErrorKind::InvalidFunctionCall,
+                String::from("if requires expression"),
+                Some(expr.as_span()),
+            )
+        })?;
+        let condition = self.parse_expression(token)?;
+
+        let token = pairs.next().ok_or_else(|| {
+            ParseError::new(
+                ParseErrorKind::InvalidFunctionCall,
+                String::from("if requires then case"),
+                Some(expr.as_span()),
+            )
+        })?;
+        let then_expr = self.parse_block_expression(token)?;
+
+        let token = pairs.next().ok_or_else(|| {
+            ParseError::new(
+                ParseErrorKind::InvalidFunctionCall,
+                String::from("if requires else case"),
+                Some(expr.as_span()),
+            )
+        })?;
+        let else_expr = self.parse_block_expression(token)?;
+
+        Ok(Expression::InternalFunction(ast::InternalFunction::If(
+            Box::new(condition),
+            Box::new(then_expr),
+            Box::new(else_expr),
+        )))
     }
 
     /// Parses a list of Rule::struct_literal_field items into (String,
@@ -1475,11 +1504,13 @@ pub fn parse_policy_chunk(
 /// Parse a function or finish function declaration for the FFI
 pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     let mut def = PolicyParser::parse(Rule::ffi_def, data)?;
-    let decl = def.next().ok_or(ParseError::new(
-        ParseErrorKind::Unknown,
-        String::from("Not a function declaration"),
-        None,
-    ))?;
+    let decl = def.next().ok_or_else(|| {
+        ParseError::new(
+            ParseErrorKind::Unknown,
+            String::from("Not a function declaration"),
+            None,
+        )
+    })?;
 
     let rule = decl.as_rule();
 
