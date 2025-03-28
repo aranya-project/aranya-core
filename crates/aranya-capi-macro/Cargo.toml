@@ -20,7 +20,7 @@ default = []
 debug = ["aranya-capi-codegen/debug"]
 
 [dependencies]
-aranya-capi-codegen = { version = "0.2.1", path = "../aranya-capi-codegen" }
+aranya-capi-codegen = { version = "0.2.2", path = "../aranya-capi-codegen" }
 
 proc-macro2 = { workspace = true }
 quote = { workspace = true }
