@@ -36,6 +36,7 @@ wildcard_imports = "warn"
 
 [workspace.dependencies]
 anyhow = { version = "1.0" }
+bytecheck = "0.8.0"
 byteorder = { version = "1", default-features = false }
 bytes = { version = "1.9.0" }
 cfg-if = { version = "1", default-features = false }
@@ -49,6 +50,7 @@ proptest-derive = { version = "0.5" }
 s2n-quic = { version = "1.51.0", default-features = false, features = ["provider-address-token-default", "provider-tls-s2n"] }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
+rkyv = { version = "0.8.10", default-features = false, features = ["alloc", "bytecheck"] }
 rustix = { version = "0.38", default-features = false }
 serde = { version = "1.0.210", default-features = false }
 spin = { version = "0.9.8", default-features = false }
