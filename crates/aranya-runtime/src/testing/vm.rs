@@ -538,7 +538,7 @@ fn test_sync<E, P, S>(
     S: Sink<<E>::Effect>,
 {
     let mut rng = Rng::new();
-    let mut sync_requester = SyncRequester::new(storage_id, &mut rng, ());
+    let mut sync_requester = SyncRequester::new(storage_id, &mut rng, (), u64::MAX);
 
     let mut req_transaction = cs1.transaction(storage_id);
 
