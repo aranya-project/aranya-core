@@ -1182,13 +1182,22 @@ impl<'a> ChunkParser<'a> {
         let identifier = pc.consume_identifier()?;
 
         // All remaining tokens are fields
-        let mut fields = vec![];
+        let mut items = vec![];
         for field in pc.into_inner() {
-            fields.push(Self::parse_field_definition(field)?);
+            match field.as_rule() {
+                Rule::field_definition => {
+                    items.push(ast::StructItem::Field(Self::parse_field_definition(field)?))
+                }
+                Rule::struct_field_insertion => {
+                    let ident = descend(field).consume_identifier()?;
+                    items.push(ast::StructItem::StructRef(ident));
+                }
+                _ => {}
+            }
         }
 
         Ok(AstNode::new(
-            ast::StructDefinition { identifier, fields },
+            ast::StructDefinition { identifier, items },
             locator,
         ))
     }
