@@ -1202,7 +1202,7 @@ impl ChunkParser<'_> {
                 Rule::field_definition => {
                     items.push(ast::StructItem::Field(Self::parse_field_definition(field)?))
                 }
-                Rule::struct_field_insertion => {
+                Rule::field_insertion => {
                     let ident = descend(field).consume_identifier()?;
                     items.push(ast::StructItem::StructRef(ident));
                 }
