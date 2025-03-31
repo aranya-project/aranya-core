@@ -2177,6 +2177,10 @@ impl<'a> CompileState<'a> {
             self.define_struct(&effect.inner.identifier, &fields)?;
         }
 
+        for struct_def in &self.policy.structs {
+            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.items)?;
+        }
+
         // define the structs provided by FFI schema
         for ffi_mod in self.ffi_modules {
             for s in ffi_mod.structs {
@@ -2215,7 +2219,15 @@ impl<'a> CompileState<'a> {
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            self.define_struct(&command.identifier, &command.fields)?;
+            // TODO(apetkov) implement field insertion for commands
+            self.define_struct(
+                &command.identifier,
+                &command
+                    .fields
+                    .iter()
+                    .map(|fd| StructItem::Field(fd.clone()))
+                    .collect::<Vec<_>>(),
+            )?;
         }
 
         // Define the finish function signatures before compiling them, so that they can be
