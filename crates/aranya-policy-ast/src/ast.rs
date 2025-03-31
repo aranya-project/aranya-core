@@ -538,7 +538,16 @@ pub struct StructDefinition {
     /// The name of the struct
     pub identifier: String,
     /// The fields of the struct and their types
-    pub fields: Vec<FieldDefinition>,
+    pub items: Vec<StructItem>,
+}
+
+/// Struct field or insertion reference
+#[derive(Debug, Clone, PartialEq)]
+pub enum StructItem {
+    /// Field definition
+    Field(FieldDefinition),
+    /// Named struct from whose fields to add to the current struct
+    StructRef(String),
 }
 
 /// A command definition
