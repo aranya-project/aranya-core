@@ -503,6 +503,10 @@ fn test_struct_field_insertion_errors() {
             struct Foo { +Bar, a string }"#,
             CompileErrorType::AlreadyDefined("a".to_string()),
         ),
+        (
+            r#"struct Foo { +Foo }"#,
+            CompileErrorType::NotDefined("Foo".to_string()),
+        ),
     ];
     for (text, err_type) in cases {
         let policy = parse_policy_str(text, Version::V2).expect("should parse");
