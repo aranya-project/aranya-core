@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use aranya_policy_ast::{FieldDefinition, Policy, VType};
+use aranya_policy_ast::{FieldDefinition, Policy, StructItem, VType};
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
