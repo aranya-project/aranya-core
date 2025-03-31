@@ -12,7 +12,7 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
-    MatchExpression, MatchStatement, VType,
+    MatchExpression, MatchStatement, StructItem, VType,
 };
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
@@ -188,29 +188,53 @@ impl<'a> CompileState<'a> {
     pub fn define_struct(
         &mut self,
         identifier: Identifier,
-        fields: &[FieldDefinition],
+        items: &[StructItem],
     ) -> Result<(), CompileError> {
-        match self.m.struct_defs.entry(identifier) {
-            Entry::Vacant(e) => {
-                let mut identifiers = BTreeSet::new();
+        if self.m.struct_defs.contains_key(identifier) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
+        }
 
-                for field in fields {
-                    if !identifiers.insert(field.identifier.clone()) {
-                        return Err(CompileError::from_locator(
-                            CompileErrorType::AlreadyDefined(field.identifier.to_string()),
-                            self.last_locator,
-                            self.m.codemap.as_ref(),
-                        ));
+        // Add explicitly-defined fields and those from struct insertions
+
+        let mut field_definitions = Vec::new();
+        for item in items {
+            match item {
+                StructItem::Field(field) => {
+                    if field_definitions
+                        .iter()
+                        .any(|f: &FieldDefinition| f.identifier == field.identifier)
+                    {
+                        return Err(self.err(CompileErrorType::AlreadyDefined(
+                            field.identifier.to_string(),
+                        )));
+                    }
+                    field_definitions.push(field.clone());
+                }
+                StructItem::StructRef(ident) => {
+                    let other = self
+                        .m
+                        .struct_defs
+                        .get(ident)
+                        .ok_or_else(|| self.err(CompileErrorType::NotDefined(ident.clone())))?;
+                    for field in other {
+                        if field_definitions
+                            .iter()
+                            .any(|f: &FieldDefinition| f.identifier == field.identifier)
+                        {
+                            return Err(self.err(CompileErrorType::AlreadyDefined(
+                                field.identifier.to_string(),
+                            )));
+                        }
+                        field_definitions.push(field.clone());
                     }
                 }
-                e.insert(fields.to_vec());
-                Ok(())
-            }
-            Entry::Occupied(o) => {
-                let identifier = o.key().to_string();
-                Err(self.err(CompileErrorType::AlreadyDefined(identifier)))
             }
         }
+
+        self.m
+            .struct_defs
+            .insert(identifier.to_string(), field_definitions);
+        Ok(())
     }
 
     fn compile_enum_definition(
@@ -2138,27 +2162,32 @@ impl<'a> CompileState<'a> {
         }
 
         for effect in &self.policy.effects {
-            let fields: Vec<FieldDefinition> =
-                effect.inner.fields.iter().map(|f| f.into()).collect();
-            self.define_struct(effect.inner.identifier.clone(), &fields)?;
+            // TODO(apetkov) implement field insertion for effects
+            let fields: Vec<StructItem> = effect
+                .inner
+                .fields
+                .iter()
+                .map(|f| StructItem::Field(f.into()))
+                .collect();
+            self.define_struct(&effect.inner.identifier, &fields)?;
         }
 
         for struct_def in &self.policy.structs {
-            self.define_struct(
-                struct_def.inner.identifier.clone(),
-                &struct_def.inner.fields,
-            )?;
+            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.items)?;
         }
 
         // define the structs provided by FFI schema
         for ffi_mod in self.ffi_modules {
             for s in ffi_mod.structs {
-                let fields: Vec<FieldDefinition> = s
+                // TODO(apetkov) implement field insertion for FFI structs
+                let fields: Vec<StructItem> = s
                     .fields
                     .iter()
-                    .map(|a| FieldDefinition {
-                        identifier: a.name.to_owned(),
-                        field_type: VType::from(&a.vtype),
+                    .map(|a| {
+                        StructItem::Field(FieldDefinition {
+                            identifier: a.name.to_string(),
+                            field_type: VType::from(&a.vtype),
+                        })
                     })
                     .collect();
                 self.define_struct(s.name.to_owned(), &fields)?;
@@ -2173,7 +2202,13 @@ impl<'a> CompileState<'a> {
         for fact in &self.policy.facts {
             let FactDefinition { key, value, .. } = &fact.inner;
 
-            let fields: Vec<FieldDefinition> = key.iter().chain(value.iter()).cloned().collect();
+            // TODO(apetkov) implement field insertion for facts
+            let fields: Vec<StructItem> = key
+                .iter()
+                .chain(value.iter())
+                .cloned()
+                .map(|fd| StructItem::Field(fd))
+                .collect();
 
             self.define_struct(fact.inner.identifier.clone(), &fields)?;
             self.define_fact(&fact.inner)?;
@@ -2181,7 +2216,15 @@ impl<'a> CompileState<'a> {
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            self.define_struct(command.identifier.clone(), &command.fields)?;
+            // TODO(apetkov) implement field insertion for commands
+            self.define_struct(
+                &command.identifier,
+                &command
+                    .fields
+                    .iter()
+                    .map(|fd| StructItem::Field(fd.clone()))
+                    .collect::<Vec<_>>(),
+            )?;
         }
 
         // Define the finish function signatures before compiling them, so that they can be

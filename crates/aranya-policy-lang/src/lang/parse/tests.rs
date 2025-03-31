@@ -1164,11 +1164,11 @@ fn parse_struct() {
         policy.structs,
         vec![AstNode::new(
             ast::StructDefinition {
-                identifier: ident!("Foo"),
-                fields: vec![ast::FieldDefinition {
-                    identifier: ident!("x"),
+                identifier: String::from("Foo"),
+                items: vec![ast::StructItem::Field(ast::FieldDefinition {
+                    identifier: String::from("x"),
                     field_type: ast::VType::Int,
-                }]
+                })]
             },
             0
         )]
@@ -1202,6 +1202,32 @@ fn parse_struct() {
             50
         )]
     );
+}
+
+#[test]
+fn parse_struct_with_field_insertion() {
+    let cases = [(
+        r#"struct Foo { x int }
+        struct Bar {
+            +Foo,
+            y int
+        }
+        "#,
+        vec![
+            ast::StructItem::StructRef("Foo".to_string()),
+            ast::StructItem::Field(ast::FieldDefinition {
+                identifier: String::from("y"),
+                field_type: ast::VType::Int,
+            }),
+        ],
+    )];
+    for (case, expected) in cases {
+        let policy = parse_policy_str(case, Version::V2).expect("should parse");
+        assert_eq!(
+            policy.structs[1].inner.items, expected,
+            "case: {case:?} => {expected:?}"
+        );
+    }
 }
 
 #[test]
@@ -1286,24 +1312,24 @@ fn parse_ffi_structs_enums() {
         vec![
             AstNode {
                 inner: ast::StructDefinition {
-                    identifier: ident!("A"),
-                    fields: vec![
-                        ast::FieldDefinition {
-                            identifier: ident!("x"),
+                    identifier: String::from("A"),
+                    items: vec![
+                        ast::StructItem::Field(ast::FieldDefinition {
+                            identifier: String::from("x"),
                             field_type: ast::VType::Int
-                        },
-                        ast::FieldDefinition {
-                            identifier: ident!("y"),
+                        }),
+                        ast::StructItem::Field(ast::FieldDefinition {
+                            identifier: String::from("y"),
                             field_type: ast::VType::Bool
-                        }
+                        })
                     ]
                 },
                 locator: 0,
             },
             AstNode {
                 inner: ast::StructDefinition {
-                    identifier: ident!("B"),
-                    fields: vec![],
+                    identifier: String::from("B"),
+                    items: vec![],
                 },
                 locator: 68,
             }

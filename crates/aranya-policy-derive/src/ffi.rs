@@ -1,7 +1,9 @@
 use std::{collections::HashSet, fs::File, io::Write};
 
 use aranya_policy_lang::{
-    ast::{AstNode, EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, VType},
+    ast::{
+        AstNode, EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, VType,
+    },
     lang,
 };
 use proc_macro2::{Span, TokenStream};
@@ -56,11 +58,16 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let vm: Path = parse_quote!(_policy_vm);
 
     let structdefs = structs.iter().map(|d| {
-        let name = &d.inner.identifier.as_str();
-        let fields = d.inner.fields.iter().map(|arg| {
-            let name = &arg.identifier.as_str();
-            let vtype = VTypeTokens::new(&arg.field_type, &vm);
-            quote!(#vm::arg!(#name, #vtype))
+        let name = &d.inner.identifier;
+        let fields = d.inner.items.iter().map(|arg| match arg {
+            StructItem::Field(arg) => {
+                let name = &arg.identifier;
+                let vtype = VTypeTokens::new(&arg.field_type, &vm);
+                quote!(#vm::arg!(#name, #vtype))
+            }
+            StructItem::StructRef(_) => {
+                todo!("struct field insertion");
+            }
         });
         quote! {
             #vm::ffi::Struct {
@@ -76,17 +83,26 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         let name = format_ident!("{}", d.identifier.as_str());
         let name_str = d.identifier.to_string();
         let names = d
-            .fields
+            .items
             .iter()
-            .map(|d| format_ident!("{}", d.identifier.as_str()))
+            .map(|d| match d {
+                StructItem::Field(d) => format_ident!("{}", d.identifier),
+                StructItem::StructRef(_) => todo!(),
+            })
             .collect::<Vec<_>>();
         let fields = d
-            .fields
+            .items
             .iter()
-            .map(|d| format_ident!("__field_{}", d.identifier.as_str()))
+            .map(|d| match d {
+                StructItem::Field(d) => format_ident!("__field_{}", d.identifier),
+                StructItem::StructRef(_) => todo!(),
+            })
             .collect::<Vec<_>>();
-        let types = d.fields.iter().map(|d| {
-            let vtype = TypeTokens::new(&d.field_type, &alloc, &crypto, &vm);
+        let types = d.items.iter().map(|d| {
+            let vtype = match d {
+                StructItem::Field(f) => TypeTokens::new(&f.field_type, &alloc, &crypto, &vm),
+                StructItem::StructRef(_) => todo!(),
+            };
             quote!(#vtype)
         });
         quote! {
