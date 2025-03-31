@@ -42,11 +42,13 @@ vtype = _{ string_t | bytes_t | int_t | bool_t | id_t | struct_t | enum_t | opti
 // A field definition is an identifier followed by a type. Used in
 // struct definitions, function arguments, etc.
 field_definition = { identifier ~ vtype }
-// struct field insertion. Copy fields from another struct
-struct_field_insertion = { "+" ~ identifier }
+// Reference to struct from which to copy fields into the current struct
+field_insertion = { "+" ~ identifier }
 // A field definition list is a list of field definitions. Trailing
 // commas are allowed in any list.
-field_definition_list = _{ (field_definition | struct_field_insertion) ~ ("," ~ (field_definition | struct_field_insertion))* ~ ","? }
+field_definition_list = _{ field_definition ~ ("," ~ field_definition)* ~ ","? }
+// Similar to field_definition_list, but allows field insertion
+field_definition_and_insertion_list = _{ (field_definition | field_insertion) ~ ("," ~ (field_definition | field_insertion))* ~ ","? }
 // Keyword for dynamic effect fields
 dynamic = { "dynamic" }
 // An effect field definition works like a regular field but adds the
@@ -59,7 +61,7 @@ effect_field_definition_list = _{ effect_field_definition ~ ("," ~ effect_field_
 // A struct definition is a list of field definitions surrounded by
 // curly brackets. Note that there are no actual struct types yet -
 // this is only used as a building block for other definitions.
-struct_def = _{ "{" ~ field_definition_list? ~ "}" }
+struct_def = _{ "{" ~ field_definition_and_insertion_list? ~ "}" }
 // An effect struct definition is similar but supports the additional
 // "dynamic" keyword.
 effect_struct_def = _{ "{" ~ effect_field_definition_list? ~ "}" }
