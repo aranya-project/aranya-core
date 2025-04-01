@@ -932,6 +932,23 @@ fn __tramp_prefix_test_enum_unit(
     }
 }
 #[no_mangle]
+#[::tracing::instrument(level = "trace")]
+pub extern "C" fn prefix_test_unit_enum() -> PrefixEnum {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { __tramp_prefix_test_unit_enum() } {
+        __pattern => __pattern,
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_unit_enum() -> PrefixEnum {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_unit_enum() } {
+        __pattern => PrefixEnum::from(__pattern),
+    }
+}
+#[no_mangle]
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_unit(_a: PrefixStruct) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]

@@ -96,9 +96,9 @@ pub enum Enum {
 }
 
 pub fn test_enum_unit(_a: Enum) {}
-// pub fn test_unit_enum() -> Enum {
-//     Enum::A
-// }
+pub fn test_unit_enum() -> Enum {
+    Enum::A
+}
 // pub fn test_enum_enum(a: Enum) -> Enum {
 //     a
 // }
