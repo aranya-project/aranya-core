@@ -536,21 +536,21 @@ fn test_struct_field_insertion() {
         ),
         (
             r#"
-            struct Bar { a int }
-            struct Baz { c bool }
-            struct Foo { +Bar, b string, +Baz }
+            struct Bar { i int }
+            struct Baz { +Bar, b bool }
+            struct Foo { s string, +Baz }
             "#,
             vec![
                 FieldDefinition {
-                    identifier: "a".to_string(),
+                    identifier: "s".to_string(),
+                    field_type: VType::String,
+                },
+                FieldDefinition {
+                    identifier: "i".to_string(),
                     field_type: VType::Int,
                 },
                 FieldDefinition {
                     identifier: "b".to_string(),
-                    field_type: VType::String,
-                },
-                FieldDefinition {
-                    identifier: "c".to_string(),
                     field_type: VType::Bool,
                 },
             ],
@@ -565,6 +565,49 @@ fn test_struct_field_insertion() {
         let got = module.struct_defs.get("Foo").unwrap();
         assert_eq!(got, &want);
     }
+}
+
+#[test]
+fn test_effect_with_field_insertion() {
+    let text = r#"
+        struct Bar { b bool }
+        effect Foo { +Bar, s string }
+        effect Baz { i int, +Foo }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
+    let m = Compiler::new(&policy).compile().expect("should compile");
+    let ModuleData::V0(module) = m.data;
+
+    let foo_want = vec![
+        FieldDefinition {
+            identifier: "b".to_string(),
+            field_type: VType::Bool,
+        },
+        FieldDefinition {
+            identifier: "s".to_string(),
+            field_type: VType::String,
+        },
+    ];
+    let foo_got = module.struct_defs.get("Foo").unwrap();
+    assert_eq!(foo_got, &foo_want);
+
+    let baz_want = vec![
+        FieldDefinition {
+            identifier: "i".to_string(),
+            field_type: VType::Int,
+        },
+        FieldDefinition {
+            identifier: "b".to_string(),
+            field_type: VType::Bool,
+        },
+        FieldDefinition {
+            identifier: "s".to_string(),
+            field_type: VType::String,
+        },
+    ];
+    let baz_got = module.struct_defs.get("Baz").unwrap();
+    assert_eq!(baz_got, &baz_want);
 }
 
 #[test]
