@@ -1173,13 +1173,28 @@ impl ChunkParser<'_> {
         let identifier = pc.consume_identifier()?;
 
         // All remaining tokens are fields
-        let mut fields = vec![];
+        let mut items = vec![];
         for field in pc.into_inner() {
-            fields.push(Self::parse_effect_field_definition(field)?);
+            match field.as_rule() {
+                Rule::effect_field_definition => items.push(ast::StructItem::Field(
+                    Self::parse_effect_field_definition(field)?,
+                )),
+                Rule::field_insertion => {
+                    let ident = descend(field).consume_identifier()?;
+                    items.push(ast::StructItem::StructRef(ident));
+                }
+                _ => {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("invalid token in effect definition"),
+                        Some(field.as_span()),
+                    ));
+                }
+            }
         }
 
         Ok(AstNode::new(
-            ast::EffectDefinition { identifier, fields },
+            ast::EffectDefinition { identifier, items },
             locator,
         ))
     }
@@ -1206,7 +1221,13 @@ impl ChunkParser<'_> {
                     let ident = descend(field).consume_identifier()?;
                     items.push(ast::StructItem::StructRef(ident));
                 }
-                _ => {}
+                _ => {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("invalid token in struct definition"),
+                        Some(field.as_span()),
+                    ));
+                }
             }
         }
 

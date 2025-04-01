@@ -529,7 +529,7 @@ pub struct EffectDefinition {
     /// The name of the effect
     pub identifier: Identifier,
     /// The fields of the effect and their types
-    pub fields: Vec<EffectFieldDefinition>,
+    pub items: Vec<StructItem<EffectFieldDefinition>>,
 }
 
 /// A struct definition
@@ -538,16 +538,26 @@ pub struct StructDefinition {
     /// The name of the struct
     pub identifier: Identifier,
     /// The fields of the struct and their types
-    pub items: Vec<StructItem>,
+    pub items: Vec<StructItem<FieldDefinition>>,
 }
 
 /// Struct field or insertion reference
 #[derive(Debug, Clone, PartialEq)]
-pub enum StructItem {
+pub enum StructItem<T> {
     /// Field definition
-    Field(FieldDefinition),
+    Field(T),
     /// Named struct from whose fields to add to the current struct
     StructRef(String),
+}
+
+impl<T> StructItem<T> {
+    /// Get the field definition from this struct item
+    pub fn field(&self) -> Option<&T> {
+        match self {
+            StructItem::Field(f) => Some(f),
+            StructItem::StructRef(_) => None,
+        }
+    }
 }
 
 /// A command definition

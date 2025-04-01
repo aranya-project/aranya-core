@@ -55,7 +55,7 @@ dynamic = { "dynamic" }
 // optional "dynamic" keyword.
 effect_field_definition = { identifier ~ vtype ~ dynamic? }
 // Ditto the list form
-effect_field_definition_list = _{ effect_field_definition ~ ("," ~ effect_field_definition)* ~ ","? }
+effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ ("," ~ (effect_field_definition | field_insertion))* ~ ","? }
 
 // ## Structs
 // A struct definition is a list of field definitions surrounded by
