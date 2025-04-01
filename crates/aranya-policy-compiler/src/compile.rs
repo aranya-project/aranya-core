@@ -185,7 +185,7 @@ impl<'a> CompileState<'a> {
     pub fn define_struct(
         &mut self,
         identifier: &str,
-        items: &[StructItem],
+        items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
         if self.m.struct_defs.contains_key(identifier) {
             return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
@@ -2133,26 +2133,31 @@ impl<'a> CompileState<'a> {
             self.compile_global_let(global_let)?;
         }
 
-        for effect in &self.policy.effects {
-            // TODO(apetkov) implement field insertion for effects
-            let fields: Vec<StructItem> = effect
-                .inner
-                .fields
-                .iter()
-                .map(|f| StructItem::Field(f.into()))
-                .collect();
-            self.define_struct(&effect.inner.identifier, &fields)?;
-        }
-
         for struct_def in &self.policy.structs {
             self.define_struct(&struct_def.inner.identifier, &struct_def.inner.items)?;
+        }
+
+        for effect in &self.policy.effects {
+            let fields: Vec<StructItem<FieldDefinition>> = effect
+                .inner
+                .items
+                .iter()
+                .map(|i| match i {
+                    StructItem::Field(f) => StructItem::Field(FieldDefinition {
+                        identifier: f.identifier.clone(),
+                        field_type: f.field_type.clone(),
+                    }),
+                    StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                })
+                .collect();
+            self.define_struct(&effect.inner.identifier, &fields)?;
         }
 
         // define the structs provided by FFI schema
         for ffi_mod in self.ffi_modules {
             for s in ffi_mod.structs {
                 // TODO(apetkov) implement field insertion for FFI structs
-                let fields: Vec<StructItem> = s
+                let fields: Vec<StructItem<FieldDefinition>> = s
                     .fields
                     .iter()
                     .map(|a| {
@@ -2175,11 +2180,11 @@ impl<'a> CompileState<'a> {
             let FactDefinition { key, value, .. } = &fact.inner;
 
             // TODO(apetkov) implement field insertion for facts
-            let fields: Vec<StructItem> = key
+            let fields: Vec<StructItem<FieldDefinition>> = key
                 .iter()
                 .chain(value.iter())
                 .cloned()
-                .map(|fd| StructItem::Field(fd))
+                .map(StructItem::Field)
                 .collect();
 
             self.define_struct(&fact.inner.identifier, &fields)?;
