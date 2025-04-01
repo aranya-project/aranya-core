@@ -323,6 +323,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
         .bidi_channel_created(
             &mut author.eng,
             &BidiChannelCreated {
+                psk_length_in_bytes: 32,
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_key_id: author.enc_key_id,
@@ -341,6 +342,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
         .bidi_channel_received(
             &mut peer.eng,
             &BidiChannelReceived {
+                psk_length_in_bytes: 32,
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_pk: &author.enc_pk,
@@ -391,6 +393,7 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
         .uni_channel_created(
             &mut author.eng,
             &UniChannelCreated {
+                psk_length_in_bytes: 32,
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: author.device_id,
@@ -411,6 +414,7 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
         .uni_channel_received(
             &mut peer.eng,
             &UniChannelReceived {
+                psk_length_in_bytes: 32,
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: author.device_id,
@@ -463,6 +467,7 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
         .uni_channel_created(
             &mut author.eng,
             &UniChannelCreated {
+                psk_length_in_bytes: 32,
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: peer.device_id,
@@ -483,6 +488,7 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
         .uni_channel_received(
             &mut peer.eng,
             &UniChannelReceived {
+                psk_length_in_bytes: 32,
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: peer.device_id,

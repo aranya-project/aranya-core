@@ -61,6 +61,7 @@ impl<S: KeyStore> Handler<S> {
             Error::Encoding
         })?;
         let ch = BidiChannel {
+            psk_length_in_bytes: effect.psk_length_in_bytes,
             parent_cmd_id: effect.parent_cmd_id,
             our_sk,
             our_id: effect.author_id,
@@ -98,6 +99,7 @@ impl<S: KeyStore> Handler<S> {
             Error::Encoding
         })?;
         let ch = BidiChannel {
+            psk_length_in_bytes: effect.psk_length_in_bytes,
             parent_cmd_id: effect.parent_cmd_id,
             our_sk,
             our_id: effect.peer_id,
@@ -132,6 +134,12 @@ pub struct BidiChannelCreated<'a> {
     /// The unique key identifier for the
     /// [`BidiAuthorSecret`][aranya_crypto::aqc::BidiAuthorSecret].
     pub key_id: BidiKeyId,
+    /// The size in bytes of the PSK.
+    ///
+    /// Per the AQC specification this must be at least 32. This
+    /// implementation restricts it to exactly 32. This
+    /// restriction may be lifted in the future.
+    pub psk_length_in_bytes: u16,
 }
 
 /// Data from the `AqcBidiChannelReceived` effect.
@@ -152,6 +160,12 @@ pub struct BidiChannelReceived<'a> {
     pub label: Label,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
+    /// The size in bytes of the PSK.
+    ///
+    /// Per the AQC specification this must be at least 32. This
+    /// implementation restricts it to exactly 32. This
+    /// restriction may be lifted in the future.
+    pub psk_length_in_bytes: u16,
 }
 
 custom_id! {
@@ -191,6 +205,7 @@ impl<S: KeyStore> Handler<S> {
             Error::Encoding
         })?;
         let ch = UniChannel {
+            psk_length_in_bytes: effect.psk_length_in_bytes,
             parent_cmd_id: effect.parent_cmd_id,
             seal_id: effect.send_id,
             open_id: effect.recv_id,
@@ -241,6 +256,7 @@ impl<S: KeyStore> Handler<S> {
             Error::Encoding
         })?;
         let ch = UniChannel {
+            psk_length_in_bytes: effect.psk_length_in_bytes,
             parent_cmd_id: effect.parent_cmd_id,
             seal_id: effect.send_id,
             open_id: effect.recv_id,
@@ -287,6 +303,12 @@ pub struct UniChannelCreated<'a> {
     /// The unique key identifier for the
     /// [`UniAuthorSecret`][aranya_crypto::aqc::UniAuthorSecret].
     pub key_id: UniKeyId,
+    /// The size in bytes of the PSK.
+    ///
+    /// Per the AQC specification this must be at least 32. This
+    /// implementation restricts it to exactly 32. This
+    /// restriction may be lifted in the future.
+    pub psk_length_in_bytes: u16,
 }
 
 /// Data from the `AqcUniChannelReceived` effect.
@@ -308,6 +330,12 @@ pub struct UniChannelReceived<'a> {
     pub label: Label,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
+    /// The size in bytes of the PSK.
+    ///
+    /// Per the AQC specification this must be at least 32. This
+    /// implementation restricts it to exactly 32. This
+    /// restriction may be lifted in the future.
+    pub psk_length_in_bytes: u16,
 }
 
 custom_id! {

@@ -68,6 +68,7 @@ use crate::{
 /// // device1 creates the channel keys and sends the encapsulation
 /// // to device2...
 /// let device1_ch = UniChannel {
+///     psk_length_in_bytes: 32,
 ///     parent_cmd_id,
 ///     our_sk: &device1_sk,
 ///     their_pk: &device2_sk.public().expect("receiver encryption key should be valid"),
@@ -83,6 +84,7 @@ use crate::{
 /// // ...and device2 decrypts the encapsulation to discover the
 /// // channel keys.
 /// let device2_ch = UniChannel {
+///     psk_length_in_bytes: 32,
 ///     parent_cmd_id,
 ///     our_sk: &device2_sk,
 ///     their_pk: &device1_sk.public().expect("receiver encryption key should be valid"),
@@ -99,6 +101,12 @@ use crate::{
 /// ```
 #[derive(Debug)]
 pub struct UniChannel<'a, CS: CipherSuite> {
+    /// The size in bytes of the PSK.
+    ///
+    /// Per the AQC specification this must be at least 32. This
+    /// implementation restricts it to exactly 32. This
+    /// restriction may be lifted in the future.
+    pub psk_length_in_bytes: u16,
     /// The ID of the parent command.
     pub parent_cmd_id: Id,
     /// Our secret encryption key.
@@ -119,6 +127,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         //     "AqcUniPsk",
         //     suite_id,
         //     engine_id,
+        //     i2osp(psk_length_in_bytes, 2),
         //     parent_cmd_id,
         //     seal_id,
         //     open_id,
@@ -127,6 +136,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         tuple_hash::<CS::Hash, _>([
             "AqcUniPsk".as_bytes(),
             &SuiteIds::from_suite::<CS>().into_bytes(),
+            &self.psk_length_in_bytes.to_be_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.seal_id.as_bytes(),
             self.open_id.as_bytes(),
@@ -165,7 +175,7 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId"))
+        UniChannelId(Id::new::<CS>(self.as_bytes(), b"AqcUniChannelId"))
     }
 
     /// Encodes itself as bytes.
@@ -202,6 +212,10 @@ impl<CS: CipherSuite> UniSecrets<CS> {
     /// Creates a new set of encapsulated secrets for the
     /// unidirectional channel.
     pub fn new<E: Engine<CS = CS>>(eng: &mut E, ch: &UniChannel<'_, CS>) -> Result<Self, Error> {
+        if ch.psk_length_in_bytes != 32 {
+            return Err(Error::invalid_psk_length());
+        }
+
         // Only the channel author calls this function.
         let author_sk = ch.our_sk;
         let peer_pk = ch.their_pk;
@@ -248,6 +262,10 @@ macro_rules! uni_key {
                 ch: &UniChannel<'_, CS>,
                 secret: UniAuthorSecret<CS>,
             ) -> Result<Self, Error> {
+                if ch.psk_length_in_bytes != 32 {
+                    return Err(Error::invalid_psk_length());
+                }
+
                 // Only the channel author calls this function.
                 let author_sk = ch.our_sk;
                 let peer_pk = ch.their_pk;
@@ -277,6 +295,10 @@ macro_rules! uni_key {
                 ch: &UniChannel<'_, CS>,
                 enc: UniPeerEncap<CS>,
             ) -> Result<Self, Error> {
+                if ch.psk_length_in_bytes != 32 {
+                    return Err(Error::invalid_psk_length());
+                }
+
                 // Only the channel peer calls this function.
                 let peer_sk = ch.our_sk;
                 let author_pk = ch.their_pk;

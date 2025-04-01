@@ -120,21 +120,27 @@ macro_rules! for_each_engine_test {
 
             // AQC
 
-            test_aqc_derive_bidi_keys,
-            test_aqc_derive_bidi_keys_different_labels,
-            test_aqc_derive_bidi_keys_different_device_ids,
-            test_aqc_derive_bidi_keys_different_cmd_ids,
-            test_aqc_derive_bidi_keys_different_keys,
-            test_aqc_derive_bidi_keys_same_device_id,
+            test_aqc_derive_bidi_psk,
+            test_aqc_derive_bidi_psk_different_labels,
+            test_aqc_derive_bidi_psk_different_device_ids,
+            test_aqc_derive_bidi_psk_different_cmd_ids,
+            test_aqc_derive_bidi_psk_different_keys,
+            test_aqc_derive_bidi_psk_same_device_id,
+            test_aqc_derive_bidi_psk_psk_too_short,
+            test_aqc_derive_bidi_psk_psk_too_long,
             test_aqc_wrap_bidi_author_secret,
 
-            test_aqc_derive_uni_key,
-            test_aqc_derive_uni_key_different_labels,
-            test_aqc_derive_uni_key_different_device_ids,
-            test_aqc_derive_uni_key_different_cmd_ids,
-            test_aqc_derive_uni_key_different_keys,
-            test_aqc_derive_uni_seal_key_same_device_id,
-            test_aqc_derive_uni_open_key_same_device_id,
+            test_aqc_derive_uni_psk,
+            test_aqc_derive_uni_psk_different_labels,
+            test_aqc_derive_uni_psk_different_device_ids,
+            test_aqc_derive_uni_psk_different_cmd_ids,
+            test_aqc_derive_uni_psk_different_keys,
+            test_aqc_derive_uni_send_psk_key_same_device_id,
+            test_aqc_derive_uni_recv_psk_key_same_device_id,
+            test_aqc_derive_uni_send_psk_psk_too_short,
+            test_aqc_derive_uni_recv_psk_psk_too_short,
+            test_aqc_derive_uni_send_psk_psk_too_long,
+            test_aqc_derive_uni_recv_psk_psk_too_long,
             test_aqc_wrap_uni_author_secret,
         }
     };
@@ -1872,11 +1878,12 @@ pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
 }
 
 /// A simple positive test for deriving [`aqc::BidiPsk`]s.
-pub fn test_aqc_derive_bidi_keys<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_bidi_psk<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let label = 123;
     let ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         our_id: IdentityKey::<E::CS>::new(eng)
@@ -1891,6 +1898,7 @@ pub fn test_aqc_derive_bidi_keys<E: Engine>(eng: &mut E) {
         label,
     };
     let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
@@ -1915,10 +1923,11 @@ pub fn test_aqc_derive_bidi_keys<E: Engine>(eng: &mut E) {
 }
 
 /// Different labels should create different [`aqc::BidiPsk`]s.
-pub fn test_aqc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_bidi_psk_different_labels<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         our_id: IdentityKey::<E::CS>::new(eng)
@@ -1931,6 +1940,7 @@ pub fn test_aqc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
         label: 123,
     };
     let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
@@ -1961,11 +1971,12 @@ pub fn test_aqc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
 /// [`aqc::BidiPsk`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_aqc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_bidi_psk_different_device_ids<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         our_id: IdentityKey::<E::CS>::new(eng)
@@ -1980,6 +1991,7 @@ pub fn test_aqc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
         label,
     };
     let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
@@ -2009,11 +2021,12 @@ pub fn test_aqc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
 /// [`aqc::BidiPsk`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_bidi_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         our_id: IdentityKey::<E::CS>::new(eng)
@@ -2028,6 +2041,7 @@ pub fn test_aqc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
         label,
     };
     let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk2,
         our_id: ch1.their_id,
@@ -2057,11 +2071,12 @@ pub fn test_aqc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
 /// [`aqc::BidiPsk`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_bidi_psk_different_keys<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         our_id: IdentityKey::<E::CS>::new(eng)
@@ -2076,6 +2091,7 @@ pub fn test_aqc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
         label,
     };
     let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
@@ -2106,11 +2122,12 @@ pub fn test_aqc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::BidiPsk`]s.
-pub fn test_aqc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_bidi_psk_same_device_id<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         our_id: IdentityKey::<E::CS>::new(eng)
@@ -2125,6 +2142,7 @@ pub fn test_aqc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
         label,
     };
     let mut ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         our_id: ch1.their_id,
@@ -2154,11 +2172,112 @@ pub fn test_aqc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
     assert_eq!(err, Error::same_device_id());
 }
 
+/// It is an error to specify a PSK length less than than 32 when
+/// deriving [`aqc::BidiPsk`]s.
+pub fn test_aqc_derive_bidi_psk_psk_too_short<E: Engine>(eng: &mut E) {
+    let label = 123;
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let mut ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 16,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+    };
+    let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 31,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        our_id: ch1.their_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: ch1.our_id,
+        label,
+    };
+    assert_ne!(ch1.author_info(), ch2.peer_info());
+    assert_ne!(ch1.peer_info(), ch2.author_info());
+
+    let aqc::BidiSecrets { peer, .. } = {
+        let err = aqc::BidiSecrets::new(eng, &ch1)
+            .err()
+            .expect("should not be able to create `aqc::BidiSecrets`");
+        assert_eq!(err, Error::invalid_psk_length());
+
+        ch1.psk_length_in_bytes = 32;
+        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`")
+    };
+
+    let err = aqc::BidiPsk::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::BidiPsk`");
+    assert_eq!(err, Error::invalid_psk_length());
+}
+
+/// It is an error to specify a PSK length other than than 32
+/// when deriving [`aqc::BidiPsk`]s.
+pub fn test_aqc_derive_bidi_psk_psk_too_long<E: Engine>(eng: &mut E) {
+    let label = 123;
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let mut ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: u16::MAX,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+    };
+    let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 33,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        our_id: ch1.their_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: ch1.our_id,
+        label,
+    };
+    assert_ne!(ch1.author_info(), ch2.peer_info());
+    assert_ne!(ch1.peer_info(), ch2.author_info());
+
+    let aqc::BidiSecrets { peer, .. } = {
+        let err = aqc::BidiSecrets::new(eng, &ch1)
+            .err()
+            .expect("should not be able to create `aqc::BidiSecrets`");
+        assert_eq!(err, Error::invalid_psk_length());
+
+        ch1.psk_length_in_bytes = 32;
+        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`")
+    };
+
+    let err = aqc::BidiPsk::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::BidiPsk`");
+    assert_eq!(err, Error::invalid_psk_length());
+}
+
 /// Simple positive test for wrapping [`aqc::BidiAuthorSecret`]s.
 pub fn test_aqc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::new(eng);
     let sk2 = EncryptionKey::new(eng);
     let ch = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         our_id: IdentityKey::<E::CS>::new(eng)
@@ -2190,11 +2309,12 @@ pub fn test_aqc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
 
 /// A simple positive test for deriving [`aqc::UniSendPsk`] and
 /// [`aqc::UniRecvPsk`].
-pub fn test_aqc_derive_uni_key<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_psk<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let label = 123;
     let ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         their_pk: &sk2
@@ -2209,6 +2329,7 @@ pub fn test_aqc_derive_uni_key<E: Engine>(eng: &mut E) {
         label,
     };
     let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         their_pk: &sk1
@@ -2233,10 +2354,11 @@ pub fn test_aqc_derive_uni_key<E: Engine>(eng: &mut E) {
 
 /// Different labels should create different [`aqc::UniSendPsk`]
 /// and [`aqc::UniRecvPsk`]s.
-pub fn test_aqc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_psk_different_labels<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         their_pk: &sk2
@@ -2251,6 +2373,7 @@ pub fn test_aqc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
         label: 123,
     };
     let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         their_pk: &sk1
@@ -2279,11 +2402,12 @@ pub fn test_aqc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
 /// [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
-pub fn test_aqc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_psk_different_device_ids<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         their_pk: &sk2
@@ -2298,6 +2422,7 @@ pub fn test_aqc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
         label,
     };
     let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         their_pk: &sk1
@@ -2326,11 +2451,12 @@ pub fn test_aqc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
 /// [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         their_pk: &sk2
@@ -2345,6 +2471,7 @@ pub fn test_aqc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
         label,
     };
     let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk2,
         their_pk: &sk1
@@ -2373,11 +2500,12 @@ pub fn test_aqc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
 /// [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`]s.
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
-pub fn test_aqc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_psk_different_keys<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         their_pk: &sk2
@@ -2392,6 +2520,7 @@ pub fn test_aqc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
         label,
     };
     let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         their_pk: &EncryptionKey::<E::CS>::new(eng)
@@ -2417,11 +2546,12 @@ pub fn test_aqc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::UniSendPsk`]s.
-pub fn test_aqc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_send_psk_key_same_device_id<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         their_pk: &sk2
@@ -2436,6 +2566,7 @@ pub fn test_aqc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
         label,
     };
     let mut ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         their_pk: &EncryptionKey::<E::CS>::new(eng)
@@ -2468,11 +2599,12 @@ pub fn test_aqc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::UniRecvPsk`]s.
-pub fn test_aqc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_recv_psk_key_same_device_id<E: Engine>(eng: &mut E) {
     let label = 123;
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         their_pk: &sk2
@@ -2487,6 +2619,7 @@ pub fn test_aqc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
         label,
     };
     let mut ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: ch1.parent_cmd_id,
         our_sk: &sk2,
         their_pk: &EncryptionKey::<E::CS>::new(eng)
@@ -2517,11 +2650,208 @@ pub fn test_aqc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
     assert_eq!(err, Error::same_device_id());
 }
 
+/// It is an error to specify a PSK length less than than 32 when
+/// deriving [`aqc::UniSendPsk`]s.
+pub fn test_aqc_derive_uni_send_psk_psk_too_short<E: Engine>(eng: &mut E) {
+    let label = 123;
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let mut ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 16,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+    };
+    let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 31,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        seal_id: ch1.seal_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        open_id: ch1.open_id,
+        label,
+    };
+    assert_ne!(ch1.info(), ch2.info());
+
+    let aqc::UniSecrets { peer, .. } = {
+        let err = aqc::UniSecrets::new(eng, &ch1)
+            .err()
+            .expect("should not be able to create `aqc::UniSecrets`");
+        assert_eq!(err, Error::invalid_psk_length());
+
+        ch1.psk_length_in_bytes = 32;
+        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
+    };
+
+    let err = aqc::UniSendPsk::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniSendPsk`");
+    assert_eq!(err, Error::invalid_psk_length());
+}
+
+/// It is an error to specify a PSK length less than than 32 when
+/// deriving [`aqc::UniRecvPsk`]s.
+pub fn test_aqc_derive_uni_recv_psk_psk_too_short<E: Engine>(eng: &mut E) {
+    let label = 123;
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let mut ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 16,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+    };
+    let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 31,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        seal_id: ch1.seal_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        open_id: ch1.open_id,
+        label,
+    };
+    assert_ne!(ch1.info(), ch2.info());
+
+    let aqc::UniSecrets { peer, .. } = {
+        let err = aqc::UniSecrets::new(eng, &ch1)
+            .err()
+            .expect("should not be able to create `aqc::UniSecrets`");
+        assert_eq!(err, Error::invalid_psk_length());
+
+        ch1.psk_length_in_bytes = 32;
+        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
+    };
+
+    let err = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniRecvPsk`");
+    assert_eq!(err, Error::invalid_psk_length());
+}
+
+/// It is an error to specify a PSK length longer than than 32
+/// when deriving [`aqc::UniSendPsk`]s.
+pub fn test_aqc_derive_uni_send_psk_psk_too_long<E: Engine>(eng: &mut E) {
+    let label = 123;
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let mut ch1 = aqc::UniChannel {
+        psk_length_in_bytes: u16::MAX,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+    };
+    let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 33,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        seal_id: ch1.seal_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        open_id: ch1.open_id,
+        label,
+    };
+    assert_ne!(ch1.info(), ch2.info());
+
+    let aqc::UniSecrets { peer, .. } = {
+        let err = aqc::UniSecrets::new(eng, &ch1)
+            .err()
+            .expect("should not be able to create `aqc::UniSecrets`");
+        assert_eq!(err, Error::invalid_psk_length());
+
+        ch1.psk_length_in_bytes = 32;
+        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
+    };
+
+    let err = aqc::UniSendPsk::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniSendPsk`");
+    assert_eq!(err, Error::invalid_psk_length());
+}
+
+/// It is an error to specify a PSK length longer than than 32
+/// when deriving [`aqc::UniRecvPsk`]s.
+pub fn test_aqc_derive_uni_recv_psk_psk_too_long<E: Engine>(eng: &mut E) {
+    let label = 123;
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let mut ch1 = aqc::UniChannel {
+        psk_length_in_bytes: u16::MAX,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+    };
+    let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 33,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        seal_id: ch1.seal_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        open_id: ch1.open_id,
+        label,
+    };
+    assert_ne!(ch1.info(), ch2.info());
+
+    let aqc::UniSecrets { peer, .. } = {
+        let err = aqc::UniSecrets::new(eng, &ch1)
+            .err()
+            .expect("should not be able to create `aqc::UniSecrets`");
+        assert_eq!(err, Error::invalid_psk_length());
+
+        ch1.psk_length_in_bytes = 32;
+        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
+    };
+
+    let err = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniRecvPsk`");
+    assert_eq!(err, Error::invalid_psk_length());
+}
+
 /// Simple positive test for wrapping [`aqc::UniAuthorSecret`]s.
 pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::new(eng);
     let sk2 = EncryptionKey::new(eng);
     let ch = aqc::UniChannel {
+        psk_length_in_bytes: 32,
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
         their_pk: &sk2

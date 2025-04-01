@@ -65,7 +65,7 @@ struct AqcUniChannel {
 )]
 #[allow(clippy::too_many_arguments)]
 impl<S: KeyStore> Ffi<S> {
-    /// Creates a bidirectional AQC channel.
+    /// Creates a bidirectional channel.
     #[ffi_export(def = r#"
 function create_bidi_channel(
     parent_cmd_id id,
@@ -95,6 +95,8 @@ function create_bidi_channel(
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
         let ch = BidiChannel {
+            // TODO(eric): get this from the policy?
+            psk_length_in_bytes: 32,
             parent_cmd_id,
             our_sk,
             our_id,
@@ -150,6 +152,8 @@ function create_uni_channel(
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
         let ch = UniChannel {
+            // TODO(eric): get this from the policy?
+            psk_length_in_bytes: 32,
             parent_cmd_id,
             our_sk,
             their_pk,

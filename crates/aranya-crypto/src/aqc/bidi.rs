@@ -66,6 +66,7 @@ use crate::{
 /// // device1 creates the channel keys and sends the encapsulation
 /// // to device2...
 /// let device1_ch = BidiChannel {
+///     psk_length_in_bytes: 32,
 ///     parent_cmd_id,
 ///     our_sk: &device1_sk,
 ///     our_id: device1_id,
@@ -81,6 +82,7 @@ use crate::{
 /// // ...and device2 decrypts the encapsulation to discover the
 /// // channel keys.
 /// let device2_ch = BidiChannel {
+///     psk_length_in_bytes: 32,
 ///     parent_cmd_id,
 ///     our_sk: &device2_sk,
 ///     our_id: device2_id,
@@ -97,6 +99,12 @@ use crate::{
 /// # }
 /// ```
 pub struct BidiChannel<'a, CS: CipherSuite> {
+    /// The size in bytes of the PSK.
+    ///
+    /// Per the AQC specification this must be at least 32. This
+    /// implementation restricts it to exactly 32. This
+    /// restriction may be lifted in the future.
+    pub psk_length_in_bytes: u16,
     /// The ID of the parent command.
     pub parent_cmd_id: Id,
     /// Our secret encryption key.
@@ -120,6 +128,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         //     "AqcBidiPsk",
         //     suite_id,
         //     engine_id,
+        //     iso2p(psk_length_in_bytes, 2),
         //     parent_cmd_id,
         //     author_id,
         //     peer_id,
@@ -128,6 +137,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         tuple_hash::<CS::Hash, _>([
             Self::LABEL,
             &SuiteIds::from_suite::<CS>().into_bytes(),
+            &self.psk_length_in_bytes.to_be_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.our_id.as_bytes(),
             self.their_id.as_bytes(),
@@ -143,6 +153,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         tuple_hash::<CS::Hash, _>([
             Self::LABEL,
             &SuiteIds::from_suite::<CS>().into_bytes(),
+            &self.psk_length_in_bytes.to_be_bytes(),
             self.parent_cmd_id.as_bytes(),
             self.their_id.as_bytes(),
             self.our_id.as_bytes(),
@@ -181,7 +192,7 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
-        BidiChannelId(Id::new::<CS>(self.as_bytes(), b"BidiChannelId"))
+        BidiChannelId(Id::new::<CS>(self.as_bytes(), b"AqcBidiChannelId"))
     }
 
     /// Encodes itself as bytes.
@@ -220,6 +231,10 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
     ///
     /// This is used by the channel author.
     pub fn new<E: Engine<CS = CS>>(eng: &mut E, ch: &BidiChannel<'_, CS>) -> Result<Self, Error> {
+        if ch.psk_length_in_bytes != 32 {
+            return Err(Error::invalid_psk_length());
+        }
+
         // Only the channel author calls this function.
         let author_id = ch.our_id;
         let author_sk = ch.our_sk;
@@ -266,6 +281,10 @@ impl<CS: CipherSuite> BidiPsk<CS> {
         ch: &BidiChannel<'_, CS>,
         secret: BidiAuthorSecret<CS>,
     ) -> Result<Self, Error> {
+        if ch.psk_length_in_bytes != 32 {
+            return Err(Error::invalid_psk_length());
+        }
+
         // Only the channel author calls this function.
         let author_id = ch.our_id;
         let author_sk = ch.our_sk;
@@ -297,6 +316,10 @@ impl<CS: CipherSuite> BidiPsk<CS> {
         ch: &BidiChannel<'_, CS>,
         enc: BidiPeerEncap<CS>,
     ) -> Result<Self, Error> {
+        if ch.psk_length_in_bytes != 32 {
+            return Err(Error::invalid_psk_length());
+        }
+
         // Only the channel peer calls this function.
         let peer_id = ch.our_id;
         let peer_sk = ch.our_sk;
@@ -371,6 +394,7 @@ mod tests {
         let sk2 = EncryptionKey::<CS>::new(&mut eng);
         let label = 123;
         let ch1 = BidiChannel {
+            psk_length_in_bytes: 32,
             parent_cmd_id,
             our_sk: &sk1,
             our_id: IdentityKey::<CS>::new(&mut eng)
@@ -385,6 +409,7 @@ mod tests {
             label,
         };
         let ch2 = BidiChannel {
+            psk_length_in_bytes: 32,
             parent_cmd_id,
             our_sk: &sk2,
             our_id: ch1.their_id,
@@ -420,6 +445,7 @@ mod tests {
             (
                 "different parent_cmd_id",
                 BidiChannel {
+                    psk_length_in_bytes: 32,
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
@@ -430,6 +456,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
+                    psk_length_in_bytes: 32,
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
@@ -443,6 +470,7 @@ mod tests {
             (
                 "different our_id",
                 BidiChannel {
+                    psk_length_in_bytes: 32,
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
@@ -453,6 +481,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
+                    psk_length_in_bytes: 32,
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
                     our_id: IdentityKey::<CS>::new(&mut eng)
@@ -468,6 +497,7 @@ mod tests {
             (
                 "different their_id",
                 BidiChannel {
+                    psk_length_in_bytes: 32,
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
@@ -478,6 +508,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
+                    psk_length_in_bytes: 32,
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
@@ -493,6 +524,7 @@ mod tests {
             (
                 "different label",
                 BidiChannel {
+                    psk_length_in_bytes: 32,
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
@@ -503,6 +535,7 @@ mod tests {
                     label: 123,
                 },
                 BidiChannel {
+                    psk_length_in_bytes: 32,
                     parent_cmd_id: Id::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
