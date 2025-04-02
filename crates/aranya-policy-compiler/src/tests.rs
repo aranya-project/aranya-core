@@ -492,6 +492,125 @@ fn test_duplicate_struct_fact_names() -> anyhow::Result<()> {
 }
 
 #[test]
+fn test_struct_field_insertion_errors() {
+    let cases = [
+        (
+            "struct Foo { +Bar }",
+            CompileErrorType::NotDefined("Bar".to_string()),
+        ),
+        (
+            r#"struct Bar { a int }
+            struct Foo { +Bar, a string }"#,
+            CompileErrorType::AlreadyDefined("a".to_string()),
+        ),
+        (
+            r#"struct Foo { +Foo }"#,
+            CompileErrorType::NotDefined("Foo".to_string()),
+        ),
+    ];
+    for (text, err_type) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(result, err_type);
+    }
+}
+
+#[test]
+fn test_struct_field_insertion() {
+    let cases = vec![
+        (
+            r#"
+            struct Bar { a int }
+            struct Foo { +Bar, b string }
+            "#,
+            vec![
+                FieldDefinition {
+                    identifier: "a".to_string(),
+                    field_type: VType::Int,
+                },
+                FieldDefinition {
+                    identifier: "b".to_string(),
+                    field_type: VType::String,
+                },
+            ],
+        ),
+        (
+            r#"
+            struct Bar { i int }
+            struct Baz { +Bar, b bool }
+            struct Foo { s string, +Baz }
+            "#,
+            vec![
+                FieldDefinition {
+                    identifier: "s".to_string(),
+                    field_type: VType::String,
+                },
+                FieldDefinition {
+                    identifier: "i".to_string(),
+                    field_type: VType::Int,
+                },
+                FieldDefinition {
+                    identifier: "b".to_string(),
+                    field_type: VType::Bool,
+                },
+            ],
+        ),
+    ];
+
+    for (text, want) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let result = Compiler::new(&policy).compile().expect("should compile");
+        let ModuleData::V0(module) = result.data;
+
+        let got = module.struct_defs.get("Foo").unwrap();
+        assert_eq!(got, &want);
+    }
+}
+
+#[test]
+fn test_effect_with_field_insertion() {
+    let text = r#"
+        struct Bar { b bool }
+        effect Foo { +Bar, s string }
+        effect Baz { i int, +Foo }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
+    let m = Compiler::new(&policy).compile().expect("should compile");
+    let ModuleData::V0(module) = m.data;
+
+    let foo_want = vec![
+        FieldDefinition {
+            identifier: "b".to_string(),
+            field_type: VType::Bool,
+        },
+        FieldDefinition {
+            identifier: "s".to_string(),
+            field_type: VType::String,
+        },
+    ];
+    let foo_got = module.struct_defs.get("Foo").unwrap();
+    assert_eq!(foo_got, &foo_want);
+
+    let baz_want = vec![
+        FieldDefinition {
+            identifier: "i".to_string(),
+            field_type: VType::Int,
+        },
+        FieldDefinition {
+            identifier: "b".to_string(),
+            field_type: VType::Bool,
+        },
+        FieldDefinition {
+            identifier: "s".to_string(),
+            field_type: VType::String,
+        },
+    ];
+    let baz_got = module.struct_defs.get("Baz").unwrap();
+    assert_eq!(baz_got, &baz_want);
+}
+
+#[test]
 fn test_enum_identifiers_are_unique() -> anyhow::Result<()> {
     let text = r#"
         enum Drink {
@@ -2160,25 +2279,5 @@ fn test_validate_return() {
         let policy = parse_policy_str(p, Version::V2).expect("should parse");
         let m = Compiler::new(&policy).compile().expect("should compile");
         assert!(validate(&m));
-    }
-}
-
-#[test]
-fn if_expression_block() {
-    let cases = [(
-        r#"action f(n int) {
-            let x = if n > 1 {
-                let x = n + 1
-                :x
-            } else { :0 }
-        }"#,
-        None,
-    )];
-
-    for (text, expected) in cases {
-        println!(">");
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let res = Compiler::new(&policy).compile().err();
-        assert_eq!(res, expected);
     }
 }

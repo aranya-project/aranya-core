@@ -362,6 +362,33 @@ fn parse_effect() -> Result<(), PestError<Rule>> {
 }
 
 #[test]
+fn test_parse_effect_with_field_insertion() {
+    let cases = [(
+        r#"struct Foo { x int }
+        effect Bar {
+            +Foo,
+            y int
+        }
+        "#,
+        vec![
+            ast::StructItem::StructRef("Foo".to_string()),
+            ast::StructItem::Field(ast::EffectFieldDefinition {
+                identifier: String::from("y"),
+                field_type: ast::VType::Int,
+                dynamic: false,
+            }),
+        ],
+    )];
+    for (case, expected) in cases {
+        let policy = parse_policy_str(case, Version::V2).expect("should parse");
+        assert_eq!(
+            policy.effects[0].inner.items, expected,
+            "case: {case:?} => {expected:?}"
+        );
+    }
+}
+
+#[test]
 #[allow(clippy::result_large_err)]
 fn parse_command() -> Result<(), PestError<Rule>> {
     let src = r#"
@@ -607,17 +634,17 @@ fn parse_policy_test() -> Result<(), ParseError> {
         vec![AstNode::new(
             ast::EffectDefinition {
                 identifier: String::from("Added"),
-                fields: vec![
-                    ast::EffectFieldDefinition {
+                items: vec![
+                    ast::StructItem::Field(ast::EffectFieldDefinition {
                         identifier: String::from("x"),
                         field_type: ast::VType::Int,
                         dynamic: true,
-                    },
-                    ast::EffectFieldDefinition {
+                    }),
+                    ast::StructItem::Field(ast::EffectFieldDefinition {
                         identifier: String::from("y"),
                         field_type: ast::VType::Int,
                         dynamic: false,
-                    },
+                    }),
                 ],
             },
             326,
@@ -1176,10 +1203,10 @@ fn parse_struct() {
         vec![AstNode::new(
             ast::StructDefinition {
                 identifier: String::from("Foo"),
-                fields: vec![ast::FieldDefinition {
+                items: vec![ast::StructItem::Field(ast::FieldDefinition {
                     identifier: String::from("x"),
                     field_type: ast::VType::Int,
-                }]
+                })]
             },
             0
         )]
@@ -1213,6 +1240,32 @@ fn parse_struct() {
             50
         )]
     );
+}
+
+#[test]
+fn parse_struct_with_field_insertion() {
+    let cases = [(
+        r#"struct Foo { x int }
+        struct Bar {
+            +Foo,
+            y int
+        }
+        "#,
+        vec![
+            ast::StructItem::StructRef("Foo".to_string()),
+            ast::StructItem::Field(ast::FieldDefinition {
+                identifier: String::from("y"),
+                field_type: ast::VType::Int,
+            }),
+        ],
+    )];
+    for (case, expected) in cases {
+        let policy = parse_policy_str(case, Version::V2).expect("should parse");
+        assert_eq!(
+            policy.structs[1].inner.items, expected,
+            "case: {case:?} => {expected:?}"
+        );
+    }
 }
 
 #[test]
@@ -1300,15 +1353,15 @@ fn parse_ffi_structs() {
             AstNode {
                 inner: ast::StructDefinition {
                     identifier: String::from("A"),
-                    fields: vec![
-                        ast::FieldDefinition {
+                    items: vec![
+                        ast::StructItem::Field(ast::FieldDefinition {
                             identifier: String::from("x"),
                             field_type: ast::VType::Int
-                        },
-                        ast::FieldDefinition {
+                        }),
+                        ast::StructItem::Field(ast::FieldDefinition {
                             identifier: String::from("y"),
                             field_type: ast::VType::Bool
-                        }
+                        })
                     ]
                 },
                 locator: 0,
@@ -1316,7 +1369,7 @@ fn parse_ffi_structs() {
             AstNode {
                 inner: ast::StructDefinition {
                     identifier: String::from("B"),
-                    fields: vec![],
+                    items: vec![],
                 },
                 locator: 68,
             },
