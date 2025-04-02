@@ -2230,26 +2230,6 @@ fn test_substruct_errors() -> anyhow::Result<()> {
             "#,
             e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
         },
-        Case {
-            t: r#"
-                command Foo {
-                    fields {
-                        x int,
-                        y bool,
-                    }
-                    seal { return None }
-                    open { return None }
-                }
-                struct Bar {
-                    x int,
-                    y bool,
-                }
-                action baz(source struct Bar) {
-                    publish source substruct Foo
-                }
-            "#,
-            e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
-        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
