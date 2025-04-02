@@ -1650,8 +1650,7 @@ fn test_if_statement() -> anyhow::Result<()> {
 fn if_expression() {
     let text = r#"
         action test() {
-            // let a = if true { 1 } not allowed
-            let b = if true { 1 } else { 0 }
+            let b = if true { :1 } else { :0 }
         }
     "#;
     parse_policy_str(text, Version::V2).expect("should parse");

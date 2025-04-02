@@ -27,7 +27,7 @@ fn test_compile() -> anyhow::Result<()> {
         }
         action foo(b int) {
             let i = 4
-            let x = if b == 0 { 4+i } else { 3 }
+            let x = if b == 0 { :4+i } else { :3 }
             let y = Foo{
                 a: x,
                 b: 4
@@ -1556,6 +1556,56 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_if_match_block_scope() {
+    let cases = vec![
+        (
+            r#"
+            function foo() int {
+                if true { let x = 5 }
+                return x // x should not exist in the outer scope
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `x`".to_string()),
+        ),
+        (
+            r#"
+            function foo() int {
+                if true {}
+                else { let y = 0 }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
+        (
+            r#"
+            function foo(b bool) int {
+                match b {
+                    true => { let x = 0 }
+                    false => { let y = 1 }
+                }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
+        (
+            r#"
+            function foo(b bool) int {
+                match b {
+                    true => { let x = 0 }
+                    _ => { let y = 1 }
+                }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
+    ];
+    for (text, res) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let r = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(r, res)
+    }
+}
+
 const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
     name: "test",
     functions: &[ffi::Func {
@@ -1587,7 +1637,7 @@ fn test_type_errors() -> anyhow::Result<()> {
         Case {
             t: r#"
                 function f() int {
-                    return if 0 { 3 } else { 4 }
+                    return if 0 { :3 } else { :4 }
                 }
             "#,
             e: "if condition must be a boolean expression",
@@ -1903,7 +1953,7 @@ fn test_duplicate_definitions() -> anyhow::Result<()> {
                 function f(y int) bool {
                     match y {
                         1 => { let x = 3 }
-                        2 => { let y = 4 }
+                        2 => { let z = 4 }
                     }
                     return false
                 }
@@ -2222,4 +2272,23 @@ fn test_substruct_errors() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+#[test]
+fn if_expression_block() {
+    let cases = [(
+        r#"action f(n int) {
+            let x = if n > 1 {
+                let x = n + 1
+                :x
+            } else { :0 }
+        }"#,
+        None,
+    )];
+
+    for (text, expected) in cases {
+        println!(">");
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let res = Compiler::new(&policy).compile().err();
+        assert_eq!(res, expected);
+    }
 }

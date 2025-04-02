@@ -1199,14 +1199,14 @@ impl<'a> CompileState<'a> {
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
                             next_label.clone(),
                         )));
-                        self.compile_statements(branch, Scope::Same)?;
+                        self.compile_statements(branch, Scope::Layered)?;
                         self.append_instruction(Instruction::Jump(Target::Unresolved(
                             end_label.clone(),
                         )));
                         self.define_label(next_label, self.wp)?;
                     }
                     if let Some(fallback) = &s.fallback {
-                        self.compile_statements(fallback, Scope::Same)?;
+                        self.compile_statements(fallback, Scope::Layered)?;
                     }
                     self.define_label(end_label, self.wp)?;
                 }
@@ -2044,7 +2044,7 @@ impl<'a> CompileState<'a> {
                     // Drop expression value (It's still around because of the Dup)
                     self.append_instruction(Instruction::Pop);
 
-                    self.compile_statements(&arm.statements, Scope::Same)?;
+                    self.compile_statements(&arm.statements, Scope::Layered)?;
 
                     // break out of match
                     self.append_instruction(Instruction::Jump(Target::Unresolved(
