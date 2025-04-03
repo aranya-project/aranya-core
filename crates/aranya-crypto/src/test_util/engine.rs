@@ -2175,7 +2175,7 @@ pub fn test_aqc_derive_bidi_psk_same_device_id<E: Engine>(eng: &mut E) {
 /// It is an error to specify a PSK length less than than 32 when
 /// deriving [`aqc::BidiPsk`]s.
 pub fn test_aqc_derive_bidi_psk_psk_too_short<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::BidiChannel {
@@ -2225,7 +2225,7 @@ pub fn test_aqc_derive_bidi_psk_psk_too_short<E: Engine>(eng: &mut E) {
 /// It is an error to specify a PSK length other than than 32
 /// when deriving [`aqc::BidiPsk`]s.
 pub fn test_aqc_derive_bidi_psk_psk_too_long<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::BidiChannel {
@@ -2653,7 +2653,7 @@ pub fn test_aqc_derive_uni_recv_psk_key_same_device_id<E: Engine>(eng: &mut E) {
 /// It is an error to specify a PSK length less than than 32 when
 /// deriving [`aqc::UniSendPsk`]s.
 pub fn test_aqc_derive_uni_send_psk_psk_too_short<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::UniChannel {
@@ -2702,7 +2702,7 @@ pub fn test_aqc_derive_uni_send_psk_psk_too_short<E: Engine>(eng: &mut E) {
 /// It is an error to specify a PSK length less than than 32 when
 /// deriving [`aqc::UniRecvPsk`]s.
 pub fn test_aqc_derive_uni_recv_psk_psk_too_short<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::UniChannel {
@@ -2751,7 +2751,7 @@ pub fn test_aqc_derive_uni_recv_psk_psk_too_short<E: Engine>(eng: &mut E) {
 /// It is an error to specify a PSK length longer than than 32
 /// when deriving [`aqc::UniSendPsk`]s.
 pub fn test_aqc_derive_uni_send_psk_psk_too_long<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::UniChannel {
@@ -2800,7 +2800,7 @@ pub fn test_aqc_derive_uni_send_psk_psk_too_long<E: Engine>(eng: &mut E) {
 /// It is an error to specify a PSK length longer than than 32
 /// when deriving [`aqc::UniRecvPsk`]s.
 pub fn test_aqc_derive_uni_recv_psk_psk_too_long<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::UniChannel {
