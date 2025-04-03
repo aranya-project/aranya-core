@@ -240,6 +240,14 @@ impl Ast {
                 unsafe impl #capi::types::ByValue for #name {}
             });
 
+            items.push(parse_quote! {
+                /// SAFETY: The type is a unit-only enumeration
+                /// with a `#[repr(...)]`, and we check for
+                /// invalid representations, so it is FFI safe.
+                #[automatically_derived]
+                unsafe impl #capi::types::ByMutPtr for #name {}
+            });
+
             // Forward `From` impls needed to implement
             // `ErrorCode`.
             items.push(parse_quote! {
@@ -575,7 +583,7 @@ impl Ast {
                         cast_output_ty(ctx, ty, &pattern, &self.types, &self.idents)
                     }
                 })
-                .unwrap_or_else(|| quote!(#pattern));
+                .unwrap_or_else(|| quote!(#pattern.into()));
 
             let block = if f_is_infallible {
                 // Output params are `*mut T`, which should make

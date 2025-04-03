@@ -83,7 +83,7 @@ fn __tramp_prefix_test_unit_unit0() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_unit0() } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -100,7 +100,7 @@ fn __tramp_prefix_test_unit_unit1() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_unit1() } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -156,7 +156,7 @@ fn __tramp_prefix_test_unit_result_unit_error() -> ::core::result::Result<
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_result_unit_error() } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -175,7 +175,7 @@ fn __tramp_prefix_test_u8_unit(_a: ::core::primitive::u8) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u8_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -196,7 +196,7 @@ fn __tramp_prefix_test_u16_unit(_a: ::core::primitive::u16) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u16_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -217,7 +217,7 @@ fn __tramp_prefix_test_u32_unit(_a: ::core::primitive::u32) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u32_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -238,7 +238,7 @@ fn __tramp_prefix_test_u64_unit(_a: ::core::primitive::u64) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u64_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -259,7 +259,7 @@ fn __tramp_prefix_test_usize_unit(_a: ::core::primitive::usize) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_usize_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -278,7 +278,7 @@ fn __tramp_prefix_test_i8_unit(_a: ::core::primitive::i8) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i8_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -299,7 +299,7 @@ fn __tramp_prefix_test_i16_unit(_a: ::core::primitive::i16) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i16_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -320,7 +320,7 @@ fn __tramp_prefix_test_i32_unit(_a: ::core::primitive::i32) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i32_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -341,7 +341,7 @@ fn __tramp_prefix_test_i64_unit(_a: ::core::primitive::i64) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i64_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -362,7 +362,7 @@ fn __tramp_prefix_test_isize_unit(_a: ::core::primitive::isize) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_isize_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -381,7 +381,7 @@ fn __tramp_prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u8_u8(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -402,7 +402,7 @@ fn __tramp_prefix_test_u16_u16(_a: ::core::primitive::u16) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u16_u16(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -423,7 +423,7 @@ fn __tramp_prefix_test_u32_u32(_a: ::core::primitive::u32) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u32_u32(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -444,7 +444,7 @@ fn __tramp_prefix_test_u64_u64(_a: ::core::primitive::u64) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u64_u64(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -469,7 +469,7 @@ fn __tramp_prefix_test_usize_usize(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_usize_usize(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -488,7 +488,7 @@ fn __tramp_prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i8_i8(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -509,7 +509,7 @@ fn __tramp_prefix_test_i16_i16(_a: ::core::primitive::i16) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i16_i16(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -530,7 +530,7 @@ fn __tramp_prefix_test_i32_i32(_a: ::core::primitive::i32) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i32_i32(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -551,7 +551,7 @@ fn __tramp_prefix_test_i64_i64(_a: ::core::primitive::i64) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i64_i64(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -576,7 +576,7 @@ fn __tramp_prefix_test_isize_isize(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_isize_isize(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -604,7 +604,7 @@ fn __tramp_prefix_test_u8_u8_u8(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u8_u8_u8(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -632,7 +632,7 @@ fn __tramp_prefix_test_u16_u16_u16(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u16_u16_u16(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -660,7 +660,7 @@ fn __tramp_prefix_test_u32_u32_u32(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u32_u32_u32(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -688,7 +688,7 @@ fn __tramp_prefix_test_u64_u64_u64(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u64_u64_u64(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -716,7 +716,7 @@ fn __tramp_prefix_test_usize_usize_usize(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_usize_usize_usize(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -744,7 +744,7 @@ fn __tramp_prefix_test_i8_i8_i8(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i8_i8_i8(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -772,7 +772,7 @@ fn __tramp_prefix_test_i16_i16_i16(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i16_i16_i16(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -800,7 +800,7 @@ fn __tramp_prefix_test_i32_i32_i32(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i32_i32_i32(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -828,7 +828,7 @@ fn __tramp_prefix_test_i64_i64_i64(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i64_i64_i64(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -856,7 +856,7 @@ fn __tramp_prefix_test_isize_isize_isize(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_isize_isize_isize(_a, _b) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -928,7 +928,7 @@ fn __tramp_prefix_test_enum_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_enum_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -946,6 +946,222 @@ fn __tramp_prefix_test_unit_enum() -> PrefixEnum {
     #[allow(unused_braces)]
     match { crate::defs::test_unit_enum() } {
         __pattern => PrefixEnum::from(__pattern),
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = ::tracing::field::Empty,
+        __output = %__capi::internal::util::Addr::from_ptr(__output)
+    )
+)]
+pub extern "C" fn prefix_test_enum_enum(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_enum_enum(
+            __capi::internal::util::check_valid_input_ty_val(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = ::tracing::field::Empty,
+        __output = %__capi::internal::util::Addr::from_ptr(__output),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_enum_enum_ext(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_enum_enum(
+            __capi::internal::util::check_valid_input_ty_val(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_enum_enum(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    #[allow(clippy::let_with_type_underscore)]
+    let a: _ = {
+        let a = __capi::try_as_enum!(crate ::defs::Enum, a);
+        __capi::to_inner!(a)
+    };
+    #[allow(clippy::let_with_type_underscore)]
+    let __output: &mut ::core::mem::MaybeUninit<_> = {
+        let __output = __capi::try_as_uninit_mut!(__output);
+        __capi::to_inner_mut!(__output)
+    };
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_enum_enum(a) } {
+        __pattern => {
+            ::core::mem::MaybeUninit::write(__output, __pattern.into());
+            ::core::result::Result::Ok(())
+        }
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = ::tracing::field::Empty,
+        __output = %__capi::internal::util::Addr::from_ptr(__output)
+    )
+)]
+pub extern "C" fn prefix_test_enum_result_enum_error(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_enum_result_enum_error(
+            __capi::internal::util::check_valid_input_ty_val(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    match __pattern {
+                        ::core::result::Result::Ok(()) => {
+                            <PrefixError as __capi::ErrorCode>::SUCCESS
+                        }
+                        ::core::result::Result::Err(ref err) => {
+                            __capi::internal::error::convert_err(err)
+                        }
+                    }
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = ::tracing::field::Empty,
+        __output = %__capi::internal::util::Addr::from_ptr(__output),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_enum_result_enum_error_ext(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_enum_result_enum_error(
+            __capi::internal::util::check_valid_input_ty_val(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    match __pattern {
+                        ::core::result::Result::Ok(()) => {
+                            <PrefixError as __capi::ErrorCode>::SUCCESS
+                        }
+                        ::core::result::Result::Err(err) => {
+                            type __ExtErrTy = PrefixExtError;
+                            __capi::internal::error::handle_ext_error(
+                                err,
+                                __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                            )
+                        }
+                    }
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_enum_result_enum_error(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+) -> ::core::result::Result<
+    ::core::result::Result<(), crate::Error>,
+    __capi::InvalidArg<'static>,
+> {
+    #[allow(clippy::let_with_type_underscore)]
+    let a: _ = {
+        let a = __capi::try_as_enum!(crate ::defs::Enum, a);
+        __capi::to_inner!(a)
+    };
+    #[allow(clippy::let_with_type_underscore)]
+    let __output: &mut ::core::mem::MaybeUninit<_> = {
+        let __output = __capi::try_as_uninit_mut!(__output);
+        __capi::to_inner_mut!(__output)
+    };
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_enum_result_enum_error(a) } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    ::core::mem::MaybeUninit::write(__output, __pattern.into());
+                    ::core::result::Result::Ok(::core::result::Result::Ok(()))
+                }
+                ::core::result::Result::Err(err) => {
+                    ::core::result::Result::Ok(::core::result::Result::Err(err))
+                }
+            }
+        }
     }
 }
 #[no_mangle]
@@ -968,7 +1184,7 @@ fn __tramp_prefix_test_struct_unit(_a: PrefixStruct) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_struct_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1063,7 +1279,7 @@ fn __tramp_prefix_test_ref_struct_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ref_struct_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1089,7 +1305,7 @@ fn __tramp_prefix_test_ptr_struct_unit(_a: *const PrefixStruct) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ptr_struct_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1216,7 +1432,7 @@ fn __tramp_prefix_test_unit_result_struct_error(
         __pattern => {
             match __pattern {
                 ::core::result::Result::Ok(__pattern) => {
-                    ::core::mem::MaybeUninit::write(__output, __pattern);
+                    ::core::mem::MaybeUninit::write(__output, __pattern.into());
                     ::core::result::Result::Ok(::core::result::Result::Ok(()))
                 }
                 ::core::result::Result::Err(err) => {
@@ -1300,7 +1516,7 @@ fn __tramp_prefix_test_optional_ref_struct(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_optional_ref_struct(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1377,7 +1593,7 @@ fn __tramp_prefix_test_optional_mut_ref_struct(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_optional_mut_ref_struct(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1454,7 +1670,7 @@ fn __tramp_prefix_test_ref_safestruct_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ref_safestruct_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1480,7 +1696,7 @@ fn __tramp_prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ptr_safestruct_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1581,7 +1797,7 @@ fn __tramp_prefix_test_unit_result_safestruct_error(
         __pattern => {
             match __pattern {
                 ::core::result::Result::Ok(__pattern) => {
-                    ::core::mem::MaybeUninit::write(__output, __pattern);
+                    ::core::mem::MaybeUninit::write(__output, __pattern.into());
                     ::core::result::Result::Ok(::core::result::Result::Ok(()))
                 }
                 ::core::result::Result::Err(err) => {
@@ -1665,7 +1881,7 @@ fn __tramp_prefix_test_ownedptr_u32_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_u32_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1742,7 +1958,7 @@ fn __tramp_prefix_test_ownedptr_struct_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_struct_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1819,7 +2035,7 @@ fn __tramp_prefix_test_ownedptr_safestruct_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_safestruct_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1847,7 +2063,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_unit(_a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1875,7 +2091,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(a) } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1958,7 +2174,7 @@ fn __tramp_prefix_test_slice_u8_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_slice_u8_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 /// Initializes `PrefixExtError`.
@@ -2066,7 +2282,7 @@ fn __tramp_prefix_ext_error_init(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { self::ext_error_init(out) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[::tracing::instrument(fields(out = %__capi::internal::util::Addr::from_mut(out)))]
@@ -2177,7 +2393,7 @@ fn __tramp_prefix_ext_error_cleanup(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { self::ext_error_cleanup(ptr) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[__capi::internal::tracing::instrument(
@@ -2209,7 +2425,7 @@ fn __tramp_prefix_test_cfg_inheritance() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_cfg_inheritance() } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -2228,7 +2444,7 @@ fn __tramp_prefix_test_cfg_inheritance2() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_cfg_inheritance2() } {
-        __pattern => __pattern,
+        __pattern => __pattern.into(),
     }
 }
 #[cfg(not(cbindgen))]
@@ -2286,6 +2502,11 @@ mod __hidden {
         /// invalid representations, so it is FFI safe.
         #[automatically_derived]
         unsafe impl __capi::types::ByValue for PrefixEnum {}
+        /// SAFETY: The type is a unit-only enumeration
+        /// with a `#[repr(...)]`, and we check for
+        /// invalid representations, so it is FFI safe.
+        #[automatically_derived]
+        unsafe impl __capi::types::ByMutPtr for PrefixEnum {}
         #[automatically_derived]
         impl<T> ::core::convert::From<T> for PrefixEnum
         where
@@ -2728,6 +2949,11 @@ mod __hidden {
         /// invalid representations, so it is FFI safe.
         #[automatically_derived]
         unsafe impl __capi::types::ByValue for PrefixError {}
+        /// SAFETY: The type is a unit-only enumeration
+        /// with a `#[repr(...)]`, and we check for
+        /// invalid representations, so it is FFI safe.
+        #[automatically_derived]
+        unsafe impl __capi::types::ByMutPtr for PrefixError {}
         #[automatically_derived]
         impl<T> ::core::convert::From<T> for PrefixError
         where
