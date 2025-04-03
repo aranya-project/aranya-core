@@ -22,7 +22,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]
-aranya-capi-codegen = { version = "0.2.1", path = "../aranya-capi-codegen" }
+aranya-capi-codegen = { version = "0.2.2", path = "../aranya-capi-codegen" }
 
 anyhow = { workspace = true }
 quote = { workspace = true }
