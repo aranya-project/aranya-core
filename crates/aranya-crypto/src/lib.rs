@@ -45,6 +45,7 @@
 
 pub mod afc;
 pub mod apq;
+pub mod aqc;
 mod aranya;
 mod ciphersuite;
 pub mod default;
