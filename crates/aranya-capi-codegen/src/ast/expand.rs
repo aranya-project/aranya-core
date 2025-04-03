@@ -719,6 +719,8 @@ impl Ast {
                     #[allow(clippy::match_single_binding)]
                     #[allow(unused_braces)]
                     match #unsafety { #orig(#(#args),*) } {
+                        #[allow(clippy::useless_conversion)]
+                        #[allow(clippy::unit_arg)]
                         #pattern => { #block }
                     }
                 }
