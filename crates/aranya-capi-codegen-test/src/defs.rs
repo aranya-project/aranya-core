@@ -96,14 +96,17 @@ pub enum Enum {
 }
 
 pub fn test_enum_unit(_a: Enum) {}
-// pub fn test_unit_enum() -> Enum {
-//     Enum::A
-// }
-// pub fn test_enum_enum(a: Enum) -> Enum {
-//     a
-// }
-// pub fn test_enum_result_enum_error(a: Enum) -> Result<Enum, crate::Error> {
-//     Ok(a)
+pub fn test_unit_enum() -> Enum {
+    Enum::A
+}
+pub fn test_enum_enum(a: Enum) -> Enum {
+    a
+}
+pub fn test_enum_result_enum_error(a: Enum) -> Result<Enum, crate::Error> {
+    Ok(a)
+}
+// pub fn test_mut_ref_enum_enum(a: &mut Enum) -> Enum {
+//     a.clone()
 // }
 
 #[derive(Copy, Clone, Debug, Default)]
