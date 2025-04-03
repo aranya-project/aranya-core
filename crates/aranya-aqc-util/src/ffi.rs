@@ -21,7 +21,7 @@ use aranya_policy_vm::{
 use buggy::Bug;
 use spin::Mutex;
 
-use crate::shared::{decode_enc_pk, Label};
+use crate::shared::{decode_enc_pk, LabelId};
 
 /// Wraps `tracing::error` to always use the `aqc-ffi` target.
 macro_rules! error {
@@ -55,11 +55,11 @@ impl<S: KeyStore> Ffi<S> {
     def = r#"
 struct AqcBidiChannel {
     peer_encap bytes,
-    key_id id,
+    channel_id id,
 }
 struct AqcUniChannel {
     peer_encap bytes,
-    key_id id,
+    channel_id id,
 }
 "#
 )]
@@ -73,7 +73,7 @@ function create_bidi_channel(
     our_id id,
     their_enc_pk bytes,
     their_id id,
-    label int,
+    label_id id,
 ) struct AqcBidiChannel
 "#)]
     pub(crate) fn create_bidi_channel<E: Engine>(
@@ -85,7 +85,7 @@ function create_bidi_channel(
         our_id: DeviceId,
         their_enc_pk: Vec<u8>,
         their_id: DeviceId,
-        label: Label,
+        label_id: LabelId,
     ) -> Result<AqcBidiChannel, FfiError> {
         let our_sk = &self
             .store
@@ -100,15 +100,15 @@ function create_bidi_channel(
             our_id,
             their_pk,
             their_id,
-            label: label.into(),
+            label: label_id.into(),
         };
         let secrets = BidiSecrets::new(eng, &ch)?;
 
-        let key_id = secrets.id().into();
+        let channel_id = secrets.id().into();
         let wrapped = eng.wrap(secrets.author)?;
         self.store
             .lock()
-            .try_insert(key_id, wrapped)
+            .try_insert(channel_id, wrapped)
             .map_err(|err| {
                 error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
                 FfiError::KeyStore
@@ -116,7 +116,7 @@ function create_bidi_channel(
 
         Ok(AqcBidiChannel {
             peer_encap: secrets.peer.as_bytes().to_vec(),
-            key_id,
+            channel_id,
         })
     }
 
@@ -128,7 +128,7 @@ function create_uni_channel(
     their_pk bytes,
     seal_id id,
     open_id id,
-    label int,
+    label_id id,
 ) struct AqcUniChannel
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(
@@ -140,7 +140,7 @@ function create_uni_channel(
         their_pk: Vec<u8>,
         seal_id: DeviceId,
         open_id: DeviceId,
-        label: Label,
+        label_id: LabelId,
     ) -> Result<AqcUniChannel, FfiError> {
         let our_sk = &self
             .store
@@ -155,15 +155,15 @@ function create_uni_channel(
             their_pk,
             seal_id,
             open_id,
-            label: label.into(),
+            label: label_id.into(),
         };
         let secrets = UniSecrets::new(eng, &ch)?;
 
-        let key_id = secrets.id().into();
+        let channel_id = secrets.id().into();
         let wrapped = eng.wrap(secrets.author)?;
         self.store
             .lock()
-            .try_insert(key_id, wrapped)
+            .try_insert(channel_id, wrapped)
             .map_err(|err| {
                 error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
                 FfiError::KeyStore
@@ -171,7 +171,7 @@ function create_uni_channel(
 
         Ok(AqcUniChannel {
             peer_encap: secrets.peer.as_bytes().to_vec(),
-            key_id,
+            channel_id,
         })
     }
 }
@@ -233,16 +233,15 @@ impl From<Bug> for FfiError {
     }
 }
 
-impl Typed for Label {
-    const TYPE: Type<'static> = Type::Int;
+impl Typed for LabelId {
+    const TYPE: Type<'static> = Type::Id;
 }
 
-impl TryFrom<Value> for Label {
+impl TryFrom<Value> for LabelId {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let int: i64 = value.try_into()?;
-        let x = u32::try_from(int).map_err(|_| ValueConversionError::OutOfRange)?;
-        Ok(Label::from(x))
+        let id: Id = value.try_into()?;
+        Ok(LabelId::from(id))
     }
 }

@@ -1875,7 +1875,7 @@ pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
 pub fn test_aqc_derive_bidi_keys<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label = 123;
+    let label = Id::random(eng);
     let ch1 = aqc::BidiChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
@@ -1928,7 +1928,7 @@ pub fn test_aqc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label: 123,
+        label: Id::random(eng),
     };
     let ch2 = aqc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1938,7 +1938,7 @@ pub fn test_aqc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
-        label: 456,
+        label: Id::random(eng),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -1962,7 +1962,7 @@ pub fn test_aqc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
 pub fn test_aqc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::BidiChannel {
@@ -2010,7 +2010,7 @@ pub fn test_aqc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
 pub fn test_aqc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::BidiChannel {
@@ -2058,7 +2058,7 @@ pub fn test_aqc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
 pub fn test_aqc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::BidiChannel {
@@ -2107,7 +2107,7 @@ pub fn test_aqc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::BidiPsk`]s.
 pub fn test_aqc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::BidiChannel {
@@ -2170,7 +2170,7 @@ pub fn test_aqc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
         their_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("receiver id should be valid"),
-        label: 123,
+        label: Id::random(eng),
     };
 
     let aqc::BidiSecrets { author: want, .. } =
@@ -2193,7 +2193,7 @@ pub fn test_aqc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
 pub fn test_aqc_derive_uni_key<E: Engine>(eng: &mut E) {
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
-    let label = 123;
+    let label = Id::random(eng);
     let ch1 = aqc::UniChannel {
         parent_cmd_id: Id::random(eng),
         our_sk: &sk1,
@@ -2248,7 +2248,7 @@ pub fn test_aqc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label: 123,
+        label: Id::random(eng),
     };
     let ch2 = aqc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -2258,7 +2258,7 @@ pub fn test_aqc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
-        label: 456,
+        label: Id::random(eng),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -2280,7 +2280,7 @@ pub fn test_aqc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u3, c1).
 pub fn test_aqc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::UniChannel {
@@ -2327,7 +2327,7 @@ pub fn test_aqc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
 pub fn test_aqc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::UniChannel {
@@ -2374,7 +2374,7 @@ pub fn test_aqc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
 ///
 /// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
 pub fn test_aqc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let ch1 = aqc::UniChannel {
@@ -2418,7 +2418,7 @@ pub fn test_aqc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::UniSendPsk`]s.
 pub fn test_aqc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::UniChannel {
@@ -2469,7 +2469,7 @@ pub fn test_aqc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::UniRecvPsk`]s.
 pub fn test_aqc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
-    let label = 123;
+    let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
     let mut ch1 = aqc::UniChannel {
@@ -2533,7 +2533,7 @@ pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
         open_id: IdentityKey::<E::CS>::new(eng)
             .id()
             .expect("open id should be valid"),
-        label: 123,
+        label: Id::random(eng),
     };
 
     let aqc::UniSecrets { author: want, .. } =

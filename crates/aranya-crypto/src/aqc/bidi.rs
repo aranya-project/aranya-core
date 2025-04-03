@@ -55,7 +55,7 @@ use crate::{
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
 /// let parent_cmd_id = Id::random(&mut eng);
-/// let label = 42u32;
+/// let label = Id::random(&mut eng);
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
@@ -108,7 +108,7 @@ pub struct BidiChannel<'a, CS: CipherSuite> {
     /// Their DeviceID.
     pub their_id: DeviceId,
     /// The policy label applied to the channel.
-    pub label: u32,
+    pub label: Id,
 }
 
 impl<CS: CipherSuite> BidiChannel<'_, CS> {
@@ -119,11 +119,10 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         // info = H(
         //     "AqcBidiPsk",
         //     suite_id,
-        //     engine_id,
         //     parent_cmd_id,
         //     author_id,
         //     peer_id,
-        //     i2osp(label, 4),
+        //     label_id,
         // )
         tuple_hash::<CS::Hash, _>([
             Self::LABEL,
@@ -131,7 +130,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
             self.parent_cmd_id.as_bytes(),
             self.our_id.as_bytes(),
             self.their_id.as_bytes(),
-            &self.label.to_be_bytes(),
+            self.label.as_bytes(),
         ])
     }
 
@@ -146,7 +145,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
             self.parent_cmd_id.as_bytes(),
             self.their_id.as_bytes(),
             self.our_id.as_bytes(),
-            &self.label.to_be_bytes(),
+            self.label.as_bytes(),
         ])
     }
 }
@@ -369,7 +368,7 @@ mod tests {
         let parent_cmd_id = Id::random(&mut eng);
         let sk1 = EncryptionKey::<CS>::new(&mut eng);
         let sk2 = EncryptionKey::<CS>::new(&mut eng);
-        let label = 123;
+        let label = Id::random(&mut eng);
         let ch1 = BidiChannel {
             parent_cmd_id,
             our_sk: &sk1,
@@ -414,7 +413,8 @@ mod tests {
             .id()
             .expect("device2 Id should be valid");
 
-        let label = 123;
+        let parent_cmd_id = Id::random(&mut eng);
+        let label = Id::random(&mut eng);
 
         let cases = [
             (
@@ -443,7 +443,7 @@ mod tests {
             (
                 "different our_id",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id,
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -453,7 +453,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id,
                     our_sk: &sk2,
                     our_id: IdentityKey::<CS>::new(&mut eng)
                         .id()
@@ -468,7 +468,7 @@ mod tests {
             (
                 "different their_id",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id,
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -478,7 +478,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id,
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1
@@ -493,24 +493,24 @@ mod tests {
             (
                 "different label",
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id,
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
                         .public()
                         .expect("receiver encryption public key should be valid"),
                     their_id: device2_id,
-                    label: 123,
+                    label: Id::random(&mut eng),
                 },
                 BidiChannel {
-                    parent_cmd_id: Id::random(&mut eng),
+                    parent_cmd_id,
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1
                         .public()
                         .expect("receiver encryption public key should be valid"),
                     their_id: device1_id,
-                    label: 456,
+                    label: Id::random(&mut eng),
                 },
             ),
         ];

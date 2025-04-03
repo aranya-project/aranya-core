@@ -31,7 +31,7 @@ use crate::{
         BidiChannelCreated, BidiChannelReceived, Handler, UniChannelCreated, UniChannelReceived,
         UniPsk,
     },
-    shared::Label,
+    shared::LabelId,
 };
 
 /// Encodes a [`EncryptionPublicKey`].
@@ -294,7 +294,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label = Label::new(42);
+    let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateBidiChannel",
@@ -302,7 +302,10 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     });
 
     // This is called via FFI.
-    let AqcBidiChannel { peer_encap, key_id } = author
+    let AqcBidiChannel {
+        peer_encap,
+        channel_id,
+    } = author
         .ffi
         .create_bidi_channel(
             &ctx,
@@ -312,7 +315,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
             author.device_id,
             peer.enc_pk.clone(),
             peer.device_id,
-            label,
+            label_id,
         )
         .expect("author should be able to create a bidi channel");
 
@@ -328,8 +331,8 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
                 author_enc_key_id: author.enc_key_id,
                 peer_id: peer.device_id,
                 peer_enc_pk: &peer.enc_pk,
-                label,
-                key_id: key_id.into(),
+                label_id,
+                channel_id: channel_id.into(),
             },
         )
         .expect("author should be able to load bidi PSK");
@@ -346,8 +349,9 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
                 author_enc_pk: &author.enc_pk,
                 peer_id: peer.device_id,
                 peer_enc_key_id: peer.enc_key_id,
-                label,
+                label_id,
                 encap: &peer_encap,
+                channel_id: channel_id.into(),
             },
         )
         .expect("peer should be able to load bidi keys");
@@ -362,7 +366,7 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label = Label::new(42);
+    let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateSendOnlyChannel",
@@ -370,7 +374,10 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
     });
 
     // This is called via FFI.
-    let AqcUniChannel { peer_encap, key_id } = author
+    let AqcUniChannel {
+        peer_encap,
+        channel_id,
+    } = author
         .ffi
         .create_uni_channel(
             &ctx,
@@ -380,7 +387,7 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
             peer.enc_pk.clone(),
             author.device_id,
             peer.device_id,
-            label,
+            label_id,
         )
         .expect("author should be able to create a uni channel");
 
@@ -397,8 +404,8 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
                 recv_id: peer.device_id,
                 author_enc_key_id: author.enc_key_id,
                 peer_enc_pk: &peer.enc_pk,
-                label,
-                key_id: key_id.into(),
+                label_id,
+                channel_id: channel_id.into(),
             },
         )
         .expect("author should be able to load encryption key");
@@ -417,8 +424,9 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
                 recv_id: peer.device_id,
                 author_enc_pk: &author.enc_pk,
                 peer_enc_key_id: peer.enc_key_id,
-                label,
+                label_id,
                 encap: &peer_encap,
+                channel_id: channel_id.into(),
             },
         )
         .expect("peer should be able to load decryption key");
@@ -434,7 +442,7 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
     let mut author = T::new(); // open only
     let mut peer = T::new(); // seal only
 
-    let label = Label::new(42);
+    let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateUniOnlyChannel",
@@ -442,7 +450,10 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
     });
 
     // This is called via FFI.
-    let AqcUniChannel { peer_encap, key_id } = author
+    let AqcUniChannel {
+        peer_encap,
+        channel_id,
+    } = author
         .ffi
         .create_uni_channel(
             &ctx,
@@ -452,7 +463,7 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
             peer.enc_pk.clone(),
             author.device_id,
             peer.device_id,
-            label,
+            label_id,
         )
         .expect("author should be able to create a uni channel");
 
@@ -469,8 +480,8 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
                 recv_id: author.device_id,
                 author_enc_key_id: author.enc_key_id,
                 peer_enc_pk: &peer.enc_pk,
-                label,
-                key_id: key_id.into(),
+                label_id,
+                channel_id: channel_id.into(),
             },
         )
         .expect("author should be able to load decryption key");
@@ -489,8 +500,9 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
                 recv_id: author.device_id,
                 author_enc_pk: &author.enc_pk,
                 peer_enc_key_id: peer.enc_key_id,
-                label,
+                label_id,
                 encap: &peer_encap,
+                channel_id: channel_id.into(),
             },
         )
         .expect("peer should be able to load encryption key");

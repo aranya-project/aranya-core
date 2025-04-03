@@ -2,14 +2,14 @@
 
 use aranya_crypto::{
     aqc::{
-        BidiChannel, BidiPeerEncap, BidiPsk, UniChannel, UniChannelId, UniPeerEncap, UniRecvPsk,
-        UniSendPsk,
+        BidiChannel, BidiChannelId, BidiPeerEncap, BidiPsk, UniChannel, UniChannelId, UniPeerEncap,
+        UniRecvPsk, UniSendPsk,
     },
     custom_id, CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::shared::{decode_enc_pk, Label};
+use crate::shared::{decode_enc_pk, LabelId};
 
 /// Wraps `tracing::error` to always use the `aqc-handler`
 /// target.
@@ -47,7 +47,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0)
+            .remove_key(eng, effect.channel_id.into())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
@@ -66,7 +66,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.author_id,
             their_pk,
             their_id: effect.peer_id,
-            label: effect.label.into(),
+            label: effect.label_id.into(),
         };
 
         let psk = BidiPsk::from_author_secret(&ch, secret).inspect_err(|err| {
@@ -103,7 +103,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.peer_id,
             their_pk,
             their_id: effect.author_id,
-            label: effect.label.into(),
+            label: effect.label_id.into(),
         };
 
         let psk = BidiPsk::from_peer_encap(&ch, encap).inspect_err(|err| {
@@ -128,10 +128,9 @@ pub struct BidiChannelCreated<'a> {
     /// [`EncryptionPublicKey`][aranya_crypto::EncryptionPublicKey].
     pub peer_enc_pk: &'a [u8],
     /// The AQC channel label.
-    pub label: Label,
-    /// The unique key identifier for the
-    /// [`BidiAuthorSecret`][aranya_crypto::aqc::BidiAuthorSecret].
-    pub key_id: BidiKeyId,
+    pub label_id: LabelId,
+    /// Uniquely identifies the channel.
+    pub channel_id: BidiChannelId,
 }
 
 /// Data from the `AqcBidiChannelReceived` effect.
@@ -149,14 +148,11 @@ pub struct BidiChannelReceived<'a> {
     /// The channel peer's encryption key ID.
     pub peer_enc_key_id: EncryptionKeyId,
     /// The AQC channel label.
-    pub label: Label,
+    pub label_id: LabelId,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
-}
-
-custom_id! {
-    /// Uniquely identifies a bidirectional channel.
-    pub struct BidiKeyId;
+    /// Uniquely identifies the channel.
+    pub channel_id: BidiChannelId,
 }
 
 // Uni impl.
@@ -177,7 +173,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0)
+            .remove_key(eng, effect.channel_id.into())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
@@ -196,7 +192,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label.into(),
+            label: effect.label_id.into(),
         };
 
         if self.device_id == effect.send_id {
@@ -246,7 +242,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label.into(),
+            label: effect.label_id.into(),
         };
 
         if self.device_id == effect.send_id {
@@ -283,10 +279,9 @@ pub struct UniChannelCreated<'a> {
     /// The channel peer's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub peer_enc_pk: &'a [u8],
     /// The AQC channel label.
-    pub label: Label,
-    /// The unique key identifier for the
-    /// [`UniAuthorSecret`][aranya_crypto::aqc::UniAuthorSecret].
-    pub key_id: UniKeyId,
+    pub label_id: LabelId,
+    /// Uniquely identifies the channel.
+    pub channel_id: UniChannelId,
 }
 
 /// Data from the `AqcUniChannelReceived` effect.
@@ -305,9 +300,11 @@ pub struct UniChannelReceived<'a> {
     /// The channel peer's encryption key ID.
     pub peer_enc_key_id: EncryptionKeyId,
     /// The AQC channel label.
-    pub label: Label,
+    pub label_id: LabelId,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
+    /// Uniquely identifies the channel.
+    pub channel_id: UniChannelId,
 }
 
 custom_id! {

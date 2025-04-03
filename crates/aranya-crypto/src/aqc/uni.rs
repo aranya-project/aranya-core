@@ -57,7 +57,7 @@ use crate::{
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
 /// let parent_cmd_id = Id::random(&mut eng);
-/// let label = 42u32;
+/// let label = Id::random(&mut eng);
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
@@ -110,7 +110,7 @@ pub struct UniChannel<'a, CS: CipherSuite> {
     /// The device that is permitted to decrypt messages.
     pub open_id: DeviceId,
     /// The policy label applied to the channel.
-    pub label: u32,
+    pub label: Id,
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
@@ -118,11 +118,10 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         // info = H(
         //     "AqcUniPsk",
         //     suite_id,
-        //     engine_id,
         //     parent_cmd_id,
         //     seal_id,
         //     open_id,
-        //     i2osp(label, 4),
+        //     label_id,
         // )
         tuple_hash::<CS::Hash, _>([
             "AqcUniPsk".as_bytes(),
@@ -130,7 +129,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
             self.parent_cmd_id.as_bytes(),
             self.seal_id.as_bytes(),
             self.open_id.as_bytes(),
-            &self.label.to_be_bytes(),
+            self.label.as_bytes(),
         ])
     }
 }

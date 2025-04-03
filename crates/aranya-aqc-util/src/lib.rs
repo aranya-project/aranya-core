@@ -14,4 +14,4 @@ mod tests;
 #[cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
 pub use ffi::*;
 pub use handler::*;
-pub use shared::Label;
+pub use shared::LabelId;
