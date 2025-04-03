@@ -2399,9 +2399,9 @@ fn test_substruct_errors() -> anyhow::Result<()> {
                 }
                 action baz(source struct Bar) {
                     let maybe_source = if true {
-                        Some(source)
+                        :Some(source)
                     } else {
-                        None 
+                        :None 
                     }
 
                     let definitely_source = unwrap maybe_source
@@ -2434,9 +2434,9 @@ fn test_substruct_errors() -> anyhow::Result<()> {
                 }
                 action baz(source struct Bar) {
                     let maybe_source = if true {
-                        Some(source)
+                        :Some(source)
                     } else {
-                        None 
+                        :None 
                     }
 
                     let definitely_source = unwrap maybe_source
