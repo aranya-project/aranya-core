@@ -21,7 +21,7 @@ command Foo {
 }
 
 action foo(b int) {
-    let x = if b == 0 { 4 } else { 3 }
+    let x = if b == 0 { :4 } else { :3 }
     let y = Foo{
         a: x,
         b: 4
