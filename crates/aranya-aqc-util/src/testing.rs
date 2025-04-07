@@ -7,7 +7,7 @@
 
 extern crate alloc;
 
-use alloc::{sync::Arc, vec::Vec};
+use alloc::{collections::BTreeSet, sync::Arc, vec::Vec};
 use core::{
     cell::UnsafeCell,
     mem::{self, MaybeUninit},
@@ -17,6 +17,8 @@ use core::{
 
 use aranya_crypto::{
     self,
+    aqc::{BidiChannelId, UniChannelId},
+    csprng::Random,
     engine::WrappedKey,
     keystore::{memstore, Entry, Occupied, Vacant},
     CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
@@ -37,6 +39,91 @@ use crate::{
 /// Encodes a [`EncryptionPublicKey`].
 fn encode_enc_pk<CS: CipherSuite>(pk: &EncryptionPublicKey<CS>) -> Vec<u8> {
     postcard::to_allocvec(pk).expect("should be able to encode an `EncryptionPublicKey`")
+}
+
+fn shuffle<T>(data: &mut [T]) {
+    shuffle_by(data.len(), |i, j| {
+        data.swap(i, j);
+    })
+}
+
+fn shuffle_by<F>(n: usize, mut swap: F)
+where
+    F: FnMut(usize, usize),
+{
+    for i in (0..n).rev() {
+        let j = rand_intn(i + 1);
+        swap(i, j);
+    }
+}
+
+#[track_caller]
+fn assert_unique<T>(iter: impl IntoIterator<Item = T>)
+where
+    T: Ord,
+{
+    let mut uniq = BTreeSet::new();
+    for v in iter {
+        assert!(uniq.insert(v));
+    }
+}
+
+/// Returns a random integer in [0, max).
+fn rand_intn(max: usize) -> usize {
+    debug_assert!(max < usize::MAX);
+
+    // Use Lemire's uniform sampling method to select an index in
+    // [0, RANGE). This loop usually runs once, rarely more than
+    // twice.
+    //
+    // See https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction/
+    // See https://lemire.me/blog/2016/06/30/fast-random-shuffling/
+    loop {
+        let range = max;
+        let rand = usize::random(&mut Rng);
+        let (hi, lo) = widening_mul(rand, range);
+        let thresh = 0usize.wrapping_sub(range) % range;
+        if lo >= thresh {
+            // Wide multiplying `rand * range` puts the candidate
+            // in `hi`.
+            debug_assert!(hi < max);
+            break hi;
+        }
+    }
+}
+
+/// Returns (hi, lo).
+#[inline(always)]
+const fn widening_mul(x: usize, y: usize) -> (usize, usize) {
+    const SHIFT: u32 = usize::BITS / 2; // high bits
+    const MASK: usize = (1 << SHIFT) - 1; // low bits
+
+    let x1 = x >> SHIFT;
+    let x0 = x & MASK;
+    let y1 = y >> SHIFT;
+    let y0 = y & MASK;
+
+    // `x0*y0` cannot overflow because both are at most b/2 bits,
+    // and multiplying an m-bit number by an n-bit number uses at
+    // most m+n bits.
+    let w0 = x0 * y0;
+    // `x1*y0` also cannot overflow for the same reasons.
+    // However, the addition uses at most one extra bit and might
+    // overflow.
+    let t = (x1 * y0).wrapping_add(w0 >> SHIFT);
+    // `x0*y1` also cannot overflow for the same reasons.
+    // However, the addition uses at most one extra bit and might
+    // overflow.
+    let w1 = (x0 * y1).wrapping_add(t & MASK);
+    let w2 = t >> SHIFT;
+    // `x1*y1` also cannot overflow for the same reasons.
+    // However, each addition uses at most one extra bit and
+    // might overflow.
+    let hi = (x1 * y1).wrapping_add(w2).wrapping_add(w1 >> SHIFT);
+    // Full-width multiplication obviously might overflow.
+    let lo = x.wrapping_mul(y);
+
+    (hi, lo)
 }
 
 /// [`memstore::MemStore`], but wrapped in `Arc<Mutex<..>>`.
@@ -282,6 +369,9 @@ macro_rules! test_all {
             }
 
             test!(test_create_bidi_channel);
+            test!(test_create_multi_bidi_channels_same_label);
+            test!(test_create_multi_bidi_channels_same_parent_cmd_id);
+            test!(test_create_multi_bidi_channels_same_label_multi_peers);
             test!(test_create_send_only_uni_channel);
             test!(test_create_recv_only_uni_channel);
         }
@@ -349,7 +439,6 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
             &mut peer.eng,
             &BidiChannelReceived {
                 channel_id: channel_id.into(),
-                psk_length_in_bytes: 32,
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_pk: &author.enc_pk,
@@ -357,10 +446,12 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
                 peer_enc_key_id: peer.enc_key_id,
                 label_id,
                 encap: &peer_encap,
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
         .expect("peer should be able to load bidi keys");
 
+    assert_eq!(BidiChannelId::from(channel_id), author_psk.identity());
     assert_eq!(author_psk.identity(), peer_psk.identity());
     assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
 }
@@ -427,7 +518,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
         .uni_channel_received(
             &mut peer.eng,
             &UniChannelReceived {
-                psk_length_in_bytes: 32,
+                channel_id: channel_id.into(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: author.device_id,
@@ -436,12 +527,13 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
                 peer_enc_key_id: peer.enc_key_id,
                 label_id,
                 encap: &peer_encap,
-                channel_id: channel_id.into(),
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
         .expect("peer should be able to load decryption key");
     assert!(matches!(peer_psk, UniPsk::RecvOnly(_)));
 
+    assert_eq!(UniChannelId::from(channel_id), author_psk.identity());
     assert_eq!(author_psk.identity(), peer_psk.identity());
     assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
 }
@@ -523,6 +615,324 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
         .expect("peer should be able to load encryption key");
     assert!(matches!(peer_psk, UniPsk::SendOnly(_)));
 
+    assert_eq!(UniChannelId::from(channel_id), author_psk.identity());
     assert_eq!(author_psk.identity(), peer_psk.identity());
     assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+}
+
+/// A basic positive test for creating multiple bidirectional
+/// channels with the same label.
+pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
+    let mut author = T::new();
+    let mut peer = T::new();
+
+    let label_id = LabelId::random(&mut Rng);
+
+    let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
+        .map(|_| {
+            let parent_cmd_id = Id::random(&mut Rng);
+            let ctx = CommandContext::Action(ActionContext {
+                name: "CreateBidiChannel",
+                head_id: parent_cmd_id,
+            });
+
+            // This is called via FFI.
+            let AqcBidiChannel {
+                peer_encap,
+                channel_id,
+                author_secrets_id,
+                psk_length_in_bytes,
+            } = author
+                .ffi
+                .create_bidi_channel(
+                    &ctx,
+                    &mut author.eng,
+                    parent_cmd_id,
+                    author.enc_key_id,
+                    author.device_id,
+                    peer.enc_pk.clone(),
+                    peer.device_id,
+                    label_id,
+                )
+                .expect("author should be able to create a bidi channel");
+
+            let created = BidiChannelCreated {
+                channel_id: channel_id.into(),
+                parent_cmd_id,
+                author_id: author.device_id,
+                author_enc_key_id: author.enc_key_id,
+                peer_id: peer.device_id,
+                peer_enc_pk: &peer.enc_pk,
+                label_id,
+                author_secrets_id: author_secrets_id.into(),
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
+            };
+            let received = BidiChannelReceived {
+                channel_id: channel_id.into(),
+                parent_cmd_id,
+                author_id: author.device_id,
+                author_enc_pk: &author.enc_pk,
+                peer_id: peer.device_id,
+                peer_enc_key_id: peer.enc_key_id,
+                label_id,
+                encap: &[],
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
+            };
+            ((created, received), peer_encap)
+        })
+        .unzip();
+
+    // Set `encap` outside of the loop b/c of lifetime and
+    // aliasing issues.
+    for ((_, received), encap) in expect.iter_mut().zip(&peer_encaps) {
+        received.encap = encap;
+    }
+
+    shuffle(&mut expect);
+
+    // There shouldn't be any duplicate channel IDs.
+    assert_unique(expect.iter().map(|(created, _)| created.channel_id));
+
+    for (created, received) in &expect {
+        // This is called by the author of the channel after
+        // receiving the effect.
+        let author_psk = author
+            .handler
+            .bidi_channel_created(&mut author.eng, &created)
+            .expect("author should be able to load bidi PSK");
+
+        // This is called by the channel peer after receiving the
+        // effect.
+        let peer_psk = peer
+            .handler
+            .bidi_channel_received(&mut peer.eng, &received)
+            .expect("peer should be able to load bidi keys");
+
+        assert_eq!(author_psk.identity(), peer_psk.identity());
+        assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+    }
+}
+
+/// A basic positive test for creating multiple bidirectional
+/// channels with the same parent command ID.
+pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
+    let mut author = T::new();
+    let mut peer = T::new();
+
+    let parent_cmd_id = Id::random(&mut Rng);
+    let ctx = CommandContext::Action(ActionContext {
+        name: "CreateBidiChannel",
+        head_id: parent_cmd_id,
+    });
+
+    let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
+        .map(|_| {
+            let label_id = LabelId::random(&mut Rng);
+
+            // This is called via FFI.
+            let AqcBidiChannel {
+                peer_encap,
+                channel_id,
+                author_secrets_id,
+                psk_length_in_bytes,
+            } = author
+                .ffi
+                .create_bidi_channel(
+                    &ctx,
+                    &mut author.eng,
+                    parent_cmd_id,
+                    author.enc_key_id,
+                    author.device_id,
+                    peer.enc_pk.clone(),
+                    peer.device_id,
+                    label_id,
+                )
+                .expect("author should be able to create a bidi channel");
+
+            let created = BidiChannelCreated {
+                channel_id: channel_id.into(),
+                parent_cmd_id,
+                author_id: author.device_id,
+                author_enc_key_id: author.enc_key_id,
+                peer_id: peer.device_id,
+                peer_enc_pk: &peer.enc_pk,
+                label_id,
+                author_secrets_id: author_secrets_id.into(),
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
+            };
+            let received = BidiChannelReceived {
+                channel_id: channel_id.into(),
+                parent_cmd_id,
+                author_id: author.device_id,
+                author_enc_pk: &author.enc_pk,
+                peer_id: peer.device_id,
+                peer_enc_key_id: peer.enc_key_id,
+                label_id,
+                encap: &[],
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
+            };
+            ((created, received), peer_encap)
+        })
+        .unzip();
+
+    // Set `encap` outside of the loop b/c of lifetime and
+    // aliasing issues.
+    for ((_, received), encap) in expect.iter_mut().zip(&peer_encaps) {
+        received.encap = encap;
+    }
+
+    shuffle(&mut expect);
+
+    // There shouldn't be any duplicate channel IDs.
+    assert_unique(expect.iter().map(|(created, _)| created.channel_id));
+
+    for (created, received) in &expect {
+        // This is called by the author of the channel after
+        // receiving the effect.
+        let author_psk = author
+            .handler
+            .bidi_channel_created(&mut author.eng, &created)
+            .expect("author should be able to load bidi PSK");
+
+        // This is called by the channel peer after receiving the
+        // effect.
+        let peer_psk = peer
+            .handler
+            .bidi_channel_received(&mut peer.eng, &received)
+            .expect("peer should be able to load bidi keys");
+
+        assert_eq!(created.channel_id, author_psk.identity());
+        assert_eq!(author_psk.identity(), peer_psk.identity());
+        assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+    }
+}
+
+/// A basic positive test for creating multiple bidirectional
+/// channels with the same label with multiple peers.
+pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
+    let mut author = T::new();
+    let mut peers = (0..50).map(|_| T::new()).collect::<Vec<_>>();
+    // Just to break the `expect -> peers` aliasing.
+    let peer_enc_pks = peers
+        .iter()
+        .map(|peer| peer.enc_pk.clone())
+        .collect::<Vec<_>>();
+
+    let label_id = LabelId::random(&mut Rng);
+
+    let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = peers
+        .iter()
+        .enumerate()
+        .map(|(i, peer)| {
+            let parent_cmd_id = Id::random(&mut Rng);
+            let ctx = CommandContext::Action(ActionContext {
+                name: "CreateBidiChannel",
+                head_id: parent_cmd_id,
+            });
+
+            // This is called via FFI.
+            let AqcBidiChannel {
+                peer_encap,
+                channel_id,
+                author_secrets_id,
+                psk_length_in_bytes,
+            } = author
+                .ffi
+                .create_bidi_channel(
+                    &ctx,
+                    &mut author.eng,
+                    parent_cmd_id,
+                    author.enc_key_id,
+                    author.device_id,
+                    peer.enc_pk.clone(),
+                    peer.device_id,
+                    label_id,
+                )
+                .expect("author should be able to create a bidi channel");
+
+            let created = BidiChannelCreated {
+                channel_id: channel_id.into(),
+                parent_cmd_id,
+                author_id: author.device_id,
+                author_enc_key_id: author.enc_key_id,
+                peer_id: peer.device_id,
+                peer_enc_pk: &peer_enc_pks[i],
+                label_id,
+                author_secrets_id: author_secrets_id.into(),
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
+            };
+            let received = BidiChannelReceived {
+                channel_id: channel_id.into(),
+                parent_cmd_id,
+                author_id: author.device_id,
+                author_enc_pk: &author.enc_pk,
+                peer_id: peer.device_id,
+                peer_enc_key_id: peer.enc_key_id,
+                label_id,
+                encap: &[],
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
+            };
+            ((created, received), peer_encap)
+        })
+        .unzip();
+
+    // Set `encap` outside of the loop b/c of lifetime and
+    // aliasing issues.
+    for ((_, received), encap) in expect.iter_mut().zip(&peer_encaps) {
+        received.encap = encap;
+    }
+
+    shuffle_by(expect.len(), |i, j| {
+        expect.swap(i, j);
+        peers.swap(i, j);
+    });
+
+    // There shouldn't be any duplicate channel IDs.
+    assert_unique(expect.iter().map(|(created, _)| created.channel_id));
+
+    for ((created, received), mut peer) in expect.iter().zip(peers) {
+        // This is called by the author of the channel after
+        // receiving the effect.
+        let author_psk = author
+            .handler
+            .bidi_channel_created(&mut author.eng, created)
+            .expect("author should be able to load bidi PSK");
+
+        // This is called by the channel peer after receiving the
+        // effect.
+        let peer_psk = peer
+            .handler
+            .bidi_channel_received(&mut peer.eng, received)
+            .expect("peer should be able to load bidi keys");
+
+        assert_eq!(author_psk.identity(), peer_psk.identity());
+        assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::collections::BTreeSet;
+
+    use super::*;
+
+    #[test]
+    fn test_shuffle() {
+        let r = 1;
+        let g = 2;
+        let b = 3;
+        let mut perms = BTreeSet::from_iter([
+            [r, g, b],
+            [r, b, g],
+            [g, r, b],
+            [g, b, r],
+            [b, r, g],
+            [b, g, r],
+        ]);
+        let mut data = [r, g, b];
+        while !perms.is_empty() {
+            shuffle(&mut data);
+            perms.remove(&data);
+        }
+    }
 }

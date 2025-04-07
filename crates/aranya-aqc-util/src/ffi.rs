@@ -66,7 +66,7 @@ struct AqcBidiChannel {
     author_secrets_id id,
     // The size in bytes of the PSK.
     //
-    // Per the AQC specification this must be at least 32 and
+    // Per the AQC specification, this must be at least 32 and
     // less than 2^16.
     psk_length_in_bytes int,
 }
@@ -84,7 +84,7 @@ struct AqcUniChannel {
     author_secrets_id id,
     // The size in bytes of the PSK.
     //
-    // Per the AQC specification this must be at least 32 and
+    // Per the AQC specification, this must be at least 32 and
     // less than 2^16.
     psk_length_in_bytes int,
 }

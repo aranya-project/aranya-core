@@ -2,8 +2,8 @@
 
 use aranya_crypto::{
     aqc::{
-        BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiPsk, UniChannel,
-        UniChannelId, UniPeerEncap, UniRecvPsk, UniSendPsk,
+        BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiPsk, UniAuthorSecretId,
+        UniChannel, UniChannelId, UniPeerEncap, UniRecvPsk, UniSendPsk,
     },
     custom_id, CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
 };
@@ -129,6 +129,7 @@ impl<S: KeyStore> Handler<S> {
 
 /// Data from the `AqcBidiChannelCreated` effect.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(any(test, feature = "testing"), derive(PartialEq))]
 pub struct BidiChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
@@ -158,6 +159,7 @@ pub struct BidiChannelCreated<'a> {
 
 /// Data from the `AqcBidiChannelReceived` effect.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(any(test, feature = "testing"), derive(PartialEq))]
 pub struct BidiChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
@@ -319,7 +321,7 @@ pub struct UniChannelCreated<'a> {
     pub label_id: LabelId,
     /// A unique ID that the author can use to look up the
     /// channel's secrets in the keystore.
-    pub author_secrets_id: BidiAuthorSecretId,
+    pub author_secrets_id: UniAuthorSecretId,
     /// The size in bytes of the PSK.
     ///
     /// Per the AQC specification this must be at least 32. This
