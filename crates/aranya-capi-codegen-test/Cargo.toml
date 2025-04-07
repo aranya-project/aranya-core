@@ -15,14 +15,14 @@ default = []
 test_cfg = []
 
 [dependencies]
-aranya-capi-core = { version = "0.2.1", path = "../aranya-capi-core", features = ["debug"] }
+aranya-capi-core = { version = "0.2.2", path = "../aranya-capi-core", features = ["debug"] }
 buggy = { version = "0.1.0" }
 
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [build-dependencies]
-aranya-capi-codegen = { version = "0.2.2", path = "../aranya-capi-codegen" }
+aranya-capi-codegen = { version = "0.2.3", path = "../aranya-capi-codegen" }
 
 anyhow = { workspace = true }
 quote = { workspace = true }
