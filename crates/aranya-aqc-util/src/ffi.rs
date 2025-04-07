@@ -284,3 +284,9 @@ impl TryFrom<Value> for LabelId {
         Ok(LabelId::from(id))
     }
 }
+
+impl From<LabelId> for Value {
+    fn from(id: LabelId) -> Value {
+        Value::Id(id.into())
+    }
+}
