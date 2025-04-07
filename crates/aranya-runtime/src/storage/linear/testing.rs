@@ -22,6 +22,10 @@ impl io::IoManager for Manager {
     fn open(&mut self, _id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
         Ok(None)
     }
+
+    fn list(&self) -> Result<impl Iterator, StorageError> {
+        Ok(core::iter::empty::<GraphId>())
+    }
 }
 
 #[derive(Default)]

@@ -2,8 +2,8 @@ use alloc::sync::Arc;
 use core::{cmp::Ordering, hash::Hasher};
 
 use aranya_libc::{
-    self as libc, Errno, OwnedFd, Path, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
-    O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
+    self as libc, AsAtRoot, Errno, OwnedDir, OwnedFd, Path, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT,
+    O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
 use buggy::{bug, BugExt};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -14,6 +14,28 @@ use crate::{
     linear::io::{IoManager, Read, Write},
     GraphId, Location, StorageError,
 };
+
+struct GraphIdIterator {
+    inner: OwnedDir,
+}
+
+impl GraphIdIterator {
+    fn new(fd: impl AsAtRoot) -> Result<Self, StorageError> {
+        Ok(Self {
+            inner: libc::fdopendir(fd)?,
+        })
+    }
+}
+
+impl Iterator for GraphIdIterator {
+    type Item = GraphId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let entry = libc::readdir(&mut self.inner).ok()?;
+        let name = entry.name().to_bytes();
+        GraphId::decode(name).ok()
+    }
+}
 
 /// A file-backed implementation of [`IoManager`].
 #[derive(Debug)]
@@ -78,6 +100,10 @@ impl IoManager for FileManager {
         };
         libc::flock(&fd, LOCK_EX | LOCK_NB)?;
         Ok(Some(Writer::open(fd)?))
+    }
+
+    fn list(&self) -> Result<impl Iterator, StorageError> {
+        Ok(GraphIdIterator::new(self.root())?)
     }
 }
 

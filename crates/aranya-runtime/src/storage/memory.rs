@@ -109,6 +109,10 @@ impl StorageProvider for MemStorageProvider {
             .get_mut(&graph)
             .ok_or(StorageError::NoSuchStorage)
     }
+
+    fn list_graph_ids(&self) -> Result<impl Iterator, StorageError> {
+        Ok(self.storage.keys())
+    }
 }
 
 type FactMap = BTreeMap<Keys, Option<Box<[u8]>>>;

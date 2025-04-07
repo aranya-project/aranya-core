@@ -1,5 +1,8 @@
 use alloc::sync::Arc;
-use core::{ffi::c_int, marker::PhantomData};
+use core::{
+    ffi::{c_int, CStr},
+    marker::PhantomData,
+};
 
 use cfg_if::cfg_if;
 
@@ -71,6 +74,51 @@ impl Drop for OwnedFd {
     }
 }
 
+/// An owned directory stream.
+///
+/// It's closed on drop.
+#[derive(Debug, Eq, PartialEq)]
+#[repr(transparent)]
+#[clippy::has_significant_drop]
+pub struct OwnedDir {
+    fd: imp::RawDir,
+}
+
+/// Information about an entry in a directory.
+///
+/// This is tied to the lifetime of the OwnedDir, and will be invalidated on the
+/// next call to `readdir`.
+pub struct DirEntry<'dir> {
+    entry: imp::DirEntry,
+    _phantom: PhantomData<&'dir OwnedDir>,
+}
+
+impl OwnedDir {
+    fn readdir<'a>(&'a mut self) -> Result<DirEntry<'a>, Errno> {
+        let entry = imp::readdir(self.fd)?;
+        Ok(DirEntry {
+            entry,
+            _phantom: PhantomData,
+        })
+    }
+}
+
+impl Drop for OwnedDir {
+    fn drop(&mut self) {
+        let _ = imp::closedir(self.fd);
+    }
+}
+
+impl<'dir> DirEntry<'dir> {
+    /// Returns the name for the current entry.
+    pub fn name(&self) -> &'dir CStr {
+        const OFFSET: isize = core::mem::offset_of!(libc::dirent, d_name) as isize;
+        // SAFETY: d_name is guaranteed to be null terminated.
+        let name = unsafe { CStr::from_ptr((self.entry.byte_offset(OFFSET)).cast()) };
+        name
+    }
+}
+
 /// A borrowed file descriptor.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
@@ -131,4 +179,15 @@ pub fn pwrite(fd: impl AsFd, buf: &[u8], off: i64) -> Result<usize, Errno> {
 /// See `fsync(2)`.
 pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
     imp::fsync(fd.as_fd())
+}
+
+/// See `fdopendir(2)`.
+pub fn fdopendir(fd: impl AsAtRoot) -> Result<OwnedDir, Errno> {
+    let fd = imp::fdopendir(fd.as_root())?;
+    Ok(OwnedDir { fd })
+}
+
+/// See `readdir(2)`.
+pub fn readdir<'dir>(dir: &'dir mut OwnedDir) -> Result<DirEntry<'dir>, Errno> {
+    dir.readdir()
 }

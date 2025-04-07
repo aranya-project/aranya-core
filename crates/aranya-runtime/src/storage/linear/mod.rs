@@ -257,6 +257,10 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
             .ok_or(StorageError::NoSuchStorage)?;
         Ok(entry.insert(LinearStorage::open(file)?))
     }
+
+    fn list_graph_ids(&self) -> Result<impl Iterator, StorageError> {
+        self.manager.list()
+    }
 }
 
 impl<W: Write> LinearStorage<W> {

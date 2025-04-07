@@ -134,6 +134,10 @@ pub trait StorageProvider {
     ///
     /// * `graph` - ID of the graph, taken from the initialization command.
     fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError>;
+
+    /// Gets a list of all stored graphs by their graph ID.
+    // TODO(nikki): rewrite this once we can use coroutines/generators?
+    fn list_graph_ids(&self) -> Result<impl Iterator, StorageError>;
 }
 
 /// Represents the runtime's graph; [`Command`]s in storage have been validated
