@@ -4,6 +4,7 @@
 #![cfg_attr(docsrs, doc(cfg(feature = "testing")))]
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::panic)]
+#![allow(clippy::unwrap_used)]
 
 extern crate alloc;
 
@@ -698,14 +699,14 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
         // receiving the effect.
         let author_psk = author
             .handler
-            .bidi_channel_created(&mut author.eng, &created)
+            .bidi_channel_created(&mut author.eng, created)
             .expect("author should be able to load bidi PSK");
 
         // This is called by the channel peer after receiving the
         // effect.
         let peer_psk = peer
             .handler
-            .bidi_channel_received(&mut peer.eng, &received)
+            .bidi_channel_received(&mut peer.eng, received)
             .expect("peer should be able to load bidi keys");
 
         assert_eq!(author_psk.identity(), peer_psk.identity());
@@ -791,14 +792,14 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
         // receiving the effect.
         let author_psk = author
             .handler
-            .bidi_channel_created(&mut author.eng, &created)
+            .bidi_channel_created(&mut author.eng, created)
             .expect("author should be able to load bidi PSK");
 
         // This is called by the channel peer after receiving the
         // effect.
         let peer_psk = peer
             .handler
-            .bidi_channel_received(&mut peer.eng, &received)
+            .bidi_channel_received(&mut peer.eng, received)
             .expect("peer should be able to load bidi keys");
 
         assert_eq!(created.channel_id, author_psk.identity());
@@ -929,10 +930,30 @@ mod tests {
             [b, r, g],
             [b, g, r],
         ]);
+        let mut n = 0;
         let mut data = [r, g, b];
         while !perms.is_empty() {
             shuffle(&mut data);
             perms.remove(&data);
+            n += 1;
+            // Make sure we don't spin forever when we're buggy.
+            //
+            // On average, this takes
+            //    mean(n) = n*ln(n) + γn + (1/2) + O(1/n)
+            // One standard deviation is
+            //    stddev(n) = (2^n) / ((pi^2) / n)
+            // The 95th percentile is
+            //    p95(n) mean(n) + stddev(n) * sqrt(19)
+            //
+            // mean(6) = ~15 iters
+            // stddev(6) = ~39 iters
+            // p95(6) = ~184 iters
+            //
+            // So, choose a number that's very unlikely to be
+            // hit.
+            if n > 1000 {
+                panic!("too many iters");
+            }
         }
     }
 }
