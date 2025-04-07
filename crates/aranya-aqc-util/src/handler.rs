@@ -129,7 +129,6 @@ impl<S: KeyStore> Handler<S> {
 
 /// Data from the `AqcBidiChannelCreated` effect.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "testing"), derive(PartialEq))]
 pub struct BidiChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
@@ -159,7 +158,6 @@ pub struct BidiChannelCreated<'a> {
 
 /// Data from the `AqcBidiChannelReceived` effect.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[cfg_attr(any(test, feature = "testing"), derive(PartialEq))]
 pub struct BidiChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
