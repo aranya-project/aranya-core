@@ -53,13 +53,40 @@ impl<S: KeyStore> Ffi<S> {
 #[ffi(
     module = "aqc",
     def = r#"
+// Returned when a bidirectional channel is created.
 struct AqcBidiChannel {
-    peer_encap bytes,
+    // Uniquely identifies the channel.
     channel_id id,
+    // The peer's encapsulated KEM shared secret.
+    //
+    // This must be sent to the peer.
+    peer_encap bytes,
+    // A unique ID that the author can use to look up the
+    // channel's secrets in the keystore.
+    author_secrets_id id,
+    // The size in bytes of the PSK.
+    //
+    // Per the AQC specification this must be at least 32 and
+    // less than 2^16.
+    psk_length_in_bytes int,
 }
+
+// Returned when a unidirectional channel is created.
 struct AqcUniChannel {
-    peer_encap bytes,
+    // Uniquely identifies the channel.
     channel_id id,
+    // The peer's encapsulated KEM shared secret.
+    //
+    // This must be sent to the peer.
+    peer_encap bytes,
+    // A unique ID that the author can use to look up the
+    // channel's secrets in the keystore.
+    author_secrets_id id,
+    // The size in bytes of the PSK.
+    //
+    // Per the AQC specification this must be at least 32 and
+    // less than 2^16.
+    psk_length_in_bytes int,
 }
 "#
 )]
@@ -92,7 +119,7 @@ function create_bidi_channel(
             .lock()
             .get_key(eng, our_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
-            .ok_or(FfiError::KeyNotFound)?;
+            .ok_or(FfiError::KeyNotFound("device encryption key"))?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
         let ch = BidiChannel {
             // TODO(eric): get this from the policy?
@@ -104,21 +131,25 @@ function create_bidi_channel(
             their_id,
             label: label_id.into(),
         };
-        let secrets = BidiSecrets::new(eng, &ch)?;
+        let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
-        let channel_id = secrets.id().into();
-        let wrapped = eng.wrap(secrets.author)?;
+        let author_secrets_id = author
+            .id()
+            .map_err(|err| FfiError::Crypto(err.into()))?
+            .into();
         self.store
             .lock()
-            .try_insert(channel_id, wrapped)
+            .try_insert(author_secrets_id, eng.wrap(author)?)
             .map_err(|err| {
                 error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
                 FfiError::KeyStore
             })?;
 
         Ok(AqcBidiChannel {
-            peer_encap: secrets.peer.as_bytes().to_vec(),
-            channel_id,
+            channel_id: peer.id().into(),
+            peer_encap: peer.as_bytes().to_vec(),
+            author_secrets_id,
+            psk_length_in_bytes: ch.psk_length_in_bytes.into(),
         })
     }
 
@@ -149,7 +180,7 @@ function create_uni_channel(
             .lock()
             .get_key(eng, author_enc_key_id.into())
             .map_err(|_| FfiError::KeyStore)?
-            .ok_or(FfiError::KeyNotFound)?;
+            .ok_or(FfiError::KeyNotFound("device encryption key"))?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
         let ch = UniChannel {
             // TODO(eric): get this from the policy?
@@ -161,21 +192,25 @@ function create_uni_channel(
             open_id,
             label: label_id.into(),
         };
-        let secrets = UniSecrets::new(eng, &ch)?;
+        let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
-        let channel_id = secrets.id().into();
-        let wrapped = eng.wrap(secrets.author)?;
+        let author_secrets_id = author
+            .id()
+            .map_err(|err| FfiError::Crypto(err.into()))?
+            .into();
         self.store
             .lock()
-            .try_insert(channel_id, wrapped)
+            .try_insert(author_secrets_id, eng.wrap(author)?)
             .map_err(|err| {
                 error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
                 FfiError::KeyStore
             })?;
 
         Ok(AqcUniChannel {
-            peer_encap: secrets.peer.as_bytes().to_vec(),
-            channel_id,
+            channel_id: peer.id().into(),
+            peer_encap: peer.as_bytes().to_vec(),
+            author_secrets_id,
+            psk_length_in_bytes: ch.psk_length_in_bytes.into(),
         })
     }
 }
@@ -190,8 +225,8 @@ pub(crate) enum FfiError {
     #[error("unable to manipulate stack: {0}")]
     Stack(#[from] MachineErrorType),
     /// Unable to find a particular key.
-    #[error("unable to find key")]
-    KeyNotFound,
+    #[error("unable to find key: {0}")]
+    KeyNotFound(&'static str),
     /// Unable to encode/decode some input.
     #[error("unable to decode type")]
     Encoding,

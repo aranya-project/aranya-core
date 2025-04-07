@@ -282,8 +282,8 @@ macro_rules! test_all {
             }
 
             test!(test_create_bidi_channel);
-            test!(test_create_seal_only_uni_channel);
-            test!(test_create_open_only_uni_channel);
+            test!(test_create_send_only_uni_channel);
+            test!(test_create_recv_only_uni_channel);
         }
     };
 }
@@ -305,6 +305,8 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let AqcBidiChannel {
         peer_encap,
         channel_id,
+        author_secrets_id,
+        psk_length_in_bytes,
     } = author
         .ffi
         .create_bidi_channel(
@@ -326,14 +328,15 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
         .bidi_channel_created(
             &mut author.eng,
             &BidiChannelCreated {
-                psk_length_in_bytes: 32,
+                channel_id: channel_id.into(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_key_id: author.enc_key_id,
                 peer_id: peer.device_id,
                 peer_enc_pk: &peer.enc_pk,
                 label_id,
-                channel_id: channel_id.into(),
+                author_secrets_id: author_secrets_id.into(),
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
         .expect("author should be able to load bidi PSK");
@@ -345,6 +348,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
         .bidi_channel_received(
             &mut peer.eng,
             &BidiChannelReceived {
+                channel_id: channel_id.into(),
                 psk_length_in_bytes: 32,
                 parent_cmd_id,
                 author_id: author.device_id,
@@ -353,7 +357,6 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
                 peer_enc_key_id: peer.enc_key_id,
                 label_id,
                 encap: &peer_encap,
-                channel_id: channel_id.into(),
             },
         )
         .expect("peer should be able to load bidi keys");
@@ -363,15 +366,15 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
 }
 
 /// A basic positive test for creating a unidirectional channel
-/// where the author is seal-only.
-pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
+/// where the author is send-only.
+pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateSendOnlyChannel",
+        name: "CreateUniSendOnlyChannel",
         head_id: parent_cmd_id,
     });
 
@@ -379,6 +382,8 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
     let AqcUniChannel {
         peer_encap,
         channel_id,
+        author_secrets_id,
+        psk_length_in_bytes,
     } = author
         .ffi
         .create_uni_channel(
@@ -400,7 +405,7 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
         .uni_channel_created(
             &mut author.eng,
             &UniChannelCreated {
-                psk_length_in_bytes: 32,
+                channel_id: channel_id.into(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: author.device_id,
@@ -408,7 +413,8 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
                 author_enc_key_id: author.enc_key_id,
                 peer_enc_pk: &peer.enc_pk,
                 label_id,
-                channel_id: channel_id.into(),
+                author_secrets_id: author_secrets_id.into(),
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
         .expect("author should be able to load encryption key");
@@ -441,15 +447,15 @@ pub fn test_create_seal_only_uni_channel<T: TestImpl>() {
 }
 
 /// A basic positive test for creating a unidirectional channel
-/// where the author is open only.
-pub fn test_create_open_only_uni_channel<T: TestImpl>() {
-    let mut author = T::new(); // open only
-    let mut peer = T::new(); // seal only
+/// where the author is recvonly.
+pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
+    let mut author = T::new(); // recv only
+    let mut peer = T::new(); // send only
 
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateUniOnlyChannel",
+        name: "CreateUniRecvOnlyChannel",
         head_id: parent_cmd_id,
     });
 
@@ -457,6 +463,8 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
     let AqcUniChannel {
         peer_encap,
         channel_id,
+        author_secrets_id,
+        psk_length_in_bytes,
     } = author
         .ffi
         .create_uni_channel(
@@ -478,7 +486,7 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
         .uni_channel_created(
             &mut author.eng,
             &UniChannelCreated {
-                psk_length_in_bytes: 32,
+                channel_id: channel_id.into(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: peer.device_id,
@@ -486,7 +494,8 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
                 author_enc_key_id: author.enc_key_id,
                 peer_enc_pk: &peer.enc_pk,
                 label_id,
-                channel_id: channel_id.into(),
+                author_secrets_id: author_secrets_id.into(),
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
         .expect("author should be able to load decryption key");
@@ -499,7 +508,7 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
         .uni_channel_received(
             &mut peer.eng,
             &UniChannelReceived {
-                psk_length_in_bytes: 32,
+                channel_id: channel_id.into(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: peer.device_id,
@@ -508,7 +517,7 @@ pub fn test_create_open_only_uni_channel<T: TestImpl>() {
                 peer_enc_key_id: peer.enc_key_id,
                 label_id,
                 encap: &peer_encap,
-                channel_id: channel_id.into(),
+                psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
         .expect("peer should be able to load encryption key");

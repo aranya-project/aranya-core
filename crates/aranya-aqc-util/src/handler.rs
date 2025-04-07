@@ -2,11 +2,12 @@
 
 use aranya_crypto::{
     aqc::{
-        BidiChannel, BidiChannelId, BidiPeerEncap, BidiPsk, UniChannel, UniChannelId, UniPeerEncap,
-        UniRecvPsk, UniSendPsk,
+        BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiPsk, UniChannel,
+        UniChannelId, UniPeerEncap, UniRecvPsk, UniSendPsk,
     },
     custom_id, CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
 };
+use buggy::{bug, Bug};
 use serde::{Deserialize, Serialize};
 
 use crate::shared::{decode_enc_pk, LabelId};
@@ -33,9 +34,12 @@ impl<S> Handler<S> {
 
 // Bidi impl.
 impl<S: KeyStore> Handler<S> {
-    /// Retrieves the wrapped
-    /// [`BidiAuthorSecret`][aranya_crypto::aqc::BidiAuthorSecret]
-    /// and converts it into the PSK.
+    /// Retrieves the PSK for the channel identified in the
+    /// effect.
+    ///
+    /// This method removes the secret from the keystore; calling
+    /// it multiple times for the same effect will result in
+    /// [`Error::KeyNotFound`].
     pub fn bidi_channel_created<E: Engine>(
         &mut self,
         eng: &mut E,
@@ -47,15 +51,15 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.channel_id.into())
+            .remove_key(eng, effect.author_secrets_id.into())
             .map_err(|_| Error::KeyStore)?
-            .ok_or(Error::KeyNotFound)?;
+            .ok_or(Error::KeyNotFound("BidiAuthorSecret"))?;
 
         let our_sk = &self
             .store
             .get_key(eng, effect.author_enc_key_id.into())
             .map_err(|_| Error::KeyStore)?
-            .ok_or(Error::KeyNotFound)?;
+            .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
             error!("unable to decode `EncryptionPublicKey`: {err}");
             Error::Encoding
@@ -73,6 +77,10 @@ impl<S: KeyStore> Handler<S> {
         let psk = BidiPsk::from_author_secret(&ch, secret).inspect_err(|err| {
             error!(?err, "unable to derive bidi PSK from author secret");
         })?;
+        if psk.identity() != effect.channel_id {
+            bug!("PSK identity does not match `effect.channel_id`");
+        }
+
         Ok(psk)
     }
 
@@ -93,7 +101,7 @@ impl<S: KeyStore> Handler<S> {
             .store
             .get_key(eng, effect.peer_enc_key_id.into())
             .map_err(|_| Error::KeyStore)?
-            .ok_or(Error::KeyNotFound)?;
+            .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
             error!("unable to decode `EncryptionPublicKey`: {err}");
             Error::Encoding
@@ -111,6 +119,10 @@ impl<S: KeyStore> Handler<S> {
         let psk = BidiPsk::from_peer_encap(&ch, encap).inspect_err(|err| {
             error!(?err, "unable to derive bidi PSK from peer encap");
         })?;
+        if psk.identity() != effect.channel_id {
+            bug!("PSK identity does not match `effect.channel_id`");
+        }
+
         Ok(psk)
     }
 }
@@ -118,6 +130,8 @@ impl<S: KeyStore> Handler<S> {
 /// Data from the `AqcBidiChannelCreated` effect.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BidiChannelCreated<'a> {
+    /// Uniquely identifies the channel.
+    pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
     /// The channel author's device ID.
@@ -131,8 +145,9 @@ pub struct BidiChannelCreated<'a> {
     pub peer_enc_pk: &'a [u8],
     /// The AQC channel label.
     pub label_id: LabelId,
-    /// Uniquely identifies the channel.
-    pub channel_id: BidiChannelId,
+    /// A unique ID that the author can use to look up the
+    /// channel's secrets in the keystore.
+    pub author_secrets_id: BidiAuthorSecretId,
     /// The size in bytes of the PSK.
     ///
     /// Per the AQC specification this must be at least 32. This
@@ -144,6 +159,8 @@ pub struct BidiChannelCreated<'a> {
 /// Data from the `AqcBidiChannelReceived` effect.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BidiChannelReceived<'a> {
+    /// Uniquely identifies the channel.
+    pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
     /// The channel author's device ID.
@@ -159,8 +176,6 @@ pub struct BidiChannelReceived<'a> {
     pub label_id: LabelId,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
-    /// Uniquely identifies the channel.
-    pub channel_id: BidiChannelId,
     /// The size in bytes of the PSK.
     ///
     /// Per the AQC specification this must be at least 32. This
@@ -187,15 +202,15 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.channel_id.into())
+            .remove_key(eng, effect.author_secrets_id.into())
             .map_err(|_| Error::KeyStore)?
-            .ok_or(Error::KeyNotFound)?;
+            .ok_or(Error::KeyNotFound("UniAuthorSecret"))?;
 
         let our_sk = &self
             .store
             .get_key(eng, effect.author_enc_key_id.into())
             .map_err(|_| Error::KeyStore)?
-            .ok_or(Error::KeyNotFound)?;
+            .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
             error!("unable to decode `EncryptionPublicKey`: {err}");
             Error::Encoding
@@ -210,21 +225,23 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label_id.into(),
         };
 
-        if self.device_id == effect.send_id {
+        let psk = if self.device_id == effect.send_id {
             UniSendPsk::from_author_secret(&ch, secret)
                 .inspect_err(|err| {
                     error!(?err, "unable to derive uni send PSK from author secret");
                 })
-                .map(UniPsk::SendOnly)
-                .map_err(Into::into)
+                .map(UniPsk::SendOnly)?
         } else {
             UniRecvPsk::from_author_secret(&ch, secret)
                 .inspect_err(|err| {
                     error!(?err, "unable to derive uni recv PSK from author secret");
                 })
-                .map(UniPsk::RecvOnly)
-                .map_err(Into::into)
+                .map(UniPsk::RecvOnly)?
+        };
+        if psk.identity() != effect.channel_id {
+            bug!("PSK identity does not match `effect.channel_id`");
         }
+        Ok(psk)
     }
 
     /// Converts a [`UniPeerEncap`] into a PSK.
@@ -246,7 +263,7 @@ impl<S: KeyStore> Handler<S> {
             .store
             .get_key(eng, effect.peer_enc_key_id.into())
             .map_err(|_| Error::KeyStore)?
-            .ok_or(Error::KeyNotFound)?;
+            .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
             error!("unable to decode `EncryptionPublicKey`: {err}");
             Error::Encoding
@@ -261,27 +278,31 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label_id.into(),
         };
 
-        if self.device_id == effect.send_id {
+        let psk = if self.device_id == effect.send_id {
             UniSendPsk::from_peer_encap(&ch, encap)
                 .inspect_err(|err| {
                     error!(?err, "unable to derive uni send PSK from peer encap");
                 })
-                .map(UniPsk::SendOnly)
-                .map_err(Into::into)
+                .map(UniPsk::SendOnly)?
         } else {
             UniRecvPsk::from_peer_encap(&ch, encap)
                 .inspect_err(|err| {
                     error!(?err, "unable to derive uni recv PSK from peer encap");
                 })
-                .map(UniPsk::RecvOnly)
-                .map_err(Into::into)
+                .map(UniPsk::RecvOnly)?
+        };
+        if psk.identity() != effect.channel_id {
+            bug!("PSK identity does not match `effect.channel_id`");
         }
+        Ok(psk)
     }
 }
 
 /// Data from the `AqcUniChannelCreated` effect.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UniChannelCreated<'a> {
+    /// Uniquely identifies the channel.
+    pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
     /// The channel author's device ID.
@@ -296,8 +317,9 @@ pub struct UniChannelCreated<'a> {
     pub peer_enc_pk: &'a [u8],
     /// The AQC channel label.
     pub label_id: LabelId,
-    /// Uniquely identifies the channel.
-    pub channel_id: UniChannelId,
+    /// A unique ID that the author can use to look up the
+    /// channel's secrets in the keystore.
+    pub author_secrets_id: BidiAuthorSecretId,
     /// The size in bytes of the PSK.
     ///
     /// Per the AQC specification this must be at least 32. This
@@ -309,6 +331,8 @@ pub struct UniChannelCreated<'a> {
 /// Data from the `AqcUniChannelReceived` effect.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct UniChannelReceived<'a> {
+    /// Uniquely identifies the channel.
+    pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
     /// The channel author's device ID.
@@ -325,8 +349,6 @@ pub struct UniChannelReceived<'a> {
     pub label_id: LabelId,
     /// The peer's encapsulation.
     pub encap: &'a [u8],
-    /// Uniquely identifies the channel.
-    pub channel_id: UniChannelId,
     /// The size in bytes of the PSK.
     ///
     /// Per the AQC specification this must be at least 32. This
@@ -372,6 +394,9 @@ impl<CS: CipherSuite> UniPsk<CS> {
 /// An error returned by [`Handler`].
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// An internal bug occurred.
+    #[error("{0}")]
+    Bug(#[from] Bug),
     /// The current Device is not the author of the command.
     #[error("not command author")]
     NotAuthor,
@@ -382,8 +407,8 @@ pub enum Error {
     #[error("keystore failure")]
     KeyStore,
     /// Unable to find a particular key.
-    #[error("unable to find key")]
-    KeyNotFound,
+    #[error("unable to find key: {0}")]
+    KeyNotFound(&'static str),
     /// Unable to transform key.
     #[error("unable to transform key")]
     Transform,

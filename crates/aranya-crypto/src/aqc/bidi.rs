@@ -261,6 +261,8 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
     }
 
     /// Uniquely identifies the bidirectional channel.
+    ///
+    /// This is the same thing as [`BidiPeerEncap::id`].
     #[inline]
     pub fn id(&self) -> BidiChannelId {
         self.peer.id()
