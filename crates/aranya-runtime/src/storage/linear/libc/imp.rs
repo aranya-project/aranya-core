@@ -111,7 +111,7 @@ impl IoManager for FileManager {
     }
 
     fn list(&self) -> Result<impl Iterator<Item = GraphId>, StorageError> {
-        Ok(GraphIdIterator::new(self.root())?)
+        GraphIdIterator::new(self.root())
     }
 }
 

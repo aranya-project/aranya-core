@@ -52,18 +52,18 @@ impl Command for Init {
 }
 
 #[test]
-fn test_multiple_graph_ids1() {
+fn test_multiple_graph_ids() {
     let tempdir = tempfile::tempdir().unwrap();
     info!(path = ?tempdir.path(), "using tempdir");
     let mut backend = LinearBackend { tempdir };
     let mut provider = backend.provider(0);
 
-    let init_cmd1 = Init([2u8; 64].into());
+    let init_cmd1 = Init([1u8; 64].into());
     let mut fp1 = provider.new_perspective(PolicyId::new(0));
     let _ = fp1.add_command(&init_cmd1);
     let _ = provider.new_storage(fp1).unwrap();
 
-    let init_cmd2 = Init([1u8; 64].into());
+    let init_cmd2 = Init([2u8; 64].into());
     let mut fp2 = provider.new_perspective(PolicyId::new(1));
     let _ = fp2.add_command(&init_cmd2);
     let _ = provider.new_storage(fp2).unwrap();
