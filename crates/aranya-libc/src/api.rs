@@ -95,7 +95,7 @@ pub struct DirEntry<'dir> {
 }
 
 impl OwnedDir {
-    fn readdir<'a>(&'a mut self) -> Result<DirEntry<'a>, Errno> {
+    fn readdir(&mut self) -> Result<DirEntry<'_>, Errno> {
         let entry = imp::readdir(self.fd)?;
         Ok(DirEntry {
             entry,
@@ -112,7 +112,9 @@ impl Drop for OwnedDir {
 
 impl<'dir> DirEntry<'dir> {
     /// Returns the name for the current entry.
+    #[allow(clippy::cast_possible_wrap)]
     pub fn name(&self) -> &'dir CStr {
+        // SAFETY: We're far inside of the bounds of both usize and isize
         const OFFSET: isize = core::mem::offset_of!(libc::dirent, d_name) as isize;
         // SAFETY: d_name is guaranteed to be null terminated.
         let name = unsafe { CStr::from_ptr((self.entry.byte_offset(OFFSET)).cast()) };
@@ -189,6 +191,6 @@ pub fn fdopendir(fd: impl AsAtRoot) -> Result<OwnedDir, Errno> {
 }
 
 /// See `readdir(2)`.
-pub fn readdir<'dir>(dir: &'dir mut OwnedDir) -> Result<DirEntry<'dir>, Errno> {
+pub fn readdir(dir: &mut OwnedDir) -> Result<DirEntry<'_>, Errno> {
     dir.readdir()
 }
