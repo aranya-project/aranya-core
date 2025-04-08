@@ -1301,7 +1301,24 @@ impl ChunkParser<'_> {
                 Rule::fields_block => {
                     let pairs = token.into_inner();
                     for field in pairs {
-                        fields.push(Self::parse_field_definition(field)?);
+                        match field.as_rule() {
+                            Rule::field_definition => {
+                                fields.push(ast::StructItem::Field(Self::parse_field_definition(
+                                    field,
+                                )?));
+                            }
+                            Rule::field_insertion => {
+                                let ident = descend(field).consume_identifier()?;
+                                fields.push(ast::StructItem::StructRef(ident));
+                            }
+                            _ => {
+                                return Err(ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("invalid token in command definition"),
+                                    Some(field.as_span()),
+                                ))
+                            }
+                        }
                     }
                 }
                 Rule::policy_block => {
