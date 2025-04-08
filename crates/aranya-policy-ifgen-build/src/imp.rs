@@ -61,7 +61,7 @@ pub fn generate_code(policy: &Policy) -> String {
         let field_idents = s
             .items
             .iter()
-            .map(|i| &i.field().expect("effect item should be a field").identifier);
+            .map(|i| mk_ident(&i.field().expect("effect item should be a field").identifier));
         let field_types = s
             .items
             .iter()
