@@ -664,10 +664,10 @@ fn parse_policy_test() -> Result<(), ParseError> {
             ast::CommandDefinition {
                 attributes: vec![],
                 identifier: String::from("Add"),
-                fields: vec![ast::FieldDefinition {
+                fields: vec![ast::StructItem::Field(ast::FieldDefinition {
                     identifier: String::from("count"),
                     field_type: ast::VType::Int,
-                }],
+                })],
                 seal: vec![],
                 open: vec![],
                 policy: vec![

@@ -1916,21 +1916,30 @@ impl<'a> CompileState<'a> {
         }
 
         // fields
-        match self.m.command_defs.entry(command_node.identifier.clone()) {
-            Entry::Vacant(e) => {
-                let map = command_node
-                    .fields
-                    .iter()
-                    .map(|f| (f.identifier.clone(), f.field_type.clone()))
-                    .collect();
-                e.insert(map);
-            }
-            Entry::Occupied(_) => {
-                return Err(self.err(CompileErrorType::AlreadyDefined(
-                    command_node.identifier.clone(),
-                )));
+        if self.m.command_defs.contains_key(&command.identifier) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(
+                command_node.identifier.clone(),
+            )));
+        }
+        let mut map = BTreeMap::new();
+        for si in &command_node.fields {
+            match si {
+                StructItem::Field(f) => {
+                    map.insert(f.identifier.clone(), f.field_type.clone());
+                }
+                StructItem::StructRef(ref_name) => {
+                    let struct_def =
+                        self.m.struct_defs.get(ref_name).ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ref_name.clone()))
+                        })?;
+                    for fd in struct_def {
+                        map.insert(fd.identifier.clone(), fd.field_type.clone());
+                    }
+                }
             }
         }
+        self.m.command_defs.insert(command.identifier.clone(), map);
+
         Ok(())
     }
 
@@ -2143,10 +2152,7 @@ impl<'a> CompileState<'a> {
                 .items
                 .iter()
                 .map(|i| match i {
-                    StructItem::Field(f) => StructItem::Field(FieldDefinition {
-                        identifier: f.identifier.clone(),
-                        field_type: f.field_type.clone(),
-                    }),
+                    StructItem::Field(f) => StructItem::Field(f.into()),
                     StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                 })
                 .collect();
@@ -2193,13 +2199,15 @@ impl<'a> CompileState<'a> {
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            // TODO(apetkov) implement field insertion for commands
             self.define_struct(
                 &command.identifier,
                 &command
                     .fields
                     .iter()
-                    .map(|fd| StructItem::Field(fd.clone()))
+                    .map(|si| match si {
+                        StructItem::Field(fd) => StructItem::Field(fd.clone()),
+                        StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                    })
                     .collect::<Vec<_>>(),
             )?;
         }

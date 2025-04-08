@@ -568,7 +568,7 @@ pub struct CommandDefinition {
     /// The name of the command
     pub identifier: String,
     /// The fields of the command and their types
-    pub fields: Vec<FieldDefinition>,
+    pub fields: Vec<StructItem<FieldDefinition>>,
     /// Statements for sealing the command into an envelope
     pub seal: Vec<AstNode<Statement>>,
     /// Statements for opening the command envelope
