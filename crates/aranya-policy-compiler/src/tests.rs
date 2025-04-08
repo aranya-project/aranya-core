@@ -427,6 +427,123 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
 
     for (text, expected_error) in cases {
         let policy = parse_policy_str(text, Version::V2)?;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(err, expected_error);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_command_duplicate_fields() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+        command Foo {
+            fields {
+                a int,
+                a string
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+        "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+        (
+            r#"
+        struct Bar { a int }
+        command Foo {
+            fields {
+                +Bar,
+                a string
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+        "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+    ];
+
+    for (text, e) in cases {
+        let policy = parse_policy_str(text, Version::V2)?;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(err, e);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
+    let text = r#"
+        struct Bar { a int }
+        struct Baz { +Bar, b string }
+        command Foo {
+            fields {
+                +Baz,
+                c bool
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let ModuleData::V0(module) = module.data;
+
+    let want = BTreeMap::from([
+        ("a".to_string(), VType::Int),
+        ("b".to_string(), VType::String),
+        ("c".to_string(), VType::Bool),
+    ]);
+    let got = module.command_defs.get("Foo").unwrap();
+    assert_eq!(got, &want);
+
+    Ok(())
+}
+
+#[test]
+fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+            command Foo {
+                fields {
+                    +Bar, // Bar is not defined
+                    b string
+                }
+                seal { return None }
+                open { return None }
+                policy {}
+            }
+            "#,
+            CompileErrorType::NotDefined(String::from("Bar")),
+        ),
+        (
+            r#"
+            struct Bar { a int }
+            command Foo {
+                fields {
+                    +Bar,
+                    a bool // Duplicate field `a`
+                }
+                seal { return None }
+                open { return None }
+                policy {}
+            }
+            "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+    ];
+
+    for (text, expected_error) in cases {
+        let policy = parse_policy_str(text, Version::V2)?;
         let err = Compiler::new(&policy).compile().unwrap_err().err_type();
         assert_eq!(err, expected_error);
     }
