@@ -2219,13 +2219,15 @@ impl<'a> CompileState<'a> {
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            // TODO(apetkov) implement field insertion for commands
             self.define_struct(
                 &command.identifier,
                 &command
                     .fields
                     .iter()
-                    .map(|fd| StructItem::Field(fd.clone()))
+                    .map(|si| match si {
+                        StructItem::Field(fd) => StructItem::Field(fd.clone()),
+                        StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                    })
                     .collect::<Vec<_>>(),
             )?;
         }
