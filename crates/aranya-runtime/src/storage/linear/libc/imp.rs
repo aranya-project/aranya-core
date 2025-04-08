@@ -31,9 +31,17 @@ impl Iterator for GraphIdIterator {
     type Item = GraphId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let entry = libc::readdir(&mut self.inner).ok()?;
-        let name = entry.name().to_bytes();
-        GraphId::decode(name).ok()
+        // Loop until we find an entry that isn't "." or ".."
+        loop {
+            let Ok(entry) = libc::readdir(&mut self.inner) else {
+                return None;
+            };
+
+            let name = entry.name().to_str().ok()?;
+            if name != "." && name != ".." {
+                return GraphId::decode(name).ok();
+            }
+        }
     }
 }
 
@@ -102,7 +110,7 @@ impl IoManager for FileManager {
         Ok(Some(Writer::open(fd)?))
     }
 
-    fn list(&self) -> Result<impl Iterator, StorageError> {
+    fn list(&self) -> Result<impl Iterator<Item = GraphId>, StorageError> {
         Ok(GraphIdIterator::new(self.root())?)
     }
 }

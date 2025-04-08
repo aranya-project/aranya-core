@@ -137,7 +137,7 @@ pub trait StorageProvider {
 
     /// Gets a list of all stored graphs by their graph ID.
     // TODO(nikki): rewrite this once we can use coroutines/generators?
-    fn list_graph_ids(&self) -> Result<impl Iterator, StorageError>;
+    fn list_graph_ids(&self) -> Result<impl Iterator<Item = GraphId>, StorageError>;
 }
 
 /// Represents the runtime's graph; [`Command`]s in storage have been validated

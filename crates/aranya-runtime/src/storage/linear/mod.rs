@@ -258,7 +258,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
         Ok(entry.insert(LinearStorage::open(file)?))
     }
 
-    fn list_graph_ids(&self) -> Result<impl Iterator, StorageError> {
+    fn list_graph_ids(&self) -> Result<impl Iterator<Item = GraphId>, StorageError> {
         self.manager.list()
     }
 }

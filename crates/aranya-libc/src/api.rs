@@ -88,6 +88,7 @@ pub struct OwnedDir {
 ///
 /// This is tied to the lifetime of the OwnedDir, and will be invalidated on the
 /// next call to `readdir`.
+#[derive(Debug, Eq, PartialEq)]
 pub struct DirEntry<'dir> {
     entry: imp::DirEntry,
     _phantom: PhantomData<&'dir OwnedDir>,
