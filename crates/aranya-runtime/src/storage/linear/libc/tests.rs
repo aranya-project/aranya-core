@@ -68,10 +68,15 @@ fn test_multiple_graph_ids() {
     let _ = fp2.add_command(&init_cmd2);
     let _ = provider.new_storage(fp2).unwrap();
 
-    let graph_ids = provider.list_graph_ids().unwrap().collect::<Vec<_>>();
+    let mut graph_ids = provider
+        .list_graph_ids()
+        .unwrap()
+        .filter_map(Result::ok)
+        .collect::<Vec<_>>();
+    graph_ids.sort();
     assert_eq!(
         graph_ids,
-        vec![GraphId::from([2u8; 64]), GraphId::from([1u8; 64])]
+        vec![GraphId::from([1u8; 64]), GraphId::from([2u8; 64])]
     );
 }
 

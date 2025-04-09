@@ -105,7 +105,9 @@ pub fn fdopendir(fd: BorrowedFd<'_>) -> Result<RawDir, Errno> {
 pub fn readdir(dir: RawDir) -> Result<DirEntry, Errno> {
     // SAFETY: `To distinguish between an end-of-directory condition or an
     // error, you must set errno to zero before calling readdir.`
-    unsafe { crate::errno::clear_errno(); }
+    unsafe {
+        crate::errno::clear_errno();
+    }
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::readdir(dir) };
     if ret.is_null() {

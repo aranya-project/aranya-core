@@ -23,8 +23,8 @@ impl io::IoManager for Manager {
         Ok(None)
     }
 
-    fn list(&self) -> Result<impl Iterator<Item = GraphId>, StorageError> {
-        Ok(core::iter::empty::<GraphId>())
+    fn list(&self) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+        Ok(core::iter::empty::<_>())
     }
 }
 

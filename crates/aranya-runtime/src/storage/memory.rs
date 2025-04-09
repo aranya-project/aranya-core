@@ -110,8 +110,10 @@ impl StorageProvider for MemStorageProvider {
             .ok_or(StorageError::NoSuchStorage)
     }
 
-    fn list_graph_ids(&self) -> Result<impl Iterator<Item = GraphId>, StorageError> {
-        Ok(self.storage.keys().copied())
+    fn list_graph_ids(
+        &self,
+    ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+        Ok(self.storage.keys().copied().map(|v| Ok(v)))
     }
 }
 

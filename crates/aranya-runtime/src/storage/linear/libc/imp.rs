@@ -28,7 +28,7 @@ impl GraphIdIterator {
 }
 
 impl Iterator for GraphIdIterator {
-    type Item = GraphId;
+    type Item = Result<GraphId, StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Loop until we find an entry that isn't "." or ".."
@@ -39,7 +39,7 @@ impl Iterator for GraphIdIterator {
 
             let name = entry.name().to_str().ok()?;
             if name != "." && name != ".." {
-                return GraphId::decode(name).ok();
+                return Some(Ok(GraphId::decode(name).ok()?));
             }
         }
     }
@@ -110,7 +110,7 @@ impl IoManager for FileManager {
         Ok(Some(Writer::open(fd)?))
     }
 
-    fn list(&self) -> Result<impl Iterator<Item = GraphId>, StorageError> {
+    fn list(&self) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
         GraphIdIterator::new(self.root())
     }
 }
