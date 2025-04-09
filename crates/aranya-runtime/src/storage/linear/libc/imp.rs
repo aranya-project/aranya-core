@@ -33,8 +33,10 @@ impl Iterator for GraphIdIterator {
     fn next(&mut self) -> Option<Self::Item> {
         // Loop until we find an entry that isn't "." or ".."
         loop {
-            let Ok(entry) = libc::readdir(&mut self.inner) else {
-                return None;
+            let entry = match libc::readdir(&mut self.inner) {
+                Ok(Some(entry)) => entry,
+                Ok(None) => return None,
+                Err(errno) => return Some(Err(errno.into())),
             };
 
             let name = entry.name().to_str().ok()?;

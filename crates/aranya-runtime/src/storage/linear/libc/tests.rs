@@ -71,7 +71,7 @@ fn test_multiple_graph_ids() {
     let mut graph_ids = provider
         .list_graph_ids()
         .unwrap()
-        .filter_map(Result::ok)
+        .map(Result::unwrap)
         .collect::<Vec<_>>();
     graph_ids.sort();
     assert_eq!(

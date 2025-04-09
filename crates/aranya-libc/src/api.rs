@@ -95,12 +95,12 @@ pub struct DirEntry<'dir> {
 }
 
 impl OwnedDir {
-    fn readdir(&mut self) -> Result<DirEntry<'_>, Errno> {
+    fn readdir(&mut self) -> Result<Option<DirEntry<'_>>, Errno> {
         let entry = imp::readdir(self.fd)?;
-        Ok(DirEntry {
+        Ok(entry.map(|entry| DirEntry {
             entry,
             _phantom: PhantomData,
-        })
+        }))
     }
 }
 
@@ -191,6 +191,6 @@ pub fn fdopendir(fd: impl AsAtRoot) -> Result<OwnedDir, Errno> {
 }
 
 /// See `readdir(2)`.
-pub fn readdir(dir: &mut OwnedDir) -> Result<DirEntry<'_>, Errno> {
+pub fn readdir(dir: &mut OwnedDir) -> Result<Option<DirEntry<'_>>, Errno> {
     dir.readdir()
 }
