@@ -15,7 +15,7 @@ use crate::{
     GraphId, Location, StorageError,
 };
 
-struct GraphIdIterator {
+pub struct GraphIdIterator {
     inner: OwnedDir,
 }
 
