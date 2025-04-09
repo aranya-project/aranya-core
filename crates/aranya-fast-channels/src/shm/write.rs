@@ -7,7 +7,7 @@ use aranya_crypto::{
 use buggy::BugExt;
 
 use super::{
-    error::{corrupted, Corrupted, Error},
+    error::{corrupted, Error},
     path::{Flag, Mode, Path},
     shared::{ShmChan, State},
 };
@@ -70,12 +70,8 @@ where
             // of borrowing rules.
             let mut side = self.inner.shm().side(off)?.lock().assume("poisoned")?;
 
-            let (idx, chan, grow) = match side
-                .try_iter_mut()?
-                .enumerate()
-                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
-            {
-                Some((i, chan)) => (i, chan.as_uninit_mut(), false),
+            let (idx, chan, grow) = match side.find_mut(id, None, Op::Any)? {
+                Some((chan, idx)) => (idx.0, chan.as_uninit_mut(), false),
                 None => {
                     if side.len >= side.cap {
                         // The channel wasn't found and we're out
@@ -146,12 +142,8 @@ where
                 return Ok(());
             }
 
-            let idx = match side
-                .try_iter_mut()?
-                .enumerate()
-                .try_find(|(_, chan)| Ok::<bool, Corrupted>(chan.id()? == id))?
-            {
-                Some((i, _)) => i,
+            let idx = match side.find_mut(id, None, Op::Any)? {
+                Some((_, idx)) => idx.0,
                 // The channel wasn't found.
                 None => return Ok(()),
             };
