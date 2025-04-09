@@ -7,7 +7,7 @@ use aranya_libc::{
 };
 use buggy::{bug, BugExt};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tracing::error;
+use tracing::{error, warn};
 
 use super::error::Error;
 use crate::{
@@ -31,7 +31,7 @@ impl Iterator for GraphIdIterator {
     type Item = Result<GraphId, StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // Loop until we find an entry that isn't "." or ".."
+        // Loop until we find an entry that contains an actual GraphId
         loop {
             let entry = match libc::readdir(&mut self.inner) {
                 Ok(Some(entry)) => entry,
@@ -39,9 +39,14 @@ impl Iterator for GraphIdIterator {
                 Err(errno) => return Some(Err(errno.into())),
             };
 
-            let name = entry.name().to_str().ok()?;
-            if name != "." && name != ".." {
-                return Some(Ok(GraphId::decode(name).ok()?));
+            let name = entry.name().to_bytes();
+            if name != b"." && name != b".." {
+                match GraphId::decode(name) {
+                    Ok(graph_id) => return Some(Ok(graph_id)),
+                    Err(_) => {
+                        warn!("Unable to decode GraphId: {:?}", entry.name())
+                    }
+                }
             }
         }
     }
