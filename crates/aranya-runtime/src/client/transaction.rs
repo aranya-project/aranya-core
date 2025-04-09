@@ -3,6 +3,7 @@ use core::{marker::PhantomData, mem};
 
 use buggy::{bug, BugExt};
 
+use super::braiding;
 use crate::{
     Address, ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId,
     Location, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink, Storage,
@@ -374,8 +375,8 @@ fn make_braid_segment<S: Storage, E: Engine>(
     sink: &mut impl Sink<E::Effect>,
     policy: &E::Policy,
 ) -> Result<(S::FactIndex, (Location, usize)), ClientError> {
-    let order = super::braid(storage, left, right)?;
-    let last_common_ancestor = super::last_common_ancestor(storage, left, right)?;
+    let order = braiding::braid(storage, left, right)?;
+    let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
 
     let (&first, rest) = order.split_first().assume("braid is non-empty")?;
 
