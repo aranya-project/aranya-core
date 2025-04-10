@@ -148,6 +148,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-aqc-util"
+version = "0.1.0"
+dependencies = [
+ "aranya-aqc-util",
+ "aranya-crypto",
+ "aranya-policy-vm",
+ "buggy",
+ "postcard",
+ "serde",
+ "spin",
+ "thiserror 2.0.7",
+ "tracing",
+]
+
+[[package]]
 name = "aranya-bearssl-sys"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -160,7 +175,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-codegen"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -192,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-core"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "aranya-capi-macro",
  "aranya-libc",
@@ -209,7 +224,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-macro"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "aranya-capi-codegen",
  "proc-macro2",
