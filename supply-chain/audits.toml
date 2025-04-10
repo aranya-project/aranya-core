@@ -16,6 +16,16 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
 delta = "3.0.5 -> 3.0.7"
 
+[[audits.tokio]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "1.41.1 -> 1.44.2"
+
+[[audits.tokio-macros]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "2.4.0 -> 2.5.0"
+
 [[trusted.aranya-afc-util]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
