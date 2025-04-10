@@ -2285,6 +2285,244 @@ fn __tramp_prefix_test_slice_u8_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
+)]
+pub extern "C" fn prefix_test_ref_arr_u8_unit(_a: *const [u8; 64]) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_ref_arr_u8_unit(
+            __capi::internal::util::check_valid_input_ty_const_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        _a = %__capi::internal::util::Addr::from_ptr(_a),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_ref_arr_u8_unit_ext(
+    _a: *const [u8; 64],
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_ref_arr_u8_unit(
+            __capi::internal::util::check_valid_input_ty_const_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_ref_arr_u8_unit(
+    _a: *const [u8; 64],
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    let _a: &[u8; 64] = __capi::try_as_ref!(_a);
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_ref_arr_u8_unit(_a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = %__capi::internal::util::Addr::from_ptr(a),
+        __output = %__capi::internal::util::Addr::from_ptr(__output)
+    )
+)]
+pub extern "C" fn prefix_test_ref_arr_u8_ret(
+    a: *const [u8; 64],
+    __output: *mut ::core::mem::MaybeUninit<[u8; 64]>,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_ref_arr_u8_ret(
+            __capi::internal::util::check_valid_input_ty_const_ptr(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = %__capi::internal::util::Addr::from_ptr(a),
+        __output = %__capi::internal::util::Addr::from_ptr(__output),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_ref_arr_u8_ret_ext(
+    a: *const [u8; 64],
+    __output: *mut ::core::mem::MaybeUninit<[u8; 64]>,
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_ref_arr_u8_ret(
+            __capi::internal::util::check_valid_input_ty_const_ptr(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_ref_arr_u8_ret(
+    a: *const [u8; 64],
+    __output: *mut ::core::mem::MaybeUninit<[u8; 64]>,
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    let a: &[u8; 64] = __capi::try_as_ref!(a);
+    #[allow(clippy::let_with_type_underscore)]
+    let __output: &mut ::core::mem::MaybeUninit<[u8; 64]> = {
+        let __output = __capi::try_as_uninit_mut!(__output);
+        __capi::to_inner_mut!(__output)
+    };
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_ref_arr_u8_ret(a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => {
+            ::core::mem::MaybeUninit::write(__output, __pattern.into());
+            ::core::result::Result::Ok(())
+        }
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
+)]
+pub extern "C" fn prefix_test_mut_ref_arr_u8_unit(_a: *mut [u8; 64]) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_mut_ref_arr_u8_unit(
+            __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        _a = %__capi::internal::util::Addr::from_ptr(_a),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_mut_ref_arr_u8_unit_ext(
+    _a: *mut [u8; 64],
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_mut_ref_arr_u8_unit(
+            __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_mut_ref_arr_u8_unit(
+    _a: *mut [u8; 64],
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    let _a: &mut [u8; 64] = __capi::try_as_mut!(_a);
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_mut_ref_arr_u8_unit(_a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
+    }
+}
 /// Initializes `PrefixExtError`.
 ///
 /// When no longer needed, `out`'s resources must be released
