@@ -2190,7 +2190,6 @@ impl<'a> CompileState<'a> {
         // define the structs provided by FFI schema
         for ffi_mod in self.ffi_modules {
             for s in ffi_mod.structs {
-                // TODO(apetkov) implement field insertion for FFI structs
                 let fields: Vec<StructItem<FieldDefinition>> = s
                     .fields
                     .iter()
@@ -2213,7 +2212,6 @@ impl<'a> CompileState<'a> {
         for fact in &self.policy.facts {
             let FactDefinition { key, value, .. } = &fact.inner;
 
-            // TODO(apetkov) implement field insertion for facts
             let fields: Vec<StructItem<FieldDefinition>> = key
                 .iter()
                 .chain(value.iter())
@@ -2227,17 +2225,7 @@ impl<'a> CompileState<'a> {
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            self.define_struct(
-                &command.identifier,
-                &command
-                    .fields
-                    .iter()
-                    .map(|si| match si {
-                        StructItem::Field(fd) => StructItem::Field(fd.clone()),
-                        StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-                    })
-                    .collect::<Vec<_>>(),
-            )?;
+            self.define_struct(&command.identifier, &command.fields)?;
         }
 
         // Define the finish function signatures before compiling them, so that they can be

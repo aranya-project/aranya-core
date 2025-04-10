@@ -82,22 +82,19 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let structs = structs.iter().map(|d| {
         let name = format_ident!("{}", d.identifier.as_str());
         let name_str = d.identifier.to_string();
-        let names = d
+        let (names, fields): (Vec<_>, Vec<_>) = d
             .items
             .iter()
             .map(|d| match d {
-                StructItem::Field(d) => format_ident!("{}", d.identifier),
-                StructItem::StructRef(_) => todo!(),
+                StructItem::Field(d) => (
+                    format_ident!("{}", d.identifier),
+                    format_ident!("__field_{}", d.identifier),
+                ),
+                StructItem::StructRef(s) => {
+                    todo!("`+{s}`: Struct field insertion is not implemented for FFI structs.")
+                }
             })
-            .collect::<Vec<_>>();
-        let fields = d
-            .items
-            .iter()
-            .map(|d| match d {
-                StructItem::Field(d) => format_ident!("__field_{}", d.identifier),
-                StructItem::StructRef(_) => todo!(),
-            })
-            .collect::<Vec<_>>();
+            .unzip();
         let types = d.items.iter().map(|d| {
             let vtype = match d {
                 StructItem::Field(f) => TypeTokens::new(&f.field_type, &alloc, &crypto, &vm),
