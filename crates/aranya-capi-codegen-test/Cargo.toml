@@ -15,7 +15,7 @@ default = []
 test_cfg = []
 
 [dependencies]
-aranya-capi-core = { version = "0.2.2", path = "../aranya-capi-core", features = ["debug"] }
+aranya-capi-core = { version = "0.2.3", path = "../aranya-capi-core", features = ["debug"] }
 buggy = { version = "0.1.0" }
 
 thiserror = { workspace = true }
