@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.5.0...aranya-policy-compiler-v0.6.0) - 2025-04-10
+
+### Other
+
+- allow block expressions in `if` expressions. (#176)
+- Close [#103](https://github.com/aranya-project/aranya-core/pull/103): `if`, `match` statements now limit scope to their blocks. ([#109](https://github.com/aranya-project/aranya-core/pull/109))
+- Close [#110](https://github.com/aranya-project/aranya-core/pull/110): Add match expressions. ([#119](https://github.com/aranya-project/aranya-core/pull/119))
+
 ## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.4.0...aranya-policy-compiler-v0.5.0) - 2025-03-19
 
 ### Other
