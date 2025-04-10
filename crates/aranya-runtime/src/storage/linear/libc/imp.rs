@@ -43,8 +43,8 @@ impl Iterator for GraphIdIterator {
             if name != b"." && name != b".." {
                 match GraphId::decode(name) {
                     Ok(graph_id) => return Some(Ok(graph_id)),
-                    Err(_) => {
-                        warn!("Unable to decode GraphId: {:?}", entry.name())
+                    Err(err) => {
+                        warn!("Filename {:?} is not a valid GraphId: {}", entry.name(), err);
                     }
                 }
             }
