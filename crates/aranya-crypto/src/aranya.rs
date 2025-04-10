@@ -485,6 +485,12 @@ impl<CS: CipherSuite> Encap<CS> {
     }
 }
 
+impl<CS: CipherSuite> fmt::Debug for Encap<CS> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Encap").field(&self.as_bytes()).finish()
+    }
+}
+
 impl<CS> Serialize for Encap<CS>
 where
     CS: CipherSuite,
