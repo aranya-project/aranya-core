@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.4.0...aranya-crypto-v0.5.0) - 2025-04-10
+
+### Other
+
+- implement aranya-crypto support, FFI, handler (#184)
+
 ## [0.4.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.3.0...aranya-crypto-v0.4.0) - 2025-03-19
 
 ### Other
 
 - rename Aranya "user" to "device" ([#122](https://github.com/aranya-project/aranya-core/pull/122))
 
-## [0.3.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.2.1...aranya-crypto-v0.3.0) - 2025-03-11
+## [0.3.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.3.0...aranya-crypto-v0.3.0) - 2025-03-11
 
 ### Other
 
