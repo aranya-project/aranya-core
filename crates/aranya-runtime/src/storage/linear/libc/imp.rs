@@ -44,7 +44,11 @@ impl Iterator for GraphIdIterator {
                 match GraphId::decode(name) {
                     Ok(graph_id) => return Some(Ok(graph_id)),
                     Err(err) => {
-                        warn!("Filename {:?} is not a valid GraphId: {}", entry.name(), err);
+                        warn!(
+                            "Filename {:?} is not a valid GraphId: {}",
+                            entry.name(),
+                            err
+                        );
                     }
                 }
             }

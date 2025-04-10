@@ -127,12 +127,6 @@ pub enum TestRule {
         id: u64,
         policy: u64,
     },
-    NewGraphWithFill {
-        client: u64,
-        id: u64,
-        policy: u64,
-        fill: u8,
-    },
     Sync {
         graph: u64,
         client: u64,
@@ -187,7 +181,7 @@ pub enum TestRule {
     },
     VerifyGraphIds {
         client: u64,
-        expected_fills: Vec<u8>,
+        ids: Vec<u64>,
     },
 }
 
@@ -317,33 +311,11 @@ impl Display for TestRule {
                 r#"{{"SetupClientsAndGraph": {{ "clients": {}, "graph": {}, "policy": {} }} }},"#,
                 clients, graph, policy,
             ),
-            TestRule::NewGraphWithFill {
-                client,
-                id,
-                policy,
-                fill,
-            } => write!(
+            TestRule::VerifyGraphIds { client, ids } => write!(
                 f,
-                r#"{{"NewGraphWithFill": {{ "client": {}, "id": {}, "policy": {}, "fill": {} }} }},"#,
-                client, id, policy, fill
+                r#"{{"VerifyGraphIds": {{ "client": {}, "ids": {:?} }} }},"#,
+                client, ids
             ),
-            TestRule::VerifyGraphIds {
-                client,
-                expected_fills,
-            } => {
-                write!(
-                    f,
-                    r#"{{"VerifyGraphIds": {{ "client": {}, "expected_fills": ["#,
-                    client
-                )?;
-                for (i, fill) in expected_fills.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{fill}")?;
-                }
-                write!(f, r#"] }} }},"#)
-            }
         }
     }
 }
@@ -554,30 +526,11 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
-                let storage_id =
-                    state.new_graph(policy_data.as_slice(), TestActions::Init(0), &mut sink)?;
-
-                graphs.insert(id, storage_id);
-
-                assert_eq!(0, sink.count());
-            }
-            TestRule::NewGraphWithFill {
-                client,
-                id,
-                policy,
-                fill,
-            } => {
-                let state = clients
-                    .get_mut(&client)
-                    .ok_or(TestError::MissingClient)?
-                    .get_mut();
-
-                let policy_data = policy.to_be_bytes();
-
-                let cmd_id = CommandId::from([fill; 64]);
-                let init_action = TestActions::InitWithId(cmd_id);
-
-                let storage_id = state.new_graph(policy_data.as_slice(), init_action, &mut sink)?;
+                let storage_id = state.new_graph(
+                    policy_data.as_slice(),
+                    TestActions::Init(policy),
+                    &mut sink,
+                )?;
 
                 graphs.insert(id, storage_id);
 
@@ -738,28 +691,23 @@ where
                 assert_eq!(max_cut, command.max_cut()?);
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
-            TestRule::VerifyGraphIds {
-                client,
-                ref expected_fills,
-            } => {
+            TestRule::VerifyGraphIds { client, ref ids } => {
                 let mut state = clients
                     .get(&client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
-                let mut actual_ids = state
+                let actual_ids: BTreeSet<GraphId> = state
                     .provider()
                     .list_graph_ids()
                     .unwrap()
                     .map(Result::unwrap)
-                    .collect::<Vec<_>>();
-                actual_ids.sort();
-
-                let mut expected_ids: Vec<GraphId> = expected_fills
-                    .iter()
-                    .map(|&fill| GraphId::from([fill; 64]))
                     .collect();
-                expected_ids.sort();
+
+                let expected_ids: BTreeSet<GraphId> = ids
+                    .iter()
+                    .map(|id| graphs.get(id).unwrap().clone())
+                    .collect();
 
                 assert_eq!(actual_ids, expected_ids);
             }

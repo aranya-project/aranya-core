@@ -5,25 +5,23 @@
         }
     },
     {
-        "NewGraphWithFill": {
+        "NewGraph": {
             "client": 0,
             "id": 1,
-            "policy": 0,
-            "fill": 1
+            "policy": 1
         }
     },
     {
-        "NewGraphWithFill": {
+        "NewGraph": {
             "client": 0,
             "id": 2,
-            "policy": 1,
-            "fill": 2
+            "policy": 2
         }
     },
     {
         "VerifyGraphIds": {
             "client": 0,
-            "expected_fills": [
+            "ids": [
                 1,
                 2
             ]
