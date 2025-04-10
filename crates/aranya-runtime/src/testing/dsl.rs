@@ -127,6 +127,12 @@ pub enum TestRule {
         id: u64,
         policy: u64,
     },
+    NewGraphWithFill {
+        client: u64,
+        id: u64,
+        policy: u64,
+        fill: u8,
+    },
     Sync {
         graph: u64,
         client: u64,
@@ -178,6 +184,10 @@ pub enum TestRule {
         client: u64,
         graph: u64,
         max_cut: usize,
+    },
+    VerifyGraphIds {
+        client: u64,
+        expected_fills: Vec<u8>,
     },
 }
 
@@ -307,6 +317,33 @@ impl Display for TestRule {
                 r#"{{"SetupClientsAndGraph": {{ "clients": {}, "graph": {}, "policy": {} }} }},"#,
                 clients, graph, policy,
             ),
+            TestRule::NewGraphWithFill {
+                client,
+                id,
+                policy,
+                fill,
+            } => write!(
+                f,
+                r#"{{"NewGraphWithFill": {{ "client": {}, "id": {}, "policy": {}, "fill": {} }} }},"#,
+                client, id, policy, fill
+            ),
+            TestRule::VerifyGraphIds {
+                client,
+                expected_fills,
+            } => {
+                write!(
+                    f,
+                    r#"{{"VerifyGraphIds": {{ "client": {}, "expected_fills": ["#,
+                    client
+                )?;
+                for (i, fill) in expected_fills.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{fill}")?;
+                }
+                write!(f, r#"] }} }},"#)
+            }
         }
     }
 }
@@ -524,6 +561,28 @@ where
 
                 assert_eq!(0, sink.count());
             }
+            TestRule::NewGraphWithFill {
+                client,
+                id,
+                policy,
+                fill,
+            } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+
+                let policy_data = policy.to_be_bytes();
+
+                let cmd_id = CommandId::from([fill; 64]);
+                let init_action = TestActions::InitWithId(cmd_id);
+
+                let storage_id = state.new_graph(policy_data.as_slice(), init_action, &mut sink)?;
+
+                graphs.insert(id, storage_id);
+
+                assert_eq!(0, sink.count());
+            }
             TestRule::Sync {
                 client,
                 graph,
@@ -679,6 +738,31 @@ where
                 assert_eq!(max_cut, command.max_cut()?);
             }
             TestRule::IgnoreExpectations { ignore } => sink.ignore_expectations(ignore),
+            TestRule::VerifyGraphIds {
+                client,
+                ref expected_fills,
+            } => {
+                let mut state = clients
+                    .get(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .borrow_mut();
+
+                let mut actual_ids = state
+                    .provider()
+                    .list_graph_ids()
+                    .unwrap()
+                    .map(Result::unwrap)
+                    .collect::<Vec<_>>();
+                actual_ids.sort();
+
+                let mut expected_ids: Vec<GraphId> = expected_fills
+                    .iter()
+                    .map(|&fill| GraphId::from([fill; 64]))
+                    .collect();
+                expected_ids.sort();
+
+                assert_eq!(actual_ids, expected_ids);
+            }
             _ => {}
         };
         #[cfg(any(test, feature = "std"))]
@@ -855,20 +939,21 @@ macro_rules! test_vectors {
 }
 
 test_vectors! {
+    duplicate_sync_causes_failure,
     empty_sync,
-    two_client_merge,
-    two_client_sync,
+    large_sync,
+    list_multiple_graph_ids,
+    many_branches,
+    max_cut,
+    missing_parent_after_sync,
+    skip_list,
+    sync_graph_larger_than_command_max,
+    three_client_branch,
+    three_client_compare_graphs,
     three_client_sync,
     two_client_branch,
-    three_client_branch,
-    large_sync,
-    three_client_compare_graphs,
-    duplicate_sync_causes_failure,
-    missing_parent_after_sync,
-    sync_graph_larger_than_command_max,
-    max_cut,
-    skip_list,
-    many_branches,
+    two_client_merge,
+    two_client_sync,
 }
 
 /// Used by [`test_suite`].
@@ -894,20 +979,21 @@ macro_rules! test_suite {
     ($backend:expr) => {
         $crate::testing::dsl::test_vector! {
             $backend ;
+            duplicate_sync_causes_failure,
             empty_sync,
-            two_client_merge,
-            two_client_sync,
+            large_sync,
+            list_multiple_graph_ids,
+            many_branches,
+            max_cut,
+            missing_parent_after_sync,
+            skip_list,
+            sync_graph_larger_than_command_max,
+            three_client_branch,
+            three_client_compare_graphs,
             three_client_sync,
             two_client_branch,
-            three_client_branch,
-            large_sync,
-            three_client_compare_graphs,
-            duplicate_sync_causes_failure,
-            missing_parent_after_sync,
-            sync_graph_larger_than_command_max,
-            max_cut,
-            skip_list,
-            many_branches,
+            two_client_merge,
+            two_client_sync,
         }
     };
 }

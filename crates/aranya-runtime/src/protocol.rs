@@ -180,6 +180,28 @@ impl TestPolicy {
         Ok(TestProtocol { id, command, data })
     }
 
+    fn init_with_id<'a>(
+        &self,
+        target: &'a mut [u8],
+        id: CommandId,
+    ) -> Result<TestProtocol<'a>, EngineError> {
+        let mut nonce = [0u8; 16];
+        nonce.copy_from_slice(&id.as_bytes()[..16]);
+
+        let mut policy_num = [0u8; 8];
+        policy_num.copy_from_slice(&id.as_bytes()[..8]);
+
+        let message = WireInit {
+            nonce: u128::from_ne_bytes(nonce),
+            policy_num,
+        };
+
+        let command = WireProtocol::Init(message);
+        let data = write(target, &command)?;
+
+        Ok(TestProtocol { id, command, data })
+    }
+
     fn basic<'a>(
         &self,
         target: &'a mut [u8],
@@ -274,6 +296,7 @@ impl Sink<TestEffect> for TestSink {
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum TestActions {
     Init(u64),
+    InitWithId(CommandId),
     SetValue(u64, u64),
 }
 
@@ -329,6 +352,15 @@ impl Policy for TestPolicy {
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
                 let target = buffer.as_mut_slice();
                 let command = self.init(target, nonce)?;
+
+                self.call_rule_internal(&command.command, facts, sink)?;
+
+                facts.add_command(&command)?;
+            }
+            TestActions::InitWithId(cmd_id) => {
+                let mut buffer = [0u8; MAX_COMMAND_LENGTH];
+                let target = buffer.as_mut_slice();
+                let command = self.init_with_id(target, cmd_id)?;
 
                 self.call_rule_internal(&command.command, facts, sink)?;
 

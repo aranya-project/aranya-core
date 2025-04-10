@@ -1,0 +1,32 @@
+[
+    {
+        "AddClient": {
+            "id": 0
+        }
+    },
+    {
+        "NewGraphWithFill": {
+            "client": 0,
+            "id": 1,
+            "policy": 0,
+            "fill": 1
+        }
+    },
+    {
+        "NewGraphWithFill": {
+            "client": 0,
+            "id": 2,
+            "policy": 1,
+            "fill": 2
+        }
+    },
+    {
+        "VerifyGraphIds": {
+            "client": 0,
+            "expected_fills": [
+                1,
+                2
+            ]
+        }
+    }
+]

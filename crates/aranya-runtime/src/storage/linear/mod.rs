@@ -1156,7 +1156,7 @@ mod test {
 
     #[test]
     fn test_query_prefix() {
-        let mut provider = LinearStorageProvider::new(Manager);
+        let mut provider = LinearStorageProvider::new(Manager::new());
         let mut fp = provider.new_perspective(PolicyId::new(0));
 
         let name = "x";
@@ -1210,7 +1210,7 @@ mod test {
         type StorageProvider = LinearStorageProvider<Manager>;
 
         fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-            LinearStorageProvider::new(Manager)
+            LinearStorageProvider::new(Manager::new())
         }
     }
     test_suite!(|| LinearBackend);

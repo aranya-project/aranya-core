@@ -7,12 +7,23 @@ use super::io;
 use crate::{GraphId, Location, StorageError};
 
 #[derive(Default)]
-pub struct Manager;
+pub struct Manager {
+    graph_ids: Vec<GraphId>,
+}
+
+impl Manager {
+    pub fn new() -> Self {
+        Self {
+            graph_ids: Vec::new(),
+        }
+    }
+}
 
 impl io::IoManager for Manager {
     type Writer = Writer;
 
-    fn create(&mut self, _id: GraphId) -> Result<Self::Writer, StorageError> {
+    fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
+        self.graph_ids.push(id);
         Ok(Writer {
             head: Mutex::default(),
             shared: Arc::default(),
@@ -24,7 +35,7 @@ impl io::IoManager for Manager {
     }
 
     fn list(&self) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
-        Ok(core::iter::empty::<_>())
+        Ok(self.graph_ids.iter().copied().map(Ok))
     }
 }
 
