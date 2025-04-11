@@ -271,8 +271,8 @@ impl Root {
     fn calc_checksum(&self) -> u64 {
         let mut hasher = aranya_crypto::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
-        hasher.write_usize(self.head.segment);
-        hasher.write_usize(self.head.command);
+        hasher.write_u64(self.head.segment as u64);
+        hasher.write_u64(self.head.command as u64);
         hasher.write_i64(self.free_offset);
         hasher.finish()
     }
