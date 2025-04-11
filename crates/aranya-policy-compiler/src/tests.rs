@@ -873,6 +873,7 @@ fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
 #[test]
 fn test_serialize_deserialize() -> anyhow::Result<()> {
     let text = r#"
+        struct Foo {}
         function foo(input struct Foo) struct Foo {
             let b = serialize(input)
             return deserialize(b)
@@ -2172,6 +2173,35 @@ fn test_validate_return() {
         let policy = parse_policy_str(p, Version::V2).expect("should parse");
         let m = Compiler::new(&policy).compile().expect("should compile");
         assert!(validate(&m));
+    }
+}
+
+#[test]
+fn test_return_type_not_defined() {
+    let cases = [
+        (
+            r#"
+            struct Foo {}
+            function get_foo() struct Nonexistent {
+                return Foo {}
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Nonexistent".to_string()),
+        ),
+        (
+            r#"
+            function f() enum Blah {
+                return Blah::Foo
+            }
+            "#,
+            CompileErrorType::NotDefined("enum Blah".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(err, expected);
     }
 }
 
