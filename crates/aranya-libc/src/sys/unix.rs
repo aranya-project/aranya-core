@@ -16,6 +16,12 @@ use crate::{
 /// A raw file descriptor.
 pub type RawFd = c_int;
 
+/// A raw directory stream.
+pub type RawDir = *mut libc::DIR;
+
+/// A raw directory entry.
+pub type DirEntry = *mut libc::dirent;
+
 /// The `fd` argument to `openat(2)`, etc.
 pub type AtRoot<'a> = BorrowedFd<'a>;
 
@@ -77,6 +83,52 @@ pub fn flock(fd: BorrowedFd<'_>, op: c_int) -> Result<(), Errno> {
 pub fn fsync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::fsync(fd.fd) };
+    if ret < 0 {
+        Err(errno())
+    } else {
+        Ok(())
+    }
+}
+
+/// See `fdopendir(2)`.
+pub fn fdopendir(fd: BorrowedFd<'_>) -> Result<RawDir, Errno> {
+    // SAFETY: FFI call, no invariants.
+    let dir = unsafe { libc::fdopendir(fd.fd) };
+    if dir.is_null() {
+        Err(errno())
+    } else {
+        Ok(dir)
+    }
+}
+
+/// See `readdir(2)`.
+pub fn readdir(dir: RawDir) -> Result<Option<DirEntry>, Errno> {
+    // SAFETY: `To distinguish between an end-of-directory condition or an
+    // error, you must set errno to zero before calling readdir.`
+    unsafe {
+        crate::errno::clear_errno();
+    }
+
+    // SAFETY: FFI call, no invariants.
+    let ret = unsafe { libc::readdir(dir) };
+
+    // If this is NULL, either we're at the end or an error occurred.
+    if ret.is_null() {
+        let errno = errno();
+        if errno.code() == 0 {
+            Ok(None)
+        } else {
+            Err(errno)
+        }
+    } else {
+        Ok(Some(ret))
+    }
+}
+
+/// See `closedir(2)`.
+pub fn closedir(dir: RawDir) -> Result<(), Errno> {
+    // SAFETY: FFI call, no invariants.
+    let ret = unsafe { libc::closedir(dir) };
     if ret < 0 {
         Err(errno())
     } else {
