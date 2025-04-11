@@ -706,7 +706,7 @@ where
 
                 let expected_ids: BTreeSet<GraphId> = ids
                     .iter()
-                    .map(|id| graphs.get(id).unwrap().clone())
+                    .map(|id| graphs[id])
                     .collect();
 
                 assert_eq!(actual_ids, expected_ids);
