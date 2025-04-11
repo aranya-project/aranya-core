@@ -11,6 +11,7 @@ use core::{
     sync::atomic::{AtomicU32, Ordering},
 };
 
+use buggy::{bug, Bug};
 use cfg_if::cfg_if;
 
 use crate::util::const_assert;
@@ -37,6 +38,7 @@ pub struct MutexGuard<'a, T: ?Sized> {
 unsafe impl<T: ?Sized + Sync> Sync for MutexGuard<'_, T> {}
 
 impl<T: ?Sized> Drop for MutexGuard<'_, T> {
+    #[inline]
     fn drop(&mut self) {
         // TODO(eric): it would be nice to do something about
         // `Result` here.
@@ -72,6 +74,10 @@ impl<T: ?Sized> DerefMut for MutexGuard<'_, T> {
 #[repr(C, align(8))]
 #[derive(Default, Debug)]
 pub(crate) struct Mutex<T: ?Sized> {
+    // One of:
+    // - MUTEX_UNLOCKED
+    // - MUTEX_LOCKED
+    // - MUTEX_SLEEPING
     key: AtomicU32,
     data: UnsafeCell<T>,
 }
@@ -160,7 +166,9 @@ impl<T: ?Sized> Mutex<T> {
                     Self::MUTEX_UNLOCKED,
                     Self::MUTEX_LOCKED,
                     Ordering::SeqCst,
-                    Ordering::SeqCst,
+                    // We don't use the failure value, so relaxed
+                    // is fine.
+                    Ordering::Relaxed,
                 )
                 .is_ok())
             {
@@ -176,21 +184,29 @@ impl<T: ?Sized> Mutex<T> {
         any(target_os = "linux", target_os = "macos")
     ))]
     fn sys_lock(&self) {
+        let v = self.key.swap(Self::MUTEX_LOCKED, Ordering::SeqCst);
+        if v == Self::MUTEX_UNLOCKED {
+            return;
+        }
+        // By design, this mutex should almost always be
+        // uncontended. So, break out the slow path and mark it
+        // `#[cold]`.
+        self.sys_lock_slow(v)
+    }
+
+    #[cfg(all(
+        not(feature = "cas_mutex"),
+        feature = "libc",
+        any(target_os = "linux", target_os = "macos")
+    ))]
+    #[cold]
+    fn sys_lock_slow(&self, mut wait: u32) {
         #[cfg(target_os = "linux")]
         use crate::mutex::linux::futex_wait;
         #[cfg(target_os = "macos")]
         use crate::mutex::macos::futex_wait;
 
-        // Fast path: the mutex is unlocked.
-        let mut wait = match self.key.compare_exchange(
-            Self::MUTEX_UNLOCKED,
-            Self::MUTEX_LOCKED,
-            Ordering::SeqCst,
-            Ordering::SeqCst,
-        ) {
-            Ok(_) => return,
-            Err(v) => v,
-        };
+        debug_assert!(wait == Self::MUTEX_LOCKED || wait == Self::MUTEX_SLEEPING);
 
         const PASSIVE_SPIN: i32 = 5;
         loop {
@@ -202,7 +218,9 @@ impl<T: ?Sized> Mutex<T> {
                             Self::MUTEX_UNLOCKED,
                             wait,
                             Ordering::SeqCst,
-                            Ordering::SeqCst,
+                            // We don't use the failure value, so
+                            // relaxed is fine.
+                            Ordering::Relaxed,
                         )
                         .is_ok())
                     {
@@ -213,8 +231,9 @@ impl<T: ?Sized> Mutex<T> {
                 }
             }
 
-            // Could not grab the lock; go to sleep.
+            // Could not grab the lock, so try to go to sleep.
             if self.key.swap(Self::MUTEX_SLEEPING, Ordering::SeqCst) == Self::MUTEX_UNLOCKED {
+                // Turns out we grabbed the lock.
                 return;
             }
             wait = Self::MUTEX_SLEEPING;
@@ -227,8 +246,12 @@ impl<T: ?Sized> Mutex<T> {
         not(feature = "libc"),
         not(any(target_os = "linux", target_os = "macos"))
     ))]
-    pub(crate) fn sys_unlock(&self) -> Result<(), Infallible> {
-        self.key.swap(Self::MUTEX_UNLOCKED, Ordering::SeqCst);
+    pub(crate) fn sys_unlock(&self) -> Result<(), Bug> {
+        match self.key.swap(Self::MUTEX_UNLOCKED, Ordering::SeqCst) {
+            Self::MUTEX_UNLOCKED => bug!("unlock of locked mutex"),
+            Self::MUTEX_LOCKED => {}
+            _ => bug!("invalid mutex state"),
+        };
         Ok(())
     }
 
@@ -237,17 +260,17 @@ impl<T: ?Sized> Mutex<T> {
         feature = "libc",
         any(target_os = "linux", target_os = "macos")
     ))]
-    pub(crate) fn sys_unlock(&self) -> Result<(), ::buggy::Bug> {
+    pub(crate) fn sys_unlock(&self) -> Result<(), Bug> {
         #[cfg(target_os = "linux")]
         use crate::mutex::linux::futex_wake;
         #[cfg(target_os = "macos")]
         use crate::mutex::macos::futex_wake;
 
         match self.key.swap(Self::MUTEX_UNLOCKED, Ordering::SeqCst) {
-            Self::MUTEX_UNLOCKED => ::buggy::bug!("unlock of locked mutex"),
+            Self::MUTEX_UNLOCKED => bug!("unlock of locked mutex"),
             Self::MUTEX_SLEEPING => futex_wake(&self.key, 1)?,
             Self::MUTEX_LOCKED => {}
-            _ => ::buggy::bug!("invalid mutex state"),
+            _ => bug!("invalid mutex state"),
         };
         Ok(())
     }
