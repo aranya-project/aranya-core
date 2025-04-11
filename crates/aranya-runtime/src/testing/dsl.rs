@@ -704,10 +704,7 @@ where
                     .map(Result::unwrap)
                     .collect();
 
-                let expected_ids: BTreeSet<GraphId> = ids
-                    .iter()
-                    .map(|id| graphs[id])
-                    .collect();
+                let expected_ids: BTreeSet<GraphId> = ids.iter().map(|id| graphs[id]).collect();
 
                 assert_eq!(actual_ids, expected_ids);
             }
