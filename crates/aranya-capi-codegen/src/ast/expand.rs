@@ -587,6 +587,14 @@ impl Ast {
                 })
                 .unwrap_or_else(|| quote!(#pattern.into()));
 
+            let result = if out_param.is_none() {
+                let util = &ctx.util;
+
+                quote! (#util::check_valid_output_ty(#result))
+            } else {
+                result.clone()
+            };
+
             let block = if f_is_infallible {
                 // Output params are `*mut T`, which should make
                 // `f` fallible.

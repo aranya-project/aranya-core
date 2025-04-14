@@ -101,6 +101,9 @@ impl_trait! {
 // SAFETY: `T: ByValue`, so `T` is FFI safe.
 unsafe impl<T: ByValue> Output for T {}
 
+// Wrapper type
+unsafe impl<T: Output, E> Output for Result<T, E> {}
+
 /// A marker trait for FFI types that can be passed by value
 /// (i.e., copied).
 ///
