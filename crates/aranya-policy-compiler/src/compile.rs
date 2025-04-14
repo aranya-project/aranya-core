@@ -1493,16 +1493,16 @@ impl<'a> CompileState<'a> {
     fn ensure_type_is_defined(&self, vtype: &VType) -> Result<(), CompileError> {
         match &vtype {
             VType::Struct(name) => {
-                if name != "Envelope" && self.m.struct_defs.get(name).is_none() {
+                if name != "Envelope" && !self.m.struct_defs.contains_key(name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
                 }
             }
             VType::Enum(name) => {
-                if self.m.enum_defs.get(name).is_none() {
+                if !self.m.enum_defs.contains_key(name) {
                     return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
                 }
             }
-            VType::Optional(t) => return self.ensure_type_is_defined(&(*t)),
+            VType::Optional(t) => return self.ensure_type_is_defined(t),
             _ => {}
         }
         Ok(())
