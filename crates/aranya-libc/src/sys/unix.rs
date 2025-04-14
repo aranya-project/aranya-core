@@ -90,6 +90,17 @@ pub fn fsync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
     }
 }
 
+/// See `dup(2)`.
+pub fn dup(old_fd: BorrowedFd<'_>) -> Result<RawFd, Errno> {
+    // SAFETY: FFI call, no invariants.
+    let ret = unsafe { libc::dup(old_fd.fd) };
+    if ret < 0 {
+        Err(errno())
+    } else {
+        Ok(ret)
+    }
+}
+
 /// See `fdopendir(2)`.
 pub fn fdopendir(fd: BorrowedFd<'_>) -> Result<RawDir, Errno> {
     // SAFETY: FFI call, no invariants.
@@ -101,7 +112,7 @@ pub fn fdopendir(fd: BorrowedFd<'_>) -> Result<RawDir, Errno> {
     }
 }
 
-/// See `readdir(2)`.
+/// See `readdir(3p)`.
 pub fn readdir(dir: RawDir) -> Result<Option<DirEntry>, Errno> {
     // SAFETY: `To distinguish between an end-of-directory condition or an
     // error, you must set errno to zero before calling readdir.`
@@ -125,7 +136,7 @@ pub fn readdir(dir: RawDir) -> Result<Option<DirEntry>, Errno> {
     }
 }
 
-/// See `closedir(2)`.
+/// See `closedir(3p)`.
 pub fn closedir(dir: RawDir) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::closedir(dir) };

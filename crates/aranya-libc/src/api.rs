@@ -184,13 +184,18 @@ pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
     imp::fsync(fd.as_fd())
 }
 
-/// See `fdopendir(2)`.
+/// See `dup(2)`.
+pub fn dup(fd: impl AsFd) -> Result<OwnedFd, Errno> {
+    Ok(OwnedFd { fd: imp::dup(fd.as_fd())? })
+}
+
+/// See `fdopendir(3p)`.
 pub fn fdopendir(fd: impl AsAtRoot) -> Result<OwnedDir, Errno> {
     let fd = imp::fdopendir(fd.as_root())?;
     Ok(OwnedDir { fd })
 }
 
-/// See `readdir(2)`.
+/// See `readdir(3p)`.
 pub fn readdir(dir: &mut OwnedDir) -> Result<Option<DirEntry<'_>>, Errno> {
     dir.readdir()
 }

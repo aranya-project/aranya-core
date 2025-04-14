@@ -21,6 +21,8 @@ struct GraphIdIterator {
 
 impl GraphIdIterator {
     fn new(fd: impl AsAtRoot) -> Result<Self, StorageError> {
+        // We're probably reusing a fd, so let's clone it.
+        let fd = libc::dup(fd.as_root())?;
         Ok(Self {
             inner: libc::fdopendir(fd)?,
         })
