@@ -211,8 +211,6 @@ mod strand_heap {
         has_finalize: bool,
     }
 
-    #[derive(Copy, Clone, Debug, thiserror::Error)]
-    #[error("parallel finalize commands found")]
     pub struct ParallelFinalize;
 
     impl<S> StrandHeap<S> {
