@@ -935,7 +935,7 @@ mod test {
     }
 
     #[test]
-    fn test_finalize_success() {
+    fn test_sequential_finalize() {
         let mut gb = graph! {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
@@ -943,8 +943,10 @@ mod test {
             "a" < "b" "c" "d" "e" "f" "g";
             "d" < "h" "i" "j";
             "e" < finalize "fff1";
+            "fff1" < "x" "y";
+            "y" < finalize "fff2";
+            commit;
         };
-        gb.commit().unwrap();
 
         let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
@@ -955,11 +957,11 @@ mod test {
 
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
-        assert_eq!(seq, "a:b:c:d:e:fff1:h:i:j:f:g");
+        assert_eq!(seq, "a:b:c:d:e:fff1:x:y:fff2:h:i:j:f:g");
     }
 
     #[test]
-    fn test_finalize_failure() {
+    fn test_parallel_finalize() {
         let mut gb = graph! {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
