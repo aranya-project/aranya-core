@@ -944,7 +944,6 @@ mod test {
             "d" < "h" "i" "j";
             "e" < finalize "fff1";
         };
-        gb.finalize(mkid("e"), mkid("fff1")).unwrap();
         gb.commit().unwrap();
 
         let g = gb.client.provider.get_storage(mkid("a")).unwrap();
