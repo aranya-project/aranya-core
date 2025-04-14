@@ -186,7 +186,9 @@ pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
 
 /// See `dup(2)`.
 pub fn dup(fd: impl AsFd) -> Result<OwnedFd, Errno> {
-    Ok(OwnedFd { fd: imp::dup(fd.as_fd())? })
+    Ok(OwnedFd {
+        fd: imp::dup(fd.as_fd())?,
+    })
 }
 
 /// See `fdopendir(3p)`.
