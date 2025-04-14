@@ -475,6 +475,7 @@ impl Ast {
         let err_ty = &ctx.err_ty;
 
         let doc = &f.doc;
+        let ctype_attr = parse_quote!(#[deny(improper_ctypes_definitions)]);
         let attrs = &f
             .attrs
             .iter()
@@ -482,6 +483,7 @@ impl Ast {
                 // TODO(eric): other attrs?
                 attr.path().is_ident("cfg")
             })
+            .chain(std::iter::once(&ctype_attr))
             .collect::<Vec<_>>();
 
         // Rewrite the inputs for the `extern "C"` functions and
