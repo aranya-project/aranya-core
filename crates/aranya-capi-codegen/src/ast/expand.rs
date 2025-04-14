@@ -572,7 +572,7 @@ impl Ast {
             };
 
             let pattern = format_ident!("__pattern");
-            let result = &f
+            let result = f
                 .sig
                 .output
                 .inner_type()
@@ -592,7 +592,7 @@ impl Ast {
 
                 quote! (#util::check_valid_output_ty(#result))
             } else {
-                result.clone()
+                result
             };
 
             let block = if f_is_infallible {
