@@ -1880,6 +1880,18 @@ fn test_type_errors() -> anyhow::Result<()> {
             "#,
             e: "debug assertion must be a boolean expression",
         },
+        Case {
+            t: r#"
+                struct Baz {
+                    y int,
+                }
+                action foo(x bool) {
+                    let new_struct = x substruct Baz
+                    publish new_struct
+                }
+            "#,
+            e: "Expression to the left of the substruct operator is not a struct",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -2163,6 +2175,84 @@ fn test_validate_return() {
     }
 }
 
+#[test]
+fn test_substruct_errors() -> anyhow::Result<()> {
+    struct Case {
+        t: &'static str,
+        e: &'static str,
+    }
+
+    let cases = [
+        Case {
+            t: r#"
+                struct Baz {
+                    x string,
+                    y int,
+                }
+                action foo(x struct Baz) {
+                    let new_struct = x substruct Bar
+                    publish new_struct
+                }
+            "#,
+            e: "not defined: Struct `Bar` not defined",
+        },
+        Case {
+            t: r#"
+                struct Baz {
+                    x string,
+                    y int,
+                }
+                action foo() {
+                    let new_struct = Foo { x: "x", y: 0, z: false } substruct Baz
+                    publish new_struct
+                }
+            "#,
+            e: "not defined: Struct `Foo` not defined",
+        },
+        Case {
+            t: r#"
+                command Foo {
+                    fields {
+                        x int,
+                        y bool,
+                        z string,
+                    }
+                    seal { return None }
+                    open { return None }
+                }
+                struct Bar {
+                    x int,
+                    y bool,
+                }
+                action baz(source struct Bar) {
+                    publish source substruct Foo
+                }
+            "#,
+            e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
+        },
+    ];
+
+    for (i, c) in cases.iter().enumerate() {
+        let policy = parse_policy_str(c.t, Version::V2)?;
+        let err = Compiler::new(&policy)
+            .ffi_modules(FAKE_SCHEMA)
+            .compile()
+            .expect_err("Did not get error")
+            .err_type;
+        match err {
+            CompileErrorType::NotDefined(_) | CompileErrorType::InvalidSubstruct(_, _) => {}
+            err => {
+                return Err(anyhow!(
+                    "Did not get NotDefined or InvalidSubstruct for case {i}: {err:?} ({err})"
+                ));
+            }
+        }
+
+        assert_eq!(err.to_string(), c.e);
+    }
+
+    Ok(())
+}
 #[test]
 fn if_expression_block() {
     let cases = [(

@@ -1,7 +1,7 @@
 [package]
-name = "aranya-envelope-ffi"
-description = "The envelope FFI for Aranya Policy"
-version = "0.6.0"
+name = "aranya-aqc-util"
+description = "Utilities for Aranya QUIC Channels"
+version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,6 +11,8 @@ rust-version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+
 [features]
 default = [
 	"alloc",
@@ -19,31 +21,41 @@ default = [
 # Enable allocations.
 alloc = []
 
-# Enable std.
 std = [
-	"alloc",
-
 	"aranya-crypto/std",
 	"aranya-policy-vm/std",
+	"postcard/use-std",
+	"serde/std",
+	"spin/std",
+	"thiserror/std",
+	"tracing/std",
+]
+
+# Enable the `testing` module.
+testing = [
+	"alloc",
 ]
 
 [dependencies]
 aranya-crypto = { version = "0.5.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { version = "0.6.0", path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
-
+buggy = { version = "0.1.0", default-features = false }
+postcard = { workspace = true, default-features = false, features = ["heapless"] }
+serde = { workspace = true, default-features = false, features = ["derive"] }
+spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-aranya-crypto = { path = "../aranya-crypto", features = ["alloc", "getrandom"] }
+aranya-aqc-util = { path = ".", features = ["testing"] }
+
+aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["getrandom"] }
 
 [package.metadata.docs.rs]
 all-features = true
 
 [package.metadata.cargo-all-features]
-always_include_features = [
-	"alloc",
-]
+always_include_features = []
 
 skip_feature_sets = []
 
