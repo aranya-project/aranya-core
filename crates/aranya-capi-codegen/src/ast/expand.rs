@@ -587,7 +587,7 @@ impl Ast {
                 })
                 .unwrap_or_else(|| quote!(#pattern.into()));
 
-            let result = if out_param.is_none() {
+            let result = if f_is_infallible {
                 let util = &ctx.util;
 
                 quote! (#util::check_valid_output_ty(#result))

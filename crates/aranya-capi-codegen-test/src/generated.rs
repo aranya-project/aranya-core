@@ -166,7 +166,7 @@ fn __tramp_prefix_test_unit_result_unit_error() -> ::core::result::Result<
     match { crate::defs::test_unit_result_unit_error() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1032,11 +1032,7 @@ fn __tramp_prefix_test_enum_unit(
     match { crate::defs::test_enum_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1412,11 +1408,7 @@ fn __tramp_prefix_test_ref_struct_unit(
     match { crate::defs::test_ref_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1669,11 +1661,7 @@ fn __tramp_prefix_test_optional_ref_struct(
     match { crate::defs::test_optional_ref_struct(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1754,11 +1742,7 @@ fn __tramp_prefix_test_optional_mut_ref_struct(
     match { crate::defs::test_optional_mut_ref_struct(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -1839,11 +1823,7 @@ fn __tramp_prefix_test_ref_safestruct_unit(
     match { crate::defs::test_ref_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -2065,11 +2045,7 @@ fn __tramp_prefix_test_ownedptr_u32_unit(
     match { crate::defs::test_ownedptr_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -2150,11 +2126,7 @@ fn __tramp_prefix_test_ownedptr_struct_unit(
     match { crate::defs::test_ownedptr_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -2235,11 +2207,7 @@ fn __tramp_prefix_test_ownedptr_safestruct_unit(
     match { crate::defs::test_ownedptr_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -2388,11 +2356,7 @@ fn __tramp_prefix_test_slice_u8_unit(
     match { crate::defs::test_slice_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -2467,11 +2431,7 @@ fn __tramp_prefix_test_ref_arr_u8_unit(
     match { crate::defs::test_ref_arr_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
@@ -2640,11 +2600,7 @@ fn __tramp_prefix_test_mut_ref_arr_u8_unit(
     match { crate::defs::test_mut_ref_arr_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 /// Initializes `PrefixExtError`.
@@ -2756,11 +2712,7 @@ fn __tramp_prefix_ext_error_init(
     match { self::ext_error_init(out) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[::tracing::instrument(fields(out = %__capi::internal::util::Addr::from_mut(out)))]
@@ -2875,11 +2827,7 @@ fn __tramp_prefix_ext_error_cleanup(
     match { self::ext_error_cleanup(ptr) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            ::core::result::Result::Ok(
-                __capi::internal::util::check_valid_output_ty(__pattern.into()),
-            )
-        }
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[__capi::internal::tracing::instrument(
