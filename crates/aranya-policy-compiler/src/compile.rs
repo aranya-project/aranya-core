@@ -1221,25 +1221,7 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Publish);
                 }
                 (ast::Statement::Return(s), StatementContext::PureFunction(fd)) => {
-                    // make sure return type actually exists
-                    match &fd.return_type {
-                        VType::Struct(name) => {
-                            if !["Envelope"].contains(&name.as_str())
-                                && self.m.struct_defs.get(name).is_none()
-                            {
-                                return Err(self
-                                    .err(CompileErrorType::NotDefined(format!("struct {name}"))));
-                            }
-                        }
-                        VType::Enum(name) => {
-                            if self.m.enum_defs.get(name).is_none() {
-                                return Err(
-                                    self.err(CompileErrorType::NotDefined(format!("enum {name}")))
-                                );
-                            }
-                        }
-                        _ => {}
-                    }
+                    self.ensure_type_is_defined(&fd.return_type)?;
 
                     // ensure return expression type matches function signature
                     let et = self.compile_expression(&s.expression)?;
@@ -1505,6 +1487,25 @@ impl<'a> CompileState<'a> {
         F: FnMut(&Instruction) -> bool,
     {
         self.m.progmem[r].iter().any(pred)
+    }
+
+    /// Checks if the given type is defined. E.g. check struct/enum definitions.
+    fn ensure_type_is_defined(&self, vtype: &VType) -> Result<(), CompileError> {
+        match &vtype {
+            VType::Struct(name) => {
+                if name != "Envelope" && self.m.struct_defs.get(name).is_none() {
+                    return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
+                }
+            }
+            VType::Enum(name) => {
+                if self.m.enum_defs.get(name).is_none() {
+                    return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
+                }
+            }
+            VType::Optional(t) => return self.ensure_type_is_defined(&(*t)),
+            _ => {}
+        }
+        Ok(())
     }
 
     /// Compile a function

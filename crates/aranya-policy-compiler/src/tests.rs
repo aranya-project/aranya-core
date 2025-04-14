@@ -2196,6 +2196,14 @@ fn test_return_type_not_defined() {
             "#,
             CompileErrorType::NotDefined("enum Blah".to_string()),
         ),
+        (
+            r#"
+            function f() optional struct Foo {
+                return Some(Foo {})
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Foo".to_string()),
+        ),
     ];
 
     for (text, expected) in cases {
