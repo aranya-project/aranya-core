@@ -1531,9 +1531,8 @@ impl<'a> CompileState<'a> {
             self.append_var(arg.identifier.clone(), arg.field_type.clone())?;
         }
         let from = self.wp;
-        self.compile_statements(&function.statements, Scope::Same)?;
-
         self.ensure_type_is_defined(&function_node.return_type)?;
+        self.compile_statements(&function.statements, Scope::Same)?;
 
         // Check that there is a return statement somewhere in the compiled instructions.
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
