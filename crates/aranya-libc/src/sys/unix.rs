@@ -10,7 +10,7 @@ pub use libc::{
 use crate::{
     errno::{errno, Errno},
     path::Path,
-    AsAtRoot, AsFd, BorrowedFd,
+    AsAtRoot, AsFd, BorrowedFd, OwnedFd,
 };
 
 /// A raw file descriptor.
@@ -102,9 +102,12 @@ pub fn dup(old_fd: BorrowedFd<'_>) -> Result<RawFd, Errno> {
 }
 
 /// See `fdopendir(2)`.
-pub fn fdopendir(fd: BorrowedFd<'_>) -> Result<RawDir, Errno> {
+pub fn fdopendir(fd: OwnedFd) -> Result<RawDir, Errno> {
     // SAFETY: FFI call, no invariants.
     let dir = unsafe { libc::fdopendir(fd.fd) };
+    // SAFETY: This is now tied up in the DIR and will be freed once the
+    // OwnedDir gets dropped and we call closedir.
+    core::mem::forget(fd);
     if dir.is_null() {
         Err(errno())
     } else {

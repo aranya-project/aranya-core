@@ -56,7 +56,7 @@ where
 #[repr(transparent)]
 #[clippy::has_significant_drop]
 pub struct OwnedFd {
-    fd: imp::RawFd,
+    pub(crate) fd: imp::RawFd,
 }
 
 impl AsFd for OwnedFd {
@@ -192,8 +192,8 @@ pub fn dup(fd: impl AsFd) -> Result<OwnedFd, Errno> {
 }
 
 /// See `fdopendir(3p)`.
-pub fn fdopendir(fd: impl AsAtRoot) -> Result<OwnedDir, Errno> {
-    let fd = imp::fdopendir(fd.as_root())?;
+pub fn fdopendir(fd: OwnedFd) -> Result<OwnedDir, Errno> {
+    let fd = imp::fdopendir(fd)?;
     Ok(OwnedDir { fd })
 }
 
