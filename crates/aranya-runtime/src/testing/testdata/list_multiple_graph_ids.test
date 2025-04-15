@@ -26,5 +26,14 @@
                 2
             ]
         }
+    },
+    {
+        "VerifyGraphIds": {
+            "client": 0,
+            "ids": [
+                1,
+                2
+            ]
+        }
     }
 ]

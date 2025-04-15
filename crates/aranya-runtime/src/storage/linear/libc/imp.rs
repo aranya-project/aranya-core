@@ -21,11 +21,15 @@ struct GraphIdIterator {
 
 impl GraphIdIterator {
     fn new(fd: impl AsAtRoot) -> Result<Self, StorageError> {
-        // We're probably reusing a fd, so let's clone it.
+        // We're probably reusing a fd, so let's dupe it. This still shares
+        // state so any subsequent calls are affected, but this solves the
+        // problem of closedir destroying this specific fd.
         let fd = libc::dup(fd.as_root())?;
-        Ok(Self {
-            inner: libc::fdopendir(fd)?,
-        })
+        let mut inner = libc::fdopendir(fd)?;
+        // Since we may be at the end of the directory due to shared state,
+        // let's be kind, rewind.
+        libc::rewinddir(&mut inner);
+        Ok(Self { inner })
     }
 }
 
@@ -123,7 +127,9 @@ impl IoManager for FileManager {
         Ok(Some(Writer::open(fd)?))
     }
 
-    fn list(&self) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+    fn list(
+        &mut self,
+    ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
         GraphIdIterator::new(self.root())
     }
 }

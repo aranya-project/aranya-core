@@ -139,6 +139,12 @@ pub fn readdir(dir: RawDir) -> Result<Option<DirEntry>, Errno> {
     }
 }
 
+/// See `rewinddir(3p)`.
+pub fn rewinddir(dir: RawDir) {
+    // SAFETY: FFI call, no invariants.
+    unsafe { libc::rewinddir(dir) };
+}
+
 /// See `closedir(3p)`.
 pub fn closedir(dir: RawDir) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.

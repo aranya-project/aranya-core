@@ -259,7 +259,7 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
     }
 
     fn list_graph_ids(
-        &self,
+        &mut self,
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
         self.manager.list()
     }

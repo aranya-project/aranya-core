@@ -111,7 +111,7 @@ impl StorageProvider for MemStorageProvider {
     }
 
     fn list_graph_ids(
-        &self,
+        &mut self,
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
         Ok(self.storage.keys().copied().map(Ok))
     }

@@ -102,6 +102,10 @@ impl OwnedDir {
             _phantom: PhantomData,
         }))
     }
+
+    fn rewinddir(&mut self) {
+        imp::rewinddir(self.fd);
+    }
 }
 
 impl Drop for OwnedDir {
@@ -200,4 +204,9 @@ pub fn fdopendir(fd: OwnedFd) -> Result<OwnedDir, Errno> {
 /// See `readdir(3p)`.
 pub fn readdir(dir: &mut OwnedDir) -> Result<Option<DirEntry<'_>>, Errno> {
     dir.readdir()
+}
+
+/// See `rewinddir(3p)`.
+pub fn rewinddir(dir: &mut OwnedDir) {
+    dir.rewinddir()
 }

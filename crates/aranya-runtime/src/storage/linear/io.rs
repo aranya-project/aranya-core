@@ -18,7 +18,8 @@ pub trait IoManager {
     /// Open existing writer for the graph ID.
     fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError>;
     /// List all existing graph IDs.
-    fn list(&self) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
+    fn list(&mut self)
+        -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
 /// Exclusive writer for a linear storage graph.

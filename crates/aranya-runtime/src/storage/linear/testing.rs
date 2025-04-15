@@ -34,7 +34,9 @@ impl io::IoManager for Manager {
         Ok(None)
     }
 
-    fn list(&self) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+    fn list(
+        &mut self,
+    ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
         Ok(self.graph_ids.iter().copied().map(Ok))
     }
 }
