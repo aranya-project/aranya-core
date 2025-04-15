@@ -34,6 +34,9 @@ url = "https://raw.githubusercontent.com/zcash/rust-ecosystem/main/supply-chain/
 [policy.aranya-afc-util]
 audit-as-crates-io = false
 
+[policy.aranya-aqc-util]
+audit-as-crates-io = false
+
 [policy.aranya-capi-codegen]
 audit-as-crates-io = false
 
@@ -645,10 +648,6 @@ criteria = "safe-to-deploy"
 version = "0.7.3"
 criteria = "safe-to-deploy"
 
-[[exemptions.rand]]
-version = "0.8.5"
-criteria = "safe-to-deploy"
-
 [[exemptions.rand_chacha]]
 version = "0.2.2"
 criteria = "safe-to-deploy"
@@ -838,15 +837,7 @@ version = "1.4.1"
 criteria = "safe-to-deploy"
 
 [[exemptions.thiserror]]
-version = "1.0.69"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror]]
 version = "2.0.7"
-criteria = "safe-to-deploy"
-
-[[exemptions.thiserror-impl]]
-version = "1.0.69"
 criteria = "safe-to-deploy"
 
 [[exemptions.thiserror-impl]]

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.2.2...aranya-capi-core-v0.2.3) - 2025-04-10
+
+### Other
+
+- (capi-codegen) Implement ByMutPtr trait for Arrays ([#205](https://github.com/aranya-project/aranya-core/pull/205))
+
+## [0.2.2](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.2.1...aranya-capi-core-v0.2.2) - 2025-04-07
+
+### Other
+
+- updated the following local packages: aranya-capi-macro
+
 ## [0.2.1](https://aranya.github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.2.0...aranya-capi-core-v0.2.1) - 2025-03-21
 
 ### Other
