@@ -230,19 +230,27 @@ impl<E> VmPolicy<E> {
                 .get("finalize")
                 .map(|attr| match *attr {
                     Value::Bool(b) => Ok(b),
-                    _ => Err(todo!("should be bool")),
+                    _ => Err(VmPolicyError::InvalidAttribute(format!(
+                        "{name}::finalize should be bool, was {:?}",
+                        attr.vtype()
+                    ))),
                 })
-                .transpose()
-                .unwrap()
+                .transpose()?
                 == Some(true);
             let priority: Option<u32> = attrs
                 .get("priority")
                 .map(|attr| match *attr {
-                    Value::Int(b) => b.try_into().map_err(|e| todo!("should fit")),
-                    _ => Err(todo!("should be int")),
+                    Value::Int(b) => b.try_into().map_err(|_| {
+                        VmPolicyError::InvalidAttribute(format!(
+                            "{name}::priority value must be within [0, 2^32-1]"
+                        ))
+                    }),
+                    _ => Err(VmPolicyError::InvalidAttribute(format!(
+                        "{name}::priority should be int, was {:?}",
+                        attr.vtype()
+                    ))),
                 })
-                .transpose()
-                .unwrap();
+                .transpose()?;
             match (finalize, priority) {
                 (false, None) => {}
                 (false, Some(p)) => {
@@ -252,7 +260,9 @@ impl<E> VmPolicy<E> {
                     priority_map.insert(name.clone(), VmPriority::Finalize);
                 }
                 (true, Some(_)) => {
-                    todo!("can't have both")
+                    return Err(VmPolicyError::InvalidAttribute(format!(
+                        "{name} has both finalize and priority set"
+                    )));
                 }
             }
         }
