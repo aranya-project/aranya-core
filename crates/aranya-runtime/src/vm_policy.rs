@@ -116,7 +116,9 @@
 
 extern crate alloc;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
+use alloc::{
+    borrow::Cow, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec,
+};
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
@@ -203,7 +205,7 @@ impl<E> VmPolicy<E> {
         engine: E,
         ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
-        let priority_map = Self::get_command_priorities(&machine)?;
+        let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
             engine: Mutex::new(engine),
@@ -217,57 +219,57 @@ impl<E> VmPolicy<E> {
         M: MachineIO<MachineStack>,
     {
         rs.source_location()
-            .unwrap_or(String::from("(unknown location)"))
+            .unwrap_or_else(|| String::from("(unknown location)"))
     }
+}
 
-    /// Scans command attributes for priorities and creates the priority map from them.
-    fn get_command_priorities(
-        machine: &Machine,
-    ) -> Result<BTreeMap<String, VmPriority>, VmPolicyError> {
-        let mut priority_map = BTreeMap::new();
-        for (name, attrs) in &machine.command_attributes {
-            let finalize = attrs
-                .get("finalize")
-                .map(|attr| match *attr {
-                    Value::Bool(b) => Ok(b),
-                    _ => Err(VmPolicyError::InvalidAttribute(format!(
-                        "{name}::finalize should be bool, was {:?}",
-                        attr.vtype()
-                    ))),
-                })
-                .transpose()?
-                == Some(true);
-            let priority: Option<u32> = attrs
-                .get("priority")
-                .map(|attr| match *attr {
-                    Value::Int(b) => b.try_into().map_err(|_| {
-                        VmPolicyError::InvalidAttribute(format!(
-                            "{name}::priority value must be within [0, 2^32-1]"
-                        ))
-                    }),
-                    _ => Err(VmPolicyError::InvalidAttribute(format!(
-                        "{name}::priority should be int, was {:?}",
-                        attr.vtype()
-                    ))),
-                })
-                .transpose()?;
-            match (finalize, priority) {
-                (false, None) => {}
-                (false, Some(p)) => {
-                    priority_map.insert(name.clone(), VmPriority::Basic(p));
-                }
-                (true, None) => {
-                    priority_map.insert(name.clone(), VmPriority::Finalize);
-                }
-                (true, Some(_)) => {
-                    return Err(VmPolicyError::InvalidAttribute(format!(
-                        "{name} has both finalize and priority set"
-                    )));
-                }
+/// Scans command attributes for priorities and creates the priority map from them.
+fn get_command_priorities(
+    machine: &Machine,
+) -> Result<BTreeMap<String, VmPriority>, VmPolicyError> {
+    let mut priority_map = BTreeMap::new();
+    for (name, attrs) in &machine.command_attributes {
+        let finalize = attrs
+            .get("finalize")
+            .map(|attr| match *attr {
+                Value::Bool(b) => Ok(b),
+                _ => Err(VmPolicyError::InvalidAttribute(format!(
+                    "{name}::finalize should be Bool, was {}",
+                    attr.type_name()
+                ))),
+            })
+            .transpose()?
+            == Some(true);
+        let priority: Option<u32> = attrs
+            .get("priority")
+            .map(|attr| match *attr {
+                Value::Int(b) => b.try_into().map_err(|_| {
+                    VmPolicyError::InvalidAttribute(format!(
+                        "{name}::priority value must be within [0, 2^32-1]"
+                    ))
+                }),
+                _ => Err(VmPolicyError::InvalidAttribute(format!(
+                    "{name}::priority should be Int, was {}",
+                    attr.type_name()
+                ))),
+            })
+            .transpose()?;
+        match (finalize, priority) {
+            (false, None) => {}
+            (false, Some(p)) => {
+                priority_map.insert(name.clone(), VmPriority::Basic(p));
+            }
+            (true, None) => {
+                priority_map.insert(name.clone(), VmPriority::Finalize);
+            }
+            (true, Some(_)) => {
+                return Err(VmPolicyError::InvalidAttribute(format!(
+                    "{name} has both finalize and priority set"
+                )));
             }
         }
-        Ok(priority_map)
     }
+    Ok(priority_map)
 }
 
 impl<E: aranya_crypto::Engine> VmPolicy<E> {
@@ -443,7 +445,7 @@ pub struct VmEffect {
     pub recalled: bool,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum VmPriority {
     Basic(u32),
     Finalize,
@@ -764,5 +766,81 @@ struct DebugViaDisplay<T>(T);
 impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use alloc::{format, string::String};
+
+    use aranya_policy_compiler::Compiler;
+    use aranya_policy_lang::lang::parse_policy_str;
+    use aranya_policy_vm::ast::Version;
+
+    use super::*;
+
+    #[test]
+    fn test_get_command_priorities() {
+        fn process(attrs: &str) -> Result<Option<VmPriority>, String> {
+            let policy = format!(
+                r#"
+                command Test {{
+                    attributes {{
+                        {attrs}
+                    }}
+                    fields {{ }}
+                    seal {{ return None }}
+                    open {{ return None }}
+                    policy {{ }}
+                }}
+                "#
+            );
+            let ast = parse_policy_str(&policy, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+            let module = Compiler::new(&ast)
+                .compile()
+                .unwrap_or_else(|e| panic!("{e}"));
+            let machine = Machine::from_module(module).expect("can create machine");
+            let priorities = get_command_priorities(&machine).map_err(|e| match e {
+                VmPolicyError::InvalidAttribute(msg) => msg,
+                _ => panic!("unexpected error: {e}"),
+            })?;
+            Ok(priorities.get("Test").copied())
+        }
+
+        assert_eq!(process(""), Ok(None));
+        assert_eq!(process("finalize: false"), Ok(None));
+
+        assert_eq!(process("priority: 42"), Ok(Some(VmPriority::Basic(42))));
+        assert_eq!(
+            process("finalize: false, priority: 42"),
+            Ok(Some(VmPriority::Basic(42)))
+        );
+        assert_eq!(
+            process("priority: 42, finalize: false"),
+            Ok(Some(VmPriority::Basic(42)))
+        );
+
+        assert_eq!(process("finalize: true"), Ok(Some(VmPriority::Finalize)));
+
+        assert_eq!(
+            process("finalize: 42"),
+            Err("Test::finalize should be Bool, was Int".into())
+        );
+        assert_eq!(
+            process("priority: false"),
+            Err("Test::priority should be Int, was Bool".into())
+        );
+        assert_eq!(
+            process("priority: -1"),
+            Err("Test::priority value must be within [0, 2^32-1]".into())
+        );
+        assert_eq!(
+            process(&format!("priority: {}", i64::MAX)),
+            Err("Test::priority value must be within [0, 2^32-1]".into())
+        );
+        assert_eq!(
+            process("finalize: true, priority: 42"),
+            Err("Test has both finalize and priority set".into())
+        )
     }
 }

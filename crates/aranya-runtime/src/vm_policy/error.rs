@@ -1,3 +1,5 @@
+use alloc::string::String;
+
 use crate::{engine::EngineError, storage::StorageError};
 
 #[derive(Debug, thiserror::Error)]
