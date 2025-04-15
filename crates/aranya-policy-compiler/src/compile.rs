@@ -1221,8 +1221,6 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Publish);
                 }
                 (ast::Statement::Return(s), StatementContext::PureFunction(fd)) => {
-                    self.ensure_type_is_defined(&fd.return_type)?;
-
                     // ensure return expression type matches function signature
                     let et = self.compile_expression(&s.expression)?;
                     if !et.is_maybe(&fd.return_type) {
@@ -1534,6 +1532,9 @@ impl<'a> CompileState<'a> {
         }
         let from = self.wp;
         self.compile_statements(&function.statements, Scope::Same)?;
+
+        self.ensure_type_is_defined(&function_node.return_type)?;
+
         // Check that there is a return statement somewhere in the compiled instructions.
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(self.err_loc(CompileErrorType::NoReturn, function_node.locator));
