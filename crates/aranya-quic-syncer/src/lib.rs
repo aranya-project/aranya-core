@@ -418,7 +418,6 @@ where
                 session_id,
                 storage_id,
                 max_bytes: u64::MAX,
-                // max_bytes: subscription.remaining_bytes,
                 commands,
             })?;
             assert!(response_syncer.ready());

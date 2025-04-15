@@ -466,14 +466,8 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             let found = segment.get_from(location);
 
             for command in &found {
-                let mut policy_length = 0;
-                let policy = if let Some(p) = command.policy() {
-                    policy_length = p.len();
-                    p
-                } else {
-                    &[]
-                };
-
+                let policy = command.policy().unwrap_or_default();
+                let policy_length = policy.len();
                 let bytes = command.bytes();
                 let bytes_to_add = policy_length
                     .checked_add(bytes.len())
@@ -490,12 +484,10 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     break;
                 }
 
-                if policy_length > 0 {
-                    command_data
-                        .extend_from_slice(policy)
-                        .ok()
-                        .assume("command_data is too large")?;
-                }
+                command_data
+                    .extend_from_slice(policy)
+                    .ok()
+                    .assume("command_data is too large")?;
                 command_data
                     .extend_from_slice(bytes)
                     .ok()
