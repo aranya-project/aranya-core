@@ -1,4 +1,4 @@
-//! This file contains the various user keys.
+//! This file contains the various device keys.
 
 #![forbid(unsafe_code)]
 
@@ -105,7 +105,7 @@ impl<'de, CS: CipherSuite> Deserialize<'de> for Signature<CS> {
 /// The private half of [`IdentityKey`].
 pub struct IdentityKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
 
-key_misc!(IdentityKey, IdentityVerifyingKey, UserId);
+key_misc!(IdentityKey, IdentityVerifyingKey, DeviceId);
 
 impl<CS: CipherSuite> IdentityKey<CS> {
     /// Creates an `IdentityKey`.
@@ -294,7 +294,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
     /// let data = b"... some command data ...";
-    /// let name = "AddUser";
+    /// let name = "AddDevice";
     /// let parent_id = &Id::random(&mut Rng);
     ///
     /// let good_cmd = Cmd { data, name, parent_id };
@@ -387,7 +387,7 @@ pub struct EncryptionKey<CS: CipherSuite>(pub(crate) <CS::Kem as Kem>::DecapKey)
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
-    /// Creates a user's `EncryptionKey`.
+    /// Creates a devices's `EncryptionKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         let sk = <CS::Kem as Kem>::DecapKey::new(rng);
         EncryptionKey(sk)
@@ -482,6 +482,12 @@ impl<CS: CipherSuite> Encap<CS> {
 
     pub(crate) fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
         &self.0
+    }
+}
+
+impl<CS: CipherSuite> fmt::Debug for Encap<CS> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Encap").field(&self.as_bytes()).finish()
     }
 }
 

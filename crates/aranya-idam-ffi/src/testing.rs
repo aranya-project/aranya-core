@@ -6,8 +6,8 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, EncryptionKey, Engine, GroupKey, Id,
-    IdentityKey, KeyStore, SigningKey, UserId,
+    aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, DeviceId, EncryptionKey, Engine,
+    GroupKey, Id, IdentityKey, KeyStore, SigningKey,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext};
 
@@ -64,7 +64,7 @@ macro_rules! run_tests {
             test!(test_open_group_key_wrong_group_id);
             test!(test_derive_enc_key_id);
             test!(test_derive_sign_key_id);
-            test!(test_derive_user_id);
+            test!(test_derive_device_id);
         }
     };
 }
@@ -82,7 +82,7 @@ where
     const CTX: CommandContext<'static> = CommandContext::Policy(PolicyContext {
         name: "dummy",
         id: Id::default(),
-        author: UserId::default(),
+        author: DeviceId::default(),
         version: Id::default(),
     });
 
@@ -256,7 +256,7 @@ where
         let ctx = CommandContext::Policy(PolicyContext {
             name: "different name",
             id: Id::default(),
-            author: UserId::default(),
+            author: DeviceId::default(),
             version: Id::default(),
         });
         let err = ffi
@@ -655,21 +655,21 @@ where
         assert_eq!(want, got);
     }
 
-    /// Round trip tests `derive_user_id`.
-    pub fn test_derive_user_id(mut eng: E, store: S) {
+    /// Round trip tests `derive_device_id`.
+    pub fn test_derive_device_id(mut eng: E, store: S) {
         let ffi = Ffi::new(store);
         let sk = IdentityKey::<E::CS>::new(&mut eng);
         let want = sk
             .public()
             .expect("identity verifying key should be valid")
             .id()
-            .expect("user ID should be valid")
+            .expect("device ID should be valid")
             .into_id();
         let ident_pk =
             postcard::to_allocvec(&sk.public().expect("identity verifying key should be valid"))
                 .expect("should be able to encode `IdentityVerifyingKey`");
         let got = ffi
-            .derive_user_id(&Self::CTX, &mut eng, ident_pk)
+            .derive_device_id(&Self::CTX, &mut eng, ident_pk)
             .expect("should be able to derive `VerifyingKey` ID");
         assert_eq!(want, got);
     }

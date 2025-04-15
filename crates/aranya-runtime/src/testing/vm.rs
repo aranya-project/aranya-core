@@ -3,7 +3,7 @@
 extern crate alloc;
 use alloc::{boxed::Box, vec, vec::Vec};
 
-use aranya_crypto::{default::DefaultEngine, Rng, UserId};
+use aranya_crypto::{default::DefaultEngine, DeviceId, Rng};
 use aranya_policy_module::Module;
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value};
 use tracing::trace;
@@ -270,7 +270,7 @@ impl TestEngine {
             machine,
             eng,
             vec![Box::from(TestFfiEnvelope {
-                user: UserId::random(&mut Rng),
+                device: DeviceId::random(&mut Rng),
             })],
         )
         .expect("Could not load policy");

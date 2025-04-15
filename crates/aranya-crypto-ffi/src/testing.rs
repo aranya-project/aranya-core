@@ -6,7 +6,7 @@
 
 use core::marker::PhantomData;
 
-use aranya_crypto::{Csprng, Engine, Id, KeyStore, Random, SignerError, SigningKey, UserId};
+use aranya_crypto::{Csprng, DeviceId, Engine, Id, KeyStore, Random, SignerError, SigningKey};
 use aranya_policy_vm::{ActionContext, CommandContext, OpenContext, PolicyContext, SealContext};
 use serde::{Deserialize, Serialize};
 
@@ -436,13 +436,13 @@ where
             CommandContext::Policy(PolicyContext {
                 name: "dummy",
                 id: Id::default(),
-                author: UserId::default(),
+                author: DeviceId::default(),
                 version: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: "dummy",
                 id: Id::default(),
-                author: UserId::default(),
+                author: DeviceId::default(),
                 version: Id::default(),
             }),
         ] {
@@ -505,13 +505,13 @@ where
             CommandContext::Policy(PolicyContext {
                 name: "dummy",
                 id: Id::default(),
-                author: UserId::default(),
+                author: DeviceId::default(),
                 version: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: "dummy",
                 id: Id::default(),
-                author: UserId::default(),
+                author: DeviceId::default(),
                 version: Id::default(),
             }),
         ] {

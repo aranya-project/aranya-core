@@ -27,7 +27,7 @@ fn test_compile() -> anyhow::Result<()> {
         }
         action foo(b int) {
             let i = 4
-            let x = if b == 0 { 4+i } else { 3 }
+            let x = if b == 0 { :4+i } else { :3 }
             let y = Foo{
                 a: x,
                 b: 4
@@ -1027,10 +1027,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
     {
         let policy = parse_policy_str(
             r#"
-        fact User[user_id int]=>{name string, email string}
+        fact Device[device_id int]=>{name string, email string}
 
         finish function too_few() {
-            create User[user_id:1]=>{name: "bob"}
+            create Device[device_id:1]=>{name: "bob"}
         }
         "#,
             Version::V2,
@@ -1046,10 +1046,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
     {
         let policy = parse_policy_str(
             r#"
-        fact User[user_id int]=>{name string, email string}
+        fact Device[device_id int]=>{name string, email string}
 
         finish function too_few() {
-            create User[user_id:1]
+            create Device[device_id:1]
         }
         "#,
             Version::V2,
@@ -1068,10 +1068,10 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
 #[test]
 fn test_fact_create_too_many_values() -> anyhow::Result<()> {
     let text = r#"
-        fact User[user_id int]=>{name string}
+        fact Device[device_id int]=>{name string}
 
         finish function too_many() {
-            create User[user_id:1]=>{name: "bob", email: "bob@email.com"}
+            create Device[device_id:1]=>{name: "bob", email: "bob@email.com"}
         }
     "#;
 
@@ -1088,38 +1088,46 @@ fn test_fact_create_too_many_values() -> anyhow::Result<()> {
 
 #[test]
 fn test_match_duplicate() -> anyhow::Result<()> {
-    let policy_str = r#"
-        command Result {
-            fields {
-                x int
+    let policy_str = [
+        (r#"
+            command Result {
+                fields {
+                    x int
+                }
+                seal { return None }
+                open { return None }
             }
-            seal { return None }
-            open { return None }
-        }
 
-        action foo(x int) {
-            match x {
-                5 => {
-                    publish Result { x: x }
-                }
-                6=> {
-                    publish Result { x: x }
-                }
-                5 => {
-                    publish Result { x: x }
+            action foo(x int) {
+                match x {
+                    5 => {
+                        publish Result { x: x }
+                    }
+                    6 => {
+                        publish Result { x: x }
+                    }
+                    5 => {
+                        publish Result { x: x }
+                    }
                 }
             }
-        }
-    "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let res = Compiler::new(&policy).compile();
-    assert!(matches!(
-        res,
-        Err(CompileError {
-            err_type: CompileErrorType::AlreadyDefined(_),
-            ..
-        })
-    ));
+        "#),
+        (r#"
+            action foo(i int) {
+                match i {
+                    1 => {}
+                    _ => {}
+                    _ => {}
+                }
+            }
+        "#),
+    ];
+
+    for str in policy_str {
+        let policy = parse_policy_str(str, Version::V2)?;
+        let err_type = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert!(matches!(err_type, CompileErrorType::AlreadyDefined(_)));
+    }
 
     Ok(())
 }
@@ -1224,6 +1232,60 @@ fn test_match_arm_should_be_limited_to_literals() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[test]
+fn test_match_expression() {
+    let invalid_cases = vec![(
+        // arms expressions have different types
+        r#"action foo(a int) {
+                let x = match a {
+                    1 => { :"one" }
+                    _ => { :false }
+                }
+            }
+            "#,
+        CompileErrorType::InvalidType(
+            "match arm expression type mismatch; expected string, got bool".to_string(),
+        ),
+    )];
+    for (src, result) in invalid_cases {
+        let policy = parse_policy_str(src, Version::V2).expect("should parse");
+        assert_eq!(
+            Compiler::new(&policy).compile().unwrap_err().err_type,
+            result
+        );
+    }
+
+    let valid_cases = vec![
+        // match expression type is that of first arm
+        r#"action f(n int) {
+            let b = match n {
+                0 => false
+                _ => true
+            }
+            check b
+        }"#,
+        // match expression type is indeterminate
+        r#"action f(n int) {
+            check match n {
+                0 => None
+                _ => 0
+            }
+        }"#,
+        // TODO: this should fail
+        r#"action f(n int) {
+            check match n {
+                0 => None
+                1 => 1
+                _ => false
+            }
+        }"#,
+    ];
+    for src in valid_cases {
+        let policy = parse_policy_str(src, Version::V2).expect("should parse");
+        Compiler::new(&policy).compile().expect("should compile");
+    }
 }
 
 // Note: this test is not exhaustive
@@ -1494,6 +1556,56 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_if_match_block_scope() {
+    let cases = vec![
+        (
+            r#"
+            function foo() int {
+                if true { let x = 5 }
+                return x // x should not exist in the outer scope
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `x`".to_string()),
+        ),
+        (
+            r#"
+            function foo() int {
+                if true {}
+                else { let y = 0 }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
+        (
+            r#"
+            function foo(b bool) int {
+                match b {
+                    true => { let x = 0 }
+                    false => { let y = 1 }
+                }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
+        (
+            r#"
+            function foo(b bool) int {
+                match b {
+                    true => { let x = 0 }
+                    _ => { let y = 1 }
+                }
+                return y
+            }"#,
+            CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
+        ),
+    ];
+    for (text, res) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let r = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(r, res)
+    }
+}
+
 const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
     name: "test",
     functions: &[ffi::Func {
@@ -1525,7 +1637,7 @@ fn test_type_errors() -> anyhow::Result<()> {
         Case {
             t: r#"
                 function f() int {
-                    return if 0 { 3 } else { 4 }
+                    return if 0 { :3 } else { :4 }
                 }
             "#,
             e: "if condition must be a boolean expression",
@@ -1768,6 +1880,18 @@ fn test_type_errors() -> anyhow::Result<()> {
             "#,
             e: "debug assertion must be a boolean expression",
         },
+        Case {
+            t: r#"
+                struct Baz {
+                    y int,
+                }
+                action foo(x bool) {
+                    let new_struct = x substruct Baz
+                    publish new_struct
+                }
+            "#,
+            e: "Expression to the left of the substruct operator is not a struct",
+        },
     ];
 
     for (i, c) in cases.iter().enumerate() {
@@ -1829,7 +1953,7 @@ fn test_duplicate_definitions() -> anyhow::Result<()> {
                 function f(y int) bool {
                     match y {
                         1 => { let x = 3 }
-                        2 => { let y = 4 }
+                        2 => { let z = 4 }
                     }
                     return false
                 }
@@ -2048,5 +2172,103 @@ fn test_validate_return() {
         let policy = parse_policy_str(p, Version::V2).expect("should parse");
         let m = Compiler::new(&policy).compile().expect("should compile");
         assert!(validate(&m));
+    }
+}
+
+#[test]
+fn test_substruct_errors() -> anyhow::Result<()> {
+    struct Case {
+        t: &'static str,
+        e: &'static str,
+    }
+
+    let cases = [
+        Case {
+            t: r#"
+                struct Baz {
+                    x string,
+                    y int,
+                }
+                action foo(x struct Baz) {
+                    let new_struct = x substruct Bar
+                    publish new_struct
+                }
+            "#,
+            e: "not defined: Struct `Bar` not defined",
+        },
+        Case {
+            t: r#"
+                struct Baz {
+                    x string,
+                    y int,
+                }
+                action foo() {
+                    let new_struct = Foo { x: "x", y: 0, z: false } substruct Baz
+                    publish new_struct
+                }
+            "#,
+            e: "not defined: Struct `Foo` not defined",
+        },
+        Case {
+            t: r#"
+                command Foo {
+                    fields {
+                        x int,
+                        y bool,
+                        z string,
+                    }
+                    seal { return None }
+                    open { return None }
+                }
+                struct Bar {
+                    x int,
+                    y bool,
+                }
+                action baz(source struct Bar) {
+                    publish source substruct Foo
+                }
+            "#,
+            e: "invalid substruct operation: `Struct Foo` must be a strict subset of `Struct Bar`",
+        },
+    ];
+
+    for (i, c) in cases.iter().enumerate() {
+        let policy = parse_policy_str(c.t, Version::V2)?;
+        let err = Compiler::new(&policy)
+            .ffi_modules(FAKE_SCHEMA)
+            .compile()
+            .expect_err("Did not get error")
+            .err_type;
+        match err {
+            CompileErrorType::NotDefined(_) | CompileErrorType::InvalidSubstruct(_, _) => {}
+            err => {
+                return Err(anyhow!(
+                    "Did not get NotDefined or InvalidSubstruct for case {i}: {err:?} ({err})"
+                ));
+            }
+        }
+
+        assert_eq!(err.to_string(), c.e);
+    }
+
+    Ok(())
+}
+#[test]
+fn if_expression_block() {
+    let cases = [(
+        r#"action f(n int) {
+            let x = if n > 1 {
+                let x = n + 1
+                :x
+            } else { :0 }
+        }"#,
+        None,
+    )];
+
+    for (text, expected) in cases {
+        println!(">");
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let res = Compiler::new(&policy).compile().err();
+        assert_eq!(res, expected);
     }
 }

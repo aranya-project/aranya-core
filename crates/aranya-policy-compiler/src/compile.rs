@@ -5,10 +5,14 @@ mod types;
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     fmt,
+    num::NonZeroUsize,
     ops::Range,
 };
 
-use aranya_policy_ast::{self as ast, AstNode, FactCountType, FunctionCall, VType};
+use aranya_policy_ast::{
+    self as ast, AstNode, FactCountType, FunctionCall, LanguageContext, MatchExpression,
+    MatchStatement, VType,
+};
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
     Target, Value,
@@ -819,6 +823,56 @@ impl<'a> CompileState<'a> {
                     })
                     .map_err(|e| self.err(e.into()))?
             }
+            Expression::Substruct(lhs, sub) => {
+                self.append_instruction(Instruction::StructNew(sub.clone()));
+
+                let Some(sub_field_defns) = self.m.struct_defs.get(sub).cloned() else {
+                    return Err(self.err(CompileErrorType::NotDefined(format!(
+                        "Struct `{sub}` not defined"
+                    ))));
+                };
+
+                let lhs_expression = self.compile_expression(lhs)?;
+                match lhs_expression {
+                    Typeish::Type(VType::Struct(lhs_struct_name)) => {
+                        let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name) else {
+                            return Err(self.err(CompileErrorType::NotDefined(format!(
+                                "Struct `{lhs_struct_name}` is not defined",
+                            ))));
+                        };
+
+                        // Check that the struct type on the RHS is a subset of the struct expression on the LHS
+                        if !sub_field_defns
+                            .iter()
+                            .all(|field_def| lhs_field_defns.contains(field_def))
+                        {
+                            return Err(self.err(CompileErrorType::InvalidSubstruct(
+                                sub.clone(),
+                                lhs_struct_name,
+                            )));
+                        }
+                    }
+                    Typeish::Indeterminate => {}
+                    Typeish::Type(_) => {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Expression to the left of the substruct operator is not a struct"
+                                .to_string(),
+                        )));
+                    }
+                }
+
+                let field_count = sub_field_defns.len();
+                for field in sub_field_defns {
+                    self.append_instruction(Instruction::Const(Value::String(field.identifier)));
+                }
+
+                if let Some(field_count) = NonZeroUsize::new(field_count) {
+                    self.append_instruction(Instruction::MStructGet(field_count));
+                    self.append_instruction(Instruction::MStructSet(field_count));
+                }
+
+                Typeish::Type(VType::Struct(sub.clone()))
+            }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;
                 let right_type = self.compile_expression(b)?;
@@ -1007,6 +1061,9 @@ impl<'a> CompileState<'a> {
 
                 subexpression_type
             }
+            Expression::Match(e) => self
+                .compile_match_statement_or_expression(LanguageContext::Expression(e), 0)?
+                .assume("match expression must return a type")?,
         };
 
         Ok(expression_type)
@@ -1108,101 +1165,10 @@ impl<'a> CompileState<'a> {
                     | StatementContext::CommandPolicy(_)
                     | StatementContext::CommandRecall(_),
                 ) => {
-                    // Ensure there are no duplicate arm values. Note that this is not completely reliable, because arm values are expressions, evaluated at runtime.
-                    // Note: we don't check for zero arms, because that's syntactically invalid.
-                    let all_values = s
-                        .arms
-                        .iter()
-                        .flat_map(|arm| match &arm.pattern {
-                            MatchPattern::Values(values) => values.as_slice(),
-                            MatchPattern::Default => &[],
-                        })
-                        .collect::<Vec<&Expression>>();
-                    if find_duplicate(&all_values, |v| v).is_some() {
-                        return Err(self.err_loc(
-                            CompileErrorType::AlreadyDefined(String::from(
-                                "duplicate match arm value",
-                            )),
-                            statement.locator,
-                        ));
-                    }
-
-                    let expr_t = self.compile_expression(&s.expression)?;
-
-                    let end_label = self.anonymous_label();
-
-                    // 1. Generate branching instructions, and arm-start labels
-                    let mut arm_labels: Vec<Label> = vec![];
-
-                    for (i, arm) in s.arms.iter().enumerate() {
-                        let arm_label = self.anonymous_label();
-                        arm_labels.push(arm_label.clone());
-
-                        match &arm.pattern {
-                            MatchPattern::Values(values) => {
-                                for value in values.iter() {
-                                    self.append_instruction(Instruction::Dup(0));
-                                    if !value.is_literal() {
-                                        return Err(self.err(CompileErrorType::InvalidType(
-                                            String::from("match arm is not a literal expression"),
-                                        )));
-                                    }
-                                    let arm_t = self.compile_expression(value)?;
-                                    if !arm_t.is_maybe_equal(&expr_t) {
-                                        let arm_n =
-                                            i.checked_add(1).assume("match arm count overflow")?;
-                                        return Err(self.err(CompileErrorType::InvalidType(
-                                            format!(
-                                            "match expression is `{}` but arm expression {} is `{}`",
-                                            expr_t, arm_n, arm_t
-                                        ),
-                                        )));
-                                    }
-
-                                    // if value == target, jump to start-of-arm
-                                    self.append_instruction(Instruction::Eq);
-                                    self.append_instruction(Instruction::Branch(
-                                        Target::Unresolved(arm_label.clone()),
-                                    ));
-                                }
-                            }
-                            MatchPattern::Default => {
-                                self.append_instruction(Instruction::Jump(Target::Unresolved(
-                                    arm_label.clone(),
-                                )));
-
-                                // Ensure this is the last case, and also that it's not the only case.
-                                if arm != s.arms.last().expect("last arm") {
-                                    return Err(self.err(CompileErrorType::Unknown(String::from(
-                                        "Default match case must be last.",
-                                    ))));
-                                }
-                            }
-                        }
-                    }
-
-                    // if no match, and no default case, panic
-                    if !s.arms.iter().any(|a| a.pattern == MatchPattern::Default) {
-                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
-                    }
-
-                    // 2. Define arm labels, and compile instructions
-                    for (i, arm) in s.arms.iter().enumerate() {
-                        let arm_start = arm_labels[i].to_owned();
-                        self.define_label(arm_start, self.wp)?;
-
-                        // Drop expression value (It's still around because of the Dup)
-                        self.append_instruction(Instruction::Pop);
-
-                        self.compile_statements(&arm.statements, Scope::Same)?;
-
-                        // break out of match
-                        self.append_instruction(Instruction::Jump(Target::Unresolved(
-                            end_label.clone(),
-                        )));
-                    }
-
-                    self.define_label(end_label, self.wp)?;
+                    self.compile_match_statement_or_expression(
+                        LanguageContext::Statement(s),
+                        statement.locator,
+                    )?;
                 }
                 (
                     ast::Statement::If(s),
@@ -1222,14 +1188,14 @@ impl<'a> CompileState<'a> {
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
                             next_label.clone(),
                         )));
-                        self.compile_statements(branch, Scope::Same)?;
+                        self.compile_statements(branch, Scope::Layered)?;
                         self.append_instruction(Instruction::Jump(Target::Unresolved(
                             end_label.clone(),
                         )));
                         self.define_label(next_label, self.wp)?;
                     }
                     if let Some(fallback) = &s.fallback {
-                        self.compile_statements(fallback, Scope::Same)?;
+                        self.compile_statements(fallback, Scope::Layered)?;
                     }
                     self.define_label(end_label, self.wp)?;
                 }
@@ -1957,6 +1923,155 @@ impl<'a> CompileState<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Compile a match statement or expression
+    /// Returns the type of the `match` is an expression, or `None` if it's a statement.
+    fn compile_match_statement_or_expression(
+        &mut self,
+        s: LanguageContext<&MatchStatement, &MatchExpression>,
+        locator: usize,
+    ) -> Result<Option<Typeish>, CompileError> {
+        let patterns: Vec<MatchPattern> = match s {
+            LanguageContext::Statement(s) => s.arms.iter().map(|a| a.pattern.clone()).collect(),
+            LanguageContext::Expression(e) => e.arms.iter().map(|a| a.pattern.clone()).collect(),
+        };
+
+        // Ensure there are no duplicate arm values.
+        // NOTE We don't check for zero arms, because that's enforced by the parser.
+        let all_values = patterns
+            .iter()
+            .flat_map(|pattern| match &pattern {
+                MatchPattern::Values(values) => values.as_slice(),
+                MatchPattern::Default => &[],
+            })
+            .collect::<Vec<&Expression>>();
+        if find_duplicate(&all_values, |p| p).is_some() {
+            return Err(self.err_loc(
+                CompileErrorType::AlreadyDefined(String::from("duplicate match arm value")),
+                locator,
+            ));
+        }
+        // find duplicate default arms
+        if find_duplicate(&patterns, |p| p).is_some() {
+            return Err(self.err_loc(
+                CompileErrorType::AlreadyDefined(String::from("duplicate match arm default value")),
+                locator,
+            ));
+        }
+
+        let expr = match s {
+            LanguageContext::Statement(s) => &s.expression,
+            LanguageContext::Expression(e) => &e.scrutinee,
+        };
+        let expr_t = self.compile_expression(expr)?;
+
+        let end_label = self.anonymous_label();
+
+        // 1. Generate branching instructions, and arm-start labels
+        let mut arm_labels: Vec<Label> = vec![];
+
+        for pattern in &patterns {
+            let arm_label = self.anonymous_label();
+            arm_labels.push(arm_label.clone());
+
+            match pattern {
+                MatchPattern::Values(values) => {
+                    for (i, value) in values.iter().enumerate() {
+                        self.append_instruction(Instruction::Dup(0));
+                        if !value.is_literal() {
+                            return Err(self.err(CompileErrorType::InvalidType(String::from(
+                                "match arm is not a literal expression",
+                            ))));
+                        }
+                        let arm_t = self.compile_expression(value)?;
+                        if !arm_t.is_maybe_equal(&expr_t) {
+                            let arm_n = i.checked_add(1).assume("match arm count overflow")?;
+                            return Err(self.err(CompileErrorType::InvalidType(format!(
+                                "match expression is `{}` but arm expression {} is `{}`",
+                                expr_t, arm_n, arm_t
+                            ))));
+                        }
+
+                        // if value == target, jump to start-of-arm
+                        self.append_instruction(Instruction::Eq);
+                        self.append_instruction(Instruction::Branch(Target::Unresolved(
+                            arm_label.clone(),
+                        )));
+                    }
+                }
+                MatchPattern::Default => {
+                    self.append_instruction(Instruction::Jump(Target::Unresolved(
+                        arm_label.clone(),
+                    )));
+
+                    // Ensure this is the last case, and also that it's not the only case.
+                    if pattern != patterns.last().expect("last arm") {
+                        return Err(self.err(CompileErrorType::Unknown(String::from(
+                            "Default match case must be last.",
+                        ))));
+                    }
+                }
+            }
+        }
+
+        // if no match, and no default case, panic
+        if !patterns.iter().any(|p| *p == MatchPattern::Default) {
+            self.append_instruction(Instruction::Exit(ExitReason::Panic));
+        }
+
+        // Match expression/statement type. For statements, it's None; for expressions, it's Some(Typeish)
+        let mut expr_type: Option<Typeish> = None;
+
+        // 2. Define arm labels, and compile instructions
+        match s {
+            LanguageContext::Statement(s) => {
+                for (i, arm) in s.arms.iter().enumerate() {
+                    let arm_start = arm_labels[i].to_owned();
+                    self.define_label(arm_start, self.wp)?;
+
+                    // Drop expression value (It's still around because of the Dup)
+                    self.append_instruction(Instruction::Pop);
+
+                    self.compile_statements(&arm.statements, Scope::Layered)?;
+
+                    // break out of match
+                    self.append_instruction(Instruction::Jump(Target::Unresolved(
+                        end_label.clone(),
+                    )));
+                }
+            }
+            LanguageContext::Expression(e) => {
+                for (i, arm) in e.arms.iter().enumerate() {
+                    let arm_start = arm_labels[i].to_owned();
+                    self.define_label(arm_start, self.wp)?;
+
+                    // Drop expression value (It's still around because of the Dup)
+                    self.append_instruction(Instruction::Pop);
+
+                    let etype = self.compile_expression(&arm.expression)?;
+                    match expr_type {
+                        None => expr_type = Some(etype),
+                        Some(ref t) => {
+                            if !t.is_maybe_equal(&etype) {
+                                return Err(self.err(CompileErrorType::InvalidType(format!(
+                                    "match arm expression type mismatch; expected {}, got {}",
+                                    t, etype
+                                ))));
+                            }
+                        }
+                    }
+
+                    // break out of match
+                    self.append_instruction(Instruction::Jump(Target::Unresolved(
+                        end_label.clone(),
+                    )));
+                }
+            }
+        }
+
+        self.define_label(end_label, self.wp)?;
+        Ok(expr_type)
     }
 
     /// Compile a policy into instructions inside the given Machine.

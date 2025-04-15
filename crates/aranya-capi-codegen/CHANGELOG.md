@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.3](https://aranya.github.com/aranya-project/aranya-core/compare/aranya-capi-codegen-v0.2.2...aranya-capi-codegen-v0.2.3) - 2025-04-08
+
+### Other
+
+- (capi-codegen) Enum return types ([#195](https://github.com/aranya-project/aranya-core/pull/195))
+
+## [0.2.2](https://github.com/aranya-project/aranya-core/compare/aranya-capi-codegen-v0.2.1...aranya-capi-codegen-v0.2.2) - 2025-03-27
+
+### Other
+
+- Apply `#[cfg()]` Attributes To FFI Wrapper ([#180](https://github.com/aranya-project/aranya-core/pull/180))
+
+## [0.2.1](https://aranya.github.com/aranya-project/aranya-core/compare/aranya-capi-codegen-v0.2.0...aranya-capi-codegen-v0.2.1) - 2025-03-20
+
+### Other
+
+- Allow`Option<&T>` for fn args
+
 ## [0.2.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-codegen-v0.1.0...aranya-capi-codegen-v0.2.0) - 2025-03-11
 
 ### Other

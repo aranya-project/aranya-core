@@ -4,7 +4,7 @@ use aranya_crypto::{
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
-    CipherSuite, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt, UserId,
+    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
 };
 use aranya_fast_channels::{Directed, Label};
 use postcard::experimental::max_size::MaxSize;
@@ -21,14 +21,14 @@ macro_rules! error {
 /// Handles AFC effects.
 #[derive(Clone)]
 pub struct Handler<S> {
-    user_id: UserId,
+    device_id: DeviceId,
     store: S,
 }
 
 impl<S> Handler<S> {
     /// Creates a new `Handler`.
-    pub const fn new(user_id: UserId, store: S) -> Self {
-        Self { user_id, store }
+    pub const fn new(device_id: DeviceId, store: S) -> Self {
+        Self { device_id, store }
     }
 }
 
@@ -46,7 +46,7 @@ impl<S: KeyStore> Handler<S> {
         E: Engine,
         (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E::CS>, BidiAuthorSecret<E::CS>)>,
     {
-        if self.user_id != effect.author_id {
+        if self.device_id != effect.author_id {
             return Err(Error::NotAuthor);
         }
 
@@ -92,7 +92,7 @@ impl<S: KeyStore> Handler<S> {
         E: Engine,
         (SK, OK): for<'a> Transform<(&'a BidiChannel<'a, E::CS>, BidiPeerEncap<E::CS>)>,
     {
-        if self.user_id != effect.peer_id {
+        if self.device_id != effect.peer_id {
             return Err(Error::NotRecipient);
         }
 
@@ -130,12 +130,12 @@ impl<S: KeyStore> Handler<S> {
 pub struct BidiChannelCreated<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
-    /// The channel author's user ID.
-    pub author_id: UserId,
+    /// The channel author's device ID.
+    pub author_id: DeviceId,
     /// The channel author's encryption key ID.
     pub author_enc_key_id: EncryptionKeyId,
-    /// The channel peer's user ID.
-    pub peer_id: UserId,
+    /// The channel peer's device ID.
+    pub peer_id: DeviceId,
     /// The channel peer's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub peer_enc_pk: &'a [u8],
     /// The AFC channel label.
@@ -149,12 +149,12 @@ pub struct BidiChannelCreated<'a> {
 pub struct BidiChannelReceived<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
-    /// The channel author's user ID.
-    pub author_id: UserId,
+    /// The channel author's device ID.
+    pub author_id: DeviceId,
     /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub author_enc_pk: &'a [u8],
-    /// The channel peer's user ID.
-    pub peer_id: UserId,
+    /// The channel peer's device ID.
+    pub peer_id: DeviceId,
     /// The channel peer's encryption key ID.
     pub peer_enc_key_id: EncryptionKeyId,
     /// The AFC channel label.
@@ -206,8 +206,8 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniAuthorSecret<E::CS>)>,
     {
-        if (self.user_id != effect.seal_id && self.user_id != effect.open_id)
-            || self.user_id != effect.author_id
+        if (self.device_id != effect.seal_id && self.device_id != effect.open_id)
+            || self.device_id != effect.author_id
         {
             return Err(Error::NotAuthor);
         }
@@ -236,7 +236,7 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label.to_u32(),
         };
 
-        if self.user_id == effect.seal_id {
+        if self.device_id == effect.seal_id {
             UniKey::new(&ch, secret, UniKey::SealOnly)
         } else {
             UniKey::new(&ch, secret, UniKey::OpenOnly)
@@ -255,8 +255,8 @@ impl<S: KeyStore> Handler<S> {
         SK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
         OK: for<'a> Transform<(&'a UniChannel<'a, E::CS>, UniPeerEncap<E::CS>)>,
     {
-        if (self.user_id != effect.seal_id && self.user_id != effect.open_id)
-            || self.user_id == effect.author_id
+        if (self.device_id != effect.seal_id && self.device_id != effect.open_id)
+            || self.device_id == effect.author_id
         {
             return Err(Error::NotRecipient);
         }
@@ -282,7 +282,7 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label.to_u32(),
         };
 
-        if self.user_id == effect.seal_id {
+        if self.device_id == effect.seal_id {
             UniKey::new(&ch, encap, UniKey::SealOnly)
         } else {
             UniKey::new(&ch, encap, UniKey::OpenOnly)
@@ -295,12 +295,12 @@ impl<S: KeyStore> Handler<S> {
 pub struct UniChannelCreated<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
-    /// The channel author's user ID.
-    pub author_id: UserId,
-    /// The user ID of the user that can encrypt messages.
-    pub seal_id: UserId,
-    /// The user ID of the user that can decrypt messages.
-    pub open_id: UserId,
+    /// The channel author's device ID.
+    pub author_id: DeviceId,
+    /// The device ID of the Device that can encrypt messages.
+    pub seal_id: DeviceId,
+    /// The device ID of the Device that can decrypt messages.
+    pub open_id: DeviceId,
     /// The channel author's encryption key ID.
     pub author_enc_key_id: EncryptionKeyId,
     /// The channel peer's encoded [`aranya_crypto::EncryptionPublicKey`].
@@ -316,12 +316,12 @@ pub struct UniChannelCreated<'a> {
 pub struct UniChannelReceived<'a> {
     /// The unique ID of the previous command.
     pub parent_cmd_id: Id,
-    /// The channel author's user ID.
-    pub author_id: UserId,
-    /// The user ID of the user that can encrypt messages.
-    pub seal_id: UserId,
-    /// The user ID of the user that can decrypt messages.
-    pub open_id: UserId,
+    /// The channel author's device ID.
+    pub author_id: DeviceId,
+    /// The device ID of the Device that can encrypt messages.
+    pub seal_id: DeviceId,
+    /// The device ID of the Device that can decrypt messages.
+    pub open_id: DeviceId,
     /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
     pub author_enc_pk: &'a [u8],
     /// The channel peer's encryption key ID.
@@ -380,10 +380,10 @@ impl<S, O> From<UniKey<S, O>> for Directed<S, O> {
 /// An error returned by [`Handler`].
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The current user is not the author of the command.
+    /// The current Device is not the author of the command.
     #[error("not command author")]
     NotAuthor,
-    /// The current user is not the recipient of the command.
+    /// The current Device is not the recipient of the command.
     #[error("not command recipient")]
     NotRecipient,
     /// The keystore failed.

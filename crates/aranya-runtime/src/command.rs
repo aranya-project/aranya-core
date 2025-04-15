@@ -46,7 +46,7 @@ pub enum Priority {
     /// command. A command with this priority must have two parents,
     /// `Parent::Merge`.
     Merge,
-    /// Indicates a user-specific action; the runtime uses the internal u32
+    /// Indicates a device-specific action; the runtime uses the internal u32
     /// for ordering.
     Basic(u32),
     /// Indicates all preceding commands are ancestors of this command.
