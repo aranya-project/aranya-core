@@ -116,9 +116,7 @@
 
 extern crate alloc;
 
-use alloc::{
-    borrow::Cow, boxed::Box, collections::BTreeMap, format, rc::Rc, string::String, vec::Vec,
-};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
@@ -226,17 +224,19 @@ impl<E> VmPolicy<E> {
 /// Scans command attributes for priorities and creates the priority map from them.
 fn get_command_priorities(
     machine: &Machine,
-) -> Result<BTreeMap<String, VmPriority>, VmPolicyError> {
+) -> Result<BTreeMap<String, VmPriority>, AttributeError> {
     let mut priority_map = BTreeMap::new();
     for (name, attrs) in &machine.command_attributes {
         let finalize = attrs
             .get("finalize")
             .map(|attr| match *attr {
                 Value::Bool(b) => Ok(b),
-                _ => Err(VmPolicyError::InvalidAttribute(format!(
-                    "{name}::finalize should be Bool, was {}",
-                    attr.type_name()
-                ))),
+                _ => Err(AttributeError::type_mismatch(
+                    name,
+                    "finalize",
+                    "Bool",
+                    &attr.type_name(),
+                )),
             })
             .transpose()?
             == Some(true);
@@ -244,14 +244,14 @@ fn get_command_priorities(
             .get("priority")
             .map(|attr| match *attr {
                 Value::Int(b) => b.try_into().map_err(|_| {
-                    VmPolicyError::InvalidAttribute(format!(
-                        "{name}::priority value must be within [0, 2^32-1]"
-                    ))
+                    AttributeError::int_range(name, "priority", u32::MIN.into(), u32::MAX.into())
                 }),
-                _ => Err(VmPolicyError::InvalidAttribute(format!(
-                    "{name}::priority should be Int, was {}",
-                    attr.type_name()
-                ))),
+                _ => Err(AttributeError::type_mismatch(
+                    name,
+                    "priority",
+                    "Int",
+                    &attr.type_name(),
+                )),
             })
             .transpose()?;
         match (finalize, priority) {
@@ -263,9 +263,7 @@ fn get_command_priorities(
                 priority_map.insert(name.clone(), VmPriority::Finalize);
             }
             (true, Some(_)) => {
-                return Err(VmPolicyError::InvalidAttribute(format!(
-                    "{name} has both finalize and priority set"
-                )));
+                return Err(AttributeError::exclusive(name, "finalize", "priority"));
             }
         }
     }
@@ -771,7 +769,7 @@ impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
 
 #[cfg(test)]
 mod test {
-    use alloc::{format, string::String};
+    use alloc::format;
 
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_str;
@@ -781,7 +779,7 @@ mod test {
 
     #[test]
     fn test_get_command_priorities() {
-        fn process(attrs: &str) -> Result<Option<VmPriority>, String> {
+        fn process(attrs: &str) -> Result<Option<VmPriority>, AttributeError> {
             let policy = format!(
                 r#"
                 command Test {{
@@ -800,10 +798,7 @@ mod test {
                 .compile()
                 .unwrap_or_else(|e| panic!("{e}"));
             let machine = Machine::from_module(module).expect("can create machine");
-            let priorities = get_command_priorities(&machine).map_err(|e| match e {
-                VmPolicyError::InvalidAttribute(msg) => msg,
-                _ => panic!("unexpected error: {e}"),
-            })?;
+            let priorities = get_command_priorities(&machine)?;
             Ok(priorities.get("Test").copied())
         }
 
@@ -824,23 +819,37 @@ mod test {
 
         assert_eq!(
             process("finalize: 42"),
-            Err("Test::finalize should be Bool, was Int".into())
+            Err(AttributeError::type_mismatch(
+                "Test", "finalize", "Bool", "Int"
+            ))
         );
         assert_eq!(
             process("priority: false"),
-            Err("Test::priority should be Int, was Bool".into())
+            Err(AttributeError::type_mismatch(
+                "Test", "priority", "Int", "Bool"
+            ))
         );
         assert_eq!(
             process("priority: -1"),
-            Err("Test::priority value must be within [0, 2^32-1]".into())
+            Err(AttributeError::int_range(
+                "Test",
+                "priority",
+                u32::MIN.into(),
+                u32::MAX.into(),
+            ))
         );
         assert_eq!(
             process(&format!("priority: {}", i64::MAX)),
-            Err("Test::priority value must be within [0, 2^32-1]".into())
+            Err(AttributeError::int_range(
+                "Test",
+                "priority",
+                u32::MIN.into(),
+                u32::MAX.into(),
+            ))
         );
         assert_eq!(
             process("finalize: true, priority: 42"),
-            Err("Test has both finalize and priority set".into())
+            Err(AttributeError::exclusive("Test", "finalize", "priority"))
         )
     }
 }
