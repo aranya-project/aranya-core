@@ -105,12 +105,12 @@ pub fn dup(old_fd: BorrowedFd<'_>) -> Result<RawFd, Errno> {
 pub fn fdopendir(fd: OwnedFd) -> Result<RawDir, Errno> {
     // SAFETY: FFI call, no invariants.
     let dir = unsafe { libc::fdopendir(fd.fd) };
-    // SAFETY: This is now tied up in the DIR and will be freed once the
-    // OwnedDir gets dropped and we call closedir.
-    core::mem::forget(fd);
     if dir.is_null() {
         Err(errno())
     } else {
+        // SAFETY: This is now tied up in the DIR and will be freed once the
+        // OwnedDir gets dropped and we call closedir.
+        core::mem::forget(fd);
         Ok(dir)
     }
 }
