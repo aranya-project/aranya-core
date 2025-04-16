@@ -1528,6 +1528,7 @@ impl<'a> CompileState<'a> {
 
         self.identifier_types.enter_function();
         for arg in function.arguments.iter().rev() {
+            self.ensure_type_is_defined(&arg.field_type)?;
             self.append_var(arg.identifier.clone(), arg.field_type.clone())?;
         }
         let from = self.wp;

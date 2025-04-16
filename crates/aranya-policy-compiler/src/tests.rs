@@ -1669,14 +1669,6 @@ fn test_type_errors() -> anyhow::Result<()> {
         },
         Case {
             t: r#"
-                function g(x struct Foo) bool {
-                    return x.y
-                }
-            "#,
-            e: "Struct `Foo` not defined",
-        },
-        Case {
-            t: r#"
                 struct Foo {}
                 function g(x struct Foo) bool {
                     return x.y
@@ -2211,6 +2203,44 @@ fn test_return_type_not_defined() {
         let err = Compiler::new(&policy).compile().unwrap_err().err_type;
         assert_eq!(err, expected);
     }
+}
+
+#[test]
+fn test_function_arguments_with_undefined_types() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+            function foo(x struct UndefinedStruct) int {
+                return 0
+            }
+            "#,
+            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+        ),
+        (
+            r#"
+            function bar(x enum UndefinedEnum) bool {
+                return false
+            }
+            "#,
+            CompileErrorType::NotDefined("enum UndefinedEnum".to_string()),
+        ),
+        (
+            r#"
+            function baz(x optional struct UndefinedStruct) bool {
+                return true
+            }
+            "#,
+            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(err, expected);
+    }
+
+    Ok(())
 }
 
 #[test]
