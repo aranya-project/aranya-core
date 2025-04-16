@@ -76,7 +76,7 @@ pub extern "C" fn prefix_test_unit_unit0() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_unit0() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -86,7 +86,7 @@ fn __tramp_prefix_test_unit_unit0() -> () {
     match { crate::defs::test_unit_unit0() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -96,7 +96,7 @@ pub extern "C" fn prefix_test_unit_unit1() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_unit1() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -106,7 +106,7 @@ fn __tramp_prefix_test_unit_unit1() -> () {
     match { crate::defs::test_unit_unit1() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -178,7 +178,7 @@ pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
     match {
         __tramp_prefix_test_u8_unit(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -188,7 +188,7 @@ fn __tramp_prefix_test_u8_unit(_a: ::core::primitive::u8) -> () {
     match { crate::defs::test_u8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -202,7 +202,7 @@ pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -212,7 +212,7 @@ fn __tramp_prefix_test_u16_unit(_a: ::core::primitive::u16) -> () {
     match { crate::defs::test_u16_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -226,7 +226,7 @@ pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -236,7 +236,7 @@ fn __tramp_prefix_test_u32_unit(_a: ::core::primitive::u32) -> () {
     match { crate::defs::test_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -250,7 +250,7 @@ pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -260,7 +260,7 @@ fn __tramp_prefix_test_u64_unit(_a: ::core::primitive::u64) -> () {
     match { crate::defs::test_u64_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -274,7 +274,7 @@ pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -284,7 +284,7 @@ fn __tramp_prefix_test_usize_unit(_a: ::core::primitive::usize) -> () {
     match { crate::defs::test_usize_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -296,7 +296,7 @@ pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
     match {
         __tramp_prefix_test_i8_unit(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -306,7 +306,7 @@ fn __tramp_prefix_test_i8_unit(_a: ::core::primitive::i8) -> () {
     match { crate::defs::test_i8_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -320,7 +320,7 @@ pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -330,7 +330,7 @@ fn __tramp_prefix_test_i16_unit(_a: ::core::primitive::i16) -> () {
     match { crate::defs::test_i16_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -344,7 +344,7 @@ pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -354,7 +354,7 @@ fn __tramp_prefix_test_i32_unit(_a: ::core::primitive::i32) -> () {
     match { crate::defs::test_i32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -368,7 +368,7 @@ pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -378,7 +378,7 @@ fn __tramp_prefix_test_i64_unit(_a: ::core::primitive::i64) -> () {
     match { crate::defs::test_i64_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -392,7 +392,7 @@ pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -402,7 +402,7 @@ fn __tramp_prefix_test_isize_unit(_a: ::core::primitive::isize) -> () {
     match { crate::defs::test_isize_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -414,7 +414,7 @@ pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primit
     match {
         __tramp_prefix_test_u8_u8(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -424,7 +424,7 @@ fn __tramp_prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8
     match { crate::defs::test_u8_u8(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -438,7 +438,7 @@ pub extern "C" fn prefix_test_u16_u16(
     match {
         __tramp_prefix_test_u16_u16(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -448,7 +448,7 @@ fn __tramp_prefix_test_u16_u16(_a: ::core::primitive::u16) -> ::core::primitive:
     match { crate::defs::test_u16_u16(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -462,7 +462,7 @@ pub extern "C" fn prefix_test_u32_u32(
     match {
         __tramp_prefix_test_u32_u32(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -472,7 +472,7 @@ fn __tramp_prefix_test_u32_u32(_a: ::core::primitive::u32) -> ::core::primitive:
     match { crate::defs::test_u32_u32(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -486,7 +486,7 @@ pub extern "C" fn prefix_test_u64_u64(
     match {
         __tramp_prefix_test_u64_u64(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -496,7 +496,7 @@ fn __tramp_prefix_test_u64_u64(_a: ::core::primitive::u64) -> ::core::primitive:
     match { crate::defs::test_u64_u64(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -512,7 +512,7 @@ pub extern "C" fn prefix_test_usize_usize(
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -524,7 +524,7 @@ fn __tramp_prefix_test_usize_usize(
     match { crate::defs::test_usize_usize(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -536,7 +536,7 @@ pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primit
     match {
         __tramp_prefix_test_i8_i8(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -546,7 +546,7 @@ fn __tramp_prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8
     match { crate::defs::test_i8_i8(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -560,7 +560,7 @@ pub extern "C" fn prefix_test_i16_i16(
     match {
         __tramp_prefix_test_i16_i16(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -570,7 +570,7 @@ fn __tramp_prefix_test_i16_i16(_a: ::core::primitive::i16) -> ::core::primitive:
     match { crate::defs::test_i16_i16(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -584,7 +584,7 @@ pub extern "C" fn prefix_test_i32_i32(
     match {
         __tramp_prefix_test_i32_i32(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -594,7 +594,7 @@ fn __tramp_prefix_test_i32_i32(_a: ::core::primitive::i32) -> ::core::primitive:
     match { crate::defs::test_i32_i32(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -608,7 +608,7 @@ pub extern "C" fn prefix_test_i64_i64(
     match {
         __tramp_prefix_test_i64_i64(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -618,7 +618,7 @@ fn __tramp_prefix_test_i64_i64(_a: ::core::primitive::i64) -> ::core::primitive:
     match { crate::defs::test_i64_i64(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -634,7 +634,7 @@ pub extern "C" fn prefix_test_isize_isize(
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -646,7 +646,7 @@ fn __tramp_prefix_test_isize_isize(
     match { crate::defs::test_isize_isize(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -664,7 +664,7 @@ pub extern "C" fn prefix_test_u8_u8_u8(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -677,7 +677,7 @@ fn __tramp_prefix_test_u8_u8_u8(
     match { crate::defs::test_u8_u8_u8(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -695,7 +695,7 @@ pub extern "C" fn prefix_test_u16_u16_u16(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -708,7 +708,7 @@ fn __tramp_prefix_test_u16_u16_u16(
     match { crate::defs::test_u16_u16_u16(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -726,7 +726,7 @@ pub extern "C" fn prefix_test_u32_u32_u32(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -739,7 +739,7 @@ fn __tramp_prefix_test_u32_u32_u32(
     match { crate::defs::test_u32_u32_u32(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -757,7 +757,7 @@ pub extern "C" fn prefix_test_u64_u64_u64(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -770,7 +770,7 @@ fn __tramp_prefix_test_u64_u64_u64(
     match { crate::defs::test_u64_u64_u64(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -788,7 +788,7 @@ pub extern "C" fn prefix_test_usize_usize_usize(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -801,7 +801,7 @@ fn __tramp_prefix_test_usize_usize_usize(
     match { crate::defs::test_usize_usize_usize(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -819,7 +819,7 @@ pub extern "C" fn prefix_test_i8_i8_i8(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -832,7 +832,7 @@ fn __tramp_prefix_test_i8_i8_i8(
     match { crate::defs::test_i8_i8_i8(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -850,7 +850,7 @@ pub extern "C" fn prefix_test_i16_i16_i16(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -863,7 +863,7 @@ fn __tramp_prefix_test_i16_i16_i16(
     match { crate::defs::test_i16_i16_i16(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -881,7 +881,7 @@ pub extern "C" fn prefix_test_i32_i32_i32(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -894,7 +894,7 @@ fn __tramp_prefix_test_i32_i32_i32(
     match { crate::defs::test_i32_i32_i32(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -912,7 +912,7 @@ pub extern "C" fn prefix_test_i64_i64_i64(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -925,7 +925,7 @@ fn __tramp_prefix_test_i64_i64_i64(
     match { crate::defs::test_i64_i64_i64(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -943,7 +943,7 @@ pub extern "C" fn prefix_test_isize_isize_isize(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -956,7 +956,7 @@ fn __tramp_prefix_test_isize_isize_isize(
     match { crate::defs::test_isize_isize_isize(_a, _b) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1042,7 +1042,7 @@ pub extern "C" fn prefix_test_unit_enum() -> PrefixEnum {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_enum() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1052,9 +1052,7 @@ fn __tramp_prefix_test_unit_enum() -> PrefixEnum {
     match { crate::defs::test_unit_enum() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => {
-            __capi::internal::util::check_valid_output_ty(PrefixEnum::from(__pattern))
-        }
+        __pattern => PrefixEnum::from(__pattern),
     }
 }
 #[no_mangle]
@@ -1292,7 +1290,7 @@ pub extern "C" fn prefix_test_struct_unit(_a: PrefixStruct) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1304,7 +1302,7 @@ fn __tramp_prefix_test_struct_unit(_a: PrefixStruct) -> () {
     match { crate::defs::test_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1314,7 +1312,7 @@ pub extern "C" fn prefix_test_unit_struct() -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_struct() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1325,10 +1323,8 @@ fn __tramp_prefix_test_unit_struct() -> PrefixStruct {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
         __pattern => {
-            __capi::internal::util::check_valid_output_ty({
-                type __Result = PrefixStruct;
-                __capi::from_inner!(__pattern => __Result)
-            })
+            type __Result = PrefixStruct;
+            __capi::from_inner!(__pattern => __Result)
         }
     }
 }
@@ -1425,7 +1421,7 @@ pub extern "C" fn prefix_test_ptr_struct_unit(_a: *const PrefixStruct) {
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1437,7 +1433,7 @@ fn __tramp_prefix_test_ptr_struct_unit(_a: *const PrefixStruct) -> () {
     match { crate::defs::test_ptr_struct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -1451,7 +1447,7 @@ pub extern "C" fn prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
             __capi::internal::util::check_valid_input_ty_val(a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1464,10 +1460,8 @@ fn __tramp_prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
         __pattern => {
-            __capi::internal::util::check_valid_output_ty({
-                type __Result = PrefixStruct;
-                __capi::from_inner!(__pattern => __Result)
-            })
+            type __Result = PrefixStruct;
+            __capi::from_inner!(__pattern => __Result)
         }
     }
 }
@@ -1840,7 +1834,7 @@ pub extern "C" fn prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) {
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1852,7 +1846,7 @@ fn __tramp_prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) -> () {
     match { crate::defs::test_ptr_safestruct_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -2226,7 +2220,7 @@ pub extern "C" fn prefix_test_ptr_ptr_ptr_ptr_u32_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -2238,7 +2232,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_unit(
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_unit(_a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -2257,7 +2251,7 @@ pub extern "C" fn prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
             __capi::internal::util::check_valid_input_ty_const_ptr(a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -2269,7 +2263,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(a) } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -2851,7 +2845,7 @@ pub extern "C" fn prefix_test_cfg_inheritance() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_cfg_inheritance() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[cfg(feature = "test_cfg")]
@@ -2862,7 +2856,7 @@ fn __tramp_prefix_test_cfg_inheritance() -> () {
     match { crate::defs::test_cfg_inheritance() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
@@ -2873,7 +2867,7 @@ pub extern "C" fn prefix_test_cfg_inheritance2() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_cfg_inheritance2() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[cfg(not(feature = "test_cfg"))]
@@ -2884,7 +2878,7 @@ fn __tramp_prefix_test_cfg_inheritance2() -> () {
     match { crate::defs::test_cfg_inheritance2() } {
         #[allow(clippy::useless_conversion)]
         #[allow(clippy::unit_arg)]
-        __pattern => __capi::internal::util::check_valid_output_ty(__pattern.into()),
+        __pattern => __pattern.into(),
     }
 }
 #[cfg(not(cbindgen))]

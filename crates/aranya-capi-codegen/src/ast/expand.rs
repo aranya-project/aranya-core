@@ -587,14 +587,6 @@ impl Ast {
                 })
                 .unwrap_or_else(|| quote!(#pattern.into()));
 
-            let result = if f_is_infallible {
-                let util = &ctx.util;
-
-                quote! (#util::check_valid_output_ty(#result))
-            } else {
-                result
-            };
-
             let block = if f_is_infallible {
                 // Output params are `*mut T`, which should make
                 // `f` fallible.
@@ -752,7 +744,8 @@ impl Ast {
             let block = if f_is_infallible {
                 // It's infallible, so just return the result
                 // directly.
-                quote!(#pattern)
+                let util = &ctx.util;
+                quote!(#util::check_valid_output_ty(#pattern))
             } else {
                 let success = if f.sig.output.is_result() {
                     quote! {
@@ -841,7 +834,8 @@ impl Ast {
                 let block = if f_is_infallible {
                     // It's infallible, so just return the result
                     // directly.
-                    quote!(#pattern)
+                    let util = &ctx.util;
+                    quote!(#util::check_valid_output_ty(#pattern))
                 } else {
                     // We have an output parameter, so we either
                     // return nothing or an error.
