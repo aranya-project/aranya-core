@@ -7,6 +7,7 @@ use std::{
     fmt,
     num::NonZeroUsize,
     ops::Range,
+    vec,
 };
 
 use aranya_policy_ast::{
@@ -1220,6 +1221,7 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Publish);
                 }
                 (ast::Statement::Return(s), StatementContext::PureFunction(fd)) => {
+                    // ensure return expression type matches function signature
                     let et = self.compile_expression(&s.expression)?;
                     if !et.is_maybe(&fd.return_type) {
                         return Err(self.err(CompileErrorType::InvalidType(format!(
@@ -1485,6 +1487,25 @@ impl<'a> CompileState<'a> {
         self.m.progmem[r].iter().any(pred)
     }
 
+    /// Checks if the given type is defined. E.g. check struct/enum definitions.
+    fn ensure_type_is_defined(&self, vtype: &VType) -> Result<(), CompileError> {
+        match &vtype {
+            VType::Struct(name) => {
+                if name != "Envelope" && !self.m.struct_defs.contains_key(name) {
+                    return Err(self.err(CompileErrorType::NotDefined(format!("struct {name}"))));
+                }
+            }
+            VType::Enum(name) => {
+                if !self.m.enum_defs.contains_key(name) {
+                    return Err(self.err(CompileErrorType::NotDefined(format!("enum {name}"))));
+                }
+            }
+            VType::Optional(t) => return self.ensure_type_is_defined(t),
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// Compile a function
     fn compile_function(
         &mut self,
@@ -1507,10 +1528,13 @@ impl<'a> CompileState<'a> {
 
         self.identifier_types.enter_function();
         for arg in function.arguments.iter().rev() {
+            self.ensure_type_is_defined(&arg.field_type)?;
             self.append_var(arg.identifier.clone(), arg.field_type.clone())?;
         }
         let from = self.wp;
+        self.ensure_type_is_defined(&function_node.return_type)?;
         self.compile_statements(&function.statements, Scope::Same)?;
+
         // Check that there is a return statement somewhere in the compiled instructions.
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
             return Err(self.err_loc(CompileErrorType::NoReturn, function_node.locator));
