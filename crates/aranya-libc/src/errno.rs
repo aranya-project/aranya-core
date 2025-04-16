@@ -8,19 +8,40 @@ use tracing::warn;
 
 cfg_if! {
     if #[cfg(target_os = "linux")] {
-        unsafe fn get_errno() -> c_int {
+        pub(crate) unsafe fn get_errno() -> c_int {
             // SAFETY: FFI call, no invariants.
             unsafe { *libc::__errno_location() }
         }
     } else if #[cfg(target_os = "macos")] {
-        unsafe fn get_errno() -> c_int {
+        pub(crate) unsafe fn get_errno() -> c_int {
             // SAFETY: FFI call, no invariants.
             unsafe { *libc::__error() }
         }
     } else if #[cfg(target_os = "vxworks")] {
-        unsafe fn get_errno() -> c_int {
+        pub(crate) unsafe fn get_errno() -> c_int {
             // SAFETY: FFI call, no invariants.
             unsafe { libc::errnoGet() }
+        }
+    } else {
+        compile_error!("unsupported OS");
+    }
+}
+
+cfg_if! {
+    if #[cfg(target_os = "linux")] {
+        pub(crate) unsafe fn clear_errno() {
+            // SAFETY: FFI call, no invariants.
+            unsafe { *libc::__errno_location() = 0; }
+        }
+    } else if #[cfg(target_os = "macos")] {
+        pub(crate) unsafe fn clear_errno() {
+            // SAFETY: FFI call, no invariants.
+            unsafe { *libc::__error() = 0; }
+        }
+    } else if #[cfg(target_os = "vxworks")] {
+        pub(crate) unsafe fn clear_errno() {
+            // SAFETY: FFI call, no invariants.
+            unsafe { libc::errnoGet() = 0; }
         }
     } else {
         compile_error!("unsupported OS");
