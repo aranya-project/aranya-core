@@ -2,18 +2,65 @@ use alloc::sync::Arc;
 use core::{cmp::Ordering, hash::Hasher};
 
 use aranya_libc::{
-    self as libc, Errno, OwnedFd, Path, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
-    O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
+    self as libc, AsAtRoot, Errno, OwnedDir, OwnedFd, Path, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT,
+    O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
 use buggy::{bug, BugExt};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tracing::error;
+use tracing::{error, warn};
 
 use super::error::Error;
 use crate::{
     linear::io::{IoManager, Read, Write},
     GraphId, Location, StorageError,
 };
+
+struct GraphIdIterator {
+    inner: OwnedDir,
+}
+
+impl GraphIdIterator {
+    fn new(fd: impl AsAtRoot) -> Result<Self, StorageError> {
+        // We're probably reusing a fd, so let's dupe it. This still shares
+        // state so any subsequent calls are affected, but this solves the
+        // problem of closedir destroying this specific fd.
+        let fd = libc::dup(fd.as_root())?;
+        let mut inner = libc::fdopendir(fd)?;
+        // Since we may be at the end of the directory due to shared state,
+        // let's be kind, rewind.
+        libc::rewinddir(&mut inner);
+        Ok(Self { inner })
+    }
+}
+
+impl Iterator for GraphIdIterator {
+    type Item = Result<GraphId, StorageError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Loop until we find an entry that contains an actual GraphId
+        loop {
+            let entry = match libc::readdir(&mut self.inner) {
+                Ok(Some(entry)) => entry,
+                Ok(None) => return None,
+                Err(errno) => return Some(Err(errno.into())),
+            };
+
+            let name = entry.name().to_bytes();
+            if name != b"." && name != b".." {
+                match GraphId::decode(name) {
+                    Ok(graph_id) => return Some(Ok(graph_id)),
+                    Err(err) => {
+                        warn!(
+                            "Filename {:?} is not a valid GraphId: {}",
+                            entry.name(),
+                            err
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// A file-backed implementation of [`IoManager`].
 #[derive(Debug)]
@@ -78,6 +125,12 @@ impl IoManager for FileManager {
         };
         libc::flock(&fd, LOCK_EX | LOCK_NB)?;
         Ok(Some(Writer::open(fd)?))
+    }
+
+    fn list(
+        &mut self,
+    ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+        GraphIdIterator::new(self.root())
     }
 }
 
