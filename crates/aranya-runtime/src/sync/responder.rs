@@ -453,7 +453,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             if commands.is_full() {
                 break;
             }
-            index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
+            let mut all_commands_added = true;
             let Some(&location) = self.to_send.get(i) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
@@ -481,6 +481,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     )
                     .assume("total_bytes mustn't overflow")?;
                 if total_bytes > self.remaining_bytes {
+                    all_commands_added = false;
                     break;
                 }
 
@@ -510,6 +511,9 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                 if commands.is_full() {
                     break;
                 }
+            }
+            if all_commands_added {
+                index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
             }
         }
         Ok((commands, command_data, index))
