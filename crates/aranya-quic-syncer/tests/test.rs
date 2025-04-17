@@ -1,13 +1,12 @@
 use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
     engine::{Engine, Sink},
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
     storage::{memory::MemStorageProvider, StorageProvider},
-    ClientState, GraphId, SyncRequester,
+    ClientState, GraphId,
 };
 use buggy::BugExt;
 use s2n_quic::{provider::congestion_controller::Bbr, Server};
@@ -65,14 +64,7 @@ async fn test_sync() -> Result<()> {
         tx,
         server_addr2.local_addr()?,
     )?;
-    syncer2
-        .sync(
-            client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr1),
-            sink2.lock().await.deref_mut(),
-            storage_id,
-        )
-        .await?;
+    syncer2.sync(addr1, storage_id, u64::MAX).await?;
     assert_eq!(sink2.lock().await.count(), 0);
 
     Ok(())
@@ -122,24 +114,12 @@ async fn test_sync_subscribe() -> Result<()> {
     syncer1
         .lock()
         .await
-        .subscribe(
-            client1.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr1),
-            5,
-            u64::MAX,
-            addr2,
-        )
+        .subscribe(5, u64::MAX, addr2, storage_id)
         .await?;
     syncer2
         .lock()
         .await
-        .subscribe(
-            client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
-            5,
-            u64::MAX,
-            addr1,
-        )
+        .subscribe(5, u64::MAX, addr1, storage_id)
         .await?;
 
     for i in 0..6 {
@@ -160,13 +140,7 @@ async fn test_sync_subscribe() -> Result<()> {
     syncer2
         .lock()
         .await
-        .subscribe(
-            client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
-            1,
-            u64::MAX,
-            addr1,
-        )
+        .subscribe(1, u64::MAX, addr1, storage_id)
         .await?;
     // The subscription should have expired after this.
     tokio::time::sleep(Duration::from_millis(1000)).await;
@@ -191,11 +165,8 @@ async fn test_sync_subscribe() -> Result<()> {
         .lock()
         .await
         .subscribe(
-            client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
-            5,
-            503, // The exact number of bytes to be sent
-            addr1,
+            5, 503, // The exact number of bytes to be sent
+            addr1, storage_id,
         )
         .await?;
 
@@ -233,19 +204,9 @@ async fn test_sync_subscribe() -> Result<()> {
     syncer2
         .lock()
         .await
-        .subscribe(
-            client2.lock().await.deref_mut(),
-            SyncRequester::new(storage_id, &mut Rng, addr2),
-            1,
-            u64::MAX,
-            addr1,
-        )
+        .subscribe(1, u64::MAX, addr1, storage_id)
         .await?;
-    syncer2
-        .lock()
-        .await
-        .unsubscribe(SyncRequester::new(storage_id, &mut Rng, addr2), addr1)
-        .await?;
+    syncer2.lock().await.unsubscribe(addr1, storage_id).await?;
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     value = value.checked_add(1).assume("must not overflow")?;

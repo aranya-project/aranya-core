@@ -257,6 +257,11 @@ impl Sink<TestEffect> for TestSink {
     fn consume(&mut self, effect: TestEffect) {
         trace!(?effect, "consume");
         if !self.ignore_expect {
+            assert!(
+                !self.expect.is_empty(),
+                "Unexpected effect: {:?}, expect is empty",
+                effect
+            );
             let expect = self.expect.remove(0);
             assert_eq!(effect, expect);
         }
