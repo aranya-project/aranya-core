@@ -121,6 +121,7 @@ use alloc::{
 };
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
+use aranya_crypto::{hash::tuple_hash, CipherSuite};
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     OpenContext, PolicyContext, RunState, Stack, Struct, Value,
@@ -655,11 +656,18 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<Self::Command<'a>, EngineError> {
         let (left, right) = ids.into();
         let c = VmProtocolData::Merge { left, right };
+        let id = {
+            let digest = tuple_hash::<<E::CS as CipherSuite>::Hash, _>([
+                b"merge-command-id",
+                left.id.as_bytes(),
+                right.id.as_bytes(),
+            ]);
+            aranya_crypto::Id::from_bytes(digest.into_array().into()).into()
+        };
         let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
             EngineError::Write
         })?;
-        let id = CommandId::hash_for_testing_only(data);
         Ok(VmProtocol::new(data, id, c, Arc::clone(&self.priority_map)))
     }
 }
