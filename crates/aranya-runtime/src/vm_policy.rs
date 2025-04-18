@@ -662,7 +662,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 left.id.as_bytes(),
                 right.id.as_bytes(),
             ]);
-            aranya_crypto::Id::from_bytes(digest.into_array().into()).into()
+            aranya_crypto::Id::from(digest.into_array()).into()
         };
         let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
