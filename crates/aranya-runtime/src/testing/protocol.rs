@@ -7,11 +7,11 @@ use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
 use serde::{Deserialize, Serialize};
 use tracing::trace;
 
-use super::{
-    alloc, Command, CommandId, Engine, EngineError, FactPerspective, Perspective, Policy, PolicyId,
-    Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
+use crate::{
+    alloc, Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
+    MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, StorageError,
+    MAX_COMMAND_LENGTH,
 };
-use crate::{Address, CommandRecall, Keys, MergeIds};
 
 impl From<StorageError> for EngineError {
     fn from(_: StorageError) -> Self {
