@@ -28,7 +28,7 @@ use crate::{
     kem::{Kem, KemId},
     mac::{Mac, MacId},
     signer::{Signer, SignerId},
-    typenum::U64,
+    typenum::{U32, U64},
 };
 
 /// The cryptographic primitives used by the cryptography engine.
@@ -54,7 +54,7 @@ pub trait CipherSuite {
     /// See [`Aead`] for more information.
     type Aead: Aead + IndCca2;
     /// See [`Hash`] for more information.
-    type Hash: Hash<DigestSize = U64>;
+    type Hash: Hash<DigestSize = U32>;
     /// See [`Kdf`] for more information.
     type Kdf: Kdf;
     /// See [`Kem`] for more information.
@@ -118,14 +118,14 @@ mod tests {
         use crate::{
             bearssl::{
                 Aes256Gcm, DhKemP256HkdfSha256, DhKemP521HkdfSha512, HkdfSha256, HkdfSha384,
-                HkdfSha512, HmacSha512, Sha512, P256, P384, P521,
+                HkdfSha512, HmacSha512, Sha256, P256, P384, P521,
             },
             test_util::{test_ciphersuite, TestCs},
         };
 
         test_ciphersuite!(p256, TestCs<
             Aes256Gcm,
-            Sha512,
+            Sha256,
             HkdfSha256,
             DhKemP256HkdfSha256,
             HmacSha512,
@@ -133,7 +133,7 @@ mod tests {
         >);
         test_ciphersuite!(p384, TestCs<
             Aes256Gcm,
-            Sha512,
+            Sha256,
             HkdfSha384,
             DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
             HmacSha512,
@@ -141,7 +141,7 @@ mod tests {
         >);
         test_ciphersuite!(p521, TestCs<
             Aes256Gcm,
-            Sha512,
+            Sha256,
             HkdfSha512,
             DhKemP521HkdfSha512,
             HmacSha512,
@@ -152,7 +152,7 @@ mod tests {
     mod rust {
         use crate::{
             rust::{
-                Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, Sha512, P256,
+                Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256,
                 P384,
             },
             test_util::{test_ciphersuite, TestCs},
@@ -160,7 +160,7 @@ mod tests {
 
         test_ciphersuite!(p256, TestCs<
             Aes256Gcm,
-            Sha512,
+            Sha256,
             HkdfSha256,
             DhKemP256HkdfSha256,
             HmacSha512,
@@ -168,7 +168,7 @@ mod tests {
         >);
         test_ciphersuite!(p384, TestCs<
             Aes256Gcm,
-            Sha512,
+            Sha256,
             HkdfSha384,
             DhKemP256HkdfSha256, // DhKemP384HkdfSha384 does not exist
             HmacSha512,

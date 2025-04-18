@@ -13,7 +13,7 @@ use aranya_crypto::{
     hash::tuple_hash,
     import::{Import, ImportError},
     keys::{PublicKey, SecretKey},
-    rust::{Aes256Gcm, Sha512},
+    rust::{Aes256Gcm, Sha256},
     signer::PkError,
     Rng,
 };
@@ -151,7 +151,7 @@ struct AuthData<'a> {
 // Signer impl.
 impl Hsm {
     fn signer_key_id(pk: &VerifyingKey) -> KeyId {
-        let id = tuple_hash::<Sha512, _>(["HSM-v1".as_bytes(), "Ed25519".as_bytes(), &pk.export()])
+        let id = tuple_hash::<Sha256, _>(["HSM-v1".as_bytes(), "Ed25519".as_bytes(), &pk.export()])
             .into_array()
             .into();
         KeyId(id)

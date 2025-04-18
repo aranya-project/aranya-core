@@ -257,8 +257,13 @@ impl Sink<TestEffect> for TestSink {
     fn consume(&mut self, effect: TestEffect) {
         trace!(?effect, "consume");
         if !self.ignore_expect {
+            assert!(!self.expect.is_empty(), "consumed {effect:?} while empty");
             let expect = self.expect.remove(0);
-            assert_eq!(effect, expect);
+            trace!(consuming = ?effect, expected = ?expect, remainder = ?self.expect);
+            assert_eq!(
+                effect, expect,
+                "consumed {effect:?} while expecting {expect:?}"
+            );
         }
     }
 

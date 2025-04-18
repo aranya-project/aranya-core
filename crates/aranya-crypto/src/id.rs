@@ -17,7 +17,7 @@ use serde::{
     ser::SerializeTuple,
     Deserialize, Deserializer, Serialize, Serializer,
 };
-pub use spideroak_base58::{DecodeError, String64, ToBase58};
+pub use spideroak_base58::{DecodeError, String32, ToBase58};
 
 use crate::{
     ciphersuite::SuiteIds,
@@ -26,7 +26,7 @@ use crate::{
     hash::tuple_hash,
     signer::PkError,
     subtle::{Choice, ConstantTimeEq},
-    typenum::U64,
+    typenum::U32,
     CipherSuite,
 };
 
@@ -34,7 +34,7 @@ use crate::{
 #[repr(C)]
 #[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
-pub struct Id([u8; 64]);
+pub struct Id([u8; 32]);
 
 impl Id {
     /// Derives an [`Id`] from the hash of some data.
@@ -53,18 +53,18 @@ impl Id {
     /// Same as [`Default`], but const.
     #[inline]
     pub const fn default() -> Self {
-        Self([0u8; 64])
+        Self([0u8; 32])
     }
 
     /// Creates itself from a byte array.
     #[inline]
-    pub const fn from_bytes(bytes: [u8; 64]) -> Self {
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
         Self(bytes)
     }
 
     /// Creates a random ID.
     pub fn random<R: Csprng>(rng: &mut R) -> Self {
-        let mut b = [0u8; 64];
+        let mut b = [0u8; 32];
         rng.fill_bytes(&mut b);
         Self(b)
     }
@@ -77,20 +77,20 @@ impl Id {
 
     /// Returns the [`Id`] as a byte array.
     #[inline]
-    pub const fn as_array(&self) -> &[u8; 64] {
+    pub const fn as_array(&self) -> &[u8; 32] {
         &self.0
     }
 
     /// Decode the [`Id`] from a base58 string.
     pub fn decode<T: AsRef<[u8]>>(s: T) -> Result<Self, DecodeError> {
-        String64::decode(s).map(Self::from)
+        String32::decode(s).map(Self::from)
     }
 }
 
 impl Default for Id {
     #[inline]
     fn default() -> Self {
-        Self([0u8; 64])
+        Self([0u8; 32])
     }
 }
 
@@ -108,21 +108,21 @@ impl AsRef<[u8]> for Id {
     }
 }
 
-impl From<GenericArray<u8, U64>> for Id {
+impl From<GenericArray<u8, U32>> for Id {
     #[inline]
-    fn from(id: GenericArray<u8, U64>) -> Self {
+    fn from(id: GenericArray<u8, U32>) -> Self {
         Self(id.into())
     }
 }
 
-impl From<[u8; 64]> for Id {
+impl From<[u8; 32]> for Id {
     #[inline]
-    fn from(id: [u8; 64]) -> Self {
+    fn from(id: [u8; 32]) -> Self {
         Self(id)
     }
 }
 
-impl From<Id> for [u8; 64] {
+impl From<Id> for [u8; 32] {
     #[inline]
     fn from(id: Id) -> Self {
         id.0
@@ -150,7 +150,7 @@ impl Display for Id {
 }
 
 impl ToBase58 for Id {
-    type Output = String64;
+    type Output = String32;
 
     fn to_base58(&self) -> Self::Output {
         self.0.to_base58()
@@ -272,7 +272,7 @@ macro_rules! custom_id {
 
             /// Returns itself as a byte array.
             #[inline]
-            pub const fn as_array(&self) -> &[u8; 64] {
+            pub const fn as_array(&self) -> &[u8; 32] {
                 self.0.as_array()
             }
 
@@ -304,23 +304,23 @@ macro_rules! custom_id {
             }
         }
 
-        impl ::core::convert::From<$crate::generic_array::GenericArray<u8, $crate::typenum::U64>>
+        impl ::core::convert::From<$crate::generic_array::GenericArray<u8, $crate::typenum::U32>>
             for $name
         {
             #[inline]
-            fn from(id: $crate::generic_array::GenericArray<u8, $crate::typenum::U64>) -> Self {
+            fn from(id: $crate::generic_array::GenericArray<u8, $crate::typenum::U32>) -> Self {
                 Self(id.into())
             }
         }
 
-        impl ::core::convert::From<[u8; 64]> for $name {
+        impl ::core::convert::From<[u8; 32]> for $name {
             #[inline]
-            fn from(id: [u8; 64]) -> Self {
+            fn from(id: [u8; 32]) -> Self {
                 Self(id.into())
             }
         }
 
-        impl ::core::convert::From<$name> for [u8; 64] {
+        impl ::core::convert::From<$name> for [u8; 32] {
             #[inline]
             fn from(id: $name) -> Self {
                 id.0.into()
@@ -362,7 +362,7 @@ macro_rules! custom_id {
         }
 
         impl $crate::id::ToBase58 for $name {
-            type Output = $crate::id::String64;
+            type Output = $crate::id::String32;
 
             fn to_base58(&self) -> Self::Output {
                 $crate::id::ToBase58::to_base58(&self.0)

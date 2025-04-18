@@ -71,7 +71,7 @@ impl PeerCache {
 // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
 // As the buffer consts will be compile-time variables in the future, we will be
 // able to tune these buffers for smaller footprints. Right now, this enum is not
-// suitable for small devices (`SyncResponse` is 14848 bytes).
+// suitable for small devices (`SyncResponse` is 14448 bytes).
 /// Messages sent from the responder to the requester.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]

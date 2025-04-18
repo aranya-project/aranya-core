@@ -38,7 +38,7 @@ pub struct DefaultCipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
     type Aead = crate::rust::Aes256Gcm;
-    type Hash = crate::rust::Sha512;
+    type Hash = crate::rust::Sha256;
     type Kdf = crate::rust::HkdfSha512;
     type Kem = crate::rust::DhKemP256HkdfSha256;
     type Mac = crate::rust::HmacSha512;
