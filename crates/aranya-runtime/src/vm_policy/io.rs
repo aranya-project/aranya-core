@@ -202,6 +202,7 @@ enum KeyType {
     Bool,
     String,
     Id,
+    Enum,
 }
 
 impl KeyType {
@@ -211,6 +212,7 @@ impl KeyType {
             1 => KeyType::Bool,
             2 => KeyType::String,
             3 => KeyType::Id,
+            4 => KeyType::Enum,
             _ => return None,
         })
     }
@@ -224,6 +226,7 @@ fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
     let identifier_len = (identifier.len() as u64).to_be_bytes();
 
     let int_bytes;
+    let bytes;
     let (tag, value_bytes) = match value {
         &HashableValue::Int(int) => {
             // flip sign bit and use big-endian to preserve ordering.
@@ -236,6 +239,11 @@ fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
         }
         HashableValue::String(string) => (KeyType::String, string.as_bytes()),
         HashableValue::Id(id) => (KeyType::Id, id.as_bytes()),
+        HashableValue::Enum(id, value) => {
+            let int_bytes = i64::to_be_bytes(value ^ (1 << 63));
+            bytes = [int_bytes.as_slice(), id.as_bytes()].concat();
+            (KeyType::Enum, bytes.as_slice())
+        }
     };
 
     [
@@ -287,6 +295,12 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
             let bytes = bytes.try_into().map_err(|_| "invalid ID length")?;
             let id = Id::from_bytes(bytes);
             HashableValue::Id(id)
+        }
+        KeyType::Enum => {
+            let (id, value) = bytes.split_at(8);
+            let value = i64::from_be_bytes(value.try_into().map_err(|_| "invalid enum length")?);
+            let id = core::str::from_utf8(id).map_err(|_| "id not utf8")?;
+            HashableValue::Enum(String::from(id), value)
         }
     };
 
@@ -403,6 +417,21 @@ mod test {
                 value: HashableValue::Id(v2),
             });
             assert_eq!(v1.cmp(&v2), b1.cmp(&b2),  "{b1:?} <=> {b2:?}");
+        }
+
+        #[test]
+        fn test_enum_ord(identifier: String, id1: String, id2: String, v1: i64, v2: i64) {
+            let b1 = ser_key(&FactKey {
+                identifier: identifier.clone(),
+                value: HashableValue::Enum(id1.clone(), v1),
+            });
+            let b2 = ser_key(&FactKey {
+                identifier: identifier,
+                value: HashableValue::Enum(id2.clone(), v2),
+            });
+
+            let cmp = (v1, id1).cmp(&(v2, id2));
+            assert_eq!(cmp, b1.cmp(&b2), "{b1:?} <=> {b2:?}");
         }
     }
 }
