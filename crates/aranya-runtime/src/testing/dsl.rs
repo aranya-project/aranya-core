@@ -907,7 +907,7 @@ test_vectors! {
 macro_rules! test_vector {
     ($backend:expr ; $($name:ident),+ $(,)?) => {
         $(
-            #[test]
+            #[::test_log::test]
             fn $name() -> ::core::result::Result<(), $crate::testing::dsl::TestError> {
                 $crate::testing::dsl::vectors::$name($backend)
             }
