@@ -17,8 +17,8 @@ use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
     engine::Sink,
-    protocol::{TestActions, TestEffect, TestEngine},
     storage::memory::MemStorageProvider,
+    testing::protocol::{TestActions, TestEffect, TestEngine},
     ClientState, Engine, GraphId, StorageProvider, SyncRequester,
 };
 use clap::Parser;
