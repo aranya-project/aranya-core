@@ -13,11 +13,11 @@ impl FactDefinition {
 }
 
 impl FieldDefinition {
-    /// Is this a hashable type (int, bool, string, or id)?
+    /// Is this a hashable type?
     pub fn is_hashable(&self) -> bool {
         matches!(
             self.field_type,
-            VType::Int | VType::Bool | VType::String | VType::Id
+            VType::Int | VType::Bool | VType::String | VType::Id | VType::Enum(_)
         )
     }
 }
