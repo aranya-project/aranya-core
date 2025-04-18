@@ -29,6 +29,12 @@ pub enum EngineError {
     Bug(#[from] Bug),
 }
 
+impl From<core::convert::Infallible> for EngineError {
+    fn from(error: core::convert::Infallible) -> Self {
+        match error {}
+    }
+}
+
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]
 pub struct PolicyId(usize);
 
