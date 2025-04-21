@@ -385,7 +385,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-derive"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "aranya-policy-lang",
  "prettyplease",
@@ -396,7 +396,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",
@@ -410,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen-build"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -459,7 +459,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-vm"
-version = "0.6.1"
+version = "0.7.0"
 dependencies = [
  "anyhow",
  "aranya-crypto",

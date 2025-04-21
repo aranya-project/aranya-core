@@ -1,7 +1,7 @@
 [package]
 name = "aranya-policy-ifgen"
 description = "Tools for generating Rust interfaces to Aranya Policies"
-version = "0.6.1"
+version = "0.7.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -19,7 +19,7 @@ serde = [
 
 [dependencies]
 aranya-policy-ifgen-macro = { version = "0.3.0", path = "../aranya-policy-ifgen-macro" }
-aranya-policy-vm = { version = "0.6.1", path = "../aranya-policy-vm" }
+aranya-policy-vm = { version = "0.7.0", path = "../aranya-policy-vm" }
 aranya-runtime = { version = "0.7.0", path = "../aranya-runtime" }
 
 serde = { workspace = true, optional = true }
