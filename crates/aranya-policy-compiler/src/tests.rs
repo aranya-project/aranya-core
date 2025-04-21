@@ -873,6 +873,7 @@ fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
 #[test]
 fn test_serialize_deserialize() -> anyhow::Result<()> {
     let text = r#"
+        struct Foo {}
         function foo(input struct Foo) struct Foo {
             let b = serialize(input)
             return deserialize(b)
@@ -1668,14 +1669,6 @@ fn test_type_errors() -> anyhow::Result<()> {
         },
         Case {
             t: r#"
-                function g(x struct Foo) bool {
-                    return x.y
-                }
-            "#,
-            e: "Struct `Foo` not defined",
-        },
-        Case {
-            t: r#"
                 struct Foo {}
                 function g(x struct Foo) bool {
                     return x.y
@@ -2173,6 +2166,81 @@ fn test_validate_return() {
         let m = Compiler::new(&policy).compile().expect("should compile");
         assert!(validate(&m));
     }
+}
+
+#[test]
+fn test_return_type_not_defined() {
+    let cases = [
+        (
+            r#"
+            struct Foo {}
+            function get_foo() struct Nonexistent {
+                return Foo {}
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Nonexistent".to_string()),
+        ),
+        (
+            r#"
+            function f() enum Blah {
+                return Blah::Foo
+            }
+            "#,
+            CompileErrorType::NotDefined("enum Blah".to_string()),
+        ),
+        (
+            r#"
+            function f() optional struct Foo {
+                return Some(Foo {})
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Foo".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_function_arguments_with_undefined_types() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+            function foo(x struct UndefinedStruct) int {
+                return 0
+            }
+            "#,
+            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+        ),
+        (
+            r#"
+            function bar(x enum UndefinedEnum) bool {
+                return false
+            }
+            "#,
+            CompileErrorType::NotDefined("enum UndefinedEnum".to_string()),
+        ),
+        (
+            r#"
+            function baz(x optional struct UndefinedStruct) bool {
+                return true
+            }
+            "#,
+            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        assert_eq!(err, expected);
+    }
+
+    Ok(())
 }
 
 #[test]
