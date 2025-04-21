@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.2.3...aranya-capi-core-v0.2.4) - 2025-04-21
+
+### Other
+
+- updated the following local packages: aranya-libc
+
 ## [0.2.3](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.2.2...aranya-capi-core-v0.2.3) - 2025-04-10
 
 ### Other
