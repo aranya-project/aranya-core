@@ -910,11 +910,7 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 #[test]
 fn test_query_enum_keys() -> anyhow::Result<()> {
     let text = r#"
-        enum Foo {
-            A,
-            B,
-        }
-
+        enum Foo { A, B }
         fact Bar[i enum Foo] => {x enum Foo}
 
         command Setup {
