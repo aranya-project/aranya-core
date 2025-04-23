@@ -70,12 +70,13 @@ pub struct PrefixTestConfigInheritance2(::core::primitive::u8);
 #[cfg(not(cbindgen))]
 pub type PrefixTestConfigInheritance2 = self::__hidden::PrefixTestConfigInheritance2;
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit0() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_unit0() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -89,12 +90,13 @@ fn __tramp_prefix_test_unit_unit0() -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit1() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_unit1() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -108,6 +110,7 @@ fn __tramp_prefix_test_unit_unit1() -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_result_unit_error() -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -126,6 +129,7 @@ pub extern "C" fn prefix_test_unit_result_unit_error() -> PrefixError {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(__ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err))
@@ -166,6 +170,7 @@ fn __tramp_prefix_test_unit_result_unit_error() -> ::core::result::Result<
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -173,7 +178,7 @@ pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
     match {
         __tramp_prefix_test_u8_unit(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -187,6 +192,7 @@ fn __tramp_prefix_test_u8_unit(_a: ::core::primitive::u8) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -196,7 +202,7 @@ pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -210,6 +216,7 @@ fn __tramp_prefix_test_u16_unit(_a: ::core::primitive::u16) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -219,7 +226,7 @@ pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -233,6 +240,7 @@ fn __tramp_prefix_test_u32_unit(_a: ::core::primitive::u32) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -242,7 +250,7 @@ pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -256,6 +264,7 @@ fn __tramp_prefix_test_u64_unit(_a: ::core::primitive::u64) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -265,7 +274,7 @@ pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -279,6 +288,7 @@ fn __tramp_prefix_test_usize_unit(_a: ::core::primitive::usize) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -286,7 +296,7 @@ pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
     match {
         __tramp_prefix_test_i8_unit(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -300,6 +310,7 @@ fn __tramp_prefix_test_i8_unit(_a: ::core::primitive::i8) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -309,7 +320,7 @@ pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -323,6 +334,7 @@ fn __tramp_prefix_test_i16_unit(_a: ::core::primitive::i16) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -332,7 +344,7 @@ pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -346,6 +358,7 @@ fn __tramp_prefix_test_i32_unit(_a: ::core::primitive::i32) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -355,7 +368,7 @@ pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -369,6 +382,7 @@ fn __tramp_prefix_test_i64_unit(_a: ::core::primitive::i64) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -378,7 +392,7 @@ pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -392,6 +406,7 @@ fn __tramp_prefix_test_isize_unit(_a: ::core::primitive::isize) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -399,7 +414,7 @@ pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primit
     match {
         __tramp_prefix_test_u8_u8(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -413,6 +428,7 @@ fn __tramp_prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u16_u16(
     _a: ::core::primitive::u16,
@@ -422,7 +438,7 @@ pub extern "C" fn prefix_test_u16_u16(
     match {
         __tramp_prefix_test_u16_u16(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -436,6 +452,7 @@ fn __tramp_prefix_test_u16_u16(_a: ::core::primitive::u16) -> ::core::primitive:
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u32_u32(
     _a: ::core::primitive::u32,
@@ -445,7 +462,7 @@ pub extern "C" fn prefix_test_u32_u32(
     match {
         __tramp_prefix_test_u32_u32(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -459,6 +476,7 @@ fn __tramp_prefix_test_u32_u32(_a: ::core::primitive::u32) -> ::core::primitive:
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u64_u64(
     _a: ::core::primitive::u64,
@@ -468,7 +486,7 @@ pub extern "C" fn prefix_test_u64_u64(
     match {
         __tramp_prefix_test_u64_u64(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -482,6 +500,7 @@ fn __tramp_prefix_test_u64_u64(_a: ::core::primitive::u64) -> ::core::primitive:
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_usize_usize(
     _a: ::core::primitive::usize,
@@ -493,7 +512,7 @@ pub extern "C" fn prefix_test_usize_usize(
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -509,6 +528,7 @@ fn __tramp_prefix_test_usize_usize(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -516,7 +536,7 @@ pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primit
     match {
         __tramp_prefix_test_i8_i8(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -530,6 +550,7 @@ fn __tramp_prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i16_i16(
     _a: ::core::primitive::i16,
@@ -539,7 +560,7 @@ pub extern "C" fn prefix_test_i16_i16(
     match {
         __tramp_prefix_test_i16_i16(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -553,6 +574,7 @@ fn __tramp_prefix_test_i16_i16(_a: ::core::primitive::i16) -> ::core::primitive:
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i32_i32(
     _a: ::core::primitive::i32,
@@ -562,7 +584,7 @@ pub extern "C" fn prefix_test_i32_i32(
     match {
         __tramp_prefix_test_i32_i32(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -576,6 +598,7 @@ fn __tramp_prefix_test_i32_i32(_a: ::core::primitive::i32) -> ::core::primitive:
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i64_i64(
     _a: ::core::primitive::i64,
@@ -585,7 +608,7 @@ pub extern "C" fn prefix_test_i64_i64(
     match {
         __tramp_prefix_test_i64_i64(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -599,6 +622,7 @@ fn __tramp_prefix_test_i64_i64(_a: ::core::primitive::i64) -> ::core::primitive:
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_isize_isize(
     _a: ::core::primitive::isize,
@@ -610,7 +634,7 @@ pub extern "C" fn prefix_test_isize_isize(
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -626,6 +650,7 @@ fn __tramp_prefix_test_isize_isize(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u8_u8_u8(
     _a: ::core::primitive::u8,
@@ -639,7 +664,7 @@ pub extern "C" fn prefix_test_u8_u8_u8(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -656,6 +681,7 @@ fn __tramp_prefix_test_u8_u8_u8(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u16_u16_u16(
     _a: ::core::primitive::u16,
@@ -669,7 +695,7 @@ pub extern "C" fn prefix_test_u16_u16_u16(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -686,6 +712,7 @@ fn __tramp_prefix_test_u16_u16_u16(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u32_u32_u32(
     _a: ::core::primitive::u32,
@@ -699,7 +726,7 @@ pub extern "C" fn prefix_test_u32_u32_u32(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -716,6 +743,7 @@ fn __tramp_prefix_test_u32_u32_u32(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u64_u64_u64(
     _a: ::core::primitive::u64,
@@ -729,7 +757,7 @@ pub extern "C" fn prefix_test_u64_u64_u64(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -746,6 +774,7 @@ fn __tramp_prefix_test_u64_u64_u64(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_usize_usize_usize(
     _a: ::core::primitive::usize,
@@ -759,7 +788,7 @@ pub extern "C" fn prefix_test_usize_usize_usize(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -776,6 +805,7 @@ fn __tramp_prefix_test_usize_usize_usize(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i8_i8_i8(
     _a: ::core::primitive::i8,
@@ -789,7 +819,7 @@ pub extern "C" fn prefix_test_i8_i8_i8(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -806,6 +836,7 @@ fn __tramp_prefix_test_i8_i8_i8(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i16_i16_i16(
     _a: ::core::primitive::i16,
@@ -819,7 +850,7 @@ pub extern "C" fn prefix_test_i16_i16_i16(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -836,6 +867,7 @@ fn __tramp_prefix_test_i16_i16_i16(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i32_i32_i32(
     _a: ::core::primitive::i32,
@@ -849,7 +881,7 @@ pub extern "C" fn prefix_test_i32_i32_i32(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -866,6 +898,7 @@ fn __tramp_prefix_test_i32_i32_i32(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i64_i64_i64(
     _a: ::core::primitive::i64,
@@ -879,7 +912,7 @@ pub extern "C" fn prefix_test_i64_i64_i64(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -896,6 +929,7 @@ fn __tramp_prefix_test_i64_i64_i64(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_isize_isize_isize(
     _a: ::core::primitive::isize,
@@ -909,7 +943,7 @@ pub extern "C" fn prefix_test_isize_isize_isize(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -926,6 +960,7 @@ fn __tramp_prefix_test_isize_isize_isize(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_enum_unit(_a: PrefixEnum) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -948,6 +983,7 @@ pub extern "C" fn prefix_test_enum_unit(_a: PrefixEnum) -> PrefixError {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1000,12 +1036,13 @@ fn __tramp_prefix_test_enum_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_enum() -> PrefixEnum {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_enum() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1019,6 +1056,7 @@ fn __tramp_prefix_test_unit_enum() -> PrefixEnum {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1051,6 +1089,7 @@ pub extern "C" fn prefix_test_enum_enum(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1115,6 +1154,7 @@ fn __tramp_prefix_test_enum_enum(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1154,6 +1194,7 @@ pub extern "C" fn prefix_test_enum_result_enum_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1239,6 +1280,7 @@ fn __tramp_prefix_test_enum_result_enum_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_unit(_a: PrefixStruct) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -1248,7 +1290,7 @@ pub extern "C" fn prefix_test_struct_unit(_a: PrefixStruct) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1264,12 +1306,13 @@ fn __tramp_prefix_test_struct_unit(_a: PrefixStruct) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_struct() -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_struct() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1286,6 +1329,7 @@ fn __tramp_prefix_test_unit_struct() -> PrefixStruct {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1311,6 +1355,7 @@ pub extern "C" fn prefix_test_ref_struct_unit(_a: *const PrefixStruct) -> Prefix
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1363,6 +1408,7 @@ fn __tramp_prefix_test_ref_struct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1375,7 +1421,7 @@ pub extern "C" fn prefix_test_ptr_struct_unit(_a: *const PrefixStruct) {
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1391,6 +1437,7 @@ fn __tramp_prefix_test_ptr_struct_unit(_a: *const PrefixStruct) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -1400,7 +1447,7 @@ pub extern "C" fn prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
             __capi::internal::util::check_valid_input_ty_val(a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1419,6 +1466,7 @@ fn __tramp_prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(__output = %__capi::internal::util::Addr::from_ptr(__output))
@@ -1453,6 +1501,7 @@ pub extern "C" fn prefix_test_unit_result_struct_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1529,6 +1578,7 @@ fn __tramp_prefix_test_unit_result_struct_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1556,6 +1606,7 @@ pub extern "C" fn prefix_test_optional_ref_struct(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1608,6 +1659,7 @@ fn __tramp_prefix_test_optional_ref_struct(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1635,6 +1687,7 @@ pub extern "C" fn prefix_test_optional_mut_ref_struct(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1687,6 +1740,7 @@ fn __tramp_prefix_test_optional_mut_ref_struct(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1714,6 +1768,7 @@ pub extern "C" fn prefix_test_ref_safestruct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1766,6 +1821,7 @@ fn __tramp_prefix_test_ref_safestruct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1778,7 +1834,7 @@ pub extern "C" fn prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) {
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1794,6 +1850,7 @@ fn __tramp_prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) -> () {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(__output = %__capi::internal::util::Addr::from_ptr(__output))
@@ -1828,6 +1885,7 @@ pub extern "C" fn prefix_test_unit_result_safestruct_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1904,6 +1962,7 @@ fn __tramp_prefix_test_unit_result_safestruct_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1931,6 +1990,7 @@ pub extern "C" fn prefix_test_ownedptr_u32_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1983,6 +2043,7 @@ fn __tramp_prefix_test_ownedptr_u32_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -2010,6 +2071,7 @@ pub extern "C" fn prefix_test_ownedptr_struct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2062,6 +2124,7 @@ fn __tramp_prefix_test_ownedptr_struct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -2089,6 +2152,7 @@ pub extern "C" fn prefix_test_ownedptr_safestruct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2141,6 +2205,7 @@ fn __tramp_prefix_test_ownedptr_safestruct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -2155,7 +2220,7 @@ pub extern "C" fn prefix_test_ptr_ptr_ptr_ptr_u32_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -2171,6 +2236,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(a = %__capi::internal::util::Addr::from_ptr(a))
@@ -2185,7 +2251,7 @@ pub extern "C" fn prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
             __capi::internal::util::check_valid_input_ty_const_ptr(a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -2201,6 +2267,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a), _a_len = _a_len)
@@ -2230,6 +2297,7 @@ pub extern "C" fn prefix_test_slice_u8_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2286,6 +2354,7 @@ fn __tramp_prefix_test_slice_u8_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -2311,6 +2380,7 @@ pub extern "C" fn prefix_test_ref_arr_u8_unit(_a: *const [u8; 64]) -> PrefixErro
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2359,6 +2429,7 @@ fn __tramp_prefix_test_ref_arr_u8_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2391,6 +2462,7 @@ pub extern "C" fn prefix_test_ref_arr_u8_ret(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2451,6 +2523,7 @@ fn __tramp_prefix_test_ref_arr_u8_ret(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -2476,6 +2549,7 @@ pub extern "C" fn prefix_test_mut_ref_arr_u8_unit(_a: *mut [u8; 64]) -> PrefixEr
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2530,6 +2604,7 @@ fn __tramp_prefix_test_mut_ref_arr_u8_unit(
 ///
 /// @relates PrefixExtError
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(out = %__capi::internal::util::Addr::from_ptr(out))
@@ -2570,6 +2645,7 @@ pub extern "C" fn prefix_ext_error_init(
 ///
 /// @relates PrefixExtError
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2646,6 +2722,7 @@ fn ext_error_init(
 ///
 /// @relates PrefixExtError
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(ptr = %__capi::internal::util::Addr::from_ptr(ptr))
@@ -2683,6 +2760,7 @@ pub extern "C" fn prefix_ext_error_cleanup(ptr: *mut PrefixExtError) -> PrefixEr
 ///
 /// @relates PrefixExtError
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2761,12 +2839,13 @@ fn ext_error_cleanup(
 }
 #[no_mangle]
 #[cfg(feature = "test_cfg")]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_cfg_inheritance() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_cfg_inheritance() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[cfg(feature = "test_cfg")]
@@ -2782,12 +2861,13 @@ fn __tramp_prefix_test_cfg_inheritance() -> () {
 }
 #[no_mangle]
 #[cfg(not(feature = "test_cfg"))]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_cfg_inheritance2() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_cfg_inheritance2() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[cfg(not(feature = "test_cfg"))]

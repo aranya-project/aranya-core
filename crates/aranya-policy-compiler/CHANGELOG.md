@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.6.0...aranya-policy-compiler-v0.7.0) - 2025-04-21
+
+### Other
+
+- Fix #168: Make sure function return types are actually defined. ([#213](https://github.com/aranya-project/aranya-core/pull/213))
+- Add struct subselection ([#120](https://github.com/aranya-project/aranya-core/pull/120))
+
 ## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-compiler-v0.5.0...aranya-policy-compiler-v0.6.0) - 2025-04-10
 
 ### Other
