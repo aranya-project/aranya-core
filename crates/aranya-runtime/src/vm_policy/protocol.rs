@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc};
+use alloc::{borrow::Cow, collections::BTreeMap, string::String};
 
 use aranya_crypto::DeviceId;
 use aranya_policy_vm::{Struct, Value};
@@ -51,9 +51,8 @@ pub struct VmProtocol<'a> {
     id: CommandId,
     /// The deserialized data
     unpacked: VmProtocolData<'a>,
-    /// A mapping between command names and priorities, shared with the underlying
-    /// [`super::VmPolicy`] and other [`VmProtocol`] instances.
-    priority_map: Arc<BTreeMap<String, u32>>,
+    /// The command's priority.
+    priority: Priority,
 }
 
 impl<'a> VmProtocol<'a> {
@@ -61,26 +60,20 @@ impl<'a> VmProtocol<'a> {
         data: &'a [u8],
         id: CommandId,
         unpacked: VmProtocolData<'a>,
-        priority_map: Arc<BTreeMap<String, u32>>,
+        priority: Priority,
     ) -> VmProtocol<'a> {
         VmProtocol {
             data,
             id,
             unpacked,
-            priority_map,
+            priority,
         }
     }
 }
 
 impl Command for VmProtocol<'_> {
     fn priority(&self) -> Priority {
-        match self.unpacked {
-            VmProtocolData::Init { .. } => Priority::Init,
-            VmProtocolData::Merge { .. } => Priority::Merge,
-            VmProtocolData::Basic { kind, .. } => {
-                Priority::Basic(self.priority_map.get(kind).copied().unwrap_or_default())
-            }
-        }
+        self.priority.clone()
     }
 
     fn id(&self) -> CommandId {

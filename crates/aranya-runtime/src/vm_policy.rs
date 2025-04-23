@@ -116,9 +116,7 @@
 
 extern crate alloc;
 
-use alloc::{
-    borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, sync::Arc, vec::Vec,
-};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
 use aranya_crypto::{hash::tuple_hash, CipherSuite};
@@ -133,7 +131,7 @@ use tracing::{error, info, instrument};
 use crate::{
     command::{Command, CommandId},
     engine::{EngineError, NullSink, Policy, Sink},
-    CommandRecall, FactPerspective, MergeIds, Perspective, Prior,
+    CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
 };
 
 mod error;
@@ -196,8 +194,7 @@ pub struct VmPolicy<E> {
     machine: Machine,
     engine: Mutex<E>,
     ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
-    // TODO(chip): replace or fill this with priorities from attributes
-    priority_map: Arc<BTreeMap<String, u32>>,
+    priority_map: BTreeMap<String, VmPriority>,
 }
 
 impl<E> VmPolicy<E> {
@@ -207,12 +204,12 @@ impl<E> VmPolicy<E> {
         engine: E,
         ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
-        let priority_map = VmPolicy::<E>::get_command_priorities(&machine)?;
+        let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
             engine: Mutex::new(engine),
             ffis,
-            priority_map: Arc::new(priority_map),
+            priority_map,
         })
     }
 
@@ -221,26 +218,57 @@ impl<E> VmPolicy<E> {
         M: MachineIO<MachineStack>,
     {
         rs.source_location()
-            .unwrap_or(String::from("(unknown location)"))
+            .unwrap_or_else(|| String::from("(unknown location)"))
     }
+}
 
-    /// Scans command attributes for priorities and creates the priority map from them.
-    fn get_command_priorities(machine: &Machine) -> Result<BTreeMap<String, u32>, VmPolicyError> {
-        let mut priority_map = BTreeMap::new();
-        for (name, attrs) in &machine.command_attributes {
-            if let Some(Value::Int(p)) = attrs.get("priority") {
-                let pv = (*p).try_into().map_err(|e| {
-                    error!(
-                        ?e,
-                        "Priority out of range in {name}: {p} does not fit in u32"
-                    );
-                    VmPolicyError::Unknown
-                })?;
-                priority_map.insert(name.clone(), pv);
+/// Scans command attributes for priorities and creates the priority map from them.
+fn get_command_priorities(
+    machine: &Machine,
+) -> Result<BTreeMap<String, VmPriority>, AttributeError> {
+    let mut priority_map = BTreeMap::new();
+    for (name, attrs) in &machine.command_attributes {
+        let finalize = attrs
+            .get("finalize")
+            .map(|attr| match *attr {
+                Value::Bool(b) => Ok(b),
+                _ => Err(AttributeError::type_mismatch(
+                    name,
+                    "finalize",
+                    "Bool",
+                    &attr.type_name(),
+                )),
+            })
+            .transpose()?
+            == Some(true);
+        let priority: Option<u32> = attrs
+            .get("priority")
+            .map(|attr| match *attr {
+                Value::Int(b) => b.try_into().map_err(|_| {
+                    AttributeError::int_range(name, "priority", u32::MIN.into(), u32::MAX.into())
+                }),
+                _ => Err(AttributeError::type_mismatch(
+                    name,
+                    "priority",
+                    "Int",
+                    &attr.type_name(),
+                )),
+            })
+            .transpose()?;
+        match (finalize, priority) {
+            (false, None) => {}
+            (false, Some(p)) => {
+                priority_map.insert(name.clone(), VmPriority::Basic(p));
+            }
+            (true, None) => {
+                priority_map.insert(name.clone(), VmPriority::Finalize);
+            }
+            (true, Some(_)) => {
+                return Err(AttributeError::exclusive(name, "finalize", "priority"));
             }
         }
-        Ok(priority_map)
     }
+    Ok(priority_map)
 }
 
 impl<E: aranya_crypto::Engine> VmPolicy<E> {
@@ -416,6 +444,34 @@ pub struct VmEffect {
     pub recalled: bool,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum VmPriority {
+    Basic(u32),
+    Finalize,
+}
+
+impl Default for VmPriority {
+    fn default() -> Self {
+        Self::Basic(0)
+    }
+}
+
+impl From<VmPriority> for Priority {
+    fn from(value: VmPriority) -> Self {
+        match value {
+            VmPriority::Basic(p) => Self::Basic(p),
+            VmPriority::Finalize => Self::Finalize,
+        }
+    }
+}
+
+impl<E> VmPolicy<E> {
+    fn get_command_priority(&self, name: &str) -> VmPriority {
+        debug_assert!(self.machine.command_defs.contains_key(name));
+        self.priority_map.get(name).copied().unwrap_or_default()
+    }
+}
+
 impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     type Action<'a> = VmAction<'a>;
     type Effect = VmEffect;
@@ -438,7 +494,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             error!("Could not deserialize: {e:?}");
             EngineError::Read
         })?;
-        let command_info = {
+        let (command_info, expected_priority) = {
             match unpacked {
                 VmProtocolData::Init {
                     author_id,
@@ -446,38 +502,53 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                     serialized_fields,
                     signature,
                     ..
-                } => Some((
-                    Envelope {
-                        parent_id: CommandId::default(),
+                } => (
+                    Some((
+                        Envelope {
+                            parent_id: CommandId::default(),
+                            author_id,
+                            command_id: command.id(),
+                            payload: Cow::Borrowed(serialized_fields),
+                            signature: Cow::Borrowed(signature),
+                        },
+                        kind,
                         author_id,
-                        command_id: command.id(),
-                        payload: Cow::Borrowed(serialized_fields),
-                        signature: Cow::Borrowed(signature),
-                    },
-                    kind,
-                    author_id,
-                )),
+                    )),
+                    Priority::Init,
+                ),
                 VmProtocolData::Basic {
                     parent,
                     kind,
                     author_id,
                     serialized_fields,
                     signature,
-                } => Some((
-                    Envelope {
-                        parent_id: parent.id,
+                } => (
+                    Some((
+                        Envelope {
+                            parent_id: parent.id,
+                            author_id,
+                            command_id: command.id(),
+                            payload: Cow::Borrowed(serialized_fields),
+                            signature: Cow::Borrowed(signature),
+                        },
+                        kind,
                         author_id,
-                        command_id: command.id(),
-                        payload: Cow::Borrowed(serialized_fields),
-                        signature: Cow::Borrowed(signature),
-                    },
-                    kind,
-                    author_id,
-                )),
+                    )),
+                    self.get_command_priority(kind).into(),
+                ),
                 // Merges always pass because they're an artifact of the graph
-                _ => None,
+                _ => (None, Priority::Merge),
             }
         };
+
+        if command.priority() != expected_priority {
+            error!(
+                "Expected priority {:?}, got {:?}",
+                expected_priority,
+                command.priority()
+            );
+            bug!("Command has invalid priority");
+        }
 
         if let Some((envelope, kind, author_id)) = command_info {
             let command_struct = self.open_command(kind, envelope.clone(), facts)?;
@@ -587,6 +658,13 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
                         };
 
+                        let priority = if parent.is_some() {
+                            self.get_command_priority(command_struct.name.as_str())
+                                .into()
+                        } else {
+                            Priority::Init
+                        };
+
                         let data = match parent {
                             None => VmProtocolData::Init {
                                 // TODO(chip): where does the policy value come from?
@@ -605,12 +683,8 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             },
                         };
                         let wrapped = postcard::to_allocvec(&data)?;
-                        let new_command = VmProtocol::new(
-                            &wrapped,
-                            envelope.command_id,
-                            data,
-                            Arc::clone(&self.priority_map),
-                        );
+                        let new_command =
+                            VmProtocol::new(&wrapped, envelope.command_id, data, priority);
 
                         self.call_rule(
                             &new_command,
@@ -668,7 +742,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             error!("{e}");
             EngineError::Write
         })?;
-        Ok(VmProtocol::new(data, id, c, Arc::clone(&self.priority_map)))
+        Ok(VmProtocol::new(data, id, c, Priority::Merge))
     }
 }
 
@@ -698,5 +772,92 @@ struct DebugViaDisplay<T>(T);
 impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use alloc::format;
+
+    use aranya_policy_compiler::Compiler;
+    use aranya_policy_lang::lang::parse_policy_str;
+    use aranya_policy_vm::ast::Version;
+
+    use super::*;
+
+    #[test]
+    fn test_get_command_priorities() {
+        fn process(attrs: &str) -> Result<Option<VmPriority>, AttributeError> {
+            let policy = format!(
+                r#"
+                command Test {{
+                    attributes {{
+                        {attrs}
+                    }}
+                    fields {{ }}
+                    seal {{ return None }}
+                    open {{ return None }}
+                    policy {{ }}
+                }}
+                "#
+            );
+            let ast = parse_policy_str(&policy, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+            let module = Compiler::new(&ast)
+                .compile()
+                .unwrap_or_else(|e| panic!("{e}"));
+            let machine = Machine::from_module(module).expect("can create machine");
+            let priorities = get_command_priorities(&machine)?;
+            Ok(priorities.get("Test").copied())
+        }
+
+        assert_eq!(process(""), Ok(None));
+        assert_eq!(process("finalize: false"), Ok(None));
+
+        assert_eq!(process("priority: 42"), Ok(Some(VmPriority::Basic(42))));
+        assert_eq!(
+            process("finalize: false, priority: 42"),
+            Ok(Some(VmPriority::Basic(42)))
+        );
+        assert_eq!(
+            process("priority: 42, finalize: false"),
+            Ok(Some(VmPriority::Basic(42)))
+        );
+
+        assert_eq!(process("finalize: true"), Ok(Some(VmPriority::Finalize)));
+
+        assert_eq!(
+            process("finalize: 42"),
+            Err(AttributeError::type_mismatch(
+                "Test", "finalize", "Bool", "Int"
+            ))
+        );
+        assert_eq!(
+            process("priority: false"),
+            Err(AttributeError::type_mismatch(
+                "Test", "priority", "Int", "Bool"
+            ))
+        );
+        assert_eq!(
+            process("priority: -1"),
+            Err(AttributeError::int_range(
+                "Test",
+                "priority",
+                u32::MIN.into(),
+                u32::MAX.into(),
+            ))
+        );
+        assert_eq!(
+            process(&format!("priority: {}", i64::MAX)),
+            Err(AttributeError::int_range(
+                "Test",
+                "priority",
+                u32::MIN.into(),
+                u32::MAX.into(),
+            ))
+        );
+        assert_eq!(
+            process("finalize: true, priority: 42"),
+            Err(AttributeError::exclusive("Test", "finalize", "priority"))
+        )
     }
 }
