@@ -440,7 +440,7 @@ mod test {
                 value: HashableValue::Enum(id1.clone(), v1),
             });
             let b2 = ser_key(&FactKey {
-                identifier: identifier,
+                identifier,
                 value: HashableValue::Enum(id2.clone(), v2),
             });
 

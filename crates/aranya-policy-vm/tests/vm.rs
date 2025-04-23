@@ -926,7 +926,7 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         }
 
         action test_query() {
-            let f = unwrap query Bar[i:?] => {x: ?}
+            let f = unwrap query Bar[i:Foo::A] => {x: ?}
             check f.x == Foo::A
         }
     "#;
@@ -948,11 +948,6 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
         rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?
             .success();
     }
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let io = RefCell::new(TestIO::new());
-    let module = Compiler::new(&policy).compile()?;
-    let machine = Machine::from_module(module)?;
 
     {
         let action_name = "test_query";
