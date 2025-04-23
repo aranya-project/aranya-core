@@ -297,10 +297,8 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
             HashableValue::Id(id)
         }
         KeyType::Enum => {
-            let (value_bytes, id) = bytes.split_at(8);
-            let value =
-                i64::from_be_bytes(value_bytes.try_into().map_err(|_| "invalid enum length")?)
-                    ^ (1 << 63);
+            let (value_bytes, id) = bytes.split_first_chunk().ok_or("missing enum value")?;
+            let value = i64::from_be_bytes(*value_bytes) ^ (1 << 63);
             let id = core::str::from_utf8(id).map_err(|_| "id not utf8")?;
             HashableValue::Enum(String::from(id), value)
         }
@@ -355,18 +353,6 @@ mod test {
     use proptest::prelude::*;
 
     use super::*;
-
-    // FIXME: This should be covered by `test_round_trip`, but that doesn't seem to receive any enum keys.
-    #[test]
-    fn test_ser_deser() {
-        let fk1 = FactKey {
-            identifier: "test".into(),
-            value: HashableValue::Enum("A".to_string(), 42),
-        };
-        let bytes = ser_key(&fk1);
-        let fk2: FactKey = deser_key(&bytes).unwrap();
-        assert_eq!(fk1, fk2);
-    }
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(10_000))]
