@@ -12,12 +12,11 @@ use std::{
 };
 
 use anyhow::Result;
-use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
     memory::MemStorageProvider,
     protocol::{TestActions, TestEffect, TestEngine},
-    ClientState, GraphId, Sink, SyncRequester,
+    ClientState, GraphId, Sink,
 };
 use criterion::{criterion_group, criterion_main, Criterion};
 use s2n_quic::Server;
@@ -157,16 +156,10 @@ fn sync_bench(c: &mut Criterion) {
             // Start timing for benchmark
             let start = Instant::now();
             while request_sink.lock().await.count() < iters.try_into().unwrap() {
-                let sync_requester = SyncRequester::new(storage_id, &mut Rng::new(), server2_addr);
                 if let Err(e) = syncer1
                     .lock()
                     .await
-                    .sync(
-                        request_client.lock().await.deref_mut(),
-                        sync_requester,
-                        request_sink.lock().await.deref_mut(),
-                        storage_id,
-                    )
+                    .sync(server2_addr, storage_id, u64::MAX)
                     .await
                 {
                     println!("err: {:?}", e);
