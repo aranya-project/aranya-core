@@ -361,7 +361,11 @@ where
             .state
             .borrow_mut();
 
-        storage_id.insert(state.new_graph(&[0u8], action, &mut sink)?);
+        storage_id.insert(
+            state
+                .new_graph(&[0u8], action, &mut sink)
+                .map(|(id, _)| id)?,
+        );
 
         Ok(sink.effects)
     }

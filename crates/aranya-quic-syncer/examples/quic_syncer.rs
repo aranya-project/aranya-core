@@ -126,7 +126,7 @@ async fn run(options: Opt) -> Result<()> {
     let storage_id;
     if options.new_graph {
         let policy_data = 0_u64.to_be_bytes();
-        storage_id = client
+        (storage_id, _) = client
             .lock()
             .await
             .new_graph(

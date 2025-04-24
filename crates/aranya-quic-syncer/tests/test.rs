@@ -33,7 +33,7 @@ async fn test_sync() -> Result<()> {
     let client2 = make_client();
     let sink2 = Arc::new(TMutex::new(TestSink::new()));
 
-    let storage_id = client1.lock().await.new_graph(
+    let (storage_id, _) = client1.lock().await.new_graph(
         &0u64.to_be_bytes(),
         TestActions::Init(0),
         sink1.lock().await.deref_mut(),
@@ -107,7 +107,7 @@ async fn test_sync_subscribe() -> Result<()> {
         server_addr2.local_addr()?,
     )?));
 
-    let storage_id = client1.lock().await.new_graph(
+    let (storage_id, _) = client1.lock().await.new_graph(
         &0u64.to_be_bytes(),
         TestActions::Init(0),
         sink1.lock().await.deref_mut(),

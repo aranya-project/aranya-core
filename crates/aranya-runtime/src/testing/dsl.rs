@@ -526,7 +526,7 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
-                let storage_id = state.new_graph(
+                let (storage_id, _) = state.new_graph(
                     policy_data.as_slice(),
                     TestActions::Init(policy),
                     &mut sink,

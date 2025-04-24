@@ -77,7 +77,7 @@ where
         policy_data: &[u8],
         action: <E::Policy as Policy>::Action<'_>,
         sink: &mut impl Sink<E::Effect>,
-    ) -> Result<GraphId, ClientError> {
+    ) -> Result<(GraphId, Vec<u8>), ClientError> {
         let policy_id = self.engine.add_policy(policy_data)?;
         let policy = self.engine.get_policy(policy_id)?;
 
@@ -88,9 +88,14 @@ where
             .inspect_err(|_| sink.rollback())?;
         sink.commit();
 
-        let (graph_id, _) = self.provider.new_storage(perspective)?;
+        let (graph_id, storage) = self.provider.new_storage(perspective)?;
 
-        Ok(graph_id)
+        let segment = storage
+            .get_head()
+            .and_then(|location| storage.get_segment(location))?;
+        let init_command = segment.first().bytes().to_vec();
+
+        Ok((graph_id, init_command))
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.

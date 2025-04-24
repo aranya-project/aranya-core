@@ -316,7 +316,7 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
-    let storage_id = cs
+    let (storage_id, _) = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
@@ -379,7 +379,7 @@ pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
     let provider = MemStorageProvider::new();
     let mut cs = ClientState::new(engine, provider);
 
-    let graph = cs
+    let (graph, _) = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
         .expect("could not create graph");
 
@@ -422,7 +422,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
-    let storage_id = cs
+    let (storage_id, _) = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
@@ -575,7 +575,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     let provider = MemStorageProvider::new();
     let mut cs1 = ClientState::new(engine, provider);
     let mut sink = VecSink::new();
-    let storage_id = cs1
+    let (storage_id, _) = cs1
         .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
         .expect("could not create graph");
 
