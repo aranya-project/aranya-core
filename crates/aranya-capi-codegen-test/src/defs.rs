@@ -96,14 +96,17 @@ pub enum Enum {
 }
 
 pub fn test_enum_unit(_a: Enum) {}
-// pub fn test_unit_enum() -> Enum {
-//     Enum::A
-// }
-// pub fn test_enum_enum(a: Enum) -> Enum {
-//     a
-// }
-// pub fn test_enum_result_enum_error(a: Enum) -> Result<Enum, crate::Error> {
-//     Ok(a)
+pub fn test_unit_enum() -> Enum {
+    Enum::A
+}
+pub fn test_enum_enum(a: Enum) -> Enum {
+    a
+}
+pub fn test_enum_result_enum_error(a: Enum) -> Result<Enum, crate::Error> {
+    Ok(a)
+}
+// pub fn test_mut_ref_enum_enum(a: &mut Enum) -> Enum {
+//     a.clone()
 // }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -191,6 +194,15 @@ pub fn test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
 
 pub fn test_slice_u8_unit(_a: &[u8]) {}
 
+// pub fn test_unit_arr() -> [u8; 1] {
+//     [0]
+// }
+pub fn test_ref_arr_u8_unit(_a: &[u8; 64]) {}
+pub fn test_ref_arr_u8_ret(a: &[u8; 64]) -> [u8; 64] {
+    *a
+}
+pub fn test_mut_ref_arr_u8_unit(_a: &mut [u8; 64]) {}
+
 /// Extended error information.
 #[aranya_capi_core::derive(Init, Cleanup)]
 #[aranya_capi_core::opaque(size = 72, align = 8)]
@@ -217,3 +229,17 @@ impl From<&crate::Error> for Error {
         unimplemented!()
     }
 }
+
+#[cfg(feature = "test_cfg")]
+#[repr(transparent)]
+pub struct TestConfigInheritance(u8);
+
+#[cfg(feature = "test_cfg")]
+pub fn test_cfg_inheritance() {}
+
+#[cfg(not(feature = "test_cfg"))]
+#[repr(transparent)]
+pub struct TestConfigInheritance2(u8);
+
+#[cfg(not(feature = "test_cfg"))]
+pub fn test_cfg_inheritance2() {}

@@ -1,5 +1,8 @@
 use alloc::sync::Arc;
-use core::{ffi::c_int, marker::PhantomData};
+use core::{
+    ffi::{c_int, CStr},
+    marker::PhantomData,
+};
 
 use cfg_if::cfg_if;
 
@@ -53,7 +56,7 @@ where
 #[repr(transparent)]
 #[clippy::has_significant_drop]
 pub struct OwnedFd {
-    fd: imp::RawFd,
+    pub(crate) fd: imp::RawFd,
 }
 
 impl AsFd for OwnedFd {
@@ -68,6 +71,58 @@ impl AsFd for OwnedFd {
 impl Drop for OwnedFd {
     fn drop(&mut self) {
         let _ = imp::close(self.fd);
+    }
+}
+
+/// An owned directory stream.
+///
+/// It's closed on drop.
+#[derive(Debug, Eq, PartialEq)]
+#[repr(transparent)]
+#[clippy::has_significant_drop]
+pub struct OwnedDir {
+    fd: imp::RawDir,
+}
+
+/// Information about an entry in a directory.
+///
+/// This is tied to the lifetime of the OwnedDir, and will be invalidated on the
+/// next call to `readdir`.
+#[derive(Debug, Eq, PartialEq)]
+pub struct DirEntry<'dir> {
+    entry: imp::DirEntry,
+    _phantom: PhantomData<&'dir OwnedDir>,
+}
+
+impl OwnedDir {
+    fn readdir(&mut self) -> Result<Option<DirEntry<'_>>, Errno> {
+        let entry = imp::readdir(self.fd)?;
+        Ok(entry.map(|entry| DirEntry {
+            entry,
+            _phantom: PhantomData,
+        }))
+    }
+
+    fn rewinddir(&mut self) {
+        imp::rewinddir(self.fd);
+    }
+}
+
+impl Drop for OwnedDir {
+    fn drop(&mut self) {
+        let _ = imp::closedir(self.fd);
+    }
+}
+
+impl<'dir> DirEntry<'dir> {
+    /// Returns the name for the current entry.
+    #[allow(clippy::cast_possible_wrap)]
+    pub fn name(&self) -> &'dir CStr {
+        // SAFETY: We're far inside of the bounds of both usize and isize
+        const OFFSET: isize = core::mem::offset_of!(libc::dirent, d_name) as isize;
+        // SAFETY: d_name is guaranteed to be null terminated.
+        let name = unsafe { CStr::from_ptr((self.entry.byte_offset(OFFSET)).cast()) };
+        name
     }
 }
 
@@ -131,4 +186,27 @@ pub fn pwrite(fd: impl AsFd, buf: &[u8], off: i64) -> Result<usize, Errno> {
 /// See `fsync(2)`.
 pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
     imp::fsync(fd.as_fd())
+}
+
+/// See `dup(2)`.
+pub fn dup(fd: impl AsFd) -> Result<OwnedFd, Errno> {
+    Ok(OwnedFd {
+        fd: imp::dup(fd.as_fd())?,
+    })
+}
+
+/// See `fdopendir(3p)`.
+pub fn fdopendir(fd: OwnedFd) -> Result<OwnedDir, Errno> {
+    let fd = imp::fdopendir(fd)?;
+    Ok(OwnedDir { fd })
+}
+
+/// See `readdir(3p)`.
+pub fn readdir(dir: &mut OwnedDir) -> Result<Option<DirEntry<'_>>, Errno> {
+    dir.readdir()
+}
+
+/// See `rewinddir(3p)`.
+pub fn rewinddir(dir: &mut OwnedDir) {
+    dir.rewinddir()
 }

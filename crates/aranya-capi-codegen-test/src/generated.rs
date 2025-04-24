@@ -55,13 +55,28 @@ pub enum PrefixError {
     #[capi(msg = "invalid argument")]
     InvalidArg,
 }
+#[repr(transparent)]
+#[cfg(feature = "test_cfg")]
+#[cfg(cbindgen)]
+pub struct PrefixTestConfigInheritance(::core::primitive::u8);
+#[cfg(feature = "test_cfg")]
+#[cfg(not(cbindgen))]
+pub type PrefixTestConfigInheritance = self::__hidden::PrefixTestConfigInheritance;
+#[repr(transparent)]
+#[cfg(not(feature = "test_cfg"))]
+#[cfg(cbindgen)]
+pub struct PrefixTestConfigInheritance2(::core::primitive::u8);
+#[cfg(not(feature = "test_cfg"))]
+#[cfg(not(cbindgen))]
+pub type PrefixTestConfigInheritance2 = self::__hidden::PrefixTestConfigInheritance2;
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit0() {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_unit0() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -69,16 +84,19 @@ fn __tramp_prefix_test_unit_unit0() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_unit0() } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit1() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_unit1() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -86,10 +104,13 @@ fn __tramp_prefix_test_unit_unit1() -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_unit1() } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_result_unit_error() -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -108,6 +129,7 @@ pub extern "C" fn prefix_test_unit_result_unit_error() -> PrefixError {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(__ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err))
@@ -142,10 +164,13 @@ fn __tramp_prefix_test_unit_result_unit_error() -> ::core::result::Result<
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_result_unit_error() } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -153,7 +178,7 @@ pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
     match {
         __tramp_prefix_test_u8_unit(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -161,10 +186,13 @@ fn __tramp_prefix_test_u8_unit(_a: ::core::primitive::u8) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u8_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -174,7 +202,7 @@ pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -182,10 +210,13 @@ fn __tramp_prefix_test_u16_unit(_a: ::core::primitive::u16) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u16_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -195,7 +226,7 @@ pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -203,10 +234,13 @@ fn __tramp_prefix_test_u32_unit(_a: ::core::primitive::u32) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u32_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -216,7 +250,7 @@ pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -224,10 +258,13 @@ fn __tramp_prefix_test_u64_unit(_a: ::core::primitive::u64) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u64_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -237,7 +274,7 @@ pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -245,10 +282,13 @@ fn __tramp_prefix_test_usize_unit(_a: ::core::primitive::usize) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_usize_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -256,7 +296,7 @@ pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
     match {
         __tramp_prefix_test_i8_unit(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -264,10 +304,13 @@ fn __tramp_prefix_test_i8_unit(_a: ::core::primitive::i8) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i8_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -277,7 +320,7 @@ pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -285,10 +328,13 @@ fn __tramp_prefix_test_i16_unit(_a: ::core::primitive::i16) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i16_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -298,7 +344,7 @@ pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -306,10 +352,13 @@ fn __tramp_prefix_test_i32_unit(_a: ::core::primitive::i32) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i32_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -319,7 +368,7 @@ pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -327,10 +376,13 @@ fn __tramp_prefix_test_i64_unit(_a: ::core::primitive::i64) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i64_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -340,7 +392,7 @@ pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -348,10 +400,13 @@ fn __tramp_prefix_test_isize_unit(_a: ::core::primitive::isize) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_isize_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -359,7 +414,7 @@ pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primit
     match {
         __tramp_prefix_test_u8_u8(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -367,10 +422,13 @@ fn __tramp_prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u8_u8(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u16_u16(
     _a: ::core::primitive::u16,
@@ -380,7 +438,7 @@ pub extern "C" fn prefix_test_u16_u16(
     match {
         __tramp_prefix_test_u16_u16(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -388,10 +446,13 @@ fn __tramp_prefix_test_u16_u16(_a: ::core::primitive::u16) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u16_u16(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u32_u32(
     _a: ::core::primitive::u32,
@@ -401,7 +462,7 @@ pub extern "C" fn prefix_test_u32_u32(
     match {
         __tramp_prefix_test_u32_u32(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -409,10 +470,13 @@ fn __tramp_prefix_test_u32_u32(_a: ::core::primitive::u32) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u32_u32(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u64_u64(
     _a: ::core::primitive::u64,
@@ -422,7 +486,7 @@ pub extern "C" fn prefix_test_u64_u64(
     match {
         __tramp_prefix_test_u64_u64(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -430,10 +494,13 @@ fn __tramp_prefix_test_u64_u64(_a: ::core::primitive::u64) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u64_u64(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_usize_usize(
     _a: ::core::primitive::usize,
@@ -445,7 +512,7 @@ pub extern "C" fn prefix_test_usize_usize(
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -455,10 +522,13 @@ fn __tramp_prefix_test_usize_usize(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_usize_usize(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8 {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -466,7 +536,7 @@ pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primit
     match {
         __tramp_prefix_test_i8_i8(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -474,10 +544,13 @@ fn __tramp_prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i8_i8(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i16_i16(
     _a: ::core::primitive::i16,
@@ -487,7 +560,7 @@ pub extern "C" fn prefix_test_i16_i16(
     match {
         __tramp_prefix_test_i16_i16(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -495,10 +568,13 @@ fn __tramp_prefix_test_i16_i16(_a: ::core::primitive::i16) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i16_i16(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i32_i32(
     _a: ::core::primitive::i32,
@@ -508,7 +584,7 @@ pub extern "C" fn prefix_test_i32_i32(
     match {
         __tramp_prefix_test_i32_i32(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -516,10 +592,13 @@ fn __tramp_prefix_test_i32_i32(_a: ::core::primitive::i32) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i32_i32(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i64_i64(
     _a: ::core::primitive::i64,
@@ -529,7 +608,7 @@ pub extern "C" fn prefix_test_i64_i64(
     match {
         __tramp_prefix_test_i64_i64(__capi::internal::util::check_valid_input_ty_val(_a))
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -537,10 +616,13 @@ fn __tramp_prefix_test_i64_i64(_a: ::core::primitive::i64) -> ::core::primitive:
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i64_i64(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_isize_isize(
     _a: ::core::primitive::isize,
@@ -552,7 +634,7 @@ pub extern "C" fn prefix_test_isize_isize(
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -562,10 +644,13 @@ fn __tramp_prefix_test_isize_isize(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_isize_isize(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u8_u8_u8(
     _a: ::core::primitive::u8,
@@ -579,7 +664,7 @@ pub extern "C" fn prefix_test_u8_u8_u8(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -590,10 +675,13 @@ fn __tramp_prefix_test_u8_u8_u8(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u8_u8_u8(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u16_u16_u16(
     _a: ::core::primitive::u16,
@@ -607,7 +695,7 @@ pub extern "C" fn prefix_test_u16_u16_u16(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -618,10 +706,13 @@ fn __tramp_prefix_test_u16_u16_u16(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u16_u16_u16(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u32_u32_u32(
     _a: ::core::primitive::u32,
@@ -635,7 +726,7 @@ pub extern "C" fn prefix_test_u32_u32_u32(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -646,10 +737,13 @@ fn __tramp_prefix_test_u32_u32_u32(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u32_u32_u32(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u64_u64_u64(
     _a: ::core::primitive::u64,
@@ -663,7 +757,7 @@ pub extern "C" fn prefix_test_u64_u64_u64(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -674,10 +768,13 @@ fn __tramp_prefix_test_u64_u64_u64(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_u64_u64_u64(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_usize_usize_usize(
     _a: ::core::primitive::usize,
@@ -691,7 +788,7 @@ pub extern "C" fn prefix_test_usize_usize_usize(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -702,10 +799,13 @@ fn __tramp_prefix_test_usize_usize_usize(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_usize_usize_usize(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i8_i8_i8(
     _a: ::core::primitive::i8,
@@ -719,7 +819,7 @@ pub extern "C" fn prefix_test_i8_i8_i8(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -730,10 +830,13 @@ fn __tramp_prefix_test_i8_i8_i8(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i8_i8_i8(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i16_i16_i16(
     _a: ::core::primitive::i16,
@@ -747,7 +850,7 @@ pub extern "C" fn prefix_test_i16_i16_i16(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -758,10 +861,13 @@ fn __tramp_prefix_test_i16_i16_i16(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i16_i16_i16(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i32_i32_i32(
     _a: ::core::primitive::i32,
@@ -775,7 +881,7 @@ pub extern "C" fn prefix_test_i32_i32_i32(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -786,10 +892,13 @@ fn __tramp_prefix_test_i32_i32_i32(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i32_i32_i32(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i64_i64_i64(
     _a: ::core::primitive::i64,
@@ -803,7 +912,7 @@ pub extern "C" fn prefix_test_i64_i64_i64(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -814,10 +923,13 @@ fn __tramp_prefix_test_i64_i64_i64(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_i64_i64_i64(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_isize_isize_isize(
     _a: ::core::primitive::isize,
@@ -831,7 +943,7 @@ pub extern "C" fn prefix_test_isize_isize_isize(
             __capi::internal::util::check_valid_input_ty_val(_b),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -842,10 +954,13 @@ fn __tramp_prefix_test_isize_isize_isize(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_isize_isize_isize(_a, _b) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_enum_unit(_a: PrefixEnum) -> PrefixError {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -868,6 +983,7 @@ pub extern "C" fn prefix_test_enum_unit(_a: PrefixEnum) -> PrefixError {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -914,10 +1030,257 @@ fn __tramp_prefix_test_enum_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_enum_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(level = "trace")]
+pub extern "C" fn prefix_test_unit_enum() -> PrefixEnum {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { __tramp_prefix_test_unit_enum() } {
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_unit_enum() -> PrefixEnum {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_unit_enum() } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => PrefixEnum::from(__pattern),
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = ::tracing::field::Empty,
+        __output = %__capi::internal::util::Addr::from_ptr(__output)
+    )
+)]
+pub extern "C" fn prefix_test_enum_enum(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_enum_enum(
+            __capi::internal::util::check_valid_input_ty_val(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = ::tracing::field::Empty,
+        __output = %__capi::internal::util::Addr::from_ptr(__output),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_enum_enum_ext(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_enum_enum(
+            __capi::internal::util::check_valid_input_ty_val(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_enum_enum(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    #[allow(clippy::let_with_type_underscore)]
+    let a: _ = {
+        let a = __capi::try_as_enum!(crate ::defs::Enum, a);
+        __capi::to_inner!(a)
+    };
+    #[allow(clippy::let_with_type_underscore)]
+    let __output: &mut ::core::mem::MaybeUninit<_> = {
+        let __output = __capi::try_as_uninit_mut!(__output);
+        __capi::to_inner_mut!(__output)
+    };
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_enum_enum(a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => {
+            ::core::mem::MaybeUninit::write(__output, __pattern.into());
+            ::core::result::Result::Ok(())
+        }
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = ::tracing::field::Empty,
+        __output = %__capi::internal::util::Addr::from_ptr(__output)
+    )
+)]
+pub extern "C" fn prefix_test_enum_result_enum_error(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_enum_result_enum_error(
+            __capi::internal::util::check_valid_input_ty_val(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    match __pattern {
+                        ::core::result::Result::Ok(()) => {
+                            <PrefixError as __capi::ErrorCode>::SUCCESS
+                        }
+                        ::core::result::Result::Err(ref err) => {
+                            __capi::internal::error::convert_err(err)
+                        }
+                    }
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = ::tracing::field::Empty,
+        __output = %__capi::internal::util::Addr::from_ptr(__output),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_enum_result_enum_error_ext(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_enum_result_enum_error(
+            __capi::internal::util::check_valid_input_ty_val(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    match __pattern {
+                        ::core::result::Result::Ok(()) => {
+                            <PrefixError as __capi::ErrorCode>::SUCCESS
+                        }
+                        ::core::result::Result::Err(err) => {
+                            type __ExtErrTy = PrefixExtError;
+                            __capi::internal::error::handle_ext_error(
+                                err,
+                                __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                            )
+                        }
+                    }
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_enum_result_enum_error(
+    a: PrefixEnum,
+    __output: *mut ::core::mem::MaybeUninit<PrefixEnum>,
+) -> ::core::result::Result<
+    ::core::result::Result<(), crate::Error>,
+    __capi::InvalidArg<'static>,
+> {
+    #[allow(clippy::let_with_type_underscore)]
+    let a: _ = {
+        let a = __capi::try_as_enum!(crate ::defs::Enum, a);
+        __capi::to_inner!(a)
+    };
+    #[allow(clippy::let_with_type_underscore)]
+    let __output: &mut ::core::mem::MaybeUninit<_> = {
+        let __output = __capi::try_as_uninit_mut!(__output);
+        __capi::to_inner_mut!(__output)
+    };
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_enum_result_enum_error(a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    ::core::mem::MaybeUninit::write(__output, __pattern.into());
+                    ::core::result::Result::Ok(::core::result::Result::Ok(()))
+                }
+                ::core::result::Result::Err(err) => {
+                    ::core::result::Result::Ok(::core::result::Result::Err(err))
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_unit(_a: PrefixStruct) {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -927,7 +1290,7 @@ pub extern "C" fn prefix_test_struct_unit(_a: PrefixStruct) {
             __capi::internal::util::check_valid_input_ty_val(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -937,16 +1300,19 @@ fn __tramp_prefix_test_struct_unit(_a: PrefixStruct) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_struct_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_struct() -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { __tramp_prefix_test_unit_struct() } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -954,6 +1320,8 @@ fn __tramp_prefix_test_unit_struct() -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_struct() } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
         __pattern => {
             type __Result = PrefixStruct;
             __capi::from_inner!(__pattern => __Result)
@@ -961,6 +1329,7 @@ fn __tramp_prefix_test_unit_struct() -> PrefixStruct {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -986,6 +1355,7 @@ pub extern "C" fn prefix_test_ref_struct_unit(_a: *const PrefixStruct) -> Prefix
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1032,10 +1402,13 @@ fn __tramp_prefix_test_ref_struct_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ref_struct_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1048,7 +1421,7 @@ pub extern "C" fn prefix_test_ptr_struct_unit(_a: *const PrefixStruct) {
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1058,10 +1431,13 @@ fn __tramp_prefix_test_ptr_struct_unit(_a: *const PrefixStruct) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ptr_struct_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
@@ -1071,7 +1447,7 @@ pub extern "C" fn prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
             __capi::internal::util::check_valid_input_ty_val(a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1081,6 +1457,8 @@ fn __tramp_prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_struct_struct(a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
         __pattern => {
             type __Result = PrefixStruct;
             __capi::from_inner!(__pattern => __Result)
@@ -1088,6 +1466,7 @@ fn __tramp_prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(__output = %__capi::internal::util::Addr::from_ptr(__output))
@@ -1122,6 +1501,7 @@ pub extern "C" fn prefix_test_unit_result_struct_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1182,10 +1562,12 @@ fn __tramp_prefix_test_unit_result_struct_error(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_result_struct_error() } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
         __pattern => {
             match __pattern {
                 ::core::result::Result::Ok(__pattern) => {
-                    ::core::mem::MaybeUninit::write(__output, __pattern);
+                    ::core::mem::MaybeUninit::write(__output, __pattern.into());
                     ::core::result::Result::Ok(::core::result::Result::Ok(()))
                 }
                 ::core::result::Result::Err(err) => {
@@ -1196,6 +1578,7 @@ fn __tramp_prefix_test_unit_result_struct_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1223,6 +1606,7 @@ pub extern "C" fn prefix_test_optional_ref_struct(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1269,10 +1653,13 @@ fn __tramp_prefix_test_optional_ref_struct(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_optional_ref_struct(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1300,6 +1687,7 @@ pub extern "C" fn prefix_test_optional_mut_ref_struct(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1346,10 +1734,13 @@ fn __tramp_prefix_test_optional_mut_ref_struct(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_optional_mut_ref_struct(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1377,6 +1768,7 @@ pub extern "C" fn prefix_test_ref_safestruct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1423,10 +1815,13 @@ fn __tramp_prefix_test_ref_safestruct_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ref_safestruct_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1439,7 +1834,7 @@ pub extern "C" fn prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) {
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1449,10 +1844,13 @@ fn __tramp_prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) -> () {
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ptr_safestruct_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(__output = %__capi::internal::util::Addr::from_ptr(__output))
@@ -1487,6 +1885,7 @@ pub extern "C" fn prefix_test_unit_result_safestruct_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1547,10 +1946,12 @@ fn __tramp_prefix_test_unit_result_safestruct_error(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_unit_result_safestruct_error() } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
         __pattern => {
             match __pattern {
                 ::core::result::Result::Ok(__pattern) => {
-                    ::core::mem::MaybeUninit::write(__output, __pattern);
+                    ::core::mem::MaybeUninit::write(__output, __pattern.into());
                     ::core::result::Result::Ok(::core::result::Result::Ok(()))
                 }
                 ::core::result::Result::Err(err) => {
@@ -1561,6 +1962,7 @@ fn __tramp_prefix_test_unit_result_safestruct_error(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1588,6 +1990,7 @@ pub extern "C" fn prefix_test_ownedptr_u32_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1634,10 +2037,13 @@ fn __tramp_prefix_test_ownedptr_u32_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_u32_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1665,6 +2071,7 @@ pub extern "C" fn prefix_test_ownedptr_struct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1711,10 +2118,13 @@ fn __tramp_prefix_test_ownedptr_struct_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_struct_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1742,6 +2152,7 @@ pub extern "C" fn prefix_test_ownedptr_safestruct_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1788,10 +2199,13 @@ fn __tramp_prefix_test_ownedptr_safestruct_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ownedptr_safestruct_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
@@ -1806,7 +2220,7 @@ pub extern "C" fn prefix_test_ptr_ptr_ptr_ptr_u32_unit(
             __capi::internal::util::check_valid_input_ty_const_ptr(_a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1816,10 +2230,13 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_unit(_a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(a = %__capi::internal::util::Addr::from_ptr(a))
@@ -1834,7 +2251,7 @@ pub extern "C" fn prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
             __capi::internal::util::check_valid_input_ty_const_ptr(a),
         )
     } {
-        __pattern => __pattern,
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
     }
 }
 #[allow(clippy::unused_unit)]
@@ -1844,10 +2261,13 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(a) } {
-        __pattern => __pattern,
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(_a = %__capi::internal::util::Addr::from_ptr(_a), _a_len = _a_len)
@@ -1877,6 +2297,7 @@ pub extern "C" fn prefix_test_slice_u8_unit(
     }
 }
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -1927,7 +2348,253 @@ fn __tramp_prefix_test_slice_u8_unit(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { crate::defs::test_slice_u8_unit(_a) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
+)]
+pub extern "C" fn prefix_test_ref_arr_u8_unit(_a: *const [u8; 64]) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_ref_arr_u8_unit(
+            __capi::internal::util::check_valid_input_ty_const_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        _a = %__capi::internal::util::Addr::from_ptr(_a),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_ref_arr_u8_unit_ext(
+    _a: *const [u8; 64],
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_ref_arr_u8_unit(
+            __capi::internal::util::check_valid_input_ty_const_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_ref_arr_u8_unit(
+    _a: *const [u8; 64],
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    let _a: &[u8; 64] = __capi::try_as_ref!(_a);
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_ref_arr_u8_unit(_a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = %__capi::internal::util::Addr::from_ptr(a),
+        __output = %__capi::internal::util::Addr::from_ptr(__output)
+    )
+)]
+pub extern "C" fn prefix_test_ref_arr_u8_ret(
+    a: *const [u8; 64],
+    __output: *mut ::core::mem::MaybeUninit<[u8; 64]>,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_ref_arr_u8_ret(
+            __capi::internal::util::check_valid_input_ty_const_ptr(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        a = %__capi::internal::util::Addr::from_ptr(a),
+        __output = %__capi::internal::util::Addr::from_ptr(__output),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_ref_arr_u8_ret_ext(
+    a: *const [u8; 64],
+    __output: *mut ::core::mem::MaybeUninit<[u8; 64]>,
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_ref_arr_u8_ret(
+            __capi::internal::util::check_valid_input_ty_const_ptr(a),
+            __capi::internal::util::check_valid_input_ty_mut_ptr(__output),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_ref_arr_u8_ret(
+    a: *const [u8; 64],
+    __output: *mut ::core::mem::MaybeUninit<[u8; 64]>,
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    let a: &[u8; 64] = __capi::try_as_ref!(a);
+    #[allow(clippy::let_with_type_underscore)]
+    let __output: &mut ::core::mem::MaybeUninit<[u8; 64]> = {
+        let __output = __capi::try_as_uninit_mut!(__output);
+        __capi::to_inner_mut!(__output)
+    };
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_ref_arr_u8_ret(a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => {
+            ::core::mem::MaybeUninit::write(__output, __pattern.into());
+            ::core::result::Result::Ok(())
+        }
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(_a = %__capi::internal::util::Addr::from_ptr(_a))
+)]
+pub extern "C" fn prefix_test_mut_ref_arr_u8_unit(_a: *mut [u8; 64]) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_mut_ref_arr_u8_unit(
+            __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(ref err) => {
+                    __capi::internal::error::convert_err(err)
+                }
+            }
+        }
+    }
+}
+#[no_mangle]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(
+    level = "trace",
+    fields(
+        _a = %__capi::internal::util::Addr::from_ptr(_a),
+        __ext_err = %__capi::internal::util::Addr::from_ptr(__ext_err)
+    )
+)]
+pub extern "C" fn prefix_test_mut_ref_arr_u8_unit_ext(
+    _a: *mut [u8; 64],
+    __ext_err: *mut PrefixExtError,
+) -> PrefixError {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match {
+        __tramp_prefix_test_mut_ref_arr_u8_unit(
+            __capi::internal::util::check_valid_input_ty_mut_ptr(_a),
+        )
+    } {
+        __pattern => {
+            match __pattern {
+                ::core::result::Result::Ok(__pattern) => {
+                    <PrefixError as __capi::ErrorCode>::SUCCESS
+                }
+                ::core::result::Result::Err(err) => {
+                    type __ExtErrTy = PrefixExtError;
+                    __capi::internal::error::handle_ext_error(
+                        err,
+                        __capi::from_inner_mut_ptr!(__ext_err => __ExtErrTy),
+                    )
+                }
+            }
+        }
+    }
+}
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_mut_ref_arr_u8_unit(
+    _a: *mut [u8; 64],
+) -> ::core::result::Result<(), __capi::InvalidArg<'static>> {
+    let _a: &mut [u8; 64] = __capi::try_as_mut!(_a);
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_mut_ref_arr_u8_unit(_a) } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 /// Initializes `PrefixExtError`.
@@ -1937,6 +2604,7 @@ fn __tramp_prefix_test_slice_u8_unit(
 ///
 /// @relates PrefixExtError
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(out = %__capi::internal::util::Addr::from_ptr(out))
@@ -1977,6 +2645,7 @@ pub extern "C" fn prefix_ext_error_init(
 ///
 /// @relates PrefixExtError
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2035,7 +2704,9 @@ fn __tramp_prefix_ext_error_init(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { self::ext_error_init(out) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[::tracing::instrument(fields(out = %__capi::internal::util::Addr::from_mut(out)))]
@@ -2051,6 +2722,7 @@ fn ext_error_init(
 ///
 /// @relates PrefixExtError
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(ptr = %__capi::internal::util::Addr::from_ptr(ptr))
@@ -2088,6 +2760,7 @@ pub extern "C" fn prefix_ext_error_cleanup(ptr: *mut PrefixExtError) -> PrefixEr
 ///
 /// @relates PrefixExtError
 #[no_mangle]
+#[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
     fields(
@@ -2146,7 +2819,9 @@ fn __tramp_prefix_ext_error_cleanup(
     #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
     #[allow(unused_braces)]
     match { self::ext_error_cleanup(ptr) } {
-        __pattern => ::core::result::Result::Ok(__pattern),
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
 #[__capi::internal::tracing::instrument(
@@ -2161,6 +2836,50 @@ fn ext_error_cleanup(
         }
     }
     ::core::result::Result::Ok(())
+}
+#[no_mangle]
+#[cfg(feature = "test_cfg")]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(level = "trace")]
+pub extern "C" fn prefix_test_cfg_inheritance() {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { __tramp_prefix_test_cfg_inheritance() } {
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
+    }
+}
+#[cfg(feature = "test_cfg")]
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_cfg_inheritance() -> () {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_cfg_inheritance() } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
+    }
+}
+#[no_mangle]
+#[cfg(not(feature = "test_cfg"))]
+#[deny(improper_ctypes_definitions)]
+#[::tracing::instrument(level = "trace")]
+pub extern "C" fn prefix_test_cfg_inheritance2() {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { __tramp_prefix_test_cfg_inheritance2() } {
+        __pattern => __capi::internal::util::check_valid_output_ty(__pattern),
+    }
+}
+#[cfg(not(feature = "test_cfg"))]
+#[allow(clippy::unused_unit)]
+fn __tramp_prefix_test_cfg_inheritance2() -> () {
+    #[allow(clippy::blocks_in_conditions)] #[allow(clippy::match_single_binding)]
+    #[allow(unused_braces)]
+    match { crate::defs::test_cfg_inheritance2() } {
+        #[allow(clippy::useless_conversion)]
+        #[allow(clippy::unit_arg)]
+        __pattern => __pattern.into(),
+    }
 }
 #[cfg(not(cbindgen))]
 #[repr(transparent)]
@@ -2217,6 +2936,11 @@ mod __hidden {
         /// invalid representations, so it is FFI safe.
         #[automatically_derived]
         unsafe impl __capi::types::ByValue for PrefixEnum {}
+        /// SAFETY: The type is a unit-only enumeration
+        /// with a `#[repr(...)]`, and we check for
+        /// invalid representations, so it is FFI safe.
+        #[automatically_derived]
+        unsafe impl __capi::types::ByMutPtr for PrefixEnum {}
         #[automatically_derived]
         impl<T> ::core::convert::From<T> for PrefixEnum
         where
@@ -2241,17 +2965,20 @@ mod __hidden {
             }
         }
     };
+    #[cfg(not(cbindgen))]
     pub type PrefixStruct = __PrefixStructFfiWrapper<
         crate::defs::Struct,
         ::core::primitive::u32,
     >;
     #[repr(transparent)]
     #[derive(Debug)]
+    #[cfg(not(cbindgen))]
     pub struct __PrefixStructFfiWrapper<Inner, _0> {
         pub inner: Inner,
         _0: ::core::marker::PhantomData<_0>,
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> __capi::InitDefault for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: __capi::InitDefault,
@@ -2266,11 +2993,13 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> ::core::marker::Copy for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> ::core::clone::Clone for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: ::core::clone::Clone,
@@ -2283,6 +3012,7 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> ::core::ops::Deref for __PrefixStructFfiWrapper<Inner, _0> {
         type Target = Inner;
         fn deref(&self) -> &Self::Target {
@@ -2290,12 +3020,14 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> ::core::ops::DerefMut for __PrefixStructFfiWrapper<Inner, _0> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.inner
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> __capi::Builder for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: __capi::Builder,
@@ -2310,38 +3042,45 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<_0> __capi::internal::conv::newtype::NewType
     for __PrefixStructFfiWrapper<crate::defs::Struct, _0> {
         type Inner = crate::defs::Struct;
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner, _0> __capi::types::Opaque for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: __capi::types::Opaque,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner, _0> __capi::types::Input for __PrefixStructFfiWrapper<Inner, _0>
     where
         _0: __capi::types::Input,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner, _0> __capi::types::ByValue for __PrefixStructFfiWrapper<Inner, _0>
     where
         Inner: ::core::marker::Copy,
         _0: __capi::types::ByValue,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner, _0> __capi::types::ByConstPtr
     for __PrefixStructFfiWrapper<Inner, _0>
     where
         _0: __capi::types::ByConstPtr,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner, _0> __capi::types::ByMutPtr
     for __PrefixStructFfiWrapper<Inner, _0>
     where
         _0: __capi::types::ByMutPtr,
     {}
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: usize = ::core::mem::size_of::<PrefixStruct>();
         const WANT: usize = ::core::mem::size_of::<crate::defs::Struct>();
@@ -2350,6 +3089,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: usize = ::core::mem::align_of::<PrefixStruct>();
         const WANT: usize = ::core::mem::align_of::<crate::defs::Struct>();
@@ -2358,6 +3098,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: bool = ::core::mem::needs_drop::<PrefixStruct>();
         const WANT: bool = ::core::mem::needs_drop::<crate::defs::Struct>();
@@ -2366,13 +3107,16 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     pub type PrefixSafeStruct = __PrefixSafeStructFfiWrapper<crate::defs::SafeStruct>;
     #[repr(transparent)]
     #[derive(Debug)]
+    #[cfg(not(cbindgen))]
     pub struct __PrefixSafeStructFfiWrapper<Inner> {
         pub inner: Inner,
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::InitDefault for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: __capi::InitDefault,
@@ -2387,11 +3131,13 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::marker::Copy for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::clone::Clone for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: ::core::clone::Clone,
@@ -2403,6 +3149,7 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::ops::Deref for __PrefixSafeStructFfiWrapper<Inner> {
         type Target = Inner;
         fn deref(&self) -> &Self::Target {
@@ -2410,12 +3157,14 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> ::core::ops::DerefMut for __PrefixSafeStructFfiWrapper<Inner> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.inner
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::Builder for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: __capi::Builder,
@@ -2430,27 +3179,34 @@ mod __hidden {
         }
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl __capi::internal::conv::newtype::NewType
     for __PrefixSafeStructFfiWrapper<crate::defs::SafeStruct> {
         type Inner = crate::defs::SafeStruct;
     }
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     impl<Inner> __capi::types::Opaque for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: __capi::types::Opaque,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::Input for __PrefixSafeStructFfiWrapper<Inner> {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByValue for __PrefixSafeStructFfiWrapper<Inner>
     where
         Inner: ::core::marker::Copy,
     {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByConstPtr
     for __PrefixSafeStructFfiWrapper<Inner> {}
     #[automatically_derived]
+    #[cfg(not(cbindgen))]
     unsafe impl<Inner> __capi::types::ByMutPtr for __PrefixSafeStructFfiWrapper<Inner> {}
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: usize = ::core::mem::size_of::<PrefixSafeStruct>();
         const WANT: usize = ::core::mem::size_of::<crate::defs::SafeStruct>();
@@ -2459,6 +3215,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: usize = ::core::mem::align_of::<PrefixSafeStruct>();
         const WANT: usize = ::core::mem::align_of::<crate::defs::SafeStruct>();
@@ -2467,6 +3224,7 @@ mod __hidden {
         );
         ::core::assert!(GOT == WANT, "{}", MSG);
     };
+    #[cfg(not(cbindgen))]
     const _: () = {
         const GOT: bool = ::core::mem::needs_drop::<PrefixSafeStruct>();
         const WANT: bool = ::core::mem::needs_drop::<crate::defs::SafeStruct>();
@@ -2625,6 +3383,11 @@ mod __hidden {
         /// invalid representations, so it is FFI safe.
         #[automatically_derived]
         unsafe impl __capi::types::ByValue for PrefixError {}
+        /// SAFETY: The type is a unit-only enumeration
+        /// with a `#[repr(...)]`, and we check for
+        /// invalid representations, so it is FFI safe.
+        #[automatically_derived]
+        unsafe impl __capi::types::ByMutPtr for PrefixError {}
         #[automatically_derived]
         impl<T> ::core::convert::From<T> for PrefixError
         where
@@ -2637,5 +3400,313 @@ mod __hidden {
                 Self::from_underlying(other)
             }
         }
+    };
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    pub type PrefixTestConfigInheritance = __PrefixTestConfigInheritanceFfiWrapper<
+        crate::defs::TestConfigInheritance,
+    >;
+    #[repr(transparent)]
+    #[derive(Debug)]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    pub struct __PrefixTestConfigInheritanceFfiWrapper<Inner> {
+        pub inner: Inner,
+    }
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    impl<Inner> __capi::InitDefault for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: __capi::InitDefault,
+    {
+        fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
+            <Inner as __capi::InitDefault>::init_default(unsafe {
+                ::core::mem::transmute::<
+                    &mut ::core::mem::MaybeUninit<Self>,
+                    &mut ::core::mem::MaybeUninit<Inner>,
+                >(out)
+            })
+        }
+    }
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    impl<Inner> ::core::marker::Copy for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    impl<Inner> ::core::clone::Clone for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: ::core::clone::Clone,
+    {
+        fn clone(&self) -> Self {
+            Self {
+                inner: ::core::clone::Clone::clone(&self.inner),
+            }
+        }
+    }
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    impl<Inner> ::core::ops::Deref for __PrefixTestConfigInheritanceFfiWrapper<Inner> {
+        type Target = Inner;
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
+    }
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    impl<Inner> ::core::ops::DerefMut
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.inner
+        }
+    }
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    impl<Inner> __capi::Builder for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: __capi::Builder,
+    {
+        type Output = <Inner as __capi::Builder>::Output;
+        type Error = <Inner as __capi::Builder>::Error;
+        unsafe fn build(
+            self,
+            out: &mut ::core::mem::MaybeUninit<Self::Output>,
+        ) -> ::core::result::Result<(), Self::Error> {
+            unsafe { __capi::Builder::build(self.inner, out) }
+        }
+    }
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    unsafe impl __capi::internal::conv::newtype::NewType
+    for __PrefixTestConfigInheritanceFfiWrapper<crate::defs::TestConfigInheritance> {
+        type Inner = crate::defs::TestConfigInheritance;
+    }
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    impl<Inner> __capi::types::Opaque for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: __capi::types::Opaque,
+    {}
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner> __capi::types::Input
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner> __capi::types::ByValue
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner> __capi::types::ByConstPtr
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
+    #[automatically_derived]
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner> __capi::types::ByMutPtr
+    for __PrefixTestConfigInheritanceFfiWrapper<Inner> {}
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::size_of::<PrefixTestConfigInheritance>();
+        const WANT: usize = ::core::mem::size_of::<crate::defs::TestConfigInheritance>();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid size: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::align_of::<PrefixTestConfigInheritance>();
+        const WANT: usize = ::core::mem::align_of::<
+            crate::defs::TestConfigInheritance,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid alignment: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(feature = "test_cfg")]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: bool = ::core::mem::needs_drop::<PrefixTestConfigInheritance>();
+        const WANT: bool = ::core::mem::needs_drop::<
+            crate::defs::TestConfigInheritance,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid `Drop` impl: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    pub type PrefixTestConfigInheritance2 = __PrefixTestConfigInheritance2FfiWrapper<
+        crate::defs::TestConfigInheritance2,
+    >;
+    #[repr(transparent)]
+    #[derive(Debug)]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    pub struct __PrefixTestConfigInheritance2FfiWrapper<Inner> {
+        pub inner: Inner,
+    }
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    impl<Inner> __capi::InitDefault for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: __capi::InitDefault,
+    {
+        fn init_default(out: &mut ::core::mem::MaybeUninit<Self>) {
+            <Inner as __capi::InitDefault>::init_default(unsafe {
+                ::core::mem::transmute::<
+                    &mut ::core::mem::MaybeUninit<Self>,
+                    &mut ::core::mem::MaybeUninit<Inner>,
+                >(out)
+            })
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    impl<Inner> ::core::marker::Copy for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    impl<Inner> ::core::clone::Clone for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: ::core::clone::Clone,
+    {
+        fn clone(&self) -> Self {
+            Self {
+                inner: ::core::clone::Clone::clone(&self.inner),
+            }
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    impl<Inner> ::core::ops::Deref for __PrefixTestConfigInheritance2FfiWrapper<Inner> {
+        type Target = Inner;
+        fn deref(&self) -> &Self::Target {
+            &self.inner
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    impl<Inner> ::core::ops::DerefMut
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner> {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.inner
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    impl<Inner> __capi::Builder for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: __capi::Builder,
+    {
+        type Output = <Inner as __capi::Builder>::Output;
+        type Error = <Inner as __capi::Builder>::Error;
+        unsafe fn build(
+            self,
+            out: &mut ::core::mem::MaybeUninit<Self::Output>,
+        ) -> ::core::result::Result<(), Self::Error> {
+            unsafe { __capi::Builder::build(self.inner, out) }
+        }
+    }
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    unsafe impl __capi::internal::conv::newtype::NewType
+    for __PrefixTestConfigInheritance2FfiWrapper<crate::defs::TestConfigInheritance2> {
+        type Inner = crate::defs::TestConfigInheritance2;
+    }
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    impl<Inner> __capi::types::Opaque for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: __capi::types::Opaque,
+    {}
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner> __capi::types::Input
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner> __capi::types::ByValue
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner>
+    where
+        Inner: ::core::marker::Copy,
+    {}
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner> __capi::types::ByConstPtr
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
+    #[automatically_derived]
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    unsafe impl<Inner> __capi::types::ByMutPtr
+    for __PrefixTestConfigInheritance2FfiWrapper<Inner> {}
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::size_of::<PrefixTestConfigInheritance2>();
+        const WANT: usize = ::core::mem::size_of::<
+            crate::defs::TestConfigInheritance2,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid size: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: usize = ::core::mem::align_of::<PrefixTestConfigInheritance2>();
+        const WANT: usize = ::core::mem::align_of::<
+            crate::defs::TestConfigInheritance2,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid alignment: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
+    };
+    #[cfg(not(feature = "test_cfg"))]
+    #[cfg(not(cbindgen))]
+    const _: () = {
+        const GOT: bool = ::core::mem::needs_drop::<PrefixTestConfigInheritance2>();
+        const WANT: bool = ::core::mem::needs_drop::<
+            crate::defs::TestConfigInheritance2,
+        >();
+        const MSG: &str = __capi::internal::const_format::formatcp!(
+            "BUG: invalid `Drop` impl: {GOT} != {WANT}"
+        );
+        ::core::assert!(GOT == WANT, "{}", MSG);
     };
 }

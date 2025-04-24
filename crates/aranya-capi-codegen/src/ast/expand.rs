@@ -1,4 +1,4 @@
-use std::{iter::Peekable, mem, slice};
+use std::{collections::HashMap, iter::Peekable, mem, slice};
 
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens, TokenStreamExt};
@@ -10,7 +10,7 @@ use syn::{
 };
 use tracing::{debug, instrument, trace};
 
-use super::Ast;
+use super::{Ast, IdentMap};
 use crate::{
     ctx::Ctx,
     syntax::{
@@ -240,6 +240,14 @@ impl Ast {
                 unsafe impl #capi::types::ByValue for #name {}
             });
 
+            items.push(parse_quote! {
+                /// SAFETY: The type is a unit-only enumeration
+                /// with a `#[repr(...)]`, and we check for
+                /// invalid representations, so it is FFI safe.
+                #[automatically_derived]
+                unsafe impl #capi::types::ByMutPtr for #name {}
+            });
+
             // Forward `From` impls needed to implement
             // `ErrorCode`.
             items.push(parse_quote! {
@@ -467,6 +475,7 @@ impl Ast {
         let err_ty = &ctx.err_ty;
 
         let doc = &f.doc;
+        let ctype_attr = parse_quote!(#[deny(improper_ctypes_definitions)]);
         let attrs = &f
             .attrs
             .iter()
@@ -474,6 +483,7 @@ impl Ast {
                 // TODO(eric): other attrs?
                 attr.path().is_ident("cfg")
             })
+            .chain(std::iter::once(&ctype_attr))
             .collect::<Vec<_>>();
 
         // Rewrite the inputs for the `extern "C"` functions and
@@ -562,7 +572,7 @@ impl Ast {
             };
 
             let pattern = format_ident!("__pattern");
-            let result = &f
+            let result = f
                 .sig
                 .output
                 .inner_type()
@@ -572,10 +582,10 @@ impl Ast {
                         // parameters which are already cast.
                         None
                     } else {
-                        cast_output_ty(ctx, ty, &pattern)
+                        cast_output_ty(ctx, ty, &pattern, &self.types, &self.idents)
                     }
                 })
-                .unwrap_or_else(|| quote!(#pattern));
+                .unwrap_or_else(|| quote!(#pattern.into()));
 
             let block = if f_is_infallible {
                 // Output params are `*mut T`, which should make
@@ -711,6 +721,8 @@ impl Ast {
                     #[allow(clippy::match_single_binding)]
                     #[allow(unused_braces)]
                     match #unsafety { #orig(#(#args),*) } {
+                        #[allow(clippy::useless_conversion)]
+                        #[allow(clippy::unit_arg)]
                         #pattern => { #block }
                     }
                 }
@@ -732,7 +744,8 @@ impl Ast {
             let block = if f_is_infallible {
                 // It's infallible, so just return the result
                 // directly.
-                quote!(#pattern)
+                let util = &ctx.util;
+                quote!(#util::check_valid_output_ty(#pattern))
             } else {
                 let success = if f.sig.output.is_result() {
                     quote! {
@@ -821,7 +834,8 @@ impl Ast {
                 let block = if f_is_infallible {
                     // It's infallible, so just return the result
                     // directly.
-                    quote!(#pattern)
+                    let util = &ctx.util;
+                    quote!(#util::check_valid_output_ty(#pattern))
                 } else {
                     // We have an output parameter, so we either
                     // return nothing or an error.
@@ -1490,9 +1504,25 @@ fn unpack_newtype_glue(ctx: &Ctx, arg: &ExpandedArg) -> Option<Expr> {
 }
 
 /// Cast a trampoline's result.
-fn cast_output_ty(ctx: &Ctx, ty: &Type, ident: &Ident) -> Option<TokenStream> {
+fn cast_output_ty(
+    ctx: &Ctx,
+    ty: &Type,
+    ident: &Ident,
+    types: &HashMap<Ident, Node>,
+    idents: &IdentMap,
+) -> Option<TokenStream> {
     let (mac, named) = match ty {
-        Type::Named(named) => (quote!(from_inner), named),
+        Type::Named(named) => {
+            let new_name: &Ident = named.path.ty_name();
+            let old_name = idents.get_old(new_name).expect("unknown type");
+            if let Some(Node::Enum(_)) = types.get(old_name) {
+                return Some(quote! {
+                    #new_name::from(#ident)
+                });
+            } else {
+                (quote!(from_inner), named)
+            }
+        }
         // `OwnedPtr<T>`
         Type::OwnedPtr(ptr) => {
             if let Type::Named(named) = &ptr.elem {
@@ -1623,6 +1653,11 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
     let fields = (0..fields.len())
         .map(|i| format_ident!("_{i}"))
         .collect::<Vec<_>>();
+    let attrs = strukt
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("cfg") || attr.path().is_ident("cfg_attr"))
+        .collect::<Vec<_>>();
 
     // All generic arguments.
     let generics = {
@@ -1636,16 +1671,19 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
 
     let mut tokens = TokenStream::new();
     tokens.extend(quote! {
+        #(#attrs)*
         pub type #name = #wrapper<#underlying, #(#types),*>;
 
         #[repr(transparent)]
         #[derive(Debug)]
+        #(#attrs)*
         pub struct #wrapper<#generics> {
             pub inner: #inner,
             #(#fields : ::core::marker::PhantomData<#fields>),*
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::InitDefault for #wrapper<#generics>
         where
             #inner: #capi::InitDefault,
@@ -1664,12 +1702,14 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::marker::Copy for #wrapper<#generics>
         where
             #inner: ::core::marker::Copy
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::clone::Clone for #wrapper<#generics>
         where
             #inner: ::core::clone::Clone
@@ -1683,6 +1723,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::ops::Deref for #wrapper<#generics> {
             type Target = #inner;
 
@@ -1692,6 +1733,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> ::core::ops::DerefMut for #wrapper<#generics> {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 &mut self.inner
@@ -1699,6 +1741,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::Builder for #wrapper<#generics>
         where
             #inner: #capi::Builder,
@@ -1715,23 +1758,27 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         }
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#(#fields),*> #conv::newtype::NewType for #wrapper<#underlying, #(#fields),*> {
             type Inner = #underlying;
         }
 
         #[automatically_derived]
+        #(#attrs)*
         impl<#generics> #capi::types::Opaque for #wrapper<#generics>
         where
             #inner: #capi::types::Opaque,
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::Input for #wrapper<#generics>
         where
             #(#fields : #capi::types::Input),*
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByValue for #wrapper<#generics>
         where
             #inner: ::core::marker::Copy,
@@ -1739,17 +1786,20 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByConstPtr for #wrapper<#generics>
         where
             #(#fields : #capi::types::ByConstPtr),*
         {}
 
         #[automatically_derived]
+        #(#attrs)*
         unsafe impl<#generics> #capi::types::ByMutPtr for #wrapper<#generics>
         where
             #(#fields : #capi::types::ByMutPtr),*
         {}
 
+        #(#attrs)*
         const _: () = {
             const GOT: usize = ::core::mem::size_of::<#name>();
             const WANT: usize = ::core::mem::size_of::<#underlying>();
@@ -1759,6 +1809,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
             // latter clobbers our spans.
             ::core::assert!(GOT == WANT, "{}", MSG);
         };
+        #(#attrs)*
         const _: () = {
             const GOT: usize = ::core::mem::align_of::<#name>();
             const WANT: usize = ::core::mem::align_of::<#underlying>();
@@ -1768,6 +1819,7 @@ fn ffi_wrapper(ctx: &Ctx, strukt: &Struct, underlying: &Path) -> TokenStream {
             // latter clobbers our spans.
             ::core::assert!(GOT == WANT, "{}", MSG);
         };
+        #(#attrs)*
         const _: () = {
             const GOT: bool = ::core::mem::needs_drop::<#name>();
             const WANT: bool = ::core::mem::needs_drop::<#underlying>();

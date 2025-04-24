@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.6.0...aranya-runtime-v0.7.0) - 2025-04-21
+
+### Fixed
+
+- make linear storage checksum more portable ([#191](https://github.com/aranya-project/aranya-core/pull/191))
+
+### Other
+
+- Expose Graph IDs via StorageProvider ([#203](https://github.com/aranya-project/aranya-core/pull/203))
+
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.5.0...aranya-runtime-v0.6.0) - 2025-04-10
+
+### Other
+
+- updated the following local packages: aranya-crypto, aranya-policy-vm
+
 ## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.4.0...aranya-runtime-v0.5.0) - 2025-03-19
 
 ### Other

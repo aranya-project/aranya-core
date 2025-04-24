@@ -83,9 +83,11 @@ All instructions can be prefixed with a label, but labels can only be jumped to 
 ## structs
 ||||
 |-|-|-|
-|`struct.new`   | `( s -- t )`         | Create a struct object of the given name
-|`struct.set`   | `( t v s -- t )`     | Add member `name` to `s` with value `v`
-|`struct.get`   | `( t s -- v )`       | Get member `name` from `s`
+|`struct.new`       | `( s -- t )`                                              | Create a struct object of the given name
+|`struct.set`       | `( t v s -- t )`                                          | Add member `name` to `s` with value `v`
+|`struct.get`       | `( t s -- v )`                                            | Get member `name` from `s`
+|`struct.mset(n)`   | `( t (s v) (repeated n times) -- t)`                      | Add members to struct `t` by consuming n pairs of names and values
+|`struct.mget(n)`   | `(t s (repeated n times) -- (s v) (repeated n times)`     | Get n key/value pairs from struct `t` from n member names
 
 ## context-specific
 ||||
