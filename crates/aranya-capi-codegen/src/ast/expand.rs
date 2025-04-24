@@ -475,6 +475,7 @@ impl Ast {
         let err_ty = &ctx.err_ty;
 
         let doc = &f.doc;
+        let ctype_attr = parse_quote!(#[deny(improper_ctypes_definitions)]);
         let attrs = &f
             .attrs
             .iter()
@@ -482,6 +483,7 @@ impl Ast {
                 // TODO(eric): other attrs?
                 attr.path().is_ident("cfg")
             })
+            .chain(std::iter::once(&ctype_attr))
             .collect::<Vec<_>>();
 
         // Rewrite the inputs for the `extern "C"` functions and
@@ -570,7 +572,7 @@ impl Ast {
             };
 
             let pattern = format_ident!("__pattern");
-            let result = &f
+            let result = f
                 .sig
                 .output
                 .inner_type()
@@ -742,7 +744,8 @@ impl Ast {
             let block = if f_is_infallible {
                 // It's infallible, so just return the result
                 // directly.
-                quote!(#pattern)
+                let util = &ctx.util;
+                quote!(#util::check_valid_output_ty(#pattern))
             } else {
                 let success = if f.sig.output.is_result() {
                     quote! {
@@ -831,7 +834,8 @@ impl Ast {
                 let block = if f_is_infallible {
                     // It's infallible, so just return the result
                     // directly.
-                    quote!(#pattern)
+                    let util = &ctx.util;
+                    quote!(#util::check_valid_output_ty(#pattern))
                 } else {
                     // We have an output parameter, so we either
                     // return nothing or an error.
