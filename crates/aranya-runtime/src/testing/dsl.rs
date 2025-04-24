@@ -880,6 +880,22 @@ macro_rules! test_vectors {
                 }
             )+
         }
+
+        /// Add all of the test vectors as Rust tests.
+        ///
+        /// `$backend` should be a `FnMut() -> impl StorageBackend`.
+        #[macro_export]
+        macro_rules! test_suite {
+            ($backend:expr) => {
+                $(
+                    #[::test_log::test]
+                    fn $name() -> ::core::result::Result<(), $crate::testing::dsl::TestError> {
+                        $crate::testing::dsl::vectors::$name($backend)
+                    }
+                )*
+            };
+        }
+        pub use test_suite;
     };
 }
 
@@ -900,46 +916,3 @@ test_vectors! {
     two_client_merge,
     two_client_sync,
 }
-
-/// Used by [`test_suite`].
-#[macro_export]
-#[doc(hidden)]
-macro_rules! test_vector {
-    ($backend:expr ; $($name:ident),+ $(,)?) => {
-        $(
-            #[::test_log::test]
-            fn $name() -> ::core::result::Result<(), $crate::testing::dsl::TestError> {
-                $crate::testing::dsl::vectors::$name($backend)
-            }
-        )*
-    };
-}
-pub use test_vector;
-
-/// Add all of the test vectors as Rust tests.
-///
-/// `$backend` should be a `FnMut() -> impl StorageBackend`.
-#[macro_export]
-macro_rules! test_suite {
-    ($backend:expr) => {
-        $crate::testing::dsl::test_vector! {
-            $backend ;
-            duplicate_sync_causes_failure,
-            empty_sync,
-            large_sync,
-            list_multiple_graph_ids,
-            many_branches,
-            max_cut,
-            missing_parent_after_sync,
-            skip_list,
-            sync_graph_larger_than_command_max,
-            three_client_branch,
-            three_client_compare_graphs,
-            three_client_sync,
-            two_client_branch,
-            two_client_merge,
-            two_client_sync,
-        }
-    };
-}
-pub use test_suite;
