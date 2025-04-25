@@ -5,7 +5,7 @@ use crate::{Address, Command, CommandId, GraphId, Prior, Priority};
 
 #[derive(Serialize, Deserialize)]
 /// Used for serializing init commands
-pub(super) struct InitCommand<'a> {
+pub(crate) struct InitCommand<'a> {
     storage_id: GraphId,
     #[serde(default = "Priority::init", skip)]
     priority: Priority,
@@ -41,7 +41,7 @@ impl Command for InitCommand<'_> {
 }
 
 impl<'sc> InitCommand<'sc> {
-    pub(super) fn from_cmd(storage_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
+    pub(crate) fn from_cmd(storage_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
         Ok(InitCommand {
             storage_id,
             id: command.id(),

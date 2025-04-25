@@ -11,12 +11,13 @@ use tracing::trace;
 use super::dsl::dispatch;
 use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
+    init::InitCommand,
     ser_keys,
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
-    ClientState, CommandId, GraphId, NullSink, PeerCache, SyncRequester, VmEffect, VmEffectData,
-    VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
+    ClientState, CommandId, GraphId, Location, NullSink, PeerCache, Segment, SyncRequester,
+    VmEffect, VmEffectData, VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
 };
 
 /// The policy used by these tests.
@@ -626,6 +627,35 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     assert_eq!(sink.last().command, increment_cmd_id);
     // and that the `recalled` flag is set.
     assert!(sink.last().recalled);
+
+    Ok(())
+}
+
+/// Tests that the "init" command is the first command in the first segment in a `MemStorage`.
+///
+/// The [`TestEngine`] must be instantiated with
+/// [`TEST_POLICY_1`].
+pub fn test_init_command_mem_storage(engine: TestEngine) -> Result<(), VmPolicyError> {
+    let provider = MemStorageProvider::new();
+    let mut cs1 = ClientState::new(engine, provider);
+    let mut sink = VecSink::new();
+    let (storage_id, init_command_bytes) = cs1
+        .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
+        .expect("could not create graph");
+
+    // Get the first segment at index 0
+    let first_segment = cs1
+        .provider()
+        .get_storage(storage_id)?
+        .get_segment(Location {
+            command: 0,
+            segment: 0,
+        })?;
+    let first_command = first_segment.first();
+    let init_command =
+        InitCommand::from_cmd(storage_id, first_command).map_err(|_| VmPolicyError::Unknown)?;
+
+    assert_eq!(init_command_bytes, postcard::to_allocvec(&init_command)?);
 
     Ok(())
 }

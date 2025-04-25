@@ -39,3 +39,8 @@ fn test_aranya_session() {
 fn test_effect_metadata() {
     vm::test_effect_metadata(new_engine(), new_engine()).unwrap()
 }
+
+#[test]
+fn test_init_command_mem_storage() {
+    vm::test_init_command_mem_storage(new_engine()).unwrap()
+}

@@ -8,7 +8,7 @@ use crate::{
     Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
-mod init;
+pub(crate) mod init;
 mod session;
 mod transaction;
 
