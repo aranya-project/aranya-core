@@ -8,6 +8,7 @@ use crate::{
     Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
+mod init;
 mod session;
 mod transaction;
 
@@ -90,12 +91,16 @@ where
 
         let (graph_id, storage) = self.provider.new_storage(perspective)?;
 
-        let segment = storage
-            .get_head()
-            .and_then(|location| storage.get_segment(location))?;
-        let init_command = segment.first().bytes().to_vec();
+        let segment = crate::get_first_segment(storage)?;
+        let init_command = segment.first();
+        debug_assert!(matches!(init_command.parent(), Prior::None));
 
-        Ok((graph_id, init_command))
+        let serialized_cmd = {
+            let cmd = init::InitCommand::from_cmd(graph_id, &init_command)?;
+            postcard::to_allocvec(&cmd)?
+        };
+
+        Ok((graph_id, serialized_cmd))
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.

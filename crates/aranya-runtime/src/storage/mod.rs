@@ -8,7 +8,7 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref};
 
-use buggy::{Bug, BugExt};
+use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 
 use crate::{Address, Command, CommandId, PolicyId, Prior};
@@ -263,6 +263,26 @@ pub trait Storage {
         }
         Ok(false)
     }
+}
+
+// TODO(Steve): Replace this with a method on the [`Storage`] trait
+pub(crate) fn get_first_segment<S: Storage>(storage: &S) -> Result<S::Segment, StorageError> {
+    let mut curr_segment = storage
+        .get_head()
+        .and_then(|loc| storage.get_segment(loc))?;
+    loop {
+        match curr_segment.prior() {
+            Prior::None => break,
+            Prior::Single(loc) => {
+                curr_segment = storage.get_segment(loc)?;
+            }
+            Prior::Merge(_, _) => {
+                bug!("Merge commands should not be present when `get_first_segment` is called")
+            }
+        }
+    }
+
+    Ok(curr_segment)
 }
 
 type MaxCut = usize;
