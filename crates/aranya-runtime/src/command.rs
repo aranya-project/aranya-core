@@ -57,12 +57,6 @@ pub enum Priority {
     Init,
 }
 
-impl Default for Priority {
-    fn default() -> Self {
-        Self::Init
-    }
-}
-
 /// An action message interpreted by its associated policy to affect state.
 ///
 /// A [`Command`] is opaque to the runtime engine. When the engine receives a

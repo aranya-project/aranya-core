@@ -70,9 +70,3 @@ impl<T> Iterator for IntoIter<T> {
         }
     }
 }
-
-impl<T> Default for Prior<T> {
-    fn default() -> Self {
-        Self::None
-    }
-}

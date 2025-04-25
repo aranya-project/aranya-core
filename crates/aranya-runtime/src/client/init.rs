@@ -7,10 +7,10 @@ use crate::{Address, Command, CommandId, GraphId, Prior, Priority};
 /// Used for serializing init commands
 pub(super) struct InitCommand<'a> {
     storage_id: GraphId,
-    #[serde(skip)]
+    #[serde(default = "Priority::init", skip)]
     priority: Priority,
     id: CommandId,
-    #[serde(skip)]
+    #[serde(default = "Prior::none", skip)]
     parent: Prior<Address>,
     #[serde(borrow)]
     data: &'a [u8],
@@ -59,5 +59,17 @@ impl<'sc> InitCommand<'sc> {
             },
             data: command.bytes(),
         })
+    }
+}
+
+impl Priority {
+    fn init() -> Self {
+        Self::Init
+    }
+}
+
+impl<T> Prior<T> {
+    fn none() -> Self {
+        Self::None
     }
 }
