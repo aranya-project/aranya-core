@@ -5,7 +5,7 @@ use core::fmt::{self, Display};
 
 pub use aranya_crypto::Id;
 use aranya_crypto::{DeviceId, EncryptionKeyId};
-use aranya_policy_ast::VType;
+use aranya_policy_ast::{Identifier, Text, VType};
 use serde::{Deserialize, Serialize};
 
 use super::ffi::Type;
@@ -100,7 +100,7 @@ pub enum Value {
     /// Boolean
     Bool(bool),
     /// String (UTF-8)
-    String(String),
+    String(Text),
     /// Bytes
     Bytes(Vec<u8>),
     /// Struct
@@ -110,7 +110,7 @@ pub enum Value {
     /// A unique identifier.
     Id(Id),
     /// Enumeration value
-    Enum(String, i64),
+    Enum(Identifier, i64),
     /// Empty optional value
     None,
 }
@@ -218,17 +218,17 @@ impl From<bool> for Value {
     }
 }
 
-impl From<&str> for Value {
-    fn from(value: &str) -> Self {
-        Value::String(value.to_owned())
-    }
-}
+// impl From<&str> for Value {
+//     fn from(value: &str) -> Self {
+//         Value::String(value.to_owned())
+//     }
+// }
 
-impl From<String> for Value {
-    fn from(value: String) -> Self {
-        Value::String(value)
-    }
-}
+// impl From<String> for Value {
+//     fn from(value: String) -> Self {
+//         Value::String(value)
+//     }
+// }
 
 impl From<&[u8]> for Value {
     fn from(value: &[u8]) -> Self {
@@ -302,20 +302,20 @@ impl TryFrom<Value> for bool {
     }
 }
 
-impl TryFrom<Value> for String {
-    type Error = ValueConversionError;
+// impl TryFrom<Value> for String {
+//     type Error = ValueConversionError;
 
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::String(s) = value {
-            return Ok(s);
-        }
-        Err(ValueConversionError::invalid_type(
-            "String",
-            value.type_name(),
-            "Value -> String",
-        ))
-    }
-}
+//     fn try_from(value: Value) -> Result<Self, Self::Error> {
+//         if let Value::String(s) = value {
+//             return Ok(s);
+//         }
+//         Err(ValueConversionError::invalid_type(
+//             "String",
+//             value.type_name(),
+//             "Value -> String",
+//         ))
+//     }
+// }
 
 impl TryFrom<Value> for Vec<u8> {
     type Error = ValueConversionError;
@@ -438,19 +438,19 @@ impl TryAsMut<bool> for Value {
     }
 }
 
-impl TryAsMut<str> for Value {
-    type Error = ValueConversionError;
-    fn try_as_mut(&mut self) -> Result<&mut str, Self::Error> {
-        if let Self::String(s) = self {
-            return Ok(s);
-        }
-        Err(ValueConversionError::invalid_type(
-            "String",
-            self.type_name(),
-            "Value -> String",
-        ))
-    }
-}
+// impl TryAsMut<str> for Value {
+//     type Error = ValueConversionError;
+//     fn try_as_mut(&mut self) -> Result<&mut str, Self::Error> {
+//         if let Self::String(s) = self {
+//             return Ok(s);
+//         }
+//         Err(ValueConversionError::invalid_type(
+//             "String",
+//             self.type_name(),
+//             "Value -> String",
+//         ))
+//     }
+// }
 
 impl TryAsMut<[u8]> for Value {
     type Error = ValueConversionError;
@@ -526,7 +526,7 @@ pub enum HashableValue {
     /// A bool.
     Bool(bool),
     /// A string.
-    String(String),
+    String(Text),
     /// A unique identifier.
     Id(Id),
 }
@@ -586,16 +586,16 @@ impl Display for HashableValue {
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct FactKey {
     /// key name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// key value
     pub value: HashableValue,
 }
 
 impl FactKey {
     /// Creates a new fact key.
-    pub fn new(name: &str, value: HashableValue) -> Self {
+    pub fn new(name: Identifier, value: HashableValue) -> Self {
         Self {
-            identifier: String::from(name),
+            identifier: name,
             value,
         }
     }
@@ -611,16 +611,16 @@ impl Display for FactKey {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactValue {
     /// value name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// value
     pub value: Value,
 }
 
 impl FactValue {
     /// Creates a new fact value.
-    pub fn new(name: &str, value: Value) -> Self {
+    pub fn new(name: Identifier, value: Value) -> Self {
         Self {
-            identifier: String::from(name),
+            identifier: name,
             value,
         }
     }
@@ -642,23 +642,23 @@ pub type FactValueList = Vec<FactValue>;
 /// Technically identical to a FactValue but separate to distinguish
 /// usage.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct KVPair(String, Value);
+pub struct KVPair(Identifier, Value);
 
 impl KVPair {
     /// Creates a key-value pair.
-    pub fn new(key: &str, value: Value) -> KVPair {
-        KVPair(key.to_owned(), value)
+    pub fn new(key: Identifier, value: Value) -> KVPair {
+        KVPair(key, value)
     }
 
     /// Creates a key-value pair with an integer value.
-    pub fn new_int(key: &str, value: i64) -> KVPair {
-        KVPair(key.to_owned(), Value::Int(value))
+    pub fn new_int(key: Identifier, value: i64) -> KVPair {
+        KVPair(key, Value::Int(value))
     }
 
-    /// Returns the key half of the key-value pair.
-    pub fn key(&self) -> &str {
-        &self.0
-    }
+    // /// Returns the key half of the key-value pair.
+    // pub fn key(&self) -> &str {
+    //     &self.0
+    // }
 
     /// Returns the value half of the key-value pair.
     pub fn value(&self) -> &Value {
@@ -672,17 +672,17 @@ impl Display for KVPair {
     }
 }
 
-impl From<KVPair> for (String, Value) {
-    fn from(kv: KVPair) -> Self {
-        (kv.0, kv.1)
-    }
-}
+// impl From<KVPair> for (String, Value) {
+//     fn from(kv: KVPair) -> Self {
+//         (kv.0, kv.1)
+//     }
+// }
 
-impl From<&KVPair> for (String, Value) {
-    fn from(value: &KVPair) -> Self {
-        (value.0.clone(), value.1.clone())
-    }
-}
+// impl From<&KVPair> for (String, Value) {
+//     fn from(value: &KVPair) -> Self {
+//         (value.0.clone(), value.1.clone())
+//     }
+// }
 
 impl From<FactKey> for KVPair {
     fn from(value: FactKey) -> Self {
@@ -717,30 +717,30 @@ impl Fact {
         }
     }
 
-    /// Sets the fact's key.
-    pub fn set_key<V>(&mut self, name: String, value: V)
-    where
-        V: Into<HashableValue>,
-    {
-        match self.keys.iter_mut().find(|e| e.identifier == name) {
-            None => self.keys.push(FactKey::new(&name, value.into())),
-            Some(e) => e.value = value.into(),
-        }
-    }
+    // /// Sets the fact's key.
+    // pub fn set_key<V>(&mut self, name: String, value: V)
+    // where
+    //     V: Into<HashableValue>,
+    // {
+    //     match self.keys.iter_mut().find(|e| e.identifier == name) {
+    //         None => self.keys.push(FactKey::new(&name, value.into())),
+    //         Some(e) => e.value = value.into(),
+    //     }
+    // }
 
-    /// Sets the fact's value.
-    pub fn set_value<V>(&mut self, name: String, value: V)
-    where
-        V: Into<Value>,
-    {
-        match self.values.iter_mut().find(|e| e.identifier == name) {
-            None => self.values.push(FactValue {
-                identifier: name,
-                value: value.into(),
-            }),
-            Some(e) => e.value = value.into(),
-        }
-    }
+    // /// Sets the fact's value.
+    // pub fn set_value<V>(&mut self, name: String, value: V)
+    // where
+    //     V: Into<Value>,
+    // {
+    //     match self.values.iter_mut().find(|e| e.identifier == name) {
+    //         None => self.values.push(FactValue {
+    //             identifier: name,
+    //             value: value.into(),
+    //         }),
+    //         Some(e) => e.value = value.into(),
+    //     }
+    // }
 }
 
 impl Display for Fact {
@@ -779,33 +779,36 @@ impl Display for Fact {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Struct {
     /// The name of the struct
-    pub name: String,
+    pub name: Identifier,
     /// the fields of the struct
-    pub fields: BTreeMap<String, Value>,
+    pub fields: BTreeMap<Identifier, Value>,
 }
 
 impl Struct {
     /// Creates a struct.
-    pub fn new(name: &str, fields: impl IntoIterator<Item = impl Into<(String, Value)>>) -> Struct {
+    pub fn new(
+        name: Identifier,
+        fields: impl IntoIterator<Item = impl Into<(Identifier, Value)>>,
+    ) -> Struct {
         Struct {
-            name: name.to_owned(),
+            name,
             fields: fields.into_iter().map(|p| p.into()).collect(),
         }
     }
 }
 
-impl From<Struct> for (String, Vec<KVPair>) {
-    fn from(value: Struct) -> Self {
-        (
-            value.name,
-            value
-                .fields
-                .into_iter()
-                .map(|(k, v)| KVPair(k, v))
-                .collect(),
-        )
-    }
-}
+// impl From<Struct> for (String, Vec<KVPair>) {
+//     fn from(value: Struct) -> Self {
+//         (
+//             value.name,
+//             value
+//                 .fields
+//                 .into_iter()
+//                 .map(|(k, v)| KVPair(k, v))
+//                 .collect(),
+//         )
+//     }
+// }
 
 impl Display for Struct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

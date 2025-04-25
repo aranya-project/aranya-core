@@ -11,8 +11,8 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, AstNode, FactCountType, FunctionCall, LanguageContext, MatchExpression,
-    MatchStatement, VType,
+    self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
+    MatchExpression, MatchStatement, VType,
 };
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
@@ -43,7 +43,7 @@ enum FunctionColor {
 /// return type. Covers both regular (pure) functions and finish
 /// functions.
 struct FunctionSignature {
-    args: Vec<(String, VType)>,
+    args: Vec<(Identifier, VType)>,
     color: FunctionColor,
 }
 
@@ -138,7 +138,7 @@ impl<'a> CompileState<'a> {
         self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
     }
 
-    fn append_var(&mut self, identifier: String, vtype: VType) -> Result<(), CompileError> {
+    fn append_var(&mut self, identifier: Identifier, vtype: VType) -> Result<(), CompileError> {
         self.append_instruction(Instruction::Meta(Meta::Let(identifier.clone())));
         self.append_instruction(Instruction::Def(identifier.clone()));
         self.identifier_types
@@ -864,7 +864,9 @@ impl<'a> CompileState<'a> {
 
                 let field_count = sub_field_defns.len();
                 for field in sub_field_defns {
-                    self.append_instruction(Instruction::Const(Value::String(field.identifier)));
+                    self.append_instruction(Instruction::Const(Value::String(
+                        field.identifier.into(),
+                    )));
                 }
 
                 if let Some(field_count) = NonZeroUsize::new(field_count) {
@@ -1773,9 +1775,9 @@ impl<'a> CompileState<'a> {
 
         // fake a function def for the seal block
         let seal_function_definition = ast::FunctionDefinition {
-            identifier: String::from("seal"),
+            identifier: ident!("seal"),
             arguments: vec![],
-            return_type: VType::Struct(String::from("Envelope")),
+            return_type: VType::Struct(ident!("Envelope")),
             statements: vec![],
         };
 
@@ -1823,7 +1825,7 @@ impl<'a> CompileState<'a> {
 
         // fake a function def for the open block
         let open_function_definition = ast::FunctionDefinition {
-            identifier: String::from("open"),
+            identifier: ident!("open"),
             arguments: vec![],
             return_type: VType::Struct(command.identifier.clone()),
             statements: vec![],

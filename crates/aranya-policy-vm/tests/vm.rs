@@ -144,7 +144,7 @@ fn test_structs() -> anyhow::Result<()> {
     assert_eq!(
         machine.struct_defs.get("Bar"),
         Some(&vec![ast::FieldDefinition {
-            identifier: String::from("x"),
+            identifier: ident!("x"),
             field_type: ast::VType::Int
         }])
     );
@@ -2401,7 +2401,7 @@ fn test_substruct_errors() -> anyhow::Result<()> {
                     let maybe_source = if true {
                         :Some(source)
                     } else {
-                        :None 
+                        :None
                     }
 
                     let definitely_source = unwrap maybe_source
@@ -2436,7 +2436,7 @@ fn test_substruct_errors() -> anyhow::Result<()> {
                     let maybe_source = if true {
                         :Some(source)
                     } else {
-                        :None 
+                        :None
                     }
 
                     let definitely_source = unwrap maybe_source

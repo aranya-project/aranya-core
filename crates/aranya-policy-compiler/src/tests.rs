@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use anyhow::anyhow;
-use aranya_policy_ast::{FieldDefinition, VType, Version};
+use aranya_policy_ast::{text, FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     ffi::{self, ModuleSchema},
@@ -377,7 +377,7 @@ fn test_command_attributes() {
             );
             assert_eq!(
                 attrs.get("s").expect("should find 2nd value"),
-                &Value::String("abc".to_string())
+                &Value::String(text!("abc"))
             );
             assert_eq!(
                 attrs.get("priority").expect("should find 3nd value"),
@@ -2146,7 +2146,7 @@ fn test_validate_return() {
         r#"function e() int {
             let n = 0
             if n > 0 {
-                
+
             }
             else {
                 return 0
