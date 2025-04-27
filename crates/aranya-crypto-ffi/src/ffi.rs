@@ -134,6 +134,7 @@ function sign(
             data: &command_bytes,
             name: ctx.name,
             parent_id: &ctx.head_id,
+            policy_id: &ctx.policy_id,
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
@@ -173,6 +174,7 @@ function verify(
             data: &command_bytes,
             name: ctx.name,
             parent_id: &parent_id,
+            policy_id: ctx.policy_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;
         if bool::from(id.ct_eq(&command_id.into())) {
