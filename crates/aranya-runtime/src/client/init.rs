@@ -7,11 +7,7 @@ use crate::{Address, Command, CommandId, GraphId, Prior, Priority};
 /// Used for serializing init commands
 pub(crate) struct InitCommand<'a> {
     storage_id: GraphId,
-    #[serde(default = "Priority::init", skip)]
-    priority: Priority,
     id: CommandId,
-    #[serde(default = "Prior::none", skip)]
-    parent: Prior<Address>,
     #[serde(borrow)]
     data: &'a [u8],
     #[serde(borrow)]
@@ -20,7 +16,7 @@ pub(crate) struct InitCommand<'a> {
 
 impl Command for InitCommand<'_> {
     fn priority(&self) -> Priority {
-        self.priority.clone()
+        Priority::Init
     }
 
     fn id(&self) -> CommandId {
@@ -28,7 +24,7 @@ impl Command for InitCommand<'_> {
     }
 
     fn parent(&self) -> Prior<Address> {
-        self.parent
+        Prior::None
     }
 
     fn policy(&self) -> Option<&[u8]> {
@@ -42,34 +38,22 @@ impl Command for InitCommand<'_> {
 
 impl<'sc> InitCommand<'sc> {
     pub(crate) fn from_cmd(storage_id: GraphId, command: &'sc impl Command) -> Result<Self, Bug> {
+        if !matches!(command.priority(), Priority::Init) {
+            bug!("wrong command type")
+        }
+
+        if !matches!(command.parent(), Prior::None) {
+            bug!("wrong command type")
+        }
+
         Ok(InitCommand {
             storage_id,
             id: command.id(),
-            priority: match command.priority() {
-                p @ Priority::Init => p,
-                _ => bug!("wrong command type"),
-            },
-            parent: match command.parent() {
-                p @ Prior::None => p,
-                _ => bug!("wrong command type"),
-            },
             policy: match command.policy() {
                 Some(policy) => policy,
                 None => bug!("init command should have a policy"),
             },
             data: command.bytes(),
         })
-    }
-}
-
-impl Priority {
-    fn init() -> Self {
-        Self::Init
-    }
-}
-
-impl<T> Prior<T> {
-    fn none() -> Self {
-        Self::None
     }
 }
