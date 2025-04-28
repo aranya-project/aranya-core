@@ -1,3 +1,6 @@
+//! Init commands used to create new graphs.
+//! See [`crate::ClientState::new_graph`]
+
 use buggy::{bug, Bug};
 use serde::{Deserialize, Serialize};
 
