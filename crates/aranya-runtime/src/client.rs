@@ -1,6 +1,7 @@
 use alloc::{collections::BinaryHeap, vec::Vec};
 
 use buggy::{Bug, BugExt};
+use init::InitCommand;
 use tracing::trace;
 
 use crate::{
@@ -96,11 +97,30 @@ where
         debug_assert!(matches!(init_command.parent(), Prior::None));
 
         let serialized_cmd = {
-            let cmd = init::InitCommand::from_cmd(graph_id, &init_command)?;
+            let cmd = InitCommand::from_cmd(graph_id, &init_command)?;
             postcard::to_allocvec(&cmd)?
         };
 
         Ok((graph_id, serialized_cmd))
+    }
+
+    /// Create a new graph (AKA Team) from an a serialized init command that was used to initialize
+    /// a graph on another device
+    pub fn add_graph(&mut self, init_command: &[u8]) -> Result<(), ClientError> {
+        let cmd: InitCommand<'_> = postcard::from_bytes(init_command)?;
+
+        let policy_id = self.engine.add_policy(
+            cmd.policy()
+                .assume("Init commands always have policy data")?,
+        )?;
+
+        let mut perspective = self.provider.new_perspective(policy_id);
+        let _ = perspective.add_command(&cmd)?;
+
+        let (graph_id, _) = self.provider.new_storage(perspective)?;
+        debug_assert_eq!(graph_id.as_bytes(), cmd.id().as_bytes());
+
+        Ok(())
     }
 
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
