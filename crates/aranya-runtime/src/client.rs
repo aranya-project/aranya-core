@@ -104,7 +104,7 @@ where
         Ok((graph_id, serialized_cmd))
     }
 
-    /// Create a new graph (AKA Team) from an a serialized init command that was used to initialize
+    /// Create a new graph (AKA Team) from a serialized init command that was used to initialize
     /// a graph on another device
     pub fn add_graph(&mut self, init_command: &[u8]) -> Result<(), ClientError> {
         let cmd: InitCommand<'_> = postcard::from_bytes(init_command)?;
