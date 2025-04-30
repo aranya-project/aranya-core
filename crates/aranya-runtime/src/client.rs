@@ -1,7 +1,7 @@
 use alloc::{collections::BinaryHeap, vec::Vec};
 
 use buggy::{Bug, BugExt};
-use init::InitCommand;
+use init::{InitCmd, InitCommand};
 use tracing::trace;
 
 use crate::{
@@ -79,7 +79,7 @@ where
         policy_data: &[u8],
         action: <E::Policy as Policy>::Action<'_>,
         sink: &mut impl Sink<E::Effect>,
-    ) -> Result<(GraphId, Vec<u8>), ClientError> {
+    ) -> Result<(GraphId, InitCmd), ClientError> {
         let policy_id = self.engine.add_policy(policy_data)?;
         let policy = self.engine.get_policy(policy_id)?;
 

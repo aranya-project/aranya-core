@@ -17,6 +17,8 @@ pub(crate) struct InitCommand<'a> {
     policy: &'a [u8],
 }
 
+pub(crate) type InitCmd = Vec<u8>;
+
 impl Command for InitCommand<'_> {
     fn priority(&self) -> Priority {
         Priority::Init
