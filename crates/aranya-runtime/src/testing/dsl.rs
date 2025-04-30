@@ -127,6 +127,10 @@ pub enum TestRule {
         id: u64,
         policy: u64,
     },
+    AddGraph {
+        graph: u64,
+        dst_client: u64,
+    },
     Sync {
         graph: u64,
         client: u64,
@@ -296,6 +300,11 @@ impl Display for TestRule {
                 f,
                 r#"{{"NewGraph": {{ "client": {}, "id": {}, "policy": {} }} }},"#,
                 client, id, policy,
+            ),
+            TestRule::AddGraph { dst_client, graph } => write!(
+                f,
+                r#"{{"AddGraph": {{ "dst_client": {}, "graph": {} }} }},"#,
+                dst_client, graph,
             ),
             TestRule::PrintGraph { client, graph } => write!(
                 f,
@@ -526,15 +535,27 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
                 let policy_data = policy.to_be_bytes();
-                let (storage_id, _) = state.new_graph(
+                let (storage_id, init_data) = state.new_graph(
                     policy_data.as_slice(),
                     TestActions::Init(policy),
                     &mut sink,
                 )?;
 
-                graphs.insert(id, storage_id);
+                graphs.insert(id, (storage_id, init_data));
 
                 assert_eq!(0, sink.count());
+            }
+            TestRule::AddGraph { dst_client, graph } => {
+                let (_, init_data) = graphs
+                    .get(&graph)
+                    .ok_or_else(|| TestError::MissingGraph(graph))?;
+
+                let dst_client_state = clients
+                    .get_mut(&dst_client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+
+                dst_client_state.add_graph(init_data)?;
             }
             TestRule::Sync {
                 client,
@@ -544,7 +565,7 @@ where
                 must_receive,
                 max_syncs,
             } => {
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let (storage_id, _) = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 let mut request_client = clients
                     .get(&client)
@@ -620,7 +641,7 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let (storage_id, _) = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 for _ in 0..repeat {
                     let set = TestActions::SetValue(key, value);
@@ -636,7 +657,7 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let (storage_id, _) = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
                 print_graph(storage, head)?;
@@ -658,7 +679,7 @@ where
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
 
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let (storage_id, _) = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
 
                 let storage_a = state_a.provider().get_storage(*storage_id)?;
                 let storage_b = state_b.provider().get_storage(*storage_id)?;
@@ -683,7 +704,7 @@ where
                     .get(&client)
                     .ok_or(TestError::MissingClient)?
                     .borrow_mut();
-                let storage_id = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
+                let (storage_id, _) = graphs.get(&graph).ok_or(TestError::MissingGraph(graph))?;
                 let storage = state.provider().get_storage(*storage_id)?;
                 let head = storage.get_head()?;
                 let seg = storage.get_segment(head)?;
@@ -704,7 +725,7 @@ where
                     .map(Result::unwrap)
                     .collect();
 
-                let expected_ids: BTreeSet<GraphId> = ids.iter().map(|id| graphs[id]).collect();
+                let expected_ids: BTreeSet<GraphId> = ids.iter().map(|id| graphs[id].0).collect();
 
                 assert_eq!(actual_ids, expected_ids);
             }
@@ -915,4 +936,5 @@ test_vectors! {
     two_client_branch,
     two_client_merge,
     two_client_sync,
+    add_graph,
 }
