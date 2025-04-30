@@ -1,6 +1,8 @@
 //! Init commands used to create new graphs.
 //! See [`crate::ClientState::new_graph`]
 
+use alloc::boxed::Box;
+
 use buggy::{bug, Bug};
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +19,7 @@ pub(crate) struct InitCommand<'a> {
     policy: &'a [u8],
 }
 
-pub(crate) type InitCmd = Vec<u8>;
+pub type InitCmd = Box<[u8]>;
 
 impl Command for InitCommand<'_> {
     fn priority(&self) -> Priority {

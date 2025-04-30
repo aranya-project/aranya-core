@@ -655,7 +655,7 @@ pub fn test_init_command_mem_storage(engine: TestEngine) -> Result<(), VmPolicyE
     let init_command =
         InitCommand::from_cmd(storage_id, first_command).map_err(|_| VmPolicyError::Unknown)?;
 
-    assert_eq!(init_command_bytes, postcard::to_allocvec(&init_command)?);
+    assert_eq!(*init_command_bytes, postcard::to_allocvec(&init_command)?);
 
     Ok(())
 }

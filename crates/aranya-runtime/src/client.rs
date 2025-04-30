@@ -9,7 +9,7 @@ use crate::{
     Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
-pub(crate) mod init;
+pub mod init;
 mod session;
 mod transaction;
 
@@ -101,7 +101,7 @@ where
             postcard::to_allocvec(&cmd)?
         };
 
-        Ok((graph_id, serialized_cmd))
+        Ok((graph_id, serialized_cmd.into_boxed_slice()))
     }
 
     /// Create a new graph (AKA Team) from a serialized init command that was used to initialize
