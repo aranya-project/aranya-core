@@ -1,6 +1,6 @@
 //! Data definitions used by the FFI interface
 extern crate alloc;
-use alloc::{boxed::Box, string::String};
+use alloc::boxed::Box;
 
 use aranya_policy_ast::VType;
 
@@ -69,7 +69,7 @@ impl From<&Type<'_>> for VType {
             Type::Int => VType::Int,
             Type::Bool => VType::Bool,
             Type::Id => VType::Id,
-            Type::Struct(s) => VType::Struct(String::from(*s)),
+            Type::Struct(s) => todo!(),
             Type::Optional(t) => VType::Optional(Box::new((*t).into())),
         }
     }
