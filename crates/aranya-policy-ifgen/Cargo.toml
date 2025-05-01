@@ -26,6 +26,7 @@ serde = { workspace = true, optional = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-ifgen-build = { path = "../aranya-policy-ifgen-build" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
 

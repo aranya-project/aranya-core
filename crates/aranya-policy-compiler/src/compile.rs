@@ -2175,6 +2175,7 @@ impl<'a> CompileState<'a> {
                 })
                 .collect();
             self.define_struct(&effect.inner.identifier, &fields)?;
+            self.m.effects.push(effect.inner.identifier.clone());
         }
 
         for struct_def in &self.policy.structs {
