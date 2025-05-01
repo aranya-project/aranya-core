@@ -12,8 +12,10 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
-aranya-policy-ast = { version = "0.4.0", path = "../aranya-policy-ast" }
-aranya-policy-lang = { version = "0.4.0", path = "../aranya-policy-lang" }
+aranya-policy-ast = { path = "../aranya-policy-ast" }
+aranya-policy-compiler = { path = "../aranya-policy-compiler" }
+aranya-policy-lang = { path = "../aranya-policy-lang" }
+aranya-policy-module = { path = "../aranya-policy-module" }
 
 anyhow = { workspace = true }
 prettyplease = { workspace = true }
