@@ -76,6 +76,8 @@ pub struct ModuleV0 {
     pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Command definitions
     pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
+    /// Effect identifiers. The effect definitions can be found in `struct_defs`.
+    pub effects: Vec<Identifier>,
     /// Fact definitions
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct definitions

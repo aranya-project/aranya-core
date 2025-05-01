@@ -2180,7 +2180,8 @@ impl<'a> CompileState<'a> {
                     StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                 })
                 .collect();
-            self.define_struct(effect.inner.identifier.clone(), &fields)?;
+            self.define_struct(&effect.inner.identifier, &fields)?;
+            self.m.effects.push(effect.inner.identifier.clone());
         }
 
         for struct_def in &self.policy.structs {

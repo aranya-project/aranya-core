@@ -209,6 +209,7 @@ impl Machine {
                 labels: self.labels,
                 action_defs: self.action_defs,
                 command_defs: self.command_defs,
+                effects: vec![],
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 enum_defs: self.enum_defs,
