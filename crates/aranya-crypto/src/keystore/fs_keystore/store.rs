@@ -12,7 +12,7 @@ use rustix::{
     io::{self, Errno},
     path::Arg,
 };
-use spideroak_base58::{String64, ToBase58};
+use spideroak_base58::{String32, ToBase58};
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
@@ -162,7 +162,7 @@ impl KeyStore for Store {
 /// The path to an entry, relative to the root in [`Store`].
 // TODO(eric): the resulting string might be cause us to exceed
 // PATH_MAX, should we truncate it?
-struct Alias(String64);
+struct Alias(String32);
 
 impl Deref for Alias {
     type Target = str;
