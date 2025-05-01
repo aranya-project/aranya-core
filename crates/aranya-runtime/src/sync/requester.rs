@@ -18,7 +18,7 @@ use crate::{
 // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
 // As the buffer consts will be compile-time variables in the future, we will be
 // able to tune these buffers for smaller footprints. Right now, this enum is not
-// suitable for small devices (`SyncRequest` is 6512 bytes).
+// suitable for small devices (`SyncRequest` is 4080 bytes).
 /// Messages sent from the requester to the responder.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]

@@ -5,7 +5,7 @@ extern crate std;
 
 use core::{fmt, ops::Deref};
 
-use aranya_crypto::id::{String64, ToBase58};
+use aranya_crypto::id::{String32, ToBase58};
 pub use aranya_libc::{MissingNullByte, Path, PathBuf};
 use buggy::{Bug, BugExt};
 
@@ -14,7 +14,7 @@ use crate::GraphId;
 /// A [`Path`] created from a [`GraphId`].
 #[derive(Copy, Clone)]
 pub struct IdPath {
-    buf: [u8; String64::MAX_SIZE + 1],
+    buf: [u8; String32::MAX_SIZE + 1],
 }
 
 impl IdPath {
@@ -51,12 +51,12 @@ impl fmt::Debug for IdPath {
 
 impl GraphId {
     pub(super) fn to_path(self) -> Result<IdPath, Bug> {
-        let mut buf = [0u8; String64::MAX_SIZE + 1];
+        let mut buf = [0u8; String32::MAX_SIZE + 1];
         let b58 = self.to_base58();
         let src = b58.as_bytes();
         let dst = buf
-            .get_mut(..String64::MAX_SIZE)
-            .assume("`buf.len()` >= `String64::MAX_SIZE`")?
+            .get_mut(..String32::MAX_SIZE)
+            .assume("`buf.len()` >= `String32::MAX_SIZE`")?
             .get_mut(..src.len())
             .assume("`buf.len()` >= `src.len()`")?;
         dst.copy_from_slice(src);
