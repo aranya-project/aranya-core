@@ -21,7 +21,7 @@ pub fn generate_code(module: &Module) -> String {
         .filter(|(id, _fields)| reachable.contains(id.as_str()))
         .map(|(id, fields)| {
             let doc = format!(" {} policy struct.", id);
-            let name = mk_ident(&id);
+            let name = mk_ident(id);
             let names = fields.iter().map(|f| mk_ident(&f.identifier));
             let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
             quote! {
@@ -39,7 +39,7 @@ pub fn generate_code(module: &Module) -> String {
         .filter(|(id, _values)| reachable.contains(id.as_str()))
         .map(|(id, values)| {
             let doc = format!(" {} policy enum.", id);
-            let name = mk_ident(&id);
+            let name = mk_ident(id);
             let names = values.iter().map(|(id, _)| mk_ident(id));
             quote! {
                 #[doc = #doc]
@@ -54,9 +54,9 @@ pub fn generate_code(module: &Module) -> String {
         let fields = m
             .struct_defs
             .get(s)
-            .expect(format!("Effect not defined: {s}").as_str());
+            .unwrap_or_else(|| panic!("Effect not defined: {s}"));
         let doc = format!(" {} policy effect.", s);
-        let ident = mk_ident(&s);
+        let ident = mk_ident(s);
         let field_idents = fields.iter().map(|f| mk_ident(&f.identifier));
         let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
         quote! {
@@ -69,7 +69,7 @@ pub fn generate_code(module: &Module) -> String {
     });
 
     let effect_enum = {
-        let idents = m.effects.iter().map(|s| mk_ident(&s));
+        let idents = m.effects.iter().map(|s| mk_ident(s));
         quote! {
             #[effects]
             pub enum Effect {
@@ -82,7 +82,7 @@ pub fn generate_code(module: &Module) -> String {
 
     let actions = {
         let sigs = m.action_defs.iter().map(|(id, args)| {
-            let ident = mk_ident(&id);
+            let ident = mk_ident(id);
             let argnames = args.iter().map(|arg| mk_ident(&arg.identifier));
             let argtypes = args.iter().map(|arg| vtype_to_rtype(&arg.field_type));
             quote! {
@@ -181,7 +181,7 @@ fn collect_reachable_types(module: &ModuleV0) -> HashSet<&str> {
 
     let mut found = HashSet::new();
 
-    for (_id, args) in &module.action_defs {
+    for args in module.action_defs.values() {
         for arg in args {
             visit(&struct_defs, &mut found, &arg.field_type);
         }
@@ -191,7 +191,7 @@ fn collect_reachable_types(module: &ModuleV0) -> HashSet<&str> {
         let fields = module
             .struct_defs
             .get(id)
-            .expect(format!("Effect not defined: {id}").as_str());
+            .unwrap_or_else(|| panic!("Effect not defined: {id}"));
         for field in fields {
             visit(&struct_defs, &mut found, &field.field_type);
         }
