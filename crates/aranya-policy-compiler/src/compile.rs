@@ -2157,6 +2157,7 @@ impl<'a> CompileState<'a> {
                 })
                 .collect();
             self.define_struct(&effect.inner.identifier, &fields)?;
+            self.m.effects.push(effect.inner.identifier.clone());
         }
 
         // define the structs provided by FFI schema

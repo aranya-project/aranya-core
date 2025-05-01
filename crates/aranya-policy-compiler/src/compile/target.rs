@@ -18,6 +18,8 @@ pub struct CompileTarget {
     pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Command definitions (`fields`)
     pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
+    /// Effect identifiers. The effect definitions can be found in `struct_defs`.
+    pub effects: Vec<String>,
     /// Fact schemas
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct schemas
@@ -40,6 +42,7 @@ impl CompileTarget {
             labels: BTreeMap::new(),
             action_defs: BTreeMap::new(),
             command_defs: BTreeMap::new(),
+            effects: vec![],
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
@@ -57,6 +60,7 @@ impl CompileTarget {
                 labels: self.labels,
                 action_defs: self.action_defs,
                 command_defs: self.command_defs,
+                effects: self.effects,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 enum_defs: self.enum_defs,
