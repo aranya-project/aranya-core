@@ -266,6 +266,9 @@ pub trait Storage {
 }
 
 // TODO(Steve): Replace this with a method on the [`Storage`] trait
+// https://github.com/aranya-project/aranya-core/issues/236
+/// Gets the first segment of a storage by walking backwards from the head of the graph.
+/// This should only be called during [`super::ClientState::new_graph`]
 pub(crate) fn get_first_segment<S: Storage>(storage: &S) -> Result<S::Segment, StorageError> {
     let mut curr_segment = storage
         .get_head()
