@@ -177,7 +177,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
     pub fn ready(&self) -> bool {
         use SyncResponderState::*;
         match self.state {
-            Reset | Start | Send => true,
+            Reset | Start | Send => true, // TODO(chip): For Send, check whether to_send has anything to send
             New | Idle | Stopped => false,
         }
     }
@@ -190,10 +190,11 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         provider: &mut impl StorageProvider,
         response_cache: &mut PeerCache,
     ) -> Result<usize, SyncError> {
+        // TODO(chip): return a status enum instead of usize
         use SyncResponderState as S;
         let length = match self.state {
             S::New | S::Idle | S::Stopped => {
-                return Err(SyncError::NotReady);
+                return Err(SyncError::NotReady); // TODO(chip): return Ok(NotReady)
             }
             S::Start => {
                 let Some(storage_id) = self.storage_id else {
@@ -279,6 +280,9 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         Ok(postcard::to_slice(&msg, target)?.len())
     }
 
+    /// This (probably) returns a Vec of segment addresses where the head of each segment is
+    /// not the ancestor of any samples we have been sent. If that is longer than
+    /// SEGMENT_BUFFER_MAX, it contains the oldest segment heads where that holds.
     fn find_needed_segments(
         commands: &[Address],
         storage: &impl Storage,
@@ -339,6 +343,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
         for l in result {
             r.push(l).ok().assume("too many segments")?;
         }
+        //let mut result: Vec<Location, SEGMENT_BUFFER_MAX> = result.into_iter().collect();
         // Order segments to ensure that a segment isn't received before its
         // ancestor segments.
         r.sort();
@@ -352,8 +357,15 @@ impl<A: Serialize + Clone> SyncResponder<A> {
     ) -> Result<usize, SyncError> {
         if self.next_send >= self.to_send.len() {
             self.state = SyncResponderState::Idle;
-            return Ok(0);
+            let message = SyncResponseMessage::SyncEnd {
+                session_id: self.session_id()?,
+                max_index: self.next_send as u64,
+                remaining: false,
+            };
+            let length = Self::write(target, message)?;
+            return Ok(length);
         }
+
         let (commands, command_data, index) = self.get_commands(provider)?;
 
         let message = SyncResponseMessage::SyncResponse {

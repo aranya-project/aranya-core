@@ -81,13 +81,21 @@ impl SyncRequestMessage {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SyncRequesterState {
+    /// Object initialized; no messages sent
     New,
+    /// Have sent a start message but have received no response
     Start,
+    /// Received some response messages; session not yet complete
     Waiting,
+    /// Sync is complete; byte count has not yet been reached
     Idle,
+    /// Session is done and no more messages should be processed
     Closed,
+    /// Sync response received out of order
     Resync,
+    /// SyncEnd received but not everything has been received
     PartialSync,
+    /// Session will be closed
     Reset,
 }
 
@@ -100,7 +108,7 @@ pub struct SyncRequester<'a, A> {
     max_bytes: u64,
     next_index: u64,
     #[allow(unused)] // TODO(jdygert): Figure out what this is for...
-    ooo_buffer: [Option<&'a [u8]>; OOO_LEN],
+    ooo_buffer: [Option<&'a [u8]>; OOO_LEN], // REMOVE
     server_address: A,
 }
 
@@ -181,11 +189,24 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
     pub fn receive<'a>(
         &mut self,
         data: &'a [u8],
+        provider: &mut impl StorageProvider,
+        peer_cache: &mut PeerCache,
     ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
         let (message, remaining): (SyncResponseMessage, &'a [u8]) =
             postcard::take_from_bytes(data)?;
 
-        self.get_sync_commands(message, remaining)
+        match self.get_sync_commands(message, remaining) {
+            Ok(Some(cmds)) => {
+                let storage = provider.get_storage(self.storage_id)?;
+                for addr in cmds.iter().filter_map(|cmd| cmd.address().ok()) {
+                    if let Some(cmd_loc) = storage.get_location(addr)? {
+                        peer_cache.add_command(storage, addr, cmd_loc)?;
+                    }
+                }
+                Ok(Some(cmds))
+            }
+            x => x,
+        }
     }
 
     /// Extract SyncCommands from a SyncResponseMessage and remaining bytes.
@@ -193,7 +214,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
         &mut self,
         message: SyncResponseMessage,
         remaining: &'a [u8],
-    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_SAMPLE_MAX>>, SyncError> {
+    ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
         if message.session_id() != self.session_id {
             return Err(SyncError::SessionMismatch);
         }
@@ -270,10 +291,9 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                 }
 
                 if max_index
-                    != self
-                        .next_index
-                        .checked_sub(1)
-                        .assume("next_index must be positive")?
+                    .checked_add(1)
+                    .assume("next_index must be positive")?
+                    != self.next_index
                 {
                     self.state = SyncRequesterState::Resync;
                     return Err(SyncError::MissingSyncResponse);
@@ -348,7 +368,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
     fn get_commands(
         &self,
         provider: &mut impl StorageProvider,
-        heads: &mut PeerCache,
+        peer_cache: &mut PeerCache,
     ) -> Result<Vec<Address, COMMAND_SAMPLE_MAX>, SyncError> {
         let mut commands: Vec<Address, COMMAND_SAMPLE_MAX> = Vec::new();
 
@@ -359,7 +379,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             }
             Ok(storage) => {
                 let mut command_locations: Vec<Location, PEER_HEAD_MAX> = Vec::new();
-                for address in heads.heads() {
+                for address in peer_cache.heads() {
                     command_locations
                         .push(
                             storage
@@ -395,6 +415,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                                 continue 'current;
                             }
                         }
+                        // TODO(chip): check that this is not an ancestor of a head in the PeerCache
                         commands
                             .push(head_address)
                             .map_err(|_| SyncError::CommandOverflow)?;
@@ -452,22 +473,22 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             self.state,
             SyncRequesterState::Start | SyncRequesterState::New
         ) {
-            self.state = SyncRequesterState::Reset;
+            self.state = SyncRequesterState::Closed;
             return Err(SyncError::SessionState);
         }
 
         self.state = SyncRequesterState::Start;
         self.max_bytes = max_bytes;
 
-        let commands = self.get_commands(provider, heads)?;
+        let command_sample = self.get_commands(provider, heads)?;
 
-        let sent = commands.len();
+        let sent = command_sample.len();
         let message = SyncType::Poll {
             request: SyncRequestMessage::SyncRequest {
                 session_id: self.session_id,
                 storage_id: self.storage_id,
                 max_bytes,
-                commands,
+                commands: command_sample,
             },
             address: self.server_address.clone(),
         };
