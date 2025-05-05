@@ -118,7 +118,7 @@ struct NewDevice {
 }
 
 // A device in the TT&C team.
-struct Device {
+struct SDevice {
     device_id id,
     sign_pk_id id,
     enc_pk_id id,
@@ -126,15 +126,21 @@ struct Device {
 }
 
 // Returns a device.
-function get_device(device_id id) struct Device {
+function get_device(device_id id) struct SDevice {
     let device_info = unwrap query Device[device_id: device_id]=>{role: ?, sign_pk_id: ?, enc_pk_id: ?}
-    let device = Device {
+    let device = SDevice {
         device_id: device_id,
         sign_pk_id: device_info.sign_pk_id,
         enc_pk_id: device_info.enc_pk_id,
         role: device_info.role,
     }
     return device
+}
+
+// Reports whether the device's role is `role`.
+function has_role(device_id id, role string) bool {
+    let ok = exists Device[device_id: device_id]=>{role: role, sign_pk_id: ?, enc_pk_id: ?}
+    return ok
 }
 
 // Reports whether the device is a Owner.
@@ -155,12 +161,6 @@ function is_operator(device_id id) bool {
 // Reports whether the device is a satellite.
 function is_satellite(device_id id) bool {
     return has_role(device_id, "Role_Satellite")
-}
-
-// Reports whether the device's role is `role`.
-function has_role(device_id id, role string) bool {
-    let ok = exists Device[device_id: device_id]=>{role: role, sign_pk_id: ?, enc_pk_id: ?}
-    return ok
 }
 
 // Reports whether `device_id` matches the DeviceId derived from
