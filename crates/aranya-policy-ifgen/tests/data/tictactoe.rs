@@ -19,8 +19,8 @@ pub struct Players {
 /// Player policy enum.
 #[value]
 pub enum Player {
-    X,
     O,
+    X,
 }
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
@@ -54,6 +54,6 @@ pub struct GameOver {
 /// Implements all supported policy actions.
 #[actions]
 pub trait ActorExt {
-    fn StartGame(&mut self, players: Players) -> Result<(), ClientError>;
     fn MakeMove(&mut self, gameID: Id, x: i64, y: i64) -> Result<(), ClientError>;
+    fn StartGame(&mut self, players: Players) -> Result<(), ClientError>;
 }
