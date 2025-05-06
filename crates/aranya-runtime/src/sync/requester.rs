@@ -236,7 +236,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                 }
                 self.next_index = self
                     .next_index
-                    .checked_add(1)
+                    .checked_add(commands.len() as u64)
                     .assume("next_index + 1 mustn't overflow")?;
                 self.state = SyncRequesterState::Waiting;
 
@@ -290,11 +290,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                     return Err(SyncError::SessionState);
                 }
 
-                if max_index
-                    .checked_add(1)
-                    .assume("next_index must be positive")?
-                    != self.next_index
-                {
+                if max_index != self.next_index {
                     self.state = SyncRequesterState::Resync;
                     return Err(SyncError::MissingSyncResponse);
                 }
