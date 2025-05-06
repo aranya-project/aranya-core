@@ -1,19 +1,19 @@
 use alloc::{collections::BinaryHeap, vec::Vec};
 
 use buggy::{Bug, BugExt};
-use init::{InitCmd, InitCommand};
+use init::InitCommand;
 use tracing::trace;
 
 use crate::{
-    Address, Command, CommandId, Engine, EngineError, GraphId, Location, PeerCache, Perspective,
-    Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
+    Address, Command, CommandId, CommandRecall, Engine, EngineError, GraphId, Location, PeerCache,
+    Perspective, Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 pub mod init;
 mod session;
 mod transaction;
 
-pub use self::{session::Session, transaction::Transaction};
+pub use self::{init::InitCmd, session::Session, transaction::Transaction};
 
 /// An error returned by the runtime client.
 #[derive(Debug, thiserror::Error)]
@@ -106,19 +106,32 @@ where
 
     /// Create a new graph (AKA Team) from a serialized init command that was used to initialize
     /// a graph on another device
-    pub fn add_graph(&mut self, init_command: &[u8]) -> Result<(), ClientError> {
+    pub fn add_graph(
+        &mut self,
+        init_command: &[u8],
+        sink: &mut impl Sink<E::Effect>,
+    ) -> Result<(), ClientError> {
         let cmd: InitCommand<'_> = postcard::from_bytes(init_command)?;
 
         let policy_id = self.engine.add_policy(
             cmd.policy()
                 .assume("Init commands always have policy data")?,
         )?;
+        let policy = self.engine.get_policy(policy_id)?;
 
         let mut perspective = self.provider.new_perspective(policy_id);
+        sink.begin();
+        if let Err(e) = policy.call_rule(&cmd, &mut perspective, sink, CommandRecall::None) {
+            sink.rollback();
+            return Err(e.into());
+        }
+
         let _ = perspective.add_command(&cmd)?;
 
         let (graph_id, _) = self.provider.new_storage(perspective)?;
         debug_assert_eq!(graph_id.as_bytes(), cmd.id().as_bytes());
+
+        sink.commit();
 
         Ok(())
     }
