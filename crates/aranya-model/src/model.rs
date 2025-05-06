@@ -16,7 +16,7 @@ use aranya_runtime::{
     storage::GraphId,
     testing::dsl::dispatch,
     vm_policy::{VmEffect, VmPolicy, VmPolicyError},
-    ClientError, ClientState, PeerCache, StorageProvider, SyncError, SyncRequester,
+    ClientError, ClientState, InitCmd, PeerCache, StorageProvider, SyncError, SyncRequester,
     MAX_SYNC_MESSAGE_SIZE,
 };
 
@@ -129,7 +129,14 @@ pub trait Model {
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
-    ) -> Result<Vec<Self::Effect>, ModelError>;
+    ) -> Result<(Vec<Self::Effect>, InitCmd), ModelError>;
+
+    /// Used to create a graph on a client from an existing init command.
+    fn add_graph(
+        &mut self,
+        init_cmd: InitCmd,
+        client_proxy_id: Self::ClientId,
+    ) -> Result<(), ModelError>;
 
     /// Used for calling a single action that can emit only on-graph commands.
     fn action(
@@ -347,7 +354,7 @@ where
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
-    ) -> Result<Vec<Self::Effect>, ModelError> {
+    ) -> Result<(Vec<Self::Effect>, InitCmd), ModelError> {
         let Entry::Vacant(storage_id) = self.storage_ids.entry(proxy_id.into()) else {
             return Err(ModelError::DuplicateGraph);
         };
@@ -361,13 +368,29 @@ where
             .state
             .borrow_mut();
 
-        storage_id.insert(
-            state
-                .new_graph(&[0u8], action, &mut sink)
-                .map(|(id, _)| id)?,
-        );
+        let (graph_id, init_cmd) = state.new_graph(&[0u8], action, &mut sink)?;
+        storage_id.insert(graph_id);
 
-        Ok(sink.effects)
+        Ok((sink.effects, init_cmd))
+    }
+
+    fn add_graph(
+        &mut self,
+        init_cmd: InitCmd,
+        client_proxy_id: Self::ClientId,
+    ) -> Result<(), ModelError> {
+        let mut sink = VecSink::new();
+
+        let mut state = self
+            .clients
+            .get_mut(&client_proxy_id.into())
+            .ok_or(ModelError::ClientNotFound)?
+            .state
+            .borrow_mut();
+
+        state.add_graph(&init_cmd, &mut sink)?;
+
+        Ok(())
     }
 
     /// Preform an action on a client

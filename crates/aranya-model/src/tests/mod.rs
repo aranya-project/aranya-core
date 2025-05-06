@@ -456,7 +456,7 @@ fn should_sync_ffi_clients() {
     let nonce = 1;
     // Create a graph for client A. The init command in the ffi policy
     // required the public signing key.
-    test_model
+    let (_, init_cmd) = test_model
         .new_graph(
             Graph::X,
             Device::A,
@@ -512,6 +512,9 @@ fn should_sync_ffi_clients() {
     // B will receive all the new commands it doesn't yet know about from client
     // A. At this stage of the test, that's the init, add_device_keys, create, and
     // increment commands.
+    test_model
+        .add_graph(init_cmd, Device::B)
+        .expect("should be able to add graph");
     test_model
         .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
@@ -585,7 +588,7 @@ fn should_sync_basic_clients() {
 
     let nonce = 1;
     // Create a graph for client A.
-    test_model
+    let (_, init_cmd) = test_model
         .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
@@ -611,6 +614,9 @@ fn should_sync_basic_clients() {
     // B will receive all the new commands it doesn't yet know about from client
     // A. At this stage of the test, that's the init, create, and
     // increment commands.
+    test_model
+        .add_graph(init_cmd, Device::B)
+        .expect("should be able to add graph");
     test_model
         .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
@@ -669,7 +675,7 @@ fn should_sync_clients_with_duplicate_payloads() {
 
     let nonce = 1;
     // Add a graph to our client
-    test_model
+    let (_, init_cmd) = test_model
         .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
@@ -701,6 +707,9 @@ fn should_sync_clients_with_duplicate_payloads() {
         .expect("Should create a client");
 
     // Sync client B with client A (A -> B)
+    test_model
+        .add_graph(init_cmd, Device::B)
+        .expect("should be able to add graph");
     test_model
         .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
@@ -892,12 +901,15 @@ fn should_send_and_receive_session_data() {
 
     // Initialize the graph on client A
     let nonce = 1;
-    test_model
+    let (_, init_cmd) = test_model
         .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
     // Sync the graph with client B. Currently, ephemeral commands must be run on
     // the same graph.
+    test_model
+        .add_graph(init_cmd, Device::B)
+        .expect("should be able to add graph");
     test_model
         .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
@@ -980,7 +992,7 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
 
     // Initialize the graph on client A
     let nonce = 1;
-    test_model
+    let (_, init_cmd) = test_model
         .new_graph(
             Graph::X,
             Device::A,
@@ -1003,6 +1015,9 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
 
     // Sync the graph with client B. Currently, ephemeral commands must be run on
     // the same graph.
+    test_model
+        .add_graph(init_cmd, Device::B)
+        .expect("should be able to add graph");
     test_model
         .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
@@ -1076,7 +1091,7 @@ fn should_allow_access_to_fact_db_from_session() {
 
     let nonce = 1;
     // Initialize the graph on client A.
-    test_model
+    let (_, init_cmd) = test_model
         .new_graph(Graph::X, Device::A, vm_action!(init(nonce)))
         .expect("Should create a graph");
 
@@ -1087,6 +1102,9 @@ fn should_allow_access_to_fact_db_from_session() {
 
     // Sync graph with client B. Currently, ephemeral commands must be run on
     // the same graph.
+    test_model
+        .add_graph(init_cmd, Device::B)
+        .expect("should add graph");
     test_model
         .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
@@ -1174,7 +1192,8 @@ fn can_perform_action_after_receive_on_session() -> anyhow::Result<()> {
     test_model.add_client(Device::B)?;
 
     // Create graph and sync
-    test_model.new_graph(Graph::X, Device::A, vm_action!(init(42)))?;
+    let (_, init_cmd) = test_model.new_graph(Graph::X, Device::A, vm_action!(init(42)))?;
+    test_model.add_graph(init_cmd, Device::B)?;
     test_model.sync(Graph::X, Device::A, Device::B)?;
 
     // Perform actions on client A session.
@@ -1315,7 +1334,7 @@ fn should_create_clients_with_args() {
     let nonce = 1;
     // Create a graph for client A. The init command in the ffi policy
     // required the public signing key.
-    test_model
+    let (_, init_cmd) = test_model
         .new_graph(
             Graph::X,
             Device::A,
@@ -1383,6 +1402,9 @@ fn should_create_clients_with_args() {
     // B will receive all the new commands it doesn't yet know about from client
     // A. At this stage of the test, that's the init, add_device_keys.
     test_model
+        .add_graph(init_cmd, Device::B)
+        .expect("should be able to add graph");
+    test_model
         .sync(Graph::X, Device::A, Device::B)
         .expect("Should sync clients");
 
@@ -1424,7 +1446,7 @@ fn test_storage_fact_creturns_correct_index() {
     test_model.add_client(Device::A).unwrap();
     test_model.add_client(Device::B).unwrap();
 
-    test_model
+    let (_, init_cmd) = test_model
         .new_graph(Graph::X, Device::A, vm_action!(init(1)))
         .unwrap();
 
@@ -1432,6 +1454,7 @@ fn test_storage_fact_creturns_correct_index() {
         .action(Device::A, Graph::X, vm_action!(create_action(42)))
         .unwrap();
 
+    test_model.add_graph(init_cmd, Device::B).unwrap();
     test_model.sync(Graph::X, Device::A, Device::B).unwrap();
 
     for _ in 0..5 {

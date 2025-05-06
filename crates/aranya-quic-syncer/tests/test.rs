@@ -33,11 +33,15 @@ async fn test_sync() -> Result<()> {
     let client2 = make_client();
     let sink2 = Arc::new(TMutex::new(TestSink::new()));
 
-    let (storage_id, _) = client1.lock().await.new_graph(
+    let (storage_id, init_cmd) = client1.lock().await.new_graph(
         &0u64.to_be_bytes(),
         TestActions::Init(0),
         sink1.lock().await.deref_mut(),
     )?;
+    client2
+        .lock()
+        .await
+        .add_graph(&init_cmd, sink2.lock().await.deref_mut())?;
 
     let addr1 = spawn_syncer(syncer1.clone(), rx, server_addr1)?;
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -107,11 +111,15 @@ async fn test_sync_subscribe() -> Result<()> {
         server_addr2.local_addr()?,
     )?));
 
-    let (storage_id, _) = client1.lock().await.new_graph(
+    let (storage_id, init_cmd) = client1.lock().await.new_graph(
         &0u64.to_be_bytes(),
         TestActions::Init(0),
         sink1.lock().await.deref_mut(),
     )?;
+    client2
+        .lock()
+        .await
+        .add_graph(&init_cmd, sink2.lock().await.deref_mut())?;
 
     let addr1 = spawn_syncer(syncer1.clone(), rx1, server_addr1)?;
     let addr2 = spawn_syncer(syncer2.clone(), rx2, server_addr2)?;

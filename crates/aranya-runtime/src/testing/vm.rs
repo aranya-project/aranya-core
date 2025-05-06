@@ -576,7 +576,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     let provider = MemStorageProvider::new();
     let mut cs1 = ClientState::new(engine, provider);
     let mut sink = VecSink::new();
-    let (storage_id, _) = cs1
+    let (storage_id, init_cmd) = cs1
         .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
         .expect("could not create graph");
 
@@ -591,6 +591,8 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::new();
     let mut cs2 = ClientState::new(engine2, provider);
+    cs2.add_graph(&init_cmd, &mut sink)
+        .expect("could not add graph");
     test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();

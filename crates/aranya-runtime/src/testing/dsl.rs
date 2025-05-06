@@ -491,13 +491,9 @@ where
                         policy,
                     });
                     for i in 1..clients {
-                        generated_actions.push(TestRule::Sync {
+                        generated_actions.push(TestRule::AddGraph {
                             graph,
-                            client: i,
-                            from: 0,
-                            must_send: None,
-                            must_receive: None,
-                            max_syncs: 1,
+                            dst_client: i,
                         });
                     }
                     generated_actions
@@ -555,7 +551,7 @@ where
                     .ok_or(TestError::MissingClient)?
                     .get_mut();
 
-                dst_client_state.add_graph(init_data)?;
+                dst_client_state.add_graph(init_data, &mut sink)?;
             }
             TestRule::Sync {
                 client,

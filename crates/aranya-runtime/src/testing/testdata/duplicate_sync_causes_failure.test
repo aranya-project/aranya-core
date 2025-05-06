@@ -22,6 +22,18 @@
     }
   },
   {
+    "AddGraph": {
+      "graph": 0,
+      "dst_client": 1
+    }
+  },
+  {
+    "AddGraph": {
+      "graph": 0,
+      "dst_client": 2
+    }
+  },
+  {
     "Sync": {
       "graph": 0,
       "client": 1,

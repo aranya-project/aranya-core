@@ -17,6 +17,12 @@
     }
   },
   {
+    "AddGraph": {
+      "graph": 0,
+      "dst_client": 1
+    }
+  },
+  {
     "Sync": {
       "graph": 0,
       "client": 1,
