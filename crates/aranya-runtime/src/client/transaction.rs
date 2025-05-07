@@ -155,17 +155,11 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         engine: &mut E,
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<usize, ClientError> {
-        let mut commands = commands.iter();
         let mut count: usize = 0;
 
         // Get storage or try to initialize with first command.
         let storage = match provider.get_storage(self.storage_id) {
             Ok(s) => s,
-            Err(StorageError::NoSuchStorage) => {
-                let command = commands.next().ok_or(ClientError::InitError)?;
-                count = count.checked_add(1).assume("must not overflow")?;
-                self.init(command, engine, provider, sink)?
-            }
             Err(e) => return Err(e.into()),
         };
 
@@ -321,49 +315,6 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
 
         Ok(p)
     }
-
-    fn init<'sp>(
-        &mut self,
-        command: &impl Command,
-        engine: &mut E,
-        provider: &'sp mut SP,
-        sink: &mut impl Sink<E::Effect>,
-    ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
-        // Storage ID is the id of the init command by definition.
-        if self.storage_id.into_id() != command.id().into_id() {
-            return Err(ClientError::InitError);
-        }
-
-        // The init command must not have a parent.
-        if !matches!(command.parent(), Prior::None) {
-            return Err(ClientError::InitError);
-        }
-
-        // The graph must have policy to start with.
-        let Some(policy_data) = command.policy() else {
-            return Err(ClientError::InitError);
-        };
-
-        let policy_id = engine.add_policy(policy_data)?;
-        let policy = engine.get_policy(policy_id)?;
-
-        // Get an empty perspective and run the init command.
-        let mut perspective = provider.new_perspective(policy_id);
-        sink.begin();
-        if let Err(e) = policy.call_rule(command, &mut perspective, sink, CommandRecall::None) {
-            sink.rollback();
-            // We don't need to revert perspective since we just drop it.
-            return Err(e.into());
-        }
-        perspective.add_command(command)?;
-
-        let (_, storage) = provider.new_storage(perspective)?;
-
-        // Wait to commit until we are absolutely sure we've initialized.
-        sink.commit();
-
-        Ok(storage)
-    }
 }
 
 /// Run the braid algorithm and evaluate the sequence to create a braided fact index.
@@ -443,7 +394,9 @@ mod test {
     use test_log::test;
 
     use super::*;
-    use crate::{memory::MemStorageProvider, ClientState, Keys, MergeIds, Priority};
+    use crate::{
+        client::InitCommand, memory::MemStorageProvider, ClientState, Keys, MergeIds, Priority,
+    };
 
     struct SeqEngine;
 
@@ -458,6 +411,13 @@ mod test {
         prior: Prior<Address>,
         data: Box<str>,
         max_cut: usize,
+    }
+
+    impl SeqCommand {
+        fn serialize_as_init_cmd(&self, graph_id: GraphId) -> Result<Vec<u8>, Bug> {
+            let cmd = InitCommand::from_cmd(graph_id, &self)?;
+            postcard::to_allocvec(&cmd).map_err(|_| Bug::new("Can't serialize SeqCommand"))
+        }
     }
 
     impl Engine for SeqEngine {
@@ -609,17 +569,30 @@ mod test {
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
         pub fn init(mut client: ClientState<SeqEngine, SP>, ids: &[CommandId]) -> Self {
-            let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
+            let graph_id = GraphId::from(ids[0].into_id());
+
+            let mut trx = Transaction::new(graph_id);
             let mut prior: Prior<Address> = Prior::None;
-            for &id in ids {
+            for (idx, &id) in ids.iter().enumerate() {
                 let cmd = SeqCommand::new(id, prior, 0);
-                trx.add_commands(
-                    &[cmd],
-                    &mut client.provider,
-                    &mut client.engine,
-                    &mut NullSink,
-                )
-                .unwrap();
+                // Treat the first command as the init command
+                if idx == 0 {
+                    let bytes = cmd
+                        .serialize_as_init_cmd(graph_id)
+                        .expect("Should be able to serialize");
+                    client
+                        .add_graph(&bytes, &mut NullSink)
+                        .expect("Should be able to add a new graph");
+                } else {
+                    trx.add_commands(
+                        &[cmd],
+                        &mut client.provider,
+                        &mut client.engine,
+                        &mut NullSink,
+                    )
+                    .unwrap();
+                }
+
                 prior = Prior::Single(Address { id, max_cut: 0 });
             }
             Self { client, trx }

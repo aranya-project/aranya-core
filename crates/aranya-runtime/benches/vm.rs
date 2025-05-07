@@ -20,7 +20,7 @@ fn benchmark_1() {
     let mut cs = ClientState::new(engine, provider);
 
     let mut sink = TestSink::new();
-    let storage_id = cs
+    let (storage_id, _) = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
@@ -115,7 +115,7 @@ policy-version: 1
     let mut cs = ClientState::new(engine, provider);
 
     let mut sink = TestSink::new();
-    let storage_id = cs
+    let (storage_id, _) = cs
         .new_graph(&[0u8], vm_action!(init()), &mut sink)
         .expect("could not create graph");
 

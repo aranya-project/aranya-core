@@ -72,9 +72,10 @@ fn new_graph(
     sink: &mut CountSink,
 ) -> Result<GraphId> {
     let policy_data = 0_u64.to_be_bytes();
-    Ok(client
+    let (graph_id, _) = client
         .new_graph(policy_data.as_slice(), TestActions::Init(0), sink)
-        .expect("unable to create graph"))
+        .expect("unable to create graph");
+    Ok(graph_id)
 }
 
 fn add_commands(

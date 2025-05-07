@@ -11,12 +11,13 @@ use tracing::trace;
 use super::dsl::dispatch;
 use crate::{
     engine::{Engine, EngineError, PolicyId, Sink},
+    init::InitCommand,
     ser_keys,
     storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
-    ClientState, CommandId, GraphId, NullSink, PeerCache, SyncRequester, VmEffect, VmEffectData,
-    VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
+    ClientState, CommandId, GraphId, Location, NullSink, PeerCache, Segment, SyncRequester,
+    VmEffect, VmEffectData, VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
 };
 
 /// The policy used by these tests.
@@ -316,7 +317,7 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
-    let storage_id = cs
+    let (storage_id, _) = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
@@ -379,7 +380,7 @@ pub fn test_query_fact_value(engine: TestEngine) -> Result<(), VmPolicyError> {
     let provider = MemStorageProvider::new();
     let mut cs = ClientState::new(engine, provider);
 
-    let graph = cs
+    let (graph, _) = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut NullSink)
         .expect("could not create graph");
 
@@ -422,7 +423,7 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Create a new graph. This builds an Init event and returns an ID referencing the
     // storage for the graph.
-    let storage_id = cs
+    let (storage_id, _) = cs
         .new_graph(&[0u8], vm_action!(init(0)), &mut sink)
         .expect("could not create graph");
 
@@ -575,7 +576,7 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     let provider = MemStorageProvider::new();
     let mut cs1 = ClientState::new(engine, provider);
     let mut sink = VecSink::new();
-    let storage_id = cs1
+    let (storage_id, init_cmd) = cs1
         .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
         .expect("could not create graph");
 
@@ -590,6 +591,8 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     // create client 2 and sync it with client 1
     let provider = MemStorageProvider::new();
     let mut cs2 = ClientState::new(engine2, provider);
+    cs2.add_graph(&init_cmd, &mut sink)
+        .expect("could not add graph");
     test_sync(storage_id, &mut cs1, &mut cs2, &mut sink);
     assert_eq!(sink.last(), &vm_effect!(StuffHappened { x: 1, y: 1 }));
     sink.clear();
@@ -626,6 +629,35 @@ pub fn test_effect_metadata(engine: TestEngine, engine2: TestEngine) -> Result<(
     assert_eq!(sink.last().command, increment_cmd_id);
     // and that the `recalled` flag is set.
     assert!(sink.last().recalled);
+
+    Ok(())
+}
+
+/// Tests that the "init" command is the first command in the first segment in a `MemStorage`.
+///
+/// The [`TestEngine`] must be instantiated with
+/// [`TEST_POLICY_1`].
+pub fn test_init_command_mem_storage(engine: TestEngine) -> Result<(), VmPolicyError> {
+    let provider = MemStorageProvider::new();
+    let mut cs1 = ClientState::new(engine, provider);
+    let mut sink = VecSink::new();
+    let (storage_id, init_command_bytes) = cs1
+        .new_graph(&[0u8], vm_action!(init(1)), &mut sink)
+        .expect("could not create graph");
+
+    // Get the first segment at index 0
+    let first_segment = cs1
+        .provider()
+        .get_storage(storage_id)?
+        .get_segment(Location {
+            command: 0,
+            segment: 0,
+        })?;
+    let first_command = first_segment.first();
+    let init_command =
+        InitCommand::from_cmd(storage_id, first_command).map_err(|_| VmPolicyError::Unknown)?;
+
+    assert_eq!(*init_command_bytes, postcard::to_allocvec(&init_command)?);
 
     Ok(())
 }

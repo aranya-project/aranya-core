@@ -22,12 +22,15 @@
     }
   },
   {
-    "Sync": {
+    "AddGraph": {
       "graph": 0,
-      "client": 1,
-      "from": 0,
-      "must_receive": null,
-      "max_syncs": 1
+      "dst_client": 1
+    }
+  },
+  {
+    "AddGraph": {
+      "graph": 0,
+      "dst_client": 2
     }
   },
   {
