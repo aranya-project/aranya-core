@@ -16,7 +16,17 @@ use crate::{data::Value, Label};
 
 /// Reason for ending execution.
 #[must_use]
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum ExitReason {
     /// Execution completed without errors.
     Normal,
@@ -48,7 +58,17 @@ impl Display for ExitReason {
 }
 
 /// The target of a branch
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Target {
     /// An unresolved target with a symbolic name
     Unresolved(Label),
@@ -79,7 +99,17 @@ impl Display for Target {
 pub type Identifier = String;
 
 /// The machine instruction types
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Eq,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 pub enum Instruction {
     // data
     /// Push a value onto the stack

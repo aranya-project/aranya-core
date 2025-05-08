@@ -17,7 +17,7 @@ pub mod linear;
 pub mod memory;
 
 /// The maximum size of a serialized message
-pub const MAX_COMMAND_LENGTH: usize = 2048;
+pub const MAX_COMMAND_LENGTH: usize = 400;
 
 aranya_crypto::custom_id! {
     /// The ID of the graph, taken from initialization.

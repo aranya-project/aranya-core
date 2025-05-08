@@ -8,17 +8,6 @@ use core::{
     str::FromStr,
 };
 
-use postcard::experimental::max_size::MaxSize;
-#[cfg(feature = "proptest")]
-#[doc(hidden)]
-pub use proptest as __proptest;
-use serde::{
-    de::{self, DeserializeOwned, SeqAccess, Visitor},
-    ser::SerializeTuple,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-pub use spideroak_base58::{DecodeError, String32, ToBase58};
-
 use crate::{
     ciphersuite::SuiteIds,
     csprng::Csprng,
@@ -29,10 +18,33 @@ use crate::{
     typenum::U32,
     CipherSuite,
 };
+use postcard::experimental::max_size::MaxSize;
+#[cfg(feature = "proptest")]
+#[doc(hidden)]
+pub use proptest as __proptest;
+
+use serde::{
+    de::{self, DeserializeOwned, SeqAccess, Visitor},
+    ser::SerializeTuple,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+pub use spideroak_base58::{DecodeError, String32, ToBase58};
 
 /// A unique cryptographic ID.
 #[repr(C)]
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
+#[derive(
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    MaxSize,
+    rkyv::Archive,
+    rkyv::Deserialize,
+    rkyv::Serialize,
+)]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Id([u8; 32]);
 
