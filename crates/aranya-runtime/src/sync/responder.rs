@@ -464,7 +464,6 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             if commands.is_full() {
                 break;
             }
-            index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
             let Some(&location) = self.to_send.get(i) else {
                 self.state = SyncResponderState::Reset;
                 bug!("send index OOB");
@@ -507,6 +506,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
                     .push(meta)
                     .ok()
                     .assume("too many commands in segment")?;
+                index = index.checked_add(1).assume("index + 1 mustn't overflow")?;
                 if commands.is_full() {
                     break;
                 }
