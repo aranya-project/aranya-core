@@ -6,7 +6,7 @@ use aranya_crypto::{
     default::DefaultCipherSuite,
     rust::HkdfSha256,
     test_util::TestCs,
-    typenum::{U0, U16},
+    typenum::U16,
     CipherSuite, Csprng, Random, Rng,
 };
 use aranya_fast_channels::{
@@ -25,7 +25,7 @@ impl Aead for NoopAead {
 
     type KeySize = U16;
     type NonceSize = U16;
-    type Overhead = U0;
+    type Overhead = U16;
 
     const MAX_PLAINTEXT_SIZE: u64 = u64::MAX - Self::OVERHEAD as u64;
     const MAX_ADDITIONAL_DATA_SIZE: u64 = u64::MAX;
