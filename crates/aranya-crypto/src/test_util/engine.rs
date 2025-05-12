@@ -518,7 +518,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
         "wrong `parent`",
         Context {
             label: "some label",
-            parent: [1u8; 64].into(),
+            parent: [1u8; 32].into(),
             author_sign_pk: &author_pk1,
         }
     );

@@ -888,7 +888,7 @@ macro_rules! test_vectors {
         macro_rules! test_suite {
             ($backend:expr) => {
                 $(
-                    #[test]
+                    #[::test_log::test]
                     fn $name() -> ::core::result::Result<(), $crate::testing::dsl::TestError> {
                         $crate::testing::dsl::vectors::$name($backend)
                     }
