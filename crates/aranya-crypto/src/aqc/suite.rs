@@ -83,8 +83,8 @@ mod tests {
             ([0x13, 0x03], Some(TlsChaCha20Poly1305Sha256)),
             ([0x13, 0x04], Some(TlsAes128CcmSha256)),
             ([0x13, 0x05], Some(TlsAes128Ccm8Sha256)),
-            ([0x13, 00], None),
-            ([0x13, 06], None),
+            ([0x13, 0x00], None),
+            ([0x13, 0x06], None),
         ];
         for (idx, (bytes, suite)) in tests.into_iter().enumerate() {
             let got = CipherSuiteId::try_from_bytes(bytes);
