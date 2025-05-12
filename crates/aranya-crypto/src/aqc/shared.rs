@@ -74,7 +74,7 @@ impl<'a, CS: CipherSuite> Import<&'a [u8]> for RootChannelKey<CS> {
 
 /// A raw PSK.
 #[derive(Serialize, Deserialize)]
-pub struct RawPsk<CS> {
+pub(super) struct RawPsk<CS> {
     // TODO(eric): support different sizes?
     psk: [u8; 32],
     _marker: PhantomData<CS>,
@@ -83,7 +83,7 @@ pub struct RawPsk<CS> {
 impl<CS: CipherSuite> RawPsk<CS> {
     /// Returns the raw PSK secret bytes.
     #[inline]
-    pub const fn raw_secret_bytes(&self) -> &[u8] {
+    pub(super) const fn raw_secret_bytes(&self) -> &[u8] {
         &self.psk
     }
 }
