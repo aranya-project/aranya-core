@@ -1,7 +1,7 @@
 use aranya_capi_codegen::syntax::Opaque;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse::Result, parse_quote, Error, Item, Path};
+use syn::{parse::Result, parse_quote, Attribute, Error, Item, Path};
 use tracing::info;
 
 pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
@@ -14,20 +14,25 @@ pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream
         .unwrap_or_else(|| parse_quote!(::aranya_capi_core));
 
     let item = syn::parse2::<Item>(item)?;
-    let (vis, name, attrs) = match &item {
-        Item::Struct(s) => (&s.vis, &s.ident, &s.attrs),
-        Item::Type(t) => (&t.vis, &t.ident, &t.attrs),
-        item => {
-            return Err(Error::new_spanned(
-                item,
-                "`#[capi::opaque]` can only be applied to `struct`s",
-            ))
-        }
+    let Item::Type(mut t) = item else {
+        // TODO(jdygert): Allow structs again?
+        return Err(Error::new_spanned(
+            item,
+            "`#[capi::opaque]` can only be applied to `type` aliases",
+        ));
     };
+    let vis = t.vis.clone();
+    let name = t.ident.clone();
 
-    let attrs = attrs
+    let attrs: Vec<Attribute> = t
+        .attrs
         .iter()
-        .filter(|attr| attr.path().is_ident("doc") || attr.path().is_ident("cfg"));
+        .filter(|attr| attr.path().is_ident("doc") || attr.path().is_ident("cfg"))
+        .cloned()
+        .collect();
+
+    // let old = t.ty;
+    // t.ty = parse_quote!( #capi::opaque::Opaque<#size, #align, #old> );
 
     let code = quote! {
         #[cfg(cbindgen)]
@@ -41,7 +46,7 @@ pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream
         }
 
         #[cfg(not(cbindgen))]
-        #item
+        #t
 
         #[allow(clippy::assertions_on_constants)]
         #[allow(clippy::modulo_one)]

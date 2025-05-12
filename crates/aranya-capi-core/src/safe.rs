@@ -13,7 +13,7 @@ use core::{
 };
 
 use aranya_libc::Path;
-use tracing::{error, instrument};
+use tracing::{error, instrument, warn};
 
 use crate::{
     internal::conv::{
@@ -164,8 +164,29 @@ impl<T: Typed> Safe<T> {
     /// Like [`check`][Self::check], but does not check for
     /// a changed address.
     fn sanity_check(&self) {
-        debug_assert!(self.is_valid());
-        debug_assert!(self.is_init());
+        #[allow(clippy::panic, reason = "panicking only under debug_assertions")]
+        if cfg!(debug_assertions) {
+            if !self.is_valid() {
+                error!(
+                    got = %self.id,
+                    want = %T::TYPE_ID,
+                    name = self.name(),
+                    "invalid type ID",
+                );
+                panic!("invalid type ID")
+            } else if !self.is_init() {
+                error!(flags = %self.flags, name = self.name(), "not initialized");
+                panic!("not initialized")
+            } else if self.addr_changed() {
+                warn!(
+                    old = %Hex(self.addr),
+                    new = %Hex(self as *const Self as usize),
+                    id = %self.id,
+                    name = self.name(),
+                    "address changed"
+                );
+            }
+        }
         // NB: We skip the address change because it's okay for
         // Rust to move this type around, but not external code.
     }
