@@ -443,7 +443,7 @@ impl<CS: CipherSuite> fmt::Debug for BidiPsk<CS> {
 }
 
 /// Uniquely identifies a [`BidiPsk`].
-#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
 pub struct BidiPskId {
     id: BidiChannelId,
     suite: CipherSuiteId,
@@ -463,6 +463,13 @@ impl BidiPskId {
     /// Converts the ID to its byte encoding.
     pub const fn as_bytes(&self) -> &[u8; 34] {
         zerocopy::transmute_ref!(self)
+    }
+}
+
+impl ConstantTimeEq for BidiPskId {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.as_bytes().ct_eq(other.as_bytes())
     }
 }
 

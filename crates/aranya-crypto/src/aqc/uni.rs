@@ -394,7 +394,7 @@ struct PskCtx {
 
 /// Uniquely identifies both a [`UniSendPsk`] and
 /// a [`UniRecvPsk`].
-#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
 pub struct UniPskId {
     id: UniChannelId,
     suite: CipherSuiteId,
@@ -414,6 +414,13 @@ impl UniPskId {
     /// Converts the ID to its byte encoding.
     pub const fn as_bytes(&self) -> &[u8; 34] {
         zerocopy::transmute_ref!(self)
+    }
+}
+
+impl ConstantTimeEq for UniPskId {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.as_bytes().ct_eq(other.as_bytes())
     }
 }
 

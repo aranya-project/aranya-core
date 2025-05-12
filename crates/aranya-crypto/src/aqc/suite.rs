@@ -1,10 +1,13 @@
 use core::fmt;
 
+use serde::{Deserialize, Serialize};
 use zerocopy::{Immutable, IntoBytes, KnownLayout};
 
 /// A TLS 1.3 cipher suite.
 #[repr(u16)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Immutable, IntoBytes, KnownLayout)]
+#[derive(
+    Copy, Clone, Debug, Eq, PartialEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize,
+)]
 #[non_exhaustive]
 pub enum CipherSuiteId {
     /// TLS_AES_128_GCM_SHA256
