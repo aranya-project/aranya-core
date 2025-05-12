@@ -262,6 +262,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
 /// channel author and channel peer to derive individual PSKs.
 pub struct UniSecret<CS: CipherSuite> {
     id: UniChannelId,
+    #[allow(clippy::type_complexity)]
     ctx: Either<SendCtx<CS::Kem, CS::Kdf, CS::Aead>, RecvCtx<CS::Kem, CS::Kdf, CS::Aead>>,
 }
 
@@ -322,10 +323,8 @@ impl<CS: CipherSuite> UniSecret<CS> {
             &info,
         )?;
 
-        let id = enc.id();
-
         Ok(Self {
-            id,
+            id: enc.id(),
             ctx: Either::Right(ctx),
         })
     }
@@ -435,15 +434,15 @@ impl fmt::Display for UniPskId {
 macro_rules! uni_psk {
     (
         $(#[$meta:meta])*
-        struct $psk:ident;
+        struct $name:ident;
     ) => {
         $(#[$meta])*
-        pub struct $psk<CS> {
+        pub struct $name<CS> {
             id: UniPskId,
             psk: RawPsk<CS>,
         }
 
-        impl<CS: CipherSuite> $psk<CS> {
+        impl<CS: CipherSuite> $name<CS> {
             /// Returns the PSK identity.
             ///
             /// See [RFC 8446] section 4.2.11 for more information about
@@ -465,10 +464,10 @@ macro_rules! uni_psk {
             }
         }
 
-        impl<CS: CipherSuite> fmt::Debug for $psk<CS> {
+        impl<CS: CipherSuite> fmt::Debug for $name<CS> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 // Avoid leaking `psk`.
-                f.debug_struct(stringify!($psk))
+                f.debug_struct(stringify!($name))
                     .field("id", &self.id)
                     .finish_non_exhaustive()
             }

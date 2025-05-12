@@ -285,6 +285,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
 /// channel author and channel peer to derive individual PSKs.
 pub struct BidiSecret<CS: CipherSuite> {
     id: BidiChannelId,
+    #[allow(clippy::type_complexity)]
     ctx: Either<SendCtx<CS::Kem, CS::Kdf, CS::Aead>, RecvCtx<CS::Kem, CS::Kdf, CS::Aead>>,
 }
 
@@ -316,10 +317,8 @@ impl<CS: CipherSuite> BidiSecret<CS> {
             secret.0.into_inner(),
         )?;
 
-        let id = BidiPeerEncap::<CS>(Encap(enc)).id();
-
         Ok(Self {
-            id,
+            id: BidiPeerEncap::<CS>(Encap(enc)).id(),
             ctx: Either::Left(ctx),
         })
     }
