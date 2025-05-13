@@ -35,9 +35,9 @@ aranya-capi-macro = { version = "0.2.2", path = "../aranya-capi-macro", default-
 aranya-libc = { version = "0.2.0", path = "../aranya-libc", default-features = false }
 buggy = { version = "0.1.0", default-features = false }
 
-elain = "0.3"
 cfg-if = { workspace = true, default-features = false }
 const_format = { version = "0.2.31", default-features = false, features = ["assertcp"] }
+elain = "0.3"
 thiserror = { workspace = true }
 tracing = { workspace = true, default-features = false }
 
