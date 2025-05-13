@@ -11,15 +11,15 @@ use zerocopy::{Immutable, IntoBytes, KnownLayout};
 #[non_exhaustive]
 pub enum CipherSuiteId {
     /// TLS_AES_128_GCM_SHA256
-    TlsAes128GcmSha256 = 0x1301u16.to_be(),
+    TlsAes128GcmSha256 = u16::to_be(0x1301),
     /// TLS_AES_256_GCM_SHA384
-    TlsAes256GcmSha384 = 0x1302u16.to_be(),
+    TlsAes256GcmSha384 = u16::to_be(0x1302),
     /// TLS_CHACHA20_POLY1305_SHA256
-    TlsChaCha20Poly1305Sha256 = 0x1303u16.to_be(),
+    TlsChaCha20Poly1305Sha256 = u16::to_be(0x1303),
     /// TLS_AES_128_CCM_SHA256
-    TlsAes128CcmSha256 = 0x1304u16.to_be(),
+    TlsAes128CcmSha256 = u16::to_be(0x1304),
     /// TLS_AES_128_CCM_8_SHA256
-    TlsAes128Ccm8Sha256 = 0x1305u16.to_be(),
+    TlsAes128Ccm8Sha256 = u16::to_be(0x1305),
 }
 
 impl CipherSuiteId {

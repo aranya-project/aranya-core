@@ -5,7 +5,7 @@ use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aqc::{
-        shared::{RawPsk, RootChannelKey},
+        shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
         suite::CipherSuiteId,
     },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
@@ -14,13 +14,12 @@ use crate::{
     engine::unwrapped,
     error::Error,
     hash::{tuple_hash, Digest, Hash},
-    hpke::{Hpke, Mode, RecvCtx, SendCtx},
+    hpke::{Hpke, Mode},
     id::{custom_id, Id},
     import::ImportError,
     kem::Kem,
     misc::sk_misc,
     subtle::{Choice, ConstantTimeEq},
-    util::Either,
     CipherSuite, Engine,
 };
 
@@ -262,8 +261,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
 /// channel author and channel peer to derive individual PSKs.
 pub struct UniSecret<CS: CipherSuite> {
     id: UniChannelId,
-    #[allow(clippy::type_complexity)]
-    ctx: Either<SendCtx<CS::Kem, CS::Kdf, CS::Aead>, RecvCtx<CS::Kem, CS::Kdf, CS::Aead>>,
+    ctx: SendOrRecvCtx<CS>,
 }
 
 impl<CS: CipherSuite> UniSecret<CS> {
@@ -296,7 +294,7 @@ impl<CS: CipherSuite> UniSecret<CS> {
 
         Ok(Self {
             id,
-            ctx: Either::Left(ctx),
+            ctx: SendOrRecvCtx::Send(ctx),
         })
     }
 
@@ -325,7 +323,7 @@ impl<CS: CipherSuite> UniSecret<CS> {
 
         Ok(Self {
             id: enc.id(),
-            ctx: Either::Right(ctx),
+            ctx: SendOrRecvCtx::Recv(ctx),
         })
     }
 
@@ -365,17 +363,12 @@ impl<CS: CipherSuite> UniSecret<CS> {
             channel_id: self.id,
             suite,
         };
-        let psk = match &self.ctx {
-            Either::Left(ctx) => ctx.export(context.as_bytes())?,
-            Either::Right(ctx) => ctx.export(context.as_bytes())?,
-        };
-        Ok(psk)
+        Ok(self.ctx.export(context.as_bytes())?)
     }
 }
 
 impl<CS: CipherSuite> fmt::Debug for UniSecret<CS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid leaking `secret`.
         f.debug_struct("UniSecret")
             .field("id", &self.id)
             .finish_non_exhaustive()
