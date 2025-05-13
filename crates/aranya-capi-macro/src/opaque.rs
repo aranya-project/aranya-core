@@ -7,7 +7,12 @@ use tracing::info;
 pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {
     info!("parsing `#[capi::opaque(...)]` attribute");
 
-    let Opaque { size, align, capi } = syn::parse2::<Opaque>(attr)?;
+    let Opaque {
+        size,
+        align,
+        capi,
+        generated,
+    } = syn::parse2::<Opaque>(attr)?;
 
     let capi: Path = capi
         .map(Into::into)
@@ -21,55 +26,61 @@ pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream
             "`#[capi::opaque]` can only be applied to `type` aliases",
         ));
     };
-    let vis = t.vis.clone();
     let name = t.ident.clone();
 
-    let attrs: Vec<Attribute> = t
-        .attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("doc") || attr.path().is_ident("cfg"))
-        .cloned()
-        .collect();
+    let definition = if generated {
+        let vis = t.vis.clone();
 
-    // let old = t.ty;
-    // t.ty = parse_quote!( #capi::opaque::Opaque<#size, #align, #old> );
+        let attrs: Vec<Attribute> = t
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("doc") || attr.path().is_ident("cfg"))
+            .cloned()
+            .collect();
+
+        quote! {
+            #[cfg(cbindgen)]
+            #[repr(C, align(#align))]
+            #(#attrs)*
+            #vis struct #name {
+                /// This field only exists for size purposes. It is
+                /// UNDEFINED BEHAVIOR to read from or write to it.
+                /// @private
+                __for_size_only: [u8; #size],
+            }
+
+            #[cfg(not(cbindgen))]
+            #t
+        }
+    } else {
+        let old = t.ty;
+        t.ty = parse_quote! { #capi::opaque::Opaque<#size, #align, #old> };
+
+        quote! { #t }
+    };
 
     let code = quote! {
-        #[cfg(cbindgen)]
-        #[repr(C, align(#align))]
-        #(#attrs)*
-        #vis struct #name {
-            /// This field only exists for size purposes. It is
-            /// UNDEFINED BEHAVIOR to read from or write to it.
-            /// @private
-            __for_size_only: [u8; #size],
-        }
-
-        #[cfg(not(cbindgen))]
-        #t
+        #definition
 
         #[allow(clippy::assertions_on_constants)]
-        #[allow(clippy::modulo_one)]
         const _: () = {
             // Size.
             const _: () = {
                 const GOT: usize = #size;
-                const MIN: usize = ::core::mem::size_of::<#name>();
-                const MSG: &str = #capi::internal::const_format::formatcp!("size too small: {GOT} < {MIN}");
-                // NB: We use `core::assert!` instead of
-                // `const_format::assertcp!` because the latter
-                // clobbers our spans.
-                ::core::assert!(GOT >= MIN, "{}", MSG);
+                const ACTUAL: usize = ::core::mem::size_of::<#name>();
+                const MSG: &str = #capi::internal::const_format::formatcp!("bad size: {GOT} != {ACTUAL}");
+                // NB: We use `core::assert!` instead of `const_format::assertcp!`
+                // because the latter clobbers our spans.
+                ::core::assert!(GOT == ACTUAL, "{}", MSG);
             };
             // Alignment.
             const _: () = {
                 const GOT: usize = #align;
-                const MIN: usize = ::core::mem::align_of::<#name>();
-                const MSG: &str = #capi::internal::const_format::formatcp!("alignment too small: {GOT} < {MIN}");
-                // NB: We use `core::assert!` instead of
-                // `const_format::assertcp!` because the latter
-                // clobbers our spans.
-                ::core::assert!(GOT >= MIN && GOT % MIN == 0, "{}", MSG);
+                const ACTUAL: usize = ::core::mem::align_of::<#name>();
+                const MSG: &str = #capi::internal::const_format::formatcp!("bad alignment: {GOT} != {ACTUAL}");
+                // NB: We use `core::assert!` instead of `const_format::assertcp!`
+                // because the latter clobbers our spans.
+                ::core::assert!(GOT == ACTUAL, "{}", MSG);
             };
         };
     };

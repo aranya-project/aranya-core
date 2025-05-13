@@ -261,6 +261,7 @@ impl ToTokens for Alias {
 
         self.doc.to_tokens(tokens);
         tokens.append_all(self.attrs.outer());
+        self.opaque.to_tokens(tokens);
         self.vis.to_tokens(tokens);
         self.type_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);
@@ -351,6 +352,7 @@ impl ToTokens for Struct {
         self.derives.to_tokens(tokens);
         self.repr.to_tokens(tokens);
         tokens.append_all(self.attrs.outer());
+        self.opaque.to_tokens(tokens);
         self.vis.to_tokens(tokens);
         self.struct_token.to_tokens(tokens);
         self.ident.to_tokens(tokens);
