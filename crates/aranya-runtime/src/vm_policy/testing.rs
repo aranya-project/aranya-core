@@ -35,7 +35,7 @@ impl TestFfiEnvelope {
     #[ffi_export(def = "function do_seal(payload bytes) struct Envelope")]
     fn seal<E>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         payload: Vec<u8>,
     ) -> Result<Envelope, MachineError> {
@@ -75,7 +75,7 @@ impl TestFfiEnvelope {
     #[ffi_export(def = "function do_open(envelope_input struct Envelope) bytes")]
     fn open<E>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Infallible> {

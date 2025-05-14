@@ -58,7 +58,7 @@ function derive_enc_key_id(
 "#)]
     pub(crate) fn derive_enc_key_id<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         enc_pk: Vec<u8>,
     ) -> Result<Id, Error> {
@@ -75,7 +75,7 @@ function derive_sign_key_id(
 "#)]
     pub(crate) fn derive_sign_key_id<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         sign_pk: Vec<u8>,
     ) -> Result<Id, Error> {
@@ -92,7 +92,7 @@ function derive_device_id(
 "#)]
     pub(crate) fn derive_device_id<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         ident_pk: Vec<u8>,
     ) -> Result<Id, Error> {
@@ -106,7 +106,7 @@ function generate_group_key() struct StoredGroupKey
 "#)]
     pub(crate) fn generate_group_key<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         eng: &mut E,
     ) -> Result<StoredGroupKey, Error> {
         let group_key = GroupKey::new(eng);
@@ -128,7 +128,7 @@ function seal_group_key(
 "#)]
     pub(crate) fn seal_group_key<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         eng: &mut E,
         wrapped_group_key: Vec<u8>,
         peer_enc_pk: Vec<u8>,
@@ -156,7 +156,7 @@ function open_group_key(
 "#)]
     pub(crate) fn open_group_key<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         eng: &mut E,
         sealed_group_key: SealedGroupKey,
         our_enc_sk_id: Id,
@@ -200,7 +200,7 @@ function encrypt_message(
 "#)]
     pub(crate) fn encrypt_message<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         eng: &mut E,
         plaintext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
@@ -252,7 +252,7 @@ function decrypt_message(
 "#)]
     pub(crate) fn decrypt_message<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         eng: &mut E,
         parent_id: Id,
         ciphertext: Vec<u8>,
@@ -271,7 +271,7 @@ function decrypt_message(
         let author_pk: &VerifyingKey<E::CS> = &postcard::from_bytes(&author_sign_pk)?;
 
         let ctx = Context {
-            label: ctx.name,
+            label: ctx.name.as_str(),
             parent: parent_id,
             author_sign_pk: author_pk,
         };
@@ -292,7 +292,7 @@ function compute_change_id(
 "#)]
     pub(crate) fn compute_change_id<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         new_cmd_id: Id,
         current_change_id: Id,

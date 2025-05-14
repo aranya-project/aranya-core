@@ -9,7 +9,7 @@ use aranya_crypto::{
     aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, DeviceId, EncryptionKey, Engine,
     GroupKey, Id, IdentityKey, KeyStore, SigningKey,
 };
-use aranya_policy_vm::{text, ActionContext, CommandContext, PolicyContext};
+use aranya_policy_vm::{ident, text, ActionContext, CommandContext, PolicyContext};
 
 use crate::{
     error::ErrorKind,
@@ -79,8 +79,8 @@ where
     E: Engine,
     S: KeyStore,
 {
-    const CTX: CommandContext<'static> = CommandContext::Policy(PolicyContext {
-        name: "dummy",
+    const CTX: CommandContext = CommandContext::Policy(PolicyContext {
+        name: ident!("dummy"),
         id: Id::default(),
         author: DeviceId::default(),
         version: Id::default(),
@@ -135,7 +135,7 @@ where
 
         let ffi = Ffi::new(store);
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy action"),
             head_id: Id::default(),
         });
         let ctx = &Self::CTX;
@@ -186,7 +186,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy action"),
             head_id: Id::default(),
         });
 
@@ -238,7 +238,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy action"),
             head_id: Id::default(),
         });
 
@@ -254,7 +254,7 @@ where
             .expect("should be able to encrypt message");
 
         let ctx = CommandContext::Policy(PolicyContext {
-            name: "different name",
+            name: ident!("different name"),
             id: Id::default(),
             author: DeviceId::default(),
             version: Id::default(),
@@ -296,7 +296,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy action"),
             head_id: Id::random(&mut eng),
         });
 
@@ -351,7 +351,7 @@ where
         };
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy action"),
             head_id: Id::default(),
         });
 

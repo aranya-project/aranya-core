@@ -7,8 +7,8 @@ use aranya_crypto::{
 use aranya_policy_vm::{
     self,
     ffi::{ffi, FfiModule, Type},
-    text, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
-    Stack, Text, Typed, Value, ValueConversionError,
+    ident, text, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack,
+    PolicyContext, Stack, Text, Typed, Value, ValueConversionError,
 };
 
 #[derive(Debug, PartialEq)]
@@ -46,7 +46,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
 
     fn call(&mut self, name: &str) -> Result<(), TestStateError<M::Error>> {
         let ctx = CommandContext::Policy(PolicyContext {
-            name: "SomeCommand",
+            name: ident!("SomeCommand"),
             id: Id::default(),
             author: Id::default().into(),
             version: Id::default(),
@@ -165,7 +165,7 @@ struct S2 {
 impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function add(x int, y int) int")]
     fn add<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         x: i64,
         y: i64,
@@ -175,7 +175,7 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = "function sub(x int, y int) int")]
     fn sub<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         x: i64,
         y: i64,
@@ -185,7 +185,7 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = "function concat(a string, b string) string")]
     fn concat<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         a: Text,
         b: Text,
@@ -197,7 +197,7 @@ impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function renamed_identity(id_input id) id")]
     fn identity<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         id_input: Id,
     ) -> Result<Id, Infallible> {
@@ -205,17 +205,13 @@ impl<T, G> TestModule<'_, T, G> {
     }
 
     #[ffi_export(def = "function no_args() int")]
-    fn no_args<E: Engine>(
-        &self,
-        _ctx: &CommandContext<'_>,
-        _eng: &mut E,
-    ) -> Result<i64, MachineError> {
+    fn no_args<E: Engine>(&self, _ctx: &CommandContext, _eng: &mut E) -> Result<i64, MachineError> {
         Ok(Self::NO_ARGS_RESULT)
     }
 
     #[ffi_export(def = "function custom_type(label int) int")]
     fn custom_type<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         label: Label,
     ) -> Result<Label, Infallible> {
@@ -225,7 +221,7 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = "function custom_type_optional(label optional int) optional int")]
     fn custom_type_optional<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         label: Option<Label>,
     ) -> Result<Option<Label>, Infallible> {
@@ -235,7 +231,7 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
     fn custom_def<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         _a: i64,
         _b: Vec<u8>,
@@ -250,7 +246,7 @@ function struct_fn(
 ) struct S2
 "#)]
     fn struct_fn<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         a: S0,
         b: S1,

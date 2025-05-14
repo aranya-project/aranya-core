@@ -218,7 +218,7 @@ where
         module: usize,
         _procedure: usize,
         _stack: &mut S,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
     ) -> Result<(), MachineError> {
         Err(MachineError::new(MachineErrorType::FfiModuleNotDefined(
             module,
@@ -274,7 +274,7 @@ fn main() -> anyhow::Result<()> {
             if let Some(action) = &args.action {
                 name = action.clone();
                 ctx = CommandContext::Action(ActionContext {
-                    name: name.as_str(),
+                    name: name.clone(),
                     head_id: Id::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
@@ -283,7 +283,7 @@ fn main() -> anyhow::Result<()> {
             } else if let Some(command) = args.command {
                 name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
-                    name: name.as_str(),
+                    name: name.clone(),
                     id: Id::default(),
                     author: Id::default().into(),
                     version: Id::default(),

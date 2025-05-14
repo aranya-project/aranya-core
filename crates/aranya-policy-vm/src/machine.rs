@@ -244,7 +244,7 @@ impl Machine {
     pub fn create_run_state<'a, M>(
         &'a self,
         io: &'a RefCell<M>,
-        ctx: CommandContext<'a>,
+        ctx: CommandContext,
     ) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
@@ -258,7 +258,7 @@ impl Machine {
         name: Identifier,
         args: Args,
         io: &'_ RefCell<M>,
-        ctx: CommandContext<'_>,
+        ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
@@ -276,7 +276,7 @@ impl Machine {
         this_data: &Struct,
         envelope: Struct,
         io: &'_ RefCell<M>,
-        ctx: CommandContext<'_>,
+        ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
         M: MachineIO<MachineStack>,
@@ -328,7 +328,7 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     /// I/O callbacks
     io: &'a RefCell<M>,
     /// Execution Context (actually used for more than Commands)
-    ctx: CommandContext<'a>,
+    ctx: CommandContext,
     // Cursors for `QueryStart` results
     query_iter_stack: Vec<M::QueryIterator>,
     #[cfg(feature = "bench")]
@@ -340,11 +340,7 @@ where
     M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
-    pub fn new(
-        machine: &'a Machine,
-        io: &'a RefCell<M>,
-        ctx: CommandContext<'a>,
-    ) -> RunState<'a, M> {
+    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> RunState<'a, M> {
         RunState {
             machine,
             scope: ScopeManager::new(&machine.globals),
@@ -360,14 +356,14 @@ where
     }
 
     /// Returns the current context
-    pub fn get_context(&self) -> &CommandContext<'a> {
+    pub fn get_context(&self) -> &CommandContext {
         &self.ctx
     }
 
     /// Set the internal context object to a new reference. The old reference is not
     /// preserved. This is a hack to allow a policy context to mutate into a recall context
     /// when recall happens.
-    pub fn set_context(&mut self, ctx: CommandContext<'a>) {
+    pub fn set_context(&mut self, ctx: CommandContext) {
         self.ctx = ctx;
     }
 
@@ -930,14 +926,15 @@ where
                 }
             }
             Instruction::Serialize => {
-                let CommandContext::Seal(SealContext { name, .. }) = self.ctx else {
+                let CommandContext::Seal(SealContext { name, .. }) = &self.ctx else {
                     return Err(self.err(MachineErrorType::BadState(
                         "Serialize: expected seal context",
                     )));
                 };
+                let name = name.clone();
 
                 let command_struct: Struct = self.ipop()?;
-                if command_struct.name != *name {
+                if command_struct.name != name {
                     return Err(MachineError::from_position(
                         MachineErrorType::BadState(
                             "Serialize: context name doesn't match command name",
@@ -954,13 +951,15 @@ where
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
-                let &CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
+                let CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
                     return Err(MachineError::from_position(
                         MachineErrorType::InvalidInstruction,
                         self.pc,
                         self.machine.codemap.as_ref(),
                     ));
                 };
+                let name = name.clone();
+
                 let bytes: Vec<u8> = self.ipop()?;
                 let s: Struct = postcard::from_bytes(&bytes).map_err(|_| {
                     MachineError::from_position(

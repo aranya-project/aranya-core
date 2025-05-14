@@ -22,14 +22,14 @@ use crate::{
     MachineError, PolicyContext, Struct, Target, Value,
 };
 
-fn dummy_ctx_action(name: &str) -> CommandContext<'_> {
+fn dummy_ctx_action(name: Identifier) -> CommandContext {
     CommandContext::Action(ActionContext {
         name,
         head_id: Id::default(),
     })
 }
 
-fn dummy_ctx_policy(name: &str) -> CommandContext<'_> {
+fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     CommandContext::Policy(PolicyContext {
         name,
         id: Id::default(),
@@ -41,7 +41,7 @@ fn dummy_ctx_policy(name: &str) -> CommandContext<'_> {
 #[test]
 fn test_pop() {
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy("test");
+    let ctx = dummy_ctx_policy(ident!("test"));
     let machine = Machine::new([Instruction::Pop]);
     let mut rs = machine.create_run_state(&io, ctx);
 
@@ -62,7 +62,7 @@ fn test_pop() {
 #[test]
 fn test_swap_empty() {
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy("test");
+    let ctx = dummy_ctx_policy(ident!("test"));
     let machine = Machine::new([Instruction::Swap(1)]);
     let mut rs = machine.create_run_state(&io, ctx);
 
@@ -74,7 +74,7 @@ fn test_swap_empty() {
 #[test]
 fn test_swap_top() {
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy("test");
+    let ctx = dummy_ctx_policy(ident!("test"));
     let machine = Machine::new([
         // Swap with self (first) - should fail
         Instruction::Swap(0),
@@ -90,7 +90,7 @@ fn test_swap_top() {
 #[test]
 fn test_swap_middle() {
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy("test");
+    let ctx = dummy_ctx_policy(ident!("test"));
     let machine = Machine::new([Instruction::Swap(1)]);
     let mut rs = machine.create_run_state(&io, ctx);
 
@@ -107,7 +107,7 @@ fn test_swap_middle() {
 #[test]
 fn test_dup_underflow() {
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy("test");
+    let ctx = dummy_ctx_policy(ident!("test"));
     let machine = Machine::new([Instruction::Dup(2)]);
     let mut rs = machine.create_run_state(&io, ctx);
 
@@ -121,7 +121,7 @@ fn test_dup_underflow() {
 #[test]
 fn test_dup() {
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy("test");
+    let ctx = dummy_ctx_policy(ident!("test"));
     let machine = Machine::new([Instruction::Dup(1)]);
     let mut rs = machine.create_run_state(&io, ctx);
 
@@ -148,7 +148,7 @@ fn test_add() {
 
     for t in tups.iter() {
         let io = RefCell::new(TestIO::new());
-        let ctx = dummy_ctx_policy("test");
+        let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
         let mut rs = machine.create_run_state(&io, ctx);
 
@@ -173,7 +173,7 @@ fn test_add_overflow() {
 
     for p in pairs.iter() {
         let io = RefCell::new(TestIO::new());
-        let ctx = dummy_ctx_policy("test");
+        let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Add]);
         let mut rs = machine.create_run_state(&io, ctx);
 
@@ -195,7 +195,7 @@ fn test_sub() {
 
     for t in tups.iter() {
         let io = RefCell::new(TestIO::new());
-        let ctx = dummy_ctx_policy("test");
+        let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
         let mut rs = machine.create_run_state(&io, ctx);
 
@@ -222,7 +222,7 @@ fn test_sub_overflow() {
 
     for p in pairs.iter() {
         let io = RefCell::new(TestIO::new());
-        let ctx = dummy_ctx_policy("test");
+        let ctx = dummy_ctx_policy(ident!("test"));
         let machine = Machine::new([Instruction::Sub]);
         let mut rs = machine.create_run_state(&io, ctx);
 
@@ -332,7 +332,7 @@ fn test_ffi() {
     stack
         .push(Value::String(text!("hello")))
         .expect("can't push");
-    let ctx = dummy_ctx_action("test");
+    let ctx = dummy_ctx_action(ident!("test"));
     io.borrow_mut()
         .call(0, 0, &mut stack, &ctx)
         .expect("Should succeed");
@@ -349,7 +349,7 @@ fn test_extcall() {
         Instruction::Exit(ExitReason::Normal),
     ]);
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_action("test");
+    let ctx = dummy_ctx_action(ident!("test"));
     let mut rs = machine.create_run_state(&io, ctx);
 
     rs.run().expect("Should succeed").success();
@@ -370,7 +370,7 @@ fn test_extcall_invalid_module() {
         Instruction::Exit(ExitReason::Normal),
     ]);
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_action("test");
+    let ctx = dummy_ctx_action(ident!("test"));
     let mut rs = machine.create_run_state(&io, ctx);
 
     assert_eq!(
@@ -387,7 +387,7 @@ fn test_extcall_invalid_proc() {
         Instruction::Exit(ExitReason::Normal),
     ]);
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_action("test");
+    let ctx = dummy_ctx_action(ident!("test"));
     let mut rs = machine.create_run_state(&io, ctx);
 
     assert_eq!(
@@ -404,7 +404,7 @@ fn test_extcall_invalid_arg() {
         Instruction::Exit(ExitReason::Normal),
     ]);
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_action("test");
+    let ctx = dummy_ctx_action(ident!("test"));
     let mut rs = machine.create_run_state(&io, ctx);
 
     // Empty stack - should fail
@@ -461,7 +461,7 @@ fn general_test_harness<F, G>(
     instructions: &[Instruction],
     mut machine_closure: F,
     mut rs_closure: G,
-    ctx: CommandContext<'_>,
+    ctx: CommandContext,
 ) where
     F: FnMut(&mut Machine) -> anyhow::Result<()>,
     G: FnMut(&mut RunState<'_, TestIO>) -> anyhow::Result<()>,
@@ -479,7 +479,7 @@ fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType
     let m = Machine::new(instructions.to_owned());
 
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_policy("test");
+    let ctx = dummy_ctx_policy(ident!("test"));
     let mut rs = m.create_run_state(&io, ctx);
     assert_eq!(rs.run(), Err(MachineError::new(error_type)));
 }
@@ -490,7 +490,7 @@ fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType
 // it.
 #[allow(clippy::redundant_clone)]
 fn test_errors() {
-    let ctx = dummy_ctx_policy("test");
+    let ctx = dummy_ctx_policy(ident!("test"));
     let x = ident!("x");
     let text = text!("this is a string");
 

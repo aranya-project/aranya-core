@@ -286,7 +286,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     &self,
                     __proc: usize,
                     __stack: &mut impl #vm::Stack,
-                    __ctx: &#vm::CommandContext<'_>,
+                    __ctx: &#vm::CommandContext,
                     __eng: &mut __E,
                 ) -> ::core::result::Result<(), Self::Error> {
                     #[allow(non_camel_case_types, clippy::enum_variant_names)]

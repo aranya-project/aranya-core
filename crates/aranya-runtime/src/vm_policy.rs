@@ -289,7 +289,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         envelope: Envelope<'_>,
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
-        ctx: CommandContext<'_>,
+        ctx: CommandContext,
         recall: CommandRecall,
     ) -> Result<(), EngineError>
     where
@@ -380,11 +380,9 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         let mut sink = NullSink;
         let sink2 = RefCell::new(&mut sink);
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink2, &self.engine, &self.ffis));
-        let ctx = CommandContext::Open(OpenContext {
-            name: name.as_str(),
-        });
+        let ctx = CommandContext::Open(OpenContext { name: name.clone() });
         let mut rs = self.machine.create_run_state(&io, ctx);
-        let status = rs.call_open(name.clone(), envelope.into());
+        let status = rs.call_open(name, envelope.into());
         match status {
             Ok(reason) => match reason {
                 ExitReason::Normal => {
@@ -577,20 +575,12 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 .map(|(k, v)| KVPair::new(k, v))
                 .collect();
             let ctx = CommandContext::Policy(PolicyContext {
-                name: kind.as_str(),
+                name: kind.clone(),
                 id: command.id().into(),
                 author: author_id,
                 version: CommandId::default().into(),
             });
-            self.evaluate_rule(
-                kind.clone(),
-                fields.as_slice(),
-                envelope,
-                facts,
-                sink,
-                ctx,
-                recall,
-            )?
+            self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
         }
         Ok(())
     }
@@ -616,14 +606,14 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let sink = Rc::new(RefCell::new(sink));
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let ctx = CommandContext::Action(ActionContext {
-            name: name.as_str(),
+            name: name.clone(),
             head_id: ctx_parent.id.into(),
         });
         {
             let mut rs = self.machine.create_run_state(&io, ctx);
             let mut exit_reason = match args {
-                Cow::Borrowed(args) => rs.call_action(name.clone(), args.iter().cloned()),
-                Cow::Owned(args) => rs.call_action(name.clone(), args),
+                Cow::Borrowed(args) => rs.call_action(name, args.iter().cloned()),
+                Cow::Owned(args) => rs.call_action(name, args),
             }
             .map_err(|e| {
                 error!("\n{e}");
@@ -652,7 +642,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
 
                         let seal_ctx = rs
                             .get_context()
-                            .seal_from_action(command_struct.name.as_str())?;
+                            .seal_from_action(command_struct.name.clone())?;
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
                         match rs_seal
                             .call_seal(command_struct.name.clone(), &command_struct)

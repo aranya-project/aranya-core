@@ -142,7 +142,7 @@ where
         module: usize,
         procedure: usize,
         stack: &mut S,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
     ) -> Result<(), MachineError> {
         match module {
             0 => {

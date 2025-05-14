@@ -26,7 +26,7 @@ pub trait FfiCallable<E> {
         &self,
         procedure: usize,
         stack: &mut MachineStack,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         eng: &mut E,
     ) -> Result<(), MachineError>;
 }
@@ -40,7 +40,7 @@ where
         &self,
         procedure: usize,
         stack: &mut MachineStack,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         eng: &mut E,
     ) -> Result<(), MachineError> {
         FM::call(self, procedure, stack, ctx, eng).map_err(Into::into)
@@ -167,7 +167,7 @@ where
         module: usize,
         procedure: usize,
         stack: &mut MachineStack,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
     ) -> Result<(), MachineError> {
         let sink = &mut self.engine.lock();
         self.ffis.get(module).map_or(
