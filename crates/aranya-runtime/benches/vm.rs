@@ -96,7 +96,7 @@ policy-version: 1
 
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{bench_measurements, ffi::FfiModule};
+    use aranya_policy_vm::{bench_measurements, ffi::FfiModule, Text};
     use aranya_runtime::{
         memory::MemStorageProvider,
         testing::vm::{TestEngine, TestSink},
@@ -120,7 +120,7 @@ policy-version: 1
         .expect("could not create graph");
 
     for i in 1..10 {
-        let text = i.to_string().parse().expect("valid text");
+        let text: Text = i.to_string().parse().expect("valid text");
         cs.action(storage_id, &mut sink, vm_action!(insert(i, text)))
             .expect("action `insert` failed");
     }
