@@ -533,6 +533,8 @@ pub enum HashableValue {
     String(Text),
     /// A unique identifier.
     Id(Id),
+    /// Enum
+    Enum(String, i64),
 }
 
 impl HashableValue {
@@ -544,6 +546,7 @@ impl HashableValue {
             HashableValue::Bool(_) => VType::Bool,
             HashableValue::String(_) => VType::String,
             HashableValue::Id(_) => VType::Id,
+            HashableValue::Enum(id, _) => VType::Enum(id.clone()),
         }
     }
 }
@@ -557,8 +560,9 @@ impl TryFrom<Value> for HashableValue {
             Value::Bool(v) => Ok(HashableValue::Bool(v)),
             Value::String(v) => Ok(HashableValue::String(v)),
             Value::Id(v) => Ok(HashableValue::Id(v)),
+            Value::Enum(id, value) => Ok(HashableValue::Enum(id, value)),
             _ => Err(ValueConversionError::invalid_type(
-                "Int | Bool | String | Id",
+                "Int | Bool | String | Id | Enum",
                 value.type_name(),
                 "Value -> HashableValue",
             )),
@@ -573,6 +577,7 @@ impl From<HashableValue> for Value {
             HashableValue::Bool(v) => Value::Bool(v),
             HashableValue::String(v) => Value::String(v),
             HashableValue::Id(v) => Value::Id(v),
+            HashableValue::Enum(id, value) => Value::Enum(id, value),
         }
     }
 }

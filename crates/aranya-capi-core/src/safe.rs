@@ -337,14 +337,6 @@ impl<T: Typed> Typed for Safe<T> {
     const TYPE_ID: TypeId = T::TYPE_ID;
 }
 
-// SAFETY: `T: Alias<U>`, so the alias is sound.
-unsafe impl<T, U> Alias<U> for Safe<T>
-where
-    T: Alias<U> + Typed,
-    U: Typed + Sized,
-{
-}
-
 /// Implemented by types that can be used with [`Safe`].
 pub trait Typed {
     /// Uniquely identifies the type.
