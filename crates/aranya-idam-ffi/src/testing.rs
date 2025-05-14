@@ -135,7 +135,7 @@ where
 
         let ffi = Ffi::new(store);
         let action_ctx = CommandContext::Action(ActionContext {
-            name: ident!("dummy action"),
+            name: ident!("dummy_action"),
             head_id: Id::default(),
         });
         let ctx = &Self::CTX;
@@ -186,7 +186,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: ident!("dummy action"),
+            name: ident!("dummy_action"),
             head_id: Id::default(),
         });
 
@@ -238,7 +238,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: ident!("dummy action"),
+            name: ident!("dummy_action"),
             head_id: Id::default(),
         });
 
@@ -254,7 +254,7 @@ where
             .expect("should be able to encrypt message");
 
         let ctx = CommandContext::Policy(PolicyContext {
-            name: ident!("different name"),
+            name: ident!("different_name"),
             id: Id::default(),
             author: DeviceId::default(),
             version: Id::default(),
@@ -296,7 +296,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: ident!("dummy action"),
+            name: ident!("dummy_action"),
             head_id: Id::random(&mut eng),
         });
 
@@ -351,7 +351,7 @@ where
         };
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: ident!("dummy action"),
+            name: ident!("dummy_action"),
             head_id: Id::default(),
         });
 
