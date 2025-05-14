@@ -27,7 +27,10 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
         .collect::<syn::Result<Vec<_>>>()?;
     let field_names = field_idents
         .iter()
-        .map(|f| f.to_string())
+        .map(|f| {
+            let f = f.to_string();
+            quote!(::aranya_policy_ifgen::ident!(#f))
+        })
         .collect::<Vec<_>>();
 
     let derive = get_derive();
@@ -56,9 +59,9 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
                 let parsed = Self { #(
                     #field_idents:
                         ::aranya_policy_ifgen::TryFromValue::try_from_value(
-                            s.fields.remove(#field_names)
+                            s.fields.remove(&#field_names)
                                 .ok_or_else(|| ::aranya_policy_ifgen::ValueConversionError::InvalidStructMember(
-                                    #field_names.into(),
+                                    #field_names,
                                 ))?,
                         )?,
                 )* };
@@ -76,7 +79,7 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
                     fields.insert(#field_names.into(), s.#field_idents.into());
                 )*
                 Self::Struct(::aranya_policy_ifgen::Struct {
-                    name: #name.into(),
+                    name: ::aranya_policy_ifgen::ident!(#name),
                     fields,
                 })
             }
@@ -140,7 +143,7 @@ fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
         impl ::core::convert::From<#ident> for ::aranya_policy_ifgen::Value {
             fn from(e: #ident) -> Self {
                 // TODO if variant discriminants can be set to arbitrary values, we'll need to
-                ::aranya_policy_ifgen::Value::Enum(#enum_ident.into(), e as i64)
+                ::aranya_policy_ifgen::Value::Enum(::aranya_policy_ifgen::ident!(#enum_ident), e as i64)
             }
         }
     })

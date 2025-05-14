@@ -9,7 +9,7 @@ use aranya_crypto::{
     aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, DeviceId, EncryptionKey, Engine,
     GroupKey, Id, IdentityKey, KeyStore, SigningKey,
 };
-use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext};
+use aranya_policy_vm::{text, ActionContext, CommandContext, PolicyContext};
 
 use crate::{
     error::ErrorKind,
@@ -152,7 +152,7 @@ where
                 WANT.to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
         let got = ffi
@@ -197,7 +197,7 @@ where
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
@@ -249,7 +249,7 @@ where
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
@@ -307,7 +307,7 @@ where
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
@@ -362,7 +362,7 @@ where
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
 

@@ -5,7 +5,7 @@ use alloc::{boxed::Box, vec, vec::Vec};
 
 use aranya_crypto::{default::DefaultEngine, DeviceId, Rng};
 use aranya_policy_module::Module;
-use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value};
+use aranya_policy_vm::{ast::ident, FactKey, HashableValue, KVPair, Machine, Value};
 use tracing::trace;
 
 use super::dsl::dispatch;
@@ -351,10 +351,10 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Serialize the keys of the fact we created/updated in the previous actions.
     let fact_name = "Stuff";
-    let fact_keys = ser_keys([FactKey::new("x", HashableValue::Int(1))]);
+    let fact_keys = ser_keys([FactKey::new(ident!("x"), HashableValue::Int(1))]);
 
     // This is the value part of the fact that we expect to retrieve.
-    let expected_value = vec![KVPair::new("y", Value::Int(4))];
+    let expected_value = vec![KVPair::new(ident!("y"), Value::Int(4))];
     // Get a perspective for the head ID we got earlier. It should contain the facts we
     // seek.
     let perspective = storage.get_fact_perspective(head).expect("perspective");
@@ -512,9 +512,9 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     let head = storage.get_head()?;
 
     let fact_name = "Stuff";
-    let fact_keys = ser_keys([FactKey::new("x", HashableValue::Int(1))]);
+    let fact_keys = ser_keys([FactKey::new(ident!("x"), HashableValue::Int(1))]);
 
-    let expected_value = vec![KVPair::new("y", Value::Int(5))];
+    let expected_value = vec![KVPair::new(ident!("y"), Value::Int(5))];
     let perspective = storage.get_fact_perspective(head).expect("perspective");
     let result = perspective
         .query(fact_name, &fact_keys)

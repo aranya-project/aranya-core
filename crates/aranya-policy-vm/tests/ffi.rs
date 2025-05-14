@@ -7,8 +7,8 @@ use aranya_crypto::{
 use aranya_policy_vm::{
     self,
     ffi::{ffi, FfiModule, Type},
-    CommandContext, MachineError, MachineErrorType, MachineStack, PolicyContext, Stack, Typed,
-    Value, ValueConversionError,
+    text, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
+    Stack, Text, Typed, Value, ValueConversionError,
 };
 
 #[derive(Debug, PartialEq)]
@@ -22,7 +22,7 @@ where
 
 struct TestState<M, E> {
     module: M,
-    procs: HashMap<String, usize>,
+    procs: HashMap<Identifier, usize>,
     stack: MachineStack,
     engine: E,
 }
@@ -34,7 +34,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
             .functions
             .iter()
             .enumerate()
-            .map(|(i, f)| (f.name.to_owned(), i))
+            .map(|(i, f)| (f.name.clone(), i))
             .collect();
         Self {
             module,
@@ -187,10 +187,10 @@ impl<T, G> TestModule<'_, T, G> {
     fn concat<E: Engine>(
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
-        a: String,
-        b: String,
-    ) -> Result<String, MachineError> {
-        Ok(a + b.as_str())
+        a: Text,
+        b: Text,
+    ) -> Result<Text, MachineError> {
+        Ok(&a + &b)
     }
 
     #[ffi_export(def = "function renamed_identity(id_input id) id")]
@@ -320,12 +320,12 @@ fn test_ffi_derive() {
 
     // Positive test case for `concat`
     {
-        state.push("hello, ");
-        state.push("world!");
+        state.push(text!("hello, "));
+        state.push(text!("world!"));
         state
             .call("concat")
             .expect("`test::concat` should not fail");
-        let got = state.pop::<String>().expect("should have got a `String`");
+        let got = state.pop::<Text>().expect("should have got a `String`");
         assert_eq!(
             got, "hello, world!",
             "`test::concat` returned the wrong result",
@@ -356,7 +356,7 @@ fn test_ffi_derive() {
 
     // Positive test for `no_args`.
     {
-        state.push("existing arg");
+        state.push(text!("existing arg"));
         state
             .call("no_args")
             .expect("`test::no_args` should not fail");
@@ -367,7 +367,7 @@ fn test_ffi_derive() {
             "`test::no_args` returned the wrong result`"
         );
         assert_eq!(state.len(), 1, "should be one item on the stack");
-        let got = state.pop::<String>().expect("should have got a `String`");
+        let got = state.pop::<Text>().expect("should have got a `String`");
         assert_eq!(got, "existing arg", "existing stack item is incorrect");
     }
 
@@ -404,7 +404,7 @@ fn test_ffi_derive() {
 
         let a = S0 { x: 42 };
         let b = S1 {
-            a: "hello, world!".to_owned(),
+            a: text!("hello, world!"),
             b: vec![1, 2, 3, 4],
             c: 42,
             d: true,

@@ -109,9 +109,9 @@ impl<'a> PairContext<'a> {
     /// string that is the identifier if it doesn't collide with a keyword.
     fn consume_identifier(&self) -> Result<Identifier, ParseError> {
         let token = self.consume_of_type(Rule::identifier)?;
-        let identifier = token.as_str().to_owned();
+        let identifier = token.as_str();
 
-        if KEYWORDS.contains(&identifier.as_str()) {
+        if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
                 format!("Reserved identifier: {}", identifier),

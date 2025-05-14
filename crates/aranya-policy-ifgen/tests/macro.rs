@@ -1,4 +1,5 @@
 use aranya_policy_ifgen::{macros::*, ClientError, KVPair};
+use aranya_policy_vm::{ident, text, Text};
 
 #[effects]
 pub enum EffectEnum {
@@ -10,7 +11,7 @@ pub enum EffectEnum {
 #[derive(Default)]
 pub struct TestEffect {
     pub a: i64,
-    pub b: String,
+    pub b: Text,
 }
 
 #[effect]
@@ -18,7 +19,7 @@ pub struct TestEffect {
 pub struct TestEffectFields {
     _int: i64,
     _bool: bool,
-    _string: String,
+    _string: Text,
     _bytes: Vec<u8>,
     _struct: OtherStruct,
     _enum: TestEnum,
@@ -33,7 +34,7 @@ pub struct TestEffectFields {
 pub struct TestStructFields {
     _int: i64,
     _bool: bool,
-    _string: String,
+    _string: Text,
     _bytes: Vec<u8>,
     _struct: OtherStruct,
     _enum: TestEnum,
@@ -63,7 +64,7 @@ pub trait TestActions {
         &mut self,
         _int: i64,
         _bool: bool,
-        _string: String,
+        _string: Text,
         _bytes: Vec<u8>,
         _struct: TestStructFields,
         _enum: TestEnum,
@@ -77,16 +78,16 @@ pub trait TestActions {
 #[test]
 fn test_parse_effect() {
     let a = 42;
-    let b = String::from("b");
+    let b = text!("b");
 
     let order1 = vec![
-        KVPair::new("a", a.into()),
-        KVPair::new("b", b.clone().into()),
+        KVPair::new(ident!("a"), a.into()),
+        KVPair::new(ident!("b"), b.clone().into()),
     ];
 
     let order2 = vec![
-        KVPair::new("b", b.clone().into()),
-        KVPair::new("a", a.into()),
+        KVPair::new(ident!("b"), b.clone().into()),
+        KVPair::new(ident!("a"), a.into()),
     ];
 
     let parsed = TestEffect { a, b };

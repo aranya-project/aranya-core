@@ -1,14 +1,14 @@
-use crate::{Expression, FactDefinition, FieldDefinition, VType};
+use crate::{Expression, FactDefinition, FieldDefinition, Identifier, VType};
 
 impl FactDefinition {
     /// Get a key field by name
-    pub fn get_key_field(&self, name: &str) -> Option<&FieldDefinition> {
-        self.key.iter().find(|fd| fd.identifier == name)
+    pub fn get_key_field(&self, name: &Identifier) -> Option<&FieldDefinition> {
+        self.key.iter().find(|fd| fd.identifier == *name)
     }
 
     /// Get a value field by name
-    pub fn get_value_field(&self, name: &str) -> Option<&FieldDefinition> {
-        self.value.iter().find(|fd| fd.identifier == name)
+    pub fn get_value_field(&self, name: &Identifier) -> Option<&FieldDefinition> {
+        self.value.iter().find(|fd| fd.identifier == *name)
     }
 }
 

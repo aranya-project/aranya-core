@@ -1,13 +1,13 @@
 extern crate alloc;
 
-use alloc::{string::String, vec, vec::Vec};
+use alloc::{vec, vec::Vec};
 
 use aranya_crypto::{
     engine::Engine, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey, EncryptionKey,
     EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey,
     VerifyingKey,
 };
-use aranya_policy_vm::{ffi::ffi, CommandContext};
+use aranya_policy_vm::{ffi::ffi, CommandContext, Text};
 
 use crate::error::{AllocError, Error, ErrorKind, KeyNotFound, WrongContext};
 
@@ -205,7 +205,7 @@ function encrypt_message(
         plaintext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
         our_sign_sk_id: Id,
-        label: String,
+        label: Text,
     ) -> Result<Vec<u8>, Error> {
         let plaintext = Zeroizing::new(plaintext);
 
@@ -226,7 +226,7 @@ function encrypt_message(
         let our_sign_pk = sk.public().expect("signing key should be valid");
 
         let ctx = Context {
-            label: &label,
+            label: label.as_str(),
             parent: ctx.head_id,
             author_sign_pk: &our_sign_pk,
         };

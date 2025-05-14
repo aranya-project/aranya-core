@@ -22,7 +22,7 @@ std = ["thiserror/std", "proptest?/std"]
 proptest = ["dep:proptest", "dep:proptest-derive"]
 
 [dependencies]
-serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
+serde = { workspace = true, default-features = false, features = ["derive", "alloc", "rc"] }
 thiserror = { workspace = true }
 
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }

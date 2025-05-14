@@ -25,7 +25,7 @@ pub enum ValueConversionError {
     },
     /// A struct conversion found a field mismatch between types
     #[error("invalid struct member `{0}`")]
-    InvalidStructMember(String),
+    InvalidStructMember(Identifier),
     /// The target type does not have sufficient range to represent this Value
     #[error("value out of range")]
     OutOfRange,
@@ -64,8 +64,7 @@ macro_rules! impl_typed {
     };
 }
 
-impl_typed!(String => String);
-impl_typed!(&str => String);
+impl_typed!(Text => String);
 
 impl_typed!(Vec<u8> => Bytes);
 impl_typed!(&[u8] => Bytes);
@@ -89,7 +88,7 @@ impl_typed!(EncryptionKeyId => Id);
 impl_typed!(DeviceId => Id);
 
 impl<T: Typed> Typed for Option<T> {
-    const TYPE: Type<'static> = Type::Optional(&T::TYPE);
+    const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
 }
 
 /// All of the value types allowed in the VM
@@ -111,6 +110,8 @@ pub enum Value {
     Id(Id),
     /// Enumeration value
     Enum(Identifier, i64),
+    // /// Textual Identifier (name)
+    // Identifier(Identifier),
     /// Empty optional value
     None,
 }
@@ -218,17 +219,17 @@ impl From<bool> for Value {
     }
 }
 
-// impl From<&str> for Value {
-//     fn from(value: &str) -> Self {
-//         Value::String(value.to_owned())
-//     }
-// }
+impl From<Text> for Value {
+    fn from(value: Text) -> Self {
+        Value::String(value)
+    }
+}
 
-// impl From<String> for Value {
-//     fn from(value: String) -> Self {
-//         Value::String(value)
-//     }
-// }
+impl From<Identifier> for Value {
+    fn from(value: Identifier) -> Self {
+        todo!()
+    }
+}
 
 impl From<&[u8]> for Value {
     fn from(value: &[u8]) -> Self {
@@ -302,20 +303,36 @@ impl TryFrom<Value> for bool {
     }
 }
 
-// impl TryFrom<Value> for String {
-//     type Error = ValueConversionError;
+impl TryFrom<Value> for Text {
+    type Error = ValueConversionError;
 
-//     fn try_from(value: Value) -> Result<Self, Self::Error> {
-//         if let Value::String(s) = value {
-//             return Ok(s);
-//         }
-//         Err(ValueConversionError::invalid_type(
-//             "String",
-//             value.type_name(),
-//             "Value -> String",
-//         ))
-//     }
-// }
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        if let Value::String(s) = value {
+            return Ok(s);
+        }
+        Err(ValueConversionError::invalid_type(
+            "String",
+            value.type_name(),
+            "Value -> Text",
+        ))
+    }
+}
+
+impl TryFrom<Value> for Identifier {
+    type Error = ValueConversionError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        let Value::String(text) = value else {
+            return Err(ValueConversionError::invalid_type(
+                "String",
+                value.type_name(),
+                "Value -> Identifier",
+            ));
+        };
+        text.try_into()
+            .map_err(|_| ValueConversionError::OutOfRange)
+    }
+}
 
 impl TryFrom<Value> for Vec<u8> {
     type Error = ValueConversionError;
@@ -655,10 +672,10 @@ impl KVPair {
         KVPair(key, Value::Int(value))
     }
 
-    // /// Returns the key half of the key-value pair.
-    // pub fn key(&self) -> &str {
-    //     &self.0
-    // }
+    /// Returns the key half of the key-value pair.
+    pub fn key(&self) -> &Identifier {
+        &self.0
+    }
 
     /// Returns the value half of the key-value pair.
     pub fn value(&self) -> &Value {
@@ -672,17 +689,17 @@ impl Display for KVPair {
     }
 }
 
-// impl From<KVPair> for (String, Value) {
-//     fn from(kv: KVPair) -> Self {
-//         (kv.0, kv.1)
-//     }
-// }
+impl From<KVPair> for (Identifier, Value) {
+    fn from(kv: KVPair) -> Self {
+        (kv.0, kv.1)
+    }
+}
 
-// impl From<&KVPair> for (String, Value) {
-//     fn from(value: &KVPair) -> Self {
-//         (value.0.clone(), value.1.clone())
-//     }
-// }
+impl From<&KVPair> for (Identifier, Value) {
+    fn from(value: &KVPair) -> Self {
+        (value.0.clone(), value.1.clone())
+    }
+}
 
 impl From<FactKey> for KVPair {
     fn from(value: FactKey) -> Self {
@@ -700,7 +717,7 @@ impl From<FactValue> for KVPair {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Fact {
     /// The name of the fact
-    pub name: String,
+    pub name: Identifier,
     /// The keys of the fact
     pub keys: FactKeyList,
     /// The values of the fact
@@ -709,7 +726,7 @@ pub struct Fact {
 
 impl Fact {
     /// Creates a fact.
-    pub fn new(name: String) -> Fact {
+    pub fn new(name: Identifier) -> Fact {
         Fact {
             name,
             keys: vec![],
@@ -717,30 +734,30 @@ impl Fact {
         }
     }
 
-    // /// Sets the fact's key.
-    // pub fn set_key<V>(&mut self, name: String, value: V)
-    // where
-    //     V: Into<HashableValue>,
-    // {
-    //     match self.keys.iter_mut().find(|e| e.identifier == name) {
-    //         None => self.keys.push(FactKey::new(&name, value.into())),
-    //         Some(e) => e.value = value.into(),
-    //     }
-    // }
+    /// Sets the fact's key.
+    pub fn set_key<V>(&mut self, name: Identifier, value: V)
+    where
+        V: Into<HashableValue>,
+    {
+        match self.keys.iter_mut().find(|e| e.identifier == name) {
+            None => self.keys.push(FactKey::new(name, value.into())),
+            Some(e) => e.value = value.into(),
+        }
+    }
 
-    // /// Sets the fact's value.
-    // pub fn set_value<V>(&mut self, name: String, value: V)
-    // where
-    //     V: Into<Value>,
-    // {
-    //     match self.values.iter_mut().find(|e| e.identifier == name) {
-    //         None => self.values.push(FactValue {
-    //             identifier: name,
-    //             value: value.into(),
-    //         }),
-    //         Some(e) => e.value = value.into(),
-    //     }
-    // }
+    /// Sets the fact's value.
+    pub fn set_value<V>(&mut self, name: Identifier, value: V)
+    where
+        V: Into<Value>,
+    {
+        match self.values.iter_mut().find(|e| e.identifier == name) {
+            None => self.values.push(FactValue {
+                identifier: name,
+                value: value.into(),
+            }),
+            Some(e) => e.value = value.into(),
+        }
+    }
 }
 
 impl Display for Fact {

@@ -1,5 +1,5 @@
-use alloc::borrow::Cow;
-use core::{fmt, str::FromStr};
+use alloc::sync::Arc;
+use core::{borrow::Borrow, fmt, str::FromStr};
 
 // I plan to move to using a smart string type roughly like
 // enum {
@@ -14,52 +14,115 @@ use core::{fmt, str::FromStr};
 //
 // This is worse than doing manual string pooling but it's also easier...
 
-const fn cow_str_as_bytes<'a>(cow: &'a Cow<'a, str>) -> &'a [u8] {
-    match cow {
-        Cow::Borrowed(x) => x.as_bytes(),
-        Cow::Owned(_) => panic!("wow why is this not const"),
-    }
-}
-
-// TODO: Better repr than cow
-// TODO: Deserialize check for nul
+// TODO: Better repr
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
-pub struct Text(Cow<'static, str>);
+enum Repr {
+    #[serde(skip)]
+    Static(&'static str),
+    Heap(Arc<str>),
+}
+
+impl Repr {
+    const fn as_str(&self) -> &str {
+        match self {
+            Repr::Static(s) => s,
+            Repr::Heap(s) => {
+                // TODO(jdygert): yuck
+
+                #[repr(C)]
+                struct ArcInner<T: ?Sized> {
+                    strong: core::sync::atomic::AtomicUsize,
+                    weak: core::sync::atomic::AtomicUsize,
+                    data: T,
+                }
+
+                let inner =
+                    unsafe { &**core::mem::transmute::<&Arc<str>, &*const ArcInner<str>>(s) };
+
+                &inner.data
+            }
+        }
+    }
+}
+
+impl Default for Repr {
+    fn default() -> Self {
+        Self::Static("")
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
+#[error("invalid text value")]
+pub struct InvalidText(());
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
+#[error("invalid identifier value")]
+pub struct InvalidIdentifier(());
+
+// TODO: Ensure ord and hash impl matches str
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+pub struct Text(Repr);
+
+impl<'de> serde::Deserialize<'de> for Text {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        todo!("check for nul")
+    }
+}
 
 impl PartialEq<str> for Text {
     fn eq(&self, other: &str) -> bool {
-        self.0.eq(other)
+        self.0.as_str().eq(other)
     }
 }
 impl PartialEq<&str> for Text {
     fn eq(&self, other: &&str) -> bool {
-        self.0.eq(other)
+        self.0.as_str().eq(*other)
     }
 }
 
 impl fmt::Display for Text {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+        self.0.as_str().fmt(f)
+    }
+}
+
+impl FromStr for Text {
+    type Err = InvalidText;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        if value.as_bytes().contains(&0) {
+            return Err(InvalidText(()));
+        }
+        Ok(Self(Repr::Heap(value.into())))
     }
 }
 
 impl TryFrom<String> for Text {
-    type Error = ();
+    type Error = InvalidText;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         if value.as_bytes().contains(&0) {
-            return Err(());
+            return Err(InvalidText(()));
         }
-        Ok(Self(value.into()))
+        Ok(Self(Repr::Heap(value.into())))
+    }
+}
+
+impl core::ops::Add for &Text {
+    type Output = Text;
+    fn add(self, rhs: Self) -> Self::Output {
+        let s = Arc::<str>::from(self.0.as_str().to_owned() + rhs.as_str());
+        Text(Repr::Heap(s))
     }
 }
 
 impl Text {
     pub const fn const_eq(&self, other: &Self) -> bool {
-        let lhs = cow_str_as_bytes(&self.0);
-        let rhs = cow_str_as_bytes(&other.0);
+        let lhs = self.0.as_str().as_bytes();
+        let rhs = other.0.as_str().as_bytes();
         if lhs.len() != rhs.len() {
             return false;
         }
@@ -89,7 +152,11 @@ impl Text {
             }
             i += 1;
         }
-        Self(Cow::Borrowed(lit))
+        Self(Repr::Static(lit))
+    }
+
+    pub const fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 }
 
@@ -104,7 +171,6 @@ macro_rules! text {
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Identifier(Text);
 
 impl Identifier {
@@ -123,6 +189,10 @@ impl Identifier {
             i += 1;
         }
         Self(Text::__from_literal(lit))
+    }
+
+    pub const fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 }
 
@@ -155,17 +225,87 @@ macro_rules! ident {
     ($lit:literal) => {
         const { $crate::Identifier::__from_literal($lit) }
     };
+    // hacky
+    (stringify!($ident:ident)) => {
+        const { $crate::Identifier::__from_literal(stringify!($ident)) }
+    };
+}
+
+impl TryFrom<Text> for Identifier {
+    type Error = InvalidIdentifier;
+    fn try_from(value: Text) -> Result<Self, Self::Error> {
+        for b in value.as_str().bytes() {
+            if !(b.is_ascii_alphanumeric() || b == b'_') {
+                return Err(InvalidIdentifier(()));
+            }
+        }
+        Ok(Self(value))
+    }
 }
 
 impl FromStr for Identifier {
-    type Err = ();
+    type Err = InvalidIdentifier;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        todo!()
+        for b in s.bytes() {
+            if !(b.is_ascii_alphanumeric() || b == b'_') {
+                return Err(InvalidIdentifier(()));
+            }
+        }
+        Ok(Self(Text(Repr::Heap(s.into()))))
+    }
+}
+
+impl TryFrom<String> for Identifier {
+    type Error = InvalidIdentifier;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        for b in s.bytes() {
+            if !(b.is_ascii_alphanumeric() || b == b'_') {
+                return Err(InvalidIdentifier(()));
+            }
+        }
+        Ok(Self(Text(Repr::Heap(s.into()))))
     }
 }
 
 impl quote::ToTokens for Identifier {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        self.0 .0.as_ref().to_tokens(tokens);
+        self.0.as_str().to_tokens(tokens);
+    }
+}
+
+impl AsRef<str> for Identifier {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl Borrow<str> for Identifier {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+#[cfg(feature = "proptest")]
+mod proptest_impls {
+    use proptest::prelude::*;
+
+    use super::*;
+
+    impl Arbitrary for Text {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            ("[^\0]+").prop_map(|s| s.try_into().unwrap()).boxed()
+        }
+    }
+
+    impl Arbitrary for Identifier {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+            ("[\\w_]+").prop_map(|s| s.try_into().unwrap()).boxed()
+        }
     }
 }

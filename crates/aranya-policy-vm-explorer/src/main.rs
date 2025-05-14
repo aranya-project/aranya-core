@@ -12,8 +12,8 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactKey, FactKeyList, FactValue, FactValueList,
-    KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO, MachineIOError,
-    MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
+    Identifier, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
+    MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
 };
 use clap::{arg, ArgGroup, Parser, ValueEnum};
 
@@ -50,11 +50,11 @@ struct Args {
     /// Call an action. Command-line arguments are positional arguments
     /// to the function.
     #[arg(short, long)]
-    action: Option<String>,
+    action: Option<Identifier>,
     /// Call a command policy block. Command-line arguments are
     /// key:value pairs that form the `self` struct.
     #[arg(short = 'm', long)]
-    command: Option<String>,
+    command: Option<Identifier>,
     /// Any arguments to called functions.
     args: Vec<String>,
 }
@@ -98,7 +98,7 @@ fn convert_arg_value(a: String) -> Value {
     } else if let Ok(i) = a.parse::<i64>() {
         Value::Int(i)
     } else {
-        Value::String(a)
+        Value::String(a.try_into().unwrap())
     }
 }
 
@@ -113,9 +113,9 @@ fn subset_key_match(a: &[FactKey], b: &[FactKey]) -> bool {
 }
 
 struct MachExpIO {
-    facts: HashMap<(String, FactKeyList), FactValueList>,
-    commands: Vec<(String, Vec<KVPair>)>,
-    effects: Vec<(String, Vec<KVPair>)>,
+    facts: HashMap<(Identifier, FactKeyList), FactValueList>,
+    commands: Vec<(Identifier, Vec<KVPair>)>,
+    effects: Vec<(Identifier, Vec<KVPair>)>,
 }
 
 impl MachExpIO {
@@ -129,9 +129,9 @@ impl MachExpIO {
 }
 
 struct MachExpQueryIterator {
-    name: String,
+    name: Identifier,
     key: FactKeyList,
-    iter: hash_map::IntoIter<(String, FactKeyList), FactValueList>,
+    iter: hash_map::IntoIter<(Identifier, FactKeyList), FactValueList>,
 }
 
 impl Iterator for MachExpQueryIterator {
@@ -153,7 +153,7 @@ where
 
     fn fact_insert(
         &mut self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
@@ -170,7 +170,7 @@ where
 
     fn fact_delete(
         &mut self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let key = key.into_iter().collect();
@@ -185,7 +185,7 @@ where
 
     fn fact_query(
         &self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
@@ -197,14 +197,14 @@ where
         })
     }
 
-    fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>) {
         let fields = fields.into_iter().collect();
         self.commands.push((name, fields))
     }
 
     fn effect(
         &mut self,
-        name: String,
+        name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
         _command: Id,
         _recalled: bool,
@@ -274,34 +274,37 @@ fn main() -> anyhow::Result<()> {
             if let Some(action) = &args.action {
                 name = action.clone();
                 ctx = CommandContext::Action(ActionContext {
-                    name: &name,
+                    name: name.as_str(),
                     head_id: Id::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
                 let call_args = args.args.into_iter().map(convert_arg_value);
-                rs.setup_action(action, call_args)?;
+                rs.setup_action(action.clone(), call_args)?;
             } else if let Some(command) = args.command {
                 name = command.clone();
                 ctx = CommandContext::Policy(PolicyContext {
-                    name: &name,
+                    name: name.as_str(),
                     id: Id::default(),
                     author: Id::default().into(),
                     version: Id::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);
-                let fields: BTreeMap<String, Value> = args
+                let fields: BTreeMap<Identifier, Value> = args
                     .args
                     .into_iter()
                     .map(|a| {
                         let v: Vec<_> = a.split(':').collect();
-                        (v[0].to_owned(), convert_arg_value(v[1].to_owned()))
+                        (
+                            v[0].parse().expect("valid identifier"),
+                            convert_arg_value(v[1].to_owned()),
+                        )
                     })
                     .collect();
                 let self_data = Struct {
                     name: command.clone(),
                     fields,
                 };
-                rs.setup_command(&command, LabelType::CommandPolicy, &self_data)?;
+                rs.setup_command(command.clone(), LabelType::CommandPolicy, &self_data)?;
             } else {
                 return Err(anyhow::anyhow!("Neither action nor command specified"));
             }

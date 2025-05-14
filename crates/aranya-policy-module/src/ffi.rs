@@ -2,10 +2,10 @@
 extern crate alloc;
 use alloc::boxed::Box;
 
-use aranya_policy_ast::VType;
+use aranya_policy_ast::{Identifier, VType};
 
 /// The type of a value
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Type<'a> {
     /// A UTF-8 string.
     String,
@@ -18,7 +18,7 @@ pub enum Type<'a> {
     /// A unique identifier.
     Id,
     /// A named struct.
-    Struct(&'a str),
+    Struct(Identifier),
     /// An optional type of some other type.
     Optional(&'a Type<'a>),
 }
@@ -32,29 +32,7 @@ impl Type<'_> {
         use Type::*;
         match (self, rhs) {
             (String, String) | (Bytes, Bytes) | (Int, Int) | (Bool, Bool) | (Id, Id) => true,
-            (Struct(lhs), Struct(rhs)) => {
-                // `lhs == rhs` cannot be used in a const
-                // context.
-                let lhs = lhs.as_bytes();
-                let rhs = rhs.as_bytes();
-                if lhs.len() != rhs.len() {
-                    return false;
-                }
-                let mut i = 0;
-                while i < lhs.len() && i < rhs.len() {
-                    if lhs[i] != rhs[i] {
-                        return false;
-                    }
-                    // Cannot overflow or wrap since `i` is
-                    // `usize` and `<[_]>::len()` is at most
-                    // `isize::MAX`.
-                    #[allow(clippy::arithmetic_side_effects)]
-                    {
-                        i += 1;
-                    }
-                }
-                true
-            }
+            (Struct(lhs), Struct(rhs)) => lhs.const_eq(rhs),
             (Optional(lhs), Optional(rhs)) => lhs.const_eq(rhs),
             _ => false,
         }
@@ -69,7 +47,7 @@ impl From<&Type<'_>> for VType {
             Type::Int => VType::Int,
             Type::Bool => VType::Bool,
             Type::Id => VType::Id,
-            Type::Struct(s) => todo!(),
+            Type::Struct(s) => VType::Struct(s.clone()),
             Type::Optional(t) => VType::Optional(Box::new((*t).into())),
         }
     }
@@ -90,7 +68,7 @@ pub enum Color<'a> {
 #[derive(Clone, Debug)]
 pub struct Func<'a> {
     /// The function's name.
-    pub name: &'a str,
+    pub name: Identifier,
     /// The function's arguments.
     pub args: &'a [Arg<'a>],
     /// The return type of the function.
@@ -101,7 +79,7 @@ pub struct Func<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Arg<'a> {
     /// The argument's name.
-    pub name: &'a str,
+    pub name: Identifier,
     /// The field's type.
     pub vtype: Type<'a>,
 }
@@ -109,7 +87,7 @@ pub struct Arg<'a> {
 /// A struct definition
 pub struct Struct<'a> {
     /// The name of the struct.
-    pub name: &'a str,
+    pub name: Identifier,
     /// The fields of the struct.
     pub fields: &'a [Arg<'a>],
 }
@@ -194,19 +172,19 @@ macro_rules! arg {
 macro_rules! __arg {
     ($name:literal, $type:ident) => {{
         $crate::ffi::Arg {
-            name: $name,
+            name: $crate::ast::ident!($name),
             vtype: $crate::__type!($type),
         }
     }};
     ($name:literal, Struct($struct_name:literal)) => {{
         $crate::ffi::Arg {
-            name: $name,
+            name: $crate::ast::ident!($name),
             vtype: $crate::__type!(Struct($struct_name)),
         }
     }};
     ($name:literal, Optional($inner:expr)) => {{
         $crate::ffi::Arg {
-            name: $name,
+            name: $crate::ast::ident!($name),
             vtype: $crate::__type!(Optional($inner)),
         }
     }};
@@ -219,7 +197,7 @@ macro_rules! __type {
         $crate::ffi::Type::$type
     };
     (@raw Struct($struct_name:literal)) => {
-        $crate::ffi::Type::Struct($struct_name)
+        $crate::ffi::Type::Struct($crate::ast::ident!($struct_name))
     };
     (@raw Optional($inner:expr)) => {
         $crate::ffi::Type::Optional($inner)
@@ -250,7 +228,7 @@ macro_rules! __type {
 /// Foreign-function module declaration.
 pub struct ModuleSchema<'a> {
     /// module name
-    pub name: &'a str,
+    pub name: Identifier,
     /// list of functions provided by the module
     pub functions: &'a [Func<'a>],
     /// list of structs defined by the module

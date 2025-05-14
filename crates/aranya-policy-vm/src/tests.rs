@@ -10,6 +10,7 @@ use alloc::collections::BTreeMap;
 use core::cell::RefCell;
 
 use aranya_crypto::Id;
+use aranya_policy_ast::{ident, text, Identifier, Text};
 use io::TestIO;
 
 use crate::{
@@ -265,23 +266,26 @@ impl Stack for TestStack {
 
 #[test]
 fn test_stack() -> anyhow::Result<()> {
+    const FOO: Identifier = ident!("FOO");
+    const BAR: Identifier = ident!("BAR");
+
     let mut s = TestStack::new();
 
     // Test pushing every type
     s.push(3)?;
     s.push(true)?;
-    s.push("hello")?;
-    s.push(Struct::new("Foo", &[]))?;
-    s.push(Fact::new("Bar".to_owned()))?;
+    s.push(text!("hello"))?;
+    s.push(Struct::new(FOO, &[]))?;
+    s.push(Fact::new(BAR))?;
     s.push_value(Value::None)?;
     assert_eq!(
         s.stack,
         vec![
             Value::Int(3),
             Value::Bool(true),
-            Value::String(String::from("hello")),
-            Value::Struct(Struct::new("Foo", &[])),
-            Value::Fact(Fact::new("Bar".to_owned())),
+            Value::String(text!("hello")),
+            Value::Struct(Struct::new(FOO, &[])),
+            Value::Fact(Fact::new(BAR)),
             Value::None,
         ]
     );
@@ -293,19 +297,20 @@ fn test_stack() -> anyhow::Result<()> {
     assert_eq!(v, Value::None);
 
     let v: &Fact = s.peek()?;
-    assert_eq!(v, &Fact::new("Bar".to_owned()));
+    assert_eq!(v, &Fact::new(BAR));
     let v: Fact = s.pop()?;
-    assert_eq!(v, Fact::new("Bar".to_owned()));
+    assert_eq!(v, Fact::new(BAR));
 
     let v: &Struct = s.peek()?;
-    assert_eq!(v, &Struct::new("Foo", &[]));
+    assert_eq!(v, &Struct::new(FOO, &[]));
     let v: Struct = s.pop()?;
-    assert_eq!(v, Struct::new("Foo", &[]));
+    assert_eq!(v, Struct::new(FOO, &[]));
 
-    let v: &str = s.peek()?;
-    assert_eq!(v, "hello");
-    let v: String = s.pop()?;
-    assert_eq!(v, "hello".to_owned());
+    // TODO(jdygert): peek?
+    // let v: &str = s.peek()?;
+    // assert_eq!(v, "hello");
+    let v: Text = s.pop()?;
+    assert_eq!(v, text!("hello"));
 
     let v: &bool = s.peek()?;
     assert_eq!(v, &true);
@@ -328,7 +333,7 @@ fn test_ffi() {
     // Push value onto stack, and call FFI function
     let mut stack = TestStack::new();
     stack
-        .push(Value::String("hello".to_string()))
+        .push(Value::String(text!("hello")))
         .expect("can't push");
     let ctx = dummy_ctx_action("test");
     io.borrow_mut()
@@ -336,13 +341,13 @@ fn test_ffi() {
         .expect("Should succeed");
 
     // Verify function was called
-    assert!(stack.pop::<String>().expect("should have return value") == "HELLO");
+    assert!(stack.pop::<Text>().expect("should have return value") == text!("HELLO"));
 }
 
 #[test]
 fn test_extcall() {
     let machine = Machine::new([
-        Instruction::Const(Value::String("hi".to_string())),
+        Instruction::Const(Value::String(text!("hi"))),
         Instruction::ExtCall(0, 0),
         Instruction::Exit(ExitReason::Normal),
     ]);
@@ -357,13 +362,13 @@ fn test_extcall() {
         .stack
         .peek_value()
         .expect("Should have return value on the stack");
-    assert!(*ret_val == Value::String("HI".to_string()));
+    assert!(*ret_val == Value::String(text!("HI")));
 }
 
 #[test]
 fn test_extcall_invalid_module() {
     let machine = Machine::new([
-        Instruction::Const(Value::String("hi".to_string())),
+        Instruction::Const(Value::String(text!("hi"))),
         Instruction::ExtCall(1, 0), // invalid module id
         Instruction::Exit(ExitReason::Normal),
     ]);
@@ -380,7 +385,7 @@ fn test_extcall_invalid_module() {
 #[test]
 fn test_extcall_invalid_proc() {
     let machine = Machine::new([
-        Instruction::Const(Value::String("hi".to_string())),
+        Instruction::Const(Value::String(text!("hi"))),
         Instruction::ExtCall(0, 1), // invalid proc id
         Instruction::Exit(ExitReason::Normal),
     ]);
@@ -390,10 +395,7 @@ fn test_extcall_invalid_proc() {
 
     assert_eq!(
         rs.run().unwrap_err(),
-        MachineError::new(MachineErrorType::FfiProcedureNotDefined(
-            "print".to_string(),
-            1
-        ))
+        MachineError::new(MachineErrorType::FfiProcedureNotDefined(ident!("print"), 1))
     );
 }
 
@@ -492,7 +494,8 @@ fn error_test_harness(instructions: &[Instruction], error_type: MachineErrorType
 #[allow(clippy::redundant_clone)]
 fn test_errors() {
     let ctx = dummy_ctx_policy("test");
-    let x = String::from("x");
+    let x = ident!("x");
+    let text = text!("this is a string");
 
     // StackUnderflow: Pop an empty stack
     error_test_harness(
@@ -505,7 +508,7 @@ fn test_errors() {
     // NotDefined: Get a name that isn't defined
     error_test_harness(
         &[Instruction::Get(x.clone())],
-        MachineErrorType::NotDefined(x.clone()),
+        MachineErrorType::NotDefined(x.to_string()),
     );
 
     // AlreadyDefined: Define a name twice
@@ -523,7 +526,7 @@ fn test_errors() {
     error_test_harness(
         &[
             Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(x.clone())),
+            Instruction::Const(Value::String(text.clone())),
             Instruction::Gt,
         ],
         MachineErrorType::invalid_type("Int, Int", "Int, String", "Greater-than comparison"),
@@ -533,7 +536,7 @@ fn test_errors() {
     error_test_harness(
         &[
             Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(x.clone())),
+            Instruction::Const(Value::String(text.clone())),
             Instruction::Add,
         ],
         MachineErrorType::invalid_type("Int", "String", "Value -> i64"),
@@ -543,7 +546,7 @@ fn test_errors() {
     error_test_harness(
         &[
             Instruction::Const(Value::Int(3)),
-            Instruction::Const(Value::String(x.clone())),
+            Instruction::Const(Value::String(text.clone())),
             Instruction::And,
         ],
         MachineErrorType::invalid_type("Bool", "String", "Value -> bool"),
@@ -589,7 +592,7 @@ fn test_errors() {
     error_test_harness(
         &[
             Instruction::Const(Value::Int(3)),
-            Instruction::Branch(Target::Unresolved(Label::new_temp(&x))),
+            Instruction::Branch(Target::Unresolved(Label::new_temp(x.clone()))),
         ],
         MachineErrorType::invalid_type("Bool", "Int", "Value -> bool"),
     );
@@ -597,7 +600,7 @@ fn test_errors() {
     // InvalidStructGet: Access `foo.x` when `x` is not a member of `foo`
     error_test_harness(
         &[
-            Instruction::Const(Value::Struct(Struct::new("foo", &[]))),
+            Instruction::Const(Value::Struct(Struct::new(ident!("foo"), &[]))),
             Instruction::StructGet(x.clone()),
         ],
         MachineErrorType::InvalidStructMember(x.clone()),
@@ -643,23 +646,25 @@ fn test_errors() {
 
     // UnresolvedTarget: Jump to an unresolved target
     error_test_harness(
-        &[Instruction::Jump(Target::Unresolved(Label::new_temp(&x)))],
-        MachineErrorType::UnresolvedTarget(Label::new_temp(&x)),
+        &[Instruction::Jump(Target::Unresolved(Label::new_temp(
+            x.clone(),
+        )))],
+        MachineErrorType::UnresolvedTarget(Label::new_temp(x.clone())),
     );
 
     // InvalidAddress: Run empty program
-    error_test_harness(&[], MachineErrorType::InvalidAddress("pc".to_owned()));
+    error_test_harness(&[], MachineErrorType::InvalidAddress(ident!("pc")));
 
     // InvalidAddress: Set PC to non-existent label
     general_test_harness(
         &[],
         |_| Ok(()),
         |rs| {
-            let r = rs.set_pc_by_label(&Label::new("x", LabelType::Action));
+            let r = rs.set_pc_by_label(&Label::new(x.clone(), LabelType::Action));
             assert_eq!(
                 r,
                 Err(MachineError::new(MachineErrorType::InvalidAddress(
-                    "x".to_owned()
+                    x.clone()
                 )))
             );
             Ok(())
@@ -671,15 +676,15 @@ fn test_errors() {
     general_test_harness(
         &[],
         |m| {
-            m.labels.insert(Label::new(&x, LabelType::Action), 0);
+            m.labels.insert(Label::new(x.clone(), LabelType::Action), 0);
             Ok(())
         },
         |rs| {
-            let r = rs.set_pc_by_label(&Label::new("x", LabelType::CommandPolicy));
+            let r = rs.set_pc_by_label(&Label::new(x.clone(), LabelType::CommandPolicy));
             assert_eq!(
                 r,
                 Err(MachineError::new(MachineErrorType::InvalidAddress(
-                    "x".to_owned()
+                    x.clone()
                 )))
             );
             Ok(())

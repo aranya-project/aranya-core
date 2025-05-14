@@ -33,7 +33,7 @@ pub fn generate_code(policy: &Policy) -> String {
         .map(|e| {
             let doc = format!(" {} policy enum.", e.identifier);
             let name = mk_ident(&e.identifier);
-            let names = e.values.iter().map(|v| mk_ident(v));
+            let names = e.values.iter().map(mk_ident);
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -100,11 +100,11 @@ pub fn generate_code(policy: &Policy) -> String {
 
         extern crate alloc;
 
-        use alloc::{string::String, vec::Vec};
+        use alloc::vec::Vec;
 
         use aranya_policy_ifgen::{
             macros::{actions, effect, effects, value},
-            ClientError, Id, Value,
+            ClientError, Id, Value, Text,
         };
 
         #(#structs)*
@@ -120,7 +120,7 @@ pub fn generate_code(policy: &Policy) -> String {
 
 fn vtype_to_rtype(ty: &VType) -> TokenStream {
     match ty {
-        VType::String => quote! { String },
+        VType::String => quote! { Text },
         VType::Bytes => quote! { Vec<u8> },
         VType::Int => quote! { i64 },
         VType::Bool => quote! { bool },
@@ -189,7 +189,8 @@ fn collect_reachable_types(policy: &Policy) -> HashSet<&str> {
 }
 
 /// Makes an identifier from a string, using raw identifiers (`r#mod`) when necessary.
-fn mk_ident(string: &str) -> syn::Ident {
+fn mk_ident(string: impl AsRef<str>) -> syn::Ident {
+    let string = string.as_ref();
     syn::parse_str::<syn::Ident>(string)
         .unwrap_or_else(|_| syn::Ident::new_raw(string, Span::call_site()))
 }

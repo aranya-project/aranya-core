@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use alloc::{boxed::Box, string::String, vec, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, vec, vec::Vec};
 use core::{
     cell::RefCell,
     ops::{Deref, DerefMut},
@@ -8,8 +8,10 @@ use core::{
 
 use aranya_crypto::Id;
 use aranya_policy_vm::{
-    ffi::FfiModule, CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError,
-    MachineErrorType, MachineIO, MachineIOError, MachineStack,
+    ast::{Identifier, Text},
+    ffi::FfiModule,
+    CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
+    MachineIO, MachineIOError, MachineStack,
 };
 use buggy::BugExt;
 use spin::Mutex;
@@ -49,7 +51,7 @@ where
 pub struct VmPolicyIO<'o, P, S, E, FFI> {
     facts: &'o RefCell<&'o mut P>,
     sink: &'o RefCell<&'o mut S>,
-    publish_stack: Vec<(String, Vec<KVPair>)>,
+    publish_stack: Vec<(Identifier, Vec<KVPair>)>,
     engine: &'o Mutex<E>,
     ffis: &'o [FFI],
 }
@@ -75,7 +77,7 @@ impl<'o, P, S, E, FFI> VmPolicyIO<'o, P, S, E, FFI> {
     }
 
     /// Consumes the `VmPolicyIO` object and produces the publish stack.
-    pub fn into_publish_stack(self) -> Vec<(String, Vec<KVPair>)> {
+    pub fn into_publish_stack(self) -> Vec<(Identifier, Vec<KVPair>)> {
         self.publish_stack
     }
 }
@@ -92,7 +94,7 @@ where
 
     fn fact_insert(
         &mut self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
@@ -101,26 +103,26 @@ where
         self.facts
             .try_borrow_mut()
             .assume("should be able to borrow facts")?
-            .insert(name, keys, value);
+            .insert(name.as_str().to_owned(), keys, value);
         Ok(())
     }
 
     fn fact_delete(
         &mut self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let keys = ser_keys(key);
         self.facts
             .try_borrow_mut()
             .assume("should be able to borrow facts")?
-            .delete(name, keys);
+            .delete(name.as_str().to_owned(), keys);
         Ok(())
     }
 
     fn fact_query(
         &self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
         let keys = ser_keys(key);
@@ -128,7 +130,7 @@ where
             .facts
             .try_borrow_mut()
             .assume("should be able to borrow facts")?
-            .query_prefix(&name, &keys)
+            .query_prefix(name.as_str(), &keys)
             .map_err(|e| {
                 error!("query failed: {e}");
                 MachineIOError::Internal
@@ -136,14 +138,14 @@ where
         Ok(VmFactCursor { iter })
     }
 
-    fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>) {
         let fields: Vec<_> = fields.into_iter().collect();
         self.publish_stack.push((name, fields));
     }
 
     fn effect(
         &mut self,
-        name: String,
+        name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
         command: Id,
         recalled: bool,
@@ -221,6 +223,7 @@ impl KeyType {
 /// This preserves the ordering for two facts with the same identifier and value type.
 /// This is important for the ordering of fact iteration in prefix queries.
 fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
+    let identifier = identifier.as_str();
     let identifier_len = (identifier.len() as u64).to_be_bytes();
 
     let int_bytes;
@@ -234,7 +237,7 @@ fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
             let bytes = if bool { &[1] } else { &[0] };
             (KeyType::Bool, bytes.as_slice())
         }
-        HashableValue::String(string) => (KeyType::String, string.as_bytes()),
+        HashableValue::String(string) => (KeyType::String, string.as_str().as_bytes()),
         HashableValue::Id(id) => (KeyType::Id, id.as_bytes()),
     };
 
@@ -260,7 +263,10 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         return Err("identifier too short");
     }
     let (identifier, bytes) = bytes.split_at(identifier_len);
-    let identifier = core::str::from_utf8(identifier).map_err(|_| "identifier not utf8")?;
+    let identifier: Identifier = core::str::from_utf8(identifier)
+        .map_err(|_| "identifier not utf8")?
+        .parse()
+        .map_err(|_| "invalid identifier")?;
 
     let (&tag, bytes) = bytes.split_first().ok_or("missing tag")?;
     let tag = KeyType::from_u8(tag).ok_or("invalid tag")?;
@@ -281,7 +287,8 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         }
         KeyType::String => {
             let string = core::str::from_utf8(bytes).map_err(|_| "string not utf8")?;
-            HashableValue::String(string.into())
+            let text: Text = string.parse().map_err(|_| "string contained null byte")?;
+            HashableValue::String(text)
         }
         KeyType::Id => {
             let bytes = bytes.try_into().map_err(|_| "invalid ID length")?;
@@ -290,10 +297,7 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         }
     };
 
-    Ok(FactKey {
-        identifier: identifier.into(),
-        value,
-    })
+    Ok(FactKey { identifier, value })
 }
 
 fn ser_values(value: impl IntoIterator<Item = FactValue>) -> Result<Box<[u8]>, MachineIOError> {
@@ -353,7 +357,7 @@ mod test {
         // These ord tests ensure the encoded values compare the same as the original values.
 
         #[test]
-        fn test_int_ord(identifier: String, v1: i64, v2: i64) {
+        fn test_int_ord(identifier: Identifier, v1: i64, v2: i64) {
             let b1 = ser_key(&FactKey {
                 identifier: identifier.clone(),
                 value: HashableValue::Int(v1),
@@ -366,7 +370,7 @@ mod test {
         }
 
         #[test]
-        fn test_bool_ord(identifier: String, v1: bool, v2: bool) {
+        fn test_bool_ord(identifier: Identifier, v1: bool, v2: bool) {
             let b1 = ser_key(&FactKey {
                 identifier: identifier.clone(),
                 value: HashableValue::Bool(v1),
@@ -379,7 +383,7 @@ mod test {
         }
 
         #[test]
-        fn test_string_ord(identifier: String, v1: String, v2: String) {
+        fn test_string_ord(identifier: Identifier, v1: Text, v2: Text) {
             let cmp = v1.cmp(&v2);
             let b1 = ser_key(&FactKey {
                 identifier: identifier.clone(),
@@ -393,7 +397,7 @@ mod test {
         }
 
         #[test]
-        fn test_id_ord(identifier: String, v1: Id, v2: Id) {
+        fn test_id_ord(identifier: Identifier, v1: Id, v2: Id) {
             let b1 = ser_key(&FactKey {
                 identifier: identifier.clone(),
                 value: HashableValue::Id(v1),

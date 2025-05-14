@@ -9,6 +9,7 @@ use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     Id, Rng,
 };
+use aranya_policy_ast::Identifier;
 use aranya_policy_vm::{
     ffi::{FfiModule, ModuleSchema},
     CommandContext, FactKey, FactKeyList, FactValue, FactValueList, KVPair, MachineError,
@@ -18,9 +19,9 @@ use aranya_policy_vm::{
 use super::printffi::*;
 
 pub struct TestIO {
-    pub facts: BTreeMap<(String, FactKeyList), FactValueList>,
-    pub publish_stack: Vec<(String, Vec<KVPair>)>,
-    pub effect_stack: Vec<(String, Vec<KVPair>)>,
+    pub facts: BTreeMap<(Identifier, FactKeyList), FactValueList>,
+    pub publish_stack: Vec<(Identifier, Vec<KVPair>)>,
+    pub effect_stack: Vec<(Identifier, Vec<KVPair>)>,
     pub engine: RefCell<DefaultEngine<Rng, DefaultCipherSuite>>,
     pub print_ffi: PrintFfi,
 }
@@ -67,7 +68,7 @@ where
 
     fn fact_insert(
         &mut self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError> {
@@ -85,7 +86,7 @@ where
 
     fn fact_delete(
         &mut self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
@@ -101,7 +102,7 @@ where
 
     fn fact_query(
         &self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError> {
         let key: Vec<_> = key.into_iter().collect();
@@ -116,7 +117,7 @@ where
         Ok(Box::new(iter))
     }
 
-    fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>) {
+    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>) {
         let mut fields: Vec<_> = fields.into_iter().collect();
         fields.sort_by(|a, b| a.key().cmp(b.key()));
         println!("publish {} {{{:?}}}", name, fields);
@@ -125,7 +126,7 @@ where
 
     fn effect(
         &mut self,
-        name: String,
+        name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
         _command: Id,
         _recalled: bool,
