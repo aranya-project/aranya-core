@@ -227,7 +227,7 @@ impl From<Text> for Value {
 
 impl From<Identifier> for Value {
     fn from(value: Identifier) -> Self {
-        todo!()
+        Value::String(value.into())
     }
 }
 
@@ -454,20 +454,6 @@ impl TryAsMut<bool> for Value {
         ))
     }
 }
-
-// impl TryAsMut<str> for Value {
-//     type Error = ValueConversionError;
-//     fn try_as_mut(&mut self) -> Result<&mut str, Self::Error> {
-//         if let Self::String(s) = self {
-//             return Ok(s);
-//         }
-//         Err(ValueConversionError::invalid_type(
-//             "String",
-//             self.type_name(),
-//             "Value -> String",
-//         ))
-//     }
-// }
 
 impl TryAsMut<[u8]> for Value {
     type Error = ValueConversionError;
@@ -813,19 +799,6 @@ impl Struct {
         }
     }
 }
-
-// impl From<Struct> for (String, Vec<KVPair>) {
-//     fn from(value: Struct) -> Self {
-//         (
-//             value.name,
-//             value
-//                 .fields
-//                 .into_iter()
-//                 .map(|(k, v)| KVPair(k, v))
-//                 .collect(),
-//         )
-//     }
-// }
 
 impl Display for Struct {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

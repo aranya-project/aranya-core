@@ -98,7 +98,7 @@ fn convert_arg_value(a: String) -> Value {
     } else if let Ok(i) = a.parse::<i64>() {
         Value::Int(i)
     } else {
-        Value::String(a.try_into().unwrap())
+        Value::String(a.try_into().expect("no nul"))
     }
 }
 

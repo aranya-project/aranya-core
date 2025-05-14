@@ -190,6 +190,7 @@ impl<T, G> TestModule<'_, T, G> {
         a: Text,
         b: Text,
     ) -> Result<Text, MachineError> {
+        #[allow(clippy::arithmetic_side_effects)]
         Ok(&a + &b)
     }
 

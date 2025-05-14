@@ -306,9 +306,6 @@ fn test_stack() -> anyhow::Result<()> {
     let v: Struct = s.pop()?;
     assert_eq!(v, Struct::new(FOO, &[]));
 
-    // TODO(jdygert): peek?
-    // let v: &str = s.peek()?;
-    // assert_eq!(v, "hello");
     let v: Text = s.pop()?;
     assert_eq!(v, text!("hello"));
 

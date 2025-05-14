@@ -1,76 +1,149 @@
-use alloc::sync::Arc;
 use core::{borrow::Borrow, fmt, str::FromStr};
 
-// I plan to move to using a smart string type roughly like
-// enum {
-//     Static(&'static str),
-//     Stack([u8; 16]),
-//     Heap(Arc<str>),
-// }
-//
-// This makes sense for identifiers and I guess text too?
-//
-// We can intern during compilation and then use a serializer which handles arc pooling.
-//
-// This is worse than doing manual string pooling but it's also easier...
+use serde::de;
 
-// TODO: Better repr
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-enum Repr {
-    #[serde(skip)]
-    Static(&'static str),
-    Heap(Arc<str>),
-}
+mod imp {
+    use alloc::sync::Arc;
 
-impl Repr {
-    const fn as_str(&self) -> &str {
-        match self {
-            Repr::Static(s) => s,
-            Repr::Heap(s) => {
-                // TODO(jdygert): yuck
+    // I plan to move to using a smart string type roughly like
+    // enum {
+    //     Static(&'static str),
+    //     Stack([u8; 16]),
+    //     Heap(Arc<str>),
+    // }
+    //
+    // This makes sense for identifiers and I guess text too?
+    //
+    // We can intern during compilation and then use a serializer which handles arc pooling.
+    //
+    // This is worse than doing manual string pooling but it's also easier...
 
-                #[repr(C)]
-                struct ArcInner<T: ?Sized> {
-                    strong: core::sync::atomic::AtomicUsize,
-                    weak: core::sync::atomic::AtomicUsize,
-                    data: T,
+    // TODO: Better repr
+    #[derive(Clone)]
+    pub enum Repr {
+        Static(&'static str),
+        Heap(Arc<str>),
+    }
+
+    impl Repr {
+        pub const fn from_static(s: &'static str) -> Self {
+            Self::Static(s)
+        }
+
+        pub fn from_str(s: &str) -> Self {
+            // TODO: stack variant
+            Self::Heap(s.into())
+        }
+
+        pub const fn as_str(&self) -> &str {
+            match self {
+                Repr::Static(s) => s,
+                Repr::Heap(s) => {
+                    // TODO(jdygert): yuck
+
+                    #[repr(C)]
+                    struct ArcInner<T: ?Sized> {
+                        strong: core::sync::atomic::AtomicUsize,
+                        weak: core::sync::atomic::AtomicUsize,
+                        data: T,
+                    }
+
+                    let inner =
+                        unsafe { &**core::mem::transmute::<&Arc<str>, &*const ArcInner<str>>(s) };
+
+                    &inner.data
                 }
-
-                let inner =
-                    unsafe { &**core::mem::transmute::<&Arc<str>, &*const ArcInner<str>>(s) };
-
-                &inner.data
             }
+        }
+    }
+
+    impl Default for Repr {
+        fn default() -> Self {
+            Self::Static("")
+        }
+    }
+
+    impl core::fmt::Debug for Repr {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            self.as_str().fmt(f)
+        }
+    }
+
+    impl PartialEq for Repr {
+        fn eq(&self, other: &Self) -> bool {
+            self.as_str().eq(other.as_str())
+        }
+    }
+
+    impl Eq for Repr {}
+
+    impl PartialOrd for Repr {
+        fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    impl Ord for Repr {
+        fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+            self.as_str().cmp(other.as_str())
+        }
+    }
+
+    impl core::hash::Hash for Repr {
+        fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+            self.as_str().hash(state)
+        }
+    }
+
+    impl<'de> serde::Deserialize<'de> for Repr {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            // no arc pooling for serde :(
+            let s = <alloc::borrow::Cow<'de, str>>::deserialize(deserializer)?;
+            Ok(Self::from_str(&s))
+        }
+    }
+
+    impl serde::Serialize for Repr {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            self.as_str().serialize(serializer)
         }
     }
 }
 
-impl Default for Repr {
-    fn default() -> Self {
-        Self::Static("")
-    }
-}
-
+/// Not a valid `Text` value.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
 #[error("invalid text value")]
 pub struct InvalidText(());
 
+/// Not a valid `Identifier` value.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
 #[error("invalid identifier value")]
 pub struct InvalidIdentifier(());
 
-// TODO: Ensure ord and hash impl matches str
+/// A string-like value which is utf8 without nul bytes.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
-pub struct Text(Repr);
+#[serde(transparent)]
+pub struct Text(imp::Repr);
 
 impl<'de> serde::Deserialize<'de> for Text {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        todo!("check for nul")
+        let r = imp::Repr::deserialize(deserializer)?;
+        if r.as_str().contains('\0') {
+            return Err(de::Error::invalid_value(
+                de::Unexpected::Str(r.as_str()),
+                &"no nul bytes",
+            ));
+        }
+        Ok(Self(r))
     }
 }
 
@@ -97,29 +170,29 @@ impl FromStr for Text {
         if value.as_bytes().contains(&0) {
             return Err(InvalidText(()));
         }
-        Ok(Self(Repr::Heap(value.into())))
+        Ok(Self(imp::Repr::from_str(value)))
     }
 }
 
 impl TryFrom<String> for Text {
     type Error = InvalidText;
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        if value.as_bytes().contains(&0) {
-            return Err(InvalidText(()));
-        }
-        Ok(Self(Repr::Heap(value.into())))
+        value.as_str().parse()
     }
 }
 
 impl core::ops::Add for &Text {
     type Output = Text;
     fn add(self, rhs: Self) -> Self::Output {
-        let s = Arc::<str>::from(self.0.as_str().to_owned() + rhs.as_str());
-        Text(Repr::Heap(s))
+        let s = self.0.as_str().to_owned() + rhs.as_str();
+        Text(imp::Repr::from_str(&s))
     }
 }
 
 impl Text {
+    /// Compare two text values for equality.
+    ///
+    /// Like `Eq` but `const`.
     pub const fn const_eq(&self, other: &Self) -> bool {
         let lhs = self.0.as_str().as_bytes();
         let rhs = other.0.as_str().as_bytes();
@@ -150,16 +223,26 @@ impl Text {
             if bytes[i] == 0 {
                 panic!()
             }
-            i += 1;
+            #[allow(
+                clippy::arithmetic_side_effects,
+                reason = "string cannot be that large"
+            )]
+            {
+                i += 1;
+            }
         }
-        Self(Repr::Static(lit))
+        Self(imp::Repr::from_static(lit))
     }
 
+    /// Extracts a string slice containing the entire text.
     pub const fn as_str(&self) -> &str {
         self.0.as_str()
     }
 }
 
+/// Creates a `Text` from a string literal.
+///
+/// Fails at compile time for invalid values.
 #[macro_export]
 macro_rules! text {
     ($lit:literal) => {
@@ -168,12 +251,15 @@ macro_rules! text {
 }
 
 // TODO: Deserialize check
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+#[serde(transparent)]
+/// A textual identifier which matches `[a-zA-Z][a-zA-Z0-9_]*`.
 pub struct Identifier(Text);
 
 impl Identifier {
+    /// Compare two identifiers for equality.
+    ///
+    /// Like `Eq` but `const`.
     pub const fn const_eq(&self, other: &Self) -> bool {
         self.0.const_eq(&other.0)
     }
@@ -189,11 +275,18 @@ impl Identifier {
             if !(bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
                 panic!("must be alphanumeric or '_'")
             }
-            i += 1;
+            #[allow(
+                clippy::arithmetic_side_effects,
+                reason = "string cannot be that large"
+            )]
+            {
+                i += 1;
+            }
         }
         Self(Text::__from_literal(lit))
     }
 
+    /// Extracts a string slice containing the entire identifier.
     pub const fn as_str(&self) -> &str {
         self.0.as_str()
     }
@@ -223,6 +316,9 @@ impl PartialEq<&str> for Identifier {
     }
 }
 
+/// Creates an `Identifier` from a string literal.
+///
+/// Fails at compile time for invalid values.
 #[macro_export]
 macro_rules! ident {
     ($lit:literal) => {
@@ -234,14 +330,28 @@ macro_rules! ident {
     };
 }
 
-impl TryFrom<Text> for Identifier {
-    type Error = InvalidIdentifier;
-    fn try_from(value: Text) -> Result<Self, Self::Error> {
-        for b in value.as_str().bytes() {
+impl Identifier {
+    fn validate(s: &str) -> Result<(), InvalidIdentifier> {
+        if !s
+            .as_bytes()
+            .first()
+            .is_some_and(|b| b.is_ascii_alphabetic())
+        {
+            return Err(InvalidIdentifier(()));
+        }
+        for b in s.bytes().skip(1) {
             if !(b.is_ascii_alphanumeric() || b == b'_') {
                 return Err(InvalidIdentifier(()));
             }
         }
+        Ok(())
+    }
+}
+
+impl TryFrom<Text> for Identifier {
+    type Error = InvalidIdentifier;
+    fn try_from(value: Text) -> Result<Self, Self::Error> {
+        Self::validate(value.as_str())?;
         Ok(Self(value))
     }
 }
@@ -249,24 +359,15 @@ impl TryFrom<Text> for Identifier {
 impl FromStr for Identifier {
     type Err = InvalidIdentifier;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        for b in s.bytes() {
-            if !(b.is_ascii_alphanumeric() || b == b'_') {
-                return Err(InvalidIdentifier(()));
-            }
-        }
-        Ok(Self(Text(Repr::Heap(s.into()))))
+        Self::validate(s)?;
+        Ok(Self(Text(imp::Repr::from_str(s))))
     }
 }
 
 impl TryFrom<String> for Identifier {
     type Error = InvalidIdentifier;
     fn try_from(s: String) -> Result<Self, Self::Error> {
-        for b in s.bytes() {
-            if !(b.is_ascii_alphanumeric() || b == b'_') {
-                return Err(InvalidIdentifier(()));
-            }
-        }
-        Ok(Self(Text(Repr::Heap(s.into()))))
+        s.as_str().parse()
     }
 }
 
@@ -285,6 +386,22 @@ impl AsRef<str> for Identifier {
 impl Borrow<str> for Identifier {
     fn borrow(&self) -> &str {
         self.as_str()
+    }
+}
+
+impl<'de> de::Deserialize<'de> for Identifier {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let r = imp::Repr::deserialize(deserializer)?;
+        Self::validate(r.as_str()).map_err(|_| {
+            de::Error::invalid_value(
+                de::Unexpected::Str(r.as_str()),
+                &"must match `[a-zA-Z][a-zA-Z0-9_]*`",
+            )
+        })?;
+        Ok(Self(Text(r)))
     }
 }
 
@@ -310,7 +427,7 @@ mod proptest_impls {
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-            ("[a-zA-Z][\\w_]*")
+            ("[a-zA-Z][a-zA-Z0-9_]*")
                 .prop_map(|s| s.try_into().expect("regex produces valid identifiers"))
                 .boxed()
         }

@@ -119,7 +119,9 @@ impl<'a> PairContext<'a> {
             ));
         }
 
-        Ok(identifier.parse().unwrap())
+        Ok(identifier
+            .parse()
+            .assume("grammar produces valid identifiers")?)
     }
 }
 
@@ -289,8 +291,13 @@ impl<'a> ChunkParser<'a> {
             }
         }
 
-        // TODO(jdygert): real error
-        Ok(out.try_into().unwrap())
+        out.try_into().map_err(|_| {
+            ParseError::new(
+                ParseErrorKind::InvalidString,
+                String::from("string contained nul byte"),
+                Some(string.as_span()),
+            )
+        })
     }
 
     fn parse_named_struct_literal(
@@ -499,7 +506,7 @@ impl<'a> ChunkParser<'a> {
                         ast::InternalFunction::Deserialize(Box::new(inner)),
                     ))
                 }
-                Rule::identifier => Ok(Expression::Identifier(primary.as_str().parse().unwrap())),
+                Rule::identifier => Ok(Expression::Identifier(primary.as_str().parse().assume("grammar produces valid identifiers")?)),
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
                 _ => Err(ParseError::new(
@@ -1200,7 +1207,10 @@ impl<'a> ChunkParser<'a> {
         let identifier = pc.consume_identifier()?;
         let mut values = Vec::<Identifier>::new();
         for value in pc.into_inner() {
-            let identifier = value.as_str().parse().unwrap();
+            let identifier = value
+                .as_str()
+                .parse()
+                .assume("grammar produces valid identifiers")?;
             values.push(identifier);
         }
 
