@@ -13,7 +13,7 @@ use crate::{
 
 /// The `#[capi::opaque(size = 42, align = 12)]` attribute.
 ///
-/// It can only be applied to structs or aliases.
+/// It can only be applied to aliases.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Opaque {
     /// The size in bytes of the type.
