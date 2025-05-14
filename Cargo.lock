@@ -366,7 +366,6 @@ name = "aranya-policy-ast"
 version = "0.4.0"
 dependencies = [
  "proptest",
- "proptest-derive",
  "serde",
  "thiserror 2.0.7",
 ]

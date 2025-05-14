@@ -17,16 +17,16 @@ workspace = true
 default = []
 
 # Enable `std`.
-std = ["thiserror/std", "proptest?/std"]
+std = ["proptest?/std", "thiserror/std"]
 
-proptest = ["dep:proptest", "dep:proptest-derive"]
+proptest = ["dep:proptest"]
 
 [dependencies]
 serde = { workspace = true, default-features = false, features = ["derive", "alloc", "rc"] }
 thiserror = { workspace = true }
 
-proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
-proptest-derive = { workspace = true, optional = true }
+# TODO(jdygert): remove dependency on std (text regex)
+proptest = { workspace = true, default-features = false, features = ["alloc", "std"], optional = true }
 
 [package.metadata.docs.rs]
 all-features = true

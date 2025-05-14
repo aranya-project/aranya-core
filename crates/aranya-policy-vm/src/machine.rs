@@ -463,10 +463,10 @@ where
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
     fn validate_struct_schema(&mut self, s: &Struct) -> Result<(), MachineError> {
-        let mk_err = || self.err(MachineErrorType::InvalidSchema(s.name.clone()));
-
         #[cfg(feature = "bench")]
         self.stopwatch.start("validate_struct_schema");
+
+        let mk_err = || self.err(MachineErrorType::InvalidSchema(s.name.clone()));
 
         match self.machine.struct_defs.get(&s.name) {
             Some(fields) => {
