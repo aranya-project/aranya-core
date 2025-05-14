@@ -181,10 +181,13 @@ impl Identifier {
     #[doc(hidden)]
     pub const fn __from_literal(lit: &'static str) -> Self {
         let bytes = lit.as_bytes();
-        let mut i = 0;
+        if !bytes[0].is_ascii_alphabetic() {
+            panic!("must start with alphabetic")
+        }
+        let mut i = 1;
         while i < bytes.len() {
             if !(bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
-                panic!()
+                panic!("must be alphanumeric or '_'")
             }
             i += 1;
         }
@@ -289,14 +292,16 @@ impl Borrow<str> for Identifier {
 mod proptest_impls {
     use proptest::prelude::*;
 
-    use super::*;
+    use super::{Identifier, Text};
 
     impl Arbitrary for Text {
         type Parameters = ();
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-            ("[^\0]+").prop_map(|s| s.try_into().unwrap()).boxed()
+            ("[^\0]+")
+                .prop_map(|s| s.try_into().expect("regex produces valid text"))
+                .boxed()
         }
     }
 
@@ -305,7 +310,9 @@ mod proptest_impls {
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-            ("[\\w_]+").prop_map(|s| s.try_into().unwrap()).boxed()
+            ("[a-zA-Z][\\w_]*")
+                .prop_map(|s| s.try_into().expect("regex produces valid identifiers"))
+                .boxed()
         }
     }
 }

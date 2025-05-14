@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{spanned::Spanned, Fields, Item, ItemEnum, ItemStruct};
+use syn::{ext::IdentExt as _, spanned::Spanned, Fields, Item, ItemEnum, ItemStruct};
 
 use crate::common::get_derive;
 
@@ -14,7 +14,7 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
 
 fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
     let ident = &strukt.ident;
-    let name = ident.to_string();
+    let name = ident.unraw().to_string();
 
     let field_idents = strukt
         .fields
@@ -28,7 +28,7 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
     let field_names = field_idents
         .iter()
         .map(|f| {
-            let f = f.to_string();
+            let f = f.unraw().to_string();
             quote!(::aranya_policy_ifgen::ident!(#f))
         })
         .collect::<Vec<_>>();
@@ -76,7 +76,7 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
             fn from(s: #ident) -> Self {
                 let mut fields = ::aranya_policy_ifgen::FieldMap::new();
                 #(
-                    fields.insert(#field_names.into(), s.#field_idents.into());
+                    fields.insert(#field_names, s.#field_idents.into());
                 )*
                 Self::Struct(::aranya_policy_ifgen::Struct {
                     name: ::aranya_policy_ifgen::ident!(#name),
@@ -89,7 +89,7 @@ fn handle_struct(strukt: ItemStruct) -> syn::Result<TokenStream> {
 
 fn handle_enum(enumeration: ItemEnum) -> syn::Result<TokenStream> {
     let ident = &enumeration.ident;
-    let enum_ident = ident.to_string();
+    let enum_ident = ident.unraw().to_string();
 
     for variant in &enumeration.variants {
         if !matches!(variant.fields, Fields::Unit) {

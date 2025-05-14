@@ -17,31 +17,31 @@ pub struct TestEffect {
 #[effect]
 #[derive(Default)]
 pub struct TestEffectFields {
-    _int: i64,
-    _bool: bool,
-    _string: Text,
-    _bytes: Vec<u8>,
-    _struct: OtherStruct,
-    _enum: TestEnum,
-    _optional_int: Option<i64>,
-    _optional_struct: Option<TestStructFields>,
-    _optional_enum: Option<TestEnum>,
-    _optional_nested: Option<Option<Option<Option<i64>>>>,
+    int: i64,
+    bool: bool,
+    string: Text,
+    bytes: Vec<u8>,
+    r#struct: OtherStruct,
+    r#enum: TestEnum,
+    optional_int: Option<i64>,
+    optional_struct: Option<TestStructFields>,
+    optional_enum: Option<TestEnum>,
+    optional_nested: Option<Option<Option<Option<i64>>>>,
 }
 
 #[value]
 #[derive(Default)]
 pub struct TestStructFields {
-    _int: i64,
-    _bool: bool,
-    _string: Text,
-    _bytes: Vec<u8>,
-    _struct: OtherStruct,
-    _enum: TestEnum,
-    _optional_int: Option<i64>,
-    _optional_struct: Option<OtherStruct>,
-    _optional_enum: Option<TestEnum>,
-    _optional_nested: Option<Option<Option<Option<i64>>>>,
+    int: i64,
+    bool: bool,
+    string: Text,
+    bytes: Vec<u8>,
+    r#struct: OtherStruct,
+    r#enum: TestEnum,
+    optional_int: Option<i64>,
+    optional_struct: Option<OtherStruct>,
+    optional_enum: Option<TestEnum>,
+    optional_nested: Option<Option<Option<Option<i64>>>>,
 }
 
 #[value]
@@ -62,16 +62,16 @@ pub enum TestEnum {
 pub trait TestActions {
     fn act(
         &mut self,
-        _int: i64,
-        _bool: bool,
-        _string: Text,
-        _bytes: Vec<u8>,
-        _struct: TestStructFields,
-        _enum: TestEnum,
-        _optional_int: Option<i64>,
-        _optional_struct: Option<TestStructFields>,
-        _optional_enum: Option<TestEnum>,
-        _optional_nested: Option<Option<Option<Option<i64>>>>,
+        int: i64,
+        bool: bool,
+        string: Text,
+        bytes: Vec<u8>,
+        r#struct: TestStructFields,
+        r#enum: TestEnum,
+        optional_int: Option<i64>,
+        optional_struct: Option<TestStructFields>,
+        optional_enum: Option<TestEnum>,
+        optional_nested: Option<Option<Option<Option<i64>>>>,
     ) -> Result<(), ClientError>;
 }
 
