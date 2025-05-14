@@ -329,6 +329,7 @@ impl TryFrom<Value> for Identifier {
                 "Value -> Identifier",
             ));
         };
+        // TODO(jdygert): Revalidating every identifier sucks :(
         text.try_into()
             .map_err(|_| ValueConversionError::OutOfRange)
     }

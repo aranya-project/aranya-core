@@ -46,8 +46,8 @@ policy-version: 1
         fact F[i int]=>{ value string }
 
         command Init {
-            seal { return envelope::seal(serialize(this)) }
-            open { return deserialize(envelope::open(envelope)) }
+            seal { return envelope::do_seal(serialize(this)) }
+            open { return deserialize(envelope::do_open(envelope)) }
             policy {
                 finish {}
             }
@@ -66,8 +66,8 @@ policy-version: 1
                 i int,
                 value string
             }
-            seal { return envelope::seal(serialize(this)) }
-            open { return deserialize(envelope::open(envelope)) }
+            seal { return envelope::do_seal(serialize(this)) }
+            open { return deserialize(envelope::do_open(envelope)) }
             policy {
                 finish {
                     create F[i: this.i]=>{value: this.value}
@@ -76,15 +76,15 @@ policy-version: 1
         }
 
         action run() {
-            map F[i:?] as f {                
+            map F[i:?] as f {
                 publish DoSomething { i: f.i }
             }
         }
 
         command DoSomething {
             fields { i int }
-            seal { return envelope::seal(serialize(this)) }
-            open { return deserialize(envelope::open(envelope)) }
+            seal { return envelope::do_seal(serialize(this)) }
+            open { return deserialize(envelope::do_open(envelope)) }
             policy {
                 finish {
                     update F[i:this.i]=>{ value:? } to { value:"updated" }

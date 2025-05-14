@@ -43,8 +43,8 @@ command Init {
     fields {
         nonce int,
     }
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         finish {}
     }
@@ -61,8 +61,8 @@ command Create {
         key int,
         value int,
     }
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
@@ -83,8 +83,8 @@ command Increment {
         key int,
         amount int,
     }
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         check stuff.y > 0
@@ -136,8 +136,8 @@ command Invalidate {
     fields {
         key int
     }
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         let newval = -1  // hack around negative number parse bug; see #869

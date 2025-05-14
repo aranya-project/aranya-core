@@ -32,7 +32,7 @@ struct Envelope {
 "#
 )]
 impl TestFfiEnvelope {
-    #[ffi_export(def = "function seal(payload bytes) struct Envelope")]
+    #[ffi_export(def = "function do_seal(payload bytes) struct Envelope")]
     fn seal<E>(
         &self,
         ctx: &CommandContext<'_>,
@@ -47,7 +47,7 @@ impl TestFfiEnvelope {
         }
 
         let CommandContext::Seal(ctx) = ctx else {
-            bug!("envelope::seal called outside seal context");
+            bug!("envelope::do_seal called outside seal context");
         };
 
         let parent_id = ctx.head_id.into();
@@ -72,7 +72,7 @@ impl TestFfiEnvelope {
         })
     }
 
-    #[ffi_export(def = "function open(envelope_input struct Envelope) bytes")]
+    #[ffi_export(def = "function do_open(envelope_input struct Envelope) bytes")]
     fn open<E>(
         &self,
         _ctx: &CommandContext<'_>,
