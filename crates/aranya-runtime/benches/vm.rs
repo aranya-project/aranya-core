@@ -120,7 +120,8 @@ policy-version: 1
         .expect("could not create graph");
 
     for i in 1..10 {
-        cs.action(storage_id, &mut sink, vm_action!(insert(i, i.to_string())))
+        let text = i.to_string().parse().expect("valid text");
+        cs.action(storage_id, &mut sink, vm_action!(insert(i, text)))
             .expect("action `insert` failed");
     }
     cs.action(storage_id, &mut sink, vm_action!(run()))
