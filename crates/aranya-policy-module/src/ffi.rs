@@ -99,37 +99,39 @@ pub struct Struct<'a> {
 /// ```rust
 /// use aranya_policy_module::{
 ///     arg,
+///     ast::ident,
 ///     ffi::{Arg, Type},
 /// };
 ///
 /// let got = arg!("string", String);
-/// let want = Arg { name: "string", vtype: Type::String };
+/// let want = Arg { name: ident!("string"), vtype: Type::String };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("bytes", Bytes);
-/// let want = Arg { name: "bytes", vtype: Type::Bytes };
+/// let want = Arg { name: ident!("bytes"), vtype: Type::Bytes };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("int", Int);
-/// let want = Arg { name: "int", vtype: Type::Int };
+/// let want = Arg { name: ident!("int"), vtype: Type::Int };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("bool", Bool);
-/// let want = Arg { name: "bool", vtype: Type::Bool };
+/// let want = Arg { name: ident!("bool"), vtype: Type::Bool };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("id", Id);
-/// let want = Arg { name: "id", vtype: Type::Id };
+/// let want = Arg { name: ident!("id"), vtype: Type::Id };
 /// assert_eq!(got, want);
 ///
 /// let got = arg!("struct", Struct("foo"));
-/// let want = Arg { name: "struct", vtype: Type::Struct("foo") };
+/// let want = Arg { name: ident!("struct"), vtype: Type::Struct(ident!("foo")) };
 /// assert_eq!(got, want);
 ///
-/// let got = arg!("optional", Optional(&Type::Struct("bar")));
+/// let inner = &Type::Struct(ident!("bar"));
+/// let got = arg!("optional", Optional(&inner));
 /// let want = Arg {
-///     name: "optional",
-///     vtype: Type::Optional(&Type::Struct("bar")),
+///     name: ident!("optional"),
+///     vtype: Type::Optional(const { &Type::Struct(ident!("bar")) }),
 /// };
 /// assert_eq!(got, want);
 /// ```

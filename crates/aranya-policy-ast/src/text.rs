@@ -1,3 +1,4 @@
+use alloc::string::String;
 use core::{borrow::Borrow, fmt, str::FromStr};
 
 use serde::de;
@@ -184,7 +185,7 @@ impl TryFrom<String> for Text {
 impl core::ops::Add for &Text {
     type Output = Text;
     fn add(self, rhs: Self) -> Self::Output {
-        let s = self.0.as_str().to_owned() + rhs.as_str();
+        let s = String::from(self.0.as_str()) + rhs.as_str();
         Text(imp::Repr::from_str(&s))
     }
 }

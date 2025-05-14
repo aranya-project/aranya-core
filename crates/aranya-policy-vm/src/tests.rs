@@ -413,7 +413,7 @@ fn test_extcall_invalid_arg() {
         MachineError::new(MachineErrorType::invalid_type(
             "String",
             "Int",
-            "Value -> String"
+            "Value -> Text"
         ))
     );
 }

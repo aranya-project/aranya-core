@@ -1,6 +1,7 @@
 // This file contains the extracted keywords from policy.pest from keyword_extraction.pl
 
-pub const KEYWORDS: [&str; 55] = [
+// TODO(jdygert): Handle existing conflicts.
+pub const KEYWORDS: [&str; 51] = [
     "action",
     "as",
     "at_least",
@@ -21,7 +22,7 @@ pub const KEYWORDS: [&str; 55] = [
     "else",
     "emit",
     "enum",
-    "envelope",
+    // "envelope",
     "exactly",
     "exists",
     "fact",
@@ -29,7 +30,7 @@ pub const KEYWORDS: [&str; 55] = [
     "fields",
     "finish",
     "function",
-    "id",
+    // "id",
     "if",
     "immutable",
     "int",
@@ -38,14 +39,14 @@ pub const KEYWORDS: [&str; 55] = [
     "map",
     "match",
     "None",
-    "open",
+    // "open",
     "optional",
     "policy",
     "publish",
     "query",
     "recall",
     "return",
-    "seal",
+    // "seal",
     "serialize",
     "Some",
     "string",
