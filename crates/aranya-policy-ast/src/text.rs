@@ -5,26 +5,17 @@ use serde::de;
 
 mod imp {
     use alloc::sync::Arc;
+    use core::slice;
 
-    // I plan to move to using a smart string type roughly like
-    // enum {
-    //     Static(&'static str),
-    //     Stack([u8; 16]),
-    //     Heap(Arc<str>),
-    // }
-    //
-    // This makes sense for identifiers and I guess text too?
-    //
-    // We can intern during compilation and then use a serializer which handles arc pooling.
-    //
-    // This is worse than doing manual string pooling but it's also easier...
-
-    // TODO(jdygert): Better repr
+    // TODO(jdygert): Better repr to fit in 16 bytes.
     #[derive(Clone)]
     pub enum Repr {
         Static(&'static str),
+        Stack { bytes: [u8; MAX_STACK], len: u8 },
         Heap(Arc<str>),
     }
+
+    const MAX_STACK: usize = 3 * size_of::<usize>() - 2;
 
     impl Repr {
         pub const fn from_static(s: &'static str) -> Self {
@@ -32,15 +23,32 @@ mod imp {
         }
 
         pub fn from_str(s: &str) -> Self {
-            // TODO(jdygert): stack variant
-            Self::Heap(s.into())
+            let len = s.len();
+            if len <= MAX_STACK {
+                let mut bytes = [0u8; MAX_STACK];
+                bytes[..len].copy_from_slice(s.as_bytes());
+                Self::Stack {
+                    bytes,
+                    len: len as u8,
+                }
+            } else {
+                Self::Heap(s.into())
+            }
         }
 
         pub const fn as_str(&self) -> &str {
             match self {
                 Repr::Static(s) => s,
+                Repr::Stack { bytes, len } => {
+                    // SAFETY: We always ensure that `&bytes[..len]` is a valid string.
+                    let s = unsafe { slice::from_raw_parts(bytes.as_ptr(), *len as usize) };
+                    // SAFETY: We always ensure that `&bytes[..len]` is a valid string.
+                    unsafe { core::str::from_utf8_unchecked(s) }
+                }
                 Repr::Heap(s) => {
-                    // TODO(jdygert): yuck
+                    // TODO(jdygert): yuck. This is needed because no methods of `Arc` are `const`.
+                    // Might replace the arc variant with a specialized arc implementation,
+                    // although it'd be nice to have `impl From<Arc<str>> for Text` with no realloc.
 
                     #[repr(C)]
                     struct ArcInner<T: ?Sized> {
