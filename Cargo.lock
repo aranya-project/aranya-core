@@ -365,10 +365,8 @@ dependencies = [
 name = "aranya-policy-ast"
 version = "0.4.0"
 dependencies = [
- "proc-macro2",
  "proptest",
  "proptest-derive",
- "quote",
  "serde",
  "thiserror 2.0.7",
 ]

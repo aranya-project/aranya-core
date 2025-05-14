@@ -28,8 +28,5 @@ thiserror = { workspace = true }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 
-proc-macro2 = { workspace = true } #TODO(jdygert): optional?
-quote = { workspace = true } #TODO(jdygert): optional?
-
 [package.metadata.docs.rs]
 all-features = true

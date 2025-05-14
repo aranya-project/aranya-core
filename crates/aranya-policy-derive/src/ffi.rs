@@ -52,9 +52,9 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let vm: Path = parse_quote!(_policy_vm);
 
     let structdefs = structs.iter().map(|d| {
-        let name = &d.inner.identifier;
+        let name = &d.inner.identifier.as_str();
         let fields = d.inner.fields.iter().map(|arg| {
-            let name = &arg.identifier;
+            let name = &arg.identifier.as_str();
             let vtype = VTypeTokens::new(&arg.field_type, &vm);
             quote!(#vm::arg!(#name, #vtype))
         });
@@ -248,7 +248,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         let funcs = funcs.iter().map(|f| {
             let name = f.ext_name.to_string();
             let args = f.args.iter().map(|arg| {
-                let name = arg.def.identifier.clone();
+                let name = arg.def.identifier.as_str();
                 let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             });
@@ -632,8 +632,14 @@ impl ToTokens for VTypeTokens<'_> {
             VType::Int => quote!(Int),
             VType::Bool => quote!(Bool),
             VType::Id => quote!(Id),
-            VType::Struct(name) => quote!(Struct(#name)),
-            VType::Enum(name) => quote!(Enum(#name)),
+            VType::Struct(name) => {
+                let name = name.as_str();
+                quote!(Struct(#name))
+            }
+            VType::Enum(name) => {
+                let name = name.as_str();
+                quote!(Enum(#name))
+            }
             VType::Optional(vtype) => {
                 let vtype = VTypeTokens::new(vtype, vm);
                 quote!(Optional(&#vm::ffi::Type::#vtype))

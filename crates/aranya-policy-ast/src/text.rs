@@ -372,12 +372,6 @@ impl TryFrom<String> for Identifier {
     }
 }
 
-impl quote::ToTokens for Identifier {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        self.0.as_str().to_tokens(tokens);
-    }
-}
-
 impl AsRef<str> for Identifier {
     fn as_ref(&self) -> &str {
         self.as_str()
