@@ -2,6 +2,8 @@ use aranya_crypto::DeviceId;
 pub use aranya_crypto::Id;
 use buggy::{bug, Bug};
 
+// TODO(jdygert): Use Identifier?
+
 /// Context for actions
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActionContext<'a> {

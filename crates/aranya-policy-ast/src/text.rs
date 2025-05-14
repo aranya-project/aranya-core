@@ -19,7 +19,7 @@ mod imp {
     //
     // This is worse than doing manual string pooling but it's also easier...
 
-    // TODO: Better repr
+    // TODO(jdygert): Better repr
     #[derive(Clone)]
     pub enum Repr {
         Static(&'static str),
@@ -32,7 +32,7 @@ mod imp {
         }
 
         pub fn from_str(s: &str) -> Self {
-            // TODO: stack variant
+            // TODO(jdygert): stack variant
             Self::Heap(s.into())
         }
 
@@ -252,7 +252,6 @@ macro_rules! text {
     };
 }
 
-// TODO: Deserialize check
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
 #[serde(transparent)]
 /// A textual identifier which matches `[a-zA-Z][a-zA-Z0-9_]*`.
