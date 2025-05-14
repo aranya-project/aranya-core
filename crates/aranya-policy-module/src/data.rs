@@ -534,7 +534,7 @@ pub enum HashableValue {
     /// A unique identifier.
     Id(Id),
     /// Enum
-    Enum(String, i64),
+    Enum(Identifier, i64),
 }
 
 impl HashableValue {

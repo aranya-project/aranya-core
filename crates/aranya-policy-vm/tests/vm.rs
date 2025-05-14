@@ -941,23 +941,23 @@ fn test_query_enum_keys() -> anyhow::Result<()> {
     let machine = Machine::from_module(module)?;
 
     {
-        let cmd_name = "Setup";
+        let cmd_name = ident!("Setup");
         let this_data = Struct {
-            name: String::from(cmd_name),
+            name: cmd_name.clone(),
             fields: [].into(),
         };
 
-        let ctx = dummy_ctx_open(cmd_name);
+        let ctx = dummy_ctx_open(cmd_name.as_str());
         let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?
+        rs.call_command_policy(cmd_name.clone(), &this_data, dummy_envelope())?
             .success();
     }
 
     {
-        let action_name = "test_query";
-        let ctx = dummy_ctx_open(action_name);
+        let action_name = ident!("test_query");
+        let ctx = dummy_ctx_open(action_name.as_str());
         let mut rs = machine.create_run_state(&io, ctx);
-        rs.call_action(action_name, iter::empty::<Value>())?
+        rs.call_action(action_name.clone(), iter::empty::<Value>())?
             .success();
     }
 

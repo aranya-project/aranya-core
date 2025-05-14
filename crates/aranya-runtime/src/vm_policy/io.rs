@@ -244,7 +244,7 @@ fn ser_key(FactKey { identifier, value }: &FactKey) -> Box<[u8]> {
         HashableValue::Id(id) => (KeyType::Id, id.as_bytes()),
         HashableValue::Enum(id, value) => {
             let int_bytes = i64::to_be_bytes(value ^ (1 << 63));
-            bytes = [int_bytes.as_slice(), id.as_bytes()].concat();
+            bytes = [int_bytes.as_slice(), id.as_str().as_bytes()].concat();
             (KeyType::Enum, bytes.as_slice())
         }
     };
@@ -295,7 +295,7 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         }
         KeyType::String => {
             let string = core::str::from_utf8(bytes).map_err(|_| "string not utf8")?;
-            let text: Text = string.parse().map_err(|_| "string contained null byte")?;
+            let text: Text = string.parse().map_err(|_| "string contained nul byte")?;
             HashableValue::String(text)
         }
         KeyType::Id => {
@@ -306,8 +306,9 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         KeyType::Enum => {
             let (value_bytes, id) = bytes.split_first_chunk().ok_or("missing enum value")?;
             let value = i64::from_be_bytes(*value_bytes) ^ (1 << 63);
-            let id = core::str::from_utf8(id).map_err(|_| "id not utf8")?;
-            HashableValue::Enum(String::from(id), value)
+            let id = core::str::from_utf8(id).map_err(|_| "enum name not utf8")?;
+            let id: Identifier = id.parse().map_err(|_| "enum name is invalid identifier")?;
+            HashableValue::Enum(id, value)
         }
     };
 
@@ -424,7 +425,7 @@ mod test {
         }
 
         #[test]
-        fn test_enum_ord(identifier: String, id1: String, id2: String, v1: i64, v2: i64) {
+        fn test_enum_ord(identifier: Identifier, id1: Identifier, id2: Identifier, v1: i64, v2: i64) {
             let b1 = ser_key(&FactKey {
                 identifier: identifier.clone(),
                 value: HashableValue::Enum(id1.clone(), v1),
