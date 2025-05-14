@@ -136,6 +136,16 @@ fn descend(p: Pair<'_, Rule>) -> PairContext<'_> {
     }
 }
 
+/// Helper function which consumes and returns an iterator over
+/// a single token, rather than descending.
+fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
+    let span = p.as_span();
+    PairContext {
+        pairs: RefCell::new(Pairs::single(p)),
+        span,
+    }
+}
+
 /// Context information for partial parsing of a chunk of source
 pub struct ChunkParser<'a> {
     chunk_offset: usize,
@@ -506,7 +516,7 @@ impl<'a> ChunkParser<'a> {
                         ast::InternalFunction::Deserialize(Box::new(inner)),
                     ))
                 }
-                Rule::identifier => Ok(Expression::Identifier(primary.as_str().parse().assume("grammar produces valid identifiers")?)),
+                Rule::identifier => Ok(Expression::Identifier(remain(primary).consume_identifier()?)),
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
                 _ => Err(ParseError::new(
@@ -1207,11 +1217,8 @@ impl<'a> ChunkParser<'a> {
         let identifier = pc.consume_identifier()?;
         let mut values = Vec::<Identifier>::new();
         for value in pc.into_inner() {
-            let identifier = value
-                .as_str()
-                .parse()
-                .assume("grammar produces valid identifiers")?;
-            values.push(identifier);
+            let value = remain(value).consume_identifier()?;
+            values.push(value);
         }
 
         Ok(AstNode::new(EnumDefinition { identifier, values }, locator))
