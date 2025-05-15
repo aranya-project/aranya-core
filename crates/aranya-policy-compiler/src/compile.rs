@@ -872,8 +872,8 @@ impl<'a> CompileState<'a> {
 
                 let field_count = sub_field_defns.len();
                 for field in sub_field_defns {
-                    self.append_instruction(Instruction::Const(Value::String(
-                        field.identifier.into(),
+                    self.append_instruction(Instruction::Const(Value::Identifier(
+                        field.identifier,
                     )));
                 }
 

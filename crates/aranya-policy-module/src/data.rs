@@ -110,8 +110,8 @@ pub enum Value {
     Id(Id),
     /// Enumeration value
     Enum(Identifier, i64),
-    // /// Textual Identifier (name)
-    // Identifier(Identifier),
+    /// Textual Identifier (name)
+    Identifier(Identifier),
     /// Empty optional value
     None,
 }
@@ -177,6 +177,7 @@ impl Value {
             Value::Fact(f) => format!("Fact {}", f.name),
             Value::Id(_) => String::from("Id"),
             Value::Enum(name, _) => format!("Enum {}", name),
+            Value::Identifier(_) => String::from("Identifier"),
             Value::None => String::from("None"),
         }
     }
@@ -227,7 +228,7 @@ impl From<Text> for Value {
 
 impl From<Identifier> for Value {
     fn from(value: Identifier) -> Self {
-        Value::String(value.into())
+        Value::Identifier(value)
     }
 }
 
@@ -322,16 +323,14 @@ impl TryFrom<Value> for Identifier {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let Value::String(text) = value else {
+        let Value::Identifier(text) = value else {
             return Err(ValueConversionError::invalid_type(
-                "String",
+                "Identifier",
                 value.type_name(),
                 "Value -> Identifier",
             ));
         };
-        // TODO(jdygert): Revalidating every identifier sucks :(
-        text.try_into()
-            .map_err(|_| ValueConversionError::OutOfRange)
+        Ok(text)
     }
 }
 
@@ -515,6 +514,7 @@ impl Display for Value {
             Value::Fact(fa) => fa.fmt(f),
             Value::Id(id) => id.fmt(f),
             Value::Enum(name, value) => write!(f, "{name}::{value}"),
+            Value::Identifier(name) => write!(f, "{name}"),
             Value::None => write!(f, "None"),
         }
     }
