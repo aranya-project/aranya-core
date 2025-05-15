@@ -131,6 +131,7 @@ rustix = { version = "0.38", default-features = false, features = ["fs"], option
 serde = { workspace = true, default-features = false, features = ["derive"] }
 siphasher = { version = "1", default-features = false }
 thiserror = { workspace = true }
+zerocopy = { version = "0.8", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 # A little bit of a hack: always certain features for tests and

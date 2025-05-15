@@ -31,6 +31,16 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 delta = "2.4.0 -> 2.5.0"
 
+[[audits.zerocopy]]
+who = "Eric Lagergren <elagergren@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.7.35 -> 0.8.25"
+
+[[audits.zerocopy-derive]]
+who = "Eric Lagergren <elagergren@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.7.35 -> 0.8.25"
+
 [[trusted.aranya-afc-util]]
 criteria = "safe-to-deploy"
 user-id = 293722 # aranya-project-bot
