@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.7.0...aranya-runtime-v0.7.1) - 2025-05-15
+
+### Other
+
+- Switch to 32 byte IDs ([#220](https://github.com/aranya-project/aranya-core/pull/220))
+- Close #194: Allow enums in key values. ([#222](https://github.com/aranya-project/aranya-core/pull/222))
+- dedup dsl test list ([#217](https://github.com/aranya-project/aranya-core/pull/217))
+- implement finalization priority ([#171](https://github.com/aranya-project/aranya-core/pull/171))
+
 ## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.6.0...aranya-runtime-v0.7.0) - 2025-04-21
 
 ### Fixed

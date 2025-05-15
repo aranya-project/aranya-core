@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/aranya-project/aranya-core/compare/aranya-capi-codegen-v0.2.3...aranya-capi-codegen-v0.2.4) - 2025-05-15
+
+### Other
+
+- make opaque types an exact size and alignment ([#239](https://github.com/aranya-project/aranya-core/pull/239))
+- (capi-codegen) Restrict return types ([#214](https://github.com/aranya-project/aranya-core/pull/214))
+
 ## [0.2.3](https://aranya.github.com/aranya-project/aranya-core/compare/aranya-capi-codegen-v0.2.2...aranya-capi-codegen-v0.2.3) - 2025-04-08
 
 ### Other

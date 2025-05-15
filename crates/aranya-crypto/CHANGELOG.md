@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.5.0...aranya-crypto-v0.5.1) - 2025-05-15
+
+### Other
+
+- pair PSKs with cipher suites ([#238](https://github.com/aranya-project/aranya-core/pull/238))
+- Switch to 32 byte IDs ([#220](https://github.com/aranya-project/aranya-core/pull/220))
+
 ## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.4.0...aranya-crypto-v0.5.0) - 2025-04-10
 
 ### Other

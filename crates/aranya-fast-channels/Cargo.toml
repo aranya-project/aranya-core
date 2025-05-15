@@ -1,7 +1,7 @@
 [package]
 name = "aranya-fast-channels"
 description = "High throughput, low latency encryption protected by Aranya Policy"
-version = "0.6.0"
+version = "0.6.1"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -79,7 +79,7 @@ core_intrinsics = []
 try_find = []
 
 [dependencies]
-aranya-crypto = { version = "0.5.0", path = "../aranya-crypto", default-features = false, features = ["getrandom"] }
+aranya-crypto = { version = "0.5.1", path = "../aranya-crypto", default-features = false, features = ["getrandom"] }
 buggy = { version = "0.1.0", default-features = false }
 
 byteorder = { version = "1", default-features = false }
