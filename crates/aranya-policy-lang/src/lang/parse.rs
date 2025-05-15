@@ -1202,13 +1202,18 @@ impl<'a> ChunkParser<'a> {
         let locator = self.add_range(&item)?;
         let pc = descend(item);
         let identifier = pc.consume_string(Rule::identifier)?;
-        let mut values = Vec::<String>::new();
-        for value in pc.into_inner() {
-            let identifier = String::from(value.as_str());
-            values.push(identifier);
-        }
+        let variants = pc
+            .into_inner()
+            .map(|value| String::from(value.as_str()))
+            .collect();
 
-        Ok(AstNode::new(EnumDefinition { identifier, values }, locator))
+        Ok(AstNode::new(
+            EnumDefinition {
+                identifier,
+                variants,
+            },
+            locator,
+        ))
     }
 
     fn parse_enum_reference(item: Pair<'_, Rule>) -> Result<EnumReference, ParseError> {
@@ -1565,6 +1570,22 @@ pub fn parse_ffi_structs(data: &str) -> Result<Vec<AstNode<ast::StructDefinition
     }
 
     Ok(structs)
+}
+
+/// Parse a series of Enum definitions for the FFI
+pub fn parse_ffi_enums(data: &str) -> Result<Vec<AstNode<EnumDefinition>>, ParseError> {
+    let def = PolicyParser::parse(Rule::ffi_enum_def, data)?;
+    let mut enums = vec![];
+    for s in def {
+        if let Rule::EOI = s.as_rule() {
+            break;
+        }
+        let pratt = get_pratt_parser();
+        let mut p = ChunkParser::new(0, &pratt);
+        enums.push(p.parse_enum_definition(s)?);
+    }
+
+    Ok(enums)
 }
 
 /// Creates the default pratt parser ruleset.
