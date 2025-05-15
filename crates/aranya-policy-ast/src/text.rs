@@ -1,5 +1,5 @@
 use alloc::string::String;
-use core::{borrow::Borrow, fmt, str::FromStr};
+use core::{borrow::Borrow, fmt, num::NonZeroUsize, str::FromStr};
 
 use serde::de;
 
@@ -128,78 +128,72 @@ mod imp {
 /// Not a valid `Text` value.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
 #[error("invalid text value")]
-pub struct InvalidText(());
+pub enum InvalidText {
+    /// Text contained nul byte.
+    #[error("text contained nul byte at index {index}")]
+    ContainsNul {
+        /// Index of first nul byte.
+        index: usize,
+    },
+}
 
 /// Not a valid `Identifier` value.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
 #[error("invalid identifier value")]
-pub struct InvalidIdentifier(());
+pub enum InvalidIdentifier {
+    /// Identifier must start with alphabetic character.
+    #[error("identifier must start with alphabetic character")]
+    InitialNotAlphabetic,
+    /// Identifier contained invalid character.
+    #[error("identifier contained invalid character at index {index}")]
+    TrailingNotValid {
+        /// Index of first invalid character.
+        index: NonZeroUsize,
+    },
+}
 
 /// A string-like value which is utf8 without nul bytes.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+#[derive(Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
 #[serde(transparent)]
 pub struct Text(imp::Repr);
 
-impl<'de> serde::Deserialize<'de> for Text {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let r = imp::Repr::deserialize(deserializer)?;
-        if r.as_str().contains('\0') {
-            return Err(de::Error::invalid_value(
-                de::Unexpected::Str(r.as_str()),
-                &"no nul bytes",
-            ));
-        }
-        Ok(Self(r))
-    }
-}
-
-impl PartialEq<str> for Text {
-    fn eq(&self, other: &str) -> bool {
-        self.0.as_str().eq(other)
-    }
-}
-impl PartialEq<&str> for Text {
-    fn eq(&self, other: &&str) -> bool {
-        self.0.as_str().eq(*other)
-    }
-}
-
-impl fmt::Display for Text {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.as_str().fmt(f)
-    }
-}
-
-impl FromStr for Text {
-    type Err = InvalidText;
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if value.as_bytes().contains(&0) {
-            return Err(InvalidText(()));
-        }
-        Ok(Self(imp::Repr::from_str(value)))
-    }
-}
-
-impl TryFrom<String> for Text {
-    type Error = InvalidText;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        value.as_str().parse()
-    }
-}
-
-impl core::ops::Add for &Text {
-    type Output = Text;
-    fn add(self, rhs: Self) -> Self::Output {
-        let mut s = String::from(self.0.as_str());
-        s.push_str(rhs.as_str());
-        Text(imp::Repr::from_str(&s))
-    }
+/// Creates a `Text` from a string literal.
+///
+/// Fails at compile time for invalid values.
+#[macro_export]
+macro_rules! text {
+    ($lit:literal) => {
+        const { $crate::Text::__from_literal($lit) }
+    };
 }
 
 impl Text {
+    fn validate(s: &str) -> Result<(), InvalidText> {
+        if let Some(index) = s.bytes().position(|b| b == 0) {
+            return Err(InvalidText::ContainsNul { index });
+        }
+        Ok(())
+    }
+
+    #[doc(hidden)]
+    pub const fn __from_literal(lit: &'static str) -> Self {
+        let bytes = lit.as_bytes();
+        let mut i = 0;
+        while i < bytes.len() {
+            if bytes[i] == 0 {
+                panic!("text contained nul byte")
+            }
+            #[allow(
+                clippy::arithmetic_side_effects,
+                reason = "string cannot be that large"
+            )]
+            {
+                i += 1;
+            }
+        }
+        Self(imp::Repr::from_static(lit))
+    }
+
     /// Compare two text values for equality.
     ///
     /// Like `Eq` but `const`.
@@ -225,52 +219,105 @@ impl Text {
         true
     }
 
-    #[doc(hidden)]
-    pub const fn __from_literal(lit: &'static str) -> Self {
-        let bytes = lit.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() {
-            if bytes[i] == 0 {
-                panic!()
-            }
-            #[allow(
-                clippy::arithmetic_side_effects,
-                reason = "string cannot be that large"
-            )]
-            {
-                i += 1;
-            }
-        }
-        Self(imp::Repr::from_static(lit))
-    }
-
     /// Extracts a string slice containing the entire text.
     pub const fn as_str(&self) -> &str {
         self.0.as_str()
     }
 }
 
-/// Creates a `Text` from a string literal.
-///
-/// Fails at compile time for invalid values.
-#[macro_export]
-macro_rules! text {
-    ($lit:literal) => {
-        const { $crate::Text::__from_literal($lit) }
-    };
+impl fmt::Display for Text {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.as_str().fmt(f)
+    }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+impl fmt::Debug for Text {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.as_str().fmt(f)
+    }
+}
+
+impl PartialEq<str> for Text {
+    fn eq(&self, other: &str) -> bool {
+        self.0.as_str().eq(other)
+    }
+}
+impl PartialEq<&str> for Text {
+    fn eq(&self, other: &&str) -> bool {
+        self.0.as_str().eq(*other)
+    }
+}
+
+impl FromStr for Text {
+    type Err = InvalidText;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::validate(value)?;
+        Ok(Self(imp::Repr::from_str(value)))
+    }
+}
+
+impl TryFrom<String> for Text {
+    type Error = InvalidText;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        value.as_str().parse()
+    }
+}
+
+impl core::ops::Add for &Text {
+    type Output = Text;
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut s = String::from(self.0.as_str());
+        s.push_str(rhs.as_str());
+        Text(imp::Repr::from_str(&s))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Text {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let r = imp::Repr::deserialize(deserializer)?;
+        Self::validate(r.as_str()).map_err(|_| {
+            de::Error::invalid_value(de::Unexpected::Str(r.as_str()), &"no nul bytes")
+        })?;
+        Ok(Self(r))
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
 #[serde(transparent)]
 /// A textual identifier which matches `[a-zA-Z][a-zA-Z0-9_]*`.
 pub struct Identifier(Text);
 
+/// Creates an `Identifier` from a string literal.
+///
+/// Fails at compile time for invalid values.
+#[macro_export]
+macro_rules! ident {
+    ($lit:literal) => {
+        const { $crate::Identifier::__from_literal($lit) }
+    };
+    // hacky
+    (stringify!($ident:ident)) => {
+        const { $crate::Identifier::__from_literal(stringify!($ident)) }
+    };
+}
+
 impl Identifier {
-    /// Compare two identifiers for equality.
-    ///
-    /// Like `Eq` but `const`.
-    pub const fn const_eq(&self, other: &Self) -> bool {
-        self.0.const_eq(&other.0)
+    fn validate(s: &str) -> Result<(), InvalidIdentifier> {
+        for (i, b) in s.bytes().enumerate() {
+            // Check tail characters
+            if let Some(index) = NonZeroUsize::new(i) {
+                if !(b.is_ascii_alphanumeric() || b == b'_') {
+                    return Err(InvalidIdentifier::TrailingNotValid { index });
+                }
+            // Check first character
+            } else if !b.is_ascii_alphabetic() {
+                return Err(InvalidIdentifier::InitialNotAlphabetic);
+            }
+        }
+        Ok(())
     }
 
     #[doc(hidden)]
@@ -295,6 +342,13 @@ impl Identifier {
         Self(Text::__from_literal(lit))
     }
 
+    /// Compare two identifiers for equality.
+    ///
+    /// Like `Eq` but `const`.
+    pub const fn const_eq(&self, other: &Self) -> bool {
+        self.0.const_eq(&other.0)
+    }
+
     /// Extracts a string slice containing the entire identifier.
     pub const fn as_str(&self) -> &str {
         self.0.as_str()
@@ -302,6 +356,12 @@ impl Identifier {
 }
 
 impl fmt::Display for Identifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for Identifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
@@ -322,38 +382,6 @@ impl PartialEq<str> for Identifier {
 impl PartialEq<&str> for Identifier {
     fn eq(&self, other: &&str) -> bool {
         self.0.eq(other)
-    }
-}
-
-/// Creates an `Identifier` from a string literal.
-///
-/// Fails at compile time for invalid values.
-#[macro_export]
-macro_rules! ident {
-    ($lit:literal) => {
-        const { $crate::Identifier::__from_literal($lit) }
-    };
-    // hacky
-    (stringify!($ident:ident)) => {
-        const { $crate::Identifier::__from_literal(stringify!($ident)) }
-    };
-}
-
-impl Identifier {
-    fn validate(s: &str) -> Result<(), InvalidIdentifier> {
-        if !s
-            .as_bytes()
-            .first()
-            .is_some_and(|b| b.is_ascii_alphabetic())
-        {
-            return Err(InvalidIdentifier(()));
-        }
-        for b in s.bytes().skip(1) {
-            if !(b.is_ascii_alphanumeric() || b == b'_') {
-                return Err(InvalidIdentifier(()));
-            }
-        }
-        Ok(())
     }
 }
 
