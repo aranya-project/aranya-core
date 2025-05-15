@@ -248,6 +248,10 @@ skip = [
     "syn@1.0.109",
     "thiserror-impl@1.0.69",
     "thiserror@1.0.69",
+    "zerocopy@0.7.35",
+    "zerocopy@0.8.25",
+    "zerocopy-derive@0.7.35",
+    "zerocopy-derive@0.8.25",
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive

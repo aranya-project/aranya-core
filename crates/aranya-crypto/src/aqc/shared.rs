@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     csprng::{Csprng, Random},
+    hpke::{RecvCtx, SendCtx},
     import::{ExportError, Import, ImportError},
     kdf::{Expand, Kdf, KdfError, Prk},
     kem::{DecapKey, Kem},
@@ -74,7 +75,7 @@ impl<'a, CS: CipherSuite> Import<&'a [u8]> for RootChannelKey<CS> {
 
 /// A raw PSK.
 #[derive(Serialize, Deserialize)]
-pub struct RawPsk<CS> {
+pub(super) struct RawPsk<CS> {
     // TODO(eric): support different sizes?
     psk: [u8; 32],
     _marker: PhantomData<CS>,
@@ -83,7 +84,7 @@ pub struct RawPsk<CS> {
 impl<CS: CipherSuite> RawPsk<CS> {
     /// Returns the raw PSK secret bytes.
     #[inline]
-    pub const fn raw_secret_bytes(&self) -> &[u8] {
+    pub(super) const fn raw_secret_bytes(&self) -> &[u8] {
         &self.psk
     }
 }
@@ -127,5 +128,22 @@ impl<CS> ZeroizeOnDrop for RawPsk<CS> {}
 impl<CS> Drop for RawPsk<CS> {
     fn drop(&mut self) {
         self.psk.zeroize();
+    }
+}
+
+pub(super) enum SendOrRecvCtx<CS: CipherSuite> {
+    Send(SendCtx<CS::Kem, CS::Kdf, CS::Aead>),
+    Recv(RecvCtx<CS::Kem, CS::Kdf, CS::Aead>),
+}
+
+impl<CS: CipherSuite> SendOrRecvCtx<CS> {
+    pub(super) fn export<T>(&self, context: &[u8]) -> Result<T, KdfError>
+    where
+        T: Expand,
+    {
+        match self {
+            SendOrRecvCtx::Send(ctx) => ctx.export(context),
+            SendOrRecvCtx::Recv(ctx) => ctx.export(context),
+        }
     }
 }
