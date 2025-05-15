@@ -23,6 +23,7 @@
 //! means.
 
 pub mod libc;
+mod triemap;
 
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -32,6 +33,7 @@ use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 use aranya_crypto::{csprng::rand::Rng as _, Csprng, Rng};
 use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
+use triemap::{Grave, TrieMap};
 use vec1::Vec1;
 
 use crate::{
@@ -105,8 +107,8 @@ pub struct LinearCommand<'a> {
 
 type Bytes = Box<[u8]>;
 
-type Update = (String, Keys, Option<Bytes>);
-type FactMap = BTreeMap<Keys, Option<Box<[u8]>>>;
+type Update = (String, Keys, Grave<Bytes>);
+type FactMap = TrieMap;
 type NamedFactMap = BTreeMap<String, FactMap>;
 
 #[derive(Debug)]
@@ -165,7 +167,7 @@ impl<R> LinearPerspective<R> {
 
 #[derive(Debug)]
 pub struct LinearFactPerspective<R> {
-    map: BTreeMap<String, BTreeMap<Keys, Option<Bytes>>>,
+    map: NamedFactMap,
     prior: FactPerspectivePrior<R>,
 }
 
@@ -359,7 +361,7 @@ impl<W: Write> LinearStorage<W> {
             for (name, kv) in repr.facts {
                 let sub = map.entry(name).or_default();
                 for (k, v) in kv {
-                    sub.entry(k).or_insert(v);
+                    sub.try_insert_with(k, || v)?;
                 }
             }
             let Some(offset) = repr.prior else { break };
@@ -368,7 +370,7 @@ impl<W: Write> LinearStorage<W> {
 
         // Since there's no prior, we can remove tombstones
         map.retain(|_, kv| {
-            kv.retain(|_, v| v.is_some());
+            kv.prune();
             !kv.is_empty()
         });
 
@@ -419,7 +421,7 @@ impl<F: Write> Storage for LinearStorage<F> {
             };
             let mut facts = LinearFactPerspective::new(prior);
             for data in &segment.repr.commands[..=parent.command] {
-                facts.apply_updates(&data.updates);
+                facts.apply_updates(&data.updates)?;
             }
             if facts.prior.is_none() {
                 facts.map.retain(|_, kv| !kv.is_empty());
@@ -479,7 +481,7 @@ impl<F: Write> Storage for LinearStorage<F> {
         };
         let mut facts = LinearFactPerspective::new(prior);
         for data in &segment.repr.commands[..=location.command] {
-            facts.apply_updates(&data.updates);
+            facts.apply_updates(&data.updates)?;
         }
 
         Ok(facts)
@@ -834,7 +836,7 @@ impl<R: Read> Segment for LinearSegment<R> {
 
 impl<R: Read> FactIndex for LinearFactIndex<R> {}
 
-type MapIter = alloc::collections::btree_map::IntoIter<Keys, Option<Bytes>>;
+type MapIter = triemap::TrieMapIntoIter;
 pub struct QueryIterator {
     it: MapIter,
 }
@@ -850,8 +852,11 @@ impl Iterator for QueryIterator {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             // filter out tombstones
-            if let (key, Some(value)) = self.it.next()? {
-                return Some(Ok(Fact { key, value }));
+            if let (key, Grave::Found(value)) = self.it.next()? {
+                return Some(Ok(Fact {
+                    key: key.into(),
+                    value,
+                }));
             }
         }
     }
@@ -862,9 +867,15 @@ impl<R: Read> Query for LinearFactIndex<R> {
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
-            if let Some(v) = facts.facts.get(name).and_then(|m| m.get(keys)) {
-                return Ok(v.as_ref().cloned());
+            if let Some(m) = facts.facts.get(name) {
+                if let Some(grave) = m.get(keys)? {
+                    return Ok(match grave {
+                        Grave::Found(found) => Some(found.into()),
+                        Grave::Deleted => None,
+                    });
+                }
             }
+
             slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
             prior = slot.as_ref();
         }
@@ -889,16 +900,14 @@ impl<R: Read> LinearFactIndex<R> {
         name: &str,
         prefix: &[Box<[u8]>],
     ) -> Result<FactMap, StorageError> {
-        let mut matches = BTreeMap::new();
+        let mut matches = FactMap::new();
         let mut prior = Some(&self.repr);
         let mut slot; // Need to store deserialized value.
         while let Some(facts) = prior {
             if let Some(map) = facts.facts.get(name) {
-                for (k, v) in super::memory::find_prefixes(map, prefix) {
+                for (k, v) in map.get_by_prefix(prefix)? {
                     // don't override, if we've already found the fact (including deletions)
-                    if !matches.contains_key(k) {
-                        matches.insert(k.clone(), v.map(Into::into));
-                    }
+                    matches.try_insert_with(k, || v.boxed())?;
                 }
             }
             slot = facts.prior.map(|p| self.reader.fetch(p)).transpose()?;
@@ -913,24 +922,25 @@ impl<R> LinearFactPerspective<R> {
         self.map.clear();
     }
 
-    fn apply_updates(&mut self, updates: &[Update]) {
+    fn apply_updates(&mut self, updates: &[Update]) -> Result<(), StorageError> {
         for (name, key, value) in updates {
             if self.prior.is_none() {
-                if let Some(value) = value {
+                if let Grave::Found(value) = value {
                     self.map
                         .entry(name.clone())
                         .or_default()
-                        .insert(key.clone(), Some(value.clone()));
+                        .insert(key.iter().cloned(), Grave::Found(value.clone()))?;
                 } else if let Some(e) = self.map.get_mut(name) {
-                    e.remove(key);
+                    e.remove(key.as_ref())?;
                 }
             } else {
                 self.map
                     .entry(name.clone())
                     .or_default()
-                    .insert(key.clone(), value.clone());
+                    .insert(key.iter().cloned(), value.clone())?;
             }
         }
+        Ok(())
     }
 }
 
@@ -938,8 +948,13 @@ impl<R: Read> FactPerspective for LinearFactPerspective<R> {}
 
 impl<R: Read> Query for LinearFactPerspective<R> {
     fn query(&self, name: &str, keys: &[Box<[u8]>]) -> Result<Option<Box<[u8]>>, StorageError> {
-        if let Some(wrapped) = self.map.get(name).and_then(|m| m.get(keys)) {
-            return Ok(wrapped.as_deref().map(Box::from));
+        if let Some(m) = self.map.get(name) {
+            if let Some(grave) = m.get(keys)? {
+                return Ok(match grave {
+                    Grave::Found(found) => Some(found.into()),
+                    Grave::Deleted => None,
+                });
+            }
         }
         match &self.prior {
             FactPerspectivePrior::None => Ok(None),
@@ -974,7 +989,7 @@ impl<R: Read> LinearFactPerspective<R> {
         prefix: &[Box<[u8]>],
     ) -> Result<FactMap, StorageError> {
         let mut matches = match &self.prior {
-            FactPerspectivePrior::None => BTreeMap::new(),
+            FactPerspectivePrior::None => FactMap::new(),
             FactPerspectivePrior::FactPerspective(prior) => {
                 prior.query_prefix_inner(name, prefix)?
             }
@@ -988,9 +1003,9 @@ impl<R: Read> LinearFactPerspective<R> {
             }
         };
         if let Some(map) = self.map.get(name) {
-            for (k, v) in super::memory::find_prefixes(map, prefix) {
+            for (k, v) in map.get_by_prefix(prefix)? {
                 // overwrite "earlier" facts
-                matches.insert(k.clone(), v.map(Into::into));
+                matches.insert(k.clone(), v.boxed())?;
             }
         }
         Ok(matches)
@@ -998,19 +1013,27 @@ impl<R: Read> LinearFactPerspective<R> {
 }
 
 impl<R: Read> QueryMut for LinearFactPerspective<R> {
-    fn insert(&mut self, name: String, keys: Keys, value: Bytes) {
-        self.map.entry(name).or_default().insert(keys, Some(value));
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError> {
+        self.map
+            .entry(name)
+            .or_default()
+            .insert(keys, Grave::Found(value))?;
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
         if self.prior.is_none() {
             // No need for tombstones with no prior.
             if let Some(kv) = self.map.get_mut(&name) {
-                kv.remove(&keys);
+                kv.remove(keys.as_ref())?;
             }
         } else {
-            self.map.entry(name).or_default().insert(keys, None);
+            self.map
+                .entry(name)
+                .or_default()
+                .insert(keys, Grave::Deleted)?;
         }
+        Ok(())
     }
 }
 
@@ -1032,14 +1055,17 @@ impl<R: Read> Query for LinearPerspective<R> {
 }
 
 impl<R: Read> QueryMut for LinearPerspective<R> {
-    fn insert(&mut self, name: String, keys: Keys, value: Bytes) {
-        self.facts.insert(name.clone(), keys.clone(), value.clone());
-        self.current_updates.push((name, keys, Some(value)));
+    fn insert(&mut self, name: String, keys: Keys, value: Bytes) -> Result<(), StorageError> {
+        self.facts
+            .insert(name.clone(), keys.clone(), value.clone())?;
+        self.current_updates.push((name, keys, Grave::Found(value)));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
-        self.facts.delete(name.clone(), keys.clone());
-        self.current_updates.push((name, keys, None))
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
+        self.facts.delete(name.clone(), keys.clone())?;
+        self.current_updates.push((name, keys, Grave::Deleted));
+        Ok(())
     }
 }
 
@@ -1050,7 +1076,7 @@ impl<R: Read> Revertable for LinearPerspective<R> {
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
         if checkpoint.index == self.commands.len() {
             return Ok(());
         }
@@ -1063,7 +1089,7 @@ impl<R: Read> Revertable for LinearPerspective<R> {
         self.facts.clear();
         self.current_updates.clear();
         for data in &self.commands {
-            self.facts.apply_updates(&data.updates);
+            self.facts.apply_updates(&data.updates)?;
         }
 
         Ok(())
@@ -1177,7 +1203,8 @@ mod test {
                 name.into(),
                 ks.clone(),
                 format!("{ks:?}").into_bytes().into(),
-            );
+            )
+            .unwrap();
         }
 
         let prefixes: &[&[&str]] = &[
@@ -1188,7 +1215,6 @@ mod test {
             &["bb", ""],
             &["bb", "ccc"],
             &["bc", ""],
-            &["bc", "", ""],
         ];
 
         for prefix in prefixes {

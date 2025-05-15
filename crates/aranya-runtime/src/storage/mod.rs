@@ -376,7 +376,7 @@ pub trait Revertable {
     fn checkpoint(&self) -> Checkpoint;
 
     /// Revert the perspective to the state it was at when the checkpoint was created.
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug>;
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError>;
 }
 
 /// A checkpoint used to revert perspectives.
@@ -425,10 +425,10 @@ pub trait QueryMut: Query {
     /// Insert a fact labeled by a name, with a given compound key and a value.
     ///
     /// This fact can later be looked up by [`Query`] methods, using the name and keys.
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>);
+    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) -> Result<(), StorageError>;
 
     /// Delete any fact associated to the compound key, under the given name.
-    fn delete(&mut self, name: String, keys: Keys);
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError>;
 }
 
 /// A sequence of byte-based keys, used for facts.
@@ -454,6 +454,12 @@ impl core::borrow::Borrow<[Box<[u8]>]> for Keys {
     }
 }
 
+impl From<Box<[Box<[u8]>]>> for Keys {
+    fn from(value: Box<[Box<[u8]>]>) -> Self {
+        Self(value)
+    }
+}
+
 impl From<&[&[u8]]> for Keys {
     fn from(value: &[&[u8]]) -> Self {
         value.iter().copied().collect()
@@ -469,6 +475,14 @@ impl Keys {
 impl<B: Into<Box<[u8]>>> FromIterator<B> for Keys {
     fn from_iter<T: IntoIterator<Item = B>>(iter: T) -> Self {
         Self(iter.into_iter().map(Into::into).collect())
+    }
+}
+
+impl IntoIterator for Keys {
+    type IntoIter = <Box<[Box<[u8]>]> as IntoIterator>::IntoIter;
+    type Item = Box<[u8]>;
+    fn into_iter(self) -> Self::IntoIter {
+        <Box<[_]> as IntoIterator>::into_iter(self.0)
     }
 }
 

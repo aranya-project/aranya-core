@@ -497,13 +497,17 @@ mod test {
             // For init and basic commands, append the id to the seq fact.
             let data = command.bytes();
             if let Some(seq) = facts.query("seq", &Keys::default())?.as_deref() {
-                facts.insert(
-                    "seq".into(),
-                    Keys::default(),
-                    [seq, b":", data].concat().into(),
-                );
+                facts
+                    .insert(
+                        "seq".into(),
+                        Keys::default(),
+                        [seq, b":", data].concat().into(),
+                    )
+                    .unwrap();
             } else {
-                facts.insert("seq".into(), Keys::default(), data.into());
+                facts
+                    .insert("seq".into(), Keys::default(), data.into())
+                    .unwrap();
             };
             Ok(())
         }
