@@ -37,6 +37,7 @@ buggy = { version = "0.1.0", default-features = false }
 
 cfg-if = { workspace = true, default-features = false }
 const_format = { version = "0.2.31", default-features = false, features = ["assertcp"] }
+elain = "0.3"
 thiserror = { workspace = true }
 tracing = { workspace = true, default-features = false }
 

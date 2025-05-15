@@ -5,6 +5,7 @@ mod error;
 #[doc(hidden)]
 pub mod internal;
 mod macros;
+pub mod opaque;
 pub mod safe;
 mod traits;
 pub mod types;

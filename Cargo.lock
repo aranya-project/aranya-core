@@ -215,6 +215,7 @@ dependencies = [
  "cfg-if",
  "ciborium-io",
  "const_format",
+ "elain",
  "libc",
  "thiserror 2.0.7",
  "tracing",
@@ -1240,6 +1241,12 @@ name = "either"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
+
+[[package]]
+name = "elain"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ba39bdf557eef05f2c1c2e986cbab6b85329b922e7606e5b63ee4c5037ba77a"
 
 [[package]]
 name = "elliptic-curve"
