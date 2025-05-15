@@ -1240,7 +1240,7 @@ fn parse_enum_definition() {
         vec![AstNode::new(
             ast::EnumDefinition {
                 identifier: String::from("Color"),
-                values: vec![
+                variants: vec![
                     String::from("Red"),
                     String::from("Green"),
                     String::from("Blue")
