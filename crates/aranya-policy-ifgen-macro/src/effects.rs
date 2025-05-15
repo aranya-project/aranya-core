@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::ItemEnum;
+use syn::{ext::IdentExt as _, ItemEnum};
 
 use crate::common::get_derive;
 
@@ -17,7 +17,7 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
     let names = enumeration
         .variants
         .iter()
-        .map(|v| v.ident.to_string())
+        .map(|v| v.ident.unraw().to_string())
         .collect::<Vec<_>>();
 
     let derive = get_derive();

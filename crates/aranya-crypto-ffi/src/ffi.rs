@@ -111,7 +111,7 @@ function sign(
 "#)]
     pub(crate) fn sign<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         eng: &mut E,
         our_sign_sk_id: Id,
         command_bytes: Vec<u8>,
@@ -132,7 +132,7 @@ function sign(
 
         let (sig, id) = sk.sign_cmd(Cmd {
             data: &command_bytes,
-            name: ctx.name,
+            name: ctx.name.as_str(),
             parent_id: &ctx.head_id,
         })?;
         Ok(Signed {
@@ -154,7 +154,7 @@ function verify(
 "#)]
     pub(crate) fn verify<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         author_sign_pk: Vec<u8>,
         parent_id: Id,
@@ -171,7 +171,7 @@ function verify(
 
         let cmd = Cmd {
             data: &command_bytes,
-            name: ctx.name,
+            name: ctx.name.as_str(),
             parent_id: &parent_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;

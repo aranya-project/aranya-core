@@ -1,6 +1,6 @@
 use std::fmt;
 
-use aranya_policy_ast as ast;
+use aranya_policy_ast::{self as ast, Identifier};
 use aranya_policy_module::CodeMap;
 use buggy::Bug;
 
@@ -34,7 +34,7 @@ pub enum CompileErrorType {
     InvalidCallColor(#[from] InvalidCallColor),
     /// Resolution of branch targets failed to find a valid target
     #[error("bad branch target: {0}")]
-    BadTarget(String),
+    BadTarget(Identifier),
     /// An argument to a function or an item in an expression did not
     /// make sense
     #[error("bad argument: {0}")]
@@ -63,7 +63,7 @@ pub enum CompileErrorType {
     /// Invalid Substruct operation - The struct on the RHS of the substruct
     /// operator is not a subset of the struct on the LHS of the substruct operator
     #[error("invalid substruct operation: `Struct {0}` must be a strict subset of `Struct {1}`")]
-    InvalidSubstruct(String, String),
+    InvalidSubstruct(Identifier, Identifier),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(#[from] Bug),

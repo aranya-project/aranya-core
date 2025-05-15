@@ -5,10 +5,10 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 extern crate alloc;
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use aranya_policy_ifgen::{
     macros::{actions, effect, effects, value},
-    ClientError, Id, Value,
+    ClientError, Id, Value, Text,
 };
 /// Players policy struct.
 #[value]

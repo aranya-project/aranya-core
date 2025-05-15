@@ -66,8 +66,8 @@ command Init {
 
     // Seal and open blocks are required by the policy_vm to transform an envelope
     // into command fields and vice versa.
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     // The policy block contains statements which query data and check its validity.
     policy {
@@ -94,8 +94,8 @@ command Create {
         value int,
     }
 
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {
@@ -122,8 +122,8 @@ command Increment {
         value int,
     }
 
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
@@ -154,8 +154,8 @@ command Decrement {
         value int,
     }
 
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         let stuff = unwrap query Stuff[a: this.key_a]=>{x: ?}
@@ -184,8 +184,8 @@ command GetStuff {
         key_a int,
     }
 
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         let stuff = unwrap query Stuff[a: 1]=>{x: ?}
@@ -212,8 +212,8 @@ command CreateGreeting {
         value string,
     }
 
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {
@@ -244,8 +244,8 @@ command VerifyGreeting {
         value string,
     }
 
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     // A command can write to a temporary session fact that will be available
     // within the same session. We can query the session factDB and do something
@@ -278,8 +278,8 @@ command StoreSessionData {
         cmd bytes,
     }
 
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {
@@ -301,8 +301,8 @@ command Link {
     // Local variables for command
     fields {}
 
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
 
     policy {
         finish {
