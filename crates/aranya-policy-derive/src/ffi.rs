@@ -1,7 +1,7 @@
 use std::{collections::HashSet, fs::File, io::Write};
 
 use aranya_policy_lang::{
-    ast::{AstNode, FieldDefinition, FunctionDecl, StructDefinition, VType},
+    ast::{AstNode, EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, VType},
     lang,
 };
 use proc_macro2::{Span, TokenStream};
@@ -20,7 +20,11 @@ use crate::attr::{get_lit_str, Attr, Symbol};
 // `#[ffi_export(name = "foo")]`?
 
 pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let FfiAttr { module, structs } = syn::parse2(attr)?;
+    let FfiAttr {
+        module,
+        structs,
+        enums,
+    } = syn::parse2(attr)?;
     let mut item: ItemImpl = syn::parse2(item)?;
     // The type that the `#[ffi]` attribute is applied to.
     let self_ty = &item.self_ty;
@@ -150,6 +154,38 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         }
     });
 
+    let enum_defs = enums.iter().map(|d| {
+        let name = &d.inner.identifier;
+        let variants = d.inner.variants.iter().map(|name| quote!(#name));
+        quote! {
+            #vm::ffi::Enum {
+                name: #name,
+                variants: &[#(#variants),*],
+            }
+        }
+    });
+
+    let enums = enums.iter().map(|d| {
+        let name = format_ident!("{}", d.identifier);
+        let name_str = d.identifier.to_string();
+        let variants = d.variants.iter().map(|v| {
+            let name = format_ident!("{}", v);
+            // quote!(#name)
+            name
+        });
+        quote! {
+            #[must_use]
+            #[derive(Clone, Debug, Eq, PartialEq)]
+            pub enum #name {
+                #(#variants),*
+            }
+            #[automatically_derived]
+            impl #vm::Typed for #name {
+                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#name_str);
+            }
+        }
+    });
+
     // The implementation of `FfiModule`.
     let mod_impl = {
         // The `Func` variant identifiers:
@@ -273,7 +309,10 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     ],
                     structs: &[
                         #(#structdefs),*
-                    ]
+                    ],
+                    enums: &[
+                        #(#enum_defs),*
+                    ],
                 };
 
                 #[doc(hidden)]
@@ -330,6 +369,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             extern crate aranya_policy_vm as #vm;
 
             #(#structs)*
+            #(#enums)*
         }
         pub use #module::*;
 
@@ -379,12 +419,14 @@ const DEF: Symbol = Symbol("def");
 struct FfiAttr {
     module: String,
     structs: Vec<AstNode<StructDefinition>>,
+    enums: Vec<AstNode<EnumDefinition>>,
 }
 
 impl Parse for FfiAttr {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let mut module = Attr::none(MODULE);
-        let mut def = Attr::none(DEF);
+        let mut struct_defs = Attr::none(DEF);
+        let mut enum_defs = Attr::none(DEF);
 
         while !input.is_empty() {
             let lookahead = input.lookahead1();
@@ -401,10 +443,11 @@ impl Parse for FfiAttr {
                 let _: Token![=] = input.parse()?;
                 let decl: LitStr = input.parse()?;
                 skip_comma(input)?;
-                let structs = lang::parse_ffi_structs(&decl.value()).map_err(|err| {
+                let (structs, enums) = lang::parse_ffi_structs(&decl.value()).map_err(|err| {
                     Error::new(decl.span(), format!("invalid policy definition: {err}"))
                 })?;
-                def.set(&decl, structs)?;
+                struct_defs.set(&decl, structs)?;
+                enum_defs.set(&decl, enums)?;
             } else {
                 return Err(lookahead.error());
             }
@@ -415,7 +458,8 @@ impl Parse for FfiAttr {
             .ok_or(Error::new(input.span(), "missing `{MODULE}` argument"))?;
         Ok(Self {
             module,
-            structs: def.get().unwrap_or_default(),
+            structs: struct_defs.get().unwrap_or_default(),
+            enums: enum_defs.get().unwrap_or_default(),
         })
     }
 }
