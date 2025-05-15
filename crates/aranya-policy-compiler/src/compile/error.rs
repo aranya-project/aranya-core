@@ -45,12 +45,6 @@ pub enum CompileErrorType {
     /// A thing by that name has already been defined
     #[error("already defined: {0}")]
     AlreadyDefined(String),
-    /// A keyword collision occurs with that identifier
-    #[error("reserved identifier: {0}")]
-    ReservedIdentifier(String),
-    /// Expected value was missing
-    #[error("missing: {0}")]
-    Missing(String),
     /// Fact literal doesn't match definition
     #[error("fact literal does not match definition: {0}")]
     InvalidFactLiteral(String),
