@@ -160,6 +160,8 @@ struct S2 {
     a struct S0,
     b struct S1,
 }
+
+enum Test { A, B }
 "#
 )]
 impl<T, G> TestModule<'_, T, G> {
@@ -260,6 +262,15 @@ function struct_fn(
     #[allow(dead_code)]
     fn ignored(&self, _a: Vec<u8>) -> Result<(), MachineError> {
         Ok(())
+    }
+
+    #[ffi_export(def = r#"function test_enum(e enum TestEnum) int"#)]
+    fn test_enum<E: Engine>(
+        _ctx: &CommandContext<'_>,
+        _eng: &mut E,
+        e: TestEnum,
+    ) -> Result<i64, MachineError> {
+        Ok(42)
     }
 }
 

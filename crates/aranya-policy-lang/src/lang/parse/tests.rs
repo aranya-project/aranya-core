@@ -1301,7 +1301,7 @@ fn parse_ffi_structs() {
         struct B {}
     "#
     .trim();
-    let structs = super::parse_ffi_structs(text).expect("parse");
+    let (structs, _) = super::parse_ffi_structs(text).expect("parse");
     assert_eq!(
         structs,
         vec![
@@ -1331,6 +1331,15 @@ fn parse_ffi_structs() {
         ],
     )
 }
+
+// #[test]
+// fn parse_ffi_enums() {
+//     let text = r#"enum Test { A, B }"#;
+//     let enums = super::parse_ffi_enums(text).expect("parse");
+//     assert_eq!(enums, vec![AstNode {
+
+//     }]);
+// }
 
 #[test]
 fn parse_seal_open() {

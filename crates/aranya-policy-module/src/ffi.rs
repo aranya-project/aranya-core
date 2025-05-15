@@ -114,6 +114,14 @@ pub struct Struct<'a> {
     pub fields: &'a [Arg<'a>],
 }
 
+/// Enumeration
+pub struct Enum<'a> {
+    /// name of enumeration
+    pub name: &'a str,
+    /// list of possible values
+    pub variants: &'a [&'a str],
+}
+
 /// Shorthand for creating [`Arg`]s.
 ///
 /// # Example
@@ -255,4 +263,6 @@ pub struct ModuleSchema<'a> {
     pub functions: &'a [Func<'a>],
     /// list of structs defined by the module
     pub structs: &'a [Struct<'a>],
+    /// list of enums
+    pub enums: &'a [Enum<'a>],
 }
