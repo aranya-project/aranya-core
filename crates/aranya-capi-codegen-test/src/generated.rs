@@ -38,7 +38,7 @@ pub struct PrefixSafeStruct(crate::defs::SafeStruct);
 #[cfg(not(cbindgen))]
 pub type PrefixSafeStruct = self::__hidden::PrefixSafeStruct;
 /// Extended error information.
-#[aranya_capi_core::opaque(size = 72, align = 8)]
+#[__capi::opaque(size = 72, align = 8, generated = true)]
 pub type PrefixExtError = self::__hidden::PrefixExtError;
 #[derive(::core::marker::Copy)]
 #[derive(::core::clone::Clone)]
