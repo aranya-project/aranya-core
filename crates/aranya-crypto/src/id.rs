@@ -18,6 +18,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
+use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     ciphersuite::SuiteIds,
@@ -32,7 +33,20 @@ use crate::{
 
 /// A unique cryptographic ID.
 #[repr(C)]
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, MaxSize)]
+#[derive(
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Immutable,
+    IntoBytes,
+    KnownLayout,
+    Unaligned,
+    MaxSize,
+)]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Id([u8; 32]);
 
