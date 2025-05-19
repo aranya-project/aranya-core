@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto-ffi"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "aranya-crypto",
  "aranya-crypto-ffi",

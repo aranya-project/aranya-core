@@ -31,7 +31,7 @@ std = [
 ]
 
 [dependencies]
-aranya-capi-macro = { version = "0.2.3", path = "../aranya-capi-macro", default-features = false }
+aranya-capi-macro = { version = "0.3.0", path = "../aranya-capi-macro", default-features = false }
 aranya-libc = { version = "0.2.0", path = "../aranya-libc", default-features = false }
 buggy = { version = "0.1.0", default-features = false }
 
