@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 buggy = { version = "0.1.0", features = ["alloc"] }
 # `aranya-crypto` enables `getrandom` by default.
-aranya-crypto = { version = "0.5.1", path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
+aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["alloc", "rand_compat"] }
 aranya-libc = { version = "0.2.0", path = "../aranya-libc", default-features = false, optional = true }
 aranya-policy-vm = { version = "0.7.1", path = "../aranya-policy-vm" }
 

@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-aranya-crypto = { version = "0.5.1", path = "../aranya-crypto", default-features = false }
+aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false }
 aranya-policy-ast = { version = "0.4.1", path = "../aranya-policy-ast" }
 
 proptest = { workspace = true, default-features = false, features = ["std"], optional = true }

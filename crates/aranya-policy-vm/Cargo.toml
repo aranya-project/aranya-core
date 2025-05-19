@@ -30,7 +30,7 @@ std = [
 bench = ["dep:table_formatter", "std"]
 
 [dependencies]
-aranya-crypto = { version = "0.5.1", path = "../aranya-crypto", default-features = false }
+aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false }
 aranya-policy-ast = { version = "0.4.1", path = "../aranya-policy-ast" }
 aranya-policy-derive = { version = "0.5.1", path = "../aranya-policy-derive" }
 aranya-policy-module = { version = "0.7.1", path = "../aranya-policy-module" }

@@ -33,7 +33,7 @@ std = [
 testing = []
 
 [dependencies]
-aranya-crypto = { version = "0.5.1", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
+aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { version = "0.7.1", path = "../aranya-policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 thiserror = { workspace = true }
