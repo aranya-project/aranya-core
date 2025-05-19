@@ -6,6 +6,11 @@ who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"
 version = "0.3.1"
 
+[[audits.macro-string]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.1.4"
+
 [[audits.rcgen]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
@@ -20,6 +25,11 @@ delta = "2.2.6 -> 2.3.3"
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
 delta = "3.0.5 -> 3.0.7"
+
+[[audits.syn]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "2.0.90 -> 2.0.101"
 
 [[audits.tokio]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"

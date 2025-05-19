@@ -114,24 +114,28 @@ mod arc {
 #[derive(Clone)]
 pub enum Repr {
     Static(&'static str),
-    Stack { bytes: [u8; MAX_STACK], len: u8 },
+    Inline { bytes: [u8; MAX_INLINE], len: u8 },
     Heap(arc::ArcStr),
 }
 
 /// The max number of bytes that can fit in the inline variant without increasing `Repr`'s size.
-const MAX_STACK: usize = 3 * size_of::<usize>() - 2;
+const MAX_INLINE: usize = 3 * size_of::<usize>() - 2;
 
 impl Repr {
+    pub const fn empty() -> Self {
+        Self::Static("")
+    }
+
     pub const fn from_static(s: &'static str) -> Self {
         Self::Static(s)
     }
 
     pub fn from_str(s: &str) -> Self {
         let len = s.len();
-        if len <= MAX_STACK {
-            let mut bytes = [0u8; MAX_STACK];
+        if len <= MAX_INLINE {
+            let mut bytes = [0u8; MAX_INLINE];
             bytes[..len].copy_from_slice(s.as_bytes());
-            Self::Stack {
+            Self::Inline {
                 bytes,
                 len: len as u8,
             }
@@ -143,7 +147,7 @@ impl Repr {
     pub const fn as_str(&self) -> &str {
         match self {
             Repr::Static(s) => s,
-            Repr::Stack { bytes, len } => {
+            Repr::Inline { bytes, len } => {
                 // SAFETY: We always ensure that `&bytes[..len]` is a valid string.
                 let s = unsafe { slice::from_raw_parts(bytes.as_ptr(), *len as usize) };
                 // SAFETY: We always ensure that `&bytes[..len]` is a valid string.

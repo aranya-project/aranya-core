@@ -44,8 +44,11 @@ pub struct Text(imp::Repr);
 /// Fails at compile time for invalid values.
 #[macro_export]
 macro_rules! text {
-    ($lit:literal) => {
-        const { $crate::Text::__from_literal($lit) }
+    () => {
+        $crate::Text::new()
+    };
+    ($($e:tt)+) => {
+        $crate::Text::__from_literal($crate::__hidden::validate_text!($($e)+))
     };
 }
 
@@ -57,22 +60,13 @@ impl Text {
         Ok(())
     }
 
+    /// Creates an empty text.
+    pub const fn new() -> Self {
+        Self(imp::Repr::empty())
+    }
+
     #[doc(hidden)]
     pub const fn __from_literal(lit: &'static str) -> Self {
-        let bytes = lit.as_bytes();
-        let mut i = 0;
-        while i < bytes.len() {
-            if bytes[i] == 0 {
-                panic!("text contained nul byte")
-            }
-            #[allow(
-                clippy::arithmetic_side_effects,
-                reason = "string cannot be that large"
-            )]
-            {
-                i += 1;
-            }
-        }
         Self(imp::Repr::from_static(lit))
     }
 
@@ -177,17 +171,16 @@ pub struct Identifier(Text);
 /// Fails at compile time for invalid values.
 #[macro_export]
 macro_rules! ident {
-    ($lit:literal) => {
-        const { $crate::Identifier::__from_literal($lit) }
-    };
-    // hacky
-    (stringify!($ident:ident)) => {
-        const { $crate::Identifier::__from_literal(stringify!($ident)) }
+    ($($e:tt)+) => {
+        $crate::Identifier::__from_literal($crate::__hidden::validate_identifier!($($e)+))
     };
 }
 
 impl Identifier {
     fn validate(s: &str) -> Result<(), InvalidIdentifier> {
+        if s.is_empty() {
+            return Err(InvalidIdentifier::InitialNotAlphabetic);
+        }
         for (i, b) in s.bytes().enumerate() {
             // Check tail characters
             if let Some(index) = NonZeroUsize::new(i) {
@@ -204,23 +197,6 @@ impl Identifier {
 
     #[doc(hidden)]
     pub const fn __from_literal(lit: &'static str) -> Self {
-        let bytes = lit.as_bytes();
-        if !bytes[0].is_ascii_alphabetic() {
-            panic!("must start with alphabetic")
-        }
-        let mut i = 1;
-        while i < bytes.len() {
-            if !(bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
-                panic!("must be alphanumeric or '_'")
-            }
-            #[allow(
-                clippy::arithmetic_side_effects,
-                reason = "string cannot be that large"
-            )]
-            {
-                i += 1;
-            }
-        }
         Self(Text::__from_literal(lit))
     }
 
