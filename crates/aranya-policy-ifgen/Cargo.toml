@@ -19,8 +19,8 @@ serde = [
 
 [dependencies]
 aranya-policy-ifgen-macro = { version = "0.3.0", path = "../aranya-policy-ifgen-macro" }
-aranya-policy-vm = { version = "0.7.1", path = "../aranya-policy-vm" }
-aranya-runtime = { version = "0.7.1", path = "../aranya-runtime" }
+aranya-policy-vm = { version = "0.8.0", path = "../aranya-policy-vm" }
+aranya-runtime = { version = "0.8.0", path = "../aranya-runtime" }
 
 serde = { workspace = true, optional = true }
 thiserror = { workspace = true }

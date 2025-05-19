@@ -1,7 +1,7 @@
 [package]
 name = "aranya-idam-ffi"
 description = "The IDAM FFI for Aranya Policy"
-version = "0.7.1"
+version = "0.8.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -34,7 +34,7 @@ testing = []
 
 [dependencies]
 aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
-aranya-policy-vm = { version = "0.7.1", path = "../aranya-policy-vm", features = ["derive"] }
+aranya-policy-vm = { version = "0.8.0", path = "../aranya-policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }

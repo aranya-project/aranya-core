@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.6.1](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.6.0...aranya-fast-channels-v0.6.1) - 2025-05-15
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.6.0...aranya-fast-channels-v0.7.0) - 2025-05-15
 
 ### Other
 
