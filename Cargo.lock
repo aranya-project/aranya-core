@@ -207,7 +207,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-capi-core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "aranya-capi-macro",
  "aranya-libc",
@@ -373,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-compiler"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
@@ -398,7 +398,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-ifgen"
-version = "0.7.1"
+version = "0.8.0"
 dependencies = [
  "aranya-policy-ifgen-build",
  "aranya-policy-ifgen-macro",

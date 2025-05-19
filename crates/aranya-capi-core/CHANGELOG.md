@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.1](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.3.0...aranya-capi-core-v0.3.1) - 2025-05-15
+## [0.4.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-core-v0.3.0...aranya-capi-core-v0.4.0) - 2025-05-15
 
 ### Other
 

@@ -1,7 +1,7 @@
 [package]
 name = "aranya-policy-ifgen"
 description = "Tools for generating Rust interfaces to Aranya Policies"
-version = "0.7.1"
+version = "0.8.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
