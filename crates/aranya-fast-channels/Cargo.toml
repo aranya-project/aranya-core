@@ -8,8 +8,14 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+
+[lints]
+workspace = true
+
+
 [lib]
 bench = false
+
 
 [features]
 default = []
@@ -78,6 +84,7 @@ allocator_api = ["alloc"]
 core_intrinsics = []
 try_find = []
 
+
 [dependencies]
 aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["getrandom"] }
 buggy = { version = "0.1.0", default-features = false }
@@ -95,19 +102,23 @@ log = { workspace = true, default-features = false, optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 thiserror = { workspace = true }
 
+
 [dev-dependencies]
 aranya-fast-channels = { path = ".", features = ["testing"] }
 
 criterion = { version = "0.5" }
 serial_test = { version = "3.1.1" }
 
+
 [[bench]]
 name = "lib"
 harness = false
 required-features = ["posix"]
 
+
 [package.metadata.docs.rs]
 all-features = true
+
 
 [package.metadata.cargo-all-features]
 skip_feature_sets = [

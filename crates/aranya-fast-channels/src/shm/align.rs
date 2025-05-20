@@ -106,7 +106,8 @@ impl<T> Aligned<T> {
     /// - The data must be initialized.
     /// - You must respect Rust's aliasing rules.
     pub unsafe fn as_ref<'a>(&self) -> &'a T {
-        self.ptr.as_ref()
+        // SAFETY: Caller mut ensure safety.
+        unsafe { self.ptr.as_ref() }
     }
 
     /// Acquires the underlying `*mut` pointer.

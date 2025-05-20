@@ -15,7 +15,7 @@
 
 pub mod util;
 
-use std::{collections::HashMap, str};
+use std::collections::HashMap;
 
 use aranya_crypto::{
     aead::IndCca2,

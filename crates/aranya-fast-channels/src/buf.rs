@@ -5,7 +5,6 @@ use core::alloc::Allocator;
 use core::{
     fmt,
     ops::{Deref, DerefMut},
-    slice,
 };
 
 use aranya_crypto::zeroize::Zeroize;
@@ -175,15 +174,6 @@ impl<'a> FixedBuf<'a> {
         } else {
             None
         }
-    }
-
-    /// Same as [`FixedBuf::from_slice_mut`], but from its parts.
-    ///
-    /// # Safety
-    ///
-    /// See [`slice::from_raw_parts_mut`].
-    pub unsafe fn from_raw_parts_mut(data: *mut u8, data_len: usize, len: usize) -> Option<Self> {
-        Self::from_slice_mut(slice::from_raw_parts_mut(data, data_len), len)
     }
 
     fn capacity(&self) -> usize {

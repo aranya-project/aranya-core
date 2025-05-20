@@ -231,12 +231,8 @@
 )]
 #![cfg_attr(feature = "try_find", feature(try_find))]
 #![cfg_attr(not(any(feature = "std", test)), no_std)]
-#![deny(
+#![warn(
     clippy::alloc_instead_of_core,
-    clippy::cast_lossless,
-    clippy::cast_possible_wrap,
-    clippy::cast_precision_loss,
-    clippy::cast_sign_loss,
     clippy::implicit_saturating_sub,
     clippy::ptr_as_ptr,
     clippy::transmute_ptr_to_ptr,
@@ -248,13 +244,10 @@
     clippy::panic,
     clippy::string_slice,
     clippy::unimplemented,
-    clippy::unwrap_used,
-    missing_docs,
-    rust_2018_idioms,
-    unused_lifetimes,
-    unused_qualifications
+    missing_docs
 )]
 #![cfg_attr(not(any(feature = "std", test)), deny(clippy::std_instead_of_core))]
+#![allow(clippy::arithmetic_side_effects, reason = "TODO")]
 
 #[cfg(feature = "alloc")]
 extern crate alloc;
