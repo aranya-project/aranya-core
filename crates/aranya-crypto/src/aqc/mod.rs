@@ -4,9 +4,11 @@
 
 mod bidi;
 mod shared;
+mod suite;
 mod uni;
 
 pub use bidi::*;
+pub use suite::CipherSuiteId;
 pub use uni::*;
 
 // This is different from the rest of the `crypto` API in that it
