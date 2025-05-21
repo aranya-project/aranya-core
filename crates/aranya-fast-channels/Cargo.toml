@@ -85,6 +85,7 @@ buggy = { version = "0.1.0", default-features = false }
 byteorder = { version = "1", default-features = false }
 cfg-if = { workspace = true }
 const_format = { version = "0.2.31", features = ["assertcp"] }
+errno = { workspace = true, default-features = false }
 heapless = { version = "0.7", default-features = false }
 # Only enabled by the `testing` feature which already enables
 # `std`.
