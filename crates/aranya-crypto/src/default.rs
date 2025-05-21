@@ -10,8 +10,8 @@ use crate::{
     ciphersuite::CipherSuite,
     csprng::{Csprng, Random},
     engine::{
-        self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
-        WrongKeyType,
+        self, AlgId, AlgIdRepr, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey,
+        WrapError, WrongKeyType,
     },
     generic_array::GenericArray,
     id::{Id, IdError, Identified},
@@ -89,11 +89,12 @@ impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
 
 /// Contextual binding for wrapped keys.
 // TODO(eric): include a `purpose` field. The trick is that it
-// has to be a fixed size so that we can use `heapless`.
-#[derive(ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned, Serialize, Deserialize)]
+// has to be a fixed size.
+#[derive(Immutable, IntoBytes, KnownLayout)]
+#[repr(C)]
 struct AuthData {
     /// `Unwrapped::ID`.
-    alg_id: AlgId,
+    alg_id: AlgIdRepr,
     /// `<Unwrapped as Identified>::id`.
     key_id: Id,
 }
@@ -118,11 +119,10 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
         // TODO(eric): we should probably ensure that we do not
         // repeat nonces.
         let nonce = Nonce::<_>::random(&mut self.rng);
-        let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
-            alg_id: T::ID,
+        let ad = AuthData {
+            alg_id: T::ID.to_repr(),
             key_id: id,
-        })
-        .assume("there should be enough space")?;
+        };
 
         let mut secret = match secret {
             RawSecret::Aead(sk) => Ciphertext::Aead(sk.try_export_secret()?.into_bytes()),
@@ -132,8 +132,12 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
             RawSecret::Seed(sk) => Ciphertext::Seed(sk.into()),
             RawSecret::Signing(sk) => Ciphertext::Signing(sk.try_export_secret()?.into_bytes()),
         };
-        self.aead
-            .seal_in_place(nonce.as_ref(), secret.as_bytes_mut(), &mut tag, &ad)?;
+        self.aead.seal_in_place(
+            nonce.as_ref(),
+            secret.as_bytes_mut(),
+            &mut tag,
+            ad.as_bytes(),
+        )?;
         // `secret` is now encrypted.
 
         Ok(WrappedKey {
@@ -152,14 +156,17 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
         T: UnwrappedKey<S>,
     {
         let mut data = key.ciphertext.clone();
-        let ad = postcard::to_vec::<_, { AuthData::POSTCARD_MAX_SIZE }>(&AuthData {
-            alg_id: T::ID,
+        let ad = AuthData {
+            alg_id: T::ID.to_repr(),
             key_id: key.id,
-        })
-        .assume("there should be enough space")?;
+        };
 
-        self.aead
-            .open_in_place(key.nonce.as_ref(), data.as_bytes_mut(), &key.tag, &ad)?;
+        self.aead.open_in_place(
+            key.nonce.as_ref(),
+            data.as_bytes_mut(),
+            &key.tag,
+            ad.as_bytes(),
+        )?;
         // `data` has now been decrypted
 
         let secret = match (T::ID, &data) {

@@ -11,7 +11,10 @@ use core::{convert::Infallible, fmt::Debug, hash::Hash, result::Result};
 
 use buggy::Bug;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::{
+    byteorder::{LE, U16},
+    ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+};
 
 use crate::{
     aead::{Aead, AeadId, OpenError, SealError},
@@ -171,22 +174,7 @@ impl<CS: CipherSuite> RawSecret<CS> {
 }
 
 /// An algorithm identifier for [`UnwrappedKey`].
-#[derive(
-    Copy,
-    Clone,
-    Debug,
-    Hash,
-    Eq,
-    PartialEq,
-    ByteEq,
-    Immutable,
-    IntoBytes,
-    KnownLayout,
-    Unaligned,
-    Serialize,
-    Deserialize,
-)]
-#[repr(u16)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum AlgId {
     /// See [`RawSecret::Aead`].
     Aead(AeadId),
@@ -215,6 +203,29 @@ impl AlgId {
             Self::Signing(_) => "Signing",
         }
     }
+
+    pub(crate) const fn to_repr(self) -> AlgIdRepr {
+        match self {
+            Self::Aead(id) => AlgIdRepr::Aead(U16::new(id.to_u16())),
+            Self::Decap(id) => AlgIdRepr::Decap(U16::new(id.to_u16())),
+            Self::Mac(id) => AlgIdRepr::Mac(U16::new(id.to_u16())),
+            Self::Prk(id) => AlgIdRepr::Prk(U16::new(id.to_u16())),
+            // Use `64` because `RawSecret::Seed` is `64` bytes.
+            Self::Seed(()) => AlgIdRepr::Seed(U16::new(64)),
+            Self::Signing(id) => AlgIdRepr::Signing(U16::new(id.to_u16())),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Immutable, IntoBytes, KnownLayout)]
+#[repr(u16)]
+pub(crate) enum AlgIdRepr {
+    Aead(U16<LE>),
+    Decap(U16<LE>),
+    Mac(U16<LE>),
+    Prk(U16<LE>),
+    Seed(U16<LE>),
+    Signing(U16<LE>),
 }
 
 /// Implements [`UnwrappedKey`] for `$name`.

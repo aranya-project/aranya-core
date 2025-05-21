@@ -1,7 +1,7 @@
 //! An in-memory implementation of [`KeyStore`].
 
-#![cfg(feature = "alloc")]
-#![cfg_attr(docsrs, doc(cfg(feature = "alloc")))]
+#![cfg(feature = "memstore")]
+#![cfg_attr(docsrs, doc(cfg(feature = "memstore")))]
 #![forbid(unsafe_code)]
 
 extern crate alloc;
@@ -14,7 +14,7 @@ use alloc::{
 use core::marker::PhantomData;
 
 use super::{Entry, ErrorKind, KeyStore, Occupied, Vacant};
-use crate::{engine::WrappedKey, id::Id};
+use crate::{engine::WrappedKey, id::Id, util::cbor};
 
 /// An in-memory implementation of [`KeyStore`].
 #[derive(Clone, Default, Debug)]
@@ -65,13 +65,13 @@ struct StoredKey(Vec<u8>);
 
 impl StoredKey {
     fn new<T: WrappedKey>(key: T) -> Result<Self, Error> {
-        let data = postcard::to_allocvec(&key)
-            .map_err(|_| <Error as super::Error>::other(EncodingError))?;
+        let data =
+            cbor::to_allocvec(&key).map_err(|_| <Error as super::Error>::other(EncodingError))?;
         Ok(Self(data))
     }
 
     fn to_wrapped<T: WrappedKey>(&self) -> Result<T, Error> {
-        postcard::from_bytes(&self.0).map_err(|_| <Error as super::Error>::other(DecodingError))
+        cbor::from_bytes(&self.0).map_err(|_| <Error as super::Error>::other(DecodingError))
     }
 }
 
