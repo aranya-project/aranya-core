@@ -960,7 +960,7 @@ impl FfiFnSig {
                 format!("BUG: FFI functions must specify an ABI: `{}`", sig.ident),
             ));
         };
-        if !abi.name.as_ref().is_some_and(|name| name.value() == "C") {
+        if abi.name.as_ref().is_none_or(|name| name.value() != "C") {
             ctx.error(
                 &abi,
                 format!(
@@ -1347,7 +1347,7 @@ impl<T> DoubleEndedIterator for IterMut<'_, T> {
     }
 }
 
-impl<'a, T> ExactSizeIterator for IterMut<'a, T> {
+impl<T> ExactSizeIterator for IterMut<'_, T> {
     fn len(&self) -> usize {
         match self.0.as_ref() {
             Some(v) => v.len(),
