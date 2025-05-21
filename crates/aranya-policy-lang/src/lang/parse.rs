@@ -1556,8 +1556,8 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     Ok(fn_decl)
 }
 
-/// Parse a series of Struct definitions for the FFI
-pub fn parse_ffi_structs(
+/// Parse a series of Struct or Enum definitions for the FFI
+pub fn parse_ffi_structs_enums(
     data: &str,
 ) -> Result<
     (

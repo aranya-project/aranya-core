@@ -161,7 +161,7 @@ struct S2 {
     b struct S1,
 }
 
-enum Test { A, B }
+enum TestEnum { A, B }
 "#
 )]
 impl<T, G> TestModule<'_, T, G> {

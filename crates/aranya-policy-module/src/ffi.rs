@@ -19,6 +19,8 @@ pub enum Type<'a> {
     Id,
     /// A named struct.
     Struct(&'a str),
+    /// A named enum.
+    Enum(&'a str),
     /// An optional type of some other type.
     Optional(&'a Type<'a>),
 }
@@ -70,6 +72,7 @@ impl From<&Type<'_>> for VType {
             Type::Bool => VType::Bool,
             Type::Id => VType::Id,
             Type::Struct(s) => VType::Struct(String::from(*s)),
+            Type::Enum(s) => VType::Enum(String::from(*s)),
             Type::Optional(t) => VType::Optional(Box::new((*t).into())),
         }
     }
@@ -183,6 +186,9 @@ macro_rules! arg {
     ($name:literal, Struct($struct_name:literal)) => {{
         $crate::__arg!($name, Struct($struct_name))
     }};
+    ($name:literal, Enum($enum_name:literal)) => {{
+        $crate::__arg!($name, Enum($enum_name))
+    }};
     ($name:literal, Optional($(inner:tt)+)) => {{
         $crate::__arg!($name, Optional($(inner)+))
     }};
@@ -212,6 +218,12 @@ macro_rules! __arg {
             vtype: $crate::__type!(Struct($struct_name)),
         }
     }};
+    ($name:literal, Enum($enum_name:literal)) => {{
+        $crate::ffi::Arg {
+            name: $name,
+            vtype: $crate::__type!(Enum($enum_name)),
+        }
+    }};
     ($name:literal, Optional($inner:expr)) => {{
         $crate::ffi::Arg {
             name: $name,
@@ -229,6 +241,9 @@ macro_rules! __type {
     (@raw Struct($struct_name:literal)) => {
         $crate::ffi::Type::Struct($struct_name)
     };
+    (@raw Enum($enum_name:literal)) => {
+        $crate::ffi::Type::Enum($enum_name)
+    };
     (@raw Optional($inner:expr)) => {
         $crate::ffi::Type::Optional($inner)
     };
@@ -240,6 +255,9 @@ macro_rules! __type {
     (Id) => {{ $crate::__type!(@raw Id) }};
     (Struct($struct_name:literal)) => {{
         $crate::__type!(@raw Struct($struct_name))
+    }};
+    (Enum($enum_name:literal)) => {{
+        $crate::__type!(@raw Enum($enum_name))
     }};
     (Optional($(inner:tt)+)) => {{
         $crate::__type!(@raw Optional($(inner)+))
