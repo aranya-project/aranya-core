@@ -443,9 +443,10 @@ impl Parse for FfiAttr {
                 let _: Token![=] = input.parse()?;
                 let decl: LitStr = input.parse()?;
                 skip_comma(input)?;
-                let (structs, enums) = lang::parse_ffi_structs(&decl.value()).map_err(|err| {
-                    Error::new(decl.span(), format!("invalid policy definition: {err}"))
-                })?;
+                let (structs, enums) =
+                    lang::parse_ffi_structs_enums(&decl.value()).map_err(|err| {
+                        Error::new(decl.span(), format!("invalid policy definition: {err}"))
+                    })?;
                 struct_defs.set(&decl, structs)?;
                 enum_defs.set(&decl, enums)?;
             } else {
