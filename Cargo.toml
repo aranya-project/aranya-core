@@ -46,16 +46,13 @@ log = { version = "0.4", default-features = false }
 postcard = { version = "1", default-features = false }
 proptest = { version = "1.6", default-features = false, features = ["no_std", "alloc"] }
 proptest-derive = { version = "0.5" }
-s2n-quic = { version = "1.51.0", default-features = false, features = ["provider-address-token-default", "provider-tls-s2n"] }
 rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
-rustix = { version = "0.38", default-features = false }
+rustix = { version = "1", default-features = false }
 serde = { version = "1.0.210", default-features = false }
 spin = { version = "0.9.8", default-features = false }
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
 thiserror = { version = "2", default-features = false }
-tokio = { version = "1.41.1", default-features = false, features = ["macros"] }
-tokio-util = { version = "0.7.8", default-features = false }
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3.18", default-features = false }
 

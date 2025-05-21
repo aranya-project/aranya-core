@@ -1,0 +1,55 @@
+[package]
+name = "aranya-quic-syncer"
+publish = false
+authors = ["SpiderOak, Inc."]
+edition = "2021"
+license = "AGPL-3.0-only"
+repository = "https://github.com/aranya-project/aranya-core"
+rust-version = "1.81.0"
+
+[workspace.lints.rust]
+# missing_docs = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unsafe_op_in_unsafe_fn = "warn"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+arithmetic_side_effects = "warn"
+cast_lossless = "warn"
+cast_possible_wrap = "warn"
+cast_precision_loss = "warn"
+cast_sign_loss = "warn"
+panic = "warn"
+unwrap_used = "warn"
+wildcard_imports = "warn"
+
+[dependencies]
+aranya-crypto = { path = "../../crates/aranya-crypto", features = ["std"] }
+aranya-runtime = { path = "../../crates/aranya-runtime", features = ["std"] }
+buggy = { version = "0.1.0", features = ["std"] }
+
+heapless = { version = "0.8" }
+postcard = { version = "1" }
+s2n-quic = { version = "1.51.0", features = ["provider-address-token-default", "provider-tls-s2n"] }
+thiserror = { version = "2" }
+tokio = { version = "1.41.1", features = ["macros"] }
+tracing = { version = "0.1", features = ["attributes"] }
+
+[dev-dependencies]
+aranya-crypto = { path = "../../crates/aranya-crypto", features = ["std"] }
+
+criterion = { version = "0.5", features = ["async_tokio"] }
+rcgen = { version = "0.13", features = ["pem", "aws_lc_rs"] }
+test-log = { version = "0.2", features = ["trace"] }
+tokio = { version = "1.41.1", features = ["rt-multi-thread", "macros"] }
+tracing-subscriber = { version = "0.3.18" }
+
+# quic syncer example
+anyhow = { version = "1.0" }
+clap = { version = "4", features = ["derive"] }
+directories-next = "2"
+
+[[bench]]
+name = "quic_syncer"
+harness = false
