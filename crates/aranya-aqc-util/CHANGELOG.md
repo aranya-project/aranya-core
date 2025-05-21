@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.2.0...aranya-aqc-util-v0.3.0) - 2025-05-15
+
+### Other
+
+- pair PSKs with cipher suites ([#238](https://github.com/aranya-project/aranya-core/pull/238))
+
 ## [0.2.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.1.0...aranya-aqc-util-v0.2.0) - 2025-04-21
 
 ### Other
