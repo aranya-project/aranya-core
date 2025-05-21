@@ -1,6 +1,11 @@
 
 # cargo-vet audits file
 
+[[audits.bitflags]]
+who = "Eric Lagergren <elagergren@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "2.9.0 -> 2.9.1"
+
 [[audits.elain]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-deploy"

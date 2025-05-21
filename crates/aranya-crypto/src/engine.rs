@@ -10,8 +10,8 @@
 use core::{convert::Infallible, fmt::Debug, hash::Hash, result::Result};
 
 use buggy::Bug;
-use postcard::experimental::max_size::MaxSize;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aead::{Aead, AeadId, OpenError, SealError},
@@ -171,7 +171,22 @@ impl<CS: CipherSuite> RawSecret<CS> {
 }
 
 /// An algorithm identifier for [`UnwrappedKey`].
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Hash,
+    Eq,
+    PartialEq,
+    ByteEq,
+    Immutable,
+    IntoBytes,
+    KnownLayout,
+    Unaligned,
+    Serialize,
+    Deserialize,
+)]
+#[repr(u16)]
 pub enum AlgId {
     /// See [`RawSecret::Aead`].
     Aead(AeadId),

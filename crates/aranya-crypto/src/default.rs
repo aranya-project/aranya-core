@@ -1,9 +1,9 @@
 //! Default implementations.
 
 use buggy::BugExt;
-use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 pub use spideroak_crypto::default::Rng;
+use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aead::{Aead, Nonce, Tag},
@@ -90,7 +90,7 @@ impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
 /// Contextual binding for wrapped keys.
 // TODO(eric): include a `purpose` field. The trick is that it
 // has to be a fixed size so that we can use `heapless`.
-#[derive(Serialize, MaxSize)]
+#[derive(ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned, Serialize, Deserialize)]
 struct AuthData {
     /// `Unwrapped::ID`.
     alg_id: AlgId,

@@ -14,8 +14,8 @@ user-id = 293722
 user-login = "aranya-project-bot"
 
 [[publisher.bumpalo]]
-version = "3.16.0"
-when = "2024-04-08"
+version = "3.17.0"
+when = "2025-01-28"
 user-id = 696
 user-login = "fitzgen"
 user-name = "Nick Fitzgerald"
@@ -34,8 +34,8 @@ user-id = 293722
 user-login = "aranya-project-bot"
 
 [[publisher.spideroak-crypto]]
-version = "0.2.0"
-when = "2025-01-24"
+version = "0.2.1"
+when = "2025-01-27"
 user-id = 293722
 user-login = "aranya-project-bot"
 
@@ -59,6 +59,12 @@ user-id = 1139
 user-login = "Manishearth"
 user-name = "Manish Goregaokar"
 
+[[publisher.wit-bindgen-rt]]
+version = "0.39.0"
+when = "2025-02-05"
+user-id = 73222
+user-login = "wasmtime-publish"
+
 [audits.actix.audits]
 
 [[audits.bytecode-alliance.wildcard-audits.bumpalo]]
@@ -67,6 +73,18 @@ criteria = "safe-to-deploy"
 user-id = 696 # Nick Fitzgerald (fitzgen)
 start = "2019-03-16"
 end = "2025-07-30"
+
+[[audits.bytecode-alliance.wildcard-audits.wit-bindgen-rt]]
+who = "Alex Crichton <alex@alexcrichton.com>"
+criteria = "safe-to-deploy"
+user-id = 73222 # wasmtime-publish
+start = "2023-01-01"
+end = "2025-05-08"
+notes = """
+The Bytecode Alliance uses the `wasmtime-publish` crates.io account to automate
+publication of this crate from CI. This repository requires all PRs are reviewed
+by a Bytecode Alliance maintainer and it owned by the Bytecode Alliance itself.
+"""
 
 [[audits.bytecode-alliance.audits.adler2]]
 who = "Alex Crichton <alex@alexcrichton.com>"
@@ -158,12 +176,6 @@ notes = "Nontrivial update but mostly around dependencies and how `unsafe` code 
 who = "Benjamin Bouvier <public@benj.me>"
 criteria = "safe-to-deploy"
 version = "0.1.3"
-
-[[audits.bytecode-alliance.audits.either]]
-who = "Alex Crichton <alex@alexcrichton.com>"
-criteria = "safe-to-deploy"
-delta = "1.8.1 -> 1.13.0"
-notes = "More utilities and such for the `Either` type, no `unsafe` code."
 
 [[audits.bytecode-alliance.audits.embedded-io]]
 who = "Alex Crichton <alex@alexcrichton.com>"
@@ -266,6 +278,11 @@ criteria = "safe-to-deploy"
 version = "0.1.3"
 notes = "A part of RustCrypto/utils, this crate is designed to handle unsafe buffers and carefully documents the safety concerns throughout. Older versions of this tally up to ~130k daily downloads."
 
+[[audits.bytecode-alliance.audits.itoa]]
+who = "Dan Gohman <dev@sunfishcode.online>"
+criteria = "safe-to-deploy"
+delta = "1.0.11 -> 1.0.14"
+
 [[audits.bytecode-alliance.audits.matchers]]
 who = "Pat Hickey <phickey@fastly.com>"
 criteria = "safe-to-deploy"
@@ -325,6 +342,12 @@ who = "Alex Crichton <alex@alexcrichton.com>"
 criteria = "safe-to-deploy"
 delta = "0.1.21 -> 0.1.24"
 
+[[audits.bytecode-alliance.audits.semver]]
+who = "Pat Hickey <phickey@fastly.com>"
+criteria = "safe-to-deploy"
+version = "1.0.17"
+notes = "plenty of unsafe pointer and vec tricks, but in well-structured and commented code that appears to be correct"
+
 [[audits.bytecode-alliance.audits.sharded-slab]]
 who = "Pat Hickey <phickey@fastly.com>"
 criteria = "safe-to-deploy"
@@ -359,15 +382,6 @@ who = "Pat Hickey <phickey@fastly.com>"
 criteria = "safe-to-deploy"
 version = "1.1.4"
 notes = "uses unsafe to implement thread local storage of objects"
-
-[[audits.cargo-vet.audits.either]]
-who = "Nika Layzell <nika@thelayzells.com>"
-criteria = "safe-to-deploy"
-version = "1.6.1"
-notes = """
-Straightforward crate providing the Either enum and trait implementations with
-no unsafe code.
-"""
 
 [[audits.cargo-vet.audits.lazy_static]]
 who = "Nika Layzell <nika@thelayzells.com>"
@@ -419,6 +433,20 @@ think this justifies marking this crate as `ub-risk-1`.
 
 Additional review comments can be found at https://crrev.com/c/4723145/31
 """
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.bitflags]]
+who = "Lukasz Anforowicz <lukasza@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "2.6.0 -> 2.8.0"
+notes = "No changes related to `unsafe impl ... bytemuck` pieces from `src/external.rs`."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.bitflags]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "2.8.0 -> 2.9.0"
+notes = "Adds a straightforward clear() function, but no new unsafe code."
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
 [[audits.google.audits.bstr]]
@@ -480,11 +508,46 @@ criteria = "safe-to-run"
 version = "0.1.2"
 aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
 
+[[audits.google.audits.either]]
+who = "Manish Goregaokar <manishearth@google.com>"
+criteria = "safe-to-deploy"
+version = "1.13.0"
+notes = "Unsafe code pertaining to wrapping Pin APIs. Mostly passes invariants down."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.either]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.13.0 -> 1.14.0"
+notes = """
+Inheriting ub-risk-1 from the baseline review of 1.13.0. While the delta has some diffs in unsafe code, they are either:
+- migrating code to use helper macros
+- migrating match patterns to take advantage of default bindings mode from RFC 2005
+Either way, the result is code that does exactly the same thing and does not change the risk of UB.
+
+See https://crrev.com/c/6323164 for more audit details.
+"""
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.either]]
+who = "Lukasz Anforowicz <lukasza@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.14.0 -> 1.15.0"
+notes = "The delta in `lib.rs` only tweaks doc comments and `#[cfg(feature = \"std\")]`."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
 [[audits.google.audits.equivalent]]
 who = "George Burgess IV <gbiv@google.com>"
 criteria = "safe-to-deploy"
 version = "1.0.1"
 aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
+
+[[audits.google.audits.equivalent]]
+who = "Jonathan Hao <phao@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.1 -> 1.0.2"
+notes = "No changes to any .rs files or Rust code."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
 [[audits.google.audits.foldhash]]
 who = "Adrian Taylor <adetaylor@chromium.org>"
@@ -499,6 +562,13 @@ criteria = "safe-to-deploy"
 version = "0.3.1"
 aggregated-from = "https://chromium.googlesource.com/chromiumos/third_party/rust_crates/+/refs/heads/main/cargo-vet/audits.toml?format=TEXT"
 
+[[audits.google.audits.glob]]
+who = "Dustin J. Mitchell <djmitche@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "0.3.1 -> 0.3.2"
+notes = "Still no unsafe"
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
 [[audits.google.audits.heck]]
 who = "Lukasz Anforowicz <lukasza@chromium.org>"
 criteria = "safe-to-deploy"
@@ -509,6 +579,31 @@ and there were no hits.
 
 `heck` (version `0.3.3`) has been added to Chromium in
 https://source.chromium.org/chromium/chromium/src/+/28841c33c77833cc30b286f9ae24c97e7a8f4057
+"""
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.indexmap]]
+who = "Lukasz Anforowicz <lukasza@chromium.org>"
+criteria = "safe-to-deploy"
+version = "2.7.1"
+notes = '''
+Grepped for `-i cipher`, `-i crypto`, `'\bfs\b'`, `'\bnet\b'`
+and there were no hits.
+
+There is a little bit of `unsafe` Rust code - the audit can be found at
+https://chromium-review.googlesource.com/c/chromium/src/+/6187726/2
+'''
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.indexmap]]
+who = "Lukasz Anforowicz <lukasza@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "2.7.1 -> 2.8.0"
+notes = """
+No `unsafe` introduced or affected in:
+* `indexmap_with_default!` and `indexset_with_default!` macros
+* New `PartialEq` implementations
+* `fn slice_eq` in `util.rs`
 """
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
@@ -548,12 +643,10 @@ Straightforward diff between 1.0.10 and 1.0.11 - only 3 commits:
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
 [[audits.google.audits.itoa]]
-who = "Liza Burakova <liza@chromium.org>"
+who = "Daniel Cheng <dcheng@chromium.org>"
 criteria = "safe-to-deploy"
-delta = "1.0.11 -> 1.0.14"
-notes = """
-Unsafe review at https://crrev.com/c/6051067
-"""
+delta = "1.0.14 -> 1.0.15"
+notes = "Only minor rustdoc changes."
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
 [[audits.google.audits.lazy_static]]
@@ -721,6 +814,30 @@ The delta just 1) inlines/expands `impl ToTokens` that used to be handled via
 """
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
+[[audits.google.audits.quote]]
+who = "Dustin J. Mitchell <djmitche@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.37 -> 1.0.38"
+notes = "Still no unsafe"
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.quote]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.38 -> 1.0.39"
+notes = "Only minor changes for clippy lints and documentation."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.quote]]
+who = "Lukasz Anforowicz <lukasza@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.39 -> 1.0.40"
+notes = """
+The delta is just a simplification of how `tokens.extend(...)` call is made.
+Still no `unsafe` anywhere.
+"""
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
 [[audits.google.audits.rand]]
 who = "Lukasz Anforowicz <lukasza@chromium.org>"
 criteria = "safe-to-deploy"
@@ -789,6 +906,20 @@ aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_p
 who = "Liza Burakova <liza@chromium.org>"
 criteria = "safe-to-deploy"
 delta = "1.0.17 -> 1.0.18"
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.rustversion]]
+who = "Dustin J. Mitchell <djmitche@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.18 -> 1.0.19"
+notes = "No unsafe, just doc changes"
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.rustversion]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.19 -> 1.0.20"
+notes = "Only minor updates to documentation and the mock today used for testing."
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
 [[audits.google.audits.same-file]]
@@ -904,6 +1035,27 @@ delta = "1.0.215 -> 1.0.216"
 notes = "The delta makes minor changes in `build.rs` - switching to the `?` syntax sugar."
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
+[[audits.google.audits.serde]]
+who = "Dustin J. Mitchell <djmitche@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.216 -> 1.0.217"
+notes = "Minimal changes, nothing unsafe"
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.serde]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.217 -> 1.0.218"
+notes = "No changes outside comments and documentation."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.serde]]
+who = "Lukasz Anforowicz <lukasza@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.218 -> 1.0.219"
+notes = "Just allowing `clippy::elidable_lifetime_names`."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
 [[audits.google.audits.serde_derive]]
 who = "Lukasz Anforowicz <lukasza@chromium.org>"
 criteria = "safe-to-deploy"
@@ -990,6 +1142,27 @@ delta = "1.0.215 -> 1.0.216"
 notes = "The delta adds `#[automatically_derived]` in a few places.  Still no `unsafe`."
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
+[[audits.google.audits.serde_derive]]
+who = "Dustin J. Mitchell <djmitche@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.216 -> 1.0.217"
+notes = "No changes"
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.serde_derive]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.217 -> 1.0.218"
+notes = "No changes outside comments and documentation."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.serde_derive]]
+who = "Lukasz Anforowicz <lukasza@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.218 -> 1.0.219"
+notes = "Minor changes (clippy tweaks, using `mem::take` instead of `mem::replace`)."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
 [[audits.google.audits.smallvec]]
 who = "Manish Goregaokar <manishearth@google.com>"
 criteria = "safe-to-deploy"
@@ -1072,6 +1245,26 @@ delta = "1.0.13 -> 1.0.14"
 notes = "Minimal delta in `.rs` files: new test assertions + doc changes."
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
+[[audits.google.audits.unicode-ident]]
+who = "Adrian Taylor <adetaylor@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.14 -> 1.0.15"
+notes = "No changes relevant to any of these criteria."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.unicode-ident]]
+who = "Liza Burakova <liza@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.15 -> 1.0.16"
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.unicode-ident]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "1.0.16 -> 1.0.18"
+notes = "Only minor comment and documentation updates."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
 [[audits.google.audits.unicode-xid]]
 who = "George Burgess IV <gbiv@google.com>"
 criteria = "safe-to-deploy"
@@ -1098,11 +1291,25 @@ version = "0.1.5"
 notes = "Contains no unsafe"
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
+[[audits.google.audits.zerofrom]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "0.1.5 -> 0.1.6"
+notes = "Only minor cfg tweaks."
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
 [[audits.google.audits.zerofrom-derive]]
 who = "Manish Goregaokar <manishearth@google.com>"
 criteria = "safe-to-deploy"
 version = "0.1.5"
 notes = "Contains no unsafe"
+aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
+
+[[audits.google.audits.zerofrom-derive]]
+who = "Daniel Cheng <dcheng@chromium.org>"
+criteria = "safe-to-deploy"
+delta = "0.1.5 -> 0.1.6"
+notes = "Only a minor clippy adjustment."
 aggregated-from = "https://chromium.googlesource.com/chromium/src/+/main/third_party/rust/chromium_crates_io/supply-chain/audits.toml?format=TEXT"
 
 [[audits.isrg.audits.base64]]
@@ -1124,11 +1331,6 @@ delta = "0.21.2 -> 0.21.3"
 who = "David Cook <dcook@divviup.org>"
 criteria = "safe-to-deploy"
 version = "0.9.0"
-
-[[audits.isrg.audits.crunchy]]
-who = "David Cook <dcook@divviup.org>"
-criteria = "safe-to-deploy"
-version = "0.2.2"
 
 [[audits.isrg.audits.fiat-crypto]]
 who = "David Cook <dcook@divviup.org>"
@@ -1225,6 +1427,12 @@ who = "Brandon Pitman <bran@bran.land>"
 criteria = "safe-to-deploy"
 delta = "0.4.1 -> 0.4.2"
 
+[[audits.isrg.audits.once_cell]]
+who = "J.C. Jones <jc@insufficient.coffee>"
+criteria = "safe-to-deploy"
+delta = "1.21.1 -> 1.21.3"
+notes = "The unsafe code has moved from `compare_exchange` to a new `init` function, which makes it easier to reason about."
+
 [[audits.isrg.audits.opaque-debug]]
 who = "David Cook <dcook@divviup.org>"
 criteria = "safe-to-deploy"
@@ -1274,6 +1482,11 @@ version = "1.12.1"
 who = "David Cook <dcook@divviup.org>"
 criteria = "safe-to-deploy"
 version = "0.10.2"
+
+[[audits.isrg.audits.sha2]]
+who = "David Cook <dcook@divviup.org>"
+criteria = "safe-to-deploy"
+delta = "0.10.8 -> 0.10.9"
 
 [[audits.isrg.audits.subtle]]
 who = "David Cook <dcook@divviup.org>"
@@ -1421,6 +1634,12 @@ delta = "0.5.14 -> 0.5.15"
 notes = "Fixes a regression from an earlier version which could lead to a double free"
 aggregated-from = "https://raw.githubusercontent.com/mozilla/glean/main/supply-chain/audits.toml"
 
+[[audits.mozilla.audits.crunchy]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+version = "0.2.3"
+aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
+
 [[audits.mozilla.audits.crypto-common]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -1436,24 +1655,6 @@ This crate contains a decent bit of `unsafe` code, however all internal
 unsafety is verified with copious assertions (many are compile-time), and
 otherwise the unsafety is documented and left to the caller to verify.
 """
-aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
-
-[[audits.mozilla.audits.either]]
-who = "Mike Hommey <mh+mozilla@glandium.org>"
-criteria = "safe-to-deploy"
-delta = "1.6.1 -> 1.7.0"
-aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
-
-[[audits.mozilla.audits.either]]
-who = "Mike Hommey <mh+mozilla@glandium.org>"
-criteria = "safe-to-deploy"
-delta = "1.7.0 -> 1.8.0"
-aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
-
-[[audits.mozilla.audits.either]]
-who = "Mike Hommey <mh+mozilla@glandium.org>"
-criteria = "safe-to-deploy"
-delta = "1.8.0 -> 1.8.1"
 aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
 
 [[audits.mozilla.audits.errno]]
@@ -1505,6 +1706,13 @@ criteria = "safe-to-deploy"
 version = "0.4.3"
 aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
 
+[[audits.mozilla.audits.jobserver]]
+who = "Emilio Cobos Álvarez <emilio@crisal.io>"
+criteria = "safe-to-deploy"
+delta = "0.1.32 -> 0.1.33"
+notes = "No unsafe added, only non-trivial change is switching to the getrandom crate on Windows."
+aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
+
 [[audits.mozilla.audits.num-conv]]
 who = "Alex Franchuk <afranchuk@mozilla.com>"
 criteria = "safe-to-deploy"
@@ -1527,6 +1735,18 @@ who = "Josh Stone <jistone@redhat.com>"
 criteria = "safe-to-deploy"
 version = "0.4.1"
 notes = "All code written or reviewed by Josh Stone."
+aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
+
+[[audits.mozilla.audits.once_cell]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "1.20.2 -> 1.20.3"
+aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
+
+[[audits.mozilla.audits.once_cell]]
+who = "Erich Gubler <erichdongubler@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "1.20.3 -> 1.21.1"
 aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
 
 [[audits.mozilla.audits.powerfmt]]
@@ -1564,6 +1784,12 @@ criteria = "safe-to-deploy"
 version = "1.1.0"
 notes = "Straightforward crate with no unsafe code, does what it says on the tin."
 aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
+
+[[audits.mozilla.audits.semver]]
+who = "Jan-Erik Rediger <jrediger@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "1.0.17 -> 1.0.25"
+aggregated-from = "https://raw.githubusercontent.com/mozilla/glean/main/supply-chain/audits.toml"
 
 [[audits.mozilla.audits.sha2]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -1694,6 +1920,17 @@ criteria = "safe-to-deploy"
 version = "1.4.2"
 aggregated-from = "https://hg.mozilla.org/mozilla-central/raw-file/tip/supply-chain/audits.toml"
 
+[[audits.zcash.audits.anstyle-wincon]]
+who = "Jack Grigg <jack@electriccoin.co>"
+criteria = "safe-to-deploy"
+delta = "3.0.6 -> 3.0.7"
+notes = """
+Changes to `unsafe` blocks are removing `std::mem::transmute` calls that are now
+unnecessary after `windows-sys` changed its `HANDLE` type from `isize` to
+`*mut c_void` (matching what `std::os::windows::io::RawHandle` uses).
+"""
+aggregated-from = "https://raw.githubusercontent.com/zcash/wallet/main/supply-chain/audits.toml"
+
 [[audits.zcash.audits.block-buffer]]
 who = "Jack Grigg <jack@electriccoin.co>"
 criteria = "safe-to-deploy"
@@ -1718,6 +1955,26 @@ who = "Jack Grigg <jack@electriccoin.co>"
 criteria = "safe-to-deploy"
 delta = "0.3.26 -> 0.3.27"
 aggregated-from = "https://raw.githubusercontent.com/zcash/zcash/master/qa/supply-chain/audits.toml"
+
+[[audits.zcash.audits.indexmap]]
+who = "Jack Grigg <jack@electriccoin.co>"
+criteria = "safe-to-deploy"
+delta = "2.8.0 -> 2.9.0"
+notes = """
+New `unsafe` code inside the `get_disjoint_mut` implementation is for obtaining
+mutable references to `Bucket`s inside a mutable `Slice`. The implementation
+takes `&mut self` and correctly enforces that the requested indices are unique,
+which makes the mutable pointer indexing sound because we are guaranteed that no
+other mutable borrows exist outside this method, and the indexing won't produce
+two mutable pointers to the same slice entry.
+"""
+aggregated-from = "https://raw.githubusercontent.com/zcash/wallet/main/supply-chain/audits.toml"
+
+[[audits.zcash.audits.inout]]
+who = "Jack Grigg <jack@electriccoin.co>"
+criteria = "safe-to-deploy"
+delta = "0.1.3 -> 0.1.4"
+aggregated-from = "https://raw.githubusercontent.com/zcash/wallet/main/supply-chain/audits.toml"
 
 [[audits.zcash.audits.oorandom]]
 who = "Jack Grigg <jack@electriccoin.co>"
@@ -1770,6 +2027,18 @@ criteria = "safe-to-deploy"
 delta = "0.4.0 -> 0.4.1"
 notes = "Changes to `Command` usage are to add support for `RUSTC_WRAPPER`."
 aggregated-from = "https://raw.githubusercontent.com/zcash/zcash/master/qa/supply-chain/audits.toml"
+
+[[audits.zcash.audits.ryu]]
+who = "Jack Grigg <jack@electriccoin.co>"
+criteria = "safe-to-deploy"
+delta = "1.0.18 -> 1.0.20"
+aggregated-from = "https://raw.githubusercontent.com/zcash/wallet/main/supply-chain/audits.toml"
+
+[[audits.zcash.audits.semver]]
+who = "Jack Grigg <jack@electriccoin.co>"
+criteria = "safe-to-deploy"
+delta = "1.0.25 -> 1.0.26"
+aggregated-from = "https://raw.githubusercontent.com/zcash/wallet/main/supply-chain/audits.toml"
 
 [[audits.zcash.audits.sharded-slab]]
 who = "Jack Grigg <jack@electriccoin.co>"
