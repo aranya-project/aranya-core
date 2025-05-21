@@ -137,6 +137,7 @@ impl<const N: usize> Buf for heapless::Vec<u8, N> {
     }
 
     fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError> {
+        #[allow(clippy::arithmetic_side_effects, reason = "len <= cap")]
         let avail = N - self.len();
         if avail < additional {
             Err(AllocError::new())
@@ -225,6 +226,7 @@ impl Buf for FixedBuf<'_> {
     }
 
     fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError> {
+        #[allow(clippy::arithmetic_side_effects, reason = "len <= cap")]
         let avail = self.capacity() - self.len;
         if avail < additional {
             Err(AllocError::new())
@@ -235,8 +237,8 @@ impl Buf for FixedBuf<'_> {
 
     fn try_resize(&mut self, new_len: usize, value: u8) -> Result<(), AllocError> {
         let old_len = self.len;
-        if new_len > old_len {
-            Self::try_reserve_exact(self, new_len - old_len)?;
+        if let Some(diff) = new_len.checked_sub(old_len) {
+            Self::try_reserve_exact(self, diff)?;
             self.data
                 .get_mut(old_len..new_len)
                 .assume("should have enough capacity")?

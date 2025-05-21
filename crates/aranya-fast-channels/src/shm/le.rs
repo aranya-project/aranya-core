@@ -38,13 +38,15 @@ macro_rules! little_endian {
 
             impl ::core::ops::AddAssign<$type> for $name {
                 fn add_assign(&mut self, rhs: $type) {
-                    self.0 = <$type>::from_le(self.0) + rhs
+                    #![allow(clippy::arithmetic_side_effects, reason = "keeping behavior")]
+                    *self = Self::new(Self::into(*self) + rhs);
                 }
             }
 
             impl ::core::ops::SubAssign<$type> for $name {
                 fn sub_assign(&mut self, rhs: $type) {
-                    self.0 = <$type>::from_le(self.0) - rhs
+                    #![allow(clippy::arithmetic_side_effects, reason = "keeping behavior")]
+                    *self = Self::new(Self::into(*self) - rhs);
                 }
             }
 
