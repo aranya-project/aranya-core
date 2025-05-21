@@ -30,7 +30,9 @@ std = [
 ]
 
 # Enable the testing feature.
-testing = []
+testing = [
+	"aranya-crypto/memstore",
+]
 
 [dependencies]
 aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }

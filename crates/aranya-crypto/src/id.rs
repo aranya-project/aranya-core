@@ -8,7 +8,6 @@ use core::{
     str::FromStr,
 };
 
-use postcard::experimental::max_size::MaxSize;
 #[cfg(feature = "proptest")]
 #[doc(hidden)]
 pub use proptest as __proptest;
@@ -34,18 +33,7 @@ use crate::{
 /// A unique cryptographic ID.
 #[repr(C)]
 #[derive(
-    Copy,
-    Clone,
-    Hash,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Immutable,
-    IntoBytes,
-    KnownLayout,
-    Unaligned,
-    MaxSize,
+    Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Immutable, IntoBytes, KnownLayout, Unaligned,
 )]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Id([u8; 32]);
@@ -261,7 +249,6 @@ macro_rules! custom_id {
             PartialOrd,
             ::serde::Serialize,
             ::serde::Deserialize,
-            ::postcard::experimental::max_size::MaxSize,
         )]
         $(#[$meta])*
         $vis struct $name($crate::Id);
@@ -433,7 +420,6 @@ pub trait Identified {
         + PartialOrd
         + Serialize
         + DeserializeOwned
-        + MaxSize
         + Into<Id>;
 
     /// Uniquely identifies the object.

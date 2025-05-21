@@ -6,7 +6,6 @@
 
 use core::{borrow::Borrow, fmt, ops::Add, result::Result};
 
-use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
 
@@ -63,9 +62,7 @@ impl Version {
 }
 
 /// The APQ topic being used.
-#[derive(
-    Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, MaxSize,
-)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Topic([u8; 16]);
 
 impl Topic {
