@@ -13,7 +13,7 @@ use buggy::Bug;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use zerocopy::{
     byteorder::{LE, U16},
-    ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+    Immutable, IntoBytes, KnownLayout,
 };
 
 use crate::{

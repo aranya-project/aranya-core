@@ -1,9 +1,8 @@
 //! Default implementations.
 
-use buggy::BugExt;
 use serde::{Deserialize, Serialize};
 pub use spideroak_crypto::default::Rng;
-use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::{Immutable, IntoBytes, KnownLayout};
 
 use crate::{
     aead::{Aead, Nonce, Tag},
