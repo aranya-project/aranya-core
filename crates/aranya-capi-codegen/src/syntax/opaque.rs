@@ -76,7 +76,7 @@ impl Opaque {
             format!("missing `{ALIGN}` argument"),
         ))?;
         let capi = capi.get().or_else(|| ctx.map(|ctx| ctx.capi.clone()));
-        let generated = generated.get().map_or(false, |a| a.value);
+        let generated = generated.get().is_some_and(|a| a.value);
         Ok(Self {
             size,
             align,

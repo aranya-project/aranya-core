@@ -79,7 +79,7 @@ macro_rules! packed {
         impl $name {
             /// The size in bytes of the packed struct.
             $vis const PACKED_SIZE: usize = {
-                #[repr(packed)]
+                #[repr(C, packed)]
                 #[allow(dead_code)]
                 $vis struct $name $($tokens)*
                 ::core::mem::size_of::<$name>()

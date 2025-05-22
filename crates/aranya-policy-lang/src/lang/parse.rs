@@ -153,7 +153,7 @@ pub struct ChunkParser<'a> {
     pratt: &'a PrattParser<Rule>,
 }
 
-impl<'a> ChunkParser<'a> {
+impl ChunkParser<'_> {
     pub fn new(offset: usize, pratt: &PrattParser<Rule>) -> ChunkParser<'_> {
         ChunkParser {
             chunk_offset: offset,
