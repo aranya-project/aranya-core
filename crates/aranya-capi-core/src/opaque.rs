@@ -85,7 +85,7 @@ impl<const SIZE: usize, const ALIGN: usize, T> Opaque<SIZE, ALIGN, T>
 where
     elain::Align<ALIGN>: elain::Alignment,
 {
-    fn into_inner(self) -> T {
+    pub fn into_inner(self) -> T {
         self.0.into_inner()
     }
 }
