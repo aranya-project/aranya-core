@@ -29,8 +29,10 @@ mod imp {
         pub fn into_inner(mut self) -> T {
             // SAFETY: always `inner`` variant
             let inner = unsafe { &mut self.inner };
-            // SAFETY: consuming self
-            unsafe { ManuallyDrop::take(inner) }
+            // SAFETY: we consume and forget `self`
+            let val = unsafe { ManuallyDrop::take(inner) };
+            core::mem::forget(self);
+            val
         }
 
         pub fn as_ref(&self) -> &T {
