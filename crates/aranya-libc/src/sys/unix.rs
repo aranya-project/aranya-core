@@ -117,11 +117,9 @@ pub fn fdopendir(fd: OwnedFd) -> Result<RawDir, Errno> {
 
 /// See `readdir(3p)`.
 pub fn readdir(dir: RawDir) -> Result<Option<DirEntry>, Errno> {
-    // SAFETY: `To distinguish between an end-of-directory condition or an
+    // `To distinguish between an end-of-directory condition or an
     // error, you must set errno to zero before calling readdir.`
-    unsafe {
-        crate::errno::clear_errno();
-    }
+    crate::errno::clear_errno();
 
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::readdir(dir) };
