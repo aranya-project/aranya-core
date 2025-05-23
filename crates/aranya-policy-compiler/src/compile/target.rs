@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, fmt::Display};
 
 use aranya_policy_ast::{self as ast, Identifier};
-use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
+use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, SipIndexMap, Value};
 use ast::FactDefinition;
 
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
@@ -25,7 +25,7 @@ pub struct CompileTarget {
     /// Struct schemas
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
+    pub enum_defs: SipIndexMap<Identifier, SipIndexMap<Identifier, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code
@@ -45,7 +45,7 @@ impl CompileTarget {
             effects: vec![],
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
+            enum_defs: SipIndexMap::default(),
             command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),

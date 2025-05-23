@@ -15,8 +15,8 @@ use aranya_policy_ast::{
     MatchExpression, MatchStatement, StructItem, VType,
 };
 use aranya_policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
-    Target, Value,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module,
+    SipIndexMap, Struct, Target, Value,
 };
 pub use ast::Policy as AstPolicy;
 use ast::{
@@ -29,6 +29,8 @@ use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
 use self::types::{IdentifierTypeStack, Typeish};
+
+use indexmap::IndexMap;
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -245,16 +247,16 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = BTreeMap::new();
-        for (i, value_name) in enum_def.variants.iter().enumerate() {
+        let mut values = SipIndexMap::default();
+        for (i, value_name) in enum_def.values.iter().enumerate() {
             match values.entry(value_name.clone()) {
-                Entry::Occupied(_) => {
+                indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                         "{}::{}",
                         enum_name, value_name
                     ))));
                 }
-                Entry::Vacant(e) => {
+                indexmap::map::Entry::Vacant(e) => {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
                     // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
                     // then we'll need to ensure those are unique.
