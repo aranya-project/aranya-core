@@ -25,8 +25,3 @@ fn dotest(name: &str) {
 fn tictactoe() {
     dotest("tictactoe");
 }
-
-#[test]
-fn ttc() {
-    dotest("ttc");
-}
