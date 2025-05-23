@@ -19,8 +19,8 @@ pub struct Players {
 /// Player policy enum.
 #[value]
 pub enum Player {
-    O,
     X,
+    O,
 }
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
