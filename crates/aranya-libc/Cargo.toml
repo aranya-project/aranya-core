@@ -8,12 +8,10 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
-[dependencies]
-cfg-if = { workspace = true, default-features = false }
-libc = { workspace = true, default-features = false }
-memchr = { version = "2.7.2", default-features = false }
-thiserror = { workspace = true }
-tracing = { workspace = true, default-features = false }
+
+[lints]
+workspace = true
+
 
 [features]
 default = []
@@ -22,11 +20,16 @@ std = [
 	"libc/std",
 	"memchr/std",
 	"thiserror/std",
-	"tracing/std",
 ]
 
-[lints]
-workspace = true
+
+[dependencies]
+cfg-if = { workspace = true, default-features = false }
+errno = { workspace = true, default-features = false }
+libc = { workspace = true, default-features = false }
+memchr = { version = "2.7.2", default-features = false }
+thiserror = { workspace = true }
+
 
 [package.metadata.cargo-all-features]
 always_include_features = [
