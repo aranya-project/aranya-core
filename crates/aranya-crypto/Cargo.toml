@@ -134,7 +134,7 @@ ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
-rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
+rustix = { workspace = true, default-features = false, features = ["fs"], optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 siphasher = { version = "1", default-features = false }
 thiserror = { workspace = true }

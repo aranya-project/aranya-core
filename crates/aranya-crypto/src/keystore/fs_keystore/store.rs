@@ -365,7 +365,7 @@ impl Read for &Shared {
 /// Reads exactly `buf.len()` bytes from `fd` into `buf.
 fn read_exact(fd: BorrowedFd<'_>, mut buf: &mut [u8]) -> Result<(), Error> {
     while !buf.is_empty() {
-        match io::read(fd, buf) {
+        match io::read(fd, &mut *buf) {
             Ok(0) => break,
             Ok(n) => buf = &mut buf[n..],
             Err(Errno::INTR) => {}
