@@ -26,6 +26,9 @@ pub enum ValueConversionError {
     /// A struct conversion found a field mismatch between types
     #[error("invalid struct member `{0}`")]
     InvalidStructMember(String),
+    /// An enum conversion found an invalid variant
+    #[error("invalid enum variant `{0}`")]
+    InvalidEnumVariant(String),
     /// The target type does not have sufficient range to represent this Value
     #[error("value out of range")]
     OutOfRange,
@@ -826,3 +829,41 @@ impl Display for Struct {
         write!(f, "}}")
     }
 }
+
+/// An enum value
+pub struct Enum {
+    /// The name of the enum
+    pub name: String,
+    /// The variants of the enum
+    pub variants: Vec<String>,
+}
+
+impl Enum {
+    /// Creates an enum.
+    pub fn new(name: &str, variants: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        Enum {
+            name: name.to_owned(),
+            variants: variants.into_iter().map(|p| p.into()).collect(),
+        }
+    }
+}
+
+// impl From<Enum> for (String, Vec<String>) {
+//     fn from(value: Enum) -> Self {
+//         (
+//             value.name,
+//             value
+//                 .fields
+//                 .into_iter()
+//                 .map(|(k, v)| KVPair(k, v))
+//                 .collect(),
+//         )
+//     }
+// }
+
+// impl Display for Enum {
+//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+//         write!(f, "{}", self.name)?;
+//         // TODO implement and add tests
+//     }
+// }

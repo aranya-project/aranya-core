@@ -168,16 +168,62 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let enums = enums.iter().map(|d| {
         let name = format_ident!("{}", d.identifier);
         let name_str = d.identifier.to_string();
-        let variants = d.variants.iter().map(|v| {
-            let name = format_ident!("{}", v);
-            // quote!(#name)
-            name
-        });
+        let variants = d
+            .variants
+            .iter()
+            .map(|v| format_ident!("{}", v))
+            .collect::<Vec<_>>();
         quote! {
             #[must_use]
             #[derive(Clone, Debug, Eq, PartialEq)]
             pub enum #name {
                 #(#variants),*
+            }
+            #[automatically_derived]
+            impl ::core::convert::From<#name> for #vm::Value {
+                fn from(__value: #name) -> Self {
+                    let __enum = #vm::Enum::new(
+                        ::core::stringify!(#name),
+                        &[]); // TODO something like #(#variants.into()),*
+                    __enum.into()
+                }
+            }
+            #[automatically_derived]
+            impl ::core::convert::TryFrom<#vm::Value> for #name {
+                type Error = #vm::ValueConversionError;
+
+                fn try_from(mut __value: #vm::Value) -> ::core::result::Result<Self, Self::Error> {
+                    let #vm::Value::Enum(__enum) = &mut __value else {
+                        return ::core::result::Result::Err(
+                            #vm::ValueConversionError::invalid_type(
+                                ::core::concat!("Enum ", #name_str),
+                                __value.type_name(),
+                                "TryFrom"
+                            ));
+                    };
+                    if __enum.name != ::core::stringify!(#name) {
+                        return ::core::result::Result::Err(
+                            #vm::ValueConversionError::invalid_type(
+                                ::core::concat!("Enum ", #name_str),
+                                __value.type_name(),
+                                "name doesn't match"
+                            ));
+                    }
+                    #(
+                        let #variants = __enum.variants.remove(::core::stringify!(#variants))
+                            .ok_or(#vm::ValueConversionError::InvalidEnumMember(
+                                    #alloc::string::String::from(::core::stringify!(#variants)),
+                            ))?;
+                    )*
+                    if !__enum.variants.is_empty() {
+                        return ::core::result::Result::Err(#vm::ValueConversionError::BadState);
+                    }
+                    ::core::result::Result::Ok(#name {
+                        #(
+                            #variants: #vm::TryFromValue::try_from_value(#variants)?
+                        ),*
+                    })
+                }
             }
             #[automatically_derived]
             impl #vm::Typed for #name {

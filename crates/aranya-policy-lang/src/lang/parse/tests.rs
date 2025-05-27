@@ -1291,7 +1291,7 @@ fn parse_ffi_decl() {
 }
 
 #[test]
-fn parse_ffi_structs() {
+fn parse_ffi_structs_enums() {
     let text = r#"
         struct A {
             x int,
@@ -1299,9 +1299,11 @@ fn parse_ffi_structs() {
         }
 
         struct B {}
+
+        enum Color { Red, White, Blue }
     "#
     .trim();
-    let (structs, _) = super::parse_ffi_structs(text).expect("parse");
+    let (structs, enums) = super::parse_ffi_structs_enums(text).expect("parse");
     assert_eq!(
         structs,
         vec![
@@ -1327,19 +1329,25 @@ fn parse_ffi_structs() {
                     fields: vec![],
                 },
                 locator: 68,
-            },
+            }
         ],
-    )
+    );
+
+    assert_eq!(
+        enums,
+        vec![AstNode {
+            inner: ast::EnumDefinition {
+                identifier: String::from("Color"),
+                variants: vec![
+                    String::from("Red"),
+                    String::from("White"),
+                    String::from("Blue")
+                ]
+            },
+            locator: 89
+        }]
+    );
 }
-
-// #[test]
-// fn parse_ffi_enums() {
-//     let text = r#"enum Test { A, B }"#;
-//     let enums = super::parse_ffi_enums(text).expect("parse");
-//     assert_eq!(enums, vec![AstNode {
-
-//     }]);
-// }
 
 #[test]
 fn parse_seal_open() {
