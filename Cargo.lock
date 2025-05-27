@@ -301,6 +301,7 @@ dependencies = [
  "cfg-if",
  "const_format",
  "criterion",
+ "errno",
  "heapless 0.7.17",
  "hex",
  "libc",
@@ -327,10 +328,10 @@ name = "aranya-libc"
 version = "0.2.0"
 dependencies = [
  "cfg-if",
+ "errno",
  "libc",
  "memchr",
  "thiserror 2.0.7",
- "tracing",
 ]
 
 [[package]]
