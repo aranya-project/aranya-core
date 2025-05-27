@@ -44,6 +44,10 @@ pub enum MachineErrorType {
     /// present in a struct. Parameter is the key name.
     #[error("invalid struct member `{0}`")]
     InvalidStructMember(String),
+    /// Invalid enum member - An attempt to access an enum variant
+    /// that is not present in the enum. Parameter is the variant name.
+    #[error("invalid enum member `{0}`")]
+    InvalidEnumVariant(String),
     /// Invalid fact - An attempt was made to use a fact in a way
     /// that does not match the Fact schema.
     #[error("invalid fact: {0}")]
@@ -125,6 +129,7 @@ impl From<ValueConversionError> for MachineErrorType {
             ValueConversionError::InvalidStructMember(s) => {
                 MachineErrorType::InvalidStructMember(s)
             }
+            ValueConversionError::InvalidEnumVariant(v) => MachineErrorType::InvalidStructMember(v),
             ValueConversionError::OutOfRange => MachineErrorType::InvalidType {
                 want: "Int".to_owned(),
                 got: "Int".to_owned(),
