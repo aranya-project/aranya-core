@@ -752,7 +752,7 @@ fn sync<SP: StorageProvider, A: DeserializeOwned + Serialize>(
         return Ok((sent, received));
     }
 
-    if let Some(cmds) = request_syncer.receive(&target[..len])? {
+    if let Some(cmds) = request_syncer.receive(&target[..len], request_state.provider(), request_cache)? {
         received = request_state.add_commands(&mut request_trx, sink, &cmds)?;
         request_state.commit(&mut request_trx, sink)?;
         let addresses: Vec<_> = cmds.iter().filter_map(|cmd| cmd.address().ok()).collect();

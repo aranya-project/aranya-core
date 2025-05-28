@@ -197,7 +197,10 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
 
         match self.get_sync_commands(message, remaining) {
             Ok(Some(cmds)) => {
-                let storage = provider.get_storage(self.storage_id)?;
+                let storage = match provider.get_storage(self.storage_id) {
+                    Err(StorageError::NoSuchStorage) => return Ok(Some(cmds)), // storage doesn't exist; punt
+                    x => x,
+                }?;
                 for addr in cmds.iter().filter_map(|cmd| cmd.address().ok()) {
                     if let Some(cmd_loc) = storage.get_location(addr)? {
                         peer_cache.add_command(storage, addr, cmd_loc)?;
@@ -221,7 +224,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
 
         let result = match message {
             SyncResponseMessage::SyncResponse {
-                index, commands, ..
+                response_index: index, commands, ..
             } => {
                 if !matches!(
                     self.state,

@@ -557,7 +557,10 @@ fn test_sync<E, P, S>(
         )
         .expect("dispatch sync response");
 
-        if let Some(cmds) = sync_requester.receive(&target[..len]).expect("recieve req") {
+        if let Some(cmds) = sync_requester
+            .receive(&target[..len], cs1.provider(), &mut PeerCache::new())
+            .expect("recieve req")
+        {
             cs2.add_commands(&mut req_transaction, sink, &cmds)
                 .expect("add commands");
         };

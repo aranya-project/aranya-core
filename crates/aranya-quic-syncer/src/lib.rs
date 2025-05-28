@@ -228,7 +228,7 @@ where
         }
         // An empty response means we're up to date and there's nothing to sync.
         if !received_data.is_empty() {
-            if let Some(cmds) = syncer.receive(&received_data)? {
+            if let Some(cmds) = syncer.receive(&received_data, client.provider(), heads)? {
                 received = cmds.len();
                 let mut trx = client.transaction(storage_id);
                 client.add_commands(&mut trx, sink, &cmds)?;
