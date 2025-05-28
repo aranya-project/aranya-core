@@ -142,7 +142,8 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Meta(Meta::Let(identifier.clone())));
         self.append_instruction(Instruction::Def(identifier.clone()));
         self.identifier_types
-            .add(identifier, Typeish::Type(vtype))?;
+            .add(identifier, Typeish::Type(vtype))
+            .map_err(|e| self.err(e))?;
         Ok(())
     }
 
@@ -346,9 +347,9 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         match target.clone() {
             Target::Unresolved(s) => {
-                let addr = labels
-                    .get(&s)
-                    .ok_or_else(|| CompileErrorType::BadTarget(s.name.clone()))?;
+                let addr = labels.get(&s).ok_or_else(|| {
+                    CompileError::new(CompileErrorType::BadTarget(s.name.clone()))
+                })?;
 
                 *target = Target::Resolved(*addr);
                 Ok(())
@@ -362,7 +363,7 @@ impl<'a> CompileState<'a> {
         for ref mut instr in &mut self.m.progmem {
             match instr {
                 Instruction::Branch(t) | Instruction::Jump(t) | Instruction::Call(t) => {
-                    Self::resolve_target(t, &mut self.m.labels)?
+                    Self::resolve_target(t, &mut self.m.labels)?;
                 }
                 _ => (),
             }
@@ -1133,7 +1134,9 @@ impl<'a> CompileState<'a> {
                     | StatementContext::CommandRecall(_),
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
-                    self.identifier_types.add(&s.identifier, et)?;
+                    self.identifier_types
+                        .add(&s.identifier, et)
+                        .map_err(|e| self.err(e))?;
                     self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.clone())));
                     self.append_instruction(Instruction::Def(s.identifier.clone()));
                 }
@@ -1259,10 +1262,12 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::QueryStart);
                     // Define Struct variable for the `as` clause
                     self.identifier_types.enter_block();
-                    self.identifier_types.add(
-                        map_stmt.identifier.clone(),
-                        Typeish::Type(VType::Struct(map_stmt.fact.identifier.clone())),
-                    )?;
+                    self.identifier_types
+                        .add(
+                            map_stmt.identifier.clone(),
+                            Typeish::Type(VType::Struct(map_stmt.fact.identifier.clone())),
+                        )
+                        .map_err(|e| self.err(e))?;
                     // Consume results...
                     let top_label = self.anonymous_label();
                     let end_label = self.anonymous_label();
@@ -1668,7 +1673,8 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(identifier, Typeish::Type(vt))?;
+            .add_global(identifier, Typeish::Type(vt))
+            .map_err(|e| self.err(e))?;
 
         Ok(())
     }
@@ -1717,14 +1723,18 @@ impl<'a> CompileState<'a> {
         )?;
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.identifier_types.enter_function();
-        self.identifier_types.add(
-            "this",
-            Typeish::Type(VType::Struct(command.identifier.clone())),
-        )?;
-        self.identifier_types.add(
-            "envelope",
-            Typeish::Type(VType::Struct("Envelope".to_string())),
-        )?;
+        self.identifier_types
+            .add(
+                "this",
+                Typeish::Type(VType::Struct(command.identifier.clone())),
+            )
+            .map_err(|e| self.err(e))?;
+        self.identifier_types
+            .add(
+                "envelope",
+                Typeish::Type(VType::Struct("Envelope".to_string())),
+            )
+            .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def("envelope".into()));
         self.compile_statements(&command.policy, Scope::Same)?;
         self.identifier_types.exit_function();
@@ -1743,14 +1753,18 @@ impl<'a> CompileState<'a> {
         )?;
         self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
         self.identifier_types.enter_function();
-        self.identifier_types.add(
-            "this",
-            Typeish::Type(VType::Struct(command.identifier.clone())),
-        )?;
-        self.identifier_types.add(
-            "envelope",
-            Typeish::Type(VType::Struct("Envelope".to_string())),
-        )?;
+        self.identifier_types
+            .add(
+                "this",
+                Typeish::Type(VType::Struct(command.identifier.clone())),
+            )
+            .map_err(|e| self.err(e))?;
+        self.identifier_types
+            .add(
+                "envelope",
+                Typeish::Type(VType::Struct("Envelope".to_string())),
+            )
+            .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def("envelope".into()));
         self.compile_statements(&command.recall, Scope::Same)?;
         self.identifier_types.exit_function();
@@ -1792,10 +1806,12 @@ impl<'a> CompileState<'a> {
         self.define_label(actual_seal, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction(seal_function_definition));
         self.identifier_types.enter_function();
-        self.identifier_types.add(
-            "this",
-            Typeish::Type(VType::Struct(command.identifier.clone())),
-        )?;
+        self.identifier_types
+            .add(
+                "this",
+                Typeish::Type(VType::Struct(command.identifier.clone())),
+            )
+            .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def("this".into()));
         let from = self.wp;
         self.compile_statements(&command.seal, Scope::Same)?;
@@ -1840,10 +1856,12 @@ impl<'a> CompileState<'a> {
         self.define_label(actual_open, self.wp)?;
         self.enter_statement_context(StatementContext::PureFunction(open_function_definition));
         self.identifier_types.enter_function();
-        self.identifier_types.add(
-            "envelope",
-            Typeish::Type(VType::Struct("Envelope".to_string())),
-        )?;
+        self.identifier_types
+            .add(
+                "envelope",
+                Typeish::Type(VType::Struct("Envelope".to_string())),
+            )
+            .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def("envelope".into()));
         let from = self.wp;
         self.compile_statements(&command.open, Scope::Same)?;
