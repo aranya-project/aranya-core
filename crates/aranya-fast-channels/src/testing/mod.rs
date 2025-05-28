@@ -4,6 +4,7 @@
 //! If you implement any traits in this crate it is **very
 //! highly** recommended that you use these tests.
 
+#![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::expect_used)]
 #![allow(clippy::indexing_slicing)]
 #![allow(clippy::missing_panics_doc)]
@@ -15,7 +16,7 @@
 
 pub mod util;
 
-use std::{collections::HashMap, str};
+use std::collections::HashMap;
 
 use aranya_crypto::{
     aead::IndCca2,
