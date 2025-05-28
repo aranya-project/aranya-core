@@ -60,7 +60,7 @@ impl Csprng for HsmEngine {
 
 impl CipherSuite for HsmEngine {
     type Aead = rust::Aes256Gcm;
-    type Hash = rust::Sha512;
+    type Hash = rust::Sha256;
     type Kdf = rust::HkdfSha512;
     type Kem = rust::DhKemP256HkdfSha256;
     type Mac = rust::HmacSha512;
