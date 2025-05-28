@@ -33,7 +33,7 @@ pub(crate) struct Parser<'a> {
     pub repr: Option<&'a mut Option<Repr>>,
     /// `#[derive(...)]`
     pub derives: Option<&'a mut Derives>,
-    /// `#[no_mangle]`
+    /// `#[unsafe(no_mangle)]`
     pub no_mangle: Option<&'a mut Option<NoMangle>>,
     /// `#[capi::builds(...)]`
     pub capi_builds: Option<&'a mut Option<Builds>>,
@@ -134,11 +134,22 @@ pub(crate) fn parse(ctx: &Ctx, attrs: Vec<Attribute>, mut parser: Parser<'_>) ->
             }
         }
 
-        // `#[no_mangle]`
-        if path.is_ident("no_mangle") {
-            if let Some(v) = &mut parser.no_mangle {
-                **v = Some(NoMangle(attr.span()));
-                continue;
+        // `#[unsafe(...)]`
+        if path.is_ident("unsafe") {
+            let attr = match attr.parse_args::<Ident>() {
+                Ok(attr) => attr,
+                Err(err) => {
+                    ctx.push(err);
+                    break;
+                }
+            };
+
+            // `#[unsafe(no_mangle)]`
+            if attr == "no_mangle" {
+                if let Some(v) = &mut parser.no_mangle {
+                    **v = Some(NoMangle(attr.span()));
+                    continue;
+                }
             }
         }
 
