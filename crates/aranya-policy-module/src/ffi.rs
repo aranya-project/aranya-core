@@ -117,7 +117,7 @@ pub struct Struct<'a> {
     pub fields: &'a [Arg<'a>],
 }
 
-/// Enumeration
+/// Enumeration definition
 pub struct Enum<'a> {
     /// name of enumeration
     pub name: &'a str,

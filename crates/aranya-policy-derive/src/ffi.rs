@@ -184,7 +184,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 fn from(__value: #name) -> Self {
                     let __enum = #vm::Enum::new(
                         ::core::stringify!(#name),
-                        &[]); // TODO something like #(#variants.into()),*
+                        i64::from(0)); // TODO how to get the value?
                     __enum.into()
                 }
             }

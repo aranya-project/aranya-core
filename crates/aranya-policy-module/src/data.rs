@@ -834,20 +834,21 @@ impl Display for Struct {
 pub struct Enum {
     /// The name of the enum
     pub name: String,
-    /// The variants of the enum
-    pub variants: Vec<String>,
+    /// The value of the enum variant
+    pub value: i64,
 }
 
 impl Enum {
     /// Creates an enum.
-    pub fn new(name: &str, variants: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn new(name: &str, value: i64) -> Self {
         Enum {
             name: name.to_owned(),
-            variants: variants.into_iter().map(|p| p.into()).collect(),
+            value,
         }
     }
 }
 
+// TODO
 // impl From<Enum> for (String, Vec<String>) {
 //     fn from(value: Enum) -> Self {
 //         (
@@ -861,9 +862,8 @@ impl Enum {
 //     }
 // }
 
-// impl Display for Enum {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(f, "{}", self.name)?;
-//         // TODO implement and add tests
-//     }
-// }
+impl Display for Enum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}::{}", self.name, self.value)
+    }
+}
