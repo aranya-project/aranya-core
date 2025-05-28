@@ -5,7 +5,7 @@ use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{
     parse::{Parse, ParseStream, Result},
     spanned::Spanned,
-    AttrStyle, Attribute, Expr, Ident, Lit, LitStr, Meta, Path,
+    AttrStyle, Attribute, Expr, Ident, Lit, LitStr, Meta,
 };
 use tracing::{debug, instrument};
 
@@ -435,7 +435,7 @@ macro_rules! simple_outer_attr {
         impl ToTokens for $name {
             fn to_tokens(&self, tokens: &mut TokenStream) {
                 // TODO(eric): Avoid calling unwrawp.
-                let path = syn::parse_str::<Path>($value).unwrap();
+                let path = syn::parse_str::<Meta>($value).unwrap();
                 tokens.extend(quote_spanned! {self.0=>
                     #[#path]
                 })
@@ -447,4 +447,4 @@ simple_outer_attr!(Error, "capi::error");
 simple_outer_attr!(ExtError, "capi::ext_error");
 simple_outer_attr!(Generated, "capi::generated");
 simple_outer_attr!(NoExtError, "capi::no_ext_error");
-simple_outer_attr!(NoMangle, "no_mangle");
+simple_outer_attr!(NoMangle, "unsafe(no_mangle)");
