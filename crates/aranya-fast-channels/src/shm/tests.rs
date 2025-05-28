@@ -1,8 +1,6 @@
 #![cfg(test)]
 #![allow(clippy::indexing_slicing, clippy::missing_panics_doc, clippy::panic)]
 
-use std::{str, vec::Vec};
-
 use aranya_crypto::{
     afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
     hash::Hash,
