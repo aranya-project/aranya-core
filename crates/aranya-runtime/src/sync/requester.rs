@@ -106,7 +106,7 @@ pub struct SyncRequester<'a, A> {
     storage_id: GraphId,
     state: SyncRequesterState,
     max_bytes: u64,
-    next_index: u64,
+    next_message_index: u64,
     #[allow(unused)] // TODO(jdygert): Figure out what this is for...
     ooo_buffer: [Option<&'a [u8]>; OOO_LEN], // REMOVE
     server_address: A,
@@ -125,7 +125,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             storage_id,
             state: SyncRequesterState::New,
             max_bytes: 0,
-            next_index: 0,
+            next_message_index: 0,
             ooo_buffer: core::array::from_fn(|_| None),
             server_address,
         }
@@ -138,7 +138,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             storage_id,
             state: SyncRequesterState::Waiting,
             max_bytes: 0,
-            next_index: 0,
+            next_message_index: 0,
             ooo_buffer: core::array::from_fn(|_| None),
             server_address,
         }
@@ -224,7 +224,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
 
         let result = match message {
             SyncResponseMessage::SyncResponse {
-                response_index: index, commands, ..
+                response_index, commands, ..
             } => {
                 if !matches!(
                     self.state,
@@ -233,14 +233,14 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                     return Err(SyncError::SessionState);
                 }
 
-                if index != self.next_index {
+                if response_index != self.next_message_index {
                     self.state = SyncRequesterState::Resync;
                     return Err(SyncError::MissingSyncResponse);
                 }
-                self.next_index = self
-                    .next_index
-                    .checked_add(commands.len() as u64)
-                    .assume("next_index + 1 mustn't overflow")?;
+                self.next_message_index = self
+                    .next_message_index
+                    .checked_add(1)
+                    .assume("next_message_index + 1 mustn't overflow")?;
                 self.state = SyncRequesterState::Waiting;
 
                 let mut result = Vec::new();
@@ -293,7 +293,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
                     return Err(SyncError::SessionState);
                 }
 
-                if max_index != self.next_index {
+                if max_index != self.next_message_index {
                     self.state = SyncRequesterState::Resync;
                     return Err(SyncError::MissingSyncResponse);
                 }
@@ -353,7 +353,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             request: SyncRequestMessage::SyncResume {
                 session_id: self.session_id,
                 response_index: self
-                    .next_index
+                    .next_message_index
                     .checked_sub(1)
                     .assume("next_index must be positive")?,
                 max_bytes,

@@ -84,7 +84,7 @@ pub enum SyncResponseMessage {
         /// greater than the responder's configured maximum, the responder
         /// will send more than one `SyncResponse`. The first message has an
         /// index of 1, and each following is incremented.
-        index: u64,
+        response_index: u64,
         /// Commands that the responder believes the requester does not have.
         commands: Vec<CommandMeta, COMMAND_RESPONSE_MAX>,
     },
@@ -153,6 +153,7 @@ pub struct SyncResponder<A> {
     state: SyncResponderState,
     bytes_sent: u64,
     next_send: usize,
+    message_index: usize,
     has: Vec<Address, COMMAND_SAMPLE_MAX>,
     to_send: Vec<Location, SEGMENT_BUFFER_MAX>,
     server_address: A,
@@ -167,6 +168,7 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             state: SyncResponderState::New,
             bytes_sent: 0,
             next_send: 0,
+            message_index: 0,
             has: Vec::new(),
             to_send: Vec::new(),
             server_address,
@@ -359,22 +361,25 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             self.state = SyncResponderState::Idle;
             let message = SyncResponseMessage::SyncEnd {
                 session_id: self.session_id()?,
-                max_index: self.next_send as u64,
+                max_index: self.message_index as u64,
                 remaining: false,
             };
             let length = Self::write(target, message)?;
             return Ok(length);
         }
 
-        let (commands, command_data, index) = self.get_commands(provider)?;
+        let (commands, command_data, next_send) = self.get_commands(provider)?;
 
         let message = SyncResponseMessage::SyncResponse {
             session_id: self.session_id()?,
-            index: self.next_send as u64,
+            response_index: self.message_index as u64,
             commands,
         };
-
-        self.next_send = index;
+        self.message_index = self
+            .message_index
+            .checked_add(1)
+            .assume("message_index overflow")?;
+        self.next_send = next_send;
 
         let length = Self::write(target, message)?;
         let total_length = length
@@ -408,19 +413,23 @@ impl<A: Serialize + Clone> SyncResponder<A> {
             }
         };
         self.to_send = SyncResponder::<A>::find_needed_segments(&self.has, storage)?;
-        let (commands, command_data, index) = self.get_commands(provider)?;
+        let (commands, command_data, next_send) = self.get_commands(provider)?;
         let mut length = 0;
         if !commands.is_empty() {
             let message = SyncType::Push {
                 message: SyncResponseMessage::SyncResponse {
                     session_id: self.session_id()?,
-                    index: self.next_send as u64,
+                    response_index: self.message_index as u64,
                     commands,
                 },
                 storage_id: self.storage_id.assume("storage id must exist")?,
                 address: self.server_address.clone(),
             };
-            self.next_send = index;
+            self.message_index = self
+                .message_index
+                .checked_add(1)
+                .assume("message_index increment overflow")?;
+            self.next_send = next_send;
 
             length = Self::write_sync_type(target, message)?;
             let total_length = length
