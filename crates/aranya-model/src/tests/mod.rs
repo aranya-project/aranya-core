@@ -18,7 +18,7 @@ use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
     ffi::{FfiModule, ModuleSchema},
-    Machine, Value,
+    text, Machine, Value,
 };
 use aranya_runtime::{
     memory::MemStorageProvider,
@@ -915,7 +915,7 @@ fn should_send_and_receive_session_data() {
             Device::A,
             Graph::X,
             [
-                vm_action!(create_greeting("hello")),
+                vm_action!(create_greeting(text!("hello"))),
                 vm_action!(verify_hello()),
             ],
         )
@@ -932,7 +932,9 @@ fn should_send_and_receive_session_data() {
     // Observe that our create_greeting action and our verification action
     // both succeeded.
     let expected = [
-        vm_effect!(Greeting { msg: "hello" }),
+        vm_effect!(Greeting {
+            msg: text!("hello")
+        }),
         vm_effect!(Success { value: true }),
     ];
     assert_eq!(effects, expected);
@@ -1020,7 +1022,7 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
             Device::A,
             Graph::X,
             [
-                vm_action!(create_greeting("hello")),
+                vm_action!(create_greeting(text!("hello"))),
                 vm_action!(verify_hello()),
             ],
         )
@@ -1037,7 +1039,9 @@ fn should_send_and_receive_session_data_with_ffi_clients() {
     // Observe that our create_greeting action and our verification action
     // both succeeded.
     let expected = [
-        vm_effect!(Greeting { msg: "hello" }),
+        vm_effect!(Greeting {
+            msg: text!("hello")
+        }),
         vm_effect!(Success { value: true }),
     ];
     assert_eq!(effects, expected);
@@ -1136,7 +1140,11 @@ fn should_store_session_data_to_graph() {
     // `sessions_actions` is the portion of the session api responsible for
     // creating session commands.
     let (commands, _effects) = test_model
-        .session_actions(Device::A, Graph::X, [vm_action!(create_greeting("hello"))])
+        .session_actions(
+            Device::A,
+            Graph::X,
+            [vm_action!(create_greeting(text!("hello")))],
+        )
         .expect("Should return effect");
 
     // We want to test that we can take the serialized byte command from the
@@ -1156,7 +1164,7 @@ fn should_store_session_data_to_graph() {
         .action(
             Device::A,
             Graph::X,
-            vm_action!(store_session_data("say_hello", session_cmd)),
+            vm_action!(store_session_data(text!("say_hello"), session_cmd)),
         )
         .expect("Should return effect");
 
@@ -1391,7 +1399,7 @@ fn should_create_clients_with_args() {
             Device::A,
             Graph::X,
             [
-                vm_action!(create_greeting("hello")),
+                vm_action!(create_greeting(text!("hello"))),
                 vm_action!(verify_hello()),
             ],
         )
@@ -1408,7 +1416,9 @@ fn should_create_clients_with_args() {
     // Observe that our create_greeting action and our verification action
     // both succeeded.
     let expected = [
-        vm_effect!(Greeting { msg: "hello" }),
+        vm_effect!(Greeting {
+            msg: text!("hello")
+        }),
         vm_effect!(Success { value: true }),
     ];
     assert_eq!(effects, expected);

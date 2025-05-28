@@ -6,7 +6,7 @@ use aranya_crypto::{
     DeviceId, Id,
 };
 use aranya_policy_vm::{
-    ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext,
+    ident, ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext,
 };
 
 use crate::FfiPerspective;
@@ -19,7 +19,7 @@ fn test_head_id() {
 
     {
         let context = CommandContext::Action(ActionContext {
-            name: "action",
+            name: ident!("action"),
             head_id,
         });
         assert_eq!(perspective.head_id(&context, &mut eng).unwrap(), head_id);
@@ -27,14 +27,16 @@ fn test_head_id() {
 
     {
         let context = CommandContext::Seal(SealContext {
-            name: "seal",
+            name: ident!("seal"),
             head_id,
         });
         assert_eq!(perspective.head_id(&context, &mut eng).unwrap(), head_id);
     }
 
     {
-        let context = CommandContext::Open(OpenContext { name: "open" });
+        let context = CommandContext::Open(OpenContext {
+            name: ident!("open"),
+        });
         assert_eq!(
             perspective
                 .head_id(&context, &mut eng)
@@ -48,7 +50,7 @@ fn test_head_id() {
 
     {
         let context = CommandContext::Policy(PolicyContext {
-            name: "policy",
+            name: ident!("policy"),
             id: Id::default(),
             author: DeviceId::default(),
             version: Id::default(),
@@ -66,7 +68,7 @@ fn test_head_id() {
 
     {
         let context = CommandContext::Recall(PolicyContext {
-            name: "recall",
+            name: ident!("recall"),
             id: Id::default(),
             author: DeviceId::default(),
             version: Id::default(),

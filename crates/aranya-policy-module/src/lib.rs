@@ -14,6 +14,7 @@ mod instructions;
 mod label;
 mod module;
 
+pub use aranya_policy_ast as ast;
 pub use codemap::*;
 pub use data::*;
 pub use instructions::*;

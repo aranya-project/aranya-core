@@ -5,7 +5,16 @@
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
 #![warn(missing_docs)]
 
+extern crate alloc;
+
 mod ast;
 mod util;
 
 pub use ast::*;
+pub use text::*;
+mod text;
+
+#[doc(hidden)]
+pub mod __hidden {
+    pub use aranya_text_macro::{validate_identifier, validate_text};
+}

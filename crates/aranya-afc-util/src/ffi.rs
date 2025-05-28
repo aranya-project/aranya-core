@@ -79,7 +79,7 @@ function create_bidi_channel(
 "#)]
     pub(crate) fn create_bidi_channel<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         eng: &mut E,
         parent_cmd_id: Id,
         our_enc_key_id: EncryptionKeyId,
@@ -136,7 +136,7 @@ function create_uni_channel(
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         eng: &mut E,
         parent_cmd_id: Id,
         author_enc_key_id: EncryptionKeyId,

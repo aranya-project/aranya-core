@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use core::iter;
 
 use aranya_crypto::{default::DefaultEngine, Csprng, DeviceId, Id, Random, Rng};
-use aranya_policy_vm::{CommandContext, OpenContext, PolicyContext, SealContext};
+use aranya_policy_vm::{ident, CommandContext, OpenContext, PolicyContext, SealContext};
 
 use crate::{Envelope, Ffi};
 
@@ -43,22 +43,24 @@ impl Random for Envelope {
     }
 }
 
-const SEAL_CTX: &CommandContext<'static> = &CommandContext::Seal(SealContext {
-    name: "dummy",
+const SEAL_CTX: &CommandContext = &CommandContext::Seal(SealContext {
+    name: ident!("dummy"),
     head_id: Id::default(),
 });
 
-const OPEN_CTX: &CommandContext<'static> = &CommandContext::Open(OpenContext { name: "dummy" });
+const OPEN_CTX: &CommandContext = &CommandContext::Open(OpenContext {
+    name: ident!("dummy"),
+});
 
-const POLICY_CTX: &CommandContext<'static> = &CommandContext::Policy(PolicyContext {
-    name: "dummy",
+const POLICY_CTX: &CommandContext = &CommandContext::Policy(PolicyContext {
+    name: ident!("dummy"),
     id: Id::default(),
     author: DeviceId::default(),
     version: Id::default(),
 });
 
-const RECALL_CTX: &CommandContext<'static> = &CommandContext::Recall(PolicyContext {
-    name: "dummy",
+const RECALL_CTX: &CommandContext = &CommandContext::Recall(PolicyContext {
+    name: ident!("dummy"),
     id: Id::default(),
     author: DeviceId::default(),
     version: Id::default(),

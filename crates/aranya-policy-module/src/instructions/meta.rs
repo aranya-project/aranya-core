@@ -1,21 +1,19 @@
-extern crate alloc;
-
-use alloc::string::String;
 use core::fmt;
 
+use aranya_policy_ast::Identifier;
 use serde::{Deserialize, Serialize};
 
 /// Compiler Tracer metadata
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Meta {
     /// A variable has been defined
-    Let(String),
+    Let(Identifier),
     /// A varible has been retrieved
-    Get(String),
+    Get(Identifier),
     /// Set finish state
     Finish(bool),
     /// Mark an FFI call (module name, procedure name)
-    FFI(String, String),
+    FFI(Identifier, Identifier),
 }
 
 impl fmt::Display for Meta {
