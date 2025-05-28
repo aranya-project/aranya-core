@@ -6,8 +6,8 @@ use core::{
 };
 
 use aranya_crypto::{
-    afc::{OpenKey, SealKey},
     CipherSuite,
+    afc::{OpenKey, SealKey},
 };
 use buggy::BugExt;
 

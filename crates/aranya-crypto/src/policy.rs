@@ -1,11 +1,11 @@
 use core::borrow::Borrow;
 
 use crate::{
+    CipherSuite,
     aranya::{Signature, SigningKeyId},
     ciphersuite::SuiteIds,
-    hash::{tuple_hash, Digest, Hash},
-    id::{custom_id, Id},
-    CipherSuite,
+    hash::{Digest, Hash, tuple_hash},
+    id::{Id, custom_id},
 };
 
 custom_id! {

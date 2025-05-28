@@ -6,10 +6,9 @@ pub use hpke::MessageLimitReached;
 
 use super::shared::{RawOpenKey, RawSealKey};
 use crate::{
-    aead,
+    CipherSuite, aead,
     hpke::{self, HpkeError, OpenCtx, SealCtx},
     import::ImportError,
-    CipherSuite,
 };
 
 /// Identifies the position of a ciphertext in a channel.

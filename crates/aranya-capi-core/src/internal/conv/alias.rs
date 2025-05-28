@@ -2,7 +2,7 @@
 
 use core::{
     marker::PhantomData,
-    mem::{self, needs_drop, ManuallyDrop, MaybeUninit},
+    mem::{self, ManuallyDrop, MaybeUninit, needs_drop},
 };
 
 /// A marker trait that signals that the type is bit-for-bit

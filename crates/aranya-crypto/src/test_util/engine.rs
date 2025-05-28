@@ -7,6 +7,7 @@ use core::ops::Add;
 
 use super::{assert_ct_eq, assert_ct_ne};
 use crate::{
+    CipherSuite,
     aead::{Aead, OpenError},
     afc,
     apq::{
@@ -22,7 +23,6 @@ use crate::{
     groupkey::{Context, EncryptedGroupKey, GroupKey},
     id::Id,
     typenum::{Sum, U64},
-    CipherSuite,
 };
 
 /// Invokes `callback` for each Engine test.

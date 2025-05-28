@@ -11,7 +11,7 @@ use core::{convert::Infallible, fmt::Debug, hash::Hash, result::Result};
 
 use buggy::Bug;
 use postcard::experimental::max_size::MaxSize;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
     aead::{Aead, AeadId, OpenError, SealError},

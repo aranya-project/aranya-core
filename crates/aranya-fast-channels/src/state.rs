@@ -4,9 +4,9 @@ use core::{
 };
 
 use aranya_crypto::{
+    CipherSuite,
     afc::{OpenKey, SealKey},
     subtle::ConstantTimeEq,
-    CipherSuite,
 };
 use byteorder::{ByteOrder, LittleEndian};
 use serde::{Deserialize, Serialize};
@@ -421,19 +421,19 @@ impl<S, O> Debug for Directed<S, O> {
 #[cfg(test)]
 mod test {
     use aranya_crypto::{
-        afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
         CipherSuite, Rng,
+        afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
     };
     use buggy::Bug;
 
     use crate::{
+        AfcState, AranyaState, ChannelId, Directed, NodeId,
         error::Error,
         memory,
         testing::{
             test_impl,
             util::{MockImpl, States, TestImpl},
         },
-        AfcState, AranyaState, ChannelId, Directed, NodeId,
     };
 
     test_impl!(mock, MockImpl);

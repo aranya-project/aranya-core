@@ -3,6 +3,7 @@ use core::marker::PhantomData;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    CipherSuite,
     csprng::{Csprng, Random},
     hpke::{RecvCtx, SendCtx},
     import::{ExportError, Import, ImportError},
@@ -13,7 +14,6 @@ use crate::{
     subtle::{Choice, ConstantTimeEq},
     typenum::U32,
     zeroize::{Zeroize, ZeroizeOnDrop},
-    CipherSuite,
 };
 
 /// The root key material for a channel.

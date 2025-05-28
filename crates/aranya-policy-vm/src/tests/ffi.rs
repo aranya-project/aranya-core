@@ -1,8 +1,8 @@
 use aranya_crypto::Engine;
 
 use crate::{
-    ffi::{self, FfiModule, ModuleSchema},
     CommandContext, MachineError, MachineErrorType, Stack, Value,
+    ffi::{self, FfiModule, ModuleSchema},
 };
 
 pub struct PrintFfi {}

@@ -1,8 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{
-    parse::{Parse, ParseStream},
     ItemConst, ItemEnum, ItemFn, ItemImpl, ItemStruct, ItemType, ItemUnion, ItemUse, Result,
+    parse::{Parse, ParseStream},
 };
 
 /// An item that can appear inside a C API.

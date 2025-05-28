@@ -1,3 +1,48 @@
+/// Derives an implementation of [`ErrorCode`][crate::ErrorCode].
+///
+/// # Usage
+///
+/// - Must be applied to a unit-only `enum`.
+/// - The `enum` must be `#[repr(u*)]` (e.g., `#[repr(u32)]`).
+/// - The `enum` must implement [`Copy`], [`Clone`],
+///   [`Debug`][core::fmt::Debug], [`Eq`], and [`PartialEq`].
+/// - The `enum` must implement
+///   [`From<&InvalidArg<'static>>`][crate::InvalidArg].
+/// - `#[capi(msg = "...")]` can be used to define static string
+///   messages for each variant.
+/// - One variant must be marked with `#[capi(success)]`.
+///
+/// # Example
+///
+/// ```rust
+/// use core::fmt::Debug;
+///
+/// use aranya_capi_core::{ErrorCode, InvalidArg};
+///
+/// #[derive(Copy, Clone, Debug, Eq, PartialEq, ErrorCode)]
+/// #[repr(u32)]
+/// enum Error {
+///     #[capi(msg = "success")]
+///     #[capi(success)]
+///     Success,
+///     #[capi(msg = "out of memory")]
+///     OutOfMemory,
+///     #[capi(msg = "does not exist")]
+///     DoesNotExist,
+///     #[capi(msg = "invalid argument")]
+///     InvalidArgument,
+/// }
+///
+/// impl From<&InvalidArg<'static>> for Error {
+///     fn from(_err: &InvalidArg<'static>) -> Self {
+///         Self::InvalidArgument
+///     }
+/// }
+///
+/// assert_eq!(Error::Success, Error::SUCCESS);
+/// assert_eq!(c"invalid argument", Error::InvalidArgument.to_cstr());
+/// ```
+pub use aranya_capi_macro::ErrorCode;
 /// Generates a "build" constructor for the named type.
 ///
 /// # Example
@@ -69,50 +114,5 @@ pub use aranya_capi_macro::derive;
 /// } Rust;
 /// ```
 pub use aranya_capi_macro::opaque;
-/// Derives an implementation of [`ErrorCode`][crate::ErrorCode].
-///
-/// # Usage
-///
-/// - Must be applied to a unit-only `enum`.
-/// - The `enum` must be `#[repr(u*)]` (e.g., `#[repr(u32)]`).
-/// - The `enum` must implement [`Copy`], [`Clone`],
-///   [`Debug`][core::fmt::Debug], [`Eq`], and [`PartialEq`].
-/// - The `enum` must implement
-///   [`From<&InvalidArg<'static>>`][crate::InvalidArg].
-/// - `#[capi(msg = "...")]` can be used to define static string
-///   messages for each variant.
-/// - One variant must be marked with `#[capi(success)]`.
-///
-/// # Example
-///
-/// ```rust
-/// use core::fmt::Debug;
-///
-/// use aranya_capi_core::{ErrorCode, InvalidArg};
-///
-/// #[derive(Copy, Clone, Debug, Eq, PartialEq, ErrorCode)]
-/// #[repr(u32)]
-/// enum Error {
-///     #[capi(msg = "success")]
-///     #[capi(success)]
-///     Success,
-///     #[capi(msg = "out of memory")]
-///     OutOfMemory,
-///     #[capi(msg = "does not exist")]
-///     DoesNotExist,
-///     #[capi(msg = "invalid argument")]
-///     InvalidArgument,
-/// }
-///
-/// impl From<&InvalidArg<'static>> for Error {
-///     fn from(_err: &InvalidArg<'static>) -> Self {
-///         Self::InvalidArgument
-///     }
-/// }
-///
-/// assert_eq!(Error::Success, Error::SUCCESS);
-/// assert_eq!(c"invalid argument", Error::InvalidArgument.to_cstr());
-/// ```
-pub use aranya_capi_macro::ErrorCode;
 #[doc(hidden)]
 pub use aranya_capi_macro::{generated, no_ext_error};

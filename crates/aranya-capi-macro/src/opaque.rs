@@ -1,7 +1,7 @@
 use aranya_capi_codegen::syntax::Opaque;
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{parse::Result, parse_quote, Attribute, Error, Item, Path};
+use syn::{Attribute, Error, Item, Path, parse::Result, parse_quote};
 use tracing::info;
 
 pub(super) fn opaque(attr: TokenStream, item: TokenStream) -> Result<TokenStream> {

@@ -1,4 +1,4 @@
-use aranya_policy_ifgen::{macros::*, ClientError, KVPair};
+use aranya_policy_ifgen::{ClientError, KVPair, macros::*};
 
 #[effects]
 pub enum EffectEnum {

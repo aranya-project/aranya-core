@@ -5,10 +5,10 @@ use tempfile::tempdir;
 
 use super::{RootDeleted, Store};
 use crate::{
+    KeyStore,
     default::DefaultCipherSuite,
     engine::WrappedKey,
     id::{Id, Identified},
-    KeyStore,
 };
 
 macro_rules! id {
@@ -100,10 +100,12 @@ fn test_remove() {
     assert_eq!(got, TestKey64(2));
 
     // But key=1 should not.
-    assert!(store
-        .get::<TestKey64>(id!(1))
-        .expect("`get` should not fail")
-        .is_none());
+    assert!(
+        store
+            .get::<TestKey64>(id!(1))
+            .expect("`get` should not fail")
+            .is_none()
+    );
 }
 
 #[test]
