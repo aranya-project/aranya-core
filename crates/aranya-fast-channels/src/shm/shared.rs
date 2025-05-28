@@ -802,7 +802,7 @@ impl<CS: CipherSuite> ChanList<CS> {
             magic: ChanList::<CS>::MAGIC,
             _pad0: [0u8; 4],
             data: Mutex::new(ChanListData {
-                gen: AtomicU32::new(0),
+                generation: AtomicU32::new(0),
                 _pad0: [0u8; 4],
                 len: U64::new(0),
                 cap: U64::new(max_chans as u64),
@@ -827,8 +827,8 @@ pub(super) struct ChanListData<CS> {
     ///
     /// Putting it as the first field significantly decreases the
     /// size of the struct.
-    pub gen: AtomicU32,
-    /// Padding for `gen`.
+    pub generation: AtomicU32,
+    /// Padding for `generation`.
     _pad0: [u8; 4],
     /// The current number of channels.
     pub len: U64,
@@ -865,7 +865,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// Truncates the list.
     pub fn clear(&mut self) {
         self.len = U64::new(0);
-        self.gen.fetch_add(1, Ordering::AcqRel);
+        self.generation.fetch_add(1, Ordering::AcqRel);
     }
 
     /// Returns a slice of the channels.
@@ -951,8 +951,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
             if !updated {
                 // As a precaution, update the generation before
                 // we actually delete anything.
-                let gen = self.gen.fetch_add(1, Ordering::AcqRel);
-                debug!("side gen={}", gen + 1);
+                let generation = self.generation.fetch_add(1, Ordering::AcqRel);
+                debug!("side generation={}", generation + 1);
 
                 updated = true;
             }
