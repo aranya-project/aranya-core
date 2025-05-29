@@ -268,7 +268,7 @@ impl<T: Typed> Safe<T> {
         unsafe { inner.assume_init() }
     }
 
-    pub fn as_ref(&self) -> &T {
+    fn as_ref(&self) -> &T {
         self.sanity_check();
 
         // SAFETY: The header is correct, so we have to assume
@@ -276,7 +276,7 @@ impl<T: Typed> Safe<T> {
         unsafe { self.inner.assume_init_ref() }
     }
 
-    pub fn as_mut(&mut self) -> &mut T {
+    fn as_mut(&mut self) -> &mut T {
         self.sanity_check();
 
         // SAFETY: The header is correct, so we have to assume
