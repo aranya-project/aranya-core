@@ -661,29 +661,8 @@ fn test_struct_field_insertion_errors() {
         ),
     ];
     for (text, err_type) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type();
-        assert_eq!(result, err_type);
-    }
-}
-
-#[test]
-fn test_struct_field_insertion_errors() {
-    let cases = [
-        (
-            "struct Foo { +Bar }",
-            CompileErrorType::NotDefined("Bar".to_string()),
-        ),
-        (
-            r#"struct Bar { a int }
-            struct Foo { +Bar, a string }"#,
-            CompileErrorType::AlreadyDefined("a".to_string()),
-        ),
-    ];
-    for (text, err_type) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
-        assert_eq!(result, err_type);
+        let err = compile_fail(text);
+        assert_eq!(err, err_type);
     }
 }
 
@@ -782,9 +761,8 @@ fn test_struct_field_insertion() {
     ];
 
     for (text, want) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().expect("should compile");
-        let ModuleData::V0(module) = result.data;
+        let module = compile_pass(text);
+        let ModuleData::V0(module) = module.data;
 
         let got = module.struct_defs.get("Foo").unwrap();
         assert_eq!(got, &want);

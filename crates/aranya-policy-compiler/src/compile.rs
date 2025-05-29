@@ -2184,10 +2184,6 @@ impl<'a> CompileState<'a> {
             self.m.effects.push(effect.inner.identifier.clone());
         }
 
-        for struct_def in &self.policy.structs {
-            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.items)?;
-        }
-
         // define the structs provided by FFI schema
         for ffi_mod in self.ffi_modules {
             for s in ffi_mod.structs {
