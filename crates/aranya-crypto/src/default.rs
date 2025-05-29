@@ -2,25 +2,29 @@
 
 use serde::{Deserialize, Serialize};
 pub use spideroak_crypto::default::Rng;
-use zerocopy::{Immutable, IntoBytes, KnownLayout};
-
-use crate::{
+use spideroak_crypto::{
     aead::{Aead, Nonce, Tag},
-    ciphersuite::CipherSuite,
     csprng::{Csprng, Random},
-    engine::{
-        self, AlgId, AlgIdRepr, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey,
-        WrapError, WrongKeyType,
-    },
+    ed25519,
     generic_array::GenericArray,
-    id::{Id, IdError, Identified},
     import::Import,
     kdf::{Kdf, Prk},
     kem::Kem,
     keys::{SecretKey, SecretKeyBytes},
     mac::Mac,
+    oid::Identified as _,
+    rust,
     signer::Signer,
     typenum::U64,
+};
+
+use crate::{
+    ciphersuite::{CipherSuite, CipherSuiteExt},
+    engine::{
+        self, AlgId, Engine, RawSecret, RawSecretWrap, UnwrapError, UnwrappedKey, WrapError,
+        WrongKeyType,
+    },
+    id::{Id, IdError, Identified},
 };
 
 /// The default [`CipherSuite`].
@@ -36,12 +40,12 @@ use crate::{
 pub struct DefaultCipherSuite;
 
 impl CipherSuite for DefaultCipherSuite {
-    type Aead = crate::rust::Aes256Gcm;
-    type Hash = crate::rust::Sha256;
-    type Kdf = crate::rust::HkdfSha512;
-    type Kem = crate::rust::DhKemP256HkdfSha256;
-    type Mac = crate::rust::HmacSha512;
-    type Signer = crate::ed25519::Ed25519;
+    type Aead = rust::Aes256Gcm;
+    type Hash = rust::Sha256;
+    type Kdf = rust::HkdfSha512;
+    type Kem = rust::DhKemP256HkdfSha256;
+    type Mac = rust::HmacSha512;
+    type Signer = ed25519::Ed25519;
 }
 
 /// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
@@ -74,7 +78,7 @@ impl<R: Csprng, S: CipherSuite> DefaultEngine<R, S> {
     /// Creates an [`Engine`] using entropy from `rng` and
     /// returns it and the generated key.
     pub fn from_entropy(mut rng: R) -> (Self, <S::Aead as Aead>::Key) {
-        let key = <S::Aead as Aead>::Key::new(&mut rng);
+        let key = <S::Aead as Aead>::Key::random(&mut rng);
         let eng = Self::new(&key, rng);
         (eng, key)
     }
@@ -84,18 +88,6 @@ impl<R: Csprng, S: CipherSuite> Csprng for DefaultEngine<R, S> {
     fn fill_bytes(&mut self, dst: &mut [u8]) {
         self.rng.fill_bytes(dst)
     }
-}
-
-/// Contextual binding for wrapped keys.
-// TODO(eric): include a `purpose` field. The trick is that it
-// has to be a fixed size.
-#[derive(Immutable, IntoBytes, KnownLayout)]
-#[repr(C)]
-struct AuthData {
-    /// `Unwrapped::ID`.
-    alg_id: AlgIdRepr,
-    /// `<Unwrapped as Identified>::id`.
-    key_id: Id,
 }
 
 impl<R: Csprng, S: CipherSuite> Engine for DefaultEngine<R, S> {
@@ -118,10 +110,8 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
         // TODO(eric): we should probably ensure that we do not
         // repeat nonces.
         let nonce = Nonce::<_>::random(&mut self.rng);
-        let ad = AuthData {
-            alg_id: T::ID.to_repr(),
-            key_id: id,
-        };
+
+        let ad = S::tuple_hash(b"DefaultEngine", [T::ID.as_bytes(), id.as_bytes()]);
 
         let mut secret = match secret {
             RawSecret::Aead(sk) => Ciphertext::Aead(sk.try_export_secret()?.into_bytes()),
@@ -141,7 +131,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
 
         Ok(WrappedKey {
             id,
-            nonce,
+            nonce: nonce.into_inner(),
             ciphertext: secret,
             tag,
         })
@@ -155,10 +145,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
         T: UnwrappedKey<S>,
     {
         let mut data = key.ciphertext.clone();
-        let ad = AuthData {
-            alg_id: T::ID.to_repr(),
-            key_id: key.id,
-        };
+        let ad = S::tuple_hash(b"DefaultEngine", [T::ID.as_bytes(), key.id.as_bytes()]);
 
         self.aead.open_in_place(
             key.nonce.as_ref(),
@@ -220,12 +207,12 @@ impl<CS: CipherSuite> Ciphertext<CS> {
 
     const fn alg_id(&self) -> AlgId {
         match self {
-            Self::Aead(_) => AlgId::Aead(<CS::Aead as Aead>::ID),
-            Self::Decap(_) => AlgId::Decap(<CS::Kem as Kem>::ID),
-            Self::Mac(_) => AlgId::Mac(<CS::Mac as Mac>::ID),
-            Self::Prk(_) => AlgId::Prk(<CS::Kdf as Kdf>::ID),
+            Self::Aead(_) => AlgId::Aead(CS::Aead::OID),
+            Self::Decap(_) => AlgId::Decap(CS::Kem::OID),
+            Self::Mac(_) => AlgId::Mac(CS::Mac::OID),
+            Self::Prk(_) => AlgId::Prk(CS::Kdf::OID),
             Self::Seed(_) => AlgId::Seed(()),
-            Self::Signing(_) => AlgId::Signing(<CS::Signer as Signer>::ID),
+            Self::Signing(_) => AlgId::Signing(CS::Signer::OID),
         }
     }
 }
@@ -235,7 +222,7 @@ impl<CS: CipherSuite> Clone for Ciphertext<CS> {
         match self {
             Self::Aead(v) => Self::Aead(v.clone()),
             Self::Decap(v) => Self::Decap(v.clone()),
-            Self::Mac(v) => Self::Mac(*v),
+            Self::Mac(v) => Self::Mac(v.clone()),
             Self::Prk(v) => Self::Prk(v.clone()),
             Self::Seed(v) => Self::Seed(*v),
             Self::Signing(v) => Self::Signing(v.clone()),
@@ -261,7 +248,7 @@ impl<CS: CipherSuite> Ciphertext<CS> {
 #[serde(bound = "")]
 pub struct WrappedKey<CS: CipherSuite> {
     id: Id,
-    nonce: Nonce<<CS::Aead as Aead>::NonceSize>,
+    nonce: GenericArray<u8, <CS::Aead as Aead>::NonceSize>,
     ciphertext: Ciphertext<CS>,
     tag: Tag<CS::Aead>,
 }

@@ -126,12 +126,15 @@ trng = ["spideroak-crypto/trng"]
 buggy = { version = "0.1.0", default-features = false }
 
 spideroak-base58 = { version = "0.1.0", default-features = false }
-spideroak-crypto = { version = "0.2.0", default-features = false }
+spideroak-crypto = { version = "0.5", default-features = false }
 
 byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
 ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
+# TODO(eric): Make `spideroak-crypto/serde` enable the
+# `generic-array/serde`, then drop this dependency.
+generic-array = { version = "1", default-features = false, features = ["serde"] }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }

@@ -5,9 +5,15 @@ extern crate alloc;
 use alloc::vec;
 use core::ops::Add;
 
+use spideroak_crypto::{
+    aead::{Aead, OpenError},
+    csprng::Random,
+    generic_array::ArrayLength,
+    typenum::{Sum, U64},
+};
+
 use super::{assert_ct_eq, assert_ct_ne};
 use crate::{
-    aead::{Aead, OpenError},
     afc,
     apq::{
         EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
@@ -15,15 +21,12 @@ use crate::{
     },
     aqc,
     aranya::{DeviceId, Encap, EncryptionKey, IdentityKey, SigningKey as DeviceSigningKey},
-    csprng::Random,
+    ciphersuite::CipherSuite,
     engine::Engine,
     error::Error,
-    generic_array::ArrayLength,
     groupkey::{Context, EncryptedGroupKey, GroupKey},
     id::Id,
-    typenum::{Sum, U64},
     util::cbor,
-    CipherSuite,
 };
 
 /// Invokes `callback` for each Engine test.

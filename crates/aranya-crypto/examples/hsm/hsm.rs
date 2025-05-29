@@ -5,7 +5,7 @@ use std::{
     sync::{OnceLock, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use aranya_crypto::{
+use aranya_crypto::spideroak_crypto::{
     aead::{Aead, Nonce},
     csprng::Random,
     custom_id,

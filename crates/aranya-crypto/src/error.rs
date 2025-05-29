@@ -1,17 +1,19 @@
 #![forbid(unsafe_code)]
 
 use buggy::Bug;
-
-use crate::{
+use spideroak_crypto::{
     aead::{OpenError, SealError},
-    engine::{UnwrapError, WrapError},
     hpke::HpkeError,
-    id::IdError,
     import::{ExportError, ImportError},
     kdf::KdfError,
     kem::{EcdhError, KemError},
     mac::MacError,
     signer::{PkError, SignerError},
+};
+
+use crate::{
+    engine::{UnwrapError, WrapError},
+    id::IdError,
 };
 
 /// Encompasses the different errors directly returned by this

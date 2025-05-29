@@ -40,7 +40,7 @@
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
-#![cfg_attr(not(all(test, feature = "trng")), forbid(unsafe_code))]
+#![cfg_attr(not(all(test, feature = "trng")), warn(unsafe_code))]
 #![warn(missing_docs)]
 
 pub mod afc;
@@ -55,44 +55,11 @@ mod groupkey;
 pub mod id;
 pub mod keystore;
 mod misc;
+mod oid;
 mod policy;
 pub mod test_util;
 mod tests;
 mod util;
-
-// Re-export `$name` without inlining it.
-macro_rules! reexport {
-    ($($name:ident),* $(,)?) => {
-        $(
-            /// # Warning
-            ///
-            /// This is a low-level module. You should not be
-            /// using it directly unless you are implementing an
-            /// engine.
-            #[doc(no_inline)]
-            pub use spideroak_crypto::$name;
-        )*
-    }
-}
-reexport! {
-    aead,
-    asn1,
-    csprng,
-    ec,
-    ed25519,
-    hash,
-    hex,
-    hkdf,
-    hmac,
-    hpke,
-    import,
-    kdf,
-    kem,
-    keys,
-    mac,
-    rust,
-    signer,
-}
 
 pub use aranya::*;
 pub use buggy;
@@ -110,6 +77,7 @@ pub use siphasher;
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
 pub use spideroak_crypto::bearssl;
 pub use spideroak_crypto::{
+    self,
     aead::{BufferTooSmallError, OpenError, SealError},
     csprng::{Csprng, Random},
     generic_array,
@@ -121,6 +89,3 @@ pub use spideroak_crypto::{
     signer::SignerError,
     subtle, typenum, zeroize,
 };
-#[cfg(feature = "hazmat")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hazmat")))]
-pub use spideroak_crypto::{dhkem_impl, hkdf_impl, hmac_impl};
