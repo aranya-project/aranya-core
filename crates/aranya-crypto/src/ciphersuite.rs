@@ -18,7 +18,6 @@
 
 #![forbid(unsafe_code)]
 
-use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -68,7 +67,7 @@ pub trait CipherSuite {
 /// Identifies the algorithms used by a [`CipherSuite`].
 ///
 /// Used for domain separation and contextual binding.
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) struct SuiteIds {
     pub aead: AeadId,
     pub hash: HashId,
