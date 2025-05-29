@@ -432,4 +432,36 @@ fn test_ffi_derive() {
         assert_eq!(got, S2 { a, b });
         assert!(state.is_empty());
     }
+
+    // test enum
+    {
+        use __test_ffi::TestEnum;
+
+        state.push(TestEnum::A);
+        state
+            .call("test_enum")
+            .expect("`test::test_enum` should not fail");
+        let got = state
+            .pop::<TestEnum>()
+            .expect("should have got a `TestEnum`");
+        assert_eq!(
+            got,
+            TestEnum::A,
+            "`test::test_enum` returned the wrong result"
+        );
+
+        state.push(TestEnum::B);
+        state
+            .call("test_enum")
+            .expect("`test::test_enum` should not fail");
+        let got = state
+            .pop::<TestEnum>()
+            .expect("should have got a `TestEnum`");
+        assert_eq!(
+            got,
+            TestEnum::B,
+            "`test::test_enum` returned the wrong result"
+        );
+    }
+    {}
 }
