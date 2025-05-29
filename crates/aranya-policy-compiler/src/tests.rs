@@ -427,7 +427,7 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
 
     for (text, expected_error) in cases {
         let policy = parse_policy_str(text, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
         assert_eq!(err, expected_error);
     }
 
@@ -470,7 +470,7 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
 
     for (text, e) in cases {
         let policy = parse_policy_str(text, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
         assert_eq!(err, e);
     }
 
@@ -545,7 +545,7 @@ fn test_struct_field_insertion_errors() {
     ];
     for (text, err_type) in cases {
         let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+        let result = Compiler::new(&policy).compile().unwrap_err().err_type();
         assert_eq!(result, err_type);
     }
 }
@@ -646,7 +646,7 @@ fn test_effect_with_field_insertion() {
 }
 
 #[test]
-fn test_enum_identifiers_are_unique() -> anyhow::Result<()> {
+fn test_enum_identifiers_are_unique() {
     let text = r#"
         enum Drink {
             Water, Coffee
