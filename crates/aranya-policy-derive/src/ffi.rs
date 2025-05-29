@@ -173,6 +173,11 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             .iter()
             .map(|v| format_ident!("{}", v))
             .collect::<Vec<_>>();
+        let var_const_names: Vec<_> = variants
+            .iter()
+            .map(|id| format_ident!("__{name}__{id}"))
+            .collect();
+
         quote! {
             #[must_use]
             #[derive(Clone, Debug, Eq, PartialEq)]
@@ -182,47 +187,38 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             #[automatically_derived]
             impl ::core::convert::From<#name> for #vm::Value {
                 fn from(__value: #name) -> Self {
-                    let __enum = #vm::Enum::new(
-                        ::core::stringify!(#name),
-                        i64::from(0)); // TODO how to get the value?
-                    __enum.into()
+                    #vm::Value::Enum(
+                        ::core::stringify!(#name).into(),
+                        __value as i64,
+                    )
                 }
             }
             #[automatically_derived]
             impl ::core::convert::TryFrom<#vm::Value> for #name {
                 type Error = #vm::ValueConversionError;
-
-                fn try_from(mut __value: #vm::Value) -> ::core::result::Result<Self, Self::Error> {
-                    let #vm::Value::Enum(__enum) = &mut __value else {
-                        return ::core::result::Result::Err(
-                            #vm::ValueConversionError::invalid_type(
-                                ::core::concat!("Enum ", #name_str),
-                                __value.type_name(),
-                                "TryFrom"
-                            ));
+                fn try_from(value: #vm::Value) -> ::core::result::Result<Self, Self::Error> {
+                    let #vm::Value::Enum(name, val) = &value else {
+                        return ::core::result::Result::Err(#vm::ValueConversionError::invalid_type(
+                            ::core::concat!("Enum ", #name_str), value.type_name(), "try_from"
+                        ));
                     };
-                    if __enum.name != ::core::stringify!(#name) {
-                        return ::core::result::Result::Err(
-                            #vm::ValueConversionError::invalid_type(
-                                ::core::concat!("Enum ", #name_str),
-                                __value.type_name(),
-                                "name doesn't match"
-                            ));
+
+                    if name != #name_str {
+                        return ::core::result::Result::Err(#vm::ValueConversionError::invalid_type(
+                            ::core::concat!("Enum ", #name_str),
+                            value.type_name(),
+                            "enum names don't match",
+                        ));
                     }
-                    #(
-                        let #variants = __enum.variants.remove(::core::stringify!(#variants))
-                            .ok_or(#vm::ValueConversionError::InvalidEnumMember(
-                                    #alloc::string::String::from(::core::stringify!(#variants)),
-                            ))?;
-                    )*
-                    if !__enum.variants.is_empty() {
-                        return ::core::result::Result::Err(#vm::ValueConversionError::BadState);
-                    }
-                    ::core::result::Result::Ok(#name {
+
+                    #( const #var_const_names: i64 = #name::#variants as i64; )*
+
+                    match *val {
                         #(
-                            #variants: #vm::TryFromValue::try_from_value(#variants)?
-                        ),*
-                    })
+                            #var_const_names => ::core::result::Result::Ok(Self::#variants),
+                        )*
+                        _ => ::core::result::Result::Err(#vm::ValueConversionError::OutOfRange),
+                    }
                 }
             }
             #[automatically_derived]
