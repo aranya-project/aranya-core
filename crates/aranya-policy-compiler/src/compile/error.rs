@@ -45,12 +45,6 @@ pub enum CompileErrorType {
     /// A thing by that name has already been defined
     #[error("already defined: {0}")]
     AlreadyDefined(String),
-    /// A keyword collision occurs with that identifier
-    #[error("reserved identifier: {0}")]
-    ReservedIdentifier(String),
-    /// Expected value was missing
-    #[error("missing: {0}")]
-    Missing(String),
     /// Fact literal doesn't match definition
     #[error("fact literal does not match definition: {0}")]
     InvalidFactLiteral(String),
@@ -87,9 +81,12 @@ struct ErrorSource {
 /// An error produced by the compiler. May contain the textual source of
 /// an error.
 #[derive(Debug, PartialEq)]
-pub struct CompileError {
+pub struct CompileError(Box<CompileErrorImpl>);
+
+#[derive(Debug, PartialEq)]
+struct CompileErrorImpl {
     /// The type of the error
-    pub err_type: CompileErrorType,
+    err_type: CompileErrorType,
     /// The source code information, if available
     source: Option<ErrorSource>,
 }
@@ -97,10 +94,10 @@ pub struct CompileError {
 impl CompileError {
     /// Creates a `CompileError`.
     pub(crate) fn new(err_type: CompileErrorType) -> CompileError {
-        CompileError {
+        CompileError(Box::new(CompileErrorImpl {
             err_type,
             source: None,
-        }
+        }))
     }
 
     pub(crate) fn from_locator(
@@ -118,19 +115,23 @@ impl CompileError {
                 })
         });
 
-        CompileError { err_type, source }
+        CompileError(Box::new(CompileErrorImpl { err_type, source }))
+    }
+
+    pub fn err_type(self) -> CompileErrorType {
+        self.0.err_type
     }
 }
 
 impl fmt::Display for CompileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.source {
+        match &self.0.source {
             Some(source) => write!(
                 f,
                 "{} at line {} col {}:\n\t{}",
-                self.err_type, source.linecol.0, source.linecol.1, source.text
+                self.0.err_type, source.linecol.0, source.linecol.1, source.text
             ),
-            None => write!(f, "{}", self.err_type),
+            None => write!(f, "{}", self.0.err_type),
         }
     }
 }
@@ -139,12 +140,6 @@ impl fmt::Display for CompileError {
 // error::Error with default behavior by declaring this empty
 // implementation.
 impl core::error::Error for CompileError {}
-
-impl From<CompileErrorType> for CompileError {
-    fn from(value: CompileErrorType) -> Self {
-        CompileError::new(value)
-    }
-}
 
 impl From<Bug> for CompileError {
     fn from(bug: Bug) -> Self {
