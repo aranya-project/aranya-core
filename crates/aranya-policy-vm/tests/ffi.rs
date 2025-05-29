@@ -264,13 +264,13 @@ function struct_fn(
         Ok(())
     }
 
-    #[ffi_export(def = r#"function test_enum(e enum TestEnum) int"#)]
+    #[ffi_export(def = r#"function test_enum(e enum TestEnum) enum TestEnum"#)]
     fn test_enum<E: Engine>(
         _ctx: &CommandContext<'_>,
         _eng: &mut E,
         e: TestEnum,
-    ) -> Result<i64, MachineError> {
-        Ok(42)
+    ) -> Result<TestEnum, MachineError> {
+        Ok(e)
     }
 }
 
