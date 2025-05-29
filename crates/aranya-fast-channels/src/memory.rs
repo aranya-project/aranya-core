@@ -132,8 +132,6 @@ where
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
-    use std::str;
-
     use aranya_crypto::{
         afc::{BidiKeys, UniOpenKey, UniSealKey},
         Rng,
