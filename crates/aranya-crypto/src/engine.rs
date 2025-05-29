@@ -10,22 +10,21 @@
 use core::{convert::Infallible, fmt::Debug, hash::Hash, result::Result};
 
 use buggy::Bug;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use zerocopy::{
-    byteorder::{LE, U16},
-    Immutable, IntoBytes, KnownLayout,
+use serde::{de::DeserializeOwned, Serialize};
+use spideroak_crypto::{
+    aead::{Aead, OpenError, SealError},
+    csprng::Csprng,
+    import::{ExportError, ImportError},
+    kdf::{Kdf, Prk},
+    kem::Kem,
+    mac::Mac,
+    oid::{self, Identified as _, Oid},
+    signer::Signer,
 };
 
 use crate::{
-    aead::{Aead, AeadId, OpenError, SealError},
     ciphersuite::CipherSuite,
-    csprng::Csprng,
     id::{IdError, Identified},
-    import::{ExportError, ImportError},
-    kdf::{Kdf, KdfId, Prk},
-    kem::{Kem, KemId},
-    mac::{Mac, MacId},
-    signer::{Signer, SignerId},
 };
 
 /// The core trait used by the cryptography engine APIs.
@@ -70,7 +69,7 @@ pub trait Engine: Csprng + RawSecretWrap<Self> + Sized {
 /// It need not directly contain the ciphertext. For example,
 /// it might only contain an identifier used to look up the
 /// key in an HSM.
-pub trait WrappedKey: Identified + Serialize + DeserializeOwned + Sized {}
+pub trait WrappedKey: Identified + Serialize + Sized {}
 
 /// A key that an [`Engine`] can wrap.
 pub trait UnwrappedKey<CS: CipherSuite>: Sized + Identified {
@@ -163,31 +162,31 @@ impl<CS: CipherSuite> RawSecret<CS> {
     /// Returns the secret's algorithm identifier.
     pub const fn alg_id(&self) -> AlgId {
         match self {
-            Self::Aead(_) => AlgId::Aead(<CS::Aead as Aead>::ID),
-            Self::Decap(_) => AlgId::Decap(<CS::Kem as Kem>::ID),
-            Self::Mac(_) => AlgId::Mac(<CS::Mac as Mac>::ID),
-            Self::Prk(_) => AlgId::Prk(<CS::Kdf as Kdf>::ID),
+            Self::Aead(_) => AlgId::Aead(CS::Aead::OID),
+            Self::Decap(_) => AlgId::Decap(CS::Kem::OID),
+            Self::Mac(_) => AlgId::Mac(CS::Mac::OID),
+            Self::Prk(_) => AlgId::Prk(CS::Kdf::OID),
             Self::Seed(_) => AlgId::Seed(()),
-            Self::Signing(_) => AlgId::Signing(<CS::Signer as Signer>::ID),
+            Self::Signing(_) => AlgId::Signing(CS::Signer::OID),
         }
     }
 }
 
 /// An algorithm identifier for [`UnwrappedKey`].
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq)]
 pub enum AlgId {
     /// See [`RawSecret::Aead`].
-    Aead(AeadId),
+    Aead(&'static Oid),
     /// See [`RawSecret::Decap`].
-    Decap(KemId),
+    Decap(&'static Oid),
     /// See [`RawSecret::Mac`].
-    Mac(MacId),
+    Mac(&'static Oid),
     /// See [`RawSecret::Prk`].
-    Prk(KdfId),
+    Prk(&'static Oid),
     /// See [`RawSecret::Seed`].
     Seed(()),
     /// See [`RawSecret::Signing`].
-    Signing(SignerId),
+    Signing(&'static Oid),
 }
 
 impl AlgId {
@@ -204,28 +203,35 @@ impl AlgId {
         }
     }
 
-    pub(crate) const fn to_repr(self) -> AlgIdRepr {
+    pub(crate) const fn as_bytes(&self) -> &[u8] {
         match self {
-            Self::Aead(id) => AlgIdRepr::Aead(U16::new(id.to_u16())),
-            Self::Decap(id) => AlgIdRepr::Decap(U16::new(id.to_u16())),
-            Self::Mac(id) => AlgIdRepr::Mac(U16::new(id.to_u16())),
-            Self::Prk(id) => AlgIdRepr::Prk(U16::new(id.to_u16())),
-            // Use `64` because `RawSecret::Seed` is `64` bytes.
-            Self::Seed(()) => AlgIdRepr::Seed(U16::new(64)),
-            Self::Signing(id) => AlgIdRepr::Signing(U16::new(id.to_u16())),
+            Self::Aead(id)
+            | Self::Decap(id)
+            | Self::Mac(id)
+            | Self::Prk(id)
+            | Self::Signing(id) => id.as_bytes(),
+            Self::Seed(()) => b"64 byte Seed",
         }
     }
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Immutable, IntoBytes, KnownLayout)]
-#[repr(u16)]
-pub(crate) enum AlgIdRepr {
-    Aead(U16<LE>) = u16::to_le(1),
-    Decap(U16<LE>) = u16::to_le(2),
-    Mac(U16<LE>) = u16::to_le(3),
-    Prk(U16<LE>) = u16::to_le(4),
-    Seed(U16<LE>) = u16::to_le(5),
-    Signing(U16<LE>) = u16::to_le(6),
+macro_rules! alg_id_from_impl {
+    ($($name:ident => $ty:ident),* $(,)?) => {
+        $(impl AlgId {
+            #[doc(hidden)]
+            // Not part of the public API. Do not use.
+            pub const fn $name<CS: CipherSuite>() -> &'static Oid {
+                <CS::$ty as oid::Identified>::OID
+            }
+        })*
+    }
+}
+alg_id_from_impl! {
+    _from_aead => Aead,
+    _from_kem => Kem,
+    _from_mac => Mac,
+    _from_kdf => Kdf,
+    _from_signer => Signer,
 }
 
 /// Implements [`UnwrappedKey`] for `$name`.
@@ -238,22 +244,22 @@ pub(crate) enum AlgIdRepr {
 #[macro_export]
 macro_rules! unwrapped {
     { name: $name:ident; type: Aead; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Aead, <CS::Aead as $crate::aead::Aead>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Aead, $crate::engine::AlgId::_from_aead::<CS>(), $name, $into, $from);
     };
     { name: $name:ident; type: Decap; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Decap, <CS::Kem as $crate::kem::Kem>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Decap, $crate::engine::AlgId::_from_kem::<CS>(), $name, $into, $from);
     };
     { name: $name:ident; type: Mac; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Mac, <CS::Mac as $crate::mac::Mac>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Mac, $crate::engine::AlgId::_from_mac::<CS>(), $name, $into, $from);
     };
     { name: $name:ident; type: Prk; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Prk, <CS::Kdf as $crate::kdf::Kdf>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Prk, $crate::engine::AlgId::_from_kdf::<CS>(), $name, $into, $from);
     };
     { name: $name:ident; type: Seed; into: $into:expr; from: $from:expr $(;)? } => {
         $crate::engine::__unwrapped_inner!(Seed, (), $name, $into, $from);
     };
     { name: $name:ident; type: Signing; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Signing, <CS::Signer as $crate::signer::Signer>::ID, $name, $into, $from);
+        $crate::engine::__unwrapped_inner!(Signing, $crate::engine::AlgId::_from_signer::<CS>(), $name, $into, $from);
     };
     ($($fallthrough:tt)*) => {
         ::core::compile_error!("unknown variant");
@@ -262,6 +268,7 @@ macro_rules! unwrapped {
 pub(crate) use unwrapped;
 
 #[doc(hidden)]
+#[macro_export]
 macro_rules! __unwrapped_inner {
     ($enum:ident, $id:expr, $name:ident, $into:expr, $from:expr) => {
         impl<CS: $crate::CipherSuite> $crate::engine::UnwrappedKey<CS> for $name<CS> {

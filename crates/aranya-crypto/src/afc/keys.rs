@@ -2,14 +2,16 @@ use core::{cmp::Ordering, fmt};
 
 use buggy::Bug;
 use byteorder::{ByteOrder, LittleEndian};
-pub use hpke::MessageLimitReached;
-
-use super::shared::{RawOpenKey, RawSealKey};
-use crate::{
+pub use spideroak_crypto::hpke::MessageLimitReached;
+use spideroak_crypto::{
     aead,
     hpke::{self, HpkeError, OpenCtx, SealCtx},
     import::ImportError,
-    CipherSuite,
+};
+
+use crate::{
+    afc::shared::{RawOpenKey, RawSealKey},
+    ciphersuite::CipherSuite,
 };
 
 /// Identifies the position of a ciphertext in a channel.
@@ -34,7 +36,7 @@ impl Seq {
     ///
     /// For testing only.
     #[cfg(any(test, feature = "test_util"))]
-    pub(crate) fn max<N: crate::generic_array::ArrayLength>() -> u64 {
+    pub(crate) fn max<N: generic_array::ArrayLength>() -> u64 {
         hpke::Seq::max::<N>()
     }
 }

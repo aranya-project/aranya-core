@@ -1,24 +1,25 @@
 use buggy::BugExt;
 use serde::{Deserialize, Serialize};
-
-use super::{
-    keys::{OpenKey, SealKey, Seq},
-    shared::{RawOpenKey, RawSealKey, RootChannelKey},
-};
-use crate::{
-    aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::SuiteIds,
+use spideroak_crypto::{
     csprng::Random,
-    engine::unwrapped,
-    error::Error,
-    hash::{tuple_hash, Digest, Hash},
+    hash::{Digest, Hash},
     hpke::{Hpke, Mode},
-    id::{custom_id, Id},
     import::ImportError,
     kem::Kem,
-    misc::sk_misc,
     subtle::{Choice, ConstantTimeEq},
-    CipherSuite, Engine,
+};
+
+use crate::{
+    afc::{
+        keys::{OpenKey, SealKey, Seq},
+        shared::{RawOpenKey, RawSealKey, RootChannelKey},
+    },
+    aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
+    ciphersuite::{CipherSuite, CipherSuiteExt},
+    engine::{unwrapped, Engine},
+    error::Error,
+    id::{custom_id, Id},
+    misc::sk_misc,
 };
 
 /// Contextual information for a bidirectional AFC channel.
@@ -182,14 +183,15 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         //     peer_id,
         //     i2osp(label, 4),
         // )
-        tuple_hash::<CS::Hash, _>([
+        CS::tuple_hash(
             Self::LABEL,
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.parent_cmd_id.as_bytes(),
-            self.our_id.as_bytes(),
-            self.their_id.as_bytes(),
-            &self.label.to_be_bytes(),
-        ])
+            [
+                self.parent_cmd_id.as_bytes(),
+                self.our_id.as_bytes(),
+                self.their_id.as_bytes(),
+                &self.label.to_be_bytes(),
+            ],
+        )
     }
 
     /// The peer's `info` parameter.
@@ -197,14 +199,15 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         // Same as the author's info, except that we're computing
         // it from the peer's perspective, so `our_id` and
         // `their_id` are reversed.
-        tuple_hash::<CS::Hash, _>([
+        CS::tuple_hash(
             Self::LABEL,
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.parent_cmd_id.as_bytes(),
-            self.their_id.as_bytes(),
-            self.our_id.as_bytes(),
-            &self.label.to_be_bytes(),
-        ])
+            [
+                self.parent_cmd_id.as_bytes(),
+                self.their_id.as_bytes(),
+                self.our_id.as_bytes(),
+                &self.label.to_be_bytes(),
+            ],
+        )
     }
 }
 

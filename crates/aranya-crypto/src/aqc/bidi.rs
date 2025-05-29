@@ -1,6 +1,14 @@
 use core::fmt;
 
 use serde::{Deserialize, Serialize};
+use spideroak_crypto::{
+    csprng::Random,
+    hash::{Digest, Hash},
+    hpke::{Hpke, Mode},
+    import::ImportError,
+    kem::Kem,
+    subtle::{Choice, ConstantTimeEq},
+};
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
@@ -9,18 +17,11 @@ use crate::{
         suite::CipherSuiteId,
     },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::SuiteIds,
-    csprng::Random,
-    engine::unwrapped,
+    ciphersuite::{CipherSuite, CipherSuiteExt},
+    engine::{unwrapped, Engine},
     error::Error,
-    hash::{tuple_hash, Digest, Hash},
-    hpke::{Hpke, Mode},
     id::{custom_id, Id},
-    import::ImportError,
-    kem::Kem,
     misc::sk_misc,
-    subtle::{Choice, ConstantTimeEq},
-    CipherSuite, Engine,
 };
 
 /// Contextual information for a bidirectional AQC channel.
@@ -143,15 +144,16 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         //     peer_id,
         //     label_id,
         // )
-        tuple_hash::<CS::Hash, _>([
+        CS::tuple_hash(
             Self::LABEL,
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            &self.psk_length_in_bytes.to_be_bytes(),
-            self.parent_cmd_id.as_bytes(),
-            self.our_id.as_bytes(),
-            self.their_id.as_bytes(),
-            self.label.as_bytes(),
-        ])
+            [
+                &self.psk_length_in_bytes.to_be_bytes(),
+                self.parent_cmd_id.as_bytes(),
+                self.our_id.as_bytes(),
+                self.their_id.as_bytes(),
+                self.label.as_bytes(),
+            ],
+        )
     }
 
     /// The peer's `info` parameter.
@@ -159,15 +161,16 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         // Same as the author's info, except that we're computing
         // it from the peer's perspective, so `our_id` and
         // `their_id` are reversed.
-        tuple_hash::<CS::Hash, _>([
+        CS::tuple_hash(
             Self::LABEL,
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            &self.psk_length_in_bytes.to_be_bytes(),
-            self.parent_cmd_id.as_bytes(),
-            self.their_id.as_bytes(),
-            self.our_id.as_bytes(),
-            self.label.as_bytes(),
-        ])
+            [
+                &self.psk_length_in_bytes.to_be_bytes(),
+                self.parent_cmd_id.as_bytes(),
+                self.their_id.as_bytes(),
+                self.our_id.as_bytes(),
+                self.label.as_bytes(),
+            ],
+        )
     }
 }
 

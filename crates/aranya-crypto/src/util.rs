@@ -1,4 +1,4 @@
-#![cfg(any(feature = "memstore", feature = "test_util"))]
+#[cfg(any(feature = "memstore", feature = "test_util"))]
 pub mod cbor {
     extern crate alloc;
 
