@@ -34,33 +34,36 @@ impl Type<'_> {
         use Type::*;
         match (self, rhs) {
             (String, String) | (Bytes, Bytes) | (Int, Int) | (Bool, Bool) | (Id, Id) => true,
-            (Struct(lhs), Struct(rhs)) => {
-                // `lhs == rhs` cannot be used in a const
-                // context.
-                let lhs = lhs.as_bytes();
-                let rhs = rhs.as_bytes();
-                if lhs.len() != rhs.len() {
-                    return false;
-                }
-                let mut i = 0;
-                while i < lhs.len() && i < rhs.len() {
-                    if lhs[i] != rhs[i] {
-                        return false;
-                    }
-                    // Cannot overflow or wrap since `i` is
-                    // `usize` and `<[_]>::len()` is at most
-                    // `isize::MAX`.
-                    #[allow(clippy::arithmetic_side_effects)]
-                    {
-                        i += 1;
-                    }
-                }
-                true
-            }
+            (Struct(lhs), Struct(rhs)) => str_eq(lhs, rhs),
+            (Enum(lhs), Enum(rhs)) => str_eq(lhs, rhs),
             (Optional(lhs), Optional(rhs)) => lhs.const_eq(rhs),
             _ => false,
         }
     }
+}
+
+const fn str_eq(lhs: &str, rhs: &str) -> bool {
+    // `lhs == rhs` cannot be used in a const
+    // context.
+    let lhs = lhs.as_bytes();
+    let rhs = rhs.as_bytes();
+    if lhs.len() != rhs.len() {
+        return false;
+    }
+    let mut i = 0;
+    while i < lhs.len() && i < rhs.len() {
+        if lhs[i] != rhs[i] {
+            return false;
+        }
+        // Cannot overflow or wrap since `i` is
+        // `usize` and `<[_]>::len()` is at most
+        // `isize::MAX`.
+        #[allow(clippy::arithmetic_side_effects)]
+        {
+            i += 1;
+        }
+    }
+    true
 }
 
 impl From<&Type<'_>> for VType {
