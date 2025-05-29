@@ -1556,16 +1556,14 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     Ok(fn_decl)
 }
 
+/// A series of Struct or Enum definitions for the FFI
+pub type FfiTypes = (
+    Vec<AstNode<ast::StructDefinition>>,
+    Vec<AstNode<ast::EnumDefinition>>,
+);
+
 /// Parse a series of Struct or Enum definitions for the FFI
-pub fn parse_ffi_structs_enums(
-    data: &str,
-) -> Result<
-    (
-        Vec<AstNode<ast::StructDefinition>>,
-        Vec<AstNode<ast::EnumDefinition>>,
-    ),
-    ParseError,
-> {
+pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
     let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
     let mut structs = vec![];
     let mut enums = vec![];
