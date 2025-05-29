@@ -5,7 +5,7 @@ use quote::{format_ident, quote, quote_spanned, ToTokens};
 use syn::{
     parse::{Parse, ParseStream, Result},
     spanned::Spanned,
-    AttrStyle, Attribute, Expr, Ident, Lit, LitStr, Meta, Path,
+    AttrStyle, Attribute, Expr, Ident, Lit, LitStr, Meta,
 };
 use tracing::{debug, instrument};
 
@@ -33,7 +33,7 @@ pub(crate) struct Parser<'a> {
     pub repr: Option<&'a mut Option<Repr>>,
     /// `#[derive(...)]`
     pub derives: Option<&'a mut Derives>,
-    /// `#[no_mangle]`
+    /// `#[unsafe(no_mangle)]`
     pub no_mangle: Option<&'a mut Option<NoMangle>>,
     /// `#[capi::builds(...)]`
     pub capi_builds: Option<&'a mut Option<Builds>>,
@@ -134,11 +134,22 @@ pub(crate) fn parse(ctx: &Ctx, attrs: Vec<Attribute>, mut parser: Parser<'_>) ->
             }
         }
 
-        // `#[no_mangle]`
-        if path.is_ident("no_mangle") {
-            if let Some(v) = &mut parser.no_mangle {
-                **v = Some(NoMangle(attr.span()));
-                continue;
+        // `#[unsafe(...)]`
+        if path.is_ident("unsafe") {
+            let attr = match attr.parse_args::<Ident>() {
+                Ok(attr) => attr,
+                Err(err) => {
+                    ctx.push(err);
+                    break;
+                }
+            };
+
+            // `#[unsafe(no_mangle)]`
+            if attr == "no_mangle" {
+                if let Some(v) = &mut parser.no_mangle {
+                    **v = Some(NoMangle(attr.span()));
+                    continue;
+                }
             }
         }
 
@@ -435,7 +446,7 @@ macro_rules! simple_outer_attr {
         impl ToTokens for $name {
             fn to_tokens(&self, tokens: &mut TokenStream) {
                 // TODO(eric): Avoid calling unwrawp.
-                let path = syn::parse_str::<Path>($value).unwrap();
+                let path = syn::parse_str::<Meta>($value).unwrap();
                 tokens.extend(quote_spanned! {self.0=>
                     #[#path]
                 })
@@ -447,4 +458,4 @@ simple_outer_attr!(Error, "capi::error");
 simple_outer_attr!(ExtError, "capi::ext_error");
 simple_outer_attr!(Generated, "capi::generated");
 simple_outer_attr!(NoExtError, "capi::no_ext_error");
-simple_outer_attr!(NoMangle, "no_mangle");
+simple_outer_attr!(NoMangle, "unsafe(no_mangle)");

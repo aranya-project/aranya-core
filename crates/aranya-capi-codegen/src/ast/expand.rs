@@ -787,7 +787,7 @@ impl Ast {
                 #doc
                 #(#attrs)*
                 #tracing
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 pub extern "C" fn #name(#inputs) #ret {
                     #[allow(clippy::blocks_in_conditions)]
                     #[allow(clippy::match_single_binding)]
@@ -887,7 +887,7 @@ impl Ast {
                     #doc
                     #(#attrs)*
                     #tracing
-                    #[no_mangle]
+                    #[unsafe(no_mangle)]
                     pub extern "C" fn #name(#inputs) #ret {
                         #[allow(clippy::blocks_in_conditions)]
                         #[allow(clippy::match_single_binding)]

@@ -12,7 +12,7 @@ default-members = [
 
 [workspace.package]
 authors = ["SpiderOak, Inc."]
-edition = "2021"
+edition = "2024"
 license = "AGPL-3.0-only"
 repository = "https://github.com/aranya-project/aranya-core"
 rust-version = "1.85.0"
