@@ -6,6 +6,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
 /// Generate rust source code from a policy [`Module`].
+#[allow(clippy::panic)]
 pub fn generate_code(module: &Module) -> String {
     let m = {
         match &module.data {
@@ -151,6 +152,7 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
 }
 
 /// Returns the name of all custom types reachable from actions or effects.
+#[allow(clippy::panic)]
 fn collect_reachable_types(module: &ModuleV0) -> HashSet<&str> {
     fn visit<'a>(
         struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
