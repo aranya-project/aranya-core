@@ -1,7 +1,7 @@
-use quote::{format_ident, IdentFragment};
+use quote::{IdentFragment, format_ident};
 use syn::{
-    parse::{Parse, ParseStream},
     Ident, Path, PathSegment, Result, Token,
+    parse::{Parse, ParseStream},
 };
 
 macro_rules! parse_doc {

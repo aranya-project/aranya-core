@@ -19,19 +19,19 @@ pub mod util;
 use std::collections::HashMap;
 
 use aranya_crypto::{
-    aead::IndCca2,
-    typenum::{Unsigned, U1},
     Engine, Rng,
+    aead::IndCca2,
+    typenum::{U1, Unsigned},
 };
 
 use crate::{
+    AfcState,
     buf::FixedBuf,
     client::Client,
     error::Error,
     header::DataHeader,
     state::{ChannelId, Label, NodeId},
     testing::util::{Aranya, ChanOp, DataHeaderBuilder, LimitedAead, TestEngine, TestImpl},
-    AfcState,
 };
 
 /// Performs all of the tests in the [`testing`][crate::testing]

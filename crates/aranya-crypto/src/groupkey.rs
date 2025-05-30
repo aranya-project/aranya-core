@@ -6,6 +6,7 @@ use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    CipherSuite,
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError, Tag},
     aranya::VerifyingKey,
     ciphersuite::SuiteIds,
@@ -13,15 +14,14 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
-    hash::{tuple_hash, Digest, Hash},
+    hash::{Digest, Hash, tuple_hash},
     hmac::Hmac,
-    id::{custom_id, Id, IdError, Identified},
+    id::{Id, IdError, Identified, custom_id},
     import::Import,
     kdf,
     subtle::{Choice, ConstantTimeEq},
     typenum::U64,
     zeroize::{Zeroize, ZeroizeOnDrop},
-    CipherSuite,
 };
 
 /// Key material used to derive per-event encryption keys.

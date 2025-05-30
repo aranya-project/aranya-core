@@ -1,15 +1,15 @@
 use std::fmt;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, quote};
 pub use syn::Abi;
 use syn::{
-    punctuated::{self, Punctuated},
-    spanned::Spanned,
-    token::{Brace, Paren},
     Attribute, Block, Error, Expr, GenericParam, Generics, Ident, ItemEnum, ItemFn, ItemStruct,
     ItemType, ItemUnion, LifetimeParam, Lit, LitInt, Pat, PatIdent, PatType, Result, Signature,
     Token, Visibility,
+    punctuated::{self, Punctuated},
+    spanned::Spanned,
+    token::{Brace, Paren},
 };
 use tracing::{debug, instrument, trace};
 
@@ -322,7 +322,7 @@ impl Struct {
                 return Err(Error::new_spanned(
                     repr,
                     format!("invalid `#[repr(...)]` for `struct`: `{repr}`"),
-                ))
+                ));
             }
             None => return Err(Error::new(span, "missing `#[repr(...)]`")),
         };
@@ -695,7 +695,7 @@ impl Enum {
                 return Err(Error::new_spanned(
                     &e.ident,
                     "`enum`s must have `#[repr(...)]`",
-                ))
+                ));
             }
         };
 

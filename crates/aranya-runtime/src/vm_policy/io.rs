@@ -8,8 +8,8 @@ use core::{
 
 use aranya_crypto::Id;
 use aranya_policy_vm::{
-    ffi::FfiModule, CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError,
-    MachineErrorType, MachineIO, MachineIOError, MachineStack,
+    CommandContext, FactKey, FactValue, HashableValue, KVPair, MachineError, MachineErrorType,
+    MachineIO, MachineIOError, MachineStack, ffi::FfiModule,
 };
 use buggy::BugExt;
 use spin::Mutex;

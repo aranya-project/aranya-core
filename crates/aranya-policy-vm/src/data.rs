@@ -1,6 +1,6 @@
 use aranya_crypto::DeviceId;
 pub use aranya_crypto::Id;
-use buggy::{bug, Bug};
+use buggy::{Bug, bug};
 
 /// Context for actions
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,7 +77,9 @@ impl<'a> CommandContext<'a> {
                 head_id: *head_id,
             }))
         } else {
-            bug!("Trying to call CommandContext::seal_from_action on a variant that isn't CommandContext::Action")
+            bug!(
+                "Trying to call CommandContext::seal_from_action on a variant that isn't CommandContext::Action"
+            )
         }
     }
 }

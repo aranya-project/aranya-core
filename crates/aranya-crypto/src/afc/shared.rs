@@ -1,4 +1,5 @@
 use crate::{
+    CipherSuite,
     csprng::{Csprng, Random},
     import::{ExportError, Import, ImportError},
     kem::{DecapKey, Kem},
@@ -6,7 +7,6 @@ use crate::{
     signer::PkError,
     subtle::{Choice, ConstantTimeEq},
     zeroize::ZeroizeOnDrop,
-    CipherSuite,
 };
 
 /// The root key material for a channel.

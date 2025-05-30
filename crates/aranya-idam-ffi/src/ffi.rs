@@ -3,11 +3,11 @@ extern crate alloc;
 use alloc::{string::String, vec, vec::Vec};
 
 use aranya_crypto::{
-    engine::Engine, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey, EncryptionKey,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey,
-    VerifyingKey,
+    Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, Id,
+    IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey, VerifyingKey, engine::Engine,
+    zeroize::Zeroizing,
 };
-use aranya_policy_vm::{ffi::ffi, CommandContext};
+use aranya_policy_vm::{CommandContext, ffi::ffi};
 
 use crate::error::{AllocError, Error, ErrorKind, KeyNotFound, WrongContext};
 

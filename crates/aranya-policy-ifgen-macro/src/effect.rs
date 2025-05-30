@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{spanned::Spanned, ItemStruct};
+use syn::{ItemStruct, spanned::Spanned};
 
 use crate::common::get_derive;
 

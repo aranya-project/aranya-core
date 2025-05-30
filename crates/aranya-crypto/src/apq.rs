@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
 
 use crate::{
+    CipherSuite,
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
     aranya::{Encap, Signature},
     ciphersuite::SuiteIds,
@@ -31,7 +32,6 @@ use crate::{
     signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
     typenum::{Sum, U64},
     zeroize::{Zeroize, ZeroizeOnDrop},
-    CipherSuite,
 };
 
 /// A sender's identity.

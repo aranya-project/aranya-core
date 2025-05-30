@@ -6,19 +6,19 @@ use super::{
     shared::{RawOpenKey, RawSealKey, RootChannelKey},
 };
 use crate::{
+    CipherSuite, Engine,
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::SuiteIds,
     csprng::Random,
     engine::unwrapped,
     error::Error,
-    hash::{tuple_hash, Digest, Hash},
+    hash::{Digest, Hash, tuple_hash},
     hpke::{Hpke, Mode},
-    id::{custom_id, Id},
+    id::{Id, custom_id},
     import::ImportError,
     kem::Kem,
     misc::sk_misc,
     subtle::{Choice, ConstantTimeEq},
-    CipherSuite, Engine,
 };
 
 /// Contextual information for a bidirectional AFC channel.

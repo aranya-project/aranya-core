@@ -2,9 +2,9 @@ use core::{fmt, mem::MaybeUninit, ptr};
 
 use super::conv::newtype::NewType;
 use crate::{
+    Builder,
     safe::OwnedPtr,
     types::{ByConstPtr, ByMutPtr, ByValue, Input, Opaque, Output},
-    Builder,
 };
 
 #[doc(hidden)]

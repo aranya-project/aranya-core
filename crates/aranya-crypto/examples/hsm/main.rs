@@ -5,6 +5,7 @@ use core::fmt;
 use std::vec::Vec;
 
 use aranya_crypto::{
+    CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
     aead::{Aead, OpenError},
     csprng::Csprng,
     ed25519::{self, Ed25519},
@@ -19,9 +20,8 @@ use aranya_crypto::{
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     subtle::{Choice, ConstantTimeEq},
     zeroize::ZeroizeOnDrop,
-    CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
 };
-use buggy::{bug, Bug};
+use buggy::{Bug, bug};
 use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 
@@ -135,7 +135,7 @@ impl RawSecretWrap<Self> for HsmEngine {
                     got: "External",
                     expected: alg_id.name(),
                 }
-                .into())
+                .into());
             }
         };
         Ok(secret)

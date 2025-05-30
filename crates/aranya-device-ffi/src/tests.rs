@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 use aranya_crypto::{
-    default::{DefaultEngine, Rng},
     DeviceId, Id,
+    default::{DefaultEngine, Rng},
 };
 use aranya_policy_vm::{ActionContext, CommandContext, OpenContext, PolicyContext, SealContext};
 
