@@ -61,6 +61,9 @@ pub enum CompileErrorType {
     /// Todo found
     #[error("todo found")]
     TodoFound,
+    /// Invalid cast - LHS cannot be converted to RHS
+    #[error("invalid cast: `{0}` cannot be converted to `{1}`")]
+    InvalidCast(Identifier, Identifier),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(#[from] Bug),
