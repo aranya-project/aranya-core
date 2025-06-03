@@ -2382,24 +2382,129 @@ fn test_substruct_errors() {
 }
 
 #[test]
+fn test_struct_conversion_errors() {
+    let cases = [
+        (
+            "RHS not defined",
+            r#"
+            struct Foo { a int, b string }
+            function convert() struct Foo {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Bar".to_string()),
+        ),
+        (
+            "LHS is same as RHS",
+            r#"
+            struct Foo { a int, b string }
+            function convert() struct Foo {
+                return Foo { a: 1, b: "test" } as Foo
+            }
+            "#,
+            CompileErrorType::InvalidCast("Foo".to_string(), "Foo".to_string()),
+        ),
+        (
+            "types don't match",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a bool, b string }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast("Foo".to_string(), "Bar".to_string()),
+        ),
+        (
+            "names don't match",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a bool, s string }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast("Foo".to_string(), "Bar".to_string()),
+        ),
+        (
+            "different number of fields",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a int, b string, c bool }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast("Foo".to_string(), "Bar".to_string()),
+        ),
+        (
+            "different number of fields",
+            r#"
+            struct Foo { a int, b string }
+            struct Bar { a int, b string, c bool }
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+            "#,
+            CompileErrorType::InvalidCast("Foo".to_string(), "Bar".to_string()),
+        ),
+    ];
+
+    for (msg, text, expected) in cases {
+        let err = compile_fail(text);
+        println!("Test case: {msg}");
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
 fn test_struct_conversion() {
-    let text = r#"
-        struct Foo {
-            a int,
-            b string,
-        }
+    let cases = [
+        (
+            "struct to struct",
+            r#"
+            struct Foo {
+                a int,
+                b string,
+            }
 
-        struct Bar {
-            b string,
-            a int,
-        }
+            struct Bar {
+                b string,
+                a int,
+            }
 
-        function convert() struct Bar {
-            return Foo { a: 1, b: "test" } as Bar
-        }
-    "#;
+            function convert() struct Bar {
+                return Foo { a: 1, b: "test" } as Bar
+            }
+        "#,
+        ),
+        (
+            "struct to command",
+            r#"
+            struct Foo {
+                a int,
+                b string,
+            }
+            command Bar {
+                fields {
+                    a int,
+                    b string,
+                }
+                seal { return None }
+                open { return None }
+            }
+            action convert() {
+                let bar = Foo { a: 1, b: "test" } as Bar
+                publish bar
+            }
+        "#,
+        ),
+    ];
 
-    compile_pass(text);
+    for (msg, text) in cases {
+        println!("Test case: {msg}");
+        compile_pass(text);
+    }
 }
 
 #[test]

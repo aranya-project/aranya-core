@@ -957,10 +957,7 @@ impl<'a> CompileState<'a> {
             Expression::StructAs(lhs, rhs_ident) => {
                 // make sure other struct is defined
                 let rhs_fields = self.m.struct_defs.get(rhs_ident).cloned().ok_or_else(|| {
-                    self.err(CompileErrorType::NotDefined(format!(
-                        "Struct `{}` not defined",
-                        rhs_ident
-                    )))
+                    self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))
                 })?;
 
                 let lhs_type = self.compile_expression(lhs)?;
@@ -969,10 +966,17 @@ impl<'a> CompileState<'a> {
                         let lhs_fields =
                             self.m.struct_defs.get(&lhs_struct_name).ok_or_else(|| {
                                 self.err(CompileErrorType::NotDefined(format!(
-                                    "Struct `{}` not defined",
-                                    lhs_struct_name
+                                    "struct {lhs_struct_name}"
                                 )))
                             })?;
+
+                        // Don't allow converting to same type
+                        if &lhs_struct_name == rhs_ident {
+                            return Err(self.err(CompileErrorType::InvalidCast(
+                                lhs_struct_name,
+                                rhs_ident.clone(),
+                            )));
+                        }
 
                         // Check that both structs have the same field names and types (though not necessarily in the same order)
                         if lhs_fields.len() != rhs_fields.len()
