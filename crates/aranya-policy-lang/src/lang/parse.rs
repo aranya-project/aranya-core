@@ -584,7 +584,15 @@ impl ChunkParser<'_> {
                         format!("Expression `{:?}` to the right of the substruct operator must be an identifier", e),
                         Some(op.as_span()),
                     )),
-                }
+                },
+                Rule::struct_as => match rhs? {
+                        Expression::Identifier(s) => Ok(Expression::StructAs(Box::new(lhs?), s)),
+                        e => Err(ParseError::new(
+                            ParseErrorKind::InvalidSubstruct,
+                            format!("Expression `{:?}` to the right of the as operator must be an identifier", e),
+                            Some(op.as_span()),
+                        )),
+                },
                 _ => Err(ParseError::new(
                     ParseErrorKind::Expression,
                     format!("bad infix: {:?}", op.as_rule()),
@@ -1700,6 +1708,7 @@ pub fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::prefix(Rule::unwrap)
             | Op::prefix(Rule::check_unwrap))
         .op(Op::infix(Rule::substruct, Assoc::Left))
+        .op(Op::infix(Rule::struct_as, Assoc::Left))
         .op(Op::infix(Rule::dot, Assoc::Left))
 }
 

@@ -2418,3 +2418,38 @@ fn test_comparison_operators() {
     check("!(2 < 1)");
     check("!(2 <= 1)");
 }
+
+#[test]
+fn test_struct_conversion() -> anyhow::Result<()> {
+    let policy = r#"
+        struct Foo { x int, y string }
+        command Bar {
+            fields { x int, y string }
+            seal { return None }
+            open { return None }
+        }
+        action test() {
+            let bar = Foo { x: 42, y: "abc" } as Bar
+            publish bar
+        }
+    "#;
+
+    let policy = parse_policy_str(policy, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let ctx = dummy_ctx_action("test");
+    let mut rs = machine.create_run_state(&io, ctx);
+    let _ = call_action(&mut rs, &io, "test", iter::empty::<Value>())?;
+    assert_eq!(
+        io.borrow().publish_stack[0],
+        (
+            "Bar".to_string(),
+            vec![
+                KVPair::new("x", Value::Int(42)),
+                KVPair::new("y", Value::String("abc".to_string())),
+            ]
+        )
+    );
+    Ok(())
+}

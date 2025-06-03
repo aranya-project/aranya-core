@@ -954,6 +954,56 @@ impl<'a> CompileState<'a> {
 
                 result_type
             }
+            Expression::StructAs(lhs, rhs_ident) => {
+                // make sure other struct is defined
+                let rhs_fields = self.m.struct_defs.get(rhs_ident).cloned().ok_or_else(|| {
+                    self.err(CompileErrorType::NotDefined(format!(
+                        "Struct `{}` not defined",
+                        rhs_ident
+                    )))
+                })?;
+
+                let lhs_type = self.compile_expression(lhs)?;
+                match lhs_type {
+                    Typeish::Type(VType::Struct(lhs_struct_name)) => {
+                        let lhs_fields =
+                            self.m.struct_defs.get(&lhs_struct_name).ok_or_else(|| {
+                                self.err(CompileErrorType::NotDefined(format!(
+                                    "Struct `{}` not defined",
+                                    lhs_struct_name
+                                )))
+                            })?;
+
+                        // Check that both structs have the same field names and types (though not necessarily in the same order)
+                        if lhs_fields.len() != rhs_fields.len()
+                            || !lhs_fields.iter().all(|f| rhs_fields.contains(f))
+                        {
+                            return Err(self.err(CompileErrorType::InvalidCast(
+                                lhs_struct_name,
+                                rhs_ident.clone(),
+                            )));
+                        }
+                    }
+                    Typeish::Indeterminate => {}
+                    Typeish::Type(_) => {
+                        return Err(self.err(CompileErrorType::InvalidType(
+                            "Expression to the left of `as` is not a struct".to_string(),
+                        )));
+                    }
+                }
+
+                // Go back to the StructNew(LHS-ident) instruction, and replace it with StructNew(RHS-ident).
+                // The field order may be different, but the VM sets them by name, so the order doesn't matter.
+                let i = self
+                    .m
+                    .progmem
+                    .iter()
+                    .position(|i| matches!(i, &Instruction::StructNew(_)))
+                    .expect("should have found a StructNew instruction");
+                self.m.progmem[i] = Instruction::StructNew(rhs_ident.clone());
+
+                Typeish::Type(VType::Struct(rhs_ident.clone()))
+            }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;
                 let right_type = self.compile_expression(b)?;

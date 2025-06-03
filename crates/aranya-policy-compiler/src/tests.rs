@@ -2380,6 +2380,28 @@ fn test_substruct_errors() {
         assert_eq!(err.to_string(), c.e);
     }
 }
+
+#[test]
+fn test_struct_conversion() {
+    let text = r#"
+        struct Foo {
+            a int,
+            b string,
+        }
+
+        struct Bar {
+            b string,
+            a int,
+        }
+
+        function convert() struct Bar {
+            return Foo { a: 1, b: "test" } as Bar
+        }
+    "#;
+
+    compile_pass(text);
+}
+
 #[test]
 fn if_expression_block() {
     let text = r#"
