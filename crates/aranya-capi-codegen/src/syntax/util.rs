@@ -7,7 +7,7 @@ use syn::{GenericArgument, Ident, Path, PathArguments, Type, TypePath};
 /// Converts `ty` to a string, but strips out whitespace.
 pub struct Trimmed<'a, T>(pub &'a T);
 
-impl<'a> fmt::Display for Trimmed<'a, TypePath> {
+impl fmt::Display for Trimmed<'_, TypePath> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.0.qself.is_some() {
             // TODO(eric): proper qself support?
@@ -17,13 +17,13 @@ impl<'a> fmt::Display for Trimmed<'a, TypePath> {
     }
 }
 
-impl<'a> fmt::Display for Trimmed<'a, Path> {
+impl fmt::Display for Trimmed<'_, Path> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_path(f, self.0)
     }
 }
 
-impl<'a> fmt::Display for Trimmed<'a, Ident> {
+impl fmt::Display for Trimmed<'_, Ident> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write_path(f, &self.0.clone().into())
     }
@@ -94,7 +94,7 @@ fn write_type(f: &mut fmt::Formatter<'_>, ty: &Type) -> fmt::Result {
 #[allow(dead_code)] // TODO
 pub(super) struct Quote<'a, T>(pub &'a T);
 
-impl<'a, T: ToTokens> fmt::Display for Quote<'a, T> {
+impl<T: ToTokens> fmt::Display for Quote<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let v = &self.0;
         write!(f, "\"{}\"", quote!(#v))
@@ -104,7 +104,7 @@ impl<'a, T: ToTokens> fmt::Display for Quote<'a, T> {
 /// Ensures that `Option<T: ToTokens>` still prints the token.
 pub(super) struct TokensOrDefault<'a, T>(pub &'a Option<T>);
 
-impl<'a, T> ToTokens for TokensOrDefault<'a, T>
+impl<T> ToTokens for TokensOrDefault<'_, T>
 where
     T: ToTokens + Default,
 {

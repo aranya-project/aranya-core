@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::BTreeMap, iter};
 
 use aranya_crypto::Id;
 use aranya_policy_ast::{self as ast, Version};
-use aranya_policy_compiler::{CompileErrorType, Compiler};
+use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactValue, KVPair, Machine, MachineError,
@@ -898,6 +898,59 @@ fn test_query_partial_key() -> anyhow::Result<()> {
 
     {
         let action_name = "test_exists";
+        let ctx = dummy_ctx_open(action_name);
+        let mut rs = machine.create_run_state(&io, ctx);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_query_enum_keys() -> anyhow::Result<()> {
+    let text = r#"
+        enum Foo { A, B }
+        fact Bar[i enum Foo] => {x enum Foo}
+
+        command Setup {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    create Bar[i: Foo::A] => {x: Foo::A}
+                    create Bar[i: Foo::B] => {x: Foo::B}
+                }
+            }
+        }
+
+        action test_query() {
+            let f = unwrap query Bar[i:Foo::A] => {x: ?}
+            check f.x == Foo::A
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+
+    {
+        let cmd_name = "Setup";
+        let this_data = Struct {
+            name: String::from(cmd_name),
+            fields: [].into(),
+        };
+
+        let ctx = dummy_ctx_open(cmd_name);
+        let mut rs = machine.create_run_state(&io, ctx);
+        rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?
+            .success();
+    }
+
+    {
+        let action_name = "test_query";
         let ctx = dummy_ctx_open(action_name);
         let mut rs = machine.create_run_state(&io, ctx);
         rs.call_action(action_name, iter::empty::<Value>())?
@@ -2066,26 +2119,6 @@ policy {
 }
 
 #[test]
-fn test_ffi_fail_without_use() -> anyhow::Result<()> {
-    let text = r#"
-        function test() int {
-            let head_id = print::print("hi")
-            return 0
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()
-        .expect_err("")
-        .err_type;
-    assert_eq!(result, CompileErrorType::NotDefined(String::from("print")));
-
-    Ok(())
-}
-
-#[test]
 fn test_map() -> anyhow::Result<()> {
     let text = r#"
         fact F[i int]=>{n int}
@@ -2401,7 +2434,7 @@ fn test_substruct_errors() -> anyhow::Result<()> {
                     let maybe_source = if true {
                         :Some(source)
                     } else {
-                        :None 
+                        :None
                     }
 
                     let definitely_source = unwrap maybe_source
@@ -2436,7 +2469,7 @@ fn test_substruct_errors() -> anyhow::Result<()> {
                     let maybe_source = if true {
                         :Some(source)
                     } else {
-                        :None 
+                        :None
                     }
 
                     let definitely_source = unwrap maybe_source

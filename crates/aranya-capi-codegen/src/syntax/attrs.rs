@@ -223,7 +223,7 @@ fn parse_capi_attr(ctx: &Ctx, attr: &Attribute, parser: &mut Parser<'_>) -> bool
             Ok(attr) => {
                 if let Some(v) = &mut parser.capi_opaque {
                     **v = Some(attr);
-                    return false; // passthrough
+                    return true;
                 }
             }
             Err(err) => {

@@ -17,8 +17,8 @@ impl CommandId {
     /// Derives a [`CommandId`] from some data.
     #[cfg(feature = "testing")]
     pub fn hash_for_testing_only(data: &[u8]) -> Self {
-        use aranya_crypto::{hash::Hash, rust::Sha512};
-        Sha512::hash(data).into_array().into()
+        use aranya_crypto::{hash::Hash, rust::Sha256};
+        Sha256::hash(data).into_array().into()
     }
 
     pub fn short_b58(&self) -> String {

@@ -71,6 +71,12 @@
     }
   },
   { 
+    "AddExpectations" : {
+      "expectation": 3, 
+      "repeat": 1 
+    }
+  },
+  { 
     "Sync" : {
       "client": 1, 
       "graph": 0, 

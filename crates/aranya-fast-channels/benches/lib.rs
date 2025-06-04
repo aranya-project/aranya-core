@@ -1,3 +1,5 @@
+#![allow(clippy::arithmetic_side_effects)]
+
 use std::{array, time::Duration};
 
 use aranya_crypto::{

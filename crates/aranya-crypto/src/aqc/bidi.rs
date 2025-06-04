@@ -1,9 +1,13 @@
 use core::fmt;
 
 use serde::{Deserialize, Serialize};
+use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
-    aqc::shared::{RawPsk, RootChannelKey},
+    aqc::{
+        shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
+        suite::CipherSuiteId,
+    },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::SuiteIds,
     csprng::Random,
@@ -34,6 +38,8 @@ use crate::{
 ///         BidiPeerEncap,
 ///         BidiPsk,
 ///         BidiSecrets,
+///         BidiSecret,
+///         CipherSuiteId,
 ///     },
 ///     CipherSuite,
 ///     Csprng,
@@ -76,8 +82,10 @@ use crate::{
 /// };
 /// let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `BidiSecrets`");
-/// let device1_psk = BidiPsk::from_author_secret(&device1_ch, author)
-///     .expect("unable to derive `BidiPsk` from author secrets");
+/// let device1_psk = BidiSecret::from_author_secret(&device1_ch, author)
+///     .expect("unable to derive `BidiSecret` from author secrets")
+///     .generate_psk(CipherSuiteId::TlsAes128GcmSha256)
+///     .expect("unable to generate `BidiPsk`");
 ///
 /// // ...and device2 decrypts the encapsulation to discover the
 /// // channel keys.
@@ -91,8 +99,10 @@ use crate::{
 ///     their_id: device1_id,
 ///     label,
 /// };
-/// let device2_psk = BidiPsk::from_peer_encap(&device2_ch, peer)
-///     .expect("unable to derive `BidiPsk` from peer encap");
+/// let device2_psk = BidiSecret::from_peer_encap(&device2_ch, peer)
+///     .expect("unable to derive `BidiSecret` from peer encap")
+///     .generate_psk(CipherSuiteId::TlsAes128GcmSha256)
+///     .expect("unable to generate `BidiPsk`");
 ///
 /// assert_eq!(device1_psk.identity(), device2_psk.identity());
 /// assert!(bool::from(device1_psk.raw_secret_bytes().ct_eq(device2_psk.raw_secret_bytes())));
@@ -213,6 +223,7 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
 
 custom_id! {
     /// Uniquely identifies a bidirectional channel.
+    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct BidiChannelId;
 }
 
@@ -269,15 +280,16 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
     }
 }
 
-/// A PSK for a bidirectional channel.
-pub struct BidiPsk<CS> {
+/// The shared bidirectional channel secret used by both the
+/// channel author and channel peer to derive individual PSKs.
+pub struct BidiSecret<CS: CipherSuite> {
     id: BidiChannelId,
-    psk: RawPsk<CS>,
+    ctx: SendOrRecvCtx<CS>,
 }
 
-impl<CS: CipherSuite> BidiPsk<CS> {
-    /// Creates the bidirectional PSK from the channel author's
-    /// secret.
+impl<CS: CipherSuite> BidiSecret<CS> {
+    /// Creates the bidirectional channel secret from the channel
+    /// author's secret.
     pub fn from_author_secret(
         ch: &BidiChannel<'_, CS>,
         secret: BidiAuthorSecret<CS>,
@@ -303,16 +315,15 @@ impl<CS: CipherSuite> BidiPsk<CS> {
             secret.0.into_inner(),
         )?;
 
-        let id = BidiPeerEncap::<CS>(Encap(enc)).id();
-
-        // See section 9.8 of RFC 9180.
-        let psk = ctx.export(b"aqc bidi psk")?;
-
-        Ok(Self { id, psk })
+        Ok(Self {
+            id: BidiPeerEncap::<CS>(Encap(enc)).id(),
+            ctx: SendOrRecvCtx::Send(ctx),
+        })
     }
 
     /// Decapsulates the encapsulated channel keys received from
-    /// the channel author and returns the bidirectional PSK.
+    /// the channel author and returns the bidirectional channel
+    /// secret.
     pub fn from_peer_encap(
         ch: &BidiChannel<'_, CS>,
         enc: BidiPeerEncap<CS>,
@@ -340,20 +351,68 @@ impl<CS: CipherSuite> BidiPsk<CS> {
 
         let id = enc.id();
 
-        // See section 9.8 of RFC 9180.
-        let psk = ctx.export(b"aqc bidi psk")?;
-
-        Ok(Self { id, psk })
+        Ok(Self {
+            id,
+            ctx: SendOrRecvCtx::Recv(ctx),
+        })
     }
 
+    /// Returns the bidirectional channel ID.
+    pub fn id(&self) -> &BidiChannelId {
+        &self.id
+    }
+
+    /// Generates a PSK for the cipher suite.
+    ///
+    /// This method is deterministic over the `BidiSecret` and
+    /// cipher suite: calling it with the same `BidiSecret` and
+    /// cipher suite will generate the same PSK.
+    pub fn generate_psk(&self, suite: CipherSuiteId) -> Result<BidiPsk<CS>, Error> {
+        // See section 9.8 of RFC 9180.
+        let context = PskCtx {
+            prefix: *b"aqc bidi psk",
+            channel_id: self.id,
+            suite,
+        };
+        Ok(BidiPsk {
+            id: BidiPskId { id: self.id, suite },
+            psk: self.ctx.export(context.as_bytes())?,
+        })
+    }
+}
+
+impl<CS: CipherSuite> fmt::Debug for BidiSecret<CS> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BidiSecret")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The context used when generating a [`BidiPsk`].
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Immutable, IntoBytes, KnownLayout)]
+struct PskCtx {
+    prefix: [u8; 12],
+    channel_id: BidiChannelId,
+    suite: CipherSuiteId,
+}
+
+/// A PSK for a bidirectional channel.
+pub struct BidiPsk<CS> {
+    id: BidiPskId,
+    psk: RawPsk<CS>,
+}
+
+impl<CS: CipherSuite> BidiPsk<CS> {
     /// Returns the PSK identity.
     ///
     /// See [RFC 8446] section 4.2.11 for more information about
     /// PSKs.
     ///
     /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
-    pub fn identity(&self) -> BidiChannelId {
-        self.id
+    pub fn identity(&self) -> &BidiPskId {
+        &self.id
     }
 
     /// Returns the raw PSK secret.
@@ -373,6 +432,51 @@ impl<CS: CipherSuite> fmt::Debug for BidiPsk<CS> {
         f.debug_struct("BidiPsk")
             .field("id", &self.id)
             .finish_non_exhaustive()
+    }
+}
+
+/// Uniquely identifies a [`BidiPsk`].
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
+pub struct BidiPskId {
+    id: BidiChannelId,
+    suite: CipherSuiteId,
+}
+
+impl BidiPskId {
+    /// Returns the AQC channel ID.
+    pub const fn channel_id(&self) -> &BidiChannelId {
+        &self.id
+    }
+
+    /// Returns the TLS 1.3 cipher suite ID.
+    pub const fn cipher_suite(&self) -> CipherSuiteId {
+        self.suite
+    }
+
+    /// Converts the ID to its byte encoding.
+    pub const fn as_bytes(&self) -> &[u8; 34] {
+        zerocopy::transmute_ref!(self)
+    }
+}
+
+impl ConstantTimeEq for BidiPskId {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        self.as_bytes().ct_eq(other.as_bytes())
+    }
+}
+
+impl From<(BidiChannelId, CipherSuiteId)> for BidiPskId {
+    #[inline]
+    fn from((id, suite): (BidiChannelId, CipherSuiteId)) -> Self {
+        Self { id, suite }
+    }
+}
+
+impl fmt::Display for BidiPskId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { id, suite } = self;
+        write!(f, "BidiPSK-{id}-{suite}")
     }
 }
 

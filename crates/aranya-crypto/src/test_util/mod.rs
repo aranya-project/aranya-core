@@ -42,7 +42,7 @@ use crate::{
     mac::{Mac, MacId},
     signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
     subtle::{Choice, ConstantTimeEq},
-    typenum::U64,
+    typenum::{U32, U64},
     zeroize::ZeroizeOnDrop,
 };
 
@@ -331,19 +331,12 @@ impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for SignatureWithDefaults<T> {
 }
 
 /// A test [`CipherSuite`].
-pub struct TestCs<
-    A: Aead + IndCca2,
-    H: Hash<DigestSize = U64>,
-    F: Kdf,
-    K: Kem,
-    M: Mac<KeySize = U64, TagSize = U64>,
-    S: Signer,
->(PhantomData<(A, H, F, K, M, S)>);
+pub struct TestCs<A, H, F, K, M, S>(PhantomData<(A, H, F, K, M, S)>);
 
 impl<A, H, F, K, M, S> CipherSuite for TestCs<A, H, F, K, M, S>
 where
     A: Aead + IndCca2,
-    H: Hash<DigestSize = U64>,
+    H: Hash<DigestSize = U32>,
     F: Kdf,
     K: Kem,
     M: Mac<KeySize = U64, TagSize = U64>,

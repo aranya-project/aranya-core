@@ -125,6 +125,7 @@ macro_rules! for_each_engine_test {
             test_aqc_derive_bidi_psk_different_device_ids,
             test_aqc_derive_bidi_psk_different_cmd_ids,
             test_aqc_derive_bidi_psk_different_keys,
+            test_aqc_derive_bidi_psk_different_cipher_suites,
             test_aqc_derive_bidi_psk_same_device_id,
             test_aqc_derive_bidi_psk_psk_too_short,
             test_aqc_derive_bidi_psk_psk_too_long,
@@ -135,8 +136,8 @@ macro_rules! for_each_engine_test {
             test_aqc_derive_uni_psk_different_device_ids,
             test_aqc_derive_uni_psk_different_cmd_ids,
             test_aqc_derive_uni_psk_different_keys,
-            test_aqc_derive_uni_send_psk_key_same_device_id,
-            test_aqc_derive_uni_recv_psk_key_same_device_id,
+            test_aqc_derive_uni_send_psk_same_device_id,
+            test_aqc_derive_uni_recv_psk_same_device_id,
             test_aqc_derive_uni_send_psk_psk_too_short,
             test_aqc_derive_uni_recv_psk_psk_too_short,
             test_aqc_derive_uni_send_psk_psk_too_long,
@@ -518,7 +519,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
         "wrong `parent`",
         Context {
             label: "some label",
-            parent: [1u8; 64].into(),
+            parent: [1u8; 32].into(),
             author_sign_pk: &author_pk1,
         }
     );
@@ -1913,10 +1914,14 @@ pub fn test_aqc_derive_bidi_psk<E: Engine>(eng: &mut E) {
 
     let aqc::BidiSecrets { author, peer } =
         aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiPsk::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiPsk`");
-    let psk2 =
-        aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `aqc::BidiPsk`");
+    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate author PSK");
+    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to decrypt peer `aqc::BidiPsk`");
 
     assert_eq!(psk1.identity(), psk2.identity());
     assert_eq!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
@@ -1955,9 +1960,14 @@ pub fn test_aqc_derive_bidi_psk_different_labels<E: Engine>(eng: &mut E) {
 
     let aqc::BidiSecrets { author, peer } =
         aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 =
-        aqc::BidiPsk::from_author_secret(&ch1, author).expect("unable to decrypt `aqc::BidiPsk`");
-    let psk2 = aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt `aqc::BidiPsk`");
+    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to decrypt `aqc::BidiPsk`");
+    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to decrypt `aqc::BidiPsk`");
 
     // The identities are the same because identities are derived
     // from the peer's encapsulation, not the raw secret bytes.
@@ -2006,10 +2016,14 @@ pub fn test_aqc_derive_bidi_psk_different_device_ids<E: Engine>(eng: &mut E) {
 
     let aqc::BidiSecrets { author, peer } =
         aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiPsk::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiPsk`");
-    let psk2 =
-        aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `aqc::BidiPsk`");
+    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate author PSK");
+    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to decrypt peer `aqc::BidiPsk`");
 
     // The identities are the same because identities are derived
     // from the peer's encapsulation, not the raw secret bytes.
@@ -2056,10 +2070,14 @@ pub fn test_aqc_derive_bidi_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
 
     let aqc::BidiSecrets { author, peer } =
         aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiPsk::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiPsk`");
-    let psk2 =
-        aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `aqc::BidiPsk`");
+    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate author PSK");
+    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to decrypt peer `aqc::BidiPsk`");
 
     // The identities are the same because identities are derived
     // from the peer's encapsulation, not the raw secret bytes.
@@ -2109,14 +2127,70 @@ pub fn test_aqc_derive_bidi_psk_different_keys<E: Engine>(eng: &mut E) {
 
     let aqc::BidiSecrets { author, peer } =
         aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
-    let psk1 = aqc::BidiPsk::from_author_secret(&ch1, author)
-        .expect("unable to decrypt author `aqc::BidiPsk`");
-    let psk2 =
-        aqc::BidiPsk::from_peer_encap(&ch2, peer).expect("unable to decrypt peer `aqc::BidiPsk`");
+    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate author PSK");
+    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to decrypt peer `aqc::BidiPsk`");
 
     // The identities are the same because identities are derived
     // from the peer's encapsulation, not the raw secret bytes.
     assert_eq!(psk1.identity(), psk2.identity());
+    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
+}
+
+/// Different cipher suites should create different
+/// [`aqc::BidiPsk`]s.
+///
+/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
+pub fn test_aqc_derive_bidi_psk_different_cipher_suites<E: Engine>(eng: &mut E) {
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let label = Id::random(eng);
+    let ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+    };
+    let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        our_id: ch1.their_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: ch1.our_id,
+        label,
+    };
+    assert_eq!(ch1.author_info(), ch2.peer_info());
+    assert_eq!(ch1.peer_info(), ch2.author_info());
+
+    let aqc::BidiSecrets { author, peer } =
+        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
+    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate author PSK");
+    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::BidiSecret`")
+        .generate_psk(aqc::CipherSuiteId::TlsAes256GcmSha384)
+        .expect("unable to decrypt peer `aqc::BidiPsk`");
+
+    assert_ne!(psk1.identity(), psk2.identity());
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
@@ -2167,8 +2241,8 @@ pub fn test_aqc_derive_bidi_psk_same_device_id<E: Engine>(eng: &mut E) {
     };
 
     ch2.their_id = ch2.our_id;
-    let err = aqc::BidiPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::BidiPsk`");
+    let err = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::BidiSecret`");
     assert_eq!(err, Error::same_device_id());
 }
 
@@ -2217,8 +2291,8 @@ pub fn test_aqc_derive_bidi_psk_psk_too_short<E: Engine>(eng: &mut E) {
         aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`")
     };
 
-    let err = aqc::BidiPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::BidiPsk`");
+    let err = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::BidiSecret`");
     assert_eq!(err, Error::invalid_psk_length());
 }
 
@@ -2267,8 +2341,8 @@ pub fn test_aqc_derive_bidi_psk_psk_too_long<E: Engine>(eng: &mut E) {
         aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`")
     };
 
-    let err = aqc::BidiPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::BidiPsk`");
+    let err = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::BidiSecret`");
     assert_eq!(err, Error::invalid_psk_length());
 }
 
@@ -2343,9 +2417,13 @@ pub fn test_aqc_derive_uni_psk<E: Engine>(eng: &mut E) {
 
     let aqc::UniSecrets { author, peer } =
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSendPsk::from_author_secret(&ch1, author)
+    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::UniSecret`")
+        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
+    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::UniSecret`")
+        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
     assert_eq!(psk1.identity(), psk2.identity());
@@ -2387,9 +2465,13 @@ pub fn test_aqc_derive_uni_psk_different_labels<E: Engine>(eng: &mut E) {
 
     let aqc::UniSecrets { author, peer } =
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSendPsk::from_author_secret(&ch1, author)
+    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::UniSecret`")
+        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
+    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::UniSecret`")
+        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
     // The identities are the same because identities are derived
@@ -2436,9 +2518,13 @@ pub fn test_aqc_derive_uni_psk_different_device_ids<E: Engine>(eng: &mut E) {
 
     let aqc::UniSecrets { author, peer } =
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSendPsk::from_author_secret(&ch1, author)
+    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::UniSecret`")
+        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
+    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::UniSecret`")
+        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
     // The identities are the same because identities are derived
@@ -2485,9 +2571,13 @@ pub fn test_aqc_derive_uni_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
 
     let aqc::UniSecrets { author, peer } =
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSendPsk::from_author_secret(&ch1, author)
+    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::UniSecret`")
+        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
+    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::UniSecret`")
+        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
     // The identities are the same because identities are derived
@@ -2533,9 +2623,13 @@ pub fn test_aqc_derive_uni_psk_different_keys<E: Engine>(eng: &mut E) {
 
     let aqc::UniSecrets { author, peer } =
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
-    let psk1 = aqc::UniSendPsk::from_author_secret(&ch1, author)
+    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::UniSecret`")
+        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt author `aqc::UniSendPsk`");
-    let psk2 = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
+    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::UniSecret`")
+        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
         .expect("unable to decrypt peer `aqc::UniRecvPsk`");
 
     // The identities are the same because identities are derived
@@ -2546,7 +2640,7 @@ pub fn test_aqc_derive_uni_psk_different_keys<E: Engine>(eng: &mut E) {
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::UniSendPsk`]s.
-pub fn test_aqc_derive_uni_send_psk_key_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_send_psk_same_device_id<E: Engine>(eng: &mut E) {
     let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -2592,14 +2686,14 @@ pub fn test_aqc_derive_uni_send_psk_key_same_device_id<E: Engine>(eng: &mut E) {
     };
 
     ch2.seal_id = ch2.open_id;
-    let err = aqc::UniSendPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSendPsk`");
+    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniSecret`");
     assert_eq!(err, Error::same_device_id());
 }
 
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::UniRecvPsk`]s.
-pub fn test_aqc_derive_uni_recv_psk_key_same_device_id<E: Engine>(eng: &mut E) {
+pub fn test_aqc_derive_uni_recv_psk_same_device_id<E: Engine>(eng: &mut E) {
     let label = Id::random(eng);
     let sk1 = EncryptionKey::<E::CS>::new(eng);
     let sk2 = EncryptionKey::<E::CS>::new(eng);
@@ -2645,8 +2739,8 @@ pub fn test_aqc_derive_uni_recv_psk_key_same_device_id<E: Engine>(eng: &mut E) {
     };
 
     ch2.seal_id = ch2.open_id;
-    let err = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniRecvPsk`");
+    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniSecret`");
     assert_eq!(err, Error::same_device_id());
 }
 
@@ -2694,8 +2788,8 @@ pub fn test_aqc_derive_uni_send_psk_psk_too_short<E: Engine>(eng: &mut E) {
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
     };
 
-    let err = aqc::UniSendPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSendPsk`");
+    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniSecret`");
     assert_eq!(err, Error::invalid_psk_length());
 }
 
@@ -2743,8 +2837,8 @@ pub fn test_aqc_derive_uni_recv_psk_psk_too_short<E: Engine>(eng: &mut E) {
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
     };
 
-    let err = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniRecvPsk`");
+    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniSecret`");
     assert_eq!(err, Error::invalid_psk_length());
 }
 
@@ -2792,8 +2886,8 @@ pub fn test_aqc_derive_uni_send_psk_psk_too_long<E: Engine>(eng: &mut E) {
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
     };
 
-    let err = aqc::UniSendPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniSendPsk`");
+    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniSecret`");
     assert_eq!(err, Error::invalid_psk_length());
 }
 
@@ -2841,9 +2935,60 @@ pub fn test_aqc_derive_uni_recv_psk_psk_too_long<E: Engine>(eng: &mut E) {
         aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`")
     };
 
-    let err = aqc::UniRecvPsk::from_peer_encap(&ch2, peer)
-        .expect_err("should not be able to decrypt `aqc::UniRecvPsk`");
+    let err = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect_err("should not be able to decrypt `aqc::UniSecret`");
     assert_eq!(err, Error::invalid_psk_length());
+}
+
+/// Different cipher suites should create different
+/// [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`]s.
+///
+/// E.g., derive(label, u1, u2, c1) != derive(label, u2, u1, c2).
+pub fn test_aqc_derive_uni_psk_different_cipher_suites<E: Engine>(eng: &mut E) {
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let label = Id::random(eng);
+    let ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
+        label,
+    };
+    let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: ch1.seal_id,
+        open_id: ch1.open_id,
+        label,
+    };
+    assert_eq!(ch1.info(), ch2.info());
+
+    let aqc::UniSecrets { author, peer } =
+        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
+    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::UniSecret`")
+        .generate_send_only_psk(aqc::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to decrypt author `aqc::UniSendPsk`");
+    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::UniSecret`")
+        .generate_recv_only_psk(aqc::CipherSuiteId::TlsAes256GcmSha384)
+        .expect("unable to decrypt peer `aqc::UniRecvPsk`");
+
+    assert_ne!(psk1.identity(), psk2.identity());
+    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
 /// Simple positive test for wrapping [`aqc::UniAuthorSecret`]s.
