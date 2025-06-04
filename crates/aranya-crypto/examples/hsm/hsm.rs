@@ -6,6 +6,7 @@ use std::{
 };
 
 use aranya_crypto::{
+    Rng,
     aead::{Aead, Nonce},
     csprng::Random,
     custom_id,
@@ -15,7 +16,6 @@ use aranya_crypto::{
     keys::{PublicKey, SecretKey},
     rust::{Aes256Gcm, Sha256},
     signer::PkError,
-    Rng,
 };
 use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};

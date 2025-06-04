@@ -17,13 +17,12 @@ use core::{
 };
 
 use aranya_crypto::{
-    self,
+    self, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
+    IdentityKey, KeyStore, Rng,
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
     csprng::Random,
     engine::WrappedKey,
-    keystore::{memstore, Entry, Occupied, Vacant},
-    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, Rng,
+    keystore::{Entry, Occupied, Vacant, memstore},
 };
 use aranya_policy_vm::{ActionContext, CommandContext};
 use spin::Mutex;

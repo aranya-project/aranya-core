@@ -22,7 +22,7 @@ impl Errno {
     /// Returns the underlying code.
     #[inline]
     pub const fn code(&self) -> i32 {
-        self.0 .0
+        self.0.0
     }
 }
 

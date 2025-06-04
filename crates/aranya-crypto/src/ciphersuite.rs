@@ -118,9 +118,9 @@ mod tests {
         use crate::{
             bearssl::{
                 Aes256Gcm, DhKemP256HkdfSha256, DhKemP521HkdfSha512, HkdfSha256, HkdfSha384,
-                HkdfSha512, HmacSha512, Sha256, P256, P384, P521,
+                HkdfSha512, HmacSha512, P256, P384, P521, Sha256,
             },
-            test_util::{test_ciphersuite, TestCs},
+            test_util::{TestCs, test_ciphersuite},
         };
 
         test_ciphersuite!(p256, TestCs<
@@ -152,10 +152,10 @@ mod tests {
     mod rust {
         use crate::{
             rust::{
-                Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256,
-                P384,
+                Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, P256, P384,
+                Sha256,
             },
-            test_util::{test_ciphersuite, TestCs},
+            test_util::{TestCs, test_ciphersuite},
         };
 
         test_ciphersuite!(p256, TestCs<

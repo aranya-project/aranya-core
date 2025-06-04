@@ -23,13 +23,13 @@ use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
 
 #[cfg(feature = "bench")]
-use crate::bench::{bench_aggregate, Stopwatch};
+use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
+    CommandContext, OpenContext, SealContext,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
     stack::Stack,
-    CommandContext, OpenContext, SealContext,
 };
 
 const STACK_SIZE: usize = 100;
@@ -552,7 +552,7 @@ where
             Instruction::End => self.scope.exit_block().map_err(|e| self.err(e))?,
             Instruction::Jump(t) => match t {
                 Target::Unresolved(label) => {
-                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                 }
                 Target::Resolved(n) => {
                     // We set the PC and return here to skip the
@@ -568,7 +568,7 @@ where
                 if conditional {
                     match t {
                         Target::Unresolved(label) => {
-                            return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
+                            return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                         }
                         Target::Resolved(n) => {
                             self.pc = n;
@@ -581,7 +581,7 @@ where
             Instruction::Last => todo!(),
             Instruction::Call(t) => match t {
                 Target::Unresolved(label) => {
-                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                 }
                 Target::Resolved(n) => {
                     self.scope.enter_function();
@@ -818,7 +818,7 @@ where
                     _ => {
                         return Err(
                             self.err(MachineErrorType::BadState("Emit: wrong command context"))
-                        )
+                        );
                     }
                 };
                 self.io

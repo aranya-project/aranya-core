@@ -1,12 +1,12 @@
 use std::{collections::HashMap, iter::Peekable, mem, slice};
 
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 use syn::{
-    parse_quote, parse_quote_spanned,
+    Attribute, Expr, Ident, ItemConst, ItemImpl, ItemStruct, Path, Result, Token, parse_quote,
+    parse_quote_spanned,
     punctuated::{Pair, Punctuated},
     spanned::Spanned,
-    Attribute, Expr, Ident, ItemConst, ItemImpl, ItemStruct, Path, Result, Token,
 };
 use tracing::{debug, instrument, trace};
 
@@ -14,12 +14,12 @@ use super::{Ast, IdentMap};
 use crate::{
     ctx::Ctx,
     syntax::{
-        attrs::{NoExtError, Repr},
-        trace::Instrument,
         Alias, AttrsExt, Builds, DeriveTrait, Enum, FfiFn, Fields, FnArg, Lifetimes, MaybeUninit,
         Node, Ptr, Ref, ReturnType, RustFn, Scalar, ScalarType, Struct, Type, Union, Unit,
+        attrs::{NoExtError, Repr},
+        trace::Instrument,
     },
-    util::{parse_doc, IdentExt, PathExt},
+    util::{IdentExt, PathExt, parse_doc},
 };
 
 impl Ast {

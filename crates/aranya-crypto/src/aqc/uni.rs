@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
+    CipherSuite, Engine,
     aqc::{
         shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
         suite::CipherSuiteId,
@@ -13,14 +14,13 @@ use crate::{
     csprng::Random,
     engine::unwrapped,
     error::Error,
-    hash::{tuple_hash, Digest, Hash},
+    hash::{Digest, Hash, tuple_hash},
     hpke::{Hpke, Mode},
-    id::{custom_id, Id},
+    id::{Id, custom_id},
     import::ImportError,
     kem::Kem,
     misc::sk_misc,
     subtle::{Choice, ConstantTimeEq},
-    CipherSuite, Engine,
 };
 
 /// Contextual information for a unidirectional AQC channel.

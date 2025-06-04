@@ -13,14 +13,15 @@ use postcard::experimental::max_size::MaxSize;
 #[doc(hidden)]
 pub use proptest as __proptest;
 use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
     de::{self, DeserializeOwned, SeqAccess, Visitor},
     ser::SerializeTuple,
-    Deserialize, Deserializer, Serialize, Serializer,
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
 use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
+    CipherSuite,
     ciphersuite::SuiteIds,
     csprng::Csprng,
     generic_array::GenericArray,
@@ -28,7 +29,6 @@ use crate::{
     signer::PkError,
     subtle::{Choice, ConstantTimeEq},
     typenum::U32,
-    CipherSuite,
 };
 
 /// A unique cryptographic ID.

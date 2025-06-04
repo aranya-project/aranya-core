@@ -4,9 +4,10 @@
 
 use core::{borrow::Borrow, fmt, marker::PhantomData, result::Result};
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 
 use crate::{
+    CipherSuite,
     aead::Tag,
     ciphersuite::SuiteIds,
     csprng::Csprng,
@@ -19,10 +20,9 @@ use crate::{
     import::{Import, ImportError},
     kem::{DecapKey, Kem},
     keys::{PublicKey, SecretKey},
-    misc::{key_misc, SigData},
+    misc::{SigData, key_misc},
     policy::{self, Cmd, CmdId},
     signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
-    CipherSuite,
 };
 
 /// A signature created by a signing key.

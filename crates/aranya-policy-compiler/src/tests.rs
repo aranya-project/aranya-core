@@ -3,11 +3,11 @@
 use aranya_policy_ast::{FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    ffi::{self, ModuleSchema},
     Label, LabelType, Module, ModuleData, Value,
+    ffi::{self, ModuleSchema},
 };
 
-use crate::{validate::validate, CompileErrorType, Compiler, InvalidCallColor};
+use crate::{CompileErrorType, Compiler, InvalidCallColor, validate::validate};
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
@@ -205,14 +205,18 @@ fn test_seal_open_command() {
     let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
-    assert!(module
-        .labels
-        .iter()
-        .any(|l| *l.0 == Label::new("Foo", LabelType::CommandSeal)));
-    assert!(module
-        .labels
-        .iter()
-        .any(|l| *l.0 == Label::new("Foo", LabelType::CommandOpen)));
+    assert!(
+        module
+            .labels
+            .iter()
+            .any(|l| *l.0 == Label::new("Foo", LabelType::CommandSeal))
+    );
+    assert!(
+        module
+            .labels
+            .iter()
+            .any(|l| *l.0 == Label::new("Foo", LabelType::CommandOpen))
+    );
 }
 
 #[test]
