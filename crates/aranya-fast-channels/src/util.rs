@@ -3,7 +3,7 @@
 
 macro_rules! const_assert {
     ($($tt:tt)*) => {
-		#[allow(non_camel_case_types)] // rust-analyzer doesn't like this
+		#[allow(clippy::arithmetic_side_effects, reason = "compile time arithmetic")]
         const _: () = { ::const_format::assertcp!($($tt)*); };
     }
 }
@@ -12,9 +12,11 @@ pub(crate) use const_assert;
 
 macro_rules! const_assert_eq {
     ($left:expr, $right:expr $(,)?) => {
+		#[allow(clippy::arithmetic_side_effects, reason = "compile time arithmetic")]
         const _: () = { ::const_format::assertcp_eq!($left, $right, "{} != {}", $left, $right); };
     };
     ($left:expr, $right:expr, $($arg:tt)+) => {
+		#[allow(clippy::arithmetic_side_effects, reason = "compile time arithmetic")]
         const _: () = { ::const_format::assertcp_eq!($left, $right, $(arg)+); };
     };
 }
