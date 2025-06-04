@@ -156,7 +156,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
     let enum_defs = enums.iter().map(|d| {
         let name = &d.inner.identifier;
-        let variants = d.inner.variants.iter().map(|name| quote!(#name));
+        let variants = &d.inner.variants;
         quote! {
             #vm::ffi::Enum {
                 name: #name,
@@ -188,7 +188,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             impl ::core::convert::From<#name> for #vm::Value {
                 fn from(__value: #name) -> Self {
                     #vm::Value::Enum(
-                        ::core::stringify!(#name).into(),
+                        #name_str.to_string(),
                         __value as i64,
                     )
                 }
@@ -485,7 +485,7 @@ impl Parse for FfiAttr {
                 let _: Token![=] = input.parse()?;
                 let decl: LitStr = input.parse()?;
                 skip_comma(input)?;
-                let (structs, enums) =
+                let lang::FfiTypes { structs, enums } =
                     lang::parse_ffi_structs_enums(&decl.value()).map_err(|err| {
                         Error::new(decl.span(), format!("invalid policy definition: {err}"))
                     })?;

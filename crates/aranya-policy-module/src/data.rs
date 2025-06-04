@@ -26,9 +26,6 @@ pub enum ValueConversionError {
     /// A struct conversion found a field mismatch between types
     #[error("invalid struct member `{0}`")]
     InvalidStructMember(String),
-    /// An enum conversion found an invalid variant
-    #[error("invalid enum variant `{0}`")]
-    InvalidEnumVariant(String),
     /// The target type does not have sufficient range to represent this Value
     #[error("value out of range")]
     OutOfRange,

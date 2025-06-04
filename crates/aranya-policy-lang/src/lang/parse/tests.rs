@@ -9,7 +9,7 @@ use super::{
     ast, ast::AstNode, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError,
     PolicyParser, Rule, Version,
 };
-use crate::lang::{ChunkParser, ParseErrorKind};
+use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -1303,7 +1303,7 @@ fn parse_ffi_structs_enums() {
         enum Color { Red, White, Blue }
     "#
     .trim();
-    let (structs, enums) = super::parse_ffi_structs_enums(text).expect("parse");
+    let FfiTypes { structs, enums } = super::parse_ffi_structs_enums(text).expect("parse");
     assert_eq!(
         structs,
         vec![

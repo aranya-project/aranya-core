@@ -1557,26 +1557,24 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
 }
 
 /// A series of Struct or Enum definitions for the FFI
-pub type FfiTypes = (
-    Vec<AstNode<ast::StructDefinition>>,
-    Vec<AstNode<ast::EnumDefinition>>,
-);
+pub struct FfiTypes {
+    pub structs: Vec<AstNode<ast::StructDefinition>>,
+    pub enums: Vec<AstNode<ast::EnumDefinition>>,
+}
 
-/// Parse a series of Struct or Enum definitions for the FFI
+/// Parse a series of type definitions for the FFI
 pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
     let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
+    let pratt = get_pratt_parser();
+    let mut p = ChunkParser::new(0, &pratt);
     let mut structs = vec![];
     let mut enums = vec![];
     for s in def {
         match s.as_rule() {
             Rule::struct_definition => {
-                let pratt = get_pratt_parser();
-                let mut p = ChunkParser::new(0, &pratt);
                 structs.push(p.parse_struct_definition(s)?);
             }
             Rule::enum_definition => {
-                let pratt = get_pratt_parser();
-                let mut p = ChunkParser::new(0, &pratt);
                 enums.push(p.parse_enum_definition(s)?);
             }
             Rule::EOI => break,
@@ -1584,7 +1582,7 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
         }
     }
 
-    Ok((structs, enums))
+    Ok(FfiTypes { structs, enums })
 }
 
 /// Creates the default pratt parser ruleset.
