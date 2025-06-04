@@ -361,7 +361,7 @@ fn test_command_attributes_must_be_literals() {
 }
 
 #[test]
-fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
+fn test_command_with_struct_field_insertion() {
     let text = r#"
         struct Bar { a int }
         struct Baz { +Bar, b string }
@@ -376,8 +376,7 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
+    let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
     let want = BTreeMap::from([
@@ -387,12 +386,10 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
     ]);
     let got = module.command_defs.get("Foo").unwrap();
     assert_eq!(got, &want);
-
-    Ok(())
 }
 
 #[test]
-fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
+fn test_invalid_command_field_insertion() {
     let cases = [
         (
             r#"
@@ -426,55 +423,49 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
     ];
 
     for (text, expected_error) in cases {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
+        let err = compile_fail(text);
         assert_eq!(err, expected_error);
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_command_duplicate_fields() -> anyhow::Result<()> {
+fn test_command_duplicate_fields() {
     let cases = [
         (
             r#"
-        command Foo {
-            fields {
-                a int,
-                a string
+            command Foo {
+                fields {
+                    a int,
+                    a string
+                }
+                seal { return None }
+                open { return None }
+                policy {}
             }
-            seal { return None }
-            open { return None }
-            policy {}
-        }
-        "#,
+            "#,
             CompileErrorType::AlreadyDefined(String::from("a")),
         ),
         (
             r#"
-        struct Bar { a int }
-        command Foo {
-            fields {
-                +Bar,
-                a string
+            struct Bar { a int }
+            command Foo {
+                fields {
+                    +Bar,
+                    a string
+                }
+                seal { return None }
+                open { return None }
+                policy {}
             }
-            seal { return None }
-            open { return None }
-            policy {}
-        }
-        "#,
+            "#,
             CompileErrorType::AlreadyDefined(String::from("a")),
         ),
     ];
 
     for (text, e) in cases {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
+        let err = compile_fail(text);
         assert_eq!(err, e);
     }
-
-    Ok(())
 }
 
 #[test]
@@ -544,9 +535,8 @@ fn test_struct_field_insertion_errors() {
         ),
     ];
     for (text, err_type) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type();
-        assert_eq!(result, err_type);
+        let err = compile_fail(text);
+        assert_eq!(err, err_type);
     }
 }
 
@@ -571,21 +561,21 @@ fn test_struct_field_insertion() {
         ),
         (
             r#"
-            struct Bar { i int }
-            struct Baz { +Bar, b bool }
-            struct Foo { s string, +Baz }
+            struct Bar { a int }
+            struct Baz { c bool }
+            struct Foo { +Bar, b string, +Baz }
             "#,
             vec![
                 FieldDefinition {
-                    identifier: "s".to_string(),
-                    field_type: VType::String,
-                },
-                FieldDefinition {
-                    identifier: "i".to_string(),
+                    identifier: "a".to_string(),
                     field_type: VType::Int,
                 },
                 FieldDefinition {
                     identifier: "b".to_string(),
+                    field_type: VType::String,
+                },
+                FieldDefinition {
+                    identifier: "c".to_string(),
                     field_type: VType::Bool,
                 },
             ],
@@ -593,9 +583,8 @@ fn test_struct_field_insertion() {
     ];
 
     for (text, want) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().expect("should compile");
-        let ModuleData::V0(module) = result.data;
+        let module = compile_pass(text);
+        let ModuleData::V0(module) = module.data;
 
         let got = module.struct_defs.get("Foo").unwrap();
         assert_eq!(got, &want);

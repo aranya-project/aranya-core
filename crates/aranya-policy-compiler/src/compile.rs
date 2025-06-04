@@ -2175,6 +2175,7 @@ impl<'a> CompileState<'a> {
                 })
                 .collect();
             self.define_struct(&effect.inner.identifier, &fields)?;
+            self.m.effects.push(effect.inner.identifier.clone());
         }
 
         // define the structs provided by FFI schema
@@ -2215,7 +2216,17 @@ impl<'a> CompileState<'a> {
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            self.define_struct(&command.identifier, &command.fields)?;
+            self.define_struct(
+                &command.identifier,
+                &command
+                    .fields
+                    .iter()
+                    .map(|si| match si {
+                        StructItem::Field(fd) => StructItem::Field(fd.clone()),
+                        StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                    })
+                    .collect::<Vec<_>>(),
+            )?;
         }
 
         // Define the finish function signatures before compiling them, so that they can be
