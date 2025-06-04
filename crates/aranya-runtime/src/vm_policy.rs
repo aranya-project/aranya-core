@@ -119,7 +119,6 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
-use aranya_crypto::hash::tuple_hash;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
     OpenContext, PolicyContext, RunState, Stack, Struct, Value,
