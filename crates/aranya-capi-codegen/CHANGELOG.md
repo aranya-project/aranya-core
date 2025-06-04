@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/aranya-project/aranya-core/compare/aranya-capi-codegen-v0.3.0...aranya-capi-codegen-v0.3.1) - 2025-05-28
+
+### Other
+
+- update to Rust 1.85 (#248)
+
 ## [0.3.0](https://github.com/aranya-project/aranya-core/compare/aranya-capi-codegen-v0.2.3...aranya-capi-codegen-v0.3.0) - 2025-05-15
 
 ### Other

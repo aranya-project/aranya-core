@@ -1,7 +1,7 @@
 [package]
 name = "aranya-policy-vm"
 description = "The Aranya Policy Virtual Machine"
-version = "0.8.0"
+version = "0.9.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -30,10 +30,10 @@ std = [
 bench = ["dep:table_formatter", "std"]
 
 [dependencies]
-aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false }
+aranya-crypto = { version = "0.6.1", path = "../aranya-crypto", default-features = false }
 aranya-policy-ast = { version = "0.4.1", path = "../aranya-policy-ast" }
-aranya-policy-derive = { version = "0.5.1", path = "../aranya-policy-derive" }
-aranya-policy-module = { version = "0.8.0", path = "../aranya-policy-module" }
+aranya-policy-derive = { version = "0.5.2", path = "../aranya-policy-derive" }
+aranya-policy-module = { version = "0.9.0", path = "../aranya-policy-module" }
 buggy = { version = "0.1.0", features = ["alloc"] }
 
 heapless = { workspace = true }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.5.1...aranya-policy-derive-v0.5.2) - 2025-05-28
+
+### Other
+
+- updated the following local packages: aranya-policy-lang
+
 ## [0.5.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-derive-v0.5.0...aranya-policy-derive-v0.5.1) - 2025-05-15
 
 ### Other

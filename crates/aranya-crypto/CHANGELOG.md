@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.6.0...aranya-crypto-v0.6.1) - 2025-05-28
+
+### Other
+
+- update to Rust 1.85 (#248)
+
 ## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.5.0...aranya-crypto-v0.6.0) - 2025-05-15
 
 ### Other
