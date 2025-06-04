@@ -40,6 +40,7 @@ byteorder = { version = "1", default-features = false }
 bytes = { version = "1.9.0" }
 cfg-if = { version = "1", default-features = false }
 const_format = { version = "0.2", default-features = false }
+errno = { version = "0.3", default-features = false }
 heapless = { version = "0.8", default-features = false }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4", default-features = false }
