@@ -16,7 +16,7 @@ use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
     memory::MemStorageProvider,
-    protocol::{TestActions, TestEffect, TestEngine},
+    testing::protocol::{TestActions, TestEffect, TestEngine},
     ClientState, GraphId, Sink, SyncRequester,
 };
 use criterion::{criterion_group, criterion_main, Criterion};

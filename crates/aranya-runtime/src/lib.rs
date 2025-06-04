@@ -49,7 +49,6 @@ pub mod command;
 pub mod engine;
 pub mod metrics;
 mod prior;
-pub mod protocol;
 pub mod storage;
 pub mod sync;
 pub mod testing;
