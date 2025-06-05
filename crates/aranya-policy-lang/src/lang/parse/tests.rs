@@ -1314,12 +1314,8 @@ fn parse_ffi_structs_enums() {
         enums,
         vec![AstNode {
             inner: ast::EnumDefinition {
-                identifier: String::from("Color"),
-                variants: vec![
-                    String::from("Red"),
-                    String::from("White"),
-                    String::from("Blue")
-                ]
+                identifier: ident!("Color"),
+                variants: vec![ident!("Red"), ident!("White"), ident!("Blue")]
             },
             locator: 89
         }]

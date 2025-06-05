@@ -155,23 +155,23 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     });
 
     let enum_defs = enums.iter().map(|d| {
-        let name = &d.inner.identifier;
-        let variants = &d.inner.variants;
+        let name = d.inner.identifier.as_str();
+        let variants = d.inner.variants.iter().map(|v| v.as_str());
         quote! {
             #vm::ffi::Enum {
-                name: #name,
+                name: #vm::ident!(#name),
                 variants: &[#(#variants),*],
             }
         }
     });
 
     let enums = enums.iter().map(|d| {
-        let name = format_ident!("{}", d.identifier);
+        let name = format_ident!("{}", d.identifier.as_str());
         let name_str = d.identifier.to_string();
         let variants = d
             .variants
             .iter()
-            .map(|v| format_ident!("{}", v))
+            .map(|v| format_ident!("{}", v.as_str()))
             .collect::<Vec<_>>();
         let var_const_names: Vec<_> = variants
             .iter()
@@ -188,7 +188,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             impl ::core::convert::From<#name> for #vm::Value {
                 fn from(__value: #name) -> Self {
                     #vm::Value::Enum(
-                        #name_str.to_string(),
+                        #vm::ident!(#name_str),
                         __value as i64,
                     )
                 }
@@ -223,7 +223,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             }
             #[automatically_derived]
             impl #vm::Typed for #name {
-                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#name_str);
+                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#vm::ident!(#name_str));
             }
         }
     });
