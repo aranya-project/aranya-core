@@ -75,6 +75,7 @@ panic = "unwind"
 [profile.release]
 lto = "thin"
 panic = "abort"
+strip = "debuginfo" # TODO
 
 [profile.release-small]
 inherits = "release"

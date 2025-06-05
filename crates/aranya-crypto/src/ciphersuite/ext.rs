@@ -1,6 +1,13 @@
-use core::{array, iter::FusedIterator};
+use core::{
+    fmt,
+    hash::{Hash, Hasher},
+    iter::{self, FusedIterator},
+    marker::PhantomData,
+    slice,
+};
 
-use serde::{ser, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use sha3_utils::{encode_string, EncodedString};
 use spideroak_crypto::{
     hash,
     kdf::{self, Expand, Kdf as _, KdfError},
@@ -10,35 +17,11 @@ use spideroak_crypto::{
 
 use crate::ciphersuite::CipherSuite;
 
-macro_rules! encoded_oids {
-    ($($name:ident),* $(,)?) => {
-        EncodedOids([$(
-            // def encode_string(S):
-            //     left_encode(len(S)) || S
-            // where `len(X)` returns the length of `X` in bits.
-            sha3::left_encode_bytes(Self::$name::OID.len()).as_bytes(),
-            &Self::$name::OID.as_bytes()
-        ),*])
-    }
-}
-
 /// Extension trait for [`CipherSuite`].
 ///
 /// Its primary purpose is to provide convenience methods that
-/// bake in the OIDs of the algorithms used in the cipher suite.
+/// include the OIDs of the cipher suite's algorithms.
 pub(crate) trait CipherSuiteExt: CipherSuite {
-    /// OIDs for all algorithms in this cipher suite.
-    const OIDS: Oids = Oids {
-        aead: Self::Aead::OID,
-        hash: Self::Hash::OID,
-        kdf: Self::Kdf::OID,
-        kem: Self::Kem::OID,
-        mac: Self::Mac::OID,
-        signer: Self::Signer::OID,
-    };
-
-    const ENCODED_OIDS: EncodedOids = encoded_oids!(Aead, Hash, Kdf, Kem, Mac, Signer);
-
     /// Computes the following hash:
     ///
     /// ```text
@@ -68,14 +51,13 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
     /// Note that in [RFC 9180] `suite_id` contains 16-bit HPKE
     /// algorithm identifiers, but in this function it contains
     /// OIDs. Since an OID does not have a fixed length, each OID
-    /// is unambiguously encoded per [TupleHash].
+    /// is unambiguously encoded with [`encode_string`].
     ///
     /// [RFC 9180]: https://www.rfc-editor.org/rfc/rfc9180.html#name-cryptographic-dependencies
-    /// [TupleHash]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
     fn labeled_extract(
         domain: &'static [u8],
         salt: &[u8],
-        label: &'static str,
+        label: &'static [u8],
         ikm: &[u8],
     ) -> Prk<Self>;
 
@@ -95,14 +77,13 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
     /// Note that in [RFC 9180] `suite_id` contains 16-bit HPKE
     /// algorithm identifiers, but in this function it contains
     /// OIDs. Since an OID does not have a fixed length, each OID
-    /// is unambiguously encoded per [TupleHash].
+    /// is unambiguously encoded with [`encode_string`].
     ///
     /// [RFC 9180]: https://www.rfc-editor.org/rfc/rfc9180.html#name-cryptographic-dependencies
-    /// [TupleHash]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
     fn labeled_expand<T, const N: usize>(
         domain: &'static [u8],
         prk: &Prk<Self>,
-        label: &'static str,
+        label: &'static [u8],
         info: [&[u8]; N],
     ) -> Result<T, KdfError>
     where
@@ -111,28 +92,24 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
 
 impl<CS: CipherSuite> CipherSuiteExt for CS {
     fn tuple_hash<const N: usize>(tag: &[u8], context: [&[u8]; N]) -> Digest<Self> {
-        const { assert!(N <= usize::MAX - 1 - Oids::SIZE) }
-
-        hash::tuple_hash::<Self::Hash, _>(TupleHashItems {
-            tag: Some(tag),
-            oids: Self::OIDS.into_iter(),
-            items: context.into_iter(),
+        hash::tuple_hash::<Self::Hash, _>(TupleHashItems::<Self, N> {
+            tag: iter::once(tag),
+            oids: CS::OIDS.into_iter(),
+            items: context.iter(),
         })
     }
 
     fn labeled_extract(
         domain: &'static [u8],
         salt: &[u8],
-        label: &'static str,
+        label: &'static [u8],
         ikm: &[u8],
     ) -> Prk<Self> {
-        // def LabeledExtract(salt, label, ikm):
-        //     labeled_ikm = concat(domain, suite_ids, label, ikm)
-        //     return Extract(salt, labeled_ikm)
-        let labeled_ikm = LabeledIkm {
-            domain: Some(domain),
-            oids: Self::ENCODED_OIDS.into_iter(),
-            items: [label.as_bytes(), ikm].into_iter(),
+        let labeled_ikm = LabeledIkm::<CS> {
+            domain: iter::once(domain),
+            oids: CS::OIDS.encode().into_iter(),
+            label: iter::once(label),
+            ikm: iter::once(ikm),
         };
         Self::Kdf::extract_multi(labeled_ikm, salt)
     }
@@ -140,375 +117,582 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
     fn labeled_expand<T, const N: usize>(
         domain: &'static [u8],
         prk: &Prk<Self>,
-        label: &'static str,
+        label: &'static [u8],
         info: [&[u8]; N],
     ) -> Result<T, KdfError>
     where
         T: Expand,
     {
-        // def LabeledExpand(prk, label, info):
-        //     labeled_info = concat(I2OSP(L, 2), domain, suite_ids,
-        //                   label, info)
-        //     return Expand(prk, labeled_info)
         let size = T::Size::U16.to_be_bytes();
-        let labeled_info = LabeledInfo {
-            len: Some(&size),
-            domain: Some(domain),
-            oids: Self::ENCODED_OIDS.into_iter(),
-            label: Some(label.as_bytes()),
-            info: info.into_iter(),
+        let labeled_info = LabeledInfo::<CS, N> {
+            len: iter::once(&size),
+            domain: iter::once(domain),
+            oids: CS::OIDS.encode().into_iter(),
+            label: iter::once(label),
+            info: info.iter(),
         };
         T::expand_multi::<Self::Kdf, _>(prk, labeled_info)
     }
 }
 
 /// The items being hashed by [`CipherSuiteExt::tuple_hash`].
-#[derive(Clone, Debug)]
-struct TupleHashItems<'a, const N: usize> {
-    tag: Option<&'a [u8]>,
-    // Unlike `labeled_expand` and `labeled_extract`, we can use
-    // the raw OIDs because `tuple_hash` ensures that each item
-    // is unambiguous.
-    oids: <Oids as IntoIterator>::IntoIter,
-    items: array::IntoIter<&'a [u8], N>,
+#[derive(Debug)]
+struct TupleHashItems<'a, CS, const N: usize>
+where
+    CS: CipherSuite,
+{
+    tag: iter::Once<&'a [u8]>,
+    oids: <Oids<CS> as IntoIterator>::IntoIter,
+    items: <&'a [&'a [u8]; N] as IntoIterator>::IntoIter,
 }
 
-impl<'a, const N: usize> Iterator for TupleHashItems<'a, N> {
-    type Item = &'a [u8];
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(ctx) = self.tag.take() {
-            Some(ctx)
-        } else if let Some(suite) = self.oids.next() {
-            Some(suite.as_bytes())
-        } else {
-            self.items.next()
+impl<CS, const N: usize> Clone for TupleHashItems<'_, CS, N>
+where
+    CS: CipherSuite,
+{
+    fn clone(&self) -> Self {
+        Self {
+            tag: self.tag.clone(),
+            oids: self.oids.clone(),
+            items: self.items.clone(),
         }
     }
 }
 
-impl<const N: usize> ExactSizeIterator for TupleHashItems<'_, N> {
-    #[inline(always)]
-    fn len(&self) -> usize {
-        // Ensure that the following addition does not overflow.
-        const { assert!(N <= usize::MAX - 1 - Oids::SIZE) }
+impl<'a, CS, const N: usize> Iterator for TupleHashItems<'a, CS, N>
+where
+    CS: CipherSuite,
+{
+    type Item = &'a [u8];
 
-        usize::from(self.tag.is_some()) + self.oids.len() + self.items.len()
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.tag
+            .next()
+            .or_else(|| self.oids.next().map(|v| v.as_bytes()))
+            .or_else(|| self.items.next().copied())
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = self.len();
+        (n, Some(n))
+    }
+
+    #[inline]
+    fn count(self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn fold<B, F>(self, acc: B, f: F) -> B
+    where
+        B: Sized,
+        F: FnMut(B, Self::Item) -> B,
+    {
+        self.tag
+            .chain(self.oids.map(|v| v.as_bytes()))
+            .chain(self.items.copied())
+            .fold(acc, f)
     }
 }
 
-impl<const N: usize> FusedIterator for TupleHashItems<'_, N> {}
+impl<CS, const N: usize> ExactSizeIterator for TupleHashItems<'_, CS, N>
+where
+    CS: CipherSuite,
+{
+    #[inline]
+    #[allow(clippy::arithmetic_side_effects, reason = "Addition cannot overflow")]
+    fn len(&self) -> usize {
+        self.tag.len() + self.oids.len() + self.items.len()
+    }
+}
+
+impl<CS, const N: usize> FusedIterator for TupleHashItems<'_, CS, N> where CS: CipherSuite {}
 
 /// For [`CipherSuiteExt::labeled_extract`].
-#[derive(Clone, Debug)]
-struct LabeledIkm<'a, const N: usize> {
-    domain: Option<&'a [u8]>,
-    oids: <EncodedOids as IntoIterator>::IntoIter,
-    items: array::IntoIter<&'a [u8], N>,
+#[derive(Debug)]
+struct LabeledIkm<'a, CS: CipherSuite> {
+    domain: iter::Once<&'static [u8]>,
+    oids: <EncodedOids<CS> as IntoIterator>::IntoIter,
+    label: iter::Once<&'static [u8]>,
+    ikm: iter::Once<&'a [u8]>,
 }
 
-impl<'a, const N: usize> Iterator for LabeledIkm<'a, N> {
-    type Item = &'a [u8];
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(ctx) = self.domain.take() {
-            Some(ctx)
-        } else if let Some(v) = self.oids.next() {
-            Some(v)
-        } else {
-            self.items.next()
+impl<CS> Clone for LabeledIkm<'_, CS>
+where
+    CS: CipherSuite,
+{
+    fn clone(&self) -> Self {
+        Self {
+            domain: self.domain.clone(),
+            oids: self.oids.clone(),
+            label: self.label.clone(),
+            ikm: self.ikm.clone(),
         }
     }
 }
 
-impl<const N: usize> ExactSizeIterator for LabeledIkm<'_, N> {
-    #[inline(always)]
-    fn len(&self) -> usize {
-        // Ensure that the following addition does not overflow.
-        const { assert!(N <= usize::MAX - 1 - Oids::SIZE) }
+impl<'a, CS> Iterator for LabeledIkm<'a, CS>
+where
+    CS: CipherSuite,
+{
+    type Item = &'a [u8];
 
-        usize::from(self.domain.is_some()) + self.oids.len() + self.items.len()
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.domain
+            .next()
+            .or_else(|| self.oids.next())
+            .or_else(|| self.label.next())
+            .or_else(|| self.ikm.next())
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = self.len();
+        (n, Some(n))
+    }
+
+    #[inline]
+    fn count(self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn fold<B, F>(self, acc: B, f: F) -> B
+    where
+        B: Sized,
+        F: FnMut(B, Self::Item) -> B,
+    {
+        self.domain
+            .chain(self.oids)
+            .chain(self.label)
+            .chain(self.ikm)
+            .fold(acc, f)
     }
 }
 
-impl<const N: usize> FusedIterator for LabeledIkm<'_, N> {}
+impl<CS: CipherSuite> ExactSizeIterator for LabeledIkm<'_, CS> {
+    #[inline]
+    #[allow(clippy::arithmetic_side_effects, reason = "Addition cannot overflow")]
+    fn len(&self) -> usize {
+        self.domain.len() + self.oids.len() + self.label.len() + self.ikm.len()
+    }
+}
+
+impl<CS: CipherSuite> FusedIterator for LabeledIkm<'_, CS> {}
 
 /// For [`CipherSuiteExt::labeled_expand`].
-#[derive(Clone, Debug)]
-struct LabeledInfo<'a, const N: usize> {
-    len: Option<&'a [u8; 2]>,
-    domain: Option<&'a [u8]>,
-    oids: <EncodedOids as IntoIterator>::IntoIter,
-    label: Option<&'a [u8]>,
-    info: array::IntoIter<&'a [u8], N>,
+#[derive(Debug)]
+struct LabeledInfo<'a, CS, const N: usize>
+where
+    CS: CipherSuite,
+{
+    len: iter::Once<&'a [u8; 2]>,
+    domain: iter::Once<&'static [u8]>,
+    oids: <EncodedOids<CS> as IntoIterator>::IntoIter,
+    label: iter::Once<&'static [u8]>,
+    info: <&'a [&'a [u8]; N] as IntoIterator>::IntoIter,
 }
 
-impl<'a, const N: usize> Iterator for LabeledInfo<'a, N> {
-    type Item = &'a [u8];
-
-    #[inline(always)]
-    fn next(&mut self) -> Option<Self::Item> {
-        if let Some(len) = self.len.take() {
-            Some(len)
-        } else if let Some(domain) = self.domain.take() {
-            Some(domain)
-        } else if let Some(v) = self.oids.next() {
-            Some(v)
-        } else if let Some(label) = self.label.take() {
-            Some(label)
-        } else {
-            self.info.next()
+impl<CS, const N: usize> Clone for LabeledInfo<'_, CS, N>
+where
+    CS: CipherSuite,
+{
+    fn clone(&self) -> Self {
+        Self {
+            len: self.len.clone(),
+            domain: self.domain.clone(),
+            oids: self.oids.clone(),
+            label: self.label.clone(),
+            info: self.info.clone(),
         }
     }
 }
 
-impl<const N: usize> ExactSizeIterator for LabeledInfo<'_, N> {
-    #[inline(always)]
-    fn len(&self) -> usize {
-        // Ensure that the following addition does not overflow.
-        const { assert!(N <= usize::MAX - 1 - 1 - EncodedOids::SIZE - 1) }
+impl<'a, CS, const N: usize> Iterator for LabeledInfo<'a, CS, N>
+where
+    CS: CipherSuite,
+{
+    type Item = &'a [u8];
 
-        usize::from(self.len.is_some())
-            + usize::from(self.domain.is_some())
-            + self.oids.len()
-            + usize::from(self.label.is_some())
-            + self.info.len()
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.len
+            .next()
+            .map(|v| v.as_ref())
+            .or_else(|| self.domain.next())
+            .or_else(|| self.oids.next())
+            .or_else(|| self.label.next())
+            .or_else(|| self.info.next().copied())
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let n = self.len();
+        (n, Some(n))
+    }
+
+    #[inline]
+    fn count(self) -> usize {
+        self.len()
+    }
+
+    #[inline]
+    fn fold<B, F>(self, acc: B, f: F) -> B
+    where
+        B: Sized,
+        F: FnMut(B, Self::Item) -> B,
+    {
+        self.len
+            .map(|v| v.as_ref())
+            .chain(self.domain)
+            .chain(self.oids)
+            .chain(self.label)
+            .chain(self.info.copied())
+            .fold(acc, f)
     }
 }
 
-impl<const N: usize> FusedIterator for LabeledInfo<'_, N> {}
+impl<CS, const N: usize> ExactSizeIterator for LabeledInfo<'_, CS, N>
+where
+    CS: CipherSuite,
+{
+    #[inline]
+    #[allow(clippy::arithmetic_side_effects, reason = "Addition cannot overflow")]
+    fn len(&self) -> usize {
+        // Make sure that the addition does not overflow.
+        const { assert!(N < usize::MAX - 1 - 1 - 12 - 1) }
+
+        self.len.len() + self.domain.len() + self.oids.len() + self.label.len() + self.info.len()
+    }
+}
+
+impl<CS, const N: usize> FusedIterator for LabeledInfo<'_, CS, N> where CS: CipherSuite {}
 
 pub(crate) type Digest<CS> = hash::Digest<<<CS as CipherSuite>::Hash as hash::Hash>::DigestSize>;
 pub(crate) type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as kdf::Kdf>::PrkSize>;
 
-/// A collection of OIDs.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub(crate) struct Oids {
-    aead: &'static Oid,
-    hash: &'static Oid,
-    kdf: &'static Oid,
-    kem: &'static Oid,
-    mac: &'static Oid,
-    signer: &'static Oid,
+/// The OIDs used by a [`CipherSuite`].
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(bound = "CS: CipherSuite")]
+pub struct Oids<CS: CipherSuite + ?Sized> {
+    aead: AeadOid<CS>,
+    hash: HashOid<CS>,
+    kdf: KdfOid<CS>,
+    kem: KemOid<CS>,
+    mac: MacOid<CS>,
+    signer: SignerOid<CS>,
 }
 
-impl Oids {
-    /// The number of OIDs in the collection.
-    const SIZE: usize = 6;
-
-    pub(crate) const fn to_repr(self) -> OidsRepr<'static> {
-        OidsRepr {
-            aead: OidIsh::Oid(self.aead),
-            hash: OidIsh::Oid(self.hash),
-            kdf: OidIsh::Oid(self.kdf),
-            kem: OidIsh::Oid(self.kem),
-            mac: OidIsh::Oid(self.mac),
-            signer: OidIsh::Oid(self.signer),
+impl<CS: CipherSuite + ?Sized> Oids<CS> {
+    pub(super) const fn new() -> Self {
+        Self {
+            aead: AeadOid::<CS>(PhantomData),
+            hash: HashOid::<CS>(PhantomData),
+            kdf: KdfOid::<CS>(PhantomData),
+            kem: KemOid::<CS>(PhantomData),
+            mac: MacOid::<CS>(PhantomData),
+            signer: SignerOid::<CS>(PhantomData),
         }
     }
-}
 
-impl IntoIterator for Oids {
-    type Item = &'static Oid;
-    type IntoIter = array::IntoIter<&'static Oid, 6>;
+    /// Returns the OIDs as an array.
+    const fn all() -> [&'static Oid; 6] {
+        const {
+            [
+                AeadOid::<CS>::OID,
+                HashOid::<CS>::OID,
+                KdfOid::<CS>::OID,
+                KemOid::<CS>::OID,
+                MacOid::<CS>::OID,
+                SignerOid::<CS>::OID,
+            ]
+        }
+    }
 
-    fn into_iter(self) -> Self::IntoIter {
-        [
-            self.aead,
-            self.hash,
-            self.kdf,
-            self.kem,
-            self.mac,
-            self.signer,
-        ]
-        .into_iter()
+    /// Encods the OIDs with [`encode_string`].
+    const fn encode(self) -> EncodedOids<CS> {
+        EncodedOids::<CS>(PhantomData)
     }
 }
 
-/// [`Oid`]s in the same order as [`Oids`], but with each OID
-/// encoded via `encode_string` from [TupleHash].
-///
-/// Each OID is
-///
-/// Create it with [`encoded_oids`].
+impl<CS> IntoIterator for Oids<CS>
+where
+    CS: CipherSuite,
+{
+    type Item = &'static Oid;
+    type IntoIter = iter::Copied<slice::Iter<'static, &'static Oid>>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        const { Oids::<CS>::all() }.iter().copied()
+    }
+}
+
+/// Encodes the OIDs with [`encode_string`], then flattens the
+/// [`EncodedString`]s into their parts.
 ///
 /// [TupleHash]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
-#[derive(Clone, Debug)]
-pub(crate) struct EncodedOids(
-    // encode_string(S) is defined as
-    //    left_encode(len(S)) || S
-    //
-    // so the array is arranged as follows:
-    //
-    // v[0] = left_encode(len(Aead::OID))
-    // v[1] = Aead::OID
-    // v[2] = left_encode(len(Hash::OID))
-    // v[3] = Hash::OID
-    // ...
-    // v[10] = left_encode(len(Signer::OID))
-    // v[11] = Signer::OID
-    [&'static [u8]; 12],
-);
-
-impl EncodedOids {
-    /// The number of encoded OID fragments in the collection.
-    const SIZE: usize = 12;
-}
-
-impl IntoIterator for EncodedOids {
-    type Item = &'static [u8];
-    type IntoIter = array::IntoIter<&'static [u8], 12>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-/// Serialize/Deserialize repr for [`Oids`].
-#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct OidsRepr<'a> {
-    #[serde(borrow)]
-    aead: OidIsh<'a>,
-
-    #[serde(borrow)]
-    hash: OidIsh<'a>,
-
-    #[serde(borrow)]
-    kdf: OidIsh<'a>,
-
-    #[serde(borrow)]
-    kem: OidIsh<'a>,
-
-    #[serde(borrow)]
-    mac: OidIsh<'a>,
-
-    #[serde(borrow)]
-    signer: OidIsh<'a>,
-}
-
-/// Either an [`Oid`] or its string representation.
 #[derive(Copy, Clone, Debug)]
-pub(crate) enum OidIsh<'a> {
-    Oid(&'static Oid),
-    Ish(&'a str),
-}
+struct EncodedOids<CS: ?Sized>(PhantomData<CS>);
 
-impl Serialize for OidIsh<'_> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            OidIsh::Oid(oid) => serializer.serialize_bytes(oid.as_bytes()),
-            OidIsh::Ish(_) => Err(<S::Error as ser::Error>::custom(
-                "got `Ish`, expected `Oid`",
-            )),
+impl<CS: CipherSuite + ?Sized> EncodedOids<CS> {
+    const ITEMS: [&'static [u8]; 12] = {
+        // ([0], [1]) = AEAD.into_parts()
+        // ([2], [3]) = HASH.into_parts()
+        // ...
+        // ([10], [11]) = SIGNER.into_parts()
+        let mut buf: [&[u8]; 12] = [&[]; 12];
+        let mut i = 0;
+        let mut j = 0;
+        while i < Self::ENCODED.len() {
+            let (p, s) = Self::ENCODED[i].as_parts();
+            buf[j] = p.as_bytes();
+            buf[j + 1] = s;
+            i += 1;
+            j += 2;
         }
-    }
-}
+        buf
+    };
 
-impl<'de: 'a, 'a> Deserialize<'de> for OidIsh<'a> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let oid = <&str>::deserialize(deserializer)?;
-        Ok(OidIsh::Ish(oid))
-    }
-}
-
-impl PartialEq for OidIsh<'_> {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (OidIsh::Oid(lhs), OidIsh::Oid(rhs)) => lhs == rhs,
-            (OidIsh::Ish(lhs), OidIsh::Ish(rhs)) => lhs == rhs,
-            (OidIsh::Oid(lhs), OidIsh::Ish(rhs)) => lhs == rhs,
-            (OidIsh::Ish(lhs), OidIsh::Oid(rhs)) => lhs == rhs,
+    /// All OIDs encoded with [`encode_string`].
+    const ENCODED: [EncodedString<'static>; 6] = {
+        let mut buf = [encode_string(b""); 6];
+        let mut i = 0;
+        while i < buf.len() {
+            buf[i] = encode_string(Oids::<CS>::all()[i].as_bytes());
+            i += 1;
         }
-    }
+        buf
+    };
 }
 
-/// The following code is adapted from [`sha3-utils`]
-///
-/// [`sha3-utils`]: https://crates.io/crates/sha3-utils
-mod sha3 {
-    use core::slice;
+impl<CS> IntoIterator for EncodedOids<CS>
+where
+    CS: CipherSuite + ?Sized,
+{
+    type Item = &'static [u8];
+    type IntoIter = iter::Copied<slice::Iter<'static, &'static [u8]>>;
 
-    use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
-
-    /// The size in bytes of [`usize`].
-    const USIZE_BYTES: usize = ((usize::BITS + 7) / 8) as usize;
-
-    // This is silly, but it ensures that we're always in
-    //    [0, ((2^2040)-1)/8]
-    // which is required by SP 800-185, which requires that
-    // `left_encode`, `right_encode`, etc. accept integers up to
-    // (2^2040)-1.
-    //
-    // Divide by 8 because of the `*_bytes` routines.
-    const _: () = assert!(USIZE_BYTES <= 255);
-
-    /// Encodes `x*8` as a byte string in a way that can be
-    /// unambiguously parsed from the beginning.
-    ///
-    /// # Rationale
-    ///
-    /// [`left_encode`] is typically used to encode a length in
-    /// *bits*. In practice, we usually have a length in *bytes*. The
-    /// conversion from bytes to bits might overflow if the number of
-    /// bytes is large. This method avoids overflowing.
     #[inline]
-    pub(super) const fn left_encode_bytes(x: usize) -> LeftEncodeBytes {
-        // Break `x*8` into double word arithmetic.
-        let mut hi = (x >> (usize::BITS - 3)) as u8;
-        let mut lo = x << 3;
+    fn into_iter(self) -> Self::IntoIter {
+        Self::ITEMS.iter().copied()
+    }
+}
 
-        let n = if hi == 0 {
-            // `lo|1` ensures that `n < USIZE_BYTES`. It's cheaper
-            // than a conditional.
-            let n = (lo | 1).leading_zeros() / 8;
-            lo <<= n * 8;
-            hi = (lo >> (usize::BITS - 8)) as u8;
-            lo <<= 8;
-            (n + 1) as usize
-        } else {
-            0
-        };
+/// Creates a ZST that serializes and deserializes as a specific
+/// OID.
+macro_rules! oid_repr {
+    ($($name:ident => $ty:ident),* $(,)?) => {$(
+        #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+        struct $name<CS: ?Sized>(PhantomData<CS>);
 
-        LeftEncodeBytes {
-            hi,
-            mid: (1 + USIZE_BYTES - n) as u8,
-            lo,
+        impl<CS: CipherSuite + ?Sized> Identified for $name<CS> {
+            const OID: &Oid = <<CS as CipherSuite>::$ty as Identified>::OID;
+        }
+
+        impl<CS: CipherSuite + ?Sized> Hash for $name<CS> {
+            fn hash<H: Hasher>(&self, state: &mut H) {
+                Self::OID.hash(state);
+            }
+        }
+
+        #[automatically_derived]
+        impl<CS> Serialize for $name<CS>
+        where
+            CS: CipherSuite + ?Sized,
+        {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                Self::OID.serialize(serializer)
+            }
+        }
+
+        #[automatically_derived]
+        impl<'de, CS> Deserialize<'de> for $name<CS>
+        where
+            CS: CipherSuite + ?Sized,
+        {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct OidVisitor<CS: ?Sized>(PhantomData<CS>);
+
+                impl<'de, CS> de::Visitor<'de> for OidVisitor<CS>
+                where
+                    CS: CipherSuite + ?Sized,
+                {
+                    type Value = $name<CS>;
+
+                    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                        f.write_str("an OID")
+                    }
+
+                    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        if $name::<CS>::OID != v {
+                            Err(de::Error::custom("unexpected OID"))
+                        } else {
+                            Ok($name(PhantomData))
+                        }
+                    }
+
+                    fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+                    where
+                        E: de::Error,
+                    {
+                        if $name::<CS>::OID != v {
+                            Err(de::Error::custom("unexpected OID"))
+                        } else {
+                            Ok($name(PhantomData))
+                        }
+                    }
+                }
+                deserializer.deserialize_bytes(OidVisitor(PhantomData))
+            }
+        }
+    )*};
+}
+oid_repr! {
+    AeadOid => Aead,
+    HashOid => Hash,
+    KdfOid => Kdf,
+    KemOid => Kem,
+    MacOid => Mac,
+    SignerOid => Signer,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        default::DefaultCipherSuite as CS,
+        test_util::{assert_ct_eq, assert_ct_ne},
+    };
+
+    mod labeled_extract {
+        use super::*;
+
+        #[test]
+        fn test_smoke() {
+            let lhs = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
+            let rhs = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
+            assert_ct_eq!(lhs, rhs);
+        }
+
+        #[test]
+        fn test_different_inputs() {
+            let tests = [
+                (
+                    "domain",
+                    (b"domain", b"salt", b"label", b"ikm"),
+                    (b"DOMAIN", b"salt", b"label", b"ikm"),
+                ),
+                (
+                    "salt",
+                    (b"domain", b"salt", b"label", b"ikm"),
+                    (b"domain", b"SALT", b"label", b"ikm"),
+                ),
+                (
+                    "label",
+                    (b"domain", b"salt", b"label", b"ikm"),
+                    (b"domain", b"salt", b"LABEL", b"ikm"),
+                ),
+                (
+                    "ikm",
+                    (b"domain", b"salt", b"label", b"ikm"),
+                    (b"domain", b"salt", b"label", b"IKM"),
+                ),
+            ];
+            for (i, (name, lhs, rhs)) in tests.iter().enumerate() {
+                let lhs = CS::labeled_extract(lhs.0, lhs.1, lhs.2, lhs.3);
+                let rhs = CS::labeled_extract(rhs.0, rhs.1, rhs.2, rhs.3);
+                assert_ct_ne!(lhs, rhs, "#{i}: `{name}`:");
+            }
         }
     }
 
-    /// The result of [`left_encode_bytes`].
-    #[derive(Copy, Clone, Debug, Eq, PartialEq, Immutable, KnownLayout, IntoBytes, Unaligned)]
-    #[repr(C, packed)]
-    pub(super) struct LeftEncodeBytes {
-        hi: u8,
-        mid: u8,
-        lo: usize,
-    }
+    mod labeled_expand {
+        use super::*;
 
-    impl LeftEncodeBytes {
-        /// Returns the number of encoded bytes.
-        #[inline]
-        #[expect(clippy::len_without_is_empty, reason = "Meaningless for this type")]
-        const fn len(&self) -> usize {
-            (self.hi + 1) as usize
+        #[test]
+        fn test_smoke() {
+            let prk = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
+            let lhs: [u8; 16] =
+                CS::labeled_expand(b"domain", &prk, b"label", [b"ikm", b"info"]).unwrap();
+            let rhs: [u8; 16] =
+                CS::labeled_expand(b"domain", &prk, b"label", [b"ikm", b"info"]).unwrap();
+            assert_ct_eq!(lhs[..], rhs[..]);
         }
 
-        /// Returns the encoded bytes.
-        #[inline]
-        pub(super) const fn as_bytes(&self) -> &[u8] {
-            let bytes: &[u8; 2 + USIZE_BYTES] = zerocopy::transmute_ref!(self);
-            #[allow(unsafe_code, reason = "No other way to do this as `const`")]
-            // SAFETY: `self.len()` is in [1, self.buf.len()).
-            unsafe {
-                slice::from_raw_parts(bytes.as_ptr(), self.len())
+        #[test]
+        fn test_different_inputs() {
+            let prk1 = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
+            let prk2 = CS::labeled_extract(b"DOMAIN", b"SALT", b"LABEL", b"IKM");
+            #[allow(
+                clippy::type_complexity,
+                reason = "I wouldn't need this if Rust's type inference were better"
+            )]
+            let tests: [(_, (_, _, _, [&[u8]; 1]), (_, _, _, [&[u8]; 1])); 4] = [
+                (
+                    "domain",
+                    (b"domain", &prk1, b"label", [b"info"]),
+                    (b"DOMAIN", &prk1, b"label", [b"info"]),
+                ),
+                (
+                    "prk",
+                    (b"domain", &prk1, b"label", [b"info"]),
+                    (b"domain", &prk2, b"label", [b"info"]),
+                ),
+                (
+                    "label",
+                    (b"domain", &prk1, b"label", [b"info"]),
+                    (b"domain", &prk1, b"LABEL", [b"info"]),
+                ),
+                (
+                    "info",
+                    (b"domain", &prk1, b"label", [b"info"]),
+                    (b"domain", &prk1, b"label", [b"INFO"]),
+                ),
+            ];
+            for (i, (name, lhs, rhs)) in tests.iter().enumerate() {
+                let lhs: [u8; 16] = CS::labeled_expand(lhs.0, lhs.1, lhs.2, lhs.3).unwrap();
+                let rhs: [u8; 16] = CS::labeled_expand(rhs.0, rhs.1, rhs.2, rhs.3).unwrap();
+                assert_ct_ne!(lhs[..], rhs[..], "#{i}: `{name}`:");
+            }
+        }
+
+        #[test]
+        fn test_info_concat() {
+            let prk = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
+
+            macro_rules! tests {
+                ($(($lhs:expr, $rhs:expr),)*) => {$({
+                    let lhs: [u8; 16] =
+                        CS::labeled_expand(b"domain", &prk, b"label", $lhs).unwrap();
+                    let rhs: [u8; 16] =
+                        CS::labeled_expand(b"domain", &prk, b"label", $rhs).unwrap();
+                    assert_ct_eq!(lhs[..], rhs[..], "{} != {}",
+                        stringify!($lhs), stringify!($rhs));
+                })*};
+            }
+            tests! {
+                ([], []),
+                ([], [&[], &[]]),
+                ([], [b"", b""]),
+                ([&[]], [&[], &[]]),
+                ([b"info"], [b"info"]),
+                ([b"info", b""], [b"info", b""]),
+                ([b"", b"info"], [b"", b"info"]),
+                ([b"info", b"in", b"fo"], [b"info", b"in", b"fo"]),
+                ([b"in", b"fo", b"info"], [b"in", b"fo", b"info"]),
             }
         }
     }

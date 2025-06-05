@@ -39,7 +39,7 @@ testing = [
 ]
 
 [dependencies]
-aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
+aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["alloc", "aqc"] }
 aranya-policy-vm = { version = "0.8.0", path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
 buggy = { version = "0.1.0", default-features = false }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }

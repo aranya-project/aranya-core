@@ -69,10 +69,10 @@ macro_rules! raw_key {
         #[repr(C)]
         pub struct $name<CS: $crate::CipherSuite> {
             /// The key data.
-            pub key: $crate::spideroak_crypto::aead::KeyData<CS::Aead>,
+            pub key: $crate::dangerous::spideroak_crypto::aead::KeyData<CS::Aead>,
             /// The base nonce.
-            pub base_nonce: $crate::spideroak_crypto::aead::Nonce<
-                <CS::Aead as $crate::spideroak_crypto::aead::Aead>::NonceSize,
+            pub base_nonce: $crate::dangerous::spideroak_crypto::aead::Nonce<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::NonceSize,
             >,
         }
 
@@ -103,11 +103,13 @@ macro_rules! raw_key {
             }
         }
 
-        impl<CS: $crate::CipherSuite> $crate::spideroak_crypto::csprng::Random for $name<CS> {
-            fn random<R: $crate::spideroak_crypto::csprng::Csprng>(rng: &mut R) -> Self {
+        impl<CS: $crate::CipherSuite> $crate::dangerous::spideroak_crypto::csprng::Random
+            for $name<CS>
+        {
+            fn random<R: $crate::dangerous::spideroak_crypto::csprng::Csprng>(rng: &mut R) -> Self {
                 Self {
-                    key: $crate::spideroak_crypto::csprng::Random::random(rng),
-                    base_nonce: $crate::spideroak_crypto::csprng::Random::random(rng),
+                    key: $crate::dangerous::spideroak_crypto::csprng::Random::random(rng),
+                    base_nonce: $crate::dangerous::spideroak_crypto::csprng::Random::random(rng),
                 }
             }
         }

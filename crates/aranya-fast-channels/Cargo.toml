@@ -79,7 +79,7 @@ core_intrinsics = []
 try_find = []
 
 [dependencies]
-aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["getrandom"] }
+aranya-crypto = { version = "0.6.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
 buggy = { version = "0.1.0", default-features = false }
 
 byteorder = { version = "1", default-features = false }

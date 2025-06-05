@@ -7,20 +7,27 @@ use std::{
     iter::{self, IntoIterator},
     marker::PhantomData,
     mem,
+    num::NonZeroU16,
 };
 
 use aranya_crypto::{
-    aead::{self, Aead, AeadId, AeadKey, IndCca2, Lifetime, OpenError, SealError},
     afc::{BidiChannel, BidiKeys, BidiSecrets, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
-    csprng::Csprng,
+    dangerous::spideroak_crypto::{
+        aead::{self, Aead, AeadKey, IndCca2, Lifetime, OpenError, SealError},
+        csprng::Csprng,
+        default::Rng,
+        generic_array::{ArrayLength, GenericArray},
+        hash::tuple_hash,
+        hpke::{AeadId, HpkeAead},
+        oid,
+        oid::{Identified, Oid},
+        rust::Sha256,
+        subtle::ConstantTimeEq,
+        typenum::{IsGreaterOrEqual, IsLess, U16, U65536},
+    },
     default::{DefaultCipherSuite, DefaultEngine},
-    generic_array::{ArrayLength, GenericArray},
-    hash::tuple_hash,
-    rust::Sha256,
-    subtle::ConstantTimeEq,
     test_util::TestCs,
-    typenum::{IsGreaterOrEqual, IsLess, U16, U65536},
-    CipherSuite, EncryptionKey, Engine, Id, IdentityKey, Rng,
+    CipherSuite, EncryptionKey, Engine, Id, IdentityKey,
 };
 
 use crate::{
@@ -525,8 +532,6 @@ pub type TestEngine<A> = DefaultEngine<
 pub struct DummyAead;
 
 impl Aead for DummyAead {
-    const ID: AeadId = AeadId::ExportOnly;
-
     const LIFETIME: Lifetime = Lifetime::Messages(u64::MAX);
 
     type KeySize = U16;
@@ -565,6 +570,9 @@ impl Aead for DummyAead {
     }
 }
 impl IndCca2 for DummyAead {}
+impl Identified for DummyAead {
+    const OID: &Oid = oid!("1.2.3");
+}
 
 /// An [`Aead`] with a small nonce, limiting the maximum number
 /// of encryptions we can perform.
@@ -578,8 +586,6 @@ where
     A: Aead,
     N: ArrayLength + IsLess<U65536> + 'static,
 {
-    const ID: AeadId = A::ID;
-
     const LIFETIME: Lifetime = A::LIFETIME;
 
     type KeySize = A::KeySize;
@@ -643,6 +649,21 @@ where
 {
 }
 
+impl<A, N> Identified for LimitedAead<A, N>
+where
+    A: Identified,
+{
+    const OID: &Oid = A::OID;
+}
+
+impl<A, N> HpkeAead for LimitedAead<A, N>
+where
+    A: HpkeAead,
+    N: ArrayLength + IsLess<U65536> + 'static,
+{
+    const ID: AeadId = A::ID;
+}
+
 /// A no-op [`Aead`].
 ///
 /// - `K` is the size in octets of its key.
@@ -657,8 +678,6 @@ where
     N: ArrayLength + IsLess<U65536> + 'static,
     T: ArrayLength + IsGreaterOrEqual<U16>,
 {
-    const ID: AeadId = AeadId::ExportOnly;
-
     const LIFETIME: Lifetime = Lifetime::Messages(L);
 
     type KeySize = K;
@@ -714,6 +733,19 @@ where
     N: ArrayLength + IsLess<U65536> + 'static,
     T: ArrayLength + IsGreaterOrEqual<U16>,
 {
+}
+
+impl<K, N, T, const L: u64> Identified for NoopAead<K, N, T, L> {
+    const OID: &Oid = oid!("1.2.3");
+}
+
+impl<K, N, T, const L: u64> HpkeAead for NoopAead<K, N, T, L>
+where
+    K: ArrayLength + IsGreaterOrEqual<U16> + IsLess<U65536> + 'static,
+    N: ArrayLength + IsLess<U65536> + 'static,
+    T: ArrayLength + IsGreaterOrEqual<U16>,
+{
+    const ID: AeadId = AeadId::Other(NonZeroU16::new(42).unwrap());
 }
 
 /// Returns a random `u32` in [0, n).

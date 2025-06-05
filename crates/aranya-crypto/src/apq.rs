@@ -3,6 +3,8 @@
 //! [APQ]: https://git.spideroak-inc.com/spideroak-inc/apq
 
 #![forbid(unsafe_code)]
+#![cfg(feature = "apq")]
+#![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
 use core::{borrow::Borrow, fmt, ops::Add, result::Result};
 
@@ -172,8 +174,8 @@ impl<CS: CipherSuite> TopicKey<CS> {
         //     {0}^0,
         // )
         const DOMAIN: &[u8] = b"TopicKeyId-v1";
-        let prk = CS::labeled_extract(DOMAIN, &[], "prk", &self.seed);
-        CS::labeled_expand(DOMAIN, &prk, "id", [])
+        let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
+        CS::labeled_expand(DOMAIN, &prk, b"id", [])
             .map_err(|_| IdError("unable to expand PRK"))
             .map(TopicKeyId)
     }
@@ -351,7 +353,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ) -> Result<<CS::Aead as Aead>::Key, Error> {
         const DOMAIN: &[u8] = b"APQ-v1";
         //  prk = LabeledExtract("APQ-V1", {0}^512, "topic_key_prk", seed)
-        let prk = CS::labeled_extract(DOMAIN, &[], "topic_key_prk", seed);
+        let prk = CS::labeled_extract(DOMAIN, &[], b"topic_key_prk", seed);
         // info = concat(
         //     i2osp(version, 4),
         //     topic,
@@ -360,8 +362,8 @@ impl<CS: CipherSuite> TopicKey<CS> {
         let key: KeyData<CS::Aead> = CS::labeled_expand(
             DOMAIN,
             &prk,
-            "topic_key_key",
-            [&version.to_be_bytes(), &*topic.as_bytes()],
+            b"topic_key_key",
+            [&version.to_be_bytes(), topic.as_bytes()],
         )?;
 
         Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
@@ -566,7 +568,7 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         // )
         let ad = CS::tuple_hash(
             b"TopicKeyRotation",
-            [&version.to_be_bytes(), &*topic.as_bytes()],
+            [&version.to_be_bytes(), topic.as_bytes()],
         );
         // ciphertext = HPKE_OneShotOpen(
         //     mode=mode_auth,
