@@ -33,7 +33,7 @@ pub fn generate_code(policy: &Policy) -> String {
         .map(|e| {
             let doc = format!(" {} policy enum.", e.identifier);
             let name = mk_ident(&e.identifier);
-            let names = e.values.iter().map(mk_ident);
+            let names = e.variants.iter().map(mk_ident);
             quote! {
                 #[doc = #doc]
                 #[value]

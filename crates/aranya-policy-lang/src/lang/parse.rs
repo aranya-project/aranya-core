@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use aranya_policy_ast::{
     self as ast, ident, AstNode, Identifier, MapStatement, MatchExpression, Text, Version,
 };
-use ast::{EnumDefinition, EnumReference, Expression, FactField, MatchPattern};
+use ast::{EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
     error::{InputLocation, LineColLocation},
@@ -1210,19 +1210,25 @@ impl ChunkParser<'_> {
     fn parse_enum_definition(
         &mut self,
         item: Pair<'_, Rule>,
-    ) -> Result<AstNode<EnumDefinition>, ParseError> {
+    ) -> Result<AstNode<ast::EnumDefinition>, ParseError> {
         assert_eq!(item.as_rule(), Rule::enum_definition);
 
         let locator = self.add_range(&item)?;
         let pc = descend(item);
         let identifier = pc.consume_identifier()?;
-        let mut values = Vec::<Identifier>::new();
+        let mut variants = Vec::<Identifier>::new();
         for value in pc.into_inner() {
             let value = remain(value).consume_identifier()?;
-            values.push(value);
+            variants.push(value);
         }
 
-        Ok(AstNode::new(EnumDefinition { identifier, values }, locator))
+        Ok(AstNode::new(
+            ast::EnumDefinition {
+                identifier,
+                variants,
+            },
+            locator,
+        ))
     }
 
     fn parse_enum_reference(item: Pair<'_, Rule>) -> Result<EnumReference, ParseError> {
@@ -1563,20 +1569,33 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     Ok(fn_decl)
 }
 
-/// Parse a series of Struct definitions for the FFI
-pub fn parse_ffi_structs(data: &str) -> Result<Vec<AstNode<ast::StructDefinition>>, ParseError> {
-    let def = PolicyParser::parse(Rule::ffi_struct_def, data)?;
+/// A series of Struct or Enum definitions for the FFI
+pub struct FfiTypes {
+    pub structs: Vec<AstNode<ast::StructDefinition>>,
+    pub enums: Vec<AstNode<ast::EnumDefinition>>,
+}
+
+/// Parse a series of type definitions for the FFI
+pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
+    let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
+    let pratt = get_pratt_parser();
+    let mut p = ChunkParser::new(0, &pratt);
     let mut structs = vec![];
+    let mut enums = vec![];
     for s in def {
-        if let Rule::EOI = s.as_rule() {
-            break;
+        match s.as_rule() {
+            Rule::struct_definition => {
+                structs.push(p.parse_struct_definition(s)?);
+            }
+            Rule::enum_definition => {
+                enums.push(p.parse_enum_definition(s)?);
+            }
+            Rule::EOI => break,
+            _ => break,
         }
-        let pratt = get_pratt_parser();
-        let mut p = ChunkParser::new(0, &pratt);
-        structs.push(p.parse_struct_definition(s)?);
     }
 
-    Ok(structs)
+    Ok(FfiTypes { structs, enums })
 }
 
 /// Creates the default pratt parser ruleset.

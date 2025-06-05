@@ -225,7 +225,7 @@ impl<'a> CompileState<'a> {
 
         // Add values to enum, checking for duplicates
         let mut values = BTreeMap::new();
-        for (i, value_name) in enum_def.values.iter().enumerate() {
+        for (i, value_name) in enum_def.variants.iter().enumerate() {
             match values.entry(value_name.clone()) {
                 Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(

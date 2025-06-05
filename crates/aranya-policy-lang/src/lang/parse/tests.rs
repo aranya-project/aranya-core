@@ -10,7 +10,7 @@ use super::{
     ast, ast::AstNode, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError,
     PolicyParser, Rule, Version,
 };
-use crate::lang::{ChunkParser, ParseErrorKind};
+use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -1221,7 +1221,7 @@ fn parse_enum_definition() {
         vec![AstNode::new(
             ast::EnumDefinition {
                 identifier: ident!("Color"),
-                values: vec![ident!("Red"), ident!("Green"), ident!("Blue")]
+                variants: vec![ident!("Red"), ident!("Green"), ident!("Blue")]
             },
             0
         )]
@@ -1268,7 +1268,7 @@ fn parse_ffi_decl() {
 }
 
 #[test]
-fn parse_ffi_structs() {
+fn parse_ffi_structs_enums() {
     let text = r#"
         struct A {
             x int,
@@ -1276,9 +1276,11 @@ fn parse_ffi_structs() {
         }
 
         struct B {}
+
+        enum Color { Red, White, Blue }
     "#
     .trim();
-    let structs = super::parse_ffi_structs(text).expect("parse");
+    let FfiTypes { structs, enums } = super::parse_ffi_structs_enums(text).expect("parse");
     assert_eq!(
         structs,
         vec![
@@ -1304,9 +1306,24 @@ fn parse_ffi_structs() {
                     fields: vec![],
                 },
                 locator: 68,
-            },
+            }
         ],
-    )
+    );
+
+    assert_eq!(
+        enums,
+        vec![AstNode {
+            inner: ast::EnumDefinition {
+                identifier: String::from("Color"),
+                variants: vec![
+                    String::from("Red"),
+                    String::from("White"),
+                    String::from("Blue")
+                ]
+            },
+            locator: 89
+        }]
+    );
 }
 
 #[test]
