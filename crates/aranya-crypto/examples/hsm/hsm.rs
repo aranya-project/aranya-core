@@ -189,7 +189,7 @@ impl Hsm {
         F: FnOnce(&SigningKey) -> R,
     {
         match self.load_key(id)? {
-            HsmKey::Signing(ref sk) => Ok(f(sk)),
+            HsmKey::Signing(sk) => Ok(f(sk)),
             _ => Err(HsmError::WrongKeyType),
         }
     }

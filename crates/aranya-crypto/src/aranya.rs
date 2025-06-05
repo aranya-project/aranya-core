@@ -38,7 +38,7 @@ impl<CS: CipherSuite> Signature<CS> {
     }
 
     /// Encodes itself as bytes.
-    pub fn to_bytes(&self) -> impl Borrow<[u8]> {
+    pub fn to_bytes(&self) -> impl Borrow<[u8]> + use<CS> {
         self.raw_sig()
     }
 

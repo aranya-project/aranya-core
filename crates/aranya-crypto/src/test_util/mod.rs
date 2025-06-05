@@ -93,7 +93,7 @@ pub(super) use assert_ct_ne;
 macro_rules! __doctest_os_hardware_rand {
     () => {
         #[cfg(feature = "trng")]
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         extern "C" fn OS_hardware_rand() -> u32 {
             use rand::RngCore;
             rand::rngs::OsRng.next_u32()

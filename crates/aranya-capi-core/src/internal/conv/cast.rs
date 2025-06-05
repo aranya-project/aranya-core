@@ -608,12 +608,28 @@ mod tests {
         macro_rules! to_passthrough {
             ($ty:ty, $val:expr) => {{
                 let _: $ty = to_inner!($val);
-                let _: &$ty = to_inner_ref!(&$val);
-                let _: &mut $ty = to_inner_mut!(&mut $val);
+                match &$val {
+                    v => {
+                        let _: &$ty = to_inner_ref!(v);
+                    }
+                }
+                match &mut $val {
+                    v => {
+                        let _: &mut $ty = to_inner_mut!(v);
+                    }
+                }
                 let _: *const $ty = to_inner_ptr!(ptr::null::<$ty>());
                 let _: *mut $ty = to_inner_mut_ptr!(ptr::null_mut::<$ty>());
-                let _: &[$ty] = to_inner_slice!(&[$val]);
-                let _: &mut [$ty] = to_inner_slice_mut!(&mut [$val]);
+                match &[$val] {
+                    v => {
+                        let _: &[$ty] = to_inner_slice!(v);
+                    }
+                }
+                match &mut [$val] {
+                    v => {
+                        let _: &mut [$ty] = to_inner_slice_mut!(v);
+                    }
+                }
             }};
         }
         to_passthrough!((), ());
@@ -626,12 +642,28 @@ mod tests {
         macro_rules! from_passthrough {
             ($val:expr => $ty:ty) => {{
                 let _: $ty = from_inner!($val => $ty);
-                let _: &$ty = from_inner_ref!(&$val => $ty);
-                let _: &mut $ty = from_inner_mut!(&mut $val => $ty);
+                match &$val {
+                    v => {
+                        let _: &$ty = from_inner_ref!(v => $ty);
+                    }
+                }
+                match &mut $val {
+                    v => {
+                        let _: &mut $ty = from_inner_mut!(v => $ty);
+                    }
+                }
                 let _: *const $ty = from_inner_ptr!(ptr::null::<$ty>() => $ty);
                 let _: *mut $ty = from_inner_mut_ptr!(ptr::null_mut::<$ty>() => $ty);
-                let _: &[$ty] = from_inner_slice!(&[$val] => $ty);
-                let _: &mut [$ty] = from_inner_slice_mut!(&mut [$val] => $ty);
+                match &[$val] {
+                    v => {
+                        let _: &[$ty] = from_inner_slice!(v => $ty);
+                    }
+                }
+                match &mut [$val] {
+                    v => {
+                        let _: &mut [$ty] = from_inner_slice_mut!(v => $ty);
+                    }
+                }
             }};
         }
         from_passthrough!(() => ());
@@ -644,12 +676,28 @@ mod tests {
         macro_rules! check_to_inner {
             ($ty:ty, $val:expr) => {{
                 let _: <$ty as NewType>::Inner = to_inner!($val);
-                let _: &<$ty as NewType>::Inner = to_inner_ref!(&$val);
-                let _: &mut <$ty as NewType>::Inner = to_inner_mut!(&mut $val);
+                match &$val {
+                    v => {
+                        let _: &<$ty as NewType>::Inner = to_inner_ref!(v);
+                    }
+                }
+                match &mut $val {
+                    v => {
+                        let _: &mut <$ty as NewType>::Inner = to_inner_mut!(v);
+                    }
+                }
                 let _: *const <$ty as NewType>::Inner = to_inner_ptr!(ptr::null::<$ty>());
                 let _: *mut <$ty as NewType>::Inner = to_inner_mut_ptr!(ptr::null_mut::<$ty>());
-                let _: &[<$ty as NewType>::Inner] = to_inner_slice!(&[$val]);
-                let _: &mut [<$ty as NewType>::Inner] = to_inner_slice_mut!(&mut [$val]);
+                match &[$val] {
+                    v => {
+                        let _: &[<$ty as NewType>::Inner] = to_inner_slice!(v);
+                    }
+                }
+                match &mut [$val] {
+                    v => {
+                        let _: &mut [<$ty as NewType>::Inner] = to_inner_slice_mut!(v);
+                    }
+                }
             }};
         }
         check_to_inner!(B, B(A));
@@ -658,13 +706,29 @@ mod tests {
         macro_rules! check_from_inner {
             ($val:expr => $ty:ty) => {{
                 let _: $ty = from_inner!($val => $ty);
-                let _: &$ty = from_inner_ref!(&$val => $ty);
-                let _: &mut $ty = from_inner_mut!(&mut $val => $ty);
+                match &$val {
+                    v => {
+                        let _: &$ty = from_inner_ref!(v => $ty);
+                    }
+                }
+                match &mut $val {
+                    v => {
+                        let _: &mut $ty = from_inner_mut!(v => $ty);
+                    }
+                }
                 let _: *const $ty = from_inner_ptr!(ptr::null::<<$ty as NewType>::Inner>() => $ty);
                 let _: *mut $ty =
                     from_inner_mut_ptr!(ptr::null_mut::<<$ty as NewType>::Inner>() => $ty);
-                let _: &[$ty] = from_inner_slice!(&[$val] => $ty);
-                let _: &mut [$ty] = from_inner_slice_mut!(&mut [$val] => $ty);
+                match &[$val] {
+                    v => {
+                        let _: &[$ty] = from_inner_slice!(v => $ty);
+                    }
+                }
+                match &mut [$val] {
+                    v => {
+                        let _: &mut [$ty] = from_inner_slice_mut!(v => $ty);
+                    }
+                }
             }};
         }
         check_from_inner!(A => B);
