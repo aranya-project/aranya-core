@@ -6,19 +6,34 @@ use zerocopy::{Immutable, IntoBytes, KnownLayout};
 /// A TLS 1.3 cipher suite.
 #[repr(u16)]
 #[derive(
-    Copy, Clone, Debug, Eq, PartialEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize,
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Hash,
+    Immutable,
+    IntoBytes,
+    KnownLayout,
+    Serialize,
+    Deserialize,
 )]
 #[non_exhaustive]
 pub enum CipherSuiteId {
     /// TLS_AES_128_GCM_SHA256
+    #[serde(rename = "TLS_AES_128_GCM_SHA256")]
     TlsAes128GcmSha256 = u16::to_be(0x1301),
     /// TLS_AES_256_GCM_SHA384
+    #[serde(rename = "TLS_AES_256_GCM_SHA384")]
     TlsAes256GcmSha384 = u16::to_be(0x1302),
     /// TLS_CHACHA20_POLY1305_SHA256
+    #[serde(rename = "TLS_CHACHA20_POLY1305_SHA256")]
     TlsChaCha20Poly1305Sha256 = u16::to_be(0x1303),
     /// TLS_AES_128_CCM_SHA256
+    #[serde(rename = "TLS_AES_128_CCM_SHA256")]
     TlsAes128CcmSha256 = u16::to_be(0x1304),
     /// TLS_AES_128_CCM_8_SHA256
+    #[serde(rename = "TLS_AES_128_CCM_8_SHA256")]
     TlsAes128Ccm8Sha256 = u16::to_be(0x1305),
 }
 
