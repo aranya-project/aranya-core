@@ -7,7 +7,7 @@ use super::Bytes;
 use crate::StorageError;
 
 /// A `TrieMap` maps bytes keys `k1, k2, ..., kn` to a value, allowing for efficient prefix queries.
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TrieMap(Slot);
 
 /// Tried to traverse past a leaf in a trie-map.
@@ -24,7 +24,10 @@ impl From<InvalidDepth> for StorageError {
 
 #[derive(Debug, Serialize, Deserialize)]
 enum Slot {
-    Branch(BTreeMap<Bytes, Self>),
+    Branch {
+        map: BTreeMap<Bytes, Self>,
+        deleted: bool,
+    },
     Leaf(Grave<Bytes>),
 }
 
@@ -34,21 +37,30 @@ pub enum Grave<T> {
     Deleted,
 }
 
+impl Slot {
+    const fn new() -> Self {
+        Self::Branch {
+            map: BTreeMap::new(),
+            deleted: false,
+        }
+    }
+}
+
 impl Default for Slot {
     fn default() -> Self {
-        Self::Branch(BTreeMap::default())
+        Self::new()
     }
 }
 
 impl TrieMap {
     /// Creates an empty `TrieMap`.
     pub const fn new() -> Self {
-        Self(Slot::Branch(BTreeMap::new()))
+        Self(Slot::new())
     }
 
     pub fn is_empty(&self) -> bool {
         match &self.0 {
-            Slot::Branch(b) => b.is_empty(),
+            Slot::Branch { map, deleted } => !deleted && map.is_empty(),
             Slot::Leaf(_) => unreachable!(),
         }
     }
@@ -64,14 +76,14 @@ impl TrieMap {
         let mut slot = &mut self.0;
         for key in keys {
             match slot {
-                Slot::Branch(b) => slot = b.entry(key.into()).or_default(),
+                Slot::Branch { map, .. } => slot = map.entry(key.into()).or_default(),
                 Slot::Leaf(_) => return Err(InvalidDepth),
             }
         }
         match slot {
             Slot::Leaf(l) => Ok(Some(mem::replace(l, value))),
-            Slot::Branch(b) => {
-                if !b.is_empty() {
+            Slot::Branch { map, deleted } => {
+                if *deleted || !map.is_empty() {
                     return Err(InvalidDepth);
                 }
                 *slot = Slot::Leaf(value);
@@ -91,14 +103,14 @@ impl TrieMap {
         let mut slot = &mut self.0;
         for key in keys {
             match slot {
-                Slot::Branch(b) => slot = b.entry(key.into()).or_default(),
+                Slot::Branch { map, .. } => slot = map.entry(key.into()).or_default(),
                 Slot::Leaf(_) => return Err(InvalidDepth),
             }
         }
         match slot {
             Slot::Leaf(_) => Ok(false),
-            Slot::Branch(b) => {
-                if !b.is_empty() {
+            Slot::Branch { map, deleted } => {
+                if *deleted || !map.is_empty() {
                     return Err(InvalidDepth);
                 }
                 *slot = Slot::Leaf(value());
@@ -115,7 +127,7 @@ impl TrieMap {
         let mut slot = &self.0;
         for key in keys {
             match slot {
-                Slot::Branch(b) => match b.get(key.as_ref()) {
+                Slot::Branch { map, .. } => match map.get(key.as_ref()) {
                     Some(s) => slot = s,
                     None => return Ok(None),
                 },
@@ -123,7 +135,7 @@ impl TrieMap {
             }
         }
         match slot {
-            Slot::Branch(_) => Err(InvalidDepth),
+            Slot::Branch { .. } => Err(InvalidDepth),
             Slot::Leaf(l) => Ok(Some(l.as_deref())),
         }
     }
@@ -137,7 +149,7 @@ impl TrieMap {
         let mut path = Vec::new();
         for key in keys {
             match slot {
-                Slot::Branch(b) => match b.get_key_value(key.as_ref()) {
+                Slot::Branch { map, deleted } => match b.get_key_value(key.as_ref()) {
                     Some((k, s)) => {
                         path.push(k.as_ref());
                         slot = s;
