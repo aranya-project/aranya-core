@@ -663,7 +663,7 @@ impl Revertable for MemPerspective {
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
         if checkpoint.index == self.commands.len() {
             return Ok(());
         }
@@ -732,14 +732,17 @@ impl Query for MemPerspective {
 }
 
 impl QueryMut for MemPerspective {
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) {
-        self.facts.insert(name.clone(), keys.clone(), value.clone());
+    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) -> Result<(), StorageError> {
+        self.facts
+            .insert(name.clone(), keys.clone(), value.clone())?;
         self.current_updates.push((name, keys, Some(value)));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
-        self.facts.delete(name.clone(), keys.clone());
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
+        self.facts.delete(name.clone(), keys.clone())?;
         self.current_updates.push((name, keys, None));
+        Ok(())
     }
 }
 
@@ -791,12 +794,14 @@ impl Query for MemFactPerspective {
 }
 
 impl QueryMut for MemFactPerspective {
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) {
+    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) -> Result<(), StorageError> {
         self.map.entry(name).or_default().insert(keys, Some(value));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
         self.map.entry(name).or_default().insert(keys, None);
+        Ok(())
     }
 }
 
@@ -979,7 +984,8 @@ mod test {
                 name.into(),
                 ks.clone(),
                 format!("{ks:?}").into_bytes().into(),
-            );
+            )
+            .unwrap();
         }
         let facts = graph.write_facts(fp).unwrap();
 

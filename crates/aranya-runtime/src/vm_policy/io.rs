@@ -101,7 +101,8 @@ where
         self.facts
             .try_borrow_mut()
             .assume("should be able to borrow facts")?
-            .insert(name, keys, value);
+            .insert(name, keys, value)
+            .map_err(|_| MachineIOError::Internal)?;
         Ok(())
     }
 
@@ -114,7 +115,8 @@ where
         self.facts
             .try_borrow_mut()
             .assume("should be able to borrow facts")?
-            .delete(name, keys);
+            .delete(name, keys)
+            .map_err(|_| MachineIOError::Internal)?;
         Ok(())
     }
 

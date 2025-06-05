@@ -375,7 +375,7 @@ where
 }
 
 impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> {
-    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) {
+    fn insert(&mut self, name: String, keys: Keys, value: Box<[u8]>) -> Result<(), StorageError> {
         self.session
             .fact_log
             .push((name.clone(), keys.clone(), Some(value.clone())));
@@ -383,9 +383,10 @@ impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> 
             .entry(name)
             .or_default()
             .insert(keys, Some(value));
+        Ok(())
     }
 
-    fn delete(&mut self, name: String, keys: Keys) {
+    fn delete(&mut self, name: String, keys: Keys) -> Result<(), StorageError> {
         self.session
             .fact_log
             .push((name.clone(), keys.clone(), None));
@@ -393,6 +394,7 @@ impl<SP: StorageProvider, E, MS> QueryMut for SessionPerspective<'_, SP, E, MS> 
             .entry(name)
             .or_default()
             .insert(keys, None);
+        Ok(())
     }
 }
 
@@ -435,7 +437,7 @@ where
         }
     }
 
-    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), Bug> {
+    fn revert(&mut self, checkpoint: Checkpoint) -> Result<(), StorageError> {
         if checkpoint.index == self.session.fact_log.len() {
             return Ok(());
         }
