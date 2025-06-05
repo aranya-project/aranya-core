@@ -1837,3 +1837,22 @@ fn test_match_expression() {
         assert_eq!(err_kind, expected);
     }
 }
+
+#[test]
+fn test_invalid_this() {
+    let cases = [
+        "action this() { }",
+        "function this() int {}",
+        "struct this {}",
+        "enum this { A }",
+        "enum A { this }",
+        "let this = 42",
+        "use this",
+        "fact this[]=>{}",
+    ];
+
+    for src in cases {
+        let err_kind = parse_policy_str(src, Version::V2).unwrap_err().kind;
+        assert_eq!(err_kind, ParseErrorKind::ReservedIdentifier, "{src}");
+    }
+}

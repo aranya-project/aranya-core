@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
 use aranya_policy_ast::{
-    self as ast, AstNode, Identifier, MapStatement, MatchExpression, Text, Version,
+    self as ast, ident, AstNode, Identifier, MapStatement, MatchExpression, Text, Version,
 };
 use ast::{EnumDefinition, EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
@@ -516,6 +516,7 @@ impl ChunkParser<'_> {
                         ast::InternalFunction::Deserialize(Box::new(inner)),
                     ))
                 }
+                Rule::this => Ok(Expression::Identifier(ident!("this"))),
                 Rule::identifier => Ok(Expression::Identifier(remain(primary).consume_identifier()?)),
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
