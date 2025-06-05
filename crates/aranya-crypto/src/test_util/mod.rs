@@ -40,7 +40,7 @@ use spideroak_crypto::{
     oid::{Identified, Oid},
     signer::{PkError, Signature, SignerError, SigningKey, VerifyingKey},
     subtle::{Choice, ConstantTimeEq},
-    typenum::{U32, U64},
+    typenum::U32,
     zeroize::ZeroizeOnDrop,
 };
 
@@ -326,7 +326,7 @@ impl<T: Signer + ?Sized> PartialEq for VerifyingKeyWithDefaults<T> {
     }
 }
 
-/// [`Signer::Signature`] that uses the default trait methods.
+/// `Signer::Signature` that uses the default trait methods.
 pub struct SignatureWithDefaults<T: Signer + ?Sized>(T::Signature);
 
 impl<T: Signer + ?Sized> Signature<SignerWithDefaults<T>> for SignatureWithDefaults<T> {

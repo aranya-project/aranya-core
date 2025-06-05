@@ -69,7 +69,7 @@ pub trait Engine: Csprng + RawSecretWrap<Self> + Sized {
 /// It need not directly contain the ciphertext. For example,
 /// it might only contain an identifier used to look up the
 /// key in an HSM.
-pub trait WrappedKey: Identified + Serialize + Sized {}
+pub trait WrappedKey: Identified + Serialize + DeserializeOwned + Sized {}
 
 /// A key that an [`Engine`] can wrap.
 pub trait UnwrappedKey<CS: CipherSuite>: Sized + Identified {

@@ -34,7 +34,6 @@ use crate::{
 /// use {
 ///     core::borrow::{Borrow, BorrowMut},
 ///     aranya_crypto::{
-///         aead::{Aead, KeyData},
 ///         afc::{
 ///             AuthData,
 ///             OpenKey,
@@ -55,8 +54,6 @@ use crate::{
 ///         Engine,
 ///         Id,
 ///         IdentityKey,
-///         import::Import,
-///         keys::SecretKey,
 ///         EncryptionKey,
 ///         Rng,
 ///     }

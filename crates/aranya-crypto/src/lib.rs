@@ -71,21 +71,24 @@ pub use groupkey::*;
 pub use id::{Id, Identified};
 pub use keystore::{KeyStore, KeyStoreExt};
 pub use policy::*;
-pub use siphasher;
 #[doc(no_inline)]
 #[cfg(feature = "bearssl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
 pub use spideroak_crypto::bearssl;
+/// Constant time cryptographic operations.
+#[doc(inline)]
+pub use spideroak_crypto::subtle;
+#[doc(inline)]
 pub use spideroak_crypto::{
-    self,
-    aead::{BufferTooSmallError, OpenError, SealError},
     csprng::{Csprng, Random},
-    generic_array,
-    hpke::HpkeError,
-    import::{ExportError, ImportError},
-    kdf::KdfError,
-    kem::{EcdhError, KemError},
-    mac::MacError,
-    signer::SignerError,
-    subtle, typenum, zeroize,
+    zeroize,
 };
+pub use spideroak_crypto::{generic_array, typenum};
+
+/// Dangerous cryptography.
+pub mod dangerous {
+    #[doc(inline)]
+    pub use siphasher;
+    #[doc(inline)]
+    pub use spideroak_crypto;
+}

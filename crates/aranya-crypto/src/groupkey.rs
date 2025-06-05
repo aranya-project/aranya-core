@@ -69,8 +69,8 @@ impl<CS: CipherSuite> GroupKey<CS> {
         //     {0}^0,
         // )
         const DOMAIN: &[u8] = b"GroupKeyId-v1";
-        let prk = CS::labeled_extract(DOMAIN, &[], "prk", &self.seed);
-        CS::labeled_expand(DOMAIN, &prk, "id", [])
+        let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
+        CS::labeled_expand(DOMAIN, &prk, b"id", [])
             .map_err(|_| IdError("unable to expand PRK"))
             .map(GroupKeyId)
     }
@@ -203,9 +203,9 @@ impl<CS: CipherSuite> GroupKey<CS> {
         //     "EventKey_key",
         //     info,
         // )
-        let prk = CS::labeled_extract(b"kdf-ext-v1", &[], "EventKey_prk", &self.seed);
+        let prk = CS::labeled_extract(b"kdf-ext-v1", &[], b"EventKey_prk", &self.seed);
         let key: KeyData<CS::Aead> =
-            CS::labeled_expand(b"kdr-exp-v1", &prk, "EventKey_key", [info])?;
+            CS::labeled_expand(b"kdr-exp-v1", &prk, b"EventKey_key", [info])?;
         Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
             key.as_bytes(),
         )?)

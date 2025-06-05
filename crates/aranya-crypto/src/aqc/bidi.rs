@@ -51,8 +51,6 @@ use crate::{
 ///     Engine,
 ///     Id,
 ///     IdentityKey,
-///     import::Import,
-///     keys::SecretKey,
 ///     EncryptionKey,
 ///     Rng,
 ///     subtle::ConstantTimeEq,

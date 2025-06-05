@@ -54,11 +54,9 @@ use crate::{
 ///     Engine,
 ///     Id,
 ///     IdentityKey,
-///     import::Import,
-///     keys::SecretKey,
 ///     EncryptionKey,
 ///     Rng,
-///     subtle::ConstantTimeEq,
+///     subtle::ConstantTimeEq as _,
 /// };
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;

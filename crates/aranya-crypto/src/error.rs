@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use buggy::Bug;
-use spideroak_crypto::{
+pub use spideroak_crypto::{
     aead::{OpenError, SealError},
     hpke::HpkeError,
     import::{ExportError, ImportError},
@@ -72,4 +72,11 @@ pub enum Error {
     /// A public key failure.
     #[error(transparent)]
     Pk(#[from] PkError),
+}
+
+#[cfg(any(feature = "afc", feature = "aqc"))]
+impl Error {
+    pub(crate) const fn same_device_id() -> Self {
+        Self::InvalidArgument("same `DeviceId`")
+    }
 }

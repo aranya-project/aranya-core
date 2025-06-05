@@ -27,7 +27,8 @@ use spideroak_crypto::{
     typenum::U32,
 };
 
-pub(crate) use crate::ciphersuite::ext::{CipherSuiteExt, OidsRepr};
+pub(crate) use crate::ciphersuite::ext::CipherSuiteExt;
+pub use crate::ciphersuite::ext::Oids;
 
 /// A marker trait for AEADs.
 pub trait Aead: HpkeAead + Identified {}
@@ -79,6 +80,10 @@ impl<S: signer::Signer + Identified> Signer for S {}
 /// Additionally, please test your implementation using the
 /// `test_util` module.
 pub trait CipherSuite {
+    /// OIDS contains the OIDs from the algorithms in the cipher
+    /// suite.
+    const OIDS: Oids<Self> = Oids::new();
+
     /// See [`Aead`] for more information.
     type Aead: Aead;
     /// See [`Hash`] for more information.
@@ -132,13 +137,11 @@ mod tests {
     }
 
     mod rust {
-        use crate::{
-            rust::{
-                Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256,
-                P384,
-            },
-            test_util::{test_ciphersuite, TestCs},
+        use spideroak_crypto::rust::{
+            Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256, P384,
         };
+
+        use crate::test_util::{test_ciphersuite, TestCs};
 
         test_ciphersuite!(p256, TestCs<
             Aes256Gcm,
