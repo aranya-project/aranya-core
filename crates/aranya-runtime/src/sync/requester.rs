@@ -189,27 +189,11 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
     pub fn receive<'a>(
         &mut self,
         data: &'a [u8],
-        provider: &mut impl StorageProvider,
-        peer_cache: &mut PeerCache,
     ) -> Result<Option<Vec<SyncCommand<'a>, COMMAND_RESPONSE_MAX>>, SyncError> {
         let (message, remaining): (SyncResponseMessage, &'a [u8]) =
             postcard::take_from_bytes(data)?;
 
-        match self.get_sync_commands(message, remaining) {
-            Ok(Some(cmds)) => {
-                let storage = match provider.get_storage(self.storage_id) {
-                    Err(StorageError::NoSuchStorage) => return Ok(Some(cmds)), // storage doesn't exist; punt
-                    x => x,
-                }?;
-                for addr in cmds.iter().filter_map(|cmd| cmd.address().ok()) {
-                    if let Some(cmd_loc) = storage.get_location(addr)? {
-                        peer_cache.add_command(storage, addr, cmd_loc)?;
-                    }
-                }
-                Ok(Some(cmds))
-            }
-            x => x,
-        }
+        self.get_sync_commands(message, remaining)
     }
 
     /// Extract SyncCommands from a SyncResponseMessage and remaining bytes.
