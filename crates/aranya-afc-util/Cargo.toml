@@ -38,6 +38,8 @@ std = [
 testing = [
 	"alloc",
 
+	"aranya-crypto/memstore",
+
 	"dep:indexmap",
 	"dep:siphasher",
 ]

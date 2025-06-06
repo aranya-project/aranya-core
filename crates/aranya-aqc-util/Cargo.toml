@@ -34,6 +34,8 @@ std = [
 # Enable the `testing` module.
 testing = [
 	"alloc",
+
+	"aranya-crypto/memstore",
 ]
 
 [dependencies]

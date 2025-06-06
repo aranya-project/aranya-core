@@ -2,7 +2,6 @@
 
 use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
 
-use postcard::experimental::max_size::MaxSize;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::{
@@ -86,23 +85,6 @@ macro_rules! ciphertext {
             fn clone(&self) -> Self {
                 Self(::core::clone::Clone::clone(&self.0))
             }
-        }
-
-        impl<CS> ::postcard::experimental::max_size::MaxSize for $name<CS>
-        where
-            CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
-            $crate::generic_array::GenericArray<
-                u8,
-                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
-            >: ::postcard::experimental::max_size::MaxSize,
-        {
-            const POSTCARD_MAX_SIZE: usize = <$crate::generic_array::GenericArray<
-                u8,
-                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
-            > as ::postcard::experimental::max_size::MaxSize>::POSTCARD_MAX_SIZE;
         }
 
         impl<CS>
@@ -390,7 +372,7 @@ pub(crate) use pk_misc;
 // Allow repeated suffixes since different types will be added in
 // the future.
 #[allow(clippy::enum_variant_names)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExportedDataType {
     EncryptionPublicKey,
     IdentityVerifyingKey,
@@ -401,7 +383,7 @@ pub(crate) enum ExportedDataType {
 }
 
 /// Non-secret exported from an `Engine`.
-#[derive(Serialize, Deserialize, MaxSize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct ExportedData<T> {
     /// Uniquely idenitifies the chosen algorithms.
