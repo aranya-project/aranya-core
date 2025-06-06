@@ -99,9 +99,9 @@ pub struct Struct<'a> {
 /// Enumeration definition
 pub struct Enum<'a> {
     /// name of enumeration
-    pub name: &'a str,
+    pub name: Identifier,
     /// list of possible values
-    pub variants: &'a [&'a str],
+    pub variants: &'a [Identifier],
 }
 
 /// Shorthand for creating [`Arg`]s.
@@ -201,7 +201,7 @@ macro_rules! __arg {
     }};
     ($name:literal, Enum($enum_name:literal)) => {{
         $crate::ffi::Arg {
-            name: $name,
+            name: $crate::ast::ident!($name),
             vtype: $crate::__type!(Enum($enum_name)),
         }
     }};
@@ -223,7 +223,7 @@ macro_rules! __type {
         $crate::ffi::Type::Struct($crate::ast::ident!($struct_name))
     };
     (@raw Enum($enum_name:literal)) => {
-        $crate::ffi::Type::Enum($enum_name)
+        $crate::ffi::Type::Enum($crate::ast::ident!($enum_name))
     };
     (@raw Optional($inner:expr)) => {
         $crate::ffi::Type::Optional($inner)

@@ -263,7 +263,7 @@ function struct_fn(
 
     #[ffi_export(def = r#"function test_enum(e enum TestEnum) enum TestEnum"#)]
     fn test_enum<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         e: TestEnum,
     ) -> Result<TestEnum, MachineError> {

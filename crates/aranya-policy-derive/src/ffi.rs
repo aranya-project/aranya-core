@@ -160,7 +160,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         quote! {
             #vm::ffi::Enum {
                 name: #vm::ident!(#name),
-                variants: &[#(#variants),*],
+                variants: &[#(#vm::ident!(#variants)),*],
             }
         }
     });
