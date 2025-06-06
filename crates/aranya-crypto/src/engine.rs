@@ -220,12 +220,12 @@ impl AlgId {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Immutable, IntoBytes, KnownLayout)]
 #[repr(u16)]
 pub(crate) enum AlgIdRepr {
-    Aead(U16<LE>),
-    Decap(U16<LE>),
-    Mac(U16<LE>),
-    Prk(U16<LE>),
-    Seed(U16<LE>),
-    Signing(U16<LE>),
+    Aead(U16<LE>) = u16::to_le(1),
+    Decap(U16<LE>) = u16::to_le(2),
+    Mac(U16<LE>) = u16::to_le(3),
+    Prk(U16<LE>) = u16::to_le(4),
+    Seed(U16<LE>) = u16::to_le(5),
+    Signing(U16<LE>) = u16::to_le(6),
 }
 
 /// Implements [`UnwrappedKey`] for `$name`.

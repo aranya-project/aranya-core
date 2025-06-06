@@ -13,11 +13,10 @@ use core::{
 pub use proptest as __proptest;
 use serde::{
     de::{self, DeserializeOwned, SeqAccess, Visitor},
-    ser::SerializeTuple,
     Deserialize, Deserializer, Serialize, Serializer,
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
-use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     ciphersuite::SuiteIds,
@@ -33,7 +32,18 @@ use crate::{
 /// A unique cryptographic ID.
 #[repr(C)]
 #[derive(
-    Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Immutable, IntoBytes, KnownLayout, Unaligned,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Immutable,
+    IntoBytes,
+    KnownLayout,
+    Unaligned,
+    FromBytes,
 )]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Id([u8; 32]);
@@ -167,11 +177,7 @@ impl Serialize for Id {
         if serializer.is_human_readable() {
             serializer.serialize_str(&self.to_base58())
         } else {
-            let mut t = serializer.serialize_tuple(self.0.len())?;
-            for c in self.0 {
-                t.serialize_element(&c)?;
-            }
-            t.end()
+            serializer.serialize_bytes(&self.as_bytes())
         }
     }
 }
@@ -207,6 +213,15 @@ impl<'de> Deserialize<'de> for Id {
                 write!(f, "an array of length {}", Id::default().0.len())
             }
 
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let id = FromBytes::read_from_bytes(v)
+                    .map_err(|_| de::Error::invalid_length(v.len(), &self))?;
+                Ok(id)
+            }
+
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
             where
                 A: SeqAccess<'de>,
@@ -225,7 +240,7 @@ impl<'de> Deserialize<'de> for Id {
         if deserializer.is_human_readable() {
             deserializer.deserialize_str(Base58Visitor)
         } else {
-            deserializer.deserialize_tuple(Self::default().0.len(), IdVisitor)
+            deserializer.deserialize_bytes(IdVisitor)
         }
     }
 }
