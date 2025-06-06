@@ -570,6 +570,9 @@ impl Aead for DummyAead {
     }
 }
 impl IndCca2 for DummyAead {}
+impl HpkeAead for DummyAead {
+    const ID: AeadId = AeadId::Other(NonZeroU16::new(42).unwrap());
+}
 impl Identified for DummyAead {
     const OID: &Oid = oid!("1.2.3");
 }

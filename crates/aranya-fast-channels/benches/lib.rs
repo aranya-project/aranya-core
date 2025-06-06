@@ -1,13 +1,18 @@
-use std::{array, time::Duration};
+use std::{array, num::NonZeroU16, time::Duration};
 
 use aranya_crypto::{
-    aead::{Aead, AeadId, AeadKey, IndCca2, Lifetime, OpenError, SealError},
     afc::{RawOpenKey, RawSealKey},
+    dangerous::spideroak_crypto::{
+        aead::{Aead, AeadKey, IndCca2, Lifetime},
+        hpke::{AeadId, HpkeAead},
+        oid,
+        oid::{Identified, Oid},
+        rust::HkdfSha256,
+    },
     default::DefaultCipherSuite,
-    rust::HkdfSha256,
     test_util::TestCs,
     typenum::{U0, U16},
-    CipherSuite, Csprng, Random, Rng,
+    CipherSuite, Csprng, OpenError, Random, Rng, SealError,
 };
 use aranya_fast_channels::{
     crypto::Aes256Gcm,
@@ -19,8 +24,6 @@ use criterion::{black_box, criterion_main, BenchmarkId, Criterion, Throughput};
 pub struct NoopAead;
 
 impl Aead for NoopAead {
-    const ID: AeadId = AeadId::ExportOnly;
-
     const LIFETIME: Lifetime = Lifetime::Messages(u64::MAX);
 
     type KeySize = U16;
@@ -61,6 +64,14 @@ impl Aead for NoopAead {
 }
 
 impl IndCca2 for NoopAead {}
+
+impl Identified for NoopAead {
+    const OID: &Oid = oid!("1.2.3");
+}
+
+impl HpkeAead for NoopAead {
+    const ID: AeadId = AeadId::Other(NonZeroU16::new(42).unwrap());
+}
 
 const SIZES: &[usize] = &[
     // A small message.

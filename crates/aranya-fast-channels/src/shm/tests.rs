@@ -5,8 +5,7 @@ use std::{str, vec::Vec};
 
 use aranya_crypto::{
     afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
-    hash::Hash,
-    rust::Sha256,
+    dangerous::spideroak_crypto::{hash::Hash, rust::Sha256},
     CipherSuite, Engine, Random, Rng,
 };
 use serial_test::serial;
