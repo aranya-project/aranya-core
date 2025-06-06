@@ -38,9 +38,6 @@ LINE: foreach my $line (@lines) {
 
 }
 
-# Add 'envelope' and 'this' to the @keywords array
-push @keywords, 'envelope', 'this';
-
 # Remove duplicate keywords and sort them case-insensitively
 @keywords = sort { lc($a) cmp lc($b) } uniq(@keywords);
 

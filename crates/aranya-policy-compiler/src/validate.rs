@@ -1,3 +1,4 @@
+use aranya_policy_ast::{ident, Identifier};
 use aranya_policy_module::{LabelType, Module, ModuleData};
 
 use crate::{FinishAnalyzer, FunctionAnalyzer, TraceAnalyzerBuilder, TraceFailure, ValueAnalyzer};
@@ -7,7 +8,7 @@ pub fn validate(module: &Module) -> bool {
     let mut failed = false;
 
     // Get all global variable names
-    let global_names: Vec<String> = m.globals.keys().cloned().collect();
+    let global_names: Vec<Identifier> = m.globals.keys().cloned().collect();
 
     for (l, _) in m.labels.iter() {
         let mut predefined_names = vec![];
@@ -24,14 +25,14 @@ pub fn validate(module: &Module) -> bool {
                 predefined_names.append(&mut function_args);
             }
             LabelType::CommandPolicy | LabelType::CommandRecall => {
-                predefined_names.push("this".to_string());
-                predefined_names.push("envelope".to_string());
+                predefined_names.push(ident!("this"));
+                predefined_names.push(ident!("envelope"));
             }
             LabelType::CommandSeal => {
-                predefined_names.push("this".to_string());
+                predefined_names.push(ident!("this"));
             }
             LabelType::CommandOpen => {
-                predefined_names.push("envelope".to_string());
+                predefined_names.push(ident!("envelope"));
             }
             LabelType::Function => {}
             _ => continue,

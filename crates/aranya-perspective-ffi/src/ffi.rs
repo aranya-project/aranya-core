@@ -23,7 +23,7 @@ impl FfiPerspective {
     #[ffi_export(def = r#"function head_id() id"#)]
     pub(crate) fn head_id<E: aranya_crypto::Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
     ) -> Result<Id, MachineError> {
         match ctx {

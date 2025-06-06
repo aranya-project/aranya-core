@@ -2,10 +2,10 @@
 
 extern crate alloc;
 
-use alloc::{boxed::Box, collections::BTreeMap, string::String, vec::Vec};
+use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
 use core::fmt::{self, Display};
 
-use aranya_policy_ast as ast;
+use aranya_policy_ast::{self as ast, Identifier};
 use ast::FactDefinition;
 use serde::{Deserialize, Serialize};
 
@@ -73,19 +73,19 @@ pub struct ModuleV0 {
     /// Labels
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Command definitions
-    pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
+    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
     /// Fact definitions
-    pub fact_defs: BTreeMap<String, FactDefinition>,
+    pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct definitions
-    pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
+    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
     /// Command attributes
-    pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
+    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Code map
     pub codemap: Option<CodeMap>,
     /// Global static data
-    pub globals: BTreeMap<String, Value>,
+    pub globals: BTreeMap<Identifier, Value>,
 }

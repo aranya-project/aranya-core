@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 
-use aranya_policy_ast::{self as ast, AstNode, MapStatement, MatchExpression, Version};
+use aranya_policy_ast::{
+    self as ast, ident, AstNode, Identifier, MapStatement, MatchExpression, Text, Version,
+};
 use ast::{EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
@@ -85,13 +87,6 @@ impl<'a> PairContext<'a> {
         Ok(vtype)
     }
 
-    /// Consumes the next Pair out of this context and returns it as a
-    /// string. Same error conditions as [consume].
-    fn consume_string(&self, rule: Rule) -> Result<String, ParseError> {
-        let token = self.consume_of_type(rule)?;
-        Ok(token.as_str().to_owned())
-    }
-
     fn consume_fact(&self, p: &mut ChunkParser<'_>) -> Result<ast::FactLiteral, ParseError> {
         let token = self.consume_of_type(Rule::fact_literal)?;
         p.parse_fact_literal(token)
@@ -112,11 +107,11 @@ impl<'a> PairContext<'a> {
 
     /// Consumes the next Pair out of this context and returns it as a
     /// string that is the identifier if it doesn't collide with a keyword.
-    fn consume_identifier(&self) -> Result<String, ParseError> {
+    fn consume_identifier(&self) -> Result<Identifier, ParseError> {
         let token = self.consume_of_type(Rule::identifier)?;
-        let identifier = token.as_str().to_owned();
+        let identifier = token.as_str();
 
-        if KEYWORDS.contains(&identifier.as_str()) {
+        if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
                 format!("Reserved identifier: {}", identifier),
@@ -124,7 +119,9 @@ impl<'a> PairContext<'a> {
             ));
         }
 
-        Ok(identifier)
+        Ok(identifier
+            .parse()
+            .assume("grammar produces valid identifiers")?)
     }
 }
 
@@ -135,6 +132,16 @@ fn descend(p: Pair<'_, Rule>) -> PairContext<'_> {
     let span = p.as_span();
     PairContext {
         pairs: RefCell::new(p.into_inner()),
+        span,
+    }
+}
+
+/// Helper function which consumes and returns an iterator over
+/// a single token, rather than descending.
+fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
+    let span = p.as_span();
+    PairContext {
+        pairs: RefCell::new(Pairs::single(p)),
         span,
     }
 }
@@ -186,7 +193,7 @@ impl ChunkParser<'_> {
             }
             Rule::enum_t => {
                 let pc = descend(token);
-                let name = pc.consume_string(Rule::identifier)?;
+                let name = pc.consume_identifier()?;
                 Ok(ast::VType::Enum(name))
             }
             Rule::optional_t => {
@@ -242,7 +249,7 @@ impl ChunkParser<'_> {
     /// Parse a Rule::string_literal into a String.
     ///
     /// Processes \\, \n, and \xNN escapes.
-    fn parse_string_literal(string: Pair<'_, Rule>) -> Result<String, ParseError> {
+    fn parse_string_literal(string: Pair<'_, Rule>) -> Result<Text, ParseError> {
         let src = string.as_str();
         let it = &mut src.chars();
         let mut out = String::new();
@@ -294,7 +301,13 @@ impl ChunkParser<'_> {
             }
         }
 
-        Ok(out)
+        out.try_into().map_err(|_| {
+            ParseError::new(
+                ParseErrorKind::InvalidString,
+                String::from("string contained nul byte"),
+                Some(string.as_span()),
+            )
+        })
     }
 
     fn parse_named_struct_literal(
@@ -314,7 +327,7 @@ impl ChunkParser<'_> {
         call: Pair<'_, Rule>,
     ) -> Result<ast::FunctionCall, ParseError> {
         let pc = descend(call);
-        let identifier = pc.consume_string(Rule::identifier)?;
+        let identifier = pc.consume_identifier()?;
 
         // all following tokens are function arguments
         let mut arguments = vec![];
@@ -333,7 +346,7 @@ impl ChunkParser<'_> {
         call: Pair<'_, Rule>,
     ) -> Result<ast::ForeignFunctionCall, ParseError> {
         let pc = descend(call);
-        let module = pc.consume_string(Rule::identifier)?;
+        let module = pc.consume_identifier()?;
         let function_call = pc.consume_of_type(Rule::function_call)?;
 
         let function = self.parse_function_call(function_call)?;
@@ -503,7 +516,8 @@ impl ChunkParser<'_> {
                         ast::InternalFunction::Deserialize(Box::new(inner)),
                     ))
                 }
-                Rule::identifier => Ok(Expression::Identifier(primary.as_str().to_owned())),
+                Rule::this => Ok(Expression::Identifier(ident!("this"))),
+                Rule::identifier => Ok(Expression::Identifier(remain(primary).consume_identifier()?)),
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
                 _ => Err(ParseError::new(
@@ -737,7 +751,7 @@ impl ChunkParser<'_> {
     fn parse_kv_literal_fields(
         &mut self,
         fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(String, Expression)>, ParseError> {
+    ) -> Result<Vec<(Identifier, Expression)>, ParseError> {
         let mut out = vec![];
 
         for field in fields {
@@ -753,12 +767,12 @@ impl ChunkParser<'_> {
     fn parse_fact_literal_fields(
         &mut self,
         fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(String, FactField)>, ParseError> {
+    ) -> Result<Vec<(Identifier, FactField)>, ParseError> {
         let mut out = vec![];
 
         for field in fields {
             let pc = descend(field);
-            let identifier = pc.consume_string(Rule::identifier)?;
+            let identifier = pc.consume_identifier()?;
 
             let token = pc.consume()?;
             let field = match token.as_rule() {
@@ -1070,10 +1084,10 @@ impl ChunkParser<'_> {
     fn parse_use_definition(
         &mut self,
         field: Pair<'_, Rule>,
-    ) -> Result<AstNode<String>, ParseError> {
+    ) -> Result<AstNode<Identifier>, ParseError> {
         let locator = self.add_range(&field)?;
         let pc = descend(field);
-        let identifier = pc.consume_string(Rule::identifier)?;
+        let identifier = pc.consume_identifier()?;
         Ok(AstNode::new(identifier, locator))
     }
 
@@ -1201,11 +1215,12 @@ impl ChunkParser<'_> {
 
         let locator = self.add_range(&item)?;
         let pc = descend(item);
-        let identifier = pc.consume_string(Rule::identifier)?;
-        let variants = pc
-            .into_inner()
-            .map(|value| String::from(value.as_str()))
-            .collect();
+        let identifier = pc.consume_identifier()?;
+        let mut variants = Vec::<Identifier>::new();
+        for value in pc.into_inner() {
+            let value = remain(value).consume_identifier()?;
+            variants.push(value);
+        }
 
         Ok(AstNode::new(
             ast::EnumDefinition {
@@ -1220,8 +1235,8 @@ impl ChunkParser<'_> {
         assert_eq!(item.as_rule(), Rule::enum_reference);
 
         let pc = descend(item);
-        let identifier = pc.consume_string(Rule::identifier)?;
-        let value = pc.consume_string(Rule::identifier)?;
+        let identifier = pc.consume_identifier()?;
+        let value = pc.consume_identifier()?;
         Ok(EnumReference { identifier, value })
     }
 
@@ -1482,9 +1497,7 @@ pub fn parse_policy_chunk(
 
     for item in chunk {
         match item.as_rule() {
-            Rule::use_definition => policy
-                .ffi_imports
-                .push(p.parse_use_definition(item)?.to_string()),
+            Rule::use_definition => policy.ffi_imports.push(p.parse_use_definition(item)?.inner), // TODO(jdygert): keep ast node?
             Rule::fact_definition => policy.facts.push(p.parse_fact_definition(item)?),
             Rule::action_definition => policy.actions.push(p.parse_action_definition(item)?),
             Rule::effect_definition => policy.effects.push(p.parse_effect_definition(item)?),
@@ -1533,7 +1546,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     ));
 
     let pc = descend(decl);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
 
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];

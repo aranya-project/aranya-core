@@ -5,7 +5,7 @@ use alloc::{boxed::Box, vec, vec::Vec};
 
 use aranya_crypto::{default::DefaultEngine, DeviceId, Rng};
 use aranya_policy_module::Module;
-use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value};
+use aranya_policy_vm::{ast::ident, FactKey, HashableValue, KVPair, Machine, Value};
 use tracing::trace;
 
 use super::dsl::dispatch;
@@ -43,8 +43,8 @@ command Init {
     fields {
         nonce int,
     }
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         finish {}
     }
@@ -61,8 +61,8 @@ command Create {
         key int,
         value int,
     }
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         finish {
             create Stuff[x: this.key]=>{y: this.value}
@@ -83,8 +83,8 @@ command Increment {
         key int,
         amount int,
     }
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         check stuff.y > 0
@@ -136,8 +136,8 @@ command Invalidate {
     fields {
         key int
     }
-    seal { return envelope::seal(serialize(this)) }
-    open { return deserialize(envelope::open(envelope)) }
+    seal { return envelope::do_seal(serialize(this)) }
+    open { return deserialize(envelope::do_open(envelope)) }
     policy {
         let stuff = unwrap query Stuff[x: this.key]=>{y: ?}
         let newval = -1  // hack around negative number parse bug; see #869
@@ -351,10 +351,10 @@ pub fn test_vmpolicy(engine: TestEngine) -> Result<(), VmPolicyError> {
 
     // Serialize the keys of the fact we created/updated in the previous actions.
     let fact_name = "Stuff";
-    let fact_keys = ser_keys([FactKey::new("x", HashableValue::Int(1))]);
+    let fact_keys = ser_keys([FactKey::new(ident!("x"), HashableValue::Int(1))]);
 
     // This is the value part of the fact that we expect to retrieve.
-    let expected_value = vec![KVPair::new("y", Value::Int(4))];
+    let expected_value = vec![KVPair::new(ident!("y"), Value::Int(4))];
     // Get a perspective for the head ID we got earlier. It should contain the facts we
     // seek.
     let perspective = storage.get_fact_perspective(head).expect("perspective");
@@ -512,9 +512,9 @@ pub fn test_aranya_session(engine: TestEngine) -> Result<(), VmPolicyError> {
     let head = storage.get_head()?;
 
     let fact_name = "Stuff";
-    let fact_keys = ser_keys([FactKey::new("x", HashableValue::Int(1))]);
+    let fact_keys = ser_keys([FactKey::new(ident!("x"), HashableValue::Int(1))]);
 
-    let expected_value = vec![KVPair::new("y", Value::Int(5))];
+    let expected_value = vec![KVPair::new(ident!("y"), Value::Int(5))];
     let perspective = storage.get_fact_perspective(head).expect("perspective");
     let result = perspective
         .query(fact_name, &fact_keys)
