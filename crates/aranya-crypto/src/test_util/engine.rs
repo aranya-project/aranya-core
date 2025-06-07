@@ -26,6 +26,7 @@ use crate::{
     error::Error,
     groupkey::{Context, EncryptedGroupKey, GroupKey},
     id::Id,
+    policy::PolicyId,
     util::cbor,
 };
 
@@ -63,6 +64,7 @@ macro_rules! for_each_engine_test {
             // Aranya
 
             test_simple_device_signing_key_sign,
+            test_device_signing_key_wrong_policy_id,
 
             test_simple_seal_group_key,
             test_simple_wrap_group_key,
@@ -207,34 +209,83 @@ pub use test_engine;
 pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &mut E) {
     const MSG: &[u8] = b"hello, world!";
     const CONTEXT: &[u8] = b"test_simple_device_signing_key_sign";
+    let policy_id = PolicyId::from([1; 32]);
 
     let sign_key = DeviceSigningKey::<E::CS>::new(eng);
 
     let sig = sign_key
-        .sign(MSG, CONTEXT)
+        .sign(MSG, CONTEXT, &policy_id)
         .expect("unable to create signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MSG, CONTEXT, &sig)
+        .verify(MSG, CONTEXT, &policy_id, &sig)
         .expect("the signature should be valid");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MSG, b"wrong context", &sig)
+        .verify(MSG, b"wrong context", &policy_id, &sig)
         .expect_err("should fail with wrong context");
 
     let wrong_sig = sign_key
-        .sign(b"different", b"signature")
+        .sign(b"different", b"signature", &policy_id)
         .expect("should not fail to create signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MSG, CONTEXT, &wrong_sig)
+        .verify(MSG, CONTEXT, &policy_id, &wrong_sig)
         .expect_err("should fail with wrong signature");
+}
+
+/// Test for [`DeviceSigningKey`] with wrong [`PolicyId`].
+pub fn test_device_signing_key_wrong_policy_id<E: Engine>(eng: &mut E) {
+    const MSG: &[u8] = b"hello, world!";
+    const CONTEXT: &[u8] = b"test_device_signing_key_wrong_policy_id";
+    let policy_id1 = PolicyId::from([1; 32]);
+    let policy_id2 = PolicyId::from([2; 32]);
+
+    let sign_key = DeviceSigningKey::<E::CS>::new(eng);
+
+    // Sign with policy_id1
+    let sig = sign_key
+        .sign(MSG, CONTEXT, &policy_id1)
+        .expect("unable to create signature");
+
+    // Verify with same policy_id should succeed
+    sign_key
+        .public()
+        .expect("signing key should be valid")
+        .verify(MSG, CONTEXT, &policy_id1, &sig)
+        .expect("the signature should be valid with correct policy_id");
+
+    // Verify with different policy_id should fail
+    sign_key
+        .public()
+        .expect("signing key should be valid")
+        .verify(MSG, CONTEXT, &policy_id2, &sig)
+        .expect_err("should fail with wrong policy_id");
+
+    // Create signature with policy_id2
+    let sig2 = sign_key
+        .sign(MSG, CONTEXT, &policy_id2)
+        .expect("unable to create signature");
+
+    // Verify sig2 with policy_id1 should fail
+    sign_key
+        .public()
+        .expect("signing key should be valid")
+        .verify(MSG, CONTEXT, &policy_id1, &sig2)
+        .expect_err("should fail when verifying sig2 with wrong policy_id");
+
+    // Verify sig2 with policy_id2 should succeed
+    sign_key
+        .public()
+        .expect("signing key should be valid")
+        .verify(MSG, CONTEXT, &policy_id2, &sig2)
+        .expect("sig2 should be valid with correct policy_id");
 }
 
 /// Simple positive test for encrypting/decrypting
@@ -393,6 +444,7 @@ pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &mut E) {
 /// Simple positive test for encryption using a [`GroupKey`].
 pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
+    let policy_id = PolicyId::from([1; 32]);
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
         .public()
@@ -409,6 +461,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
                 label: "test_group_key_seal",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &policy_id,
             },
         )
         .expect("should succeed");
@@ -423,6 +476,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
                 label: "test_group_key_seal",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &policy_id,
             },
         )
         .expect("should succeed");
@@ -434,6 +488,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
 /// Negative test for the wrong [`GroupKey`].
 pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
+    let policy_id = PolicyId::from([1; 32]);
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
         .public()
@@ -452,6 +507,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &policy_id,
             },
         )
         .expect("should succeed");
@@ -466,6 +522,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &policy_id,
             },
         )
         .expect_err("should have failed");
@@ -475,6 +532,8 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
 /// Negative test for the wrong [`Context`].
 pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
+    let policy_id1 = PolicyId::from([1; 32]);
+    let policy_id2 = PolicyId::from([2; 32]);
 
     let author_pk1 = DeviceSigningKey::<E::CS>::new(eng)
         .public()
@@ -494,6 +553,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_pk1,
+                policy_id: &policy_id1,
             },
         )
         .expect("should succeed");
@@ -515,6 +575,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
             label: "wrong label",
             parent: Id::default(),
             author_sign_pk: &author_pk1,
+            policy_id: &policy_id1,
         }
     );
     should_fail!(
@@ -523,6 +584,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
             label: "some label",
             parent: [1u8; 32].into(),
             author_sign_pk: &author_pk1,
+            policy_id: &policy_id1,
         }
     );
     should_fail!(
@@ -531,6 +593,16 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
             label: "some label",
             parent: Id::default(),
             author_sign_pk: &author_pk2,
+            policy_id: &policy_id1,
+        }
+    );
+    should_fail!(
+        "wrong `policy_id`",
+        Context {
+            label: "some label",
+            parent: Id::default(),
+            author_sign_pk: &author_pk1,
+            policy_id: &policy_id2,
         }
     );
 }
@@ -538,6 +610,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
 /// Negative test for a modified ciphertext.
 pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
     const INPUT: &[u8] = b"hello, world!";
+    let policy_id = PolicyId::from([1; 32]);
 
     let author_sign_pk = DeviceSigningKey::<E::CS>::new(eng)
         .public()
@@ -554,6 +627,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &policy_id,
             },
         )
         .expect("should succeed");
@@ -571,6 +645,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &policy_id,
             },
         )
         .expect_err("should have failed");

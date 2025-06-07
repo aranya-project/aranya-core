@@ -9,6 +9,11 @@ use crate::{
 };
 
 custom_id! {
+    /// The ID of a policy.
+    pub struct PolicyId;
+}
+
+custom_id! {
     /// The ID of a policy command.
     pub struct CmdId;
 }

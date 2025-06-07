@@ -21,6 +21,7 @@ use crate::{
     error::Error,
     generic_array::GenericArray,
     id::{custom_id, Id, IdError, Identified},
+    policy::PolicyId,
 };
 
 /// Key material used to derive per-event encryption keys.
@@ -107,6 +108,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///     },
     ///     GroupKey,
     ///     Id,
+    ///     PolicyId,
     ///     Rng,
     ///     SigningKey,
     /// };
@@ -114,6 +116,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
     /// const PARENT: Id = Id::default();
+    /// let policy_id = PolicyId::from([1; 32]);
     /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public().expect("signing key should be valid");
     ///
     /// let key = GroupKey::new(&mut Rng);
@@ -124,6 +127,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///         label: LABEL,
     ///         parent: PARENT,
     ///         author_sign_pk: &author,
+    ///         policy_id: &policy_id,
     ///     }).expect("should not fail");
     ///     dst
     /// };
@@ -133,6 +137,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///         label: LABEL,
     ///         parent: PARENT,
     ///         author_sign_pk: &author,
+    ///         policy_id: &policy_id,
     ///     }).expect("should not fail");
     ///     dst
     /// };
@@ -261,6 +266,8 @@ pub struct Context<'a, CS: CipherSuite> {
     pub parent: Id,
     /// The public key of the author of the encrypted data.
     pub author_sign_pk: &'a VerifyingKey<CS>,
+    /// The policy ID for contextual binding.
+    pub policy_id: &'a PolicyId,
 }
 
 impl<CS: CipherSuite> Context<'_, CS> {
@@ -281,6 +288,7 @@ impl<CS: CipherSuite> Context<'_, CS> {
                 self.label.as_bytes(),
                 self.parent.as_ref(),
                 self.author_sign_pk.id()?.as_bytes(),
+                self.policy_id.as_bytes(),
             ],
         ))
     }
