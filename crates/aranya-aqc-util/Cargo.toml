@@ -44,7 +44,7 @@ aranya-policy-vm = { version = "0.9.0", path = "../aranya-policy-vm", default-fe
 buggy = { version = "0.1.0", default-features = false }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"] }
+spin = { workspace = true, default-features = false, features = ["mutex", "spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
