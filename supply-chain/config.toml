@@ -395,10 +395,6 @@ criteria = "safe-to-deploy"
 version = "0.5.1"
 criteria = "safe-to-deploy"
 
-[[exemptions.gimli]]
-version = "0.31.1"
-criteria = "safe-to-deploy"
-
 [[exemptions.goldenfile]]
 version = "1.7.3"
 criteria = "safe-to-run"
@@ -447,10 +443,6 @@ criteria = "safe-to-deploy"
 version = "0.12.4"
 criteria = "safe-to-deploy"
 
-[[exemptions.home]]
-version = "0.5.11"
-criteria = "safe-to-deploy"
-
 [[exemptions.indexmap]]
 version = "2.7.0"
 criteria = "safe-to-deploy"
@@ -469,10 +461,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.itertools]]
 version = "0.11.0"
-criteria = "safe-to-deploy"
-
-[[exemptions.itertools]]
-version = "0.13.0"
 criteria = "safe-to-deploy"
 
 [[exemptions.jobserver]]
@@ -613,10 +601,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.postcard]]
 version = "1.1.1"
-criteria = "safe-to-deploy"
-
-[[exemptions.postcard-derive]]
-version = "0.1.2"
 criteria = "safe-to-deploy"
 
 [[exemptions.ppv-lite86]]
@@ -816,10 +800,6 @@ version = "0.7.3"
 criteria = "safe-to-deploy"
 
 [[exemptions.syn]]
-version = "1.0.109"
-criteria = "safe-to-deploy"
-
-[[exemptions.syn]]
 version = "2.0.90"
 criteria = "safe-to-deploy"
 
@@ -909,10 +889,6 @@ criteria = "safe-to-deploy"
 
 [[exemptions.unsafe-libyaml]]
 version = "0.2.11"
-criteria = "safe-to-deploy"
-
-[[exemptions.utf8parse]]
-version = "0.2.2"
 criteria = "safe-to-deploy"
 
 [[exemptions.vec1]]
