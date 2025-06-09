@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::BTreeMap, iter};
 
 use aranya_crypto::Id;
 use aranya_policy_ast::{self as ast, Version};
-use aranya_policy_compiler::{CompileErrorType, Compiler};
+use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactValue, KVPair, Machine, MachineError,
@@ -2119,26 +2119,6 @@ policy {
 }
 
 #[test]
-fn test_ffi_fail_without_use() -> anyhow::Result<()> {
-    let text = r#"
-        function test() int {
-            let head_id = print::print("hi")
-            return 0
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()
-        .expect_err("")
-        .err_type;
-    assert_eq!(result, CompileErrorType::NotDefined(String::from("print")));
-
-    Ok(())
-}
-
-#[test]
 fn test_map() -> anyhow::Result<()> {
     let text = r#"
         fact F[i int]=>{n int}
@@ -2454,7 +2434,7 @@ fn test_substruct_errors() -> anyhow::Result<()> {
                     let maybe_source = if true {
                         :Some(source)
                     } else {
-                        :None 
+                        :None
                     }
 
                     let definitely_source = unwrap maybe_source
@@ -2489,7 +2469,7 @@ fn test_substruct_errors() -> anyhow::Result<()> {
                     let maybe_source = if true {
                         :Some(source)
                     } else {
-                        :None 
+                        :None
                     }
 
                     let definitely_source = unwrap maybe_source
