@@ -1,16 +1,25 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 
 use alloc::string::String;
-use core::{borrow::Borrow, fmt, num::NonZeroUsize, str::FromStr};
+use core::{
+    borrow::Borrow,
+    fmt,
+    num::NonZeroUsize,
+    ops::{Add, Deref},
+    str::FromStr,
+};
 
 use serde::de;
 
 mod imp;
 
 /// Not a valid `Text` value.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
-#[error("invalid text value")]
-pub enum InvalidText {
+#[derive(Clone, Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct InvalidText(InvalidTextRepr);
+
+#[derive(Clone, Debug, thiserror::Error)]
+enum InvalidTextRepr {
     /// Text contained nul byte.
     #[error("text contained nul byte at index {index}")]
     ContainsNul {
@@ -20,9 +29,15 @@ pub enum InvalidText {
 }
 
 /// Not a valid `Identifier` value.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, thiserror::Error)]
-#[error("invalid identifier value")]
-pub enum InvalidIdentifier {
+#[derive(Clone, Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct InvalidIdentifier(InvalidIdentifierRepr);
+
+#[derive(Clone, Debug, thiserror::Error)]
+enum InvalidIdentifierRepr {
+    /// Identifier must start with alphabetic character.
+    #[error("identifier must not be empty")]
+    NotEmpty,
     /// Identifier must start with alphabetic character.
     #[error("identifier must start with alphabetic character")]
     InitialNotAlphabetic,
@@ -48,14 +63,17 @@ macro_rules! text {
         $crate::Text::new()
     };
     ($($e:tt)+) => {
-        $crate::Text::__from_literal($crate::__hidden::validate_text!($($e)+))
+        // SAFETY: `validate_text` validates `Text`'s requirements.
+        unsafe {
+            $crate::Text::__from_literal($crate::__hidden::validate_text!($($e)+))
+        }
     };
 }
 
 impl Text {
     fn validate(s: &str) -> Result<(), InvalidText> {
         if let Some(index) = s.bytes().position(|b| b == 0) {
-            return Err(InvalidText::ContainsNul { index });
+            return Err(InvalidText(InvalidTextRepr::ContainsNul { index }));
         }
         Ok(())
     }
@@ -65,8 +83,9 @@ impl Text {
         Self(imp::Repr::empty())
     }
 
+    /// SAFETY: The string must meet `Text`'s requirements.
     #[doc(hidden)]
-    pub const fn __from_literal(lit: &'static str) -> Self {
+    pub const unsafe fn __from_literal(lit: &'static str) -> Self {
         Self(imp::Repr::from_static(lit))
     }
 
@@ -139,7 +158,7 @@ impl TryFrom<String> for Text {
     }
 }
 
-impl core::ops::Add for &Text {
+impl Add for &Text {
     type Output = Text;
     fn add(self, rhs: Self) -> Self::Output {
         let mut s = String::from(self.0.as_str());
@@ -161,6 +180,24 @@ impl<'de> serde::Deserialize<'de> for Text {
     }
 }
 
+impl Deref for Text {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl<T> AsRef<T> for Text
+where
+    T: ?Sized,
+    <Text as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
 #[serde(transparent)]
 /// A textual identifier which matches `[a-zA-Z][a-zA-Z0-9_]*`.
@@ -172,32 +209,41 @@ pub struct Identifier(Text);
 #[macro_export]
 macro_rules! ident {
     ($($e:tt)+) => {
-        $crate::Identifier::__from_literal($crate::__hidden::validate_identifier!($($e)+))
+        // SAFETY: `validate_identifier` validates `Identifier`'s requirements.
+        unsafe {
+            $crate::Identifier::__from_literal($crate::__hidden::validate_identifier!($($e)+))
+        }
     };
 }
 
 impl Identifier {
     fn validate(s: &str) -> Result<(), InvalidIdentifier> {
         if s.is_empty() {
-            return Err(InvalidIdentifier::InitialNotAlphabetic);
+            return Err(InvalidIdentifier(InvalidIdentifierRepr::NotEmpty));
         }
         for (i, b) in s.bytes().enumerate() {
             // Check tail characters
             if let Some(index) = NonZeroUsize::new(i) {
                 if !(b.is_ascii_alphanumeric() || b == b'_') {
-                    return Err(InvalidIdentifier::TrailingNotValid { index });
+                    return Err(InvalidIdentifier(InvalidIdentifierRepr::TrailingNotValid {
+                        index,
+                    }));
                 }
             // Check first character
             } else if !b.is_ascii_alphabetic() {
-                return Err(InvalidIdentifier::InitialNotAlphabetic);
+                return Err(InvalidIdentifier(
+                    InvalidIdentifierRepr::InitialNotAlphabetic,
+                ));
             }
         }
         Ok(())
     }
 
+    /// SAFETY: The string must meet `Identifier`'s requirements.
     #[doc(hidden)]
-    pub const fn __from_literal(lit: &'static str) -> Self {
-        Self(Text::__from_literal(lit))
+    pub const unsafe fn __from_literal(lit: &'static str) -> Self {
+        // SAFETY: Valid identifiers are valid text.
+        unsafe { Self(Text::__from_literal(lit)) }
     }
 
     /// Compare two identifiers for equality.

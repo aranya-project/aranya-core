@@ -1869,3 +1869,18 @@ fn test_invalid_this() {
         assert_eq!(err_kind, ParseErrorKind::ReservedIdentifier, "{src}");
     }
 }
+
+#[test]
+fn test_invalid_text() {
+    let cases = [
+        // real nul byte
+        "let x = \"a\0b\"",
+        // \x00 escaped nul byte
+        r#"let x = "a\x00b""#,
+    ];
+
+    for src in cases {
+        let err = parse_policy_str(src, Version::V2).unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::InvalidString, "{src:?}");
+    }
+}
