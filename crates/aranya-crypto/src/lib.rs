@@ -40,7 +40,7 @@
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
-#![cfg_attr(not(all(test, feature = "trng")), warn(unsafe_code))]
+#![cfg_attr(not(all(test, feature = "trng")), deny(unsafe_code))]
 #![warn(missing_docs)]
 
 pub mod afc;
