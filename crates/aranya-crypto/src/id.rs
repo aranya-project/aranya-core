@@ -177,7 +177,7 @@ impl Serialize for Id {
         if serializer.is_human_readable() {
             serializer.serialize_str(&self.to_base58())
         } else {
-            serializer.serialize_bytes(&self.as_bytes())
+            serializer.serialize_bytes(self.as_bytes())
         }
     }
 }

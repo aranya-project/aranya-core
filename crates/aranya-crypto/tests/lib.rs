@@ -28,7 +28,8 @@ mod custom_id_tests {
     fn postcard_roundtrip() {
         let id: MyId = aranya_crypto::Id::random(&mut aranya_crypto::Rng).into();
         let ser = postcard::to_allocvec(&id).unwrap();
-        assert_eq!(id.as_bytes(), ser);
+        assert_eq!(32, ser[0]); // Length
+        assert_eq!(id.as_bytes(), &ser[1..]);
         let got: MyId = postcard::from_bytes(&ser).unwrap();
         assert_eq!(id, got);
     }
