@@ -132,6 +132,24 @@ impl fmt::Debug for Text {
     }
 }
 
+impl Deref for Text {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl<T> AsRef<T> for Text
+where
+    T: ?Sized,
+    <Text as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
+    }
+}
+
 impl PartialEq<str> for Text {
     fn eq(&self, other: &str) -> bool {
         self.0.as_str().eq(other)
