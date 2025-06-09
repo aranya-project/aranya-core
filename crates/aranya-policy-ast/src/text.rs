@@ -1,7 +1,13 @@
 #![warn(clippy::undocumented_unsafe_blocks)]
 
 use alloc::string::String;
-use core::{borrow::Borrow, fmt, num::NonZeroUsize, str::FromStr};
+use core::{
+    borrow::Borrow,
+    fmt,
+    num::NonZeroUsize,
+    ops::{Add, Deref},
+    str::FromStr,
+};
 
 use serde::de;
 
@@ -113,6 +119,24 @@ impl fmt::Debug for Text {
     }
 }
 
+impl Deref for Text {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl<T> AsRef<T> for Text
+where
+    T: ?Sized,
+    <Text as Deref>::Target: AsRef<T>,
+{
+    fn as_ref(&self) -> &T {
+        self.deref().as_ref()
+    }
+}
+
 impl PartialEq<str> for Text {
     fn eq(&self, other: &str) -> bool {
         self.0.as_str().eq(other)
@@ -139,7 +163,7 @@ impl TryFrom<String> for Text {
     }
 }
 
-impl core::ops::Add for &Text {
+impl Add for &Text {
     type Output = Text;
     fn add(self, rhs: Self) -> Self::Output {
         let mut s = String::from(self.0.as_str());
