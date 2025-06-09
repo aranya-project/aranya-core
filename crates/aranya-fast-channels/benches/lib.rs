@@ -1,10 +1,6 @@
-<<<<<<< HEAD
 #![allow(clippy::arithmetic_side_effects)]
 
-use std::{array, time::Duration};
-=======
 use std::{array, num::NonZeroU16, time::Duration};
->>>>>>> c1fd126c (updates)
 
 use aranya_crypto::{
     afc::{RawOpenKey, RawSealKey},
