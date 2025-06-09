@@ -24,7 +24,7 @@ use spideroak_crypto::{
     subtle::{Choice, ConstantTimeEq},
     typenum::U32,
 };
-use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::ciphersuite::{CipherSuite, CipherSuiteExt};
 
