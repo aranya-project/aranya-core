@@ -1561,4 +1561,9 @@ fn should_allow_remove_graph() {
     test_model
         .remove_graph(Graph::X, Device::A)
         .expect("Should remove graph");
+
+    // Attempt to remove graph from storage that does not exist.
+    test_model
+        .remove_graph(Graph::X, Device::A)
+        .expect_err("Should fail to remove graph that has already been removed from storage");
 }

@@ -128,8 +128,8 @@ impl IoManager for FileManager {
     }
 
     fn remove(&mut self, id: GraphId) -> Result<(), StorageError> {
-        let name = id.to_path()?;
-        libc::remove(name)?;
+        let path = id.to_path()?;
+        libc::remove(path)?;
 
         Ok(())
     }

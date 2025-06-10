@@ -111,9 +111,10 @@ impl StorageProvider for MemStorageProvider {
     }
 
     fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
-        let Some(_) = self.storage.remove(&graph) else {
-            return Err(StorageError::NoSuchStorage);
-        };
+        let _ = self
+            .storage
+            .remove(&graph)
+            .ok_or(StorageError::NoSuchStorage);
 
         Ok(())
     }
