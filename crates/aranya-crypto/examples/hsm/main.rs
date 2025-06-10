@@ -22,7 +22,6 @@ use aranya_crypto::{
     CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
 };
 use buggy::{bug, Bug};
-use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 
 mod hsm;
@@ -227,9 +226,7 @@ impl WrappedKeyImpl {
 }
 
 /// Uniquely identifies a [`WrappedKey`].
-#[derive(
-    Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, MaxSize,
-)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct WrappedKeyId(KeyIdImpl);
 
 impl fmt::Display for WrappedKeyId {
@@ -245,9 +242,7 @@ impl From<WrappedKeyId> for Id {
     }
 }
 
-#[derive(
-    Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, MaxSize,
-)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 enum KeyIdImpl {
     Internal(KeyId),
     External(Id),

@@ -21,7 +21,7 @@ default = [
 # Enable allocations.
 alloc = [
 	"buggy/alloc",
-	"postcard/alloc",
+	"ciborium-io?/alloc",
 	"rustix?/alloc",
 	"spideroak-crypto/alloc",
 ]
@@ -75,6 +75,13 @@ getrandom = ["spideroak-crypto/getrandom"]
 # Enable cryptographically hazardous code.
 hazmat = ["spideroak-crypto/hazmat"]
 
+# Enable the in-memory `KeyStore`.
+memstore = [
+	"alloc", # ciborium already requires alloc
+
+	"dep:ciborium",
+]
+
 # Enable `proptest::arbitrary::Arbitrary` implemenations
 proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
 
@@ -93,7 +100,6 @@ std = [
 	"byteorder/std",
 	"ciborium-io?/std",
 	"ciborium?/std",
-	"postcard/use-std",
 	"proptest?/std",
 	"rustix?/std",
 	"serde/std",
@@ -109,6 +115,8 @@ test_util = [
 	"proptest",
 
 	"spideroak-crypto/test_util",
+
+	"dep:ciborium",
 ]
 
 # Use a system provided TRNG for the default CSPRNG.
@@ -124,7 +132,6 @@ byteorder = { workspace = true, default-features = false }
 cfg-if = { workspace = true, default-features = false }
 ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
-postcard = { workspace = true, default-features = false, features = ["heapless", "experimental-derive"] }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
@@ -138,7 +145,7 @@ zerocopy = { version = "0.8", default-features = false, features = ["derive"] }
 # examples.
 aranya-crypto = { path = ".", features = ["alloc", "test_util"] }
 
-postcard = { workspace = true, features = ["alloc", "heapless"] }
+postcard = { workspace = true }
 rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false }
@@ -154,6 +161,7 @@ features = [
 	"committing-aead",
 	"ed25519_batch",
 	"fs-keystore",
+	"memstore",
 	"rand_compat",
 	"std",
 	"test_util",
@@ -170,6 +178,7 @@ always_include_features = [
 	"fs-keystore",
 	"getrandom",
 	"hazmat",
+	"memstore",
 	"proptest",
 	"rand_compat",
 	"std",
