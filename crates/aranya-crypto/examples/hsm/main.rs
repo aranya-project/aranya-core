@@ -5,21 +5,24 @@ use core::fmt;
 use std::vec::Vec;
 
 use aranya_crypto::{
-    aead::{Aead, OpenError},
-    csprng::Csprng,
-    ed25519::{self, Ed25519},
+    dangerous::spideroak_crypto::{
+        aead::{Aead, OpenError},
+        csprng::{Csprng, Random},
+        ed25519::{self, Ed25519},
+        import::{ExportError, Import, ImportError},
+        kdf::{Kdf, Prk},
+        kem::Kem,
+        keys::{PublicKey, SecretKey, SecretKeyBytes},
+        mac::Mac,
+        oid::{self, consts::DHKEM_P256_HKDF_SHA256, Oid},
+        rust,
+        signer::{PkError, Signature, Signer, SignerError, SigningKey, VerifyingKey},
+        subtle::{Choice, ConstantTimeEq},
+        zeroize::ZeroizeOnDrop,
+    },
     engine::{self, AlgId, RawSecret, RawSecretWrap, UnwrappedKey, WrongKeyType},
     id::IdError,
-    import::{ExportError, Import, ImportError},
-    kdf::{Kdf, Prk},
-    kem::Kem,
-    keys::{PublicKey, SecretKey, SecretKeyBytes},
-    mac::Mac,
-    rust,
-    signer::{Signature, Signer, SignerError, SignerId, SigningKey, VerifyingKey},
-    subtle::{Choice, ConstantTimeEq},
-    zeroize::ZeroizeOnDrop,
-    CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
+    kem_with_oid, CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
 };
 use buggy::{bug, Bug};
 use serde::{Deserialize, Serialize};
@@ -61,12 +64,18 @@ impl CipherSuite for HsmEngine {
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha256;
     type Kdf = rust::HkdfSha512;
-    type Kem = rust::DhKemP256HkdfSha256;
+    type Kem = DhKemP256HkdfSha256;
     type Mac = rust::HmacSha512;
 
     // Signature creation and verification is performed inside of
     // the HSM.
     type Signer = HsmSigner;
+}
+
+kem_with_oid! {
+    /// DHKEM(P256, HKDF-SHA256).
+    #[derive(Debug)]
+    pub struct DhKemP256HkdfSha256(rust::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
 }
 
 impl Engine for HsmEngine {
@@ -272,11 +281,13 @@ impl From<HsmError> for SignerError {
 pub struct HsmSigner;
 
 impl Signer for HsmSigner {
-    const ID: SignerId = <Ed25519 as Signer>::ID;
-
     type SigningKey = HsmSigningKey;
     type VerifyingKey = HsmVerifyingKey;
     type Signature = HsmSignature;
+}
+
+impl oid::Identified for HsmSigner {
+    const OID: &Oid = oid::consts::ED25519;
 }
 
 /// An HSM-backed [`SigningKey`].
@@ -293,7 +304,7 @@ impl SigningKey<HsmSigner> for HsmSigningKey {
         Ok(HsmSignature(sig))
     }
 
-    fn public(&self) -> Result<HsmVerifyingKey, aranya_crypto::signer::PkError> {
+    fn public(&self) -> Result<HsmVerifyingKey, PkError> {
         Ok(HsmVerifyingKey(self.0))
     }
 }
@@ -301,14 +312,16 @@ impl SigningKey<HsmSigner> for HsmSigningKey {
 impl SecretKey for HsmSigningKey {
     type Size = <ed25519::SigningKey as SecretKey>::Size;
 
-    fn new<R: Csprng>(_rng: &mut R) -> Self {
-        let key_id = Hsm::write().new_signing_key();
-        Self(key_id)
-    }
-
     #[inline]
     fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
         Err(ExportError::Opaque)
+    }
+}
+
+impl Random for HsmSigningKey {
+    fn random<R: Csprng>(_rng: &mut R) -> Self {
+        let key_id = Hsm::write().new_signing_key();
+        Self(key_id)
     }
 }
 

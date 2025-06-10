@@ -18,11 +18,23 @@ default = [
 	"getrandom",
 ]
 
+# Enable AFC support.
+afc = [
+	"dep:byteorder",
+]
+
+# Enable APQ support.
+apq = []
+
+# Enable AQC support.
+aqc = []
+
 # Enable allocations.
 alloc = [
 	"buggy/alloc",
 	"ciborium-io?/alloc",
 	"rustix?/alloc",
+	"sha3-utils/alloc",
 	"spideroak-crypto/alloc",
 ]
 
@@ -62,6 +74,7 @@ ed25519_batch = [
 fs-keystore = [
 	"alloc", # ciborium already requires alloc
 
+	"dep:cfg-if",
 	"dep:ciborium",
 	"dep:ciborium-io",
 	"dep:rustix",
@@ -97,12 +110,13 @@ std = [
 	"getrandom",
 
 	"buggy/std",
-	"byteorder/std",
+	"byteorder?/std",
 	"ciborium-io?/std",
 	"ciborium?/std",
 	"proptest?/std",
 	"rustix?/std",
 	"serde/std",
+	"sha3-utils/std",
 	"siphasher/std",
 	"spideroak-base58/std",
 	"spideroak-crypto/std",
@@ -111,7 +125,10 @@ std = [
 
 # Include testing utilities.
 test_util = [
+	"afc",
 	"alloc",
+	"apq",
+	"aqc",
 	"proptest",
 
 	"spideroak-crypto/test_util",
@@ -126,16 +143,17 @@ trng = ["spideroak-crypto/trng"]
 buggy = { version = "0.1.0", default-features = false }
 
 spideroak-base58 = { version = "0.1.0", default-features = false }
-spideroak-crypto = { version = "0.2.0", default-features = false }
+spideroak-crypto = { version = "0.5.2", default-features = false, features = ["serde"] }
 
-byteorder = { workspace = true, default-features = false }
-cfg-if = { workspace = true, default-features = false }
+byteorder = { workspace = true, default-features = false, optional = true }
+cfg-if = { workspace = true, default-features = false, optional = true }
 ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
+sha3-utils = { version = "0.5", default-features = false }
 siphasher = { version = "1", default-features = false }
 thiserror = { workspace = true }
 zerocopy = { version = "0.8", default-features = false, features = ["derive"] }
@@ -145,7 +163,7 @@ zerocopy = { version = "0.8", default-features = false, features = ["derive"] }
 # examples.
 aranya-crypto = { path = ".", features = ["alloc", "test_util"] }
 
-postcard = { workspace = true }
+postcard = { workspace = true, features = ["alloc"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false }
@@ -170,7 +188,10 @@ features = [
 
 [package.metadata.cargo-all-features]
 always_include_features = [
+	"afc",
 	"alloc",
+	"apq",
+	"aqc",
 	"bearssl",
 	"clone-aead",
 	"committing-aead",
