@@ -24,7 +24,7 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
     //     signature,
     // )
     CS::tuple_hash(
-        b"PolicyComandId-v1",
+        b"PolicyCommandId-v1",
         [cmd.as_bytes(), sig.raw_sig().borrow()],
     )
     .into_array()

@@ -14,7 +14,7 @@ use aranya_crypto::{
         kem::Kem,
         keys::{PublicKey, SecretKey, SecretKeyBytes},
         mac::Mac,
-        oid::{self, Oid},
+        oid::{self, consts::DHKEM_P256_HKDF_SHA256, Oid},
         rust,
         signer::{PkError, Signature, Signer, SignerError, SigningKey, VerifyingKey},
         subtle::{Choice, ConstantTimeEq},
@@ -22,7 +22,7 @@ use aranya_crypto::{
     },
     engine::{self, AlgId, RawSecret, RawSecretWrap, UnwrappedKey, WrongKeyType},
     id::IdError,
-    CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
+    kem_with_oid, CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
 };
 use buggy::{bug, Bug};
 use serde::{Deserialize, Serialize};
@@ -64,12 +64,18 @@ impl CipherSuite for HsmEngine {
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha256;
     type Kdf = rust::HkdfSha512;
-    type Kem = rust::DhKemP256HkdfSha256;
+    type Kem = DhKemP256HkdfSha256;
     type Mac = rust::HmacSha512;
 
     // Signature creation and verification is performed inside of
     // the HSM.
     type Signer = HsmSigner;
+}
+
+kem_with_oid! {
+    /// DHKEM(P256, HKDF-SHA256).
+    #[derive(Debug)]
+    pub struct DhKemP256HkdfSha256(rust::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
 }
 
 impl Engine for HsmEngine {

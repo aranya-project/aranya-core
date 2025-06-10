@@ -102,13 +102,28 @@ pub trait CipherSuite {
 mod tests {
     #[cfg(feature = "bearssl")]
     mod bearssl {
+        use spideroak_crypto::oid::consts::{DHKEM_P256_HKDF_SHA256, DHKEM_P521_HKDF_SHA512};
+
         use crate::{
             bearssl::{
-                Aes256Gcm, DhKemP256HkdfSha256, DhKemP521HkdfSha512, HkdfSha256, HkdfSha384,
-                HkdfSha512, HmacSha512, Sha256, P256, P384, P521,
+                self, Aes256Gcm, HkdfSha256, HkdfSha384, HkdfSha512, HmacSha512, Sha256, P256,
+                P384, P521,
             },
+            kem_with_oid,
             test_util::{test_ciphersuite, TestCs},
         };
+
+        kem_with_oid! {
+            /// DHKEM(P256, HKDF-SHA256).
+            #[derive(Debug)]
+            struct DhKemP256HkdfSha256(bearssl::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
+        }
+
+        kem_with_oid! {
+            /// DHKEM(P521, HKDF-SHA512).
+            #[derive(Debug)]
+            struct DhKemP521HkdfSha512(bearssl::DhKemP521HkdfSha512) => DHKEM_P521_HKDF_SHA512
+        }
 
         test_ciphersuite!(p256, TestCs<
             Aes256Gcm,
@@ -137,11 +152,21 @@ mod tests {
     }
 
     mod rust {
-        use spideroak_crypto::rust::{
-            Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256, P384,
+        use spideroak_crypto::{
+            oid::consts::DHKEM_P256_HKDF_SHA256,
+            rust::{self, Aes256Gcm, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256, P384},
         };
 
-        use crate::test_util::{test_ciphersuite, TestCs};
+        use crate::{
+            kem_with_oid,
+            test_util::{test_ciphersuite, TestCs},
+        };
+
+        kem_with_oid! {
+            /// DHKEM(P256, HKDF-SHA256).
+            #[derive(Debug)]
+            struct DhKemP256HkdfSha256(rust::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
+        }
 
         test_ciphersuite!(p256, TestCs<
             Aes256Gcm,

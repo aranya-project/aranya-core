@@ -34,8 +34,8 @@ user-id = 293722
 user-login = "aranya-project-bot"
 
 [[publisher.spideroak-crypto]]
-version = "0.5.1"
-when = "2025-05-29"
+version = "0.5.3"
+when = "2025-06-10"
 user-id = 293722
 user-login = "aranya-project-bot"
 

@@ -1,7 +1,7 @@
 use core::{
     fmt,
     hash::{Hash, Hasher},
-    iter::{self, FusedIterator},
+    iter,
     marker::PhantomData,
     slice,
 };
@@ -92,11 +92,10 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
 
 impl<CS: CipherSuite> CipherSuiteExt for CS {
     fn tuple_hash<const N: usize>(tag: &[u8], context: [&[u8]; N]) -> Digest<Self> {
-        hash::tuple_hash::<Self::Hash, _>(TupleHashItems::<Self, N> {
-            tag: iter::once(tag),
-            oids: CS::OIDS.into_iter(),
-            items: context.iter(),
-        })
+        let iter = iter::once(tag)
+            .chain(CS::OIDS.into_iter().map(|oid| oid.as_bytes()))
+            .chain(context.iter().copied());
+        hash::tuple_hash::<Self::Hash, _>(iter)
     }
 
     fn labeled_extract(
@@ -105,12 +104,10 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
         label: &'static [u8],
         ikm: &[u8],
     ) -> Prk<Self> {
-        let labeled_ikm = LabeledIkm::<CS> {
-            domain: iter::once(domain),
-            oids: CS::OIDS.encode().into_iter(),
-            label: iter::once(label),
-            ikm: iter::once(ikm),
-        };
+        let labeled_ikm = iter::once(domain)
+            .chain(CS::OIDS.encode().into_iter())
+            .chain(iter::once(label))
+            .chain(iter::once(ikm));
         Self::Kdf::extract_multi(labeled_ikm, salt)
     }
 
@@ -124,252 +121,15 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
         T: Expand,
     {
         let size = T::Size::U16.to_be_bytes();
-        let labeled_info = LabeledInfo::<CS, N> {
-            len: iter::once(&size),
-            domain: iter::once(domain),
-            oids: CS::OIDS.encode().into_iter(),
-            label: iter::once(label),
-            info: info.iter(),
-        };
+        let labeled_info = iter::once(&size)
+            .map(|v| v.as_ref())
+            .chain(iter::once(domain))
+            .chain(CS::OIDS.encode().into_iter())
+            .chain(iter::once(label))
+            .chain(info.iter().copied());
         T::expand_multi::<Self::Kdf, _>(prk, labeled_info)
     }
 }
-
-/// The items being hashed by [`CipherSuiteExt::tuple_hash`].
-#[derive(Debug)]
-struct TupleHashItems<'a, CS, const N: usize>
-where
-    CS: CipherSuite,
-{
-    tag: iter::Once<&'a [u8]>,
-    oids: <Oids<CS> as IntoIterator>::IntoIter,
-    items: <&'a [&'a [u8]; N] as IntoIterator>::IntoIter,
-}
-
-impl<CS, const N: usize> Clone for TupleHashItems<'_, CS, N>
-where
-    CS: CipherSuite,
-{
-    fn clone(&self) -> Self {
-        Self {
-            tag: self.tag.clone(),
-            oids: self.oids.clone(),
-            items: self.items.clone(),
-        }
-    }
-}
-
-impl<'a, CS, const N: usize> Iterator for TupleHashItems<'a, CS, N>
-where
-    CS: CipherSuite,
-{
-    type Item = &'a [u8];
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.tag
-            .next()
-            .or_else(|| self.oids.next().map(|v| v.as_bytes()))
-            .or_else(|| self.items.next().copied())
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = self.len();
-        (n, Some(n))
-    }
-
-    #[inline]
-    fn count(self) -> usize {
-        self.len()
-    }
-
-    #[inline]
-    fn fold<B, F>(self, acc: B, f: F) -> B
-    where
-        B: Sized,
-        F: FnMut(B, Self::Item) -> B,
-    {
-        self.tag
-            .chain(self.oids.map(|v| v.as_bytes()))
-            .chain(self.items.copied())
-            .fold(acc, f)
-    }
-}
-
-impl<CS, const N: usize> ExactSizeIterator for TupleHashItems<'_, CS, N>
-where
-    CS: CipherSuite,
-{
-    #[inline]
-    #[allow(clippy::arithmetic_side_effects, reason = "Addition cannot overflow")]
-    fn len(&self) -> usize {
-        self.tag.len() + self.oids.len() + self.items.len()
-    }
-}
-
-impl<CS, const N: usize> FusedIterator for TupleHashItems<'_, CS, N> where CS: CipherSuite {}
-
-/// For [`CipherSuiteExt::labeled_extract`].
-#[derive(Debug)]
-struct LabeledIkm<'a, CS: CipherSuite> {
-    domain: iter::Once<&'static [u8]>,
-    oids: <EncodedOids<CS> as IntoIterator>::IntoIter,
-    label: iter::Once<&'static [u8]>,
-    ikm: iter::Once<&'a [u8]>,
-}
-
-impl<CS> Clone for LabeledIkm<'_, CS>
-where
-    CS: CipherSuite,
-{
-    fn clone(&self) -> Self {
-        Self {
-            domain: self.domain.clone(),
-            oids: self.oids.clone(),
-            label: self.label.clone(),
-            ikm: self.ikm.clone(),
-        }
-    }
-}
-
-impl<'a, CS> Iterator for LabeledIkm<'a, CS>
-where
-    CS: CipherSuite,
-{
-    type Item = &'a [u8];
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.domain
-            .next()
-            .or_else(|| self.oids.next())
-            .or_else(|| self.label.next())
-            .or_else(|| self.ikm.next())
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = self.len();
-        (n, Some(n))
-    }
-
-    #[inline]
-    fn count(self) -> usize {
-        self.len()
-    }
-
-    #[inline]
-    fn fold<B, F>(self, acc: B, f: F) -> B
-    where
-        B: Sized,
-        F: FnMut(B, Self::Item) -> B,
-    {
-        self.domain
-            .chain(self.oids)
-            .chain(self.label)
-            .chain(self.ikm)
-            .fold(acc, f)
-    }
-}
-
-impl<CS: CipherSuite> ExactSizeIterator for LabeledIkm<'_, CS> {
-    #[inline]
-    #[allow(clippy::arithmetic_side_effects, reason = "Addition cannot overflow")]
-    fn len(&self) -> usize {
-        self.domain.len() + self.oids.len() + self.label.len() + self.ikm.len()
-    }
-}
-
-impl<CS: CipherSuite> FusedIterator for LabeledIkm<'_, CS> {}
-
-/// For [`CipherSuiteExt::labeled_expand`].
-#[derive(Debug)]
-struct LabeledInfo<'a, CS, const N: usize>
-where
-    CS: CipherSuite,
-{
-    len: iter::Once<&'a [u8; 2]>,
-    domain: iter::Once<&'static [u8]>,
-    oids: <EncodedOids<CS> as IntoIterator>::IntoIter,
-    label: iter::Once<&'static [u8]>,
-    info: <&'a [&'a [u8]; N] as IntoIterator>::IntoIter,
-}
-
-impl<CS, const N: usize> Clone for LabeledInfo<'_, CS, N>
-where
-    CS: CipherSuite,
-{
-    fn clone(&self) -> Self {
-        Self {
-            len: self.len.clone(),
-            domain: self.domain.clone(),
-            oids: self.oids.clone(),
-            label: self.label.clone(),
-            info: self.info.clone(),
-        }
-    }
-}
-
-impl<'a, CS, const N: usize> Iterator for LabeledInfo<'a, CS, N>
-where
-    CS: CipherSuite,
-{
-    type Item = &'a [u8];
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        self.len
-            .next()
-            .map(|v| v.as_ref())
-            .or_else(|| self.domain.next())
-            .or_else(|| self.oids.next())
-            .or_else(|| self.label.next())
-            .or_else(|| self.info.next().copied())
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let n = self.len();
-        (n, Some(n))
-    }
-
-    #[inline]
-    fn count(self) -> usize {
-        self.len()
-    }
-
-    #[inline]
-    fn fold<B, F>(self, acc: B, f: F) -> B
-    where
-        B: Sized,
-        F: FnMut(B, Self::Item) -> B,
-    {
-        self.len
-            .map(|v| v.as_ref())
-            .chain(self.domain)
-            .chain(self.oids)
-            .chain(self.label)
-            .chain(self.info.copied())
-            .fold(acc, f)
-    }
-}
-
-impl<CS, const N: usize> ExactSizeIterator for LabeledInfo<'_, CS, N>
-where
-    CS: CipherSuite,
-{
-    #[inline]
-    #[allow(clippy::arithmetic_side_effects, reason = "Addition cannot overflow")]
-    fn len(&self) -> usize {
-        // Make sure that the addition does not overflow.
-        const { assert!(N < usize::MAX - 1 - 1 - 12 - 1) }
-
-        self.len.len() + self.domain.len() + self.oids.len() + self.label.len() + self.info.len()
-    }
-}
-
-impl<CS, const N: usize> FusedIterator for LabeledInfo<'_, CS, N> where CS: CipherSuite {}
 
 pub(crate) type Digest<CS> = hash::Digest<<<CS as CipherSuite>::Hash as hash::Hash>::DigestSize>;
 pub(crate) type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as kdf::Kdf>::PrkSize>;

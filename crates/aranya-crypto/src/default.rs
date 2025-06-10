@@ -12,7 +12,7 @@ use spideroak_crypto::{
     kem::Kem,
     keys::{SecretKey, SecretKeyBytes},
     mac::Mac,
-    oid::Identified as _,
+    oid::{consts::DHKEM_P256_HKDF_SHA256, Identified as _},
     rust,
     signer::Signer,
     typenum::U64,
@@ -25,6 +25,7 @@ use crate::{
         WrongKeyType,
     },
     id::{Id, IdError, Identified},
+    kem_with_oid,
 };
 
 /// The default [`CipherSuite`].
@@ -43,9 +44,15 @@ impl CipherSuite for DefaultCipherSuite {
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha256;
     type Kdf = rust::HkdfSha512;
-    type Kem = rust::DhKemP256HkdfSha256;
+    type Kem = DhKemP256HkdfSha256;
     type Mac = rust::HmacSha512;
     type Signer = ed25519::Ed25519;
+}
+
+kem_with_oid! {
+    /// DHKEM(P256, HKDF-SHA256).
+    #[derive(Debug)]
+    pub struct DhKemP256HkdfSha256(rust::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
 }
 
 /// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
