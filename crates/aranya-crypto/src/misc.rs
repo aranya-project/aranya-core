@@ -3,12 +3,12 @@
 use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::{
-    ciphersuite::{CipherSuite, SuiteIds},
+use spideroak_crypto::{
     keys::PublicKey,
     signer::{Signature, Signer},
 };
+
+use crate::ciphersuite::{CipherSuite, Oids};
 
 // Shorthand for lots::of::turbo::fish.
 pub(crate) type SigData<CS> = <<<CS as CipherSuite>::Signer as Signer>::Signature as Signature<
@@ -16,27 +16,37 @@ pub(crate) type SigData<CS> = <<<CS as CipherSuite>::Signer as Signer>::Signatur
 >>::Data;
 
 // A fixed-size ciphertext.
+#[cfg(feature = "apq")]
 macro_rules! ciphertext {
     ($name:ident, $size:ty, $doc:expr) => {
         #[doc = $doc]
         pub struct $name<CS>(
             pub(crate)  $crate::generic_array::GenericArray<
                 u8,
-                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                $crate::typenum::Sum<
+                    <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                    $size,
+                >,
             >,
         )
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength;
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength;
 
         impl<CS> $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             /// The size in bytes of the ciphertext.
             pub const SIZE: usize =
@@ -50,13 +60,17 @@ macro_rules! ciphertext {
             /// Returns itself from its byte encoding.
             pub fn from_bytes(
                 data: &[u8],
-            ) -> ::core::result::Result<Self, $crate::import::InvalidSizeError> {
+            ) -> ::core::result::Result<
+                Self,
+                $crate::dangerous::spideroak_crypto::import::InvalidSizeError,
+            > {
                 let v: &$crate::generic_array::GenericArray<u8, _> =
-                    data.try_into()
-                        .map_err(|_| $crate::import::InvalidSizeError {
+                    data.try_into().map_err(|_| {
+                        $crate::dangerous::spideroak_crypto::import::InvalidSizeError {
                             got: data.len(),
                             want: Self::SIZE..Self::SIZE,
-                        })?;
+                        }
+                    })?;
                 Ok(Self(v.clone()))
             }
         }
@@ -64,11 +78,14 @@ macro_rules! ciphertext {
         impl<CS> ::core::convert::TryFrom<&[u8]> for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
-            type Error = $crate::import::InvalidSizeError;
+            type Error = $crate::dangerous::spideroak_crypto::import::InvalidSizeError;
 
             fn try_from(data: &[u8]) -> ::core::result::Result<Self, Self::Error> {
                 $name::<CS>::from_bytes(data)
@@ -78,9 +95,12 @@ macro_rules! ciphertext {
         impl<CS> ::core::clone::Clone for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             fn clone(&self) -> Self {
                 Self(::core::clone::Clone::clone(&self.0))
@@ -91,19 +111,28 @@ macro_rules! ciphertext {
             ::core::convert::From<
                 $crate::generic_array::GenericArray<
                     u8,
-                    $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                    $crate::typenum::Sum<
+                        <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                        $size,
+                    >,
                 >,
             > for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             fn from(
                 buf: $crate::generic_array::GenericArray<
                     u8,
-                    $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                    $crate::typenum::Sum<
+                        <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                        $size,
+                    >,
                 >,
             ) -> Self {
                 Self(buf)
@@ -113,9 +142,12 @@ macro_rules! ciphertext {
         impl<CS> ::serde::Serialize for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             fn serialize<S>(&self, s: S) -> ::core::result::Result<S::Ok, S::Error>
             where
@@ -128,9 +160,12 @@ macro_rules! ciphertext {
         impl<'de, CS> ::serde::Deserialize<'de> for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             fn deserialize<D>(d: D) -> ::core::result::Result<Self, D::Error>
             where
@@ -140,9 +175,12 @@ macro_rules! ciphertext {
                 impl<'de, G> ::serde::de::Visitor<'de> for CiphertextVisitor<G>
                 where
                     G: $crate::CipherSuite,
-                    <G::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-                    $crate::typenum::Sum<<G::Aead as $crate::aead::Aead>::Overhead, $size>:
-                        $crate::generic_array::ArrayLength,
+                    <G::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                        ::core::ops::Add<$size>,
+                    $crate::typenum::Sum<
+                        <G::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                        $size,
+                    >: $crate::generic_array::ArrayLength,
                 {
                     type Value = $name<G>;
 
@@ -172,6 +210,7 @@ macro_rules! ciphertext {
         }
     };
 }
+#[cfg(feature = "apq")]
 pub(crate) use ciphertext;
 
 /// Asymmetric key misc. impls.
@@ -199,7 +238,7 @@ macro_rules! sk_misc {
             pub fn id(&self) -> Result<$id, $crate::id::IdError> {
                 const CONTEXT: &'static str = ::core::stringify!($sk);
 
-                let pk = $crate::keys::PublicKey::export(&self.0.public()?);
+                let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.0.public()?);
                 let id = $crate::id::Id::new::<CS>(
                     ::core::borrow::Borrow::borrow(&pk),
                     CONTEXT.as_bytes(),
@@ -228,7 +267,7 @@ macro_rules! sk_misc {
 
             /// Returns the public half of the key.
             #[inline]
-            pub fn public(&self) -> Result<$pk<CS>,$crate::signer::PkError>{
+            pub fn public(&self) -> Result<$pk<CS>, $crate::dangerous::spideroak_crypto::signer::PkError> {
                 Ok($pk(self.0.public()?))
             }
         }
@@ -332,7 +371,7 @@ macro_rules! pk_misc {
             where
                 S: ::serde::Serializer,
             {
-                $crate::misc::ExportedData::from_key::<CS>(
+                $crate::misc::ExportedData::<CS, _>::from_key(
                     &self.0,
                     $crate::misc::ExportedDataType::$name,
                 )
@@ -346,10 +385,10 @@ macro_rules! pk_misc {
                 D: ::serde::Deserializer<'de>,
             {
                 let data =
-                    $crate::misc::ExportedData::<$crate::misc::SerdeOwnedKey<_>>::deserialize(
+                    $crate::misc::ExportedData::<CS, $crate::misc::SerdeOwnedKey<_>>::deserialize(
                         deserializer,
                     )?;
-                if !data.valid_context::<CS>($crate::misc::ExportedDataType::$name) {
+                if !data.is_type($crate::misc::ExportedDataType::$name) {
                     Err(::serde::de::Error::custom(ImportError::InvalidContext))
                 } else {
                     Ok(Self(data.data.0))
@@ -385,25 +424,35 @@ pub(crate) enum ExportedDataType {
 /// Non-secret exported from an `Engine`.
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ExportedData<T> {
+pub(crate) struct ExportedData<CS, T>
+where
+    CS: CipherSuite,
+{
     /// Uniquely idenitifies the chosen algorithms.
-    suite_id: SuiteIds,
+    #[serde(bound = "CS: CipherSuite")]
+    oids: Oids<CS>,
     /// Uniquely idenitifes the type of data.
     name: ExportedDataType,
     /// The exported data.
     pub(crate) data: T,
 }
 
-impl<T> ExportedData<T> {
-    pub(crate) fn valid_context<CS: CipherSuite>(&self, name: ExportedDataType) -> bool {
-        self.suite_id == SuiteIds::from_suite::<CS>() && self.name == name
+impl<CS, T> ExportedData<CS, T>
+where
+    CS: CipherSuite,
+{
+    pub(crate) fn is_type(&self, name: ExportedDataType) -> bool {
+        self.name == name
     }
 }
 
-impl<'a, K: PublicKey> ExportedData<SerdeBorrowedKey<'a, K>> {
-    pub(crate) fn from_key<CS: CipherSuite>(pk: &'a K, name: ExportedDataType) -> Self {
+impl<'a, CS, K: PublicKey> ExportedData<CS, SerdeBorrowedKey<'a, K>>
+where
+    CS: CipherSuite,
+{
+    pub(crate) fn from_key(pk: &'a K, name: ExportedDataType) -> Self {
         Self {
-            suite_id: SuiteIds::from_suite::<CS>(),
+            oids: CS::OIDS,
             name,
             data: SerdeBorrowedKey(pk),
         }
