@@ -463,10 +463,6 @@ criteria = "safe-to-deploy"
 version = "0.11.0"
 criteria = "safe-to-deploy"
 
-[[exemptions.itertools]]
-version = "0.13.0"
-criteria = "safe-to-deploy"
-
 [[exemptions.jobserver]]
 version = "0.1.32"
 criteria = "safe-to-deploy"
