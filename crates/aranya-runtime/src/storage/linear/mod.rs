@@ -258,6 +258,12 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
         Ok(entry.insert(LinearStorage::open(file)?))
     }
 
+    fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
+        self.manager.remove(graph)?;
+
+        Ok(())
+    }
+
     fn list_graph_ids(
         &mut self,
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {

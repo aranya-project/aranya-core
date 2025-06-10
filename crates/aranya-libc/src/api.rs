@@ -188,6 +188,11 @@ pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
     imp::fsync(fd.as_fd())
 }
 
+/// See `remove(3)`.
+pub fn remove(path: impl AsRef<Path>) -> Result<(), Errno> {
+    imp::remove(path.as_ref())
+}
+
 /// See `dup(2)`.
 pub fn dup(fd: impl AsFd) -> Result<OwnedFd, Errno> {
     Ok(OwnedFd {

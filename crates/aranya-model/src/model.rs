@@ -131,6 +131,13 @@ pub trait Model {
         action: Self::Action<'_>,
     ) -> Result<Vec<Self::Effect>, ModelError>;
 
+    /// Used to remove a graph from a client.
+    fn remove_graph(
+        &mut self,
+        proxy_id: Self::GraphId,
+        client_proxy_id: Self::ClientId,
+    ) -> Result<(), ModelError>;
+
     /// Used for calling a single action that can emit only on-graph commands.
     fn action(
         &mut self,
@@ -364,6 +371,30 @@ where
         storage_id.insert(state.new_graph(&[0u8], action, &mut sink)?);
 
         Ok(sink.effects)
+    }
+
+    /// Remove a graph from a client
+    fn remove_graph(
+        &mut self,
+        proxy_id: Self::GraphId,
+        client_proxy_id: Self::ClientId,
+    ) -> Result<(), ModelError> {
+        let Some(storage_id) = self.storage_ids.remove(&proxy_id.into()) else {
+            return Err(ModelError::GraphNotFound);
+        };
+
+        let mut state = self
+            .clients
+            .get_mut(&client_proxy_id.into())
+            .ok_or(ModelError::ClientNotFound)?
+            .state
+            .borrow_mut();
+
+        if let Err(_e) = state.remove_graph(storage_id) {
+            return Err(ModelError::GraphNotFound);
+        }
+
+        Ok(())
     }
 
     /// Preform an action on a client

@@ -93,6 +93,13 @@ where
         Ok(graph_id)
     }
 
+    /// Remove a graph (AKA Team). The graph commands will be removed from storage.
+    pub fn remove_graph(&mut self, graph_id: GraphId) -> Result<(), ClientError> {
+        self.provider.remove_storage(graph_id)?;
+
+        Ok(())
+    }
+
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
     pub fn commit(
         &mut self,

@@ -1519,3 +1519,41 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
 
     Ok(())
 }
+
+// Client should support removing a graph from storage based on the graph ID.
+#[test]
+fn should_allow_remove_graph() {
+    // Create our client factory, this will be responsible for creating all our clients.
+    let ffi_clients = FfiClientFactory::new(FFI_POLICY).expect("should create client factory");
+    // Create a new model with our client factory.
+    let mut test_model = RuntimeModel::new(ffi_clients);
+
+    test_model
+        .add_client(Device::A)
+        .expect("Should create a client");
+
+    // Retrieve the public keys for the client.
+    let client_one_public_keys = test_model
+        .get_public_keys(Device::A)
+        .expect("could not get public keys");
+
+    // Pull off the public signing key of our first client.
+    let client_one_sign_pk =
+        postcard::to_allocvec(&client_one_public_keys.sign_pk).expect("should get sign pk");
+
+    let nonce = 1;
+    // Create a graph for client A. The init command in the ffi policy
+    // required the public signing key.
+    test_model
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, client_one_sign_pk.clone())),
+        )
+        .expect("Should create a graph");
+
+    // Remove graph from storage.
+    test_model
+        .remove_graph(Graph::X, Device::A)
+        .expect("Should remove graph");
+}

@@ -90,6 +90,20 @@ pub fn fsync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
     }
 }
 
+/// See `remove(3)`.
+pub fn remove(path: &Path) -> Result<(), Errno> {
+    // SAFETY: FFI call, no invariants.
+    let ret = path.with_cstr(&|path| {
+        // SAFETY: FFI call, no invariants.
+        unsafe { libc::remove(path) }
+    });
+    if ret < 0 {
+        Err(errno())
+    } else {
+        Ok(())
+    }
+}
+
 /// See `dup(2)`.
 pub fn dup(old_fd: BorrowedFd<'_>) -> Result<RawFd, Errno> {
     // SAFETY: FFI call, no invariants.
