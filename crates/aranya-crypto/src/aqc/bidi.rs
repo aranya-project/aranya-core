@@ -17,7 +17,7 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::{unwrapped, Engine},
     error::Error,
-    id::{custom_id, Id},
+    id::{custom_id, Id, PolicyId},
     misc::sk_misc,
     tls::CipherSuiteId,
 };
@@ -124,6 +124,8 @@ pub struct BidiChannel<'a, CS: CipherSuite> {
     pub their_id: DeviceId,
     /// The policy label applied to the channel.
     pub label: Id,
+    /// The policy under which this channel operates.
+    pub policy_id: &'a PolicyId,
 }
 
 impl<CS: CipherSuite> BidiChannel<'_, CS> {
@@ -139,6 +141,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
         //     author_id,
         //     peer_id,
         //     label_id,
+        //     policy_id,
         // )
         CS::tuple_hash(
             Self::LABEL,
@@ -148,6 +151,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
                 self.our_id.as_bytes(),
                 self.their_id.as_bytes(),
                 self.label.as_bytes(),
+                self.policy_id.as_bytes(),
             ],
         )
     }
@@ -165,6 +169,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
                 self.their_id.as_bytes(),
                 self.our_id.as_bytes(),
                 self.label.as_bytes(),
+                self.policy_id.as_bytes(),
             ],
         )
     }

@@ -4,8 +4,8 @@ use alloc::{vec, vec::Vec};
 
 use aranya_crypto::{
     engine::Engine, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey, EncryptionKey,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey,
-    VerifyingKey,
+    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId,
+    SigningKey, VerifyingKey,
 };
 use aranya_policy_vm::{ffi::ffi, CommandContext, Text};
 
@@ -139,7 +139,8 @@ function seal_group_key(
             eng.unwrap(&wrapped)?
         };
         let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&peer_enc_pk)?;
-        let (encap, ciphertext) = pk.seal_group_key(eng, &group_key, group_id)?;
+        let (encap, ciphertext) =
+            pk.seal_group_key(eng, &group_key, group_id, &PolicyId::default())?;
         Ok(SealedGroupKey {
             encap: encap.as_bytes().to_vec(),
             ciphertext: postcard::to_allocvec(&ciphertext)?,
@@ -176,7 +177,7 @@ function open_group_key(
             let enc = Encap::<E::CS>::from_bytes(&sealed_group_key.encap)?;
             let ciphertext: EncryptedGroupKey<E::CS> =
                 postcard::from_bytes(&sealed_group_key.ciphertext)?;
-            sk.open_group_key(&enc, ciphertext, group_id)?
+            sk.open_group_key(&enc, ciphertext, group_id, &PolicyId::default())?
         };
 
         let key_id = group_key.id()?.into();
@@ -229,6 +230,7 @@ function encrypt_message(
             label: label.as_str(),
             parent: ctx.head_id,
             author_sign_pk: &our_sign_pk,
+            policy_id: &PolicyId::default(),
         };
         let mut ciphertext = {
             let len = plaintext
@@ -274,6 +276,7 @@ function decrypt_message(
             label: ctx.name.as_str(),
             parent: parent_id,
             author_sign_pk: author_pk,
+            policy_id: &PolicyId::default(),
         };
         let mut plaintext = {
             let len = ciphertext.len().saturating_sub(GroupKey::<E::CS>::OVERHEAD);

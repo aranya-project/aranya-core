@@ -17,7 +17,7 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
-    id::{custom_id, Id},
+    id::{custom_id, Id, PolicyId},
     misc::sk_misc,
     tls::CipherSuiteId,
     Engine,
@@ -127,6 +127,8 @@ pub struct UniChannel<'a, CS: CipherSuite> {
     pub open_id: DeviceId,
     /// The policy label applied to the channel.
     pub label: Id,
+    /// The policy under which this channel operates.
+    pub policy_id: &'a PolicyId,
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
@@ -139,6 +141,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         //     seal_id,
         //     open_id,
         //     label_id,
+        //     policy_id,
         // )
         CS::tuple_hash(
             b"AqcUniPsk",
@@ -148,6 +151,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
                 self.seal_id.as_bytes(),
                 self.open_id.as_bytes(),
                 self.label.as_bytes(),
+                self.policy_id.as_bytes(),
             ],
         )
     }
