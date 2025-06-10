@@ -388,7 +388,7 @@ where
             .get_mut(&client_proxy_id.into())
             .ok_or(ModelError::ClientNotFound)?
             .state
-            .borrow_mut();
+            .get_mut();
 
         if let Err(_e) = state.remove_graph(storage_id) {
             return Err(ModelError::GraphNotFound);
