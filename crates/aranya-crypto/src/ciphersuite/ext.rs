@@ -120,8 +120,6 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
     where
         T: Expand,
     {
-        let _ = CS::OIDS.encode();
-        let _ = CS::OIDS.encode().into_iter();
         let size = T::Size::U16.to_be_bytes();
         let labeled_info = iter::once(&size)
             .map(|v| v.as_ref())
