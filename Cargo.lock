@@ -2866,12 +2866,11 @@ dependencies = [
 
 [[package]]
 name = "spideroak-base58"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09b719743eccf9f6ef06ac55f6b315a9c825bf26500b7c703ad7978a92aedf9f"
+checksum = "80779d12410f1470dfc7197177c3a7a21c65bd15af1434c2094fbdf38047b325"
 dependencies = [
  "buggy",
- "byteorder",
 ]
 
 [[package]]
