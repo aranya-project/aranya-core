@@ -105,7 +105,7 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
         ikm: &[u8],
     ) -> Prk<Self> {
         let labeled_ikm = iter::once(domain)
-            .chain(CS::OIDS.encode().into_iter())
+            .chain(CS::OIDS.encode())
             .chain(iter::once(label))
             .chain(iter::once(ikm));
         Self::Kdf::extract_multi(labeled_ikm, salt)
@@ -120,11 +120,16 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
     where
         T: Expand,
     {
+        let _ = CS::OIDS.encode();
+        let _ = CS::OIDS.encode().into_iter();
         let size = T::Size::U16.to_be_bytes();
         let labeled_info = iter::once(&size)
             .map(|v| v.as_ref())
             .chain(iter::once(domain))
-            .chain(CS::OIDS.encode().into_iter())
+            .chain(
+                #[allow(clippy::useless_conversion, reason = "It helps with type inference")]
+                CS::OIDS.encode().into_iter(),
+            )
             .chain(iter::once(label))
             .chain(info.iter().copied());
         T::expand_multi::<Self::Kdf, _>(prk, labeled_info)
