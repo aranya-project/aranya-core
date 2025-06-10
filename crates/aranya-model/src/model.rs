@@ -379,18 +379,18 @@ where
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
     ) -> Result<(), ModelError> {
-        let Some(storage_id) = self.storage_ids.remove(&proxy_id.into()) else {
+        let Some(storage_id) = self.storage_ids.get(&proxy_id.into()) else {
             return Err(ModelError::GraphNotFound);
         };
 
-        let mut state = self
+        let state = self
             .clients
             .get_mut(&client_proxy_id.into())
             .ok_or(ModelError::ClientNotFound)?
             .state
             .get_mut();
 
-        if let Err(_e) = state.remove_graph(storage_id) {
+        if let Err(_e) = state.remove_graph(*storage_id) {
             return Err(ModelError::GraphNotFound);
         }
 

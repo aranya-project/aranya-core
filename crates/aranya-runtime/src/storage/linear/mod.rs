@@ -261,10 +261,9 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
     fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
         self.manager.remove(graph)?;
 
-        let _ = self
-            .storage
+        self.storage
             .remove(&graph)
-            .ok_or(StorageError::NoSuchStorage);
+            .ok_or(StorageError::NoSuchStorage)?;
 
         Ok(())
     }
