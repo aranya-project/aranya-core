@@ -251,7 +251,10 @@ mod strand_heap {
             if self.heap.len() != 1 {
                 return None;
             }
-            self.heap.pop()
+            self.has_finalize = false;
+            let item = self.heap.pop();
+            debug_assert!(item.is_some());
+            item
         }
 
         pub fn iter(&self) -> impl Iterator<Item = &Strand<S>> {
