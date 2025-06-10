@@ -148,6 +148,7 @@ impl Repr {
         match self {
             Repr::Static(s) => s,
             Repr::Inline { bytes, len } => {
+                debug_assert!((*len as usize) < MAX_INLINE);
                 // SAFETY: We always ensure that `&bytes[..len]` is a valid string.
                 let s = unsafe { slice::from_raw_parts(bytes.as_ptr(), *len as usize) };
                 // SAFETY: We always ensure that `&bytes[..len]` is a valid string.

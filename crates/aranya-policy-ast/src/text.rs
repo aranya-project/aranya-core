@@ -163,6 +163,10 @@ impl Add for &Text {
     fn add(self, rhs: Self) -> Self::Output {
         let mut s = String::from(self.0.as_str());
         s.push_str(rhs.as_str());
+        debug_assert!(
+            Text::validate(&s).is_ok(),
+            "text should stay valid under concatenation"
+        );
         Text(imp::Repr::from_str(&s))
     }
 }
@@ -236,6 +240,7 @@ impl Identifier {
                 ));
             }
         }
+        debug_assert!(Text::validate(s).is_ok(), "identifiers are valid text");
         Ok(())
     }
 
