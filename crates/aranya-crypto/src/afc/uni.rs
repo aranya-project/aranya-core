@@ -1,24 +1,25 @@
 use buggy::BugExt;
 use serde::{Deserialize, Serialize};
-
-use super::{
-    keys::{OpenKey, SealKey, Seq},
-    shared::{RawOpenKey, RawSealKey, RootChannelKey},
-};
-use crate::{
-    aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::SuiteIds,
+use spideroak_crypto::{
     csprng::Random,
-    engine::unwrapped,
-    error::Error,
-    hash::{tuple_hash, Digest, Hash},
+    hash::{Digest, Hash},
     hpke::{Hpke, Mode},
-    id::{custom_id, Id},
     import::ImportError,
     kem::Kem,
-    misc::sk_misc,
     subtle::{Choice, ConstantTimeEq},
-    CipherSuite, Engine,
+};
+
+use crate::{
+    afc::{
+        keys::{OpenKey, SealKey, Seq},
+        shared::{RawOpenKey, RawSealKey, RootChannelKey},
+    },
+    aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
+    ciphersuite::{CipherSuite, CipherSuiteExt},
+    engine::{unwrapped, Engine},
+    error::Error,
+    id::{custom_id, Id},
+    misc::sk_misc,
 };
 
 /// Contextual information for a unidirectional AFC channel.
@@ -33,7 +34,6 @@ use crate::{
 /// use {
 ///     core::borrow::{Borrow, BorrowMut},
 ///     aranya_crypto::{
-///         aead::{Aead, KeyData},
 ///         afc::{
 ///             AuthData,
 ///             OpenKey,
@@ -54,8 +54,6 @@ use crate::{
 ///         Engine,
 ///         Id,
 ///         IdentityKey,
-///         import::Import,
-///         keys::SecretKey,
 ///         EncryptionKey,
 ///         Rng,
 ///     }
@@ -169,14 +167,15 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         //     open_id,
         //     i2osp(label, 4),
         // )
-        tuple_hash::<CS::Hash, _>([
-            "AfcUnidirectionalKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.parent_cmd_id.as_bytes(),
-            self.seal_id.as_bytes(),
-            self.open_id.as_bytes(),
-            &self.label.to_be_bytes(),
-        ])
+        CS::tuple_hash(
+            b"AfcUnidirectionalKey",
+            [
+                self.parent_cmd_id.as_bytes(),
+                self.seal_id.as_bytes(),
+                self.open_id.as_bytes(),
+                &self.label.to_be_bytes(),
+            ],
+        )
     }
 }
 
