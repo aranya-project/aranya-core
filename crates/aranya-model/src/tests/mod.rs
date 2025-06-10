@@ -1541,6 +1541,11 @@ fn should_allow_remove_graph() {
     let client_one_sign_pk =
         postcard::to_allocvec(&client_one_public_keys.sign_pk).expect("should get sign pk");
 
+    // Attempt to remove graph from storage that does not exist.
+    test_model
+        .remove_graph(Graph::X, Device::A)
+        .expect_err("Should fail to remove graph that has not been added to storage yet");
+
     let nonce = 1;
     // Create a graph for client A. The init command in the ffi policy
     // required the public signing key.
