@@ -55,6 +55,7 @@ use crate::{
 ///         Id,
 ///         IdentityKey,
 ///         EncryptionKey,
+///         PolicyId,
 ///         Rng,
 ///     }
 /// };
@@ -98,6 +99,7 @@ use crate::{
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
+///     policy_id: &PolicyId::default(),
 /// };
 /// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `UniSecrets`");
@@ -112,6 +114,7 @@ use crate::{
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
+///     policy_id: &PolicyId::default(),
 /// };
 /// let device2 = key_from_peer(&device2_ch, peer);
 ///

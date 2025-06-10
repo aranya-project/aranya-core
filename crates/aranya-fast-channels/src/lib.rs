@@ -62,6 +62,7 @@
 //!     Engine,
 //!     Id,
 //!     IdentityKey,
+//!     PolicyId,
 //!     Random,
 //!     Rng,
 //!     dangerous::spideroak_crypto::rust::HkdfSha256,
@@ -128,6 +129,7 @@
 //!     their_pk: &device2_enc_sk.public()?,
 //!     their_id: device2_id,
 //!     label: TOP_SECRET.to_u32(),
+//!     policy_id: &PolicyId::default(),
 //! };
 //! let BidiSecrets { author, peer } =
 //!     BidiSecrets::new(&mut eng, &ch1)?;
@@ -147,6 +149,7 @@
 //!     their_pk: &device1_enc_sk.public()?,
 //!     their_id: device1_id,
 //!     label: TOP_SECRET.to_u32(),
+//!     policy_id: &PolicyId::default(),
 //! };
 //!
 //! // Inform device2 about device1.

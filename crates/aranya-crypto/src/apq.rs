@@ -222,6 +222,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         DefaultEngine,
     ///     },
     ///     Id,
+    ///     PolicyId,
     ///     Rng,
     ///     DeviceId,
     /// };
@@ -237,7 +238,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         .public().expect("sender signing key should be valid"),
     /// };
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
+    /// let key = TopicKey::new(&mut Rng, VERSION, &topic, &PolicyId::default())
     ///     .expect("should not fail");
     ///
     /// let ciphertext = {
@@ -249,6 +250,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         VERSION,
     ///         &topic,
     ///         &ident,
+    ///         &PolicyId::default(),
     ///     ).expect("should not fail");
     ///     dst
     /// };
@@ -260,6 +262,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         VERSION,
     ///         &topic,
     ///         &ident,
+    ///         &PolicyId::default(),
     ///     ).expect("should not fail");
     ///     dst
     /// };
@@ -422,7 +425,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///         DefaultCipherSuite,
     ///         DefaultEngine,
     ///     },
-    ///     Rng,
+    ///     PolicyId, Rng,
     /// };
     ///
     /// const VERSION: Version = Version::new(1);
@@ -431,19 +434,19 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///
     /// let sk = SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
-    /// let sig = sk.sign(VERSION, &topic, RECORD)
+    /// let sig = sk.sign(VERSION, &topic, RECORD, &PolicyId::default())
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &PolicyId::default(), &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(Version::new(2), &topic, RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(Version::new(2), &topic, RECORD, &PolicyId::default(), &sig)
     ///     .expect_err("should fail: wrong version");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &Topic::new("WrongTopic"), RECORD, &PolicyId::default(), &sig)
     ///     .expect_err("should fail: wrong topic");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, b"wrong", &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, b"wrong", &PolicyId::default(), &sig)
     ///     .expect_err("should fail: wrong record");
     ///
     /// let wrong_sig = sk
@@ -451,9 +454,10 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///         Version::new(2),
     ///         &Topic::new("AnotherTopic"),
     ///         b"encoded record",
+    ///         &PolicyId::default(),
     ///     )
     ///     .expect("should not fail");
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &wrong_sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &PolicyId::default(), &wrong_sig)
     ///     .expect_err("should fail: wrong signature");
     /// # }
     /// ```
@@ -659,6 +663,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///         DefaultEngine,
     ///     },
     ///     Id,
+    ///     PolicyId,
     ///     Rng,
     ///     DeviceId,
     /// };
@@ -671,7 +676,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(&mut Rng);
     /// let recv_pk = recv_sk.public().expect("receiver public key should be valid");
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
+    /// let key = TopicKey::new(&mut Rng, VERSION, &topic, &PolicyId::default())
     ///     .expect("should not fail");
     ///
     /// // The sender encrypts...
@@ -681,6 +686,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     &topic,
     ///     &send_sk,
     ///     &key,
+    ///     &PolicyId::default(),
     /// ).expect("should not fail");
     /// // ...and the receiver decrypts.
     /// let got = recv_sk.open_topic_key(
@@ -689,6 +695,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
+    ///     &PolicyId::default(),
     /// ).expect("should not fail");
     /// assert_eq!(got.id(), key.id());
     ///
@@ -699,6 +706,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
+    ///     &PolicyId::default(),
     /// ).err().expect("should fail: wrong version");
     ///
     /// // Wrong topic.
@@ -708,6 +716,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
+    ///     &PolicyId::default(),
     /// ).err().expect("should fail: wrong topic");
     /// # }
     /// ```

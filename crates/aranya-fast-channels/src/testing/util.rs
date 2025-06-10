@@ -12,6 +12,7 @@ use std::{
 
 use aranya_crypto::{
     afc::{BidiChannel, BidiKeys, BidiSecrets, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
+    PolicyId,
     dangerous::spideroak_crypto::{
         aead::{self, Aead, AeadKey, IndCca2, Lifetime, OpenError, SealError},
         csprng::Csprng,
@@ -332,6 +333,7 @@ where
                 their_pk: &peer.enc_sk.public().unwrap(),
                 their_id: peer.ident_sk.public().unwrap().id().unwrap(),
                 label: label.to_u32(),
+                policy_id: &PolicyId::default(),
             };
             let peer_cfg = BidiChannel {
                 parent_cmd_id: author_cfg.parent_cmd_id,
@@ -340,6 +342,7 @@ where
                 their_pk: &author.enc_sk.public().unwrap(),
                 their_id: author.ident_sk.public().unwrap().id().unwrap(),
                 label: label.to_u32(),
+                policy_id: &PolicyId::default(),
             };
 
             let BidiSecrets { author, peer } =
@@ -385,6 +388,7 @@ where
                 seal_id: seal.ident_sk.public().unwrap().id().unwrap(),
                 open_id: open.ident_sk.public().unwrap().id().unwrap(),
                 label: label.to_u32(),
+                policy_id: &PolicyId::default(),
             };
             let open_cfg = UniChannel {
                 parent_cmd_id: seal_cfg.parent_cmd_id,
@@ -392,6 +396,7 @@ where
                 their_pk: &seal.enc_sk.public().unwrap(),
                 seal_id: seal.ident_sk.public().unwrap().id().unwrap(),
                 open_id: open.ident_sk.public().unwrap().id().unwrap(),
+                policy_id: &PolicyId::default(),
                 label: label.to_u32(),
             };
 

@@ -53,6 +53,7 @@ use crate::{
 ///         Id,
 ///         IdentityKey,
 ///         EncryptionKey,
+///         PolicyId,
 ///         Rng,
 ///     }
 /// };
@@ -107,6 +108,7 @@ use crate::{
 ///     their_pk: &device2_sk.public().expect("receiver encryption public key should be valid"),
 ///     their_id: device2_id,
 ///     label,
+///     policy_id: &PolicyId::default(),
 /// };
 /// let BidiSecrets { author, peer } = BidiSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `BidiSecrets`");
@@ -121,6 +123,7 @@ use crate::{
 ///     their_pk: &device1_sk.public().expect("receiver encryption public key should be valid"),
 ///     their_id: device1_id,
 ///     label,
+///     policy_id: &PolicyId::default(),
 /// };
 /// let mut device2 = Keys::from_peer(&device2_ch, peer);
 ///
@@ -460,6 +463,7 @@ mod tests {
                 .id()
                 .expect("receiver ID should be valid"),
             label,
+            policy_id: &PolicyId::default(),
         };
         let ch2 = BidiChannel {
             parent_cmd_id,
@@ -470,6 +474,7 @@ mod tests {
                 .expect("receiver encryption public key should be valid"),
             their_id: ch1.our_id,
             label,
+            policy_id: &PolicyId::default(),
         };
         assert_eq!(ch1.author_info(), ch2.peer_info());
         assert_eq!(ch1.peer_info(), ch2.author_info());
@@ -505,6 +510,7 @@ mod tests {
                         .expect("receiver encryption public key should be valid"),
                     their_id: device2_id,
                     label,
+                    policy_id: &PolicyId::default(),
                 },
                 BidiChannel {
                     parent_cmd_id: Id::random(&mut eng),
@@ -515,6 +521,7 @@ mod tests {
                         .expect("receiver encryption public key should be valid"),
                     their_id: device1_id,
                     label,
+                    policy_id: &PolicyId::default(),
                 },
             ),
             (
@@ -528,6 +535,7 @@ mod tests {
                         .expect("receiver encryption public key should be valid"),
                     their_id: device2_id,
                     label,
+                    policy_id: &PolicyId::default(),
                 },
                 BidiChannel {
                     parent_cmd_id: Id::random(&mut eng),
@@ -540,6 +548,7 @@ mod tests {
                         .expect("receiver encryption public key should be valid"),
                     their_id: device1_id,
                     label,
+                    policy_id: &PolicyId::default(),
                 },
             ),
             (
@@ -553,6 +562,7 @@ mod tests {
                         .expect("receiver encryption public key should be valid"),
                     their_id: device2_id,
                     label,
+                    policy_id: &PolicyId::default(),
                 },
                 BidiChannel {
                     parent_cmd_id: Id::random(&mut eng),
@@ -565,6 +575,7 @@ mod tests {
                         .id()
                         .expect("receiver ID should be valid"),
                     label,
+                    policy_id: &PolicyId::default(),
                 },
             ),
             (
@@ -578,6 +589,7 @@ mod tests {
                         .expect("receiver encryption public key should be valid"),
                     their_id: device2_id,
                     label: 123,
+                    policy_id: &PolicyId::default(),
                 },
                 BidiChannel {
                     parent_cmd_id: Id::random(&mut eng),
@@ -588,6 +600,7 @@ mod tests {
                         .expect("receiver encryption public key should be valid"),
                     their_id: device1_id,
                     label: 456,
+                    policy_id: &PolicyId::default(),
                 },
             ),
         ];
