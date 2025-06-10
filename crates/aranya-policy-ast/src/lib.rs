@@ -8,11 +8,11 @@
 extern crate alloc;
 
 mod ast;
+mod text;
 mod util;
 
 pub use ast::*;
 pub use text::*;
-mod text;
 
 #[doc(hidden)]
 pub mod __hidden {
