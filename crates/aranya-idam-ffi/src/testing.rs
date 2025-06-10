@@ -6,8 +6,8 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, DeviceId, EncryptionKey, Engine,
-    GroupKey, Id, IdentityKey, KeyStore, SigningKey,
+    subtle::ConstantTimeEq, DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey,
+    KeyStore, OpenError, SigningKey,
 };
 use aranya_policy_vm::{ident, text, ActionContext, CommandContext, PolicyContext};
 
@@ -96,10 +96,12 @@ where
             .expect("should be able to create `GroupKey`");
         let wrapped =
             postcard::from_bytes(&wrapped).expect("should be able to decode wrapped `GroupKey`");
-        let got: GroupKey<_> = eng
-            .unwrap(&wrapped)
-            .expect("should be able to unwrap `GroupKey`");
-        assert_eq!(got.id().into_id(), key_id);
+        let got = eng
+            .unwrap::<GroupKey<_>>(&wrapped)
+            .expect("should be able to unwrap `GroupKey`")
+            .id()
+            .expect("should be able to generate `GroupKey` ID");
+        assert_eq!(got.into_id(), key_id);
     }
 
     /// Test that we generate unique `GroupKey`s.
