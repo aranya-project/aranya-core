@@ -36,7 +36,7 @@ impl Seq {
     ///
     /// For testing only.
     #[cfg(any(test, feature = "test_util"))]
-    pub(crate) fn max<N: generic_array::ArrayLength>() -> u64 {
+    pub(crate) fn max<N: crate::generic_array::ArrayLength>() -> u64 {
         hpke::Seq::max::<N>()
     }
 }
