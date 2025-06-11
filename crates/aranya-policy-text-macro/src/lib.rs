@@ -1,7 +1,7 @@
 //! A set of proc macros used for policy lang text and identifier literals.
 //!
-//! Do not use this crate directly. Use the macros from `aranya-policy-ast`
-//! or a re-export from e.g. `aranya-policy-vm`.
+//! Do not use this crate directly. Use the macros from `aranya-policy-text`
+//! or a re-export from e.g. `aranya-policy-ast` or `aranya-policy-vm`.
 
 use proc_macro::TokenStream;
 use syn::Error;
