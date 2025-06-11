@@ -27,7 +27,7 @@ impl Instrument {
     where
         I: IntoIterator<Item = &'a FnArg>,
     {
-        let mut gen = Self {
+        let mut instrument = Self {
             level: Some("trace".to_owned()),
             ..Default::default()
         };
@@ -83,9 +83,9 @@ impl Instrument {
                     },
                 },
             };
-            gen.fields.push(field);
+            instrument.fields.push(field);
         }
-        gen
+        instrument
     }
 }
 

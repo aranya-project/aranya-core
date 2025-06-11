@@ -33,7 +33,7 @@ struct Cache<K> {
     /// The `ChanList`'s generation when this key was cached.
     ///
     /// Used to quickly determine whether the cache is stale.
-    gen: u32,
+    generation: u32,
     /// Index of the channel in the `ChanList`.
     ///
     /// Used as a hint when retrieving the updated channel
@@ -97,10 +97,18 @@ where
             // There is a cache entry for this channel.
             Some(c) => {
                 // SAFETY: we only access an atomic field.
-                let gen = unsafe { mutex.inner_unsynchronized().gen.load(Ordering::Acquire) };
-                if c.gen == gen {
+                let generation = unsafe {
+                    mutex
+                        .inner_unsynchronized()
+                        .generation
+                        .load(Ordering::Acquire)
+                };
+                if c.generation == generation {
                     // Same generation, so we can use the key.
-                    debug!("cache hit: id={id} gen={gen} seq={}", c.key.seq());
+                    debug!(
+                        "cache hit: id={id} generation={generation} seq={}",
+                        c.key.seq()
+                    );
 
                     return Ok(f(&mut c.key));
                 }
@@ -117,12 +125,12 @@ where
         let mut list = mutex.lock().assume("poisoned")?;
 
         // The list is currently locked (precluding writes to
-        // `list.gen`), so we don't *need* atomics here. But we
+        // `list.generation`), so we don't *need* atomics here. But we
         // might as well since relaxed is ~free.
         //
         // NB: we load the generation before traversing the list
         // to avoid ownership conflicts with `chan`.
-        let gen = list.gen.load(Ordering::Relaxed);
+        let generation = list.generation.load(Ordering::Relaxed);
 
         let (chan, idx) = match list.find_mut(id, hint, Op::Seal)? {
             None => return Err(crate::Error::NotFound(id)),
@@ -142,7 +150,7 @@ where
                     key,
                     id: chan.key_id,
                 },
-                gen,
+                generation,
                 idx,
             };
             if let Some(old) = cache.replace(new) {
@@ -176,11 +184,16 @@ where
             // There is a cache entry for this channel.
             Some(c) => {
                 // SAFETY: we only access an atomic field.
-                let gen = unsafe { mutex.inner_unsynchronized().gen.load(Ordering::Acquire) };
-                if c.gen == gen {
+                let generation = unsafe {
+                    mutex
+                        .inner_unsynchronized()
+                        .generation
+                        .load(Ordering::Acquire)
+                };
+                if c.generation == generation {
                     // Same generation, so we can use the key.
                     // so we can use it.
-                    debug!("cache hit: id={id} gen={gen}");
+                    debug!("cache hit: id={id} generation={generation}");
 
                     return Ok(f(&c.key));
                 }
@@ -209,10 +222,10 @@ where
                 id,
                 key,
                 // The list is currently locked (precluding
-                // writes to `list.gen`), so we don't *need*
+                // writes to `list.generation`), so we don't *need*
                 // atomics here. But we might as well since
                 // relaxed is ~free.
-                gen: list.gen.load(Ordering::Relaxed),
+                generation: list.generation.load(Ordering::Relaxed),
                 idx,
             });
         }
