@@ -19,8 +19,8 @@ default = []
 # Enable `std`.
 std = [
 	"proptest?/std",
-	"thiserror/std",
 	"serde/std",
+	"thiserror/std",
 ]
 
 proptest = ["dep:proptest"]
