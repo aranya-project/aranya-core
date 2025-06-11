@@ -316,7 +316,7 @@ mod macos {
 
     use libc::EINTR;
 
-    extern "C" {
+    unsafe extern "C" {
         fn __ulock_wait(op: u32, addr: *mut c_void, val: u64, micros: u32) -> c_int;
         fn __ulock_wake(op: u32, addr: *mut c_void, val: u64) -> c_int;
     }
