@@ -142,7 +142,7 @@ trng = ["spideroak-crypto/trng"]
 [dependencies]
 buggy = { version = "0.1.0", default-features = false }
 
-spideroak-base58 = { version = "0.1.0", default-features = false }
+spideroak-base58 = { version = "0.2.0", default-features = false }
 spideroak-crypto = { version = "0.5.2", default-features = false, features = ["serde"] }
 
 byteorder = { workspace = true, default-features = false, optional = true }
