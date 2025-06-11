@@ -3,7 +3,7 @@
 use aranya_crypto::{default::DefaultCipherSuite, test_ciphersuite};
 
 #[cfg(feature = "trng")]
-#[no_mangle]
+#[unsafe(no_mangle)]
 extern "C" fn OS_hardware_rand() -> u32 {
     42
 }
