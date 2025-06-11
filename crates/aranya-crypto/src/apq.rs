@@ -3,35 +3,34 @@
 //! [APQ]: https://git.spideroak-inc.com/spideroak-inc/apq
 
 #![forbid(unsafe_code)]
+#![cfg(feature = "apq")]
+#![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
 use core::{borrow::Borrow, fmt, ops::Add, result::Result};
 
-use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
-
-use crate::{
+use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
-    aranya::{Encap, Signature},
-    ciphersuite::SuiteIds,
     csprng::{Csprng, Random},
-    engine::unwrapped,
-    error::Error,
     generic_array::{ArrayLength, GenericArray},
-    hash::tuple_hash,
     hex::ToHex,
-    hmac::Hmac,
     hpke::{Hpke, Mode},
-    id::custom_id,
     import::{Import, ImportError},
-    kdf::Context,
     kem::{DecapKey, Kem},
-    keys::{PublicKey, SecretKey},
-    misc::{ciphertext, key_misc},
+    keys::PublicKey,
     signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
     typenum::{Sum, U64},
     zeroize::{Zeroize, ZeroizeOnDrop},
-    CipherSuite,
+};
+
+use crate::{
+    aranya::{Encap, Signature},
+    ciphersuite::{CipherSuite, CipherSuiteExt},
+    engine::unwrapped,
+    error::Error,
+    id::{custom_id, IdError},
+    misc::{ciphertext, key_misc},
 };
 
 /// A sender's identity.
@@ -63,9 +62,7 @@ impl Version {
 }
 
 /// The APQ topic being used.
-#[derive(
-    Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, MaxSize,
-)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Topic([u8; 16]);
 
 impl Topic {
@@ -163,16 +160,24 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///
     /// Two keys with the same ID are the same key.
     #[inline]
-    pub fn id(&self) -> TopicKeyId {
-        // ID = HMAC(
-        //     key=TopicKey,
-        //     message="TopicKeyId-v1" || suite_id,
-        //     outputBytes=64,
+    pub fn id(&self) -> Result<TopicKeyId, IdError> {
+        // prk = LabeledExtract(
+        //     "TopicKeyId-v1",
+        //     {0}^n,
+        //     "prk",
+        //     seed,
         // )
-        let mut h = Hmac::<CS::Hash>::new(&self.seed);
-        h.update(b"TopicKeyId-v1");
-        h.update(&SuiteIds::from_suite::<CS>().into_bytes());
-        TopicKeyId(h.tag().into_array().into())
+        // TopicKey = LabeledExpand(
+        //     "TopicKeyId-v1",
+        //     prk,
+        //     "id",
+        //     {0}^0,
+        // )
+        const DOMAIN: &[u8] = b"TopicKeyId-v1";
+        let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
+        CS::labeled_expand(DOMAIN, &prk, b"id", [])
+            .map_err(|_| IdError("unable to expand PRK"))
+            .map(TopicKeyId)
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -272,19 +277,22 @@ impl<CS: CipherSuite> TopicKey<CS> {
             ))));
         }
         // ad = concat(
-        //     i2osp(version, 4),
-        //     topic,
-        //     suite_id,
-        //     hash(pk(SenderKey)),
-        //     hash(pk(SenderSigningKey)),
+        //      "apq msg"
+        //      suite_ids,
+        //      i2osp(version, 4),
+        //      topic,
+        //      hash(pk(SenderKey)),
+        //      hash(pk(SenderSigningKey)),
         // )
-        let ad = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes()[..],
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            ident.enc_key.id()?.as_bytes(),
-            ident.sign_key.id()?.as_bytes(),
-        ]);
+        let ad = CS::tuple_hash(
+            b"apq msg",
+            [
+                &version.to_be_bytes()[..],
+                &topic.as_bytes()[..],
+                ident.enc_key.id()?.as_bytes(),
+                ident.sign_key.id()?.as_bytes(),
+            ],
+        );
         let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
         rng.fill_bytes(nonce);
         Ok(CS::Aead::new(&self.key).seal(out, nonce, plaintext, &ad)?)
@@ -311,18 +319,22 @@ impl<CS: CipherSuite> TopicKey<CS> {
         }
         let (nonce, ciphertext) = ciphertext.split_at(CS::Aead::NONCE_SIZE);
         // ad = concat(
-        //     i2osp(version, 4),
-        //     topic,
-        //     suite_id,
-        //     hash(pk(SenderSigningKey)),
+        //     "apq msg",
+        //      suite_ids,
+        //      i2osp(version, 4),
+        //      topic,
+        //      hash(pk(SenderKey)),
+        //      hash(pk(SenderSigningKey)),
         // )
-        let ad = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes()[..],
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            ident.enc_key.id()?.as_bytes(),
-            ident.sign_key.id()?.as_bytes(),
-        ]);
+        let ad = CS::tuple_hash(
+            b"apq msg",
+            [
+                &version.to_be_bytes()[..],
+                &topic.as_bytes()[..],
+                ident.enc_key.id()?.as_bytes(),
+                ident.sign_key.id()?.as_bytes(),
+            ],
+        );
         Ok(CS::Aead::new(&self.key).open(dst, nonce, ciphertext, &ad)?)
     }
 
@@ -330,11 +342,6 @@ impl<CS: CipherSuite> TopicKey<CS> {
         let key = Self::derive_key(&seed, version, topic)?;
         Ok(Self { key, seed })
     }
-
-    const KDF_CTX: Context = Context {
-        domain: "APQ-v1",
-        suite_ids: &SuiteIds::from_suite::<CS>().into_bytes(),
-    };
 
     /// Derives a key for [`Self::open`] and [`Self::seal`].
     ///
@@ -344,17 +351,19 @@ impl<CS: CipherSuite> TopicKey<CS> {
         version: Version,
         topic: &Topic,
     ) -> Result<<CS::Aead as Aead>::Key, Error> {
-        // prk = LabeledExtract({0}^512, seed, "topic_key_prk")
-        let prk = Self::KDF_CTX.labeled_extract::<CS::Kdf>(&[], "topic_key_prk", seed);
+        const DOMAIN: &[u8] = b"APQ-v1";
+        //  prk = LabeledExtract("APQ-V1", {0}^512, "topic_key_prk", seed)
+        let prk = CS::labeled_extract(DOMAIN, &[], b"topic_key_prk", seed);
         // info = concat(
         //     i2osp(version, 4),
         //     topic,
         // )
-        // key = LabeledExpand(prk, "topic_key_key", info, L)
-        let key = Self::KDF_CTX.labeled_expand::<CS::Kdf, KeyData<CS::Aead>>(
+        // key = LabeledExpand("APQ-v1", prk, "topic_key_key", info)
+        let key: KeyData<CS::Aead> = CS::labeled_expand(
+            DOMAIN,
             &prk,
-            "topic_key_key",
-            &[&version.to_be_bytes(), &topic.as_bytes()[..]],
+            b"topic_key_key",
+            [&version.to_be_bytes(), topic.as_bytes()],
         )?;
 
         Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
@@ -375,8 +384,7 @@ key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
 impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// Creates a `SenderSigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
-        SenderSigningKey(sk)
+        SenderSigningKey(Random::random(rng))
     }
 
     /// Creates a signature over an encoded record.
@@ -434,19 +442,22 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
         record: &[u8],
     ) -> Result<Signature<CS>, Error> {
         // message = concat(
-        //     i2osp(version, 4),
-        //     topic,
-        //     suite_id,
-        //     pk(SenderSigningKey),
-        //     encode(record),
+        //      "apq record",
+        //      suite_ids,
+        //      i2osp(version, 4),
+        //      topic,
+        //      pk(SenderSigningKey),
+        //      encode(record),
         // )
-        let msg = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes(),
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.public()?.id()?.as_bytes(),
-            record,
-        ]);
+        let msg = CS::tuple_hash(
+            b"apq record",
+            [
+                &version.to_be_bytes(),
+                &topic.as_bytes()[..],
+                self.public()?.id()?.as_bytes(),
+                record,
+            ],
+        );
         let sig = self.0.sign(&msg)?;
         Ok(Signature(sig))
     }
@@ -475,20 +486,23 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
         sig: &Signature<CS>,
     ) -> Result<(), Error> {
         // message = concat(
-        //     i2osp(version, 4),
-        //     topic,
-        //     suite_id,
-        //     pk(SenderSigningKey),
-        //     context,
-        //     encode(record),
+        //      "apq record",
+        //      suite_ids,
+        //      i2osp(version, 4),
+        //      topic,
+        //      pk(SenderSigningKey),
+        //      context,
+        //      encode(record),
         // )
-        let msg = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes(),
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            record,
-        ]);
+        let msg = CS::tuple_hash(
+            b"apq record",
+            [
+                &version.to_be_bytes(),
+                &topic.as_bytes()[..],
+                self.id()?.as_bytes(),
+                record,
+            ],
+        );
         Ok(self.0.verify(&msg, &sig.0)?)
     }
 }
@@ -503,8 +517,7 @@ key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
 impl<CS: CipherSuite> SenderSecretKey<CS> {
     /// Creates a `SenderSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
-        SenderSecretKey(sk)
+        SenderSecretKey(Random::random(rng))
     }
 }
 
@@ -530,8 +543,7 @@ key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
     /// Creates a `ReceiverSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
-        ReceiverSecretKey(sk)
+        ReceiverSecretKey(Random::random(rng))
     }
 
     /// Decrypts and authenticates a [`TopicKey`] received from
@@ -549,17 +561,15 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
+        //     "TopicKeyRotation",
+        //     suite_ids,
         //     i2osp(version, 4),
         //     topic,
-        //     suite_id,
-        //     "TopicKeyRotation",
         // )
-        let ad = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes()[..],
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
+        let ad = CS::tuple_hash(
             b"TopicKeyRotation",
-        ]);
+            [&version.to_be_bytes(), topic.as_bytes()],
+        );
         // ciphertext = HPKE_OneShotOpen(
         //     mode=mode_auth,
         //     skR=sk(ReceiverKey),
@@ -681,17 +691,15 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
+        //     "TopicKeyRotation",
+        //     suite_ids,
         //     i2osp(version, 4),
         //     topic,
-        //     suite_id,
-        //     "TopicKeyRotation",
         // )
-        let ad = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes()[..],
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
+        let ad = CS::tuple_hash(
             b"TopicKeyRotation",
-        ]);
+            [&version.to_be_bytes()[..], &topic.as_bytes()[..]],
+        );
         // (enc, ciphertext) = HPKE_OneShotSeal(
         //     mode=mode_auth,
         //     pkR=pk(ReceiverKey),

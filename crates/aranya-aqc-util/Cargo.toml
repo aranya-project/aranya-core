@@ -34,15 +34,17 @@ std = [
 # Enable the `testing` module.
 testing = [
 	"alloc",
+
+	"aranya-crypto/memstore",
 ]
 
 [dependencies]
-aranya-crypto = { version = "0.6.1", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
+aranya-crypto = { version = "0.6.1", path = "../aranya-crypto", default-features = false, features = ["alloc", "aqc"] }
 aranya-policy-vm = { version = "0.9.0", path = "../aranya-policy-vm", default-features = false, features = ["derive"] }
 buggy = { version = "0.1.0", default-features = false }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-spin = { version = "0.9", default-features = false, features = ["mutex", "spin_mutex"] }
+spin = { workspace = true, default-features = false, features = ["mutex", "spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
