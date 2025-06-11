@@ -1549,13 +1549,19 @@ fn should_allow_remove_graph() {
     let nonce = 1;
     // Create a graph for client A. The init command in the ffi policy
     // required the public signing key.
-    test_model
+    let (_, first_graph_id) = test_model
         .new_graph(
             Graph::X,
             Device::A,
             vm_action!(init(nonce, client_one_sign_pk.clone())),
         )
         .expect("Should create a graph");
+    let first_head_id = test_model
+        .head_id(Graph::X, Device::A)
+        .expect("Should be abel to get ID of head command");
+
+    // ID of graph should match ID of head command since no other commands have been added to the graph.
+    assert_eq!(first_graph_id.into_id(), first_head_id.into_id());
 
     // Remove graph from storage.
     test_model
@@ -1566,4 +1572,23 @@ fn should_allow_remove_graph() {
     test_model
         .remove_graph(Graph::X, Device::A)
         .expect_err("Should fail to remove graph that has already been removed from storage");
+
+    // Create a graph for client A. The init command in the ffi policy
+    // required the public signing key.
+    let (_, second_graph_id) = test_model
+        .new_graph(
+            Graph::X,
+            Device::A,
+            vm_action!(init(nonce, client_one_sign_pk.clone())),
+        )
+        .expect("Should create a graph");
+    let second_head_id = test_model
+        .head_id(Graph::X, Device::A)
+        .expect("Should be abel to get ID of head command");
+
+    // ID of graph should match ID of head command since no other commands have been added to the graph.
+    assert_eq!(second_graph_id.into_id(), second_head_id.into_id());
+
+    // ID of head command of new graph should be different than the first graph.
+    assert_ne!(first_head_id.into_id(), second_head_id.into_id());
 }

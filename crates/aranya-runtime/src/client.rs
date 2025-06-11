@@ -138,6 +138,15 @@ where
         Ok(())
     }
 
+    /// Returns the ID of the head of the graph.
+    pub fn head_id(&mut self, storage_id: GraphId) -> Result<CommandId, ClientError> {
+        let storage = self.provider.get_storage(storage_id)?;
+
+        let head = storage.get_head()?;
+        let id = storage.get_command_id(head)?;
+        Ok(id)
+    }
+
     /// Performs an `action`, writing the results to `sink`.
     pub fn action(
         &mut self,

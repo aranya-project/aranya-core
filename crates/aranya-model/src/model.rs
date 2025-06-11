@@ -16,7 +16,7 @@ use aranya_runtime::{
     storage::GraphId,
     testing::dsl::dispatch,
     vm_policy::{VmEffect, VmPolicy, VmPolicyError},
-    ClientError, ClientState, PeerCache, StorageProvider, SyncError, SyncRequester,
+    ClientError, ClientState, CommandId, PeerCache, StorageProvider, SyncError, SyncRequester,
     MAX_SYNC_MESSAGE_SIZE,
 };
 
@@ -129,7 +129,14 @@ pub trait Model {
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
-    ) -> Result<Vec<Self::Effect>, ModelError>;
+    ) -> Result<(Vec<Self::Effect>, GraphId), ModelError>;
+
+    /// Used to get the ID of the head of the graph.
+    fn head_id(
+        &mut self,
+        proxy_id: Self::GraphId,
+        client_proxy_id: Self::ClientId,
+    ) -> Result<CommandId, ModelError>;
 
     /// Used to remove a graph from a client.
     fn remove_graph(
@@ -354,7 +361,7 @@ where
         proxy_id: Self::GraphId,
         client_proxy_id: Self::ClientId,
         action: Self::Action<'_>,
-    ) -> Result<Vec<Self::Effect>, ModelError> {
+    ) -> Result<(Vec<Self::Effect>, GraphId), ModelError> {
         let Entry::Vacant(storage_id) = self.storage_ids.entry(proxy_id.into()) else {
             return Err(ModelError::DuplicateGraph);
         };
@@ -368,9 +375,32 @@ where
             .state
             .borrow_mut();
 
-        storage_id.insert(state.new_graph(&[0u8], action, &mut sink)?);
+        let graph_id = state.new_graph(&[0u8], action, &mut sink)?;
+        storage_id.insert(graph_id);
 
-        Ok(sink.effects)
+        Ok((sink.effects, graph_id))
+    }
+
+    /// Used to get the ID of the head of the graph.
+    fn head_id(
+        &mut self,
+        proxy_id: Self::GraphId,
+        client_proxy_id: Self::ClientId,
+    ) -> Result<CommandId, ModelError> {
+        let Some(storage_id) = self.storage_ids.get(&proxy_id.into()) else {
+            return Err(ModelError::GraphNotFound);
+        };
+
+        let state = self
+            .clients
+            .get_mut(&client_proxy_id.into())
+            .ok_or(ModelError::ClientNotFound)?
+            .state
+            .get_mut();
+
+        let id = state.head_id(*storage_id)?;
+
+        Ok(id)
     }
 
     /// Remove a graph from a client
