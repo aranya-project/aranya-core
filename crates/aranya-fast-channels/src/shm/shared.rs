@@ -8,9 +8,8 @@ use core::{
 };
 
 use aranya_crypto::{
-    aead::Aead,
     afc::{RawOpenKey, RawSealKey, Seq},
-    hash::tuple_hash,
+    dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
     CipherSuite, Csprng, Random,
 };
 use buggy::{Bug, BugExt};

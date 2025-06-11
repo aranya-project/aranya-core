@@ -16,20 +16,49 @@
 //! [RFC 5116]: https://www.rfc-editor.org/rfc/rfc5116
 //! [Signature]: https://en.wikipedia.org/wiki/Digital_signature
 
-#![forbid(unsafe_code)]
+mod ext;
 
-use postcard::experimental::max_size::MaxSize;
-use serde::{Deserialize, Serialize};
-
-use crate::{
-    aead::{Aead, AeadId, IndCca2},
-    hash::{Hash, HashId},
-    kdf::{Kdf, KdfId},
-    kem::{Kem, KemId},
-    mac::{Mac, MacId},
-    signer::{Signer, SignerId},
-    typenum::{U32, U64},
+use spideroak_crypto::{
+    hash,
+    hpke::{HpkeAead, HpkeKdf, HpkeKem},
+    mac,
+    oid::Identified,
+    signer,
+    typenum::U32,
 };
+
+pub(crate) use crate::ciphersuite::ext::CipherSuiteExt;
+pub use crate::ciphersuite::ext::Oids;
+
+/// A marker trait for AEADs.
+pub trait Aead: HpkeAead + Identified {}
+
+impl<A: HpkeAead + Identified> Aead for A {}
+
+/// A marker trait for cryptographic hash functions.
+pub trait Hash: hash::Hash + Identified {}
+
+impl<H: hash::Hash + Identified> Hash for H {}
+
+/// A marker trait for key derivation functions.
+pub trait Kdf: HpkeKdf + Identified {}
+
+impl<K: HpkeKdf + Identified> Kdf for K {}
+
+/// A marker trait for key encapsulation mechanisms.
+pub trait Kem: HpkeKem + Identified {}
+
+impl<K: HpkeKem + Identified> Kem for K {}
+
+/// A marker trait for messaged authentication codes.
+pub trait Mac: mac::Mac + Identified {}
+
+impl<M: mac::Mac + Identified> Mac for M {}
+
+/// A marker trait for digital signatures.
+pub trait Signer: signer::Signer + Identified {}
+
+impl<S: signer::Signer + Identified> Signer for S {}
 
 /// The cryptographic primitives used by the cryptography engine.
 ///
@@ -51,8 +80,12 @@ use crate::{
 /// Additionally, please test your implementation using the
 /// `test_util` module.
 pub trait CipherSuite {
+    /// OIDS contains the OIDs from the algorithms in the cipher
+    /// suite.
+    const OIDS: Oids<Self> = Oids::new();
+
     /// See [`Aead`] for more information.
-    type Aead: Aead + IndCca2;
+    type Aead: Aead;
     /// See [`Hash`] for more information.
     type Hash: Hash<DigestSize = U32>;
     /// See [`Kdf`] for more information.
@@ -60,68 +93,37 @@ pub trait CipherSuite {
     /// See [`Kem`] for more information.
     type Kem: Kem;
     /// See [`Mac`] for more information.
-    type Mac: Mac<KeySize = U64, TagSize = U64>;
+    type Mac: Mac;
     /// See [`Signer`] for more information.
     type Signer: Signer;
-}
-
-/// Identifies the algorithms used by a [`CipherSuite`].
-///
-/// Used for domain separation and contextual binding.
-#[derive(Copy, Clone, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
-pub(crate) struct SuiteIds {
-    pub aead: AeadId,
-    pub hash: HashId,
-    pub kdf: KdfId,
-    pub kem: KemId,
-    pub mac: MacId,
-    pub signer: SignerId,
-}
-
-impl SuiteIds {
-    #[allow(clippy::cast_possible_truncation)]
-    pub const fn into_bytes(self) -> [u8; 6 * 2] {
-        // TODO(eric): there is probably a better way of doing
-        // this, like with a macro or something.
-        [
-            self.aead.to_u16() as u8,
-            (self.aead.to_u16() >> 8) as u8,
-            self.hash.to_u16() as u8,
-            (self.hash.to_u16() >> 8) as u8,
-            self.kdf.to_u16() as u8,
-            (self.kdf.to_u16() >> 8) as u8,
-            self.kem.to_u16() as u8,
-            (self.kem.to_u16() >> 8) as u8,
-            self.mac.to_u16() as u8,
-            (self.mac.to_u16() >> 8) as u8,
-            self.signer.to_u16() as u8,
-            (self.signer.to_u16() >> 8) as u8,
-        ]
-    }
-
-    pub const fn from_suite<S: CipherSuite>() -> Self {
-        Self {
-            aead: S::Aead::ID,
-            hash: S::Hash::ID,
-            kdf: S::Kdf::ID,
-            kem: S::Kem::ID,
-            mac: S::Mac::ID,
-            signer: S::Signer::ID,
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     #[cfg(feature = "bearssl")]
     mod bearssl {
+        use spideroak_crypto::oid::consts::{DHKEM_P256_HKDF_SHA256, DHKEM_P521_HKDF_SHA512};
+
         use crate::{
             bearssl::{
-                Aes256Gcm, DhKemP256HkdfSha256, DhKemP521HkdfSha512, HkdfSha256, HkdfSha384,
-                HkdfSha512, HmacSha512, Sha256, P256, P384, P521,
+                self, Aes256Gcm, HkdfSha256, HkdfSha384, HkdfSha512, HmacSha512, Sha256, P256,
+                P384, P521,
             },
+            kem_with_oid,
             test_util::{test_ciphersuite, TestCs},
         };
+
+        kem_with_oid! {
+            /// DHKEM(P256, HKDF-SHA256).
+            #[derive(Debug)]
+            struct DhKemP256HkdfSha256(bearssl::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
+        }
+
+        kem_with_oid! {
+            /// DHKEM(P521, HKDF-SHA512).
+            #[derive(Debug)]
+            struct DhKemP521HkdfSha512(bearssl::DhKemP521HkdfSha512) => DHKEM_P521_HKDF_SHA512
+        }
 
         test_ciphersuite!(p256, TestCs<
             Aes256Gcm,
@@ -150,13 +152,21 @@ mod tests {
     }
 
     mod rust {
+        use spideroak_crypto::{
+            oid::consts::DHKEM_P256_HKDF_SHA256,
+            rust::{self, Aes256Gcm, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256, P384},
+        };
+
         use crate::{
-            rust::{
-                Aes256Gcm, DhKemP256HkdfSha256, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256,
-                P384,
-            },
+            kem_with_oid,
             test_util::{test_ciphersuite, TestCs},
         };
+
+        kem_with_oid! {
+            /// DHKEM(P256, HKDF-SHA256).
+            #[derive(Debug)]
+            struct DhKemP256HkdfSha256(rust::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
+        }
 
         test_ciphersuite!(p256, TestCs<
             Aes256Gcm,

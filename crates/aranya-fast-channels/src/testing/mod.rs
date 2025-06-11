@@ -19,9 +19,8 @@ pub mod util;
 use std::collections::HashMap;
 
 use aranya_crypto::{
-    aead::IndCca2,
     typenum::{Unsigned, U1},
-    Engine, Rng,
+    Aead, Engine, Rng,
 };
 
 use crate::{
@@ -122,7 +121,7 @@ const fn overhead<S: AfcState>(_: &Client<S>) -> usize {
 
 /// Basic positive test for [`Client::seal`] and
 /// [`Client::open`].
-pub fn test_seal_open_basic<T: TestImpl, A: IndCca2>() {
+pub fn test_seal_open_basic<T: TestImpl, A: Aead>() {
     let labels = [Label::new(0), Label::new(42)];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_seal_open_basic", labels.len(), eng);
@@ -153,7 +152,7 @@ pub fn test_seal_open_basic<T: TestImpl, A: IndCca2>() {
 
 /// Basic positive test for [`Client::seal_in_place`] and
 /// [`Client::open_in_place`].
-pub fn test_seal_open_in_place_basic<T: TestImpl, A: IndCca2>() {
+pub fn test_seal_open_in_place_basic<T: TestImpl, A: Aead>() {
     let labels = [Label::new(0), Label::new(42)];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_seal_open_in_place_basic", labels.len(), eng);
@@ -185,7 +184,7 @@ pub fn test_seal_open_in_place_basic<T: TestImpl, A: IndCca2>() {
 
 /// Similar to [`test_seal_open_basic`], but with multiple
 /// clients.
-pub fn test_multi_client<T: TestImpl, A: IndCca2>() {
+pub fn test_multi_client<T: TestImpl, A: Aead>() {
     let max_nodes = if cfg!(any(
         target_arch = "aarch64",
         target_arch = "x86",
@@ -267,7 +266,7 @@ pub fn test_multi_client<T: TestImpl, A: IndCca2>() {
 }
 
 /// Basic positive test for removing a channel.
-pub fn test_remove<T: TestImpl, A: IndCca2>() {
+pub fn test_remove<T: TestImpl, A: Aead>() {
     let labels = [Label::new(0), Label::new(42)];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_remove", 2 * labels.len(), eng);
@@ -316,7 +315,7 @@ pub fn test_remove<T: TestImpl, A: IndCca2>() {
 }
 
 /// Basic positive test for removing all channels.
-pub fn test_remove_all<T: TestImpl, A: IndCca2>() {
+pub fn test_remove_all<T: TestImpl, A: Aead>() {
     let labels = [Label::new(0), Label::new(42)];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_remove_all", 2 * labels.len(), eng);
@@ -370,7 +369,7 @@ pub fn test_remove_all<T: TestImpl, A: IndCca2>() {
 }
 
 /// Basic positive test for removing channels matching condition.
-pub fn test_remove_if<T: TestImpl, A: IndCca2>() {
+pub fn test_remove_if<T: TestImpl, A: Aead>() {
     let labels = [Label::new(0), Label::new(42)];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_remove_if", 2 * labels.len(), eng);
@@ -432,7 +431,7 @@ pub fn test_remove_if<T: TestImpl, A: IndCca2>() {
 }
 
 /// Test removing channels when there are no channels to remove.
-pub fn test_remove_no_channels<T: TestImpl, A: IndCca2>() {
+pub fn test_remove_no_channels<T: TestImpl, A: Aead>() {
     let labels = [Label::new(0), Label::new(42)];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_remove_no_channels", 2 * labels.len(), eng);
@@ -492,7 +491,7 @@ pub fn test_remove_no_channels<T: TestImpl, A: IndCca2>() {
 }
 
 /// Basic positive test for checking if expected channels exist.
-pub fn test_channels_exist<T: TestImpl, A: IndCca2>() {
+pub fn test_channels_exist<T: TestImpl, A: Aead>() {
     let labels = [Label::new(0), Label::new(42)];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_channels_exist", 2 * labels.len(), eng);
@@ -547,7 +546,7 @@ pub fn test_channels_exist<T: TestImpl, A: IndCca2>() {
 
 /// Basic negative test for checking that channels that were not
 /// created do not exist.
-pub fn test_channels_not_exist<T: TestImpl, A: IndCca2>() {
+pub fn test_channels_not_exist<T: TestImpl, A: Aead>() {
     let labels = [Label::new(0), Label::new(42)];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_channels_not_exist", 2 * labels.len(), eng);
@@ -602,7 +601,7 @@ pub fn test_channels_not_exist<T: TestImpl, A: IndCca2>() {
 
 /// A test for issue #112, where [`Client`] would fail if the
 /// output buffer was not exactly the right size.
-pub fn test_issue112<T: TestImpl, A: IndCca2>() {
+pub fn test_issue112<T: TestImpl, A: Aead>() {
     const LABEL: Label = Label::new(0);
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, TestEngine<A>>::new("test_issue_112", 1, eng);
@@ -637,7 +636,7 @@ pub fn test_issue112<T: TestImpl, A: IndCca2>() {
 pub fn test_client_send<T, A>()
 where
     T: TestImpl,
-    A: IndCca2,
+    A: Aead,
     <T as TestImpl>::Afc<<TestEngine<A> as Engine>::CS>: Send,
     <T as TestImpl>::Aranya<<TestEngine<A> as Engine>::CS>: Send,
     <T as TestImpl>::Rng: Send,
@@ -651,7 +650,7 @@ where
 }
 
 /// A basic positive test for unidirectional channels.
-pub fn test_unidirectional_basic<T: TestImpl, A: IndCca2>() {
+pub fn test_unidirectional_basic<T: TestImpl, A: Aead>() {
     fn test<S: AfcState>(c1: &mut (Client<S>, NodeId), c2: &(Client<S>, NodeId), label: Label) {
         let (c1, id1) = c1;
         let (c2, id2) = c2;
@@ -712,7 +711,7 @@ pub fn test_unidirectional_basic<T: TestImpl, A: IndCca2>() {
 }
 
 /// A positive and negative test for unidirectional channels.
-pub fn test_unidirectional_exhaustive<T: TestImpl, A: IndCca2>() {
+pub fn test_unidirectional_exhaustive<T: TestImpl, A: Aead>() {
     fn fail<S: AfcState>(c1: &mut (Client<S>, NodeId), c2: &(Client<S>, NodeId), label: Label) {
         let (c1, id1) = c1;
         let (_, id2) = c2;
@@ -863,7 +862,7 @@ pub fn test_unidirectional_exhaustive<T: TestImpl, A: IndCca2>() {
 }
 
 /// A positive test for when keys expire.
-pub fn test_key_expiry<T: TestImpl, A: IndCca2>() {
+pub fn test_key_expiry<T: TestImpl, A: Aead>() {
     type N = U1;
     let labels = [Label::new(0)];
     let (eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);
@@ -920,7 +919,7 @@ pub fn test_key_expiry<T: TestImpl, A: IndCca2>() {
 
 /// Basic negative test for [`Client::open`] when the tag is
 /// truncated.
-pub fn test_open_truncated_tag<T: TestImpl, A: IndCca2>() {
+pub fn test_open_truncated_tag<T: TestImpl, A: Aead>() {
     let labels = [1u32.into(), 2u32.into()];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_open_truncated_tag", labels.len(), eng);
@@ -949,7 +948,7 @@ pub fn test_open_truncated_tag<T: TestImpl, A: IndCca2>() {
 
 /// Basic negative test for [`Client::open`] when the tag has
 /// been modified.
-pub fn test_open_modified_tag<T: TestImpl, A: IndCca2>() {
+pub fn test_open_modified_tag<T: TestImpl, A: Aead>() {
     let labels = [1u32.into(), 2u32.into()];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_open_modified_tag", labels.len(), eng);
@@ -977,7 +976,7 @@ pub fn test_open_modified_tag<T: TestImpl, A: IndCca2>() {
 
 /// Basic negative test for [`Client::open`] when the label
 /// differs.
-pub fn test_open_different_label<T: TestImpl, A: IndCca2>() {
+pub fn test_open_different_label<T: TestImpl, A: Aead>() {
     let labels = [1u32.into(), 2u32.into()];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_open_different_label", labels.len(), eng);
@@ -1008,7 +1007,7 @@ pub fn test_open_different_label<T: TestImpl, A: IndCca2>() {
 
 /// Basic negative test for [`Client::open`] when the sequence
 /// number differs.
-pub fn test_open_different_seq<T: TestImpl, A: IndCca2>() {
+pub fn test_open_different_seq<T: TestImpl, A: Aead>() {
     let labels = [1u32.into(), 2u32.into()];
     let (eng, _) = TestEngine::<A>::from_entropy(Rng);
     let mut d = Aranya::<T, _>::new("test_open_different_seq", labels.len(), eng);
@@ -1044,7 +1043,7 @@ pub fn test_open_different_seq<T: TestImpl, A: IndCca2>() {
 
 /// Basic negative test for [`Client::seal`] when the channel
 /// does not exist because the label is incorrect.
-pub fn test_seal_unknown_channel_label<T: TestImpl, A: IndCca2>() {
+pub fn test_seal_unknown_channel_label<T: TestImpl, A: Aead>() {
     let labels = [
         Label::new(1),
         Label::new(2),
@@ -1099,7 +1098,7 @@ pub fn test_seal_unknown_channel_label<T: TestImpl, A: IndCca2>() {
 /// Tests that the sequence number increases by one each time.
 // NB: This is essentially the same thing as `test_key_expiry`,
 // but explicit.
-pub fn test_monotonic_seq_by_one<T: TestImpl, A: IndCca2>() {
+pub fn test_monotonic_seq_by_one<T: TestImpl, A: Aead>() {
     type N = U1;
     let labels = [Label::new(0)];
     let (eng, _) = TestEngine::<LimitedAead<A, N>>::from_entropy(Rng);

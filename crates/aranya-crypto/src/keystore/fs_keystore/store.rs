@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use core::{any::Any, marker::PhantomData, ops::Deref};
+use core::{any::Any, ffi::CStr, marker::PhantomData, ops::Deref};
 
 use buggy::BugExt;
 use cfg_if::cfg_if;
@@ -165,10 +165,10 @@ impl KeyStore for Store {
 struct Alias(String32);
 
 impl Deref for Alias {
-    type Target = str;
+    type Target = CStr;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.0.as_cstr()
     }
 }
 
