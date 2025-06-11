@@ -1,7 +1,7 @@
 use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref, str::FromStr};
 
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
 
 use crate::{Identifier, Text};
 

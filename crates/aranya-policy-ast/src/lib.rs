@@ -8,13 +8,7 @@
 extern crate alloc;
 
 mod ast;
-mod text;
 mod util;
 
+pub use aranya_policy_text::*;
 pub use ast::*;
-pub use text::*;
-
-#[doc(hidden)]
-pub mod __hidden {
-    pub use aranya_text_macro::{validate_identifier, validate_text};
-}

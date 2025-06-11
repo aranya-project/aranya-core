@@ -1,5 +1,5 @@
 [package]
-name = "aranya-text-macro"
+name = "aranya-policy-text-macro"
 description = "Proc macros for constructing text and identifiers"
 version = "0.1.0"
 authors.workspace = true

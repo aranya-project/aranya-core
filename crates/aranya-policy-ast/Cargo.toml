@@ -17,22 +17,23 @@ workspace = true
 default = []
 
 # Enable `std`.
-std = ["proptest?/std", "thiserror/std"]
+std = [
+	"aranya-policy-text/std",
+	"serde/std",
+	"thiserror/std",
+]
 
-proptest = ["dep:proptest"]
+proptest = [
+	"aranya-policy-text/proptest",
+]
+
 
 [dependencies]
-aranya-text-macro = { path = "../aranya-text-macro" }
+aranya-policy-text = { path = "../aranya-policy-text", default-features = false }
 
-serde = { workspace = true, default-features = false, features = ["derive", "alloc", "rc"] }
-thiserror = { workspace = true }
-
-# TODO(jdygert): remove dependency on std (text regex)
-proptest = { workspace = true, default-features = false, features = ["alloc", "std"], optional = true }
-
-
-[dev-dependencies]
-proptest = { workspace = true, features = ["std"] }
+serde = { workspace = true, default-features = false, features = ["alloc"] }
+serde_derive = { workspace = true }
+thiserror = { workspace = true, default-features = false }
 
 
 [package.metadata.docs.rs]
