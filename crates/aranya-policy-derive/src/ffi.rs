@@ -35,7 +35,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
 
     let mut funcs = Vec::<Func>::new();
     for item in &mut item.items {
-        let ImplItem::Fn(ref mut f) = item else {
+        let ImplItem::Fn(f) = item else {
             continue;
         };
         if let Some(f) = Func::from_ast(f)? {

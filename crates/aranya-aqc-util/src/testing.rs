@@ -19,11 +19,10 @@ use core::{
 use aranya_crypto::{
     self,
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
-    csprng::Random,
     engine::WrappedKey,
     keystore::{memstore, Entry, Occupied, Vacant},
     CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, Rng,
+    IdentityKey, KeyStore, Random, Rng,
 };
 use aranya_policy_vm::{ActionContext, CommandContext};
 use spin::Mutex;

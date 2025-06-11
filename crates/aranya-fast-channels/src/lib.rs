@@ -64,7 +64,7 @@
 //!     IdentityKey,
 //!     Random,
 //!     Rng,
-//!     rust::HkdfSha256,
+//!     dangerous::spideroak_crypto::rust::HkdfSha256,
 //!     default::{DefaultCipherSuite, DefaultEngine},
 //! };
 //!

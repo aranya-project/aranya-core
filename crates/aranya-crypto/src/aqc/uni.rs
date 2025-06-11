@@ -1,6 +1,14 @@
 use core::fmt;
 
 use serde::{Deserialize, Serialize};
+use spideroak_crypto::{
+    csprng::Random,
+    hash::{Digest, Hash},
+    hpke::{Hpke, Mode},
+    import::ImportError,
+    kem::Kem,
+    subtle::{Choice, ConstantTimeEq},
+};
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
@@ -9,18 +17,12 @@ use crate::{
         suite::CipherSuiteId,
     },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::SuiteIds,
-    csprng::Random,
+    ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
-    hash::{tuple_hash, Digest, Hash},
-    hpke::{Hpke, Mode},
     id::{custom_id, Id},
-    import::ImportError,
-    kem::Kem,
     misc::sk_misc,
-    subtle::{Choice, ConstantTimeEq},
-    CipherSuite, Engine,
+    Engine,
 };
 
 /// Contextual information for a unidirectional AQC channel.
@@ -52,11 +54,9 @@ use crate::{
 ///     Engine,
 ///     Id,
 ///     IdentityKey,
-///     import::Import,
-///     keys::SecretKey,
 ///     EncryptionKey,
 ///     Rng,
-///     subtle::ConstantTimeEq,
+///     subtle::ConstantTimeEq as _,
 /// };
 ///
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
@@ -142,15 +142,16 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         //     open_id,
         //     label_id,
         // )
-        tuple_hash::<CS::Hash, _>([
-            "AqcUniPsk".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            &self.psk_length_in_bytes.to_be_bytes(),
-            self.parent_cmd_id.as_bytes(),
-            self.seal_id.as_bytes(),
-            self.open_id.as_bytes(),
-            self.label.as_bytes(),
-        ])
+        CS::tuple_hash(
+            b"AqcUniPsk",
+            [
+                &self.psk_length_in_bytes.to_be_bytes(),
+                self.parent_cmd_id.as_bytes(),
+                self.seal_id.as_bytes(),
+                self.open_id.as_bytes(),
+                self.label.as_bytes(),
+            ],
+        )
     }
 }
 

@@ -2,6 +2,9 @@
 //!
 //! [AQC]: https://github.com/aranya-project/aranya-docs/tree/2-quic-channels
 
+#![cfg(feature = "aqc")]
+#![cfg_attr(docsrs, doc(cfg(feature = "aqc")))]
+
 mod bidi;
 mod shared;
 mod suite;

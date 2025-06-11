@@ -86,14 +86,14 @@ try_find = []
 
 
 [dependencies]
-aranya-crypto = { version = "0.6.1", path = "../aranya-crypto", default-features = false, features = ["getrandom"] }
+aranya-crypto = { version = "0.6.1", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
 buggy = { version = "0.1.0", default-features = false }
 
 byteorder = { version = "1", default-features = false }
 cfg-if = { workspace = true }
 const_format = { version = "0.2.31", features = ["assertcp"] }
 errno = { workspace = true, default-features = false }
-heapless = { version = "0.7", default-features = false }
+heapless = { workspace = true, default-features = false }
 # Only enabled by the `testing` feature which already enables
 # `std`.
 hex = { version = "0.4", default-features = false, features = ["std"], optional = true }

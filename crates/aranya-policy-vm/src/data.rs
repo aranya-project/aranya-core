@@ -60,7 +60,7 @@ impl<'a> CommandContext<'a> {
     /// This method will fail if it's not called on an [`CommandContext::Action`]
     pub fn with_new_head(&self, new_head_id: Id) -> Result<CommandContext<'a>, Bug> {
         match &self {
-            Self::Action(ref ctx) => Ok(Self::Action(ActionContext {
+            Self::Action(ctx) => Ok(Self::Action(ActionContext {
                 name: ctx.name,
                 head_id: new_head_id,
             })),
@@ -71,11 +71,7 @@ impl<'a> CommandContext<'a> {
     /// Try to create a new [`CommandContext::Seal`] with the same `head_id` as the current context.
     /// This method will fail if it's not called on an [`CommandContext::Action`]
     pub fn seal_from_action(&self, command_name: &'a str) -> Result<CommandContext<'a>, Bug> {
-        if let CommandContext::Action(ActionContext {
-            name: _,
-            ref head_id,
-        }) = self
-        {
+        if let CommandContext::Action(ActionContext { name: _, head_id }) = self {
             Ok(CommandContext::Seal(SealContext {
                 name: command_name,
                 head_id: *head_id,

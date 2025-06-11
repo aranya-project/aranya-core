@@ -17,6 +17,13 @@ skip_rust_env_info = true
 description = "List tasks"
 script = "cargo make --quiet --list-all-steps --hide-uninteresting"
 
+# Check
+[tasks.check]
+category = "check"
+description = "Check code"
+command = "cargo"
+args = ["check", "${@}"]
+
 
 # Build
 [tasks.build-code]

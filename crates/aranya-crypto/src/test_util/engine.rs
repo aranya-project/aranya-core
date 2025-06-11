@@ -5,9 +5,15 @@ extern crate alloc;
 use alloc::vec;
 use core::ops::Add;
 
+use spideroak_crypto::{
+    aead::{Aead, OpenError},
+    csprng::Random,
+    generic_array::ArrayLength,
+    typenum::{Sum, U64},
+};
+
 use super::{assert_ct_eq, assert_ct_ne};
 use crate::{
-    aead::{Aead, OpenError},
     afc,
     apq::{
         EncryptedTopicKey, ReceiverSecretKey, Sender, SenderSecretKey, SenderSigningKey, Topic,
@@ -15,14 +21,12 @@ use crate::{
     },
     aqc,
     aranya::{DeviceId, Encap, EncryptionKey, IdentityKey, SigningKey as DeviceSigningKey},
-    csprng::Random,
+    ciphersuite::CipherSuite,
     engine::Engine,
     error::Error,
-    generic_array::ArrayLength,
     groupkey::{Context, EncryptedGroupKey, GroupKey},
     id::Id,
-    typenum::{Sum, U64},
-    CipherSuite,
+    util::cbor,
 };
 
 /// Invokes `callback` for each Engine test.
@@ -254,13 +258,13 @@ pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
 /// Simple positive test for wrapping [`GroupKey`]s.
 pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
     let want = GroupKey::new(eng);
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `GroupKey`"),
     )
     .expect("should be able to encode wrapped `GroupKey`");
     let wrapped =
-        postcard::from_bytes(&bytes).expect("should be able to decode encoded wrapped `GroupKey`");
+        cbor::from_bytes(&bytes).expect("should be able to decode encoded wrapped `GroupKey`");
     let got: GroupKey<E::CS> = eng
         .unwrap(&wrapped)
         .expect("should be able to unwrap `GroupKey`");
@@ -270,13 +274,13 @@ pub fn test_simple_wrap_group_key<E: Engine>(eng: &mut E) {
 /// Simple positive test for wrapping [`IdentityKey`]s.
 pub fn test_simple_wrap_device_identity_key<E: Engine>(eng: &mut E) {
     let want = IdentityKey::new(eng);
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `IdentityKey`"),
     )
     .expect("should be able to encode wrapped `IdentityKey`");
-    let wrapped = postcard::from_bytes(&bytes)
-        .expect("should be able to decode encoded wrapped `IdentityKey`");
+    let wrapped =
+        cbor::from_bytes(&bytes).expect("should be able to decode encoded wrapped `IdentityKey`");
     let got: IdentityKey<E::CS> = eng
         .unwrap(&wrapped)
         .expect("should be able to unwrap `IdentityKey`");
@@ -290,9 +294,8 @@ pub fn test_simple_export_device_identity_key<E: Engine>(eng: &mut E) {
         .public()
         .expect("identity key should be valid");
     let bytes =
-        postcard::to_allocvec(&want).expect("should be able to encode an `IdentityVerifyingKey`");
-    let got =
-        postcard::from_bytes(&bytes).expect("should be able to decode an `IdentityVerifyingKey`");
+        cbor::to_allocvec(&want).expect("should be able to encode an `IdentityVerifyingKey`");
+    let got = cbor::from_bytes(&bytes).expect("should be able to decode an `IdentityVerifyingKey`");
     assert_eq!(want, got);
 }
 
@@ -335,12 +338,12 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
 /// Simple positive test for wrapping [`DeviceSigningKey`]s.
 pub fn test_simple_wrap_device_signing_key<E: Engine>(eng: &mut E) {
     let want = DeviceSigningKey::new(eng);
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `DeviceSigningKey`"),
     )
     .expect("should be able to encode wrapped `DeviceSigningKey`");
-    let wrapped = postcard::from_bytes(&bytes)
+    let wrapped = cbor::from_bytes(&bytes)
         .expect("should be able to decode encoded wrapped `DeviceSigningKey`");
     let got: DeviceSigningKey<E::CS> = eng
         .unwrap(&wrapped)
@@ -354,21 +357,21 @@ pub fn test_simple_export_device_signing_key<E: Engine>(eng: &mut E) {
     let want = DeviceSigningKey::<E::CS>::new(eng)
         .public()
         .expect("device signing key should be valid");
-    let bytes = postcard::to_allocvec(&want).expect("should be able to encode an `VerifyingKey`");
-    let got = postcard::from_bytes(&bytes).expect("should be able to decode an `VerifyingKey`");
+    let bytes = cbor::to_allocvec(&want).expect("should be able to encode an `VerifyingKey`");
+    let got = cbor::from_bytes(&bytes).expect("should be able to decode an `VerifyingKey`");
     assert_eq!(want, got);
 }
 
 /// Simple positive test for wrapping [`EncryptionKey`]s.
 pub fn test_simple_wrap_device_encryption_key<E: Engine>(eng: &mut E) {
     let want = EncryptionKey::new(eng);
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `EncryptionKey`"),
     )
     .expect("should be able to encode wrapped `EncryptionKey`");
-    let wrapped = postcard::from_bytes(&bytes)
-        .expect("should be able to decode encoded wrapped `EncryptionKey`");
+    let wrapped =
+        cbor::from_bytes(&bytes).expect("should be able to decode encoded wrapped `EncryptionKey`");
     let got: EncryptionKey<E::CS> = eng
         .unwrap(&wrapped)
         .expect("should be able to unwrap `EncryptionKey`");
@@ -382,9 +385,8 @@ pub fn test_simple_export_device_encryption_key<E: Engine>(eng: &mut E) {
         .public()
         .expect("encryption public key should be valid");
     let bytes =
-        postcard::to_allocvec(&want).expect("should be able to encode an `EncryptionPublicKey`");
-    let got =
-        postcard::from_bytes(&bytes).expect("should be able to decode an `EncryptionPublicKey`");
+        cbor::to_allocvec(&want).expect("should be able to encode an `EncryptionPublicKey`");
+    let got = cbor::from_bytes(&bytes).expect("should be able to decode an `EncryptionPublicKey`");
     assert_eq!(want, got);
 }
 
@@ -591,8 +593,8 @@ where
         .seal_group_key(eng, &want, group)
         .expect("unable to encrypt `GroupKey`");
     let enc = Encap::<E::CS>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
-    let ciphertext: EncryptedGroupKey<E::CS> = postcard::from_bytes(
-        &postcard::to_allocvec(&ciphertext).expect("should be able to encode `EncryptedGroupKey`"),
+    let ciphertext: EncryptedGroupKey<E::CS> = cbor::from_bytes(
+        &cbor::to_allocvec(&ciphertext).expect("should be able to encode `EncryptedGroupKey`"),
     )
     .expect("should be able to decode `EncryptedGroupKey`");
     let got = enc_key
@@ -690,12 +692,12 @@ where
 /// Simple positive test for wrapping [`SenderSecretKey`]s.
 pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &mut E) {
     let want = SenderSecretKey::new(eng);
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `SenderSecretKey`"),
     )
     .expect("should be able to encode wrapped `SenderSecretKey`");
-    let wrapped = postcard::from_bytes(&bytes)
+    let wrapped = cbor::from_bytes(&bytes)
         .expect("should be able to decode encoded wrapped `SenderSecretKey`");
     let got: SenderSecretKey<E::CS> = eng
         .unwrap(&wrapped)
@@ -706,12 +708,12 @@ pub fn test_simple_wrap_device_sender_secret_key<E: Engine>(eng: &mut E) {
 /// Simple positive test for wrapping [`SenderSigningKey`]s.
 pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &mut E) {
     let want = SenderSigningKey::new(eng);
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `SenderSigningKey`"),
     )
     .expect("should be able to encode wrapped `SenderSigningKey`");
-    let wrapped = postcard::from_bytes(&bytes)
+    let wrapped = cbor::from_bytes(&bytes)
         .expect("should be able to decode encoded wrapped `SenderSigningKey`");
     let got: SenderSigningKey<E::CS> = eng
         .unwrap(&wrapped)
@@ -722,12 +724,12 @@ pub fn test_simple_wrap_device_sender_signing_key<E: Engine>(eng: &mut E) {
 /// Simple positive test for wrapping [`ReceiverSecretKey`]s.
 pub fn test_simple_wrap_device_receiver_secret_key<E: Engine>(eng: &mut E) {
     let want = ReceiverSecretKey::new(eng);
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `ReceiverSecretKey`"),
     )
     .expect("should be able to encode wrapped `ReceiverSecretKey`");
-    let wrapped = postcard::from_bytes(&bytes)
+    let wrapped = cbor::from_bytes(&bytes)
         .expect("should be able to decode encoded wrapped `ReceiverSecretKey`");
     let got: ReceiverSecretKey<E::CS> = eng
         .unwrap(&wrapped)
@@ -1471,12 +1473,12 @@ pub fn test_afc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
 
     let afc::BidiSecrets { author: want, .. } =
         afc::BidiSecrets::new(eng, &ch).expect("unable to create `afc::BidiSecrets`");
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `afc::BidiAuthorSecret`"),
     )
     .expect("should be able to encode wrapped `afc::BidiAuthorSecret`");
-    let wrapped = postcard::from_bytes(&bytes)
+    let wrapped = cbor::from_bytes(&bytes)
         .expect("should be able to decode encoded wrapped `afc::BidiAuthorSecret`");
     let got: afc::BidiAuthorSecret<E::CS> = eng
         .unwrap(&wrapped)
@@ -1865,12 +1867,12 @@ pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
 
     let afc::UniSecrets { author: want, .. } =
         afc::UniSecrets::new(eng, &ch).expect("unable to create `afc::UniSecrets`");
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `afc::UniAuthorSecret`"),
     )
     .expect("should be able to encode wrapped `afc::UniAuthorSecret`");
-    let wrapped = postcard::from_bytes(&bytes)
+    let wrapped = cbor::from_bytes(&bytes)
         .expect("should be able to decode encoded wrapped `afc::UniAuthorSecret`");
     let got: afc::UniAuthorSecret<E::CS> = eng
         .unwrap(&wrapped)
@@ -2368,12 +2370,12 @@ pub fn test_aqc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
 
     let aqc::BidiSecrets { author: want, .. } =
         aqc::BidiSecrets::new(eng, &ch).expect("unable to create `aqc::BidiSecrets`");
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `aqc::BidiAuthorSecret`"),
     )
     .expect("should be able to encode wrapped `aqc::BidiAuthorSecret`");
-    let wrapped = postcard::from_bytes(&bytes)
+    let wrapped = cbor::from_bytes(&bytes)
         .expect("should be able to decode encoded wrapped `aqc::BidiAuthorSecret`");
     let got: aqc::BidiAuthorSecret<E::CS> = eng
         .unwrap(&wrapped)
@@ -3013,12 +3015,12 @@ pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
 
     let aqc::UniSecrets { author: want, .. } =
         aqc::UniSecrets::new(eng, &ch).expect("unable to create `aqc::UniSecrets`");
-    let bytes = postcard::to_allocvec(
+    let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `aqc::UniAuthorSecret`"),
     )
     .expect("should be able to encode wrapped `aqc::UniAuthorSecret`");
-    let wrapped = postcard::from_bytes(&bytes)
+    let wrapped = cbor::from_bytes(&bytes)
         .expect("should be able to decode encoded wrapped `aqc::UniAuthorSecret`");
     let got: aqc::UniAuthorSecret<E::CS> = eng
         .unwrap(&wrapped)

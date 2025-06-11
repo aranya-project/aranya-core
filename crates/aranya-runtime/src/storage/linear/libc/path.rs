@@ -1,25 +1,19 @@
 //! Null-terminated path handling.
 
-#[cfg(any(test, feature = "std"))]
-extern crate std;
-
 use core::{fmt, ops::Deref};
 
 use aranya_crypto::id::{String32, ToBase58};
-pub use aranya_libc::{MissingNullByte, Path, PathBuf};
-use buggy::{Bug, BugExt};
+use aranya_libc::Path;
 
 use crate::GraphId;
 
 /// A [`Path`] created from a [`GraphId`].
 #[derive(Copy, Clone)]
-pub struct IdPath {
-    buf: [u8; String32::MAX_SIZE + 1],
-}
+pub struct IdPath(String32);
 
 impl IdPath {
     fn as_path(&self) -> &Path {
-        Path::new(&self.buf)
+        self.0.as_cstr().into()
     }
 }
 
@@ -39,28 +33,19 @@ impl Deref for IdPath {
 
 impl fmt::Display for IdPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(&**self, f)
+        self.0.fmt(f)
     }
 }
 
 impl fmt::Debug for IdPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&**self, f)
+        self.0.fmt(f)
     }
 }
 
 impl GraphId {
-    pub(super) fn to_path(self) -> Result<IdPath, Bug> {
-        let mut buf = [0u8; String32::MAX_SIZE + 1];
-        let b58 = self.to_base58();
-        let src = b58.as_bytes();
-        let dst = buf
-            .get_mut(..String32::MAX_SIZE)
-            .assume("`buf.len()` >= `String32::MAX_SIZE`")?
-            .get_mut(..src.len())
-            .assume("`buf.len()` >= `src.len()`")?;
-        dst.copy_from_slice(src);
-        Ok(IdPath { buf })
+    pub(super) fn to_path(self) -> IdPath {
+        IdPath(self.to_base58())
     }
 }
 
@@ -73,7 +58,7 @@ mod tests {
         let root = Path::new("/foo/bar");
         let id = GraphId::default();
 
-        let got = root.join(id.to_path().unwrap());
+        let got = root.join(id.to_path());
         let want = format!("/foo/bar/{id}");
 
         assert_eq!(got, want.as_str());

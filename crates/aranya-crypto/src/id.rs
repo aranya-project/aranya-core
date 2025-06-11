@@ -8,28 +8,25 @@ use core::{
     str::FromStr,
 };
 
-use postcard::experimental::max_size::MaxSize;
 #[cfg(feature = "proptest")]
 #[doc(hidden)]
 pub use proptest as __proptest;
 use serde::{
     de::{self, DeserializeOwned, SeqAccess, Visitor},
-    ser::SerializeTuple,
     Deserialize, Deserializer, Serialize, Serializer,
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
-use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
-
-use crate::{
-    ciphersuite::SuiteIds,
+use spideroak_crypto::{
     csprng::Csprng,
     generic_array::GenericArray,
-    hash::tuple_hash,
+    kdf::{Expand, Kdf, KdfError, Prk},
     signer::PkError,
     subtle::{Choice, ConstantTimeEq},
     typenum::U32,
-    CipherSuite,
 };
+use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
+
+use crate::ciphersuite::{CipherSuite, CipherSuiteExt};
 
 /// A unique cryptographic ID.
 #[repr(C)]
@@ -45,7 +42,7 @@ use crate::{
     IntoBytes,
     KnownLayout,
     Unaligned,
-    MaxSize,
+    FromBytes,
 )]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Id([u8; 32]);
@@ -54,14 +51,7 @@ impl Id {
     /// Derives an [`Id`] from the hash of some data.
     pub fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Id {
         // id = H("ID-v1" || suites || data || tag)
-        tuple_hash::<CS::Hash, _>([
-            "ID-v1".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            data,
-            tag,
-        ])
-        .into_array()
-        .into()
+        CS::tuple_hash(b"ID-v1", [data, tag]).into_array().into()
     }
 
     /// Same as [`Default`], but const.
@@ -151,6 +141,26 @@ impl FromStr for Id {
     }
 }
 
+impl Expand for Id {
+    type Size = U32;
+
+    fn expand<K>(prk: &Prk<K::PrkSize>, info: &[u8]) -> Result<Self, KdfError>
+    where
+        K: Kdf,
+    {
+        <[u8; 32]>::expand::<K>(prk, info).map(Self)
+    }
+
+    fn expand_multi<'a, K, I>(prk: &Prk<K::PrkSize>, info: I) -> Result<Self, KdfError>
+    where
+        K: Kdf,
+        I: IntoIterator<Item = &'a [u8]>,
+        I::IntoIter: Clone,
+    {
+        <[u8; 32]>::expand_multi::<K, I>(prk, info).map(Self)
+    }
+}
+
 impl Debug for Id {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Id({})", self.0.to_base58())
@@ -179,11 +189,7 @@ impl Serialize for Id {
         if serializer.is_human_readable() {
             serializer.serialize_str(&self.to_base58())
         } else {
-            let mut t = serializer.serialize_tuple(self.0.len())?;
-            for c in self.0 {
-                t.serialize_element(&c)?;
-            }
-            t.end()
+            serializer.serialize_bytes(self.as_bytes())
         }
     }
 }
@@ -219,6 +225,15 @@ impl<'de> Deserialize<'de> for Id {
                 write!(f, "an array of length {}", Id::default().0.len())
             }
 
+            fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let id = FromBytes::read_from_bytes(v)
+                    .map_err(|_| de::Error::invalid_length(v.len(), &self))?;
+                Ok(id)
+            }
+
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
             where
                 A: SeqAccess<'de>,
@@ -237,7 +252,7 @@ impl<'de> Deserialize<'de> for Id {
         if deserializer.is_human_readable() {
             deserializer.deserialize_str(Base58Visitor)
         } else {
-            deserializer.deserialize_tuple(Self::default().0.len(), IdVisitor)
+            deserializer.deserialize_bytes(IdVisitor)
         }
     }
 }
@@ -261,7 +276,6 @@ macro_rules! custom_id {
             PartialOrd,
             ::serde::Serialize,
             ::serde::Deserialize,
-            ::postcard::experimental::max_size::MaxSize,
         )]
         $(#[$meta])*
         $vis struct $name($crate::Id);
@@ -274,7 +288,7 @@ macro_rules! custom_id {
             }
 
             /// Creates a random ID.
-            pub fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+            pub fn random<R: $crate::Csprng>(rng: &mut R) -> Self {
                 Self($crate::Id::random(rng))
             }
 
@@ -433,7 +447,6 @@ pub trait Identified {
         + PartialOrd
         + Serialize
         + DeserializeOwned
-        + MaxSize
         + Into<Id>;
 
     /// Uniquely identifies the object.
@@ -443,7 +456,7 @@ pub trait Identified {
 /// An error that may occur when accessing an Id
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 #[error("{0}")]
-pub struct IdError(&'static str);
+pub struct IdError(pub(crate) &'static str);
 
 impl From<PkError> for IdError {
     fn from(err: PkError) -> Self {

@@ -1,8 +1,7 @@
 use core::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
-
-use crate::{
+use spideroak_crypto::{
     csprng::{Csprng, Random},
     hpke::{RecvCtx, SendCtx},
     import::{ExportError, Import, ImportError},
@@ -13,8 +12,9 @@ use crate::{
     subtle::{Choice, ConstantTimeEq},
     typenum::U32,
     zeroize::{Zeroize, ZeroizeOnDrop},
-    CipherSuite,
 };
+
+use crate::ciphersuite::CipherSuite;
 
 /// The root key material for a channel.
 pub(crate) struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
@@ -47,15 +47,11 @@ impl<CS: CipherSuite> ConstantTimeEq for RootChannelKey<CS> {
 
 impl<CS: CipherSuite> Random for RootChannelKey<CS> {
     fn random<R: Csprng>(rng: &mut R) -> Self {
-        Self(<<CS::Kem as Kem>::DecapKey as SecretKey>::new(rng))
+        Self(Random::random(rng))
     }
 }
 
 impl<CS: CipherSuite> SecretKey for RootChannelKey<CS> {
-    fn new<R: Csprng>(rng: &mut R) -> Self {
-        Random::random(rng)
-    }
-
     type Size = <<CS::Kem as Kem>::DecapKey as SecretKey>::Size;
 
     fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {

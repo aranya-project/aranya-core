@@ -19,7 +19,7 @@ impl CommandId {
     /// This is for testing only. It's not `#[cfg(test)]` because
     /// (unfortunately) some code already depends on it.
     pub fn hash_for_testing_only(data: &[u8]) -> Self {
-        use aranya_crypto::{hash::Hash, rust::Sha256};
+        use aranya_crypto::dangerous::spideroak_crypto::{hash::Hash, rust::Sha256};
         Sha256::hash(data).into_array().into()
     }
 
