@@ -34,6 +34,26 @@
     }
   },
   {
+    "AddExpectation": 1
+  },
+  {
+    "ActionSet": {
+      "client": 1,
+      "graph": 0,
+      "key": 0,
+      "value": 1,
+      "repeat": 1
+    }
+  },
+  {
+    "CompareGraphs": {
+      "clienta": 0,
+      "clientb": 1,
+      "graph": 0,
+      "equal": false
+    }
+  },
+  {
     "RemoveGraph": {
       "client": 1,
       "id": 0
