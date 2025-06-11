@@ -189,8 +189,8 @@ pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
 }
 
 /// See `unlinkat(2)`.
-pub fn unlinkat(fd: impl AsAtRoot, path: impl AsRef<Path>, oflag: c_int) -> Result<(), Errno> {
-    imp::unlinkat(fd.as_root(), path.as_ref(), oflag)
+pub fn unlinkat(fd: impl AsAtRoot, path: impl AsRef<Path>, flags: c_int) -> Result<(), Errno> {
+    imp::unlinkat(fd.as_root(), path.as_ref(), flags)
 }
 
 /// See `dup(2)`.

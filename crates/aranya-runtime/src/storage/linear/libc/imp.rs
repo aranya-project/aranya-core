@@ -129,7 +129,7 @@ impl IoManager for FileManager {
 
     fn remove(&mut self, id: GraphId) -> Result<(), StorageError> {
         let name = id.to_path();
-        libc::unlinkat(self.root(), name, O_RDWR | O_CLOEXEC)?;
+        libc::unlinkat(self.root(), name, 0)?;
 
         Ok(())
     }

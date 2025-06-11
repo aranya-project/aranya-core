@@ -91,11 +91,11 @@ pub fn fsync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
 }
 
 /// See `unlinkat(2)`.
-pub fn unlinkat(fd: BorrowedFd<'_>, path: &Path, oflag: c_int) -> Result<(), Errno> {
+pub fn unlinkat(fd: BorrowedFd<'_>, path: &Path, flags: c_int) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = path.with_cstr(&|path| {
         // SAFETY: FFI call, no invariants.
-        unsafe { libc::unlinkat(fd.fd, path, oflag) }
+        unsafe { libc::unlinkat(fd.fd, path, flags) }
     });
     if ret < 0 {
         Err(errno())
