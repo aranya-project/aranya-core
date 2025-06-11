@@ -1,4 +1,4 @@
-use crate::{
+use spideroak_crypto::{
     csprng::{Csprng, Random},
     import::{ExportError, Import, ImportError},
     kem::{DecapKey, Kem},
@@ -6,8 +6,9 @@ use crate::{
     signer::PkError,
     subtle::{Choice, ConstantTimeEq},
     zeroize::ZeroizeOnDrop,
-    CipherSuite,
 };
+
+use crate::ciphersuite::CipherSuite;
 
 /// The root key material for a channel.
 pub(crate) struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
@@ -40,15 +41,11 @@ impl<CS: CipherSuite> ConstantTimeEq for RootChannelKey<CS> {
 
 impl<CS: CipherSuite> Random for RootChannelKey<CS> {
     fn random<R: Csprng>(rng: &mut R) -> Self {
-        Self(<<CS::Kem as Kem>::DecapKey as SecretKey>::new(rng))
+        Self(Random::random(rng))
     }
 }
 
 impl<CS: CipherSuite> SecretKey for RootChannelKey<CS> {
-    fn new<R: Csprng>(rng: &mut R) -> Self {
-        Random::random(rng)
-    }
-
     type Size = <<CS::Kem as Kem>::DecapKey as SecretKey>::Size;
 
     fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
@@ -72,9 +69,11 @@ macro_rules! raw_key {
         #[repr(C)]
         pub struct $name<CS: $crate::CipherSuite> {
             /// The key data.
-            pub key: $crate::aead::KeyData<CS::Aead>,
+            pub key: $crate::dangerous::spideroak_crypto::aead::KeyData<CS::Aead>,
             /// The base nonce.
-            pub base_nonce: $crate::aead::Nonce<<CS::Aead as $crate::aead::Aead>::NonceSize>,
+            pub base_nonce: $crate::dangerous::spideroak_crypto::aead::Nonce<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::NonceSize,
+            >,
         }
 
         impl<CS: $crate::CipherSuite> $crate::subtle::ConstantTimeEq for $name<CS> {
@@ -104,11 +103,13 @@ macro_rules! raw_key {
             }
         }
 
-        impl<CS: $crate::CipherSuite> $crate::csprng::Random for $name<CS> {
-            fn random<R: $crate::csprng::Csprng>(rng: &mut R) -> Self {
+        impl<CS: $crate::CipherSuite> $crate::dangerous::spideroak_crypto::csprng::Random
+            for $name<CS>
+        {
+            fn random<R: $crate::dangerous::spideroak_crypto::csprng::Csprng>(rng: &mut R) -> Self {
                 Self {
-                    key: $crate::csprng::Random::random(rng),
-                    base_nonce: $crate::csprng::Random::random(rng),
+                    key: $crate::dangerous::spideroak_crypto::csprng::Random::random(rng),
+                    base_nonce: $crate::dangerous::spideroak_crypto::csprng::Random::random(rng),
                 }
             }
         }

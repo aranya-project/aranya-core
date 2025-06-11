@@ -897,7 +897,7 @@ impl FfiFn {
         if no_mangle.is_none() {
             return Err(Error::new_spanned(
                 &f.sig,
-                format!("BUG: FFI fn must be `#[no_mangle]`: `{name}`"),
+                format!("BUG: FFI fn must be `#[unsafe(no_mangle)]`: `{name}`"),
             ));
         }
         if !matches!(f.vis, Visibility::Public(_)) {
@@ -1372,14 +1372,14 @@ mod tests {
     fn test_parse_node_ffi_fn() {
         let span = Span::call_site();
         let got: Node = parse_quote! {
-            #[no_mangle]
+            #[unsafe(no_mangle)]
             pub unsafe extern "C" fn foo() {}
         };
         let want = Node::FfiFn(FfiFn {
             no_mangle: NoMangle(span),
             vis: Token![pub](span),
             attrs: vec![parse_quote! {
-                #[no_mangle],
+                #[unsafe(no_mangle)],
             }],
             sig: parse_quote! {
                 unsafe extern "C" fn foo()

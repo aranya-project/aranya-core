@@ -194,7 +194,7 @@ pub struct EnumDefinition {
     /// enum name
     pub identifier: String,
     /// list of possible values
-    pub values: Vec<String>,
+    pub variants: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

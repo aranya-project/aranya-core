@@ -1,11 +1,11 @@
 use core::borrow::Borrow;
 
+use spideroak_crypto::hash::{Digest, Hash};
+
 use crate::{
     aranya::{Signature, SigningKeyId},
-    ciphersuite::SuiteIds,
-    hash::{tuple_hash, Digest, Hash},
+    ciphersuite::{CipherSuite, CipherSuiteExt},
     id::{custom_id, Id},
-    CipherSuite,
 };
 
 custom_id! {
@@ -23,11 +23,10 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
     //     command,
     //     signature,
     // )
-    tuple_hash::<CS::Hash, _>([
-        "PolicyCommandId-v1".as_bytes(),
-        cmd.as_bytes(),
-        sig.raw_sig().borrow(),
-    ])
+    CS::tuple_hash(
+        b"PolicyCommandId-v1",
+        [cmd.as_bytes(), sig.raw_sig().borrow()],
+    )
     .into_array()
     .into()
 }
@@ -67,19 +66,20 @@ impl Cmd<'_> {
         //     parent_id,
         //     msg,
         // )
-        tuple_hash::<CS::Hash, _>([
-            // Domain separation.
-            "SignPolicyCommand-v1".as_bytes(),
-            // Bind the signature to the current cipher suite,
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            // and to the author's public key,
-            author.as_bytes(),
-            // and to the type of command being signed,
-            self.name.as_bytes(),
-            // and to the parent command,
-            self.parent_id.as_bytes(),
-            // and finally the command data itself.
-            self.data,
-        ])
+        //
+        // Bind the signature to the current cipher suite,
+        CS::tuple_hash(
+            b"SignPolicyCommand-v1",
+            [
+                // and to the author's public key,
+                author.as_bytes(),
+                // and to the type of command being signed,
+                self.name.as_bytes(),
+                // and to the parent command,
+                self.parent_id.as_bytes(),
+                // and finally the command data itself.
+                self.data,
+            ],
+        )
     }
 }
