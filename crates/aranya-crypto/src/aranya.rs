@@ -5,24 +5,24 @@
 use core::{borrow::Borrow, fmt, marker::PhantomData, result::Result};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use spideroak_crypto::{
+    aead::Tag,
+    csprng::{Csprng, Random},
+    hpke::{Hpke, Mode},
+    import::{Import, ImportError},
+    kem::{DecapKey, Kem},
+    keys::PublicKey,
+    signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+};
 
 use crate::{
-    aead::Tag,
-    ciphersuite::SuiteIds,
-    csprng::Csprng,
+    ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
-    hash::tuple_hash,
-    hpke::{Hpke, Mode},
     id::Id,
-    import::{Import, ImportError},
-    kem::{DecapKey, Kem},
-    keys::{PublicKey, SecretKey},
     misc::{key_misc, SigData},
     policy::{self, Cmd, CmdId},
-    signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
-    CipherSuite,
 };
 
 /// A signature created by a signing key.
@@ -38,7 +38,7 @@ impl<CS: CipherSuite> Signature<CS> {
     }
 
     /// Encodes itself as bytes.
-    pub fn to_bytes(&self) -> impl Borrow<[u8]> {
+    pub fn to_bytes(&self) -> impl Borrow<[u8]> + use<CS> {
         self.raw_sig()
     }
 
@@ -110,8 +110,7 @@ key_misc!(IdentityKey, IdentityVerifyingKey, DeviceId);
 impl<CS: CipherSuite> IdentityKey<CS> {
     /// Creates an `IdentityKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
-        IdentityKey(sk)
+        IdentityKey(Random::random(rng))
     }
 
     /// Creates a signature over `msg` bound to some `context`.
@@ -159,13 +158,7 @@ impl<CS: CipherSuite> IdentityKey<CS> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<CS::Hash, _>([
-            "IdentityKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            context,
-            msg,
-        ]);
+        let sum = CS::tuple_hash(b"IdentityKey", [self.id()?.as_bytes(), context, msg]);
         let sig = self.0.sign(&sum)?;
         Ok(Signature(sig))
     }
@@ -194,13 +187,7 @@ impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<CS::Hash, _>([
-            "IdentityKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            context,
-            msg,
-        ]);
+        let sum = CS::tuple_hash(b"IdentityKey", [self.id()?.as_bytes(), context, msg]);
         Ok(self.0.verify(&sum, &sig.0)?)
     }
 }
@@ -213,8 +200,7 @@ key_misc!(SigningKey, VerifyingKey, SigningKeyId);
 impl<CS: CipherSuite> SigningKey<CS> {
     /// Creates a `SigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
-        SigningKey(sk)
+        SigningKey(Random::random(rng))
     }
 
     /// Creates a signature over `msg` bound to some `context`.
@@ -262,13 +248,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<CS::Hash, _>([
-            "SigningKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            context,
-            msg,
-        ]);
+        let sum = CS::tuple_hash(b"SigningKey", [self.id()?.as_bytes(), context, msg]);
         let sig = self.0.sign(&sum)?;
         Ok(Signature(sig))
     }
@@ -361,13 +341,7 @@ impl<CS: CipherSuite> VerifyingKey<CS> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<CS::Hash, _>([
-            "SigningKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            context,
-            msg,
-        ]);
+        let sum = CS::tuple_hash(b"SigningKey", [self.id()?.as_bytes(), context, msg]);
         Ok(self.0.verify(&sum, &sig.0)?)
     }
 
@@ -389,8 +363,7 @@ key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 impl<CS: CipherSuite> EncryptionKey<CS> {
     /// Creates a devices's `EncryptionKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
-        EncryptionKey(sk)
+        EncryptionKey(Random::random(rng))
     }
 
     /// Decrypts and authenticates a [`GroupKey`] received from
@@ -409,14 +382,9 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         // info = H(
         //     "GroupKey",
         //     suite_id,
-        //     engine_id,
         //     group,
         // )
-        let info = tuple_hash::<CS::Hash, _>([
-            "GroupKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            group.as_bytes(),
-        ]);
+        let info = CS::tuple_hash(b"GroupKey", [group.as_bytes()]);
         let mut ctx =
             Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
         ctx.open_in_place(&mut ciphertext, &tag, &info)?;
@@ -447,14 +415,9 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
         // info = H(
         //     "GroupKey",
         //     suite_id,
-        //     engine_id,
         //     group,
         // )
-        let info = tuple_hash::<CS::Hash, _>([
-            "GroupKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            group.as_bytes(),
-        ]);
+        let info = CS::tuple_hash(b"GroupKey", [group.as_bytes()]);
         let (enc, mut ctx) =
             Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
         let mut ciphertext = (*key.raw_seed()).into();
@@ -480,6 +443,7 @@ impl<CS: CipherSuite> Encap<CS> {
         Ok(Self(enc))
     }
 
+    #[cfg(any(feature = "afc", feature = "aqc"))]
     pub(crate) fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
         &self.0
     }

@@ -12,7 +12,7 @@ default-members = [
 
 [workspace.package]
 authors = ["SpiderOak, Inc."]
-edition = "2021"
+edition = "2024"
 license = "AGPL-3.0-only"
 repository = "https://github.com/aranya-project/aranya-core"
 rust-version = "1.85.0"
@@ -52,7 +52,7 @@ rand = { version = "0.8", default-features = false }
 rand_core = { version = "0.6", default-features = false }
 rustix = { version = "0.38", default-features = false }
 serde = { version = "1.0.210", default-features = false }
-spin = { version = "0.9.8", default-features = false }
+spin = { version = "0.10", default-features = false }
 test-log = { version = "0.2", default-features = false, features = ["trace"] }
 thiserror = { version = "2", default-features = false }
 tokio = { version = "1.41.1", default-features = false, features = ["macros"] }
