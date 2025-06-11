@@ -35,7 +35,7 @@ const OM_CREATE: c_int = 0x10000000;
 const OM_EXCL: c_int = 0x20000000;
 
 // From the VxWorks Application API reference 6.9.
-extern "C" {
+unsafe extern "C" {
     fn sdOpen(
         name: *const c_char,
         options: c_int,
