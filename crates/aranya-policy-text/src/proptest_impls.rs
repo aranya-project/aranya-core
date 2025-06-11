@@ -10,7 +10,7 @@ impl Arbitrary for Text {
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
-        ("[^\0]+")
+        ("[^\0]*")
             .prop_map(|s| s.try_into().expect("regex produces valid text"))
             .boxed()
     }
