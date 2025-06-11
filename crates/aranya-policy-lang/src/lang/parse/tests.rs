@@ -9,7 +9,7 @@ use super::{
     ast, ast::AstNode, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError,
     PolicyParser, Rule, Version,
 };
-use crate::lang::{ChunkParser, ParseErrorKind};
+use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -267,14 +267,22 @@ fn parse_expression_errors() -> Result<(), ParseError> {
             ),
             rule: Rule::expression,
         },
+        ErrorInput {
+            description: String::from("Expect Invalid substruct operation"),
+            input: r#"x substruct 4"#.to_string(),
+            error_message: String::from(
+                "Invalid substruct operation: line 1 column 3: substruct: Expression `Int(4)` to the right of the substruct operator must be an identifier",
+            ),
+            rule: Rule::expression,
+        },
     ];
     let pratt = get_pratt_parser();
     let mut p = ChunkParser::new(0, &pratt);
     for case in cases {
         let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
         let expr = pairs.next().unwrap();
-        match p.parse_expression(expr) {
-            Ok(_) => panic!("{}", case.description),
+        match p.parse_expression(expr.clone()) {
+            Ok(parsed) => panic!("{}: {:?} - {expr:?}", case.description, parsed),
             Err(e) => assert_eq!(case.error_message, e.to_string(), "{}", case.description,),
         }
     }
@@ -1232,7 +1240,7 @@ fn parse_enum_definition() {
         vec![AstNode::new(
             ast::EnumDefinition {
                 identifier: String::from("Color"),
-                values: vec![
+                variants: vec![
                     String::from("Red"),
                     String::from("Green"),
                     String::from("Blue")
@@ -1283,7 +1291,7 @@ fn parse_ffi_decl() {
 }
 
 #[test]
-fn parse_ffi_structs() {
+fn parse_ffi_structs_enums() {
     let text = r#"
         struct A {
             x int,
@@ -1291,9 +1299,11 @@ fn parse_ffi_structs() {
         }
 
         struct B {}
+
+        enum Color { Red, White, Blue }
     "#
     .trim();
-    let structs = super::parse_ffi_structs(text).expect("parse");
+    let FfiTypes { structs, enums } = super::parse_ffi_structs_enums(text).expect("parse");
     assert_eq!(
         structs,
         vec![
@@ -1319,9 +1329,24 @@ fn parse_ffi_structs() {
                     fields: vec![],
                 },
                 locator: 68,
-            },
+            }
         ],
-    )
+    );
+
+    assert_eq!(
+        enums,
+        vec![AstNode {
+            inner: ast::EnumDefinition {
+                identifier: String::from("Color"),
+                variants: vec![
+                    String::from("Red"),
+                    String::from("White"),
+                    String::from("Blue")
+                ]
+            },
+            locator: 89
+        }]
+    );
 }
 
 #[test]
@@ -1639,6 +1664,16 @@ fn test_if_statement() -> anyhow::Result<()> {
 }
 
 #[test]
+fn if_expression() {
+    let text = r#"
+        action test() {
+            let b = if true { :1 } else { :0 }
+        }
+    "#;
+    parse_policy_str(text, Version::V2).expect("should parse");
+}
+
+#[test]
 fn test_action_call() -> anyhow::Result<()> {
     let text = r#"
     action ping() {}
@@ -1741,4 +1776,104 @@ fn test_block_expression() {
             locator: 28
         }]
     );
+}
+
+#[test]
+fn parse_match_expression() {
+    let src = r#"
+        action foo(n int) {
+            let x = match n {
+                0 => {
+                    let x = true
+                    : x
+                }
+                _ => false
+            }
+        }
+    "#;
+
+    let policy = parse_policy_str(src, Version::V2).expect("should parse");
+    assert_eq!(
+        policy.actions[0].statements,
+        vec![AstNode {
+            inner: ast::Statement::Let(ast::LetStatement {
+                identifier: "x".to_string(),
+                expression: Expression::Match(Box::new(ast::MatchExpression {
+                    scrutinee: Expression::Identifier("n".to_string()),
+                    arms: vec![
+                        AstNode::new(
+                            ast::MatchExpressionArm {
+                                pattern: MatchPattern::Values(vec![Expression::Int(0)]),
+                                expression: Expression::Block(
+                                    vec![AstNode::new(
+                                        ast::Statement::Let(ast::LetStatement {
+                                            identifier: "x".to_string(),
+                                            expression: Expression::Bool(true)
+                                        }),
+                                        102
+                                    )],
+                                    Box::new(Expression::Identifier("x".to_string()))
+                                )
+                            },
+                            75
+                        ),
+                        AstNode::new(
+                            ast::MatchExpressionArm {
+                                pattern: MatchPattern::Default,
+                                expression: Expression::Bool(false)
+                            },
+                            173
+                        )
+                    ]
+                }))
+            }),
+            locator: 41
+        }]
+    );
+}
+
+#[test]
+fn test_match_expression() {
+    let invalid = vec![
+        (
+            // block without subexpression (`:value`)
+            r#"action foo(status string) {
+                let x = match a {
+                    "ready" => {
+                        1
+                    }
+                    _ => {
+                        0
+                    }
+                }
+            }"#,
+            ParseErrorKind::Syntax,
+        ),
+        (
+            // expression not assigned
+            r#"function f(n int) bool {
+                match n {
+                    0 => {
+                        :true
+                    }
+                    1 => {
+                        : false
+                    }
+                }
+            }"#,
+            ParseErrorKind::Syntax,
+        ),
+        (
+            // empty match
+            r#"function f(n int) bool {
+                return match n {}
+            }"#,
+            ParseErrorKind::Syntax,
+        ),
+    ];
+
+    for (src, expected) in invalid {
+        let err_kind = parse_policy_str(src, Version::V2).unwrap_err().kind;
+        assert_eq!(err_kind, expected);
+    }
 }

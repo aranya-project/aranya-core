@@ -29,7 +29,7 @@ pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
-use aranya_crypto::{csprng::rand::Rng as _, Csprng, Rng};
+use aranya_crypto::{dangerous::spideroak_crypto::csprng::rand::Rng as _, Csprng, Rng};
 use buggy::{bug, Bug, BugExt};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
@@ -256,6 +256,12 @@ impl<FM: IoManager> StorageProvider for LinearStorageProvider<FM> {
             .open(graph)?
             .ok_or(StorageError::NoSuchStorage)?;
         Ok(entry.insert(LinearStorage::open(file)?))
+    }
+
+    fn list_graph_ids(
+        &mut self,
+    ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
+        self.manager.list()
     }
 }
 
@@ -1150,7 +1156,7 @@ mod test {
 
     #[test]
     fn test_query_prefix() {
-        let mut provider = LinearStorageProvider::new(Manager);
+        let mut provider = LinearStorageProvider::new(Manager::new());
         let mut fp = provider.new_perspective(PolicyId::new(0));
 
         let name = "x";
@@ -1204,7 +1210,7 @@ mod test {
         type StorageProvider = LinearStorageProvider<Manager>;
 
         fn provider(&mut self, _client_id: u64) -> Self::StorageProvider {
-            LinearStorageProvider::new(Manager)
+            LinearStorageProvider::new(Manager::new())
         }
     }
     test_suite!(|| LinearBackend);

@@ -109,7 +109,7 @@ command Move {
         let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
         // the if expression works like a ternary expression, where both
         // branches must be specified.
-        let nextp = if p == "X" { "O" } else { "X" }
+        let nextp = if p == "X" { :"O" } else { :"X" }
 
         // Checks are separated here, but they can be interleaved with let
         // statements.
@@ -140,15 +140,15 @@ command Move {
 }
 
 function game_over(gameID id, x int, y int, p string) bool {
-    let f00 = if x == 0 && y == 0 { Some(p) } else { query Field[gameID: gameID, x: 0, y: 0]=>{p: ?} }
-    let f10 = if x == 1 && y == 0 { Some(p) } else { query Field[gameID: gameID, x: 1, y: 0]=>{p: ?} }
-    let f20 = if x == 2 && y == 0 { Some(p) } else { query Field[gameID: gameID, x: 2, y: 0]=>{p: ?} }
-    let f01 = if x == 0 && y == 1 { Some(p) } else { query Field[gameID: gameID, x: 0, y: 1]=>{p: ?} }
-    let f11 = if x == 1 && y == 1 { Some(p) } else { query Field[gameID: gameID, x: 1, y: 1]=>{p: ?} }
-    let f21 = if x == 2 && y == 1 { Some(p) } else { query Field[gameID: gameID, x: 2, y: 1]=>{p: ?} }
-    let f02 = if x == 0 && y == 2 { Some(p) } else { query Field[gameID: gameID, x: 0, y: 2]=>{p: ?} }
-    let f12 = if x == 1 && y == 2 { Some(p) } else { query Field[gameID: gameID, x: 1, y: 2]=>{p: ?} }
-    let f22 = if x == 2 && y == 2 { Some(p) } else { query Field[gameID: gameID, x: 2, y: 2]=>{p: ?} }
+    let f00 = if x == 0 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 0]=>{p: ?} }
+    let f10 = if x == 1 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 0]=>{p: ?} }
+    let f20 = if x == 2 && y == 0 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 0]=>{p: ?} }
+    let f01 = if x == 0 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 1]=>{p: ?} }
+    let f11 = if x == 1 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 1]=>{p: ?} }
+    let f21 = if x == 2 && y == 1 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 1]=>{p: ?} }
+    let f02 = if x == 0 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 0, y: 2]=>{p: ?} }
+    let f12 = if x == 1 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 1, y: 2]=>{p: ?} }
+    let f22 = if x == 2 && y == 2 { :Some(p) } else { :query Field[gameID: gameID, x: 2, y: 2]=>{p: ?} }
     return (f00 is Some && f00 == f10 && f10 == f20) ||
            (f01 is Some && f01 == f11 && f11 == f21) ||
            (f01 is Some && f02 == f12 && f12 == f22) ||
@@ -170,7 +170,7 @@ command Move2 {
         let player = envelope::author_id(envelope)
         let players = unwrap query PlayerProfile[gameID: gameID]=>{x: ?, o: ?}
         let p = unwrap query NextPlayer[gameID: gameID]=>{p: ?}
-        let nextp = if p == "X" { "O" } else { "X" }
+        let nextp = if p == "X" { :"O" } else { :"X" }
 
         check !exists GameOver[gameID: gameID]=>{}
         check bounds(X)

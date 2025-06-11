@@ -81,6 +81,8 @@ unsafe impl<T: Typed> Input for Safe<T> {}
 // this.
 unsafe impl<T> Input for Option<T> {}
 
+unsafe impl<T: Input, const N: usize> Input for [T; N] {}
+
 /// A marker trait for FFI safe result types.
 ///
 /// # Safety
@@ -148,6 +150,8 @@ impl_trait! {
 unsafe impl<T: ByConstPtr> ByConstPtr for *const T {}
 unsafe impl<T: ByConstPtr> ByMutPtr for *const T {}
 
+unsafe impl<T: ByConstPtr, const N: usize> ByConstPtr for [T; N] {}
+
 // Wrapper types.
 unsafe impl<T: Typed> ByConstPtr for Safe<T> {}
 unsafe impl<T: ByConstPtr> ByConstPtr for ManuallyDrop<T> {}
@@ -174,6 +178,8 @@ impl_trait! {
 }
 
 unsafe impl<T: ByMutPtr> ByMutPtr for *mut T {}
+
+unsafe impl<T: ByMutPtr, const N: usize> ByMutPtr for [T; N] {}
 
 // Wrapper types.
 unsafe impl<T: Typed> ByMutPtr for Safe<T> {}

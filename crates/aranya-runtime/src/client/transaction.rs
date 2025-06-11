@@ -523,9 +523,9 @@ mod test {
             ids: MergeIds,
         ) -> Result<Self::Command<'a>, EngineError> {
             let (left, right): (Address, Address) = ids.into();
-            let mut buf = [0u8; 128];
-            buf[..64].copy_from_slice(left.id.as_bytes());
-            buf[64..].copy_from_slice(right.id.as_bytes());
+            let mut buf = [0u8; 64];
+            buf[..32].copy_from_slice(left.id.as_bytes());
+            buf[32..].copy_from_slice(right.id.as_bytes());
             let id = CommandId::hash_for_testing_only(&buf);
 
             Ok(SeqCommand::new(

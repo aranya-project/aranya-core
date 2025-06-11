@@ -202,7 +202,6 @@ impl Machine {
     }
 
     /// Converts the `Machine` into a `Module`.
-    /// NOTE this is not used
     pub fn into_module(self) -> Module {
         Module {
             data: ModuleData::V0(ModuleV0 {
@@ -716,6 +715,54 @@ where
                     .remove(&varname)
                     .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(varname)))?;
                 self.ipush(v)?;
+            }
+            Instruction::MStructSet(n) => {
+                let n: usize = n.into();
+                let mut field_name_value_pairs = Vec::with_capacity(n);
+
+                for _ in 0..n {
+                    let field_val = self.ipop_value()?;
+                    let field_name = self.ipop::<String>()?;
+
+                    field_name_value_pairs.push((field_name, field_val));
+                }
+
+                let mut target: Struct = self.ipop()?;
+                let struct_def_fields =
+                    self.machine.struct_defs.get(&target.name).ok_or_else(|| {
+                        self.err(MachineErrorType::InvalidSchema(target.name.clone()))
+                    })?;
+
+                for (field_name, field_val) in field_name_value_pairs {
+                    let Some(field_defn) = struct_def_fields
+                        .iter()
+                        .find(|f| f.identifier == field_name)
+                    else {
+                        return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
+                    };
+
+                    if !field_val.fits_type(&field_defn.field_type) {
+                        return Err(self.err(MachineErrorType::InvalidStructMember(field_name)));
+                    }
+
+                    target.fields.insert(field_name, field_val);
+                }
+                self.ipush(target)?;
+            }
+            Instruction::MStructGet(n) => {
+                let field_names = (0..n.into())
+                    .map(|_| self.ipop::<String>())
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut s: Struct = self.ipop()?;
+
+                for field_name in field_names {
+                    let v = s.fields.remove(&field_name).ok_or_else(|| {
+                        self.err(MachineErrorType::InvalidStructMember(field_name.clone()))
+                    })?;
+
+                    self.ipush(field_name)?;
+                    self.ipush(v)?;
+                }
             }
             Instruction::Publish => {
                 let command_struct: Struct = self.ipop()?;

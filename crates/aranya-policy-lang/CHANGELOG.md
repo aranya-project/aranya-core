@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.4.1...aranya-policy-lang-v0.4.2) - 2025-05-28
+
+### Other
+
+- update to Rust 1.85 (#248)
+
+## [0.4.1](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.4.0...aranya-policy-lang-v0.4.1) - 2025-05-15
+
+### Other
+
+- updated the following local packages: aranya-policy-ast
+
+## [0.4.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.3.0...aranya-policy-lang-v0.4.0) - 2025-04-21
+
+### Other
+
+- Add struct subselection ([#120](https://github.com/aranya-project/aranya-core/pull/120))
+
+## [0.3.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.2.0...aranya-policy-lang-v0.3.0) - 2025-04-10
+
+### Other
+
+- allow block expressions in `if` expressions. (#176)
+- Close [#110](https://github.com/aranya-project/aranya-core/pull/110): Add match expressions. ([#119](https://github.com/aranya-project/aranya-core/pull/119))
+
 ## [0.2.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-lang-v0.1.0...aranya-policy-lang-v0.2.0) - 2025-03-11
 
 ### Other

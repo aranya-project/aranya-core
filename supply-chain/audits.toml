@@ -1,6 +1,11 @@
 
 # cargo-vet audits file
 
+[[audits.elain]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+version = "0.3.1"
+
 [[audits.rcgen]]
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
@@ -15,6 +20,36 @@ delta = "2.2.6 -> 2.3.3"
 who = "Jonathan Dygert <jdygert@spideroak.com>"
 criteria = "safe-to-run"
 delta = "3.0.5 -> 3.0.7"
+
+[[audits.sha3-utils]]
+who = "Eric Lagergren <elagergren@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.0 -> 0.5.0"
+
+[[audits.spin]]
+who = "Eric Lagergren <elagergren@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.9.8 -> 0.10.0"
+
+[[audits.tokio]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "1.41.1 -> 1.44.2"
+
+[[audits.tokio-macros]]
+who = "Jonathan Dygert <jdygert@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "2.4.0 -> 2.5.0"
+
+[[audits.zerocopy]]
+who = "Eric Lagergren <elagergren@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.7.35 -> 0.8.25"
+
+[[audits.zerocopy-derive]]
+who = "Eric Lagergren <elagergren@spideroak.com>"
+criteria = "safe-to-deploy"
+delta = "0.7.35 -> 0.8.25"
 
 [[trusted.aranya-afc-util]]
 criteria = "safe-to-deploy"

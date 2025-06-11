@@ -5,7 +5,6 @@ use core::alloc::Allocator;
 use core::{
     fmt,
     ops::{Deref, DerefMut},
-    slice,
 };
 
 use aranya_crypto::zeroize::Zeroize;
@@ -138,6 +137,7 @@ impl<const N: usize> Buf for heapless::Vec<u8, N> {
     }
 
     fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError> {
+        #[allow(clippy::arithmetic_side_effects, reason = "len <= cap")]
         let avail = N - self.len();
         if avail < additional {
             Err(AllocError::new())
@@ -175,15 +175,6 @@ impl<'a> FixedBuf<'a> {
         } else {
             None
         }
-    }
-
-    /// Same as [`FixedBuf::from_slice_mut`], but from its parts.
-    ///
-    /// # Safety
-    ///
-    /// See [`slice::from_raw_parts_mut`].
-    pub unsafe fn from_raw_parts_mut(data: *mut u8, data_len: usize, len: usize) -> Option<Self> {
-        Self::from_slice_mut(slice::from_raw_parts_mut(data, data_len), len)
     }
 
     fn capacity(&self) -> usize {
@@ -235,6 +226,7 @@ impl Buf for FixedBuf<'_> {
     }
 
     fn try_reserve_exact(&mut self, additional: usize) -> Result<(), AllocError> {
+        #[allow(clippy::arithmetic_side_effects, reason = "len <= cap")]
         let avail = self.capacity() - self.len;
         if avail < additional {
             Err(AllocError::new())
@@ -245,8 +237,8 @@ impl Buf for FixedBuf<'_> {
 
     fn try_resize(&mut self, new_len: usize, value: u8) -> Result<(), AllocError> {
         let old_len = self.len;
-        if new_len > old_len {
-            Self::try_reserve_exact(self, new_len - old_len)?;
+        if let Some(diff) = new_len.checked_sub(old_len) {
+            Self::try_reserve_exact(self, diff)?;
             self.data
                 .get_mut(old_len..new_len)
                 .assume("should have enough capacity")?

@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.6.0...aranya-crypto-v0.6.1) - 2025-05-28
+
+### Other
+
+- update to Rust 1.85 (#248)
+
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.5.0...aranya-crypto-v0.6.0) - 2025-05-15
+
+### Other
+
+- pair PSKs with cipher suites ([#238](https://github.com/aranya-project/aranya-core/pull/238))
+- Switch to 32 byte IDs ([#220](https://github.com/aranya-project/aranya-core/pull/220))
+
+## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.4.0...aranya-crypto-v0.5.0) - 2025-04-10
+
+### Other
+
+- implement aranya-crypto support, FFI, handler (#184)
+
+## [0.4.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.3.0...aranya-crypto-v0.4.0) - 2025-03-19
+
+### Other
+
+- rename Aranya "user" to "device" ([#122](https://github.com/aranya-project/aranya-core/pull/122))
+
 ## [0.3.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.2.1...aranya-crypto-v0.3.0) - 2025-03-11
 
 ### Other

@@ -7,7 +7,7 @@ use std::{cell::RefCell, collections::BTreeMap, iter};
 
 use aranya_crypto::Id;
 use aranya_policy_ast::{self as ast, Version};
-use aranya_policy_compiler::{CompileErrorType, Compiler};
+use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactValue, KVPair, Machine, MachineError,
@@ -907,6 +907,59 @@ fn test_query_partial_key() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[test]
+fn test_query_enum_keys() -> anyhow::Result<()> {
+    let text = r#"
+        enum Foo { A, B }
+        fact Bar[i enum Foo] => {x enum Foo}
+
+        command Setup {
+            fields {}
+            seal { return None }
+            open { return None }
+            policy {
+                finish {
+                    create Bar[i: Foo::A] => {x: Foo::A}
+                    create Bar[i: Foo::B] => {x: Foo::B}
+                }
+            }
+        }
+
+        action test_query() {
+            let f = unwrap query Bar[i:Foo::A] => {x: ?}
+            check f.x == Foo::A
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let io = RefCell::new(TestIO::new());
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+
+    {
+        let cmd_name = "Setup";
+        let this_data = Struct {
+            name: String::from(cmd_name),
+            fields: [].into(),
+        };
+
+        let ctx = dummy_ctx_open(cmd_name);
+        let mut rs = machine.create_run_state(&io, ctx);
+        rs.call_command_policy(cmd_name, &this_data, dummy_envelope())?
+            .success();
+    }
+
+    {
+        let action_name = "test_query";
+        let ctx = dummy_ctx_open(action_name);
+        let mut rs = machine.create_run_state(&io, ctx);
+        rs.call_action(action_name, iter::empty::<Value>())?
+            .success();
+    }
+
+    Ok(())
+}
+
 // Language features
 
 #[test]
@@ -1198,6 +1251,45 @@ fn test_match_return() -> anyhow::Result<()> {
     let mut rs = machine.create_run_state(&io, ctx);
     rs.call_action("foo", [42])?.success();
 
+    Ok(())
+}
+
+#[test]
+fn test_match_expression() -> anyhow::Result<()> {
+    let text = r#"
+        command F {
+            fields { x int }
+            seal { return None }
+            open { return None }
+        }
+        action foo(x int) {
+            let y = match x {
+                0 => { :1 }
+                _ => { :0 }
+            }
+            publish F { x: y }
+        }
+    "#;
+    let policy = parse_policy_str(text, Version::V2)?;
+    let module = Compiler::new(&policy)
+        .ffi_modules(TestIO::FFI_SCHEMAS)
+        .compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let mut rs = machine.create_run_state(&io, dummy_ctx_action("foo"));
+
+    let expectations = vec![(0, 1), (1, 0), (2, 0)];
+    for (arg, expected) in expectations {
+        call_action(&mut rs, &io, "foo", [Value::Int(arg)])?.success();
+        assert_eq!(
+            io.borrow().publish_stack[0],
+            (
+                "F".to_string(),
+                vec![KVPair::new("x", Value::Int(expected))]
+            )
+        );
+        io.borrow_mut().publish_stack.clear();
+    }
     Ok(())
 }
 
@@ -2027,26 +2119,6 @@ policy {
 }
 
 #[test]
-fn test_ffi_fail_without_use() -> anyhow::Result<()> {
-    let text = r#"
-        function test() int {
-            let head_id = print::print("hi")
-            return 0
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy)
-        .ffi_modules(TestIO::FFI_SCHEMAS)
-        .compile()
-        .expect_err("")
-        .err_type;
-    assert_eq!(result, CompileErrorType::NotDefined(String::from("print")));
-
-    Ok(())
-}
-
-#[test]
 fn test_map() -> anyhow::Result<()> {
     let text = r#"
         fact F[i int]=>{n int}
@@ -2280,6 +2352,155 @@ fn test_block_expression() -> anyhow::Result<()> {
             vec![KVPair::new("x", Value::Int(12))]
         ))
     );
+
+    Ok(())
+}
+
+#[test]
+fn test_substruct_happy_path() -> anyhow::Result<()> {
+    let policy_str = r#"
+        command Foo {
+            fields {
+                x int,
+                y bool,
+            }
+            seal { return None }
+            open { return None }
+        }
+        struct Bar {
+            x int,
+            y bool,
+            z string,
+        }
+        action baz(source struct Bar) {
+            publish source substruct Foo
+        }
+    "#;
+    let policy = parse_policy_str(policy_str, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let machine = Machine::from_module(module)?;
+    let io = RefCell::new(TestIO::new());
+    let action_name = "baz";
+    let ctx = dummy_ctx_action(action_name);
+    let mut rs = machine.create_run_state(&io, ctx);
+    call_action(
+        &mut rs,
+        &io,
+        action_name,
+        [Value::Struct(Struct::new(
+            "Bar",
+            [
+                (String::from("x"), Value::Int(30)),
+                (String::from("y"), Value::Bool(false)),
+                (String::from("z"), Value::String(String::from("lorem"))),
+            ],
+        ))],
+    )?
+    .success();
+    drop(rs);
+
+    assert_eq!(
+        io.borrow().publish_stack[0],
+        (
+            "Foo".to_string(),
+            vec![
+                KVPair::new("x", Value::Int(30)),
+                KVPair::new("y", Value::Bool(false)),
+            ]
+        )
+    );
+    Ok(())
+}
+
+#[test]
+fn test_substruct_errors() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+                command Foo {
+                    fields {
+                        x int,
+                        y bool,
+                        z string,
+                    }
+                    seal { return None }
+                    open { return None }
+                }
+                struct Bar {
+                    x int,
+                    y bool,
+                }
+                action baz(source struct Bar) {
+                    let maybe_source = if true {
+                        :Some(source)
+                    } else {
+                        :None
+                    }
+
+                    let definitely_source = unwrap maybe_source
+
+                    // Foo is not a subset of Bar
+                    publish definitely_source substruct Foo
+                }
+            "#,
+            "baz",
+            Err(MachineErrorType::InvalidStructMember("z".to_string())),
+            [Value::Struct(Struct::new(
+                "Bar",
+                [
+                    (String::from("x"), Value::Int(30)),
+                    (String::from("y"), Value::Bool(false)),
+                ],
+            ))],
+        ),
+        (
+            r#"
+                command Foo {
+                    fields {
+                        x string
+                    }
+                    seal { return None }
+                    open { return None }
+                }
+                struct Bar {
+                    x int,
+                }
+                action baz(source struct Bar) {
+                    let maybe_source = if true {
+                        :Some(source)
+                    } else {
+                        :None
+                    }
+
+                    let definitely_source = unwrap maybe_source
+
+                    // Foo.x and Bar.x have different types
+                    publish definitely_source substruct Foo
+                }
+            "#,
+            "baz",
+            Err(MachineErrorType::InvalidStructMember("x".to_string())),
+            [Value::Struct(Struct::new(
+                "Bar",
+                [(String::from("x"), Value::Int(30))],
+            ))],
+        ),
+    ];
+
+    for (policy_str, action_name, expected, action_args) in cases {
+        let policy = parse_policy_str(policy_str, Version::V2)?;
+        let module = Compiler::new(&policy).compile()?;
+        let machine = Machine::from_module(module)?;
+        let io = RefCell::new(TestIO::new());
+        let ctx = dummy_ctx_action(action_name);
+        let mut rs = machine.create_run_state(&io, ctx);
+
+        assert_eq!(
+            rs.call_action(action_name, action_args)
+                .map_err(|e| e.err_type),
+            expected
+        )
+    }
 
     Ok(())
 }
