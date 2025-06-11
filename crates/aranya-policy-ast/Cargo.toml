@@ -8,10 +8,10 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+
 [lints]
 workspace = true
 
-[lib]
 
 [features]
 default = []
@@ -29,6 +29,11 @@ thiserror = { workspace = true }
 
 # TODO(jdygert): remove dependency on std (text regex)
 proptest = { workspace = true, default-features = false, features = ["alloc", "std"], optional = true }
+
+
+[dev-dependencies]
+proptest = { workspace = true, features = ["std"] }
+
 
 [package.metadata.docs.rs]
 all-features = true
