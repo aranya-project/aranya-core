@@ -28,8 +28,8 @@ user-login = "emilio"
 user-name = "Emilio Cobos Álvarez"
 
 [[publisher.spideroak-base58]]
-version = "0.1.0"
-when = "2025-01-24"
+version = "0.2.0"
+when = "2025-06-06"
 user-id = 293722
 user-login = "aranya-project-bot"
 

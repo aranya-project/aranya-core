@@ -1087,7 +1087,7 @@ mod tests {
             assert_eq!(
                 // SAFETY: `orig` was initialized by
                 // `Safe::init`.
-                unsafe { black_box(copy).assume_init_ref() }.check(),
+                unsafe { black_box(&copy).assume_init_ref() }.check(),
                 Err(Error::AddrChanged)
             );
         }

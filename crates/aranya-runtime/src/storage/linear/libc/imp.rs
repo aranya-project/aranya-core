@@ -104,7 +104,7 @@ impl IoManager for FileManager {
     type Writer = Writer;
 
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
-        let name = id.to_path()?;
+        let name = id.to_path();
         let fd = libc::openat(
             self.root(),
             name,
@@ -117,7 +117,7 @@ impl IoManager for FileManager {
     }
 
     fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
-        let name = id.to_path()?;
+        let name = id.to_path();
         let fd = match libc::openat(self.root(), name, O_RDWR | O_CLOEXEC, 0) {
             Ok(fd) => fd,
             Err(Errno::ENOENT) => return Ok(None),
