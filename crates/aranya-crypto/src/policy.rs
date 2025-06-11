@@ -33,7 +33,7 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
 
 /// Computes a merge command's ID.
 pub fn merge_cmd_id<CS: CipherSuite>(left: CmdId, right: CmdId) -> CmdId {
-    tuple_hash::<CS::Hash, _>([b"MergeCommandId-v1", left.as_bytes(), right.as_bytes()])
+    CS::tuple_hash(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
         .into_array()
         .into()
 }
