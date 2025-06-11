@@ -1543,52 +1543,101 @@ fn should_allow_remove_graph() {
 
     // Attempt to remove graph from storage that does not exist.
     test_model
-        .remove_graph(Graph::X, Device::A)
+        .remove_graph(Graph::X, Device::B)
         .expect_err("Should fail to remove graph that has not been added to storage yet");
 
     let nonce = 1;
     // Create a graph for client A. The init command in the ffi policy
     // required the public signing key.
-    let (_, first_graph_id) = test_model
+    let (_, graph_id_a) = test_model
         .new_graph(
             Graph::X,
             Device::A,
             vm_action!(init(nonce, client_one_sign_pk.clone())),
         )
         .expect("Should create a graph");
-    let first_head_id = test_model
+    let head_id_a = test_model
         .head_id(Graph::X, Device::A)
-        .expect("Should be abel to get ID of head command");
+        .expect("Should be able to get ID of head command");
 
     // ID of graph should match ID of head command since no other commands have been added to the graph.
-    assert_eq!(first_graph_id.into_id(), first_head_id.into_id());
+    assert_eq!(graph_id_a.into_id(), head_id_a.into_id());
+
+    // Create our second client.
+    test_model
+        .add_client(Device::B)
+        .expect("Should create a client");
+
+    // Retrieve the public keys for our second client.
+    let client_two_public_keys = test_model
+        .get_public_keys(Device::B)
+        .expect("could not get public keys");
+
+    // Pull off the public identity key of our second client.
+    let client_two_ident_pk =
+        postcard::to_allocvec(&client_two_public_keys.ident_pk).expect("should get ident pk");
+    // Pull off the public signing key of our second client.
+    let client_two_sign_pk =
+        postcard::to_allocvec(&client_two_public_keys.sign_pk).expect("should get sign pk");
+
+    // Sync client B with client A (A -> B). Syncs are unidirectional, client
+    // B will receive all the new commands it doesn't yet know about from client
+    // A. At this stage of the test, that's the init, add_device_keys, create, and
+    // increment commands.
+    test_model
+        .sync(Graph::X, Device::A, Device::B)
+        .expect("Should sync clients");
+
+    // ID of head commands should match between client A and B after B syncs with A.
+    let head_id_b = test_model
+        .head_id(Graph::X, Device::B)
+        .expect("Should be able to get ID of head command");
+    assert_eq!(head_id_a.into_id(), head_id_b.into_id());
+
+    // Add our client's public keys to the graph.
+    test_model
+        .action(
+            Device::B,
+            Graph::X,
+            vm_action!(add_device_keys(
+                client_two_ident_pk.clone(),
+                client_two_sign_pk.clone()
+            )),
+        )
+        .expect("should add device");
+
+    // Head IDs should no longer match after B has added a command.
+    let head_id_after_cmd = test_model
+        .head_id(Graph::X, Device::B)
+        .expect("Should be able to get ID of head command");
+    assert_ne!(head_id_a.into_id(), head_id_after_cmd.into_id());
 
     // Remove graph from storage.
     test_model
-        .remove_graph(Graph::X, Device::A)
+        .remove_graph(Graph::X, Device::B)
         .expect("Should remove graph");
+
+    // Client B should not be able to get ID of head of graph after deleting it.
+    test_model
+        .head_id(Graph::X, Device::B)
+        .expect_err("Should fail to get ID of head command");
 
     // Attempt to remove graph from storage that does not exist.
     test_model
-        .remove_graph(Graph::X, Device::A)
+        .remove_graph(Graph::X, Device::B)
         .expect_err("Should fail to remove graph that has already been removed from storage");
 
-    // Create a graph for client A. The init command in the ffi policy
-    // required the public signing key.
-    let (_, second_graph_id) = test_model
-        .new_graph(
-            Graph::X,
-            Device::A,
-            vm_action!(init(nonce, client_one_sign_pk.clone())),
-        )
-        .expect("Should create a graph");
-    let second_head_id = test_model
-        .head_id(Graph::X, Device::A)
-        .expect("Should be abel to get ID of head command");
+    // Sync client B with client A (A -> B). Syncs are unidirectional, client
+    // B will receive all the new commands it doesn't yet know about from client
+    // A. At this stage of the test, that's the init, add_device_keys, create, and
+    // increment commands.
+    test_model
+        .sync(Graph::X, Device::A, Device::B)
+        .expect("Should sync clients");
 
     // ID of graph should match ID of head command since no other commands have been added to the graph.
-    assert_eq!(second_graph_id.into_id(), second_head_id.into_id());
-
-    // ID of head command of new graph should be different than the first graph.
-    assert_ne!(first_head_id.into_id(), second_head_id.into_id());
+    let head_id_new_sync = test_model
+        .head_id(Graph::X, Device::B)
+        .expect("Should be able to get ID of head command");
+    assert_eq!(head_id_new_sync.into_id(), head_id_a.into_id());
 }
