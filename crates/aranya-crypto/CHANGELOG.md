@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.6.1...aranya-crypto-v0.7.0) - 2025-06-12
+
+### Other
+
+- migrate to Rust edition 2024 ([#254](https://github.com/aranya-project/aranya-core/pull/254))
+- update base58 ([#270](https://github.com/aranya-project/aranya-core/pull/270))
+- update to spideroak-crypto v0.5.x ([#263](https://github.com/aranya-project/aranya-core/pull/263))
+- clean up dependencies ([#251](https://github.com/aranya-project/aranya-core/pull/251))
+- impl `Hash` for `CipherSuiteId` and rename serde repr ([#257](https://github.com/aranya-project/aranya-core/pull/257))
+
 ## [0.6.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.6.0...aranya-crypto-v0.6.1) - 2025-05-28
 
 ### Other
