@@ -17,6 +17,8 @@ pub trait IoManager {
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError>;
     /// Open existing writer for the graph ID.
     fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError>;
+    /// Remove storage for a Graph Id.
+    fn remove(&mut self, id: GraphId) -> Result<(), StorageError>;
     /// List all existing graph IDs.
     fn list(&mut self)
         -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
