@@ -25,6 +25,7 @@ use spideroak_crypto::{
 use crate::{
     ciphersuite::CipherSuite,
     id::{IdError, Identified},
+    Id,
 };
 
 /// The core trait used by the cryptography engine APIs.
@@ -43,7 +44,7 @@ pub trait Engine: Csprng + RawSecretWrap<Self> + Sized {
     {
         let id = key.id()?;
         let secret = key.into_secret();
-        self.wrap_secret::<T>(&id, secret.0)
+        self.wrap_secret::<T>(id, secret.0)
     }
 
     /// Decrypts and authenticates the wrapped key.
@@ -120,7 +121,7 @@ pub trait RawSecretWrap<E: Engine> {
     /// called manually.
     fn wrap_secret<T>(
         &mut self,
-        id: &<T as Identified>::Id,
+        id: Id,
         secret: RawSecret<E::CS>,
     ) -> Result<E::WrappedKey, WrapError>
     where

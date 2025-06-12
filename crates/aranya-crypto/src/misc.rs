@@ -303,11 +303,9 @@ macro_rules! sk_misc_inner {
         }
 
         impl<CS: $crate::CipherSuite> $crate::id::Identified for $name<CS> {
-            type Id = $id;
-
             #[inline]
-            fn id(&self) -> Result<Self::Id, $crate::id::IdError> {
-                self.id()
+            fn id(&self) -> Result<$crate::Id, $crate::id::IdError> {
+                self.id().map(|x| x.into_id())
             }
         }
     };
@@ -397,11 +395,9 @@ macro_rules! pk_misc {
         }
 
         impl<CS: $crate::CipherSuite> $crate::id::Identified for $name<CS> {
-            type Id = $id;
-
             #[inline]
-            fn id(&self) -> Result<Self::Id, $crate::id::IdError> {
-                self.id()
+            fn id(&self) -> Result<$crate::Id, $crate::id::IdError> {
+                self.id().map(|x| x.into_id())
             }
         }
     };

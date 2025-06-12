@@ -87,13 +87,12 @@ impl Engine for HsmEngine {
 impl RawSecretWrap<Self> for HsmEngine {
     fn wrap_secret<T>(
         &mut self,
-        id: &<T as Identified>::Id,
+        id: Id,
         secret: RawSecret<Self>,
     ) -> Result<<Self as Engine>::WrappedKey, WrapError>
     where
         T: UnwrappedKey<Self>,
     {
-        let id = (*id).into();
         let alg_id = secret.alg_id();
         let plaintext: RawSecretBytes<Self> = match secret {
             RawSecret::Aead(sk) => RawSecretBytes::Aead(sk.try_export_secret()?),
@@ -210,10 +209,8 @@ impl WrappedKey {
 impl engine::WrappedKey for WrappedKey {}
 
 impl Identified for WrappedKey {
-    type Id = WrappedKeyId;
-
-    fn id(&self) -> Result<Self::Id, IdError> {
-        Ok(WrappedKeyId(self.0.id()))
+    fn id(&self) -> Result<Id, IdError> {
+        Ok(self.0.id().into_id())
     }
 }
 

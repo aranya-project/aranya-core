@@ -106,13 +106,12 @@ impl<R: Csprng, S: CipherSuite> Engine for DefaultEngine<R, S> {
 impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
     fn wrap_secret<T>(
         &mut self,
-        id: &<T as Identified>::Id,
+        id: Id,
         secret: RawSecret<S>,
     ) -> Result<<Self as Engine>::WrappedKey, WrapError>
     where
         T: UnwrappedKey<S>,
     {
-        let id = (*id).into();
         let mut tag = Tag::<S::Aead>::default();
         // TODO(eric): we should probably ensure that we do not
         // repeat nonces.
@@ -274,9 +273,7 @@ impl<CS: CipherSuite> Clone for WrappedKey<CS> {
 impl<CS: CipherSuite> engine::WrappedKey for WrappedKey<CS> {}
 
 impl<CS: CipherSuite> Identified for WrappedKey<CS> {
-    type Id = Id;
-
-    fn id(&self) -> Result<Self::Id, IdError> {
+    fn id(&self) -> Result<Id, IdError> {
         Ok(self.id)
     }
 }

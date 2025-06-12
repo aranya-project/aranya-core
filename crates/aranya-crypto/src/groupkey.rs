@@ -235,11 +235,9 @@ unwrapped! {
 }
 
 impl<CS: CipherSuite> Identified for GroupKey<CS> {
-    type Id = GroupKeyId;
-
     #[inline]
-    fn id(&self) -> Result<Self::Id, IdError> {
-        self.id()
+    fn id(&self) -> Result<Id, IdError> {
+        self.id().map(|x| x.into_id())
     }
 }
 

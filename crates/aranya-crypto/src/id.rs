@@ -12,7 +12,7 @@ use core::{
 #[doc(hidden)]
 pub use proptest as __proptest;
 use serde::{
-    de::{self, DeserializeOwned, SeqAccess, Visitor},
+    de::{self, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
@@ -87,8 +87,11 @@ impl Id {
 
     /// Converts itself into another ID type.
     #[inline]
-    pub fn into_id<T: From<[u8; 32]>>(self) -> T {
-        T::from(*self.as_array())
+    pub fn into_id<T>(self) -> T
+    where
+        [u8; 32]: Into<T>,
+    {
+        (*self.as_array()).into()
     }
 
     /// Decode the [`Id`] from a base58 string.
@@ -312,8 +315,11 @@ macro_rules! custom_id {
 
             /// Converts itself into another ID type.
             #[inline]
-            pub fn into_id<T: From<[u8; 32]>>(self) -> T {
-                T::from(*self.as_array())
+            pub fn into_id<T>(self) -> T
+            where
+                [u8; 32]: Into<T>,
+            {
+                (*self.as_array()).into()
             }
 
             /// Decode the ID from a base58 string.
@@ -426,21 +432,7 @@ macro_rules! __custom_id_proptest {
 /// An object with a unique identifier.
 pub trait Identified {
     /// Uniquely identifies the object.
-    type Id: Copy
-        + Clone
-        + Display
-        + Debug
-        + Hash
-        + Eq
-        + PartialEq
-        + Ord
-        + PartialOrd
-        + Serialize
-        + DeserializeOwned
-        + Into<Id>;
-
-    /// Uniquely identifies the object.
-    fn id(&self) -> Result<Self::Id, IdError>;
+    fn id(&self) -> Result<Id, IdError>;
 }
 
 /// An error that may occur when accessing an Id
