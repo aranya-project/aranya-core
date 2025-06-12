@@ -790,12 +790,7 @@ impl<'a> CompileState<'a> {
                 let t = self
                     .identifier_types
                     .get(i)
-                    .map_err(|_| {
-                        self.err(CompileErrorType::NotDefined(format!(
-                            "Unknown identifier `{}`",
-                            i
-                        )))
-                    })?
+                    .map_err(|err| self.err(err))?
                     .clone();
 
                 self.append_instruction(Instruction::Meta(Meta::Get(i.clone())));
@@ -2289,11 +2284,11 @@ impl<'a> CompileState<'a> {
 
         for src_var_name in &base_struct.sources {
             // Look up source's type. It should be a struct.
-            let src_type = self.identifier_types.get(src_var_name).map_err(|_| {
-                self.err(CompileErrorType::NotDefined(format!(
-                    "Unknown identifier `{src_var_name}`"
-                )))
-            })?;
+            let src_type = self
+                .identifier_types
+                .get(src_var_name)
+                .map_err(|err| self.err(err))?;
+
             let src_struct_type_name = match src_type {
                 Typeish::Type(VType::Struct(type_name)) => type_name,
                 Typeish::Type(_) | Typeish::Indeterminate => {
