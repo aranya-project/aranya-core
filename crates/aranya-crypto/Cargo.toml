@@ -101,9 +101,6 @@ proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
 # Enable compat with the `rand`, `rand_core`, etc. crates.
 rand_compat = ["spideroak-crypto/rand_compat"]
 
-# Enable TLS utilities.
-tls = []
-
 # Use std.
 std = [
 	"alloc",
@@ -139,6 +136,9 @@ test_util = [
 
 	"dep:ciborium",
 ]
+
+# Enable TLS utilities.
+tls = []
 
 # Use a system provided TRNG for the default CSPRNG.
 trng = ["spideroak-crypto/trng"]
