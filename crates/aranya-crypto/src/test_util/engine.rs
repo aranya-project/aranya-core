@@ -3035,8 +3035,8 @@ pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
     assert_ct_eq!(want, got);
 }
 
-/// Test that [`PskSeed`] generates different PSKs for different
-/// cipher suites.
+/// Test that [`tls::PskSeed`] generates different PSKs for
+/// different cipher suites.
 pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &PolicyId::default());
 
@@ -3057,8 +3057,8 @@ pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
     }
 }
 
-/// Test that [`PskSeed`] generates different PSKs for different
-/// policy IDs, even if the cipher suites are the same.
+/// Test that [`tls::PskSeed`] generates different PSKs for
+/// different policy IDs, even if the cipher suites are the same.
 pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
     let ikm = <[u8; 32]>::random(eng);
     let mut ids = BTreeSet::new();
