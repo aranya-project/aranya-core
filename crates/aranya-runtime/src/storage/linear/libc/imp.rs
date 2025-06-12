@@ -127,6 +127,13 @@ impl IoManager for FileManager {
         Ok(Some(Writer::open(fd)?))
     }
 
+    fn remove(&mut self, id: GraphId) -> Result<(), StorageError> {
+        let name = id.to_path();
+        libc::unlinkat(self.root(), name, 0)?;
+
+        Ok(())
+    }
+
     fn list(
         &mut self,
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {

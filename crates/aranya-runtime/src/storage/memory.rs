@@ -110,6 +110,14 @@ impl StorageProvider for MemStorageProvider {
             .ok_or(StorageError::NoSuchStorage)
     }
 
+    fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
+        self.storage
+            .remove(&graph)
+            .ok_or(StorageError::NoSuchStorage)?;
+
+        Ok(())
+    }
+
     fn list_graph_ids(
         &mut self,
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {
