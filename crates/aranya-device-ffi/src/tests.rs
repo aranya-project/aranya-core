@@ -11,7 +11,7 @@ use crate::FfiDevice;
 #[test]
 fn test_current_device_id() {
     let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
-    let device_id = DeviceId::random(&mut Rng);
+    let device_id = Id::random(&mut Rng).into_id();
     let device = FfiDevice { id: device_id };
 
     let contexts = vec![

@@ -32,7 +32,6 @@ use crate::{
     handler::{
         BidiChannelCreated, BidiChannelReceived, Handler, UniChannelCreated, UniChannelReceived,
     },
-    shared::LabelId,
 };
 
 /// Encodes a [`EncryptionPublicKey`].
@@ -383,7 +382,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateBidiChannel",
@@ -472,7 +471,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateUniSendOnlyChannel",
@@ -563,7 +562,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
     let mut author = T::new(); // recv only
     let mut peer = T::new(); // send only
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: "CreateUniRecvOnlyChannel",
@@ -654,7 +653,7 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
         .map(|_| {
@@ -764,7 +763,7 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
         .map(|_| {
-            let label_id = LabelId::random(&mut Rng);
+            let label_id = Id::random(&mut Rng).into_id();
 
             // This is called via FFI.
             let AqcBidiChannel {
@@ -864,7 +863,7 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
         .map(|peer| peer.enc_pk.clone())
         .collect::<Vec<_>>();
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = peers
         .iter()

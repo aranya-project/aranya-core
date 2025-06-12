@@ -20,7 +20,7 @@ use crate::{
         TopicKey, Version,
     },
     aqc,
-    aranya::{DeviceId, Encap, EncryptionKey, IdentityKey, SigningKey as DeviceSigningKey},
+    aranya::{Encap, EncryptionKey, IdentityKey, SigningKey as DeviceSigningKey},
     ciphersuite::CipherSuite,
     engine::Engine,
     error::Error,
@@ -1292,7 +1292,7 @@ pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
         their_pk: &sk1
             .public()
             .expect("receiver public encryption key should be valid"),
-        their_id: DeviceId::random(eng),
+        their_id: Id::random(eng).into_id(),
         label,
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
@@ -1640,7 +1640,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
-        open_id: DeviceId::random(eng),
+        open_id: Id::random(eng).into_id(),
         label,
     };
     assert_ne!(ch1.info(), ch2.info());
@@ -2010,7 +2010,7 @@ pub fn test_aqc_derive_bidi_psk_different_device_ids<E: Engine>(eng: &mut E) {
         their_pk: &sk1
             .public()
             .expect("receiver public encryption key should be valid"),
-        their_id: DeviceId::random(eng),
+        their_id: Id::random(eng).into_id(),
         label,
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
@@ -2513,7 +2513,7 @@ pub fn test_aqc_derive_uni_psk_different_device_ids<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
-        open_id: DeviceId::random(eng),
+        open_id: Id::random(eng).into_id(),
         label,
     };
     assert_ne!(ch1.info(), ch2.info());

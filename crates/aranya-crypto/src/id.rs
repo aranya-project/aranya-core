@@ -296,11 +296,6 @@ macro_rules! custom_id {
                 Self($crate::Id::default())
             }
 
-            /// Creates a random ID.
-            pub fn random<R: $crate::Csprng>(rng: &mut R) -> Self { // TODO
-                Self($crate::Id::random(rng))
-            }
-
             /// Returns itself as a byte slice.
             #[inline]
             pub const fn as_bytes(&self) -> &[u8] {
@@ -325,7 +320,7 @@ macro_rules! custom_id {
             /// Decode the ID from a base58 string.
             pub fn decode<T: ::core::convert::AsRef<[u8]>>(
                 s: T,
-            ) -> ::core::result::Result<Self, $crate::id::DecodeError> { // TODO
+            ) -> ::core::result::Result<Self, $crate::id::DecodeError> {
                 $crate::Id::decode(s).map(Self)
             }
         }
@@ -359,7 +354,7 @@ macro_rules! custom_id {
         }
 
         impl ::core::str::FromStr for $name {
-            type Err = $crate::id::DecodeError; // TODO
+            type Err = $crate::id::DecodeError;
 
             fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
                 Self::decode(s)
