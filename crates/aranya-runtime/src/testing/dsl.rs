@@ -552,8 +552,6 @@ where
                     .get_mut();
                 let storage_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
                 state.remove_graph(*storage_id)?;
-                // TODO: is this needed?
-                //graphs.remove(&id);
 
                 assert_eq!(0, sink.count());
             }
