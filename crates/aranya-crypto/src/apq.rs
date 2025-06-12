@@ -176,7 +176,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         const DOMAIN: &[u8] = b"TopicKeyId-v1";
         let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
         CS::labeled_expand(DOMAIN, &prk, b"id", [])
-            .map_err(|_| IdError("unable to expand PRK"))
+            .map_err(|_| IdError::new("unable to expand PRK"))
             .map(TopicKeyId)
     }
 
