@@ -3,6 +3,7 @@ use core::{marker::PhantomData, mem};
 
 use buggy::{bug, BugExt};
 
+use super::braiding;
 use crate::{
     Address, ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId,
     Location, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink, Storage,
@@ -374,8 +375,8 @@ fn make_braid_segment<S: Storage, E: Engine>(
     sink: &mut impl Sink<E::Effect>,
     policy: &E::Policy,
 ) -> Result<(S::FactIndex, (Location, usize)), ClientError> {
-    let order = super::braid(storage, left, right)?;
-    let last_common_ancestor = super::last_common_ancestor(storage, left, right)?;
+    let order = braiding::braid(storage, left, right)?;
+    let last_common_ancestor = braiding::last_common_ancestor(storage, left, right)?;
 
     let (&first, rest) = order.split_first().assume("braid is non-empty")?;
 
@@ -439,6 +440,8 @@ fn get_policy<'a, E: Engine>(
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use buggy::Bug;
     use test_log::test;
 
@@ -456,6 +459,7 @@ mod test {
     struct SeqCommand {
         id: CommandId,
         prior: Prior<Address>,
+        finalize: bool,
         data: Box<str>,
         max_cut: usize,
     }
@@ -523,10 +527,8 @@ mod test {
             ids: MergeIds,
         ) -> Result<Self::Command<'a>, EngineError> {
             let (left, right): (Address, Address) = ids.into();
-            let mut buf = [0u8; 64];
-            buf[..32].copy_from_slice(left.id.as_bytes());
-            buf[32..].copy_from_slice(right.id.as_bytes());
-            let id = CommandId::hash_for_testing_only(&buf);
+            let parents = [*left.id.as_array(), *right.id.as_array()];
+            let id = CommandId::hash_for_testing_only(parents.as_flattened());
 
             Ok(SeqCommand::new(
                 id,
@@ -545,6 +547,18 @@ mod test {
             Self {
                 id,
                 prior,
+                finalize: false,
+                data,
+                max_cut,
+            }
+        }
+
+        fn finalize(id: CommandId, prev: Address, max_cut: usize) -> Self {
+            let data = id.short_b58().into_boxed_str();
+            Self {
+                id,
+                prior: Prior::Single(prev),
+                finalize: true,
                 data,
                 max_cut,
             }
@@ -553,6 +567,9 @@ mod test {
 
     impl Command for SeqCommand {
         fn priority(&self) -> Priority {
+            if self.finalize {
+                return Priority::Finalize;
+            }
             match self.prior {
                 Prior::None => Priority::Init,
                 Prior::Single(_) => {
@@ -605,57 +622,91 @@ mod test {
     struct GraphBuilder<SP: StorageProvider> {
         client: ClientState<SeqEngine, SP>,
         trx: Transaction<SP, SeqEngine>,
+        max_cuts: HashMap<CommandId, usize>,
     }
 
     impl<SP: StorageProvider> GraphBuilder<SP> {
-        pub fn init(mut client: ClientState<SeqEngine, SP>, ids: &[CommandId]) -> Self {
+        pub fn init(
+            mut client: ClientState<SeqEngine, SP>,
+            ids: &[CommandId],
+        ) -> Result<Self, ClientError> {
             let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
             let mut prior: Prior<Address> = Prior::None;
-            for &id in ids {
-                let cmd = SeqCommand::new(id, prior, 0);
+            let mut max_cuts = HashMap::new();
+            for (max_cut, &id) in ids.iter().enumerate() {
+                let cmd = SeqCommand::new(id, prior, max_cut);
                 trx.add_commands(
                     &[cmd],
                     &mut client.provider,
                     &mut client.engine,
                     &mut NullSink,
-                )
-                .unwrap();
-                prior = Prior::Single(Address { id, max_cut: 0 });
+                )?;
+                max_cuts.insert(id, max_cut);
+                prior = Prior::Single(Address { id, max_cut });
             }
-            Self { client, trx }
+            Ok(Self {
+                client,
+                trx,
+                max_cuts,
+            })
         }
 
-        pub fn line(&mut self, mut prev: Address, ids: &[CommandId]) {
+        fn get_addr(&self, id: CommandId) -> Address {
+            Address {
+                id,
+                max_cut: self.max_cuts[&id],
+            }
+        }
+
+        pub fn line(&mut self, prev: CommandId, ids: &[CommandId]) -> Result<(), ClientError> {
+            let mut prev = self.get_addr(prev);
             for &id in ids {
                 let max_cut = prev.max_cut.checked_add(1).unwrap();
                 let cmd = SeqCommand::new(id, Prior::Single(prev), max_cut);
-                self.trx
-                    .add_commands(
-                        &[cmd],
-                        &mut self.client.provider,
-                        &mut self.client.engine,
-                        &mut NullSink,
-                    )
-                    .unwrap();
+                self.trx.add_commands(
+                    &[cmd],
+                    &mut self.client.provider,
+                    &mut self.client.engine,
+                    &mut NullSink,
+                )?;
+                self.max_cuts.insert(id, max_cut);
                 prev = Address { id, max_cut };
             }
+            Ok(())
         }
 
-        pub fn merge(&mut self, (left, right): (Address, Address), ids: &[CommandId]) {
-            let prior = Prior::Merge(left, right);
+        pub fn finalize(&mut self, prev: CommandId, id: CommandId) -> Result<(), ClientError> {
+            let prev = self.get_addr(prev);
+            let max_cut = prev.max_cut.checked_add(1).unwrap();
+            let cmd = SeqCommand::finalize(id, prev, max_cut);
+            self.trx.add_commands(
+                &[cmd],
+                &mut self.client.provider,
+                &mut self.client.engine,
+                &mut NullSink,
+            )?;
+            self.max_cuts.insert(id, max_cut);
+            Ok(())
+        }
+
+        pub fn merge(
+            &mut self,
+            (left, right): (CommandId, CommandId),
+            ids: &[CommandId],
+        ) -> Result<(), ClientError> {
+            let prior = Prior::Merge(self.get_addr(left), self.get_addr(right));
             let mergecmd = SeqCommand::new(ids[0], prior, prior.next_max_cut().unwrap());
             let mut prev = Address {
                 id: mergecmd.id,
                 max_cut: mergecmd.max_cut,
             };
-            self.trx
-                .add_commands(
-                    &[mergecmd],
-                    &mut self.client.provider,
-                    &mut self.client.engine,
-                    &mut NullSink,
-                )
-                .unwrap();
+            self.max_cuts.insert(mergecmd.id, mergecmd.max_cut);
+            self.trx.add_commands(
+                &[mergecmd],
+                &mut self.client.provider,
+                &mut self.client.engine,
+                &mut NullSink,
+            )?;
             for &id in &ids[1..] {
                 let cmd = SeqCommand::new(
                     id,
@@ -666,15 +717,15 @@ mod test {
                     id: cmd.id,
                     max_cut: cmd.max_cut,
                 };
-                self.trx
-                    .add_commands(
-                        &[cmd],
-                        &mut self.client.provider,
-                        &mut self.client.engine,
-                        &mut NullSink,
-                    )
-                    .unwrap();
+                self.max_cuts.insert(cmd.id, cmd.max_cut);
+                self.trx.add_commands(
+                    &[cmd],
+                    &mut self.client.provider,
+                    &mut self.client.engine,
+                    &mut NullSink,
+                )?;
             }
+            Ok(())
         }
 
         pub fn flush(&mut self) {
@@ -695,38 +746,43 @@ mod test {
             }
         }
 
-        pub fn commit(&mut self) {
-            self.trx
-                .commit(
-                    &mut self.client.provider,
-                    &mut self.client.engine,
-                    &mut NullSink,
-                )
-                .unwrap();
+        pub fn commit(&mut self) -> Result<(), ClientError> {
+            self.trx.commit(
+                &mut self.client.provider,
+                &mut self.client.engine,
+                &mut NullSink,
+            )
         }
     }
 
-    fn mkid(x: &str) -> CommandId {
-        x.parse().unwrap()
+    fn mkid<T>(x: &str) -> T
+    where
+        aranya_crypto::Id: Into<T>,
+    {
+        x.parse::<aranya_crypto::Id>().unwrap().into()
     }
 
     /// See tests for usage.
     macro_rules! graph {
         ( $client:expr ; $init:literal $($inits:literal )* ; $($rest:tt)*) => {{
-            let mut gb = GraphBuilder::init($client, &[mkid($init), $(mkid($inits)),*]);
+            let mut gb = GraphBuilder::init($client, &[mkid($init), $(mkid($inits)),*]).unwrap();
             graph!(@ gb, $($rest)*);
             gb
         }};
-        (@ $gb:ident, $prev:literal $prev_max_cut:literal < $($id:literal)+; $($rest:tt)*) => {
-            $gb.line(Address {id: mkid($prev), max_cut: $prev_max_cut}, &[$(mkid($id)),+]);
+        (@ $gb:ident, $prev:literal < $($id:literal)+; $($rest:tt)*) => {
+            $gb.line(mkid($prev), &[$(mkid($id)),+]).unwrap();
             graph!(@ $gb, $($rest)*);
         };
-        (@ $gb:ident, $l:literal $l_max_cut:literal $r:literal $r_max_cut:literal < $($id:literal)+; $($rest:tt)*) => {
-            $gb.merge((Address {id: mkid($l), max_cut: $l_max_cut}, Address {id: mkid($r), max_cut: $r_max_cut}), &[$(mkid($id)),+]);
+        (@ $gb:ident, $l:literal $r:literal < $($id:literal)+; $($rest:tt)*) => {
+            $gb.merge((mkid($l), mkid($r)), &[$(mkid($id)),+]).unwrap();
+            graph!(@ $gb, $($rest)*);
+        };
+        (@ $gb:ident, $prev:literal < finalize $id:literal; $($rest:tt)*) => {
+            $gb.finalize(mkid($prev), mkid($id)).unwrap();
             graph!(@ $gb, $($rest)*);
         };
         (@ $gb:ident, commit; $($rest:tt)*) => {
-            $gb.commit();
+            $gb.commit().unwrap();
             graph!(@ $gb, $($rest)*);
         };
         (@ $gb:ident, ) => {
@@ -746,18 +802,14 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
-            "a" 0 < "b";
-            "a" 0 < "c";
-            "b" 1 "c" 1 < "ma";
-            "b" 1 < "d";
-            "ma" 2 "d" 2 < "mb";
+            "a" < "b";
+            "a" < "c";
+            "b" "c" < "ma";
+            "b" < "d";
+            "ma" "d" < "mb";
             commit;
         };
-        let g = gb
-            .client
-            .provider
-            .get_storage("a".parse().unwrap())
-            .unwrap();
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "simple");
@@ -776,26 +828,22 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
-            "a" 0 < "1" "2" "3";
-            "3" 3 < "4" "6" "7";
-            "3" 3 < "5" "8";
-            "6" 5 "8" 5 < "9" "aa"; commit;
-            "7" 6 < "a1" "a2";
-            "aa" 7 "a2" 8 < "a3";
-            "a3" 9 < "a6" "a4";
-            "a3" 9 < "a7" "a5";
-            "a4" 11 "a5" 11 < "a8";
-            "9" 6 < "42" "43";
-            "42" 7 < "45" "46";
-            "45" 8 < "47" "48";
+            "a" < "1" "2" "3";
+            "3" < "4" "6" "7";
+            "3" < "5" "8";
+            "6" "8" < "9" "aa"; commit;
+            "7" < "a1" "a2";
+            "aa" "a2" < "a3";
+            "a3" < "a6" "a4";
+            "a3" < "a7" "a5";
+            "a4" "a5" < "a8";
+            "9" < "42" "43";
+            "42" < "45" "46";
+            "45" < "47" "48";
             commit;
         };
 
-        let g = gb
-            .client
-            .provider
-            .get_storage("a".parse().unwrap())
-            .unwrap();
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "complex");
@@ -817,22 +865,18 @@ mod test {
         let mut gb = graph! {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
-            "a" 0 < "b" "c";
-            "a" 0 < "b";
-            "b" 1 < "c";
-            "c" 2 < "d";
+            "a" < "b" "c";
+            "a" < "b";
+            "b" < "c";
+            "c" < "d";
             commit;
-            "a" 0 < "b";
-            "b" 1 < "c";
-            "d" 3 < "e";
+            "a" < "b";
+            "b" < "c";
+            "d" < "e";
             commit;
         };
 
-        let g = gb
-            .client
-            .provider
-            .get_storage("a".parse().unwrap())
-            .unwrap();
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "duplicates");
@@ -850,16 +894,12 @@ mod test {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
             commit;
-            "a" 0 < "b" "c" "d" "e" "f" "g";
-            "d" 3 < "h" "i" "j";
+            "a" < "b" "c" "d" "e" "f" "g";
+            "d" < "h" "i" "j";
             commit;
         };
 
-        let g = gb
-            .client
-            .provider
-            .get_storage("a".parse().unwrap())
-            .unwrap();
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "mid_braid_1");
@@ -877,16 +917,12 @@ mod test {
             ClientState::new(SeqEngine, MemStorageProvider::new());
             "a";
             commit;
-            "a" 0 < "b" "c" "d" "h" "i" "j";
-            "d" 3 < "e" "f" "g";
+            "a" < "b" "c" "d" "h" "i" "j";
+            "d" < "e" "f" "g";
             commit;
         };
 
-        let g = gb
-            .client
-            .provider
-            .get_storage("a".parse().unwrap())
-            .unwrap();
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
 
         #[cfg(feature = "graphviz")]
         crate::storage::memory::graphviz::dot(g, "mid_braid_2");
@@ -896,5 +932,46 @@ mod test {
         let seq = lookup(g, "seq").unwrap();
         let seq = std::str::from_utf8(&seq).unwrap();
         assert_eq!(seq, "a:b:c:d:h:i:j:e:f:g");
+    }
+
+    #[test]
+    fn test_sequential_finalize() {
+        let mut gb = graph! {
+            ClientState::new(SeqEngine, MemStorageProvider::new());
+            "a";
+            commit;
+            "a" < "b" "c" "d" "e" "f" "g";
+            "d" < "h" "i" "j";
+            "e" < finalize "fff1";
+            "fff1" < "x" "y";
+            "y" < finalize "fff2";
+            commit;
+        };
+
+        let g = gb.client.provider.get_storage(mkid("a")).unwrap();
+
+        #[cfg(feature = "graphviz")]
+        crate::storage::memory::graphviz::dot(g, "finalize_success");
+
+        assert_eq!(g.get_head().unwrap(), Location::new(5, 0));
+
+        let seq = lookup(g, "seq").unwrap();
+        let seq = std::str::from_utf8(&seq).unwrap();
+        assert_eq!(seq, "a:b:c:d:e:fff1:x:y:fff2:h:i:j:f:g");
+    }
+
+    #[test]
+    fn test_parallel_finalize() {
+        let mut gb = graph! {
+            ClientState::new(SeqEngine, MemStorageProvider::new());
+            "a";
+            commit;
+            "a" < "b" "c" "d" "e" "f" "g";
+            "d" < "h" "i" "j";
+            "e" < finalize "fff1";
+            "i" < finalize "fff2";
+        };
+        let err = gb.commit().expect_err("merge should fail");
+        assert!(matches!(err, ClientError::ParallelFinalize), "{err:?}")
     }
 }
