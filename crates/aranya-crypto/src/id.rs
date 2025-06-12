@@ -358,13 +358,6 @@ macro_rules! custom_id {
             }
         }
 
-        impl ::core::convert::From<$name> for $crate::Id { // TODO
-            #[inline]
-            fn from(id: $name) -> Self {
-                id.0
-            }
-        }
-
         impl ::core::str::FromStr for $name {
             type Err = $crate::id::DecodeError; // TODO
 

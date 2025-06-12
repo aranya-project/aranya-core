@@ -262,13 +262,13 @@ impl From<Id> for Value {
 
 impl From<DeviceId> for Value {
     fn from(id: DeviceId) -> Self {
-        Value::Id(id.into())
+        Value::Id(id.into_id())
     }
 }
 
 impl From<EncryptionKeyId> for Value {
     fn from(id: EncryptionKeyId) -> Self {
-        Value::Id(id.into())
+        Value::Id(id.into_id())
     }
 }
 

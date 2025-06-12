@@ -51,13 +51,13 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.author_secrets_id.into())
+            .remove_key(eng, effect.author_secrets_id.into_id())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("BidiAuthorSecret"))?;
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.author_enc_key_id.into())
+            .get_key(eng, effect.author_enc_key_id.into_id())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
@@ -71,7 +71,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.author_id,
             their_pk,
             their_id: effect.peer_id,
-            label: effect.label_id.into(),
+            label: effect.label_id.into_id(),
         };
 
         let secret = BidiSecret::from_author_secret(&ch, secret).inspect_err(|err| {
@@ -99,7 +99,7 @@ impl<S: KeyStore> Handler<S> {
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.peer_enc_key_id.into())
+            .get_key(eng, effect.peer_enc_key_id.into_id())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
@@ -113,7 +113,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.peer_id,
             their_pk,
             their_id: effect.author_id,
-            label: effect.label_id.into(),
+            label: effect.label_id.into_id(),
         };
 
         let secret = BidiSecret::from_peer_encap(&ch, encap).inspect_err(|err| {
@@ -201,13 +201,13 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.author_secrets_id.into())
+            .remove_key(eng, effect.author_secrets_id.into_id())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("UniAuthorSecret"))?;
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.author_enc_key_id.into())
+            .get_key(eng, effect.author_enc_key_id.into_id())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
@@ -221,7 +221,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label_id.into(),
+            label: effect.label_id.into_id(),
         };
 
         let secret = if self.device_id == effect.send_id {
@@ -256,7 +256,7 @@ impl<S: KeyStore> Handler<S> {
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.peer_enc_key_id.into())
+            .get_key(eng, effect.peer_enc_key_id.into_id())
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
@@ -270,7 +270,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label_id.into(),
+            label: effect.label_id.into_id(),
         };
 
         let secret = if self.device_id == effect.send_id {

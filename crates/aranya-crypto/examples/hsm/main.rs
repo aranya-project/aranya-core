@@ -257,7 +257,7 @@ enum KeyIdImpl {
 impl KeyIdImpl {
     fn into_id(self) -> Id {
         match self {
-            Self::Internal(id) => id.into(),
+            Self::Internal(id) => id.into_id(),
             Self::External(id) => id,
         }
     }

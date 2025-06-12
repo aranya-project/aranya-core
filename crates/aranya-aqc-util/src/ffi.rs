@@ -117,7 +117,7 @@ function create_bidi_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, our_enc_key_id.into())
+            .get_key(eng, our_enc_key_id.into_id())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound("device encryption key"))?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
@@ -129,14 +129,14 @@ function create_bidi_channel(
             our_id,
             their_pk,
             their_id,
-            label: label_id.into(),
+            label: label_id.into_id(),
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
         let author_secrets_id = author
             .id()
             .map_err(|err| FfiError::Crypto(err.into()))?
-            .into();
+            .into_id();
         self.store
             .lock()
             .try_insert(author_secrets_id, eng.wrap(author)?)
@@ -146,7 +146,7 @@ function create_bidi_channel(
             })?;
 
         Ok(AqcBidiChannel {
-            channel_id: peer.id().into(),
+            channel_id: peer.id().into_id(),
             peer_encap: peer.as_bytes().to_vec(),
             author_secrets_id,
             psk_length_in_bytes: ch.psk_length_in_bytes.into(),
@@ -178,7 +178,7 @@ function create_uni_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, author_enc_key_id.into())
+            .get_key(eng, author_enc_key_id.into_id())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound("device encryption key"))?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
@@ -190,14 +190,14 @@ function create_uni_channel(
             their_pk,
             seal_id,
             open_id,
-            label: label_id.into(),
+            label: label_id.into_id(),
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
         let author_secrets_id = author
             .id()
             .map_err(|err| FfiError::Crypto(err.into()))?
-            .into();
+            .into_id();
         self.store
             .lock()
             .try_insert(author_secrets_id, eng.wrap(author)?)
@@ -207,7 +207,7 @@ function create_uni_channel(
             })?;
 
         Ok(AqcUniChannel {
-            channel_id: peer.id().into(),
+            channel_id: peer.id().into_id(),
             peer_encap: peer.as_bytes().to_vec(),
             author_secrets_id,
             psk_length_in_bytes: ch.psk_length_in_bytes.into(),
@@ -287,6 +287,6 @@ impl TryFrom<Value> for LabelId {
 
 impl From<LabelId> for Value {
     fn from(id: LabelId) -> Value {
-        Value::Id(id.into())
+        Value::Id(id.into_id())
     }
 }
