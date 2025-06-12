@@ -8,6 +8,7 @@ use core::{
     str::FromStr,
 };
 
+use buggy::Bug;
 #[cfg(feature = "proptest")]
 #[doc(hidden)]
 pub use proptest as __proptest;
@@ -456,10 +457,31 @@ pub trait Identified {
 /// An error that may occur when accessing an Id
 #[derive(Debug, Eq, PartialEq, thiserror::Error)]
 #[error("{0}")]
-pub struct IdError(pub(crate) &'static str);
+pub struct IdError(IdErrorRepr);
+
+impl IdError {
+    pub(crate) const fn new(msg: &'static str) -> Self {
+        Self(IdErrorRepr::Msg(msg))
+    }
+}
+
+impl From<Bug> for IdError {
+    #[inline]
+    fn from(err: Bug) -> Self {
+        Self(IdErrorRepr::Bug(err))
+    }
+}
 
 impl From<PkError> for IdError {
     fn from(err: PkError) -> Self {
-        Self(err.msg())
+        IdError::new(err.msg())
     }
+}
+
+#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+enum IdErrorRepr {
+    #[error("{0}")]
+    Bug(Bug),
+    #[error("{0}")]
+    Msg(&'static str),
 }

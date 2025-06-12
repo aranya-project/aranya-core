@@ -27,7 +27,7 @@ afc = [
 apq = []
 
 # Enable AQC support.
-aqc = []
+aqc = ["tls"]
 
 # Enable allocations.
 alloc = [
@@ -101,6 +101,9 @@ proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
 # Enable compat with the `rand`, `rand_core`, etc. crates.
 rand_compat = ["spideroak-crypto/rand_compat"]
 
+# Enable TLS utilities.
+tls = []
+
 # Use std.
 std = [
 	"alloc",
@@ -130,6 +133,7 @@ test_util = [
 	"apq",
 	"aqc",
 	"proptest",
+	"tls",
 
 	"spideroak-crypto/test_util",
 
@@ -204,6 +208,7 @@ always_include_features = [
 	"rand_compat",
 	"std",
 	"test_util",
+	"tls",
 ]
 
 skip_feature_sets = []
