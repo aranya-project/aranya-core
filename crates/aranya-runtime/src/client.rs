@@ -1,13 +1,11 @@
-use alloc::{collections::BinaryHeap, vec::Vec};
-
 use buggy::{Bug, BugExt};
-use tracing::trace;
 
 use crate::{
-    Address, Command, CommandId, Engine, EngineError, GraphId, Location, PeerCache, Perspective,
-    Policy, Prior, Priority, Segment, Sink, Storage, StorageError, StorageProvider,
+    Address, Command, CommandId, Engine, EngineError, GraphId, PeerCache, Perspective, Policy,
+    Sink, Storage, StorageError, StorageProvider,
 };
 
+mod braiding;
 mod session;
 mod transaction;
 
@@ -28,6 +26,15 @@ pub enum ClientError {
     NotAuthorized,
     #[error("session deserialize error: {0}")]
     SessionDeserialize(#[from] postcard::Error),
+    /// Attempted to braid two parallel finalize commands together.
+    ///
+    /// Policy must be designed such that two parallel finalize commands are never produced.
+    ///
+    /// Currently, this is practically an unrecoverable error. You must wipe all graphs containing
+    /// the "bad" finalize command and resync from the "good" clients. Otherwise, your network will
+    /// split into two separate graph states which can never successfully sync.
+    #[error("found parallel finalize commands during braid")]
+    ParallelFinalize,
     #[error(transparent)]
     Bug(#[from] Bug),
 }
@@ -197,188 +204,4 @@ where
     pub fn session(&mut self, storage_id: GraphId) -> Result<Session<SP, E>, ClientError> {
         Session::new(&mut self.provider, storage_id)
     }
-}
-
-/// Returns the last common ancestor of two Locations.
-///
-/// This walks the graph backwards until the two locations meet. This
-/// ensures that you can jump to the last common ancestor from
-/// the merge command created using left and right and know that you
-/// won't be jumping into a branch.
-fn last_common_ancestor<S: Storage>(
-    storage: &mut S,
-    left: Location,
-    right: Location,
-) -> Result<(Location, usize), ClientError> {
-    trace!(%left, %right, "finding least common ancestor");
-    let mut left = left;
-    let mut right = right;
-    while left != right {
-        let left_seg = storage.get_segment(left)?;
-        let left_cmd = left_seg.get_command(left).assume("location must exist")?;
-        let right_seg = storage.get_segment(right)?;
-        let right_cmd = right_seg.get_command(right).assume("location must exist")?;
-        // The command with the lower max cut could be our least common ancestor
-        // so we keeping following the command with the higher max cut until
-        // both sides converge.
-        if left_cmd.max_cut()? > right_cmd.max_cut()? {
-            left = if let Some(previous) = left.previous() {
-                previous
-            } else {
-                match left_seg.prior() {
-                    Prior::None => left,
-                    Prior::Single(s) => s,
-                    Prior::Merge(_, _) => {
-                        assert!(left.command == 0);
-                        if let Some((l, _)) = left_seg.skip_list().last() {
-                            // If the storage supports skip lists we return the
-                            // last common ancestor of this command.
-                            *l
-                        } else {
-                            // This case will only be hit if the storage doesn't
-                            // support skip lists so we can return anything
-                            // because it won't be used.
-                            return Ok((left, left_cmd.max_cut()?));
-                        }
-                    }
-                }
-            };
-        } else {
-            right = if let Some(previous) = right.previous() {
-                previous
-            } else {
-                match right_seg.prior() {
-                    Prior::None => right,
-                    Prior::Single(s) => s,
-                    Prior::Merge(_, _) => {
-                        assert!(right.command == 0);
-                        if let Some((r, _)) = right_seg.skip_list().last() {
-                            // If the storage supports skip lists we return the
-                            // last common ancestor of this command.
-                            *r
-                        } else {
-                            // This case will only be hit if the storage doesn't
-                            // support skip lists so we can return anything
-                            // because it won't be used.
-                            return Ok((right, right_cmd.max_cut()?));
-                        }
-                    }
-                }
-            };
-        }
-    }
-    let left_seg = storage.get_segment(left)?;
-    let left_cmd = left_seg.get_command(left).assume("location must exist")?;
-    Ok((left, left_cmd.max_cut()?))
-}
-
-/// Enforces deterministic ordering for a set of [`Command`]s in a graph.
-/// Returns the ordering.
-pub fn braid<S: Storage>(
-    storage: &mut S,
-    left: Location,
-    right: Location,
-) -> Result<Vec<Location>, ClientError> {
-    struct Strand<S> {
-        key: (Priority, CommandId),
-        next: Location,
-        segment: S,
-    }
-
-    impl<S: Segment> Strand<S> {
-        fn new(
-            storage: &mut impl Storage<Segment = S>,
-            location: Location,
-            cached_segment: Option<S>,
-        ) -> Result<Self, ClientError> {
-            let segment = cached_segment.map_or_else(|| storage.get_segment(location), Ok)?;
-
-            let key = {
-                let cmd = segment
-                    .get_command(location)
-                    .ok_or(StorageError::CommandOutOfBounds(location))?;
-                (cmd.priority(), cmd.id())
-            };
-
-            Ok(Strand {
-                key,
-                next: location,
-                segment,
-            })
-        }
-    }
-
-    impl<S> Eq for Strand<S> {}
-    impl<S> PartialEq for Strand<S> {
-        fn eq(&self, other: &Self) -> bool {
-            self.key == other.key
-        }
-    }
-    impl<S> Ord for Strand<S> {
-        fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-            self.key.cmp(&other.key).reverse()
-        }
-    }
-    impl<S> PartialOrd for Strand<S> {
-        fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-
-    let mut braid = Vec::new();
-    let mut strands = BinaryHeap::new();
-
-    trace!(%left, %right, "braiding");
-
-    for head in [left, right] {
-        strands.push(Strand::new(storage, head, None)?);
-    }
-
-    // Get latest command
-    while let Some(strand) = strands.pop() {
-        // Consume another command off the strand
-        let (prior, mut maybe_cached_segment) = if let Some(previous) = strand.next.previous() {
-            (Prior::Single(previous), Some(strand.segment))
-        } else {
-            (strand.segment.prior(), None)
-        };
-        if matches!(prior, Prior::Merge(..)) {
-            trace!("skipping merge command");
-        } else {
-            trace!("adding {}", strand.next);
-            braid.push(strand.next);
-        }
-
-        // Continue processing prior if not accessible from other strands.
-        'location: for location in prior {
-            for other in &strands {
-                trace!("checking {}", other.next);
-                if (location.same_segment(other.next) && location.command <= other.next.command)
-                    || storage.is_ancestor(location, &other.segment)?
-                {
-                    trace!("found ancestor");
-                    continue 'location;
-                }
-            }
-
-            trace!("strand at {location}");
-            strands.push(Strand::new(
-                storage,
-                location,
-                // Taking is OK here because `maybe_cached_segment` is `Some` when
-                // the current strand has a single parent that is in the same segment
-                Option::take(&mut maybe_cached_segment),
-            )?);
-        }
-        if strands.len() == 1 {
-            // No concurrency left, done.
-            let next = strands.pop().assume("strands not empty")?.next;
-            trace!("adding {}", strand.next);
-            braid.push(next);
-            break;
-        }
-    }
-
-    braid.reverse();
-    Ok(braid)
 }
