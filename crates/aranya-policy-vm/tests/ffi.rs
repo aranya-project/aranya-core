@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
 use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
-    Engine, Id, Rng,
+    DeviceId, Engine, Id, Rng,
 };
 use aranya_policy_vm::{
     self,
@@ -48,7 +48,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
         let ctx = CommandContext::Policy(PolicyContext {
             name: "SomeCommand",
             id: Id::default(),
-            author: Id::default().into(),
+            author: DeviceId::default(),
             version: Id::default(),
         });
         let idx = self.procs.get(name).ok_or(TestStateError::UnknownFunc)?;

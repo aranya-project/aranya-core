@@ -281,7 +281,7 @@ impl TryFrom<Value> for LabelId {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let id: Id = value.try_into()?;
-        Ok(LabelId::from(id))
+        Ok(id.into_id())
     }
 }
 

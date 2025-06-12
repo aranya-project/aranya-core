@@ -50,7 +50,7 @@ impl TestFfiEnvelope {
             bug!("envelope::seal called outside seal context");
         };
 
-        let parent_id = ctx.head_id.into();
+        let parent_id = ctx.head_id.into_id();
         let author_id = self.device;
 
         let data = postcard::to_allocvec(&HashedFields {

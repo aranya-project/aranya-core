@@ -7,7 +7,7 @@ use std::{
     io::{stdin, Read},
 };
 
-use aranya_crypto::Id;
+use aranya_crypto::{DeviceId, Id};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
 use aranya_policy_vm::{
@@ -285,7 +285,7 @@ fn main() -> anyhow::Result<()> {
                 ctx = CommandContext::Policy(PolicyContext {
                     name: &name,
                     id: Id::default(),
-                    author: Id::default().into(),
+                    author: DeviceId::default(),
                     version: Id::default(),
                 });
                 rs = machine.create_run_state(&io, ctx);

@@ -383,7 +383,7 @@ impl TryFrom<Value> for DeviceId {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         if let Value::Id(id) = value {
-            Ok(id.into())
+            Ok(id.into_id())
         } else {
             Err(ValueConversionError::invalid_type(
                 "Id",
@@ -399,7 +399,7 @@ impl TryFrom<Value> for EncryptionKeyId {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         if let Value::Id(id) = value {
-            Ok(id.into())
+            Ok(id.into_id())
         } else {
             Err(ValueConversionError::invalid_type(
                 "Id",

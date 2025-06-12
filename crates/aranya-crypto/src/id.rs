@@ -294,7 +294,7 @@ macro_rules! custom_id {
             }
 
             /// Creates a random ID.
-            pub fn random<R: $crate::Csprng>(rng: &mut R) -> Self {
+            pub fn random<R: $crate::Csprng>(rng: &mut R) -> Self { // TODO
                 Self($crate::Id::random(rng))
             }
 
@@ -352,14 +352,7 @@ macro_rules! custom_id {
             }
         }
 
-        impl ::core::convert::From<$crate::Id> for $name {
-            #[inline]
-            fn from(id: $crate::Id) -> Self {
-                Self(id)
-            }
-        }
-
-        impl ::core::convert::From<$name> for $crate::Id {
+        impl ::core::convert::From<$name> for $crate::Id { // TODO
             #[inline]
             fn from(id: $name) -> Self {
                 id.0
@@ -367,7 +360,7 @@ macro_rules! custom_id {
         }
 
         impl ::core::str::FromStr for $name {
-            type Err = $crate::id::DecodeError;
+            type Err = $crate::id::DecodeError; // TODO
 
             fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
                 Self::decode(s)

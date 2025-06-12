@@ -5,7 +5,7 @@ mod bits;
 
 use std::{cell::RefCell, collections::BTreeMap, iter};
 
-use aranya_crypto::Id;
+use aranya_crypto::{DeviceId, Id};
 use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
@@ -39,7 +39,7 @@ fn dummy_ctx_policy(name: &str) -> CommandContext<'_> {
     CommandContext::Policy(PolicyContext {
         name,
         id: Id::default(),
-        author: Id::default().into(),
+        author: DeviceId::default(),
         version: Id::default(),
     })
 }
