@@ -100,6 +100,13 @@ where
         Ok(graph_id)
     }
 
+    /// Remove a graph (AKA Team). The graph commands will be removed from storage.
+    pub fn remove_graph(&mut self, graph_id: GraphId) -> Result<(), ClientError> {
+        self.provider.remove_storage(graph_id)?;
+
+        Ok(())
+    }
+
     /// Commit the [`Transaction`] to storage, after merging all temporary heads.
     pub fn commit(
         &mut self,
@@ -136,6 +143,15 @@ where
             }
         }
         Ok(())
+    }
+
+    /// Returns the ID of the head of the graph.
+    pub fn head_id(&mut self, storage_id: GraphId) -> Result<CommandId, ClientError> {
+        let storage = self.provider.get_storage(storage_id)?;
+
+        let head = storage.get_head()?;
+        let id = storage.get_command_id(head)?;
+        Ok(id)
     }
 
     /// Performs an `action`, writing the results to `sink`.
