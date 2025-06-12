@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1](https://github.com/aranya-project/aranya-core/compare/aranya-perspective-ffi-v0.9.0...aranya-perspective-ffi-v0.9.1) - 2025-06-12
+
+### Other
+
+- updated the following local packages: aranya-crypto, aranya-policy-vm
+
 ## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-perspective-ffi-v0.8.0...aranya-perspective-ffi-v0.9.0) - 2025-05-28
 
 ### Other
