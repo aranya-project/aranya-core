@@ -168,8 +168,8 @@ function open_group_key(
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
             .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id)))?;
         debug_assert_eq!(
-            sk.id().map_err(aranya_crypto::Error::from)?.into_id(),
-            our_enc_sk_id
+            sk.id().map_err(aranya_crypto::Error::from)?,
+            our_enc_sk_id.into_id()
         );
 
         let group_key = {

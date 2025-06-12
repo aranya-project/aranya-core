@@ -28,6 +28,7 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
         [cmd.as_bytes(), sig.raw_sig().borrow()],
     )
     .into_array()
+    .into_array()
     .into()
 }
 

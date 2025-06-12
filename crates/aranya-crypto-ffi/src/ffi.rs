@@ -128,7 +128,7 @@ function sign(
                 .ok_or(KeyNotFound(our_sign_sk_id))?;
             eng.unwrap(&wrapped)?
         };
-        debug_assert_eq!(sk.id()?.into_id(), our_sign_sk_id);
+        debug_assert_eq!(sk.id()?, our_sign_sk_id.into_id());
 
         let (sig, id) = sk.sign_cmd(Cmd {
             data: &command_bytes,

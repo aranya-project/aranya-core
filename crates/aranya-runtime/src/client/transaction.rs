@@ -186,7 +186,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
             }
             match command.parent() {
                 Prior::None => {
-                    if command.id().into_id() == self.storage_id.into_id() {
+                    if command.id() == self.storage_id.into_id() {
                         // Graph already initialized, extra init just spurious
                     } else {
                         bug!("init command does not belong in graph");
@@ -331,7 +331,7 @@ impl<SP: StorageProvider, E: Engine> Transaction<SP, E> {
         sink: &mut impl Sink<E::Effect>,
     ) -> Result<&'sp mut <SP as StorageProvider>::Storage, ClientError> {
         // Storage ID is the id of the init command by definition.
-        if self.storage_id.into_id() != command.id().into_id() {
+        if command.id() != self.storage_id.into_id() {
             return Err(ClientError::InitError);
         }
 
@@ -630,7 +630,7 @@ mod test {
             mut client: ClientState<SeqEngine, SP>,
             ids: &[CommandId],
         ) -> Result<Self, ClientError> {
-            let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
+            let mut trx = Transaction::new(ids[0].into_id());
             let mut prior: Prior<Address> = Prior::None;
             let mut max_cuts = HashMap::new();
             for (max_cut, &id) in ids.iter().enumerate() {

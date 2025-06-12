@@ -92,7 +92,7 @@ impl StorageProvider for MemStorageProvider {
         if update.commands.is_empty() {
             return Err(StorageError::EmptyPerspective);
         }
-        let graph_id = GraphId::from(update.commands[0].command.id.into_id());
+        let graph_id = update.commands[0].command.id.into_id();
         let entry = match self.storage.entry(graph_id) {
             Entry::Vacant(v) => v,
             Entry::Occupied(_) => return Err(StorageError::StorageExists),

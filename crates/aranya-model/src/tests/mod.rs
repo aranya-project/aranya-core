@@ -1501,19 +1501,19 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
             })
             .ok_or("Relationship effect is missing a field")
     };
-    let mut expected_parent_id = eff1.command.into_id();
+    let mut expected_parent_id = eff1.command;
     for eff in [eff2, eff3] {
         // command's id and its parent_id must be different
-        assert_ne!(eff.command.into_id(), retrieve_id("parent_id", eff)?);
+        assert_ne!(eff.command, retrieve_id("parent_id", eff)?.into_id());
 
         // Observe that the actual 'parent_id' of the command that created this effect
         // is equal to the expected 'parent_id'
-        let actual_parent_id = retrieve_id("parent_id", eff)?;
+        let actual_parent_id = retrieve_id("parent_id", eff)?.into_id();
         assert_eq!(expected_parent_id, actual_parent_id);
 
         // Update the expected 'parent_id' with the 'command_id' of the command that created the
         // current effect so that it can be used in the next loop iteration
-        let current_command_id = retrieve_id("command_id", eff)?;
+        let current_command_id = retrieve_id("command_id", eff)?.into_id();
         expected_parent_id = current_command_id;
     }
 
@@ -1561,7 +1561,7 @@ fn should_allow_remove_graph() {
         .expect("Should be able to get ID of head command");
 
     // ID of graph should match ID of head command since no other commands have been added to the graph.
-    assert_eq!(graph_id_a.into_id(), head_id_a.into_id());
+    assert_eq!(head_id_a, graph_id_a.into_id());
 
     // Create our second client.
     test_model
@@ -1592,7 +1592,7 @@ fn should_allow_remove_graph() {
     let head_id_b = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_eq!(head_id_a.into_id(), head_id_b.into_id());
+    assert_eq!(head_id_a, head_id_b);
 
     // Add our client's public keys to the graph.
     test_model
@@ -1610,7 +1610,7 @@ fn should_allow_remove_graph() {
     let head_id_after_cmd = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_ne!(head_id_a.into_id(), head_id_after_cmd.into_id());
+    assert_ne!(head_id_a, head_id_after_cmd);
 
     // Remove graph from storage.
     test_model
@@ -1639,5 +1639,5 @@ fn should_allow_remove_graph() {
     let head_id_new_sync = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_eq!(head_id_new_sync.into_id(), head_id_a.into_id());
+    assert_eq!(head_id_new_sync, head_id_a);
 }

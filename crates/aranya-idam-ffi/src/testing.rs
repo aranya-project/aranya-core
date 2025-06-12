@@ -101,7 +101,7 @@ where
             .expect("should be able to unwrap `GroupKey`")
             .id()
             .expect("should be able to generate `GroupKey` ID");
-        assert_eq!(got.into_id(), key_id);
+        assert_eq!(got, key_id.into_id());
     }
 
     /// Test that we generate unique `GroupKey`s.
@@ -628,14 +628,14 @@ where
             .public()
             .expect("encryption public key should be valid")
             .id()
-            .expect("encryption key ID should be valid")
-            .into_id();
+            .expect("encryption key ID should be valid");
         let enc_pk =
             postcard::to_allocvec(&sk.public().expect("public encryption key should be valid"))
                 .expect("should be able to encode `EncryptionPublicKey`");
         let got = ffi
             .derive_enc_key_id(&Self::CTX, &mut eng, enc_pk)
-            .expect("should be able to derive `EncryptionPublicKey` ID");
+            .expect("should be able to derive `EncryptionPublicKey` ID")
+            .into_id();
         assert_eq!(want, got);
     }
 
@@ -647,13 +647,13 @@ where
             .public()
             .expect("verifying key should be valid")
             .id()
-            .expect("signing key ID should be valid")
-            .into_id();
+            .expect("signing key ID should be valid");
         let sign_pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
             .expect("should be able to encode `VerifyingKey`");
         let got = ffi
             .derive_sign_key_id(&Self::CTX, &mut eng, sign_pk)
-            .expect("should be able to derive `VerifyingKey` ID");
+            .expect("should be able to derive `VerifyingKey` ID")
+            .into_id();
         assert_eq!(want, got);
     }
 
@@ -665,14 +665,14 @@ where
             .public()
             .expect("identity verifying key should be valid")
             .id()
-            .expect("device ID should be valid")
-            .into_id();
+            .expect("device ID should be valid");
         let ident_pk =
             postcard::to_allocvec(&sk.public().expect("identity verifying key should be valid"))
                 .expect("should be able to encode `IdentityVerifyingKey`");
         let got = ffi
             .derive_device_id(&Self::CTX, &mut eng, ident_pk)
-            .expect("should be able to derive `VerifyingKey` ID");
+            .expect("should be able to derive `VerifyingKey` ID")
+            .into_id();
         assert_eq!(want, got);
     }
 }

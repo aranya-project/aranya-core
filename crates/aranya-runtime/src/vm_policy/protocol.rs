@@ -114,9 +114,9 @@ impl From<Envelope<'_>> for Struct {
         Self::new(
             "Envelope",
             [
-                ("parent_id".into(), e.parent_id.into_id().into()),
-                ("author_id".into(), e.author_id.into_id().into()),
-                ("command_id".into(), e.command_id.into_id().into()),
+                ("parent_id".into(), Value::Id(e.parent_id.into_id())),
+                ("author_id".into(), Value::Id(e.author_id.into_id())),
+                ("command_id".into(), Value::Id(e.command_id.into_id())),
                 ("payload".into(), e.payload.into_owned().into()),
                 ("signature".into(), e.signature.into_owned().into()),
             ],

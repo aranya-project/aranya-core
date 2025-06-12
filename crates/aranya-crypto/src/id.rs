@@ -85,6 +85,12 @@ impl Id {
         &self.0
     }
 
+    /// Converts itself into another ID type.
+    #[inline]
+    pub fn into_id<T: From<[u8; 32]>>(self) -> T {
+        T::from(*self.as_array())
+    }
+
     /// Decode the [`Id`] from a base58 string.
     pub fn decode<T: AsRef<[u8]>>(s: T) -> Result<Self, DecodeError> {
         String32::decode(s).map(Self::from)
@@ -304,16 +310,16 @@ macro_rules! custom_id {
                 self.0.as_array()
             }
 
-            /// Returns itself as a plain `Id`.
+            /// Converts itself into another ID type.
             #[inline]
-            pub const fn into_id(self) -> $crate::Id {
-                self.0
+            pub fn into_id<T: From<[u8; 32]>>(self) -> T {
+                T::from(*self.as_array())
             }
 
             /// Decode the ID from a base58 string.
             pub fn decode<T: ::core::convert::AsRef<[u8]>>(
                 s: T,
-            ) -> ::core::result::Result<Self, $crate::id::DecodeError> {
+            ) -> ::core::result::Result<Self, $crate::id::DecodeError> { // TODO
                 $crate::Id::decode(s).map(Self)
             }
         }
@@ -329,15 +335,6 @@ macro_rules! custom_id {
             #[inline]
             fn as_ref(&self) -> &[u8] {
                 self.0.as_ref()
-            }
-        }
-
-        impl ::core::convert::From<$crate::generic_array::GenericArray<u8, $crate::typenum::U32>>
-            for $name
-        {
-            #[inline]
-            fn from(id: $crate::generic_array::GenericArray<u8, $crate::typenum::U32>) -> Self {
-                Self(id.into())
             }
         }
 
