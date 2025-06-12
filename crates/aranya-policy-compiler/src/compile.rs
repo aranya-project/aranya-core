@@ -3,7 +3,8 @@ mod target;
 mod types;
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet, HashSet},
+    borrow::Cow,
+    collections::{btree_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -384,8 +385,7 @@ impl<'a> CompileState<'a> {
             ))));
         };
 
-        let mut s = s.clone();
-        self.evaluate_sources(&mut s, &struct_def)?;
+        let s = self.evaluate_sources(s, &struct_def)?;
 
         self.append_instruction(Instruction::StructNew(s.identifier.clone()));
         for (field_name, e) in &s.fields {
@@ -787,12 +787,16 @@ impl<'a> CompileState<'a> {
                 }
             }
             Expression::Identifier(i) => {
-                let t = self.identifier_types.get(i).map_err(|_| {
-                    self.err(CompileErrorType::NotDefined(format!(
-                        "Unknown identifier `{}`",
-                        i
-                    )))
-                })?;
+                let t = self
+                    .identifier_types
+                    .get(i)
+                    .map_err(|_| {
+                        self.err(CompileErrorType::NotDefined(format!(
+                            "Unknown identifier `{}`",
+                            i
+                        )))
+                    })?
+                    .clone();
 
                 self.append_instruction(Instruction::Meta(Meta::Get(i.clone())));
                 self.append_instruction(Instruction::Get(i.clone()));
@@ -2225,12 +2229,12 @@ impl<'a> CompileState<'a> {
                         struct_ast.identifier
                     ))));
                 };
-                let mut struct_ast = struct_ast.clone();
-                self.evaluate_sources(&mut struct_ast, &struct_def)?;
+
+                let struct_ast = self.evaluate_sources(struct_ast, &struct_def)?;
 
                 let NamedStruct {
                     identifier, fields, ..
-                } = struct_ast;
+                } = struct_ast.as_ref();
 
                 Ok(Value::Struct(Struct {
                     name: identifier.clone(),
@@ -2260,119 +2264,97 @@ impl<'a> CompileState<'a> {
         }
     }
 
-    fn evaluate_sources(
+    fn evaluate_sources<'s>(
         &self,
-        base_struct: &mut NamedStruct,
+        base_struct: &'s NamedStruct,
         base_struct_defns: &[FieldDefinition],
-    ) -> Result<(), CompileError> {
-        self.check_no_op_struct_comp(base_struct, base_struct_defns)?;
-
-        let source_field_defns = base_struct
-            .sources
-            .iter()
-            .map(|src_ident| {
-                self.identifier_types
-                    .get(src_ident)
-                    .map_err(|_| {
-                        self.err(CompileErrorType::NotDefined(format!(
-                            "Unknown identifier `{src_ident}`"
-                        )))
-                    })
-                    .and_then(|ident_type| match ident_type {
-                        Typeish::Type(VType::Struct(type_name)) => self
-                            .m
-                            .struct_defs
-                            .get(&type_name)
-                            .assume("identifier with a struct type has that struct already defined")
-                            .map_err(|err| self.err(err.into()))
-                            .map(|field_defns| (src_ident, field_defns, type_name)),
-                        Typeish::Type(_) | Typeish::Indeterminate => {
-                            Err(self.err(CompileErrorType::InvalidType(format!(
-                                "Expected `{src_ident}` to be a struct"
-                            ))))
-                        }
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        let mut seen = BTreeMap::new();
-        for (source_struct_name, field_defns, source_struct_type_name) in source_field_defns {
-            for source_defn in field_defns {
-                match seen.entry(&source_defn.identifier) {
-                    Entry::Vacant(e) => {
-                        base_struct_defns
-                            .iter()
-                            .find(|b_defn| b_defn.identifier == source_defn.identifier)
-                            .ok_or_else(|| {
-                                self.err(CompileErrorType::SourceStructNotSubsetOfBase(
-                                    source_struct_type_name.clone(),
-                                    base_struct.identifier.clone(),
-                                ))
-                            })
-                            .and_then(|base_struct_defn| {
-                                if base_struct_defn.field_type == source_defn.field_type {
-                                    Ok(())
-                                } else {
-                                    Err(self.err(CompileErrorType::InvalidType(format!(
-                                        "Expected field `{}` of `{}` to be a `{}`",
-                                        &source_defn.identifier,
-                                        source_struct_name,
-                                        base_struct_defn.field_type
-                                    ))))
-                                }
-                            })?;
-
-                        if !base_struct
-                            .fields
-                            .iter()
-                            .any(|(field_ident, _)| field_ident == &source_defn.identifier)
-                        {
-                            base_struct.fields.push((
-                                source_defn.identifier.clone(),
-                                Expression::Dot(
-                                    Box::new(Expression::Identifier(source_struct_name.clone())),
-                                    source_defn.identifier.clone(),
-                                ),
-                            ));
-                        }
-                        e.insert(source_struct_type_name.clone());
-                    }
-                    Entry::Occupied(other) => {
-                        let (struct_1, struct_2) =
-                            (source_struct_type_name.to_string(), other.get().to_string());
-                        return Err(
-                            self.err(CompileErrorType::DuplicateSourceFields(struct_1, struct_2))
-                        );
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn check_no_op_struct_comp(
-        &self,
-        strukt: &NamedStruct,
-        strukt_defns: &[FieldDefinition],
-    ) -> Result<(), CompileError> {
-        if strukt.sources.is_empty() {
-            return Ok(());
+    ) -> Result<Cow<'s, NamedStruct>, CompileError> {
+        // If there are no sources, no evaluation is needed.
+        if base_struct.sources.is_empty() {
+            return Ok(Cow::Borrowed(base_struct));
         }
 
-        let field_idents: HashSet<_> = strukt
+        // If the struct is already full, there ought to be no sources.
+        if base_struct.fields.len() == base_struct_defns.len() {
+            return Err(self.err(CompileErrorType::NoOpStructComp));
+        }
+
+        let base_fields: HashSet<&str> = base_struct
             .fields
             .iter()
-            .map(|(field_name, _)| field_name)
+            .map(|(name, _)| name.as_str())
             .collect();
+        let mut resolved_struct = base_struct.clone();
+        let mut seen = HashMap::new();
 
-        if strukt_defns
-            .iter()
-            .all(|defn| field_idents.contains(&defn.identifier))
-        {
-            Err(self.err(CompileErrorType::NoOpStructComp))
-        } else {
-            Ok(())
+        for src_var_name in &base_struct.sources {
+            // Look up source's type. It should be a struct.
+            let src_type = self.identifier_types.get(src_var_name).map_err(|_| {
+                self.err(CompileErrorType::NotDefined(format!(
+                    "Unknown identifier `{src_var_name}`"
+                )))
+            })?;
+            let src_struct_type_name = match src_type {
+                Typeish::Type(VType::Struct(type_name)) => type_name,
+                Typeish::Type(_) | Typeish::Indeterminate => {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Expected `{src_var_name}` to be a struct"
+                    ))))
+                }
+            };
+            let src_field_defns = self
+                .m
+                .struct_defs
+                .get(src_struct_type_name)
+                .assume("identifier with a struct type has that struct already defined")
+                .map_err(|err| self.err(err.into()))?;
+
+            for src_field_defn in src_field_defns {
+                // Don't resolve fields already in the base struct.
+                if base_fields.contains(src_field_defn.identifier.as_str()) {
+                    continue;
+                }
+
+                // Ensure we haven't already resolved this field from another source.
+                if let Some(other) = seen.insert(
+                    src_field_defn.identifier.as_str(),
+                    src_struct_type_name.as_str(),
+                ) {
+                    return Err(self.err(CompileErrorType::DuplicateSourceFields(
+                        src_struct_type_name.into(),
+                        other.into(),
+                    )));
+                }
+
+                // Ensure this field has the right type.
+                let base_struct_defn = base_struct_defns
+                    .iter()
+                    .find(|b_defn| b_defn.identifier == src_field_defn.identifier)
+                    .ok_or_else(|| {
+                        self.err(CompileErrorType::SourceStructNotSubsetOfBase(
+                            src_struct_type_name.clone(),
+                            base_struct.identifier.clone(),
+                        ))
+                    })?;
+                if base_struct_defn.field_type != src_field_defn.field_type {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Expected field `{}` of `{}` to be a `{}`",
+                        &src_field_defn.identifier, src_var_name, base_struct_defn.field_type
+                    ))));
+                }
+
+                // Add field to resolved struct from source.
+                resolved_struct.fields.push((
+                    src_field_defn.identifier.clone(),
+                    Expression::Dot(
+                        Box::new(Expression::Identifier(src_var_name.clone())),
+                        src_field_defn.identifier.clone(),
+                    ),
+                ));
+            }
         }
+
+        Ok(Cow::Owned(resolved_struct))
     }
 }
 

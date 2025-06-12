@@ -102,16 +102,16 @@ impl IdentifierTypeStack {
 
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
     /// found in the current scope.
-    pub fn get(&self, name: &str) -> Result<Typeish, CompileErrorType> {
+    pub fn get(&self, name: &str) -> Result<&Typeish, CompileErrorType> {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {
-                    return Ok(v.clone());
+                    return Ok(v);
                 }
             }
         }
         if let Some(v) = self.globals.get(name) {
-            return Ok(v.clone());
+            return Ok(v);
         }
         Err(CompileErrorType::NotDefined(name.to_string()))
     }
