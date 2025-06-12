@@ -27,7 +27,11 @@ afc = [
 apq = []
 
 # Enable AQC support.
-aqc = ["tls"]
+aqc = [
+	# AQC really only needs the cipher suites, but including the
+	# rest of the module is currently NBD.
+	"tls",
+]
 
 # Enable allocations.
 alloc = [

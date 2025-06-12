@@ -30,6 +30,8 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
 use crate::ciphersuite::{CipherSuite, CipherSuiteExt};
 
 /// A unique cryptographic ID.
+///
+/// IDs are intended to be public (non-secret) identifiers.
 #[repr(C)]
 #[derive(
     Copy,
@@ -258,7 +260,7 @@ impl<'de> Deserialize<'de> for Id {
     }
 }
 
-/// Creates a custom ID.
+/// Creates a custom [`Id`].
 #[macro_export]
 macro_rules! custom_id {
     (

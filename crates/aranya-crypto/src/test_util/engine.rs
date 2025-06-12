@@ -3066,7 +3066,7 @@ pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
     for &cs in tls::CipherSuiteId::all() {
         for i in 0..100 {
             // Same IKM, but different policy ID, so the PRK
-            // should be different.
+            // (and therefore PSKs) should be different.
             let seed = tls::PskSeed::<E::CS>::from_ikm(&ikm, &PolicyId::random(eng));
 
             let psk = seed.generate_psk(cs).unwrap();

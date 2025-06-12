@@ -55,11 +55,15 @@ impl<CS: CipherSuite> PskSeed<CS> {
         Self::from_ikm(&ikm, policy)
     }
 
+    /// Creates a `PskSeed` from some IKM.
+    ///
+    /// Only `pub(crate)` for testing purposes.
     pub(crate) fn from_ikm(ikm: &[u8; 32], policy: &PolicyId) -> Self {
         let prk = CS::labeled_extract(SEED_DOMAIN, policy.as_bytes(), b"prk", ikm);
         Self::from_prk(prk)
     }
 
+    /// Only broken out for `unwrapped!`.
     fn from_prk(prk: Prk<CS>) -> Self {
         Self {
             prk,
@@ -164,11 +168,17 @@ impl<CS: CipherSuite> Identified for PskSeed<CS> {
 impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
+        // `self.id` is derived from `self.prk`, so ignore it.
         self.prk.ct_eq(&other.prk)
     }
 }
 
 /// A TLS 1.3 external pre-shared key.
+///
+/// See [RFC 8446] section 4.2.11 for more information about
+/// PSKs.
+///
+/// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
 pub struct Psk<CS> {
     secret: [u8; 32],
     id: PskId,
@@ -225,7 +235,26 @@ impl<CS> Drop for Psk<CS> {
     }
 }
 
+impl<CS> ConstantTimeEq for Psk<CS> {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        // Both `self.secret` and `self.id` are derived from the
+        // same seed and cipher suite, so we can ignore
+        // `self.id`. The likelihood that two PSKs generated from
+        // different seeds will have the same ID is
+        // cryptographically negligible.
+        self.secret.ct_eq(&other.secret)
+    }
+}
+
 /// Uniquely identifies a [`Psk`].
+///
+/// # Note About `PartialEq`
+///
+/// `PskId` is not a secret, so it can be freely compared with
+/// [`PartialEq`]. However, doing so may leak knowledge about
+/// which PSKs are present. In general, prefer [`ConstantTimeEq`]
+/// to [`PartialEq`].
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
 pub struct PskId {
     id: PskSeedId,
