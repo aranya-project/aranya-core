@@ -59,6 +59,7 @@ mod oid;
 mod policy;
 pub mod test_util;
 mod tests;
+pub mod tls;
 mod util;
 
 pub use aranya::*;

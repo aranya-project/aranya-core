@@ -1,12 +1,19 @@
 use core::borrow::Borrow;
 
 use spideroak_crypto::hash::{Digest, Hash};
+use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aranya::{Signature, SigningKeyId},
     ciphersuite::{CipherSuite, CipherSuiteExt},
     id::{custom_id, Id},
 };
+
+custom_id! {
+    /// Uniquely identifies a policy.
+    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
+    pub struct PolicyId;
+}
 
 custom_id! {
     /// The ID of a policy command.
