@@ -125,7 +125,7 @@ impl<CS: CipherSuite> Clone for PskSeed<CS> {
     fn clone(&self) -> Self {
         Self {
             prk: self.prk.clone(),
-            id: OnceCell::new(),
+            id: self.id.clone(),
             _marker: PhantomData,
         }
     }
