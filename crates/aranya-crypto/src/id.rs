@@ -454,7 +454,7 @@ pub trait Identified {
 }
 
 /// An error that may occur when accessing an Id
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[error("{0}")]
 pub struct IdError(pub(crate) &'static str);
 

@@ -1,3 +1,5 @@
+use core::cell::OnceCell;
+
 use buggy::BugExt;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
@@ -203,29 +205,38 @@ unwrapped! {
 /// This should be freely shared with the channel peer.
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct UniPeerEncap<CS: CipherSuite>(Encap<CS>);
+pub struct UniPeerEncap<CS: CipherSuite> {
+    encap: Encap<CS>,
+    #[serde(skip)]
+    id: OnceCell<UniChannelId>,
+}
 
 impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId"))
+        *self
+            .id
+            .get_or_init(|| UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId")))
     }
 
     /// Encodes itself as bytes.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        self.encap.as_bytes()
     }
 
     /// Returns itself from its byte encoding.
     #[inline]
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
-        Ok(Self(Encap::from_bytes(data)?))
+        Ok(Self {
+            encap: Encap::from_bytes(data)?,
+            id: OnceCell::new(),
+        })
     }
 
     fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
-        self.0.as_inner()
+        self.encap.as_inner()
     }
 }
 
@@ -263,7 +274,10 @@ impl<CS: CipherSuite> UniSecrets<CS> {
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
             )?;
-            UniPeerEncap(Encap(enc))
+            UniPeerEncap {
+                encap: Encap(enc),
+                id: OnceCell::new(),
+            }
         };
         let author = UniAuthorSecret(root_sk);
 

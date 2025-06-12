@@ -6,7 +6,7 @@
 #![cfg(feature = "apq")]
 #![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
-use core::{borrow::Borrow, fmt, ops::Add, result::Result};
+use core::{borrow::Borrow, cell::OnceCell, fmt, ops::Add, result::Result};
 
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
@@ -132,6 +132,7 @@ pub struct TopicKey<CS: CipherSuite> {
     // large and we have to handle two pieces of key material.
     key: <CS::Aead as Aead>::Key,
     seed: [u8; 64],
+    id: OnceCell<Result<TopicKeyId, IdError>>,
 }
 
 impl<CS: CipherSuite> ZeroizeOnDrop for TopicKey<CS> {}
@@ -146,6 +147,7 @@ impl<CS: CipherSuite> Clone for TopicKey<CS> {
         Self {
             key: self.key.clone(),
             seed: self.seed,
+            id: OnceCell::new(),
         }
     }
 }
@@ -161,23 +163,27 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> Result<TopicKeyId, IdError> {
-        // prk = LabeledExtract(
-        //     "TopicKeyId-v1",
-        //     {0}^n,
-        //     "prk",
-        //     seed,
-        // )
-        // TopicKey = LabeledExpand(
-        //     "TopicKeyId-v1",
-        //     prk,
-        //     "id",
-        //     {0}^0,
-        // )
-        const DOMAIN: &[u8] = b"TopicKeyId-v1";
-        let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
-        CS::labeled_expand(DOMAIN, &prk, b"id", [])
-            .map_err(|_| IdError("unable to expand PRK"))
-            .map(TopicKeyId)
+        self.id
+            .get_or_init(|| {
+                // prk = LabeledExtract(
+                //     "TopicKeyId-v1",
+                //     {0}^n,
+                //     "prk",
+                //     seed,
+                // )
+                // TopicKey = LabeledExpand(
+                //     "TopicKeyId-v1",
+                //     prk,
+                //     "id",
+                //     {0}^0,
+                // )
+                const DOMAIN: &[u8] = b"TopicKeyId-v1";
+                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
+                CS::labeled_expand(DOMAIN, &prk, b"id", [])
+                    .map_err(|_| IdError("unable to expand PRK"))
+                    .map(TopicKeyId)
+            })
+            .clone()
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -340,7 +346,11 @@ impl<CS: CipherSuite> TopicKey<CS> {
 
     fn from_seed(seed: [u8; 64], version: Version, topic: &Topic) -> Result<Self, Error> {
         let key = Self::derive_key(&seed, version, topic)?;
-        Ok(Self { key, seed })
+        Ok(Self {
+            key,
+            seed,
+            id: OnceCell::new(),
+        })
     }
 
     /// Derives a key for [`Self::open`] and [`Self::seal`].
