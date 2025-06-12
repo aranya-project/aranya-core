@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 aranya-policy-ast = { version = "0.5.0", path = "../aranya-policy-ast" }
-aranya-policy-lang = { version = "0.4.3", path = "../aranya-policy-lang" }
+aranya-policy-lang = { version = "0.5.0", path = "../aranya-policy-lang" }
 
 anyhow = { workspace = true }
 prettyplease = { workspace = true }
