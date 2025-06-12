@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use alloc::vec;
+use alloc::{collections::BTreeSet, vec};
 use core::ops::Add;
 
 use spideroak_crypto::{
@@ -25,7 +25,9 @@ use crate::{
     engine::Engine,
     error::Error,
     groupkey::{Context, EncryptedGroupKey, GroupKey},
-    id::Id,
+    id::{Id, Identified as _},
+    policy::PolicyId,
+    tls,
     util::cbor,
 };
 
@@ -147,6 +149,11 @@ macro_rules! for_each_engine_test {
             test_aqc_derive_uni_send_psk_psk_too_long,
             test_aqc_derive_uni_recv_psk_psk_too_long,
             test_aqc_wrap_uni_author_secret,
+
+            // TLS
+            test_tls_psk_different_suites,
+            test_tls_psk_different_policy_ids,
+            test_tls_psk_seed_simple_wrap,
         }
     };
 }
@@ -3026,4 +3033,68 @@ pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
         .unwrap(&wrapped)
         .expect("should be able to unwrap `aqc::UniAuthorSecret`");
     assert_ct_eq!(want, got);
+}
+
+/// Test that [`tls::PskSeed`] generates different PSKs for
+/// different cipher suites.
+pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
+    let seed = tls::PskSeed::<E::CS>::new(eng, &PolicyId::default());
+
+    let mut ids = BTreeSet::new();
+    let mut secrets = BTreeSet::new();
+
+    for &cs in tls::CipherSuiteId::all() {
+        let psk = seed.generate_psk(cs).unwrap();
+        if !ids.insert(*psk.identity().as_bytes()) {
+            panic!("duplicate PSK identity for {cs}: {}", psk.identity());
+        }
+        if !secrets.insert(psk.raw_secret_bytes().to_vec()) {
+            panic!(
+                "duplicate PSK secret for {cs}: {:?}",
+                psk.raw_secret_bytes()
+            );
+        }
+    }
+}
+
+/// Test that [`tls::PskSeed`] generates different PSKs for
+/// different policy IDs, even if the cipher suites are the same.
+pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
+    let ikm = <[u8; 32]>::random(eng);
+    let mut ids = BTreeSet::new();
+    let mut secrets = BTreeSet::new();
+    for &cs in tls::CipherSuiteId::all() {
+        for i in 0..100 {
+            // Same IKM, but different policy ID, so the PRK
+            // (and therefore PSKs) should be different.
+            let seed = tls::PskSeed::<E::CS>::from_ikm(&ikm, &PolicyId::random(eng));
+
+            let psk = seed.generate_psk(cs).unwrap();
+            if !ids.insert(*psk.identity().as_bytes()) {
+                panic!("duplicate PSK identity for {i},{cs}: {}", psk.identity());
+            }
+            if !secrets.insert(psk.raw_secret_bytes().to_vec()) {
+                panic!(
+                    "duplicate PSK secret for {i},{cs}: {:?}",
+                    psk.raw_secret_bytes()
+                );
+            }
+        }
+    }
+}
+
+/// Simple positive test for wrapping [`tls::PskSeed`]s.
+pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &mut E) {
+    let want = tls::PskSeed::new(eng, &PolicyId::default());
+    let bytes = cbor::to_allocvec(
+        &eng.wrap(want.clone())
+            .expect("should be able to wrap `tls::PskSeed`"),
+    )
+    .expect("should be able to encode wrapped `tls::PskSeed`");
+    let wrapped =
+        cbor::from_bytes(&bytes).expect("should be able to decode encoded wrapped `tls::PskSeed`");
+    let got: tls::PskSeed<E::CS> = eng
+        .unwrap(&wrapped)
+        .expect("should be able to unwrap `tls::PskSeed`");
+    assert_eq!(want.id(), got.id());
 }

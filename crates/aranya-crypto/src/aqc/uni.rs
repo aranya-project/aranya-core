@@ -12,16 +12,14 @@ use spideroak_crypto::{
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
-    aqc::{
-        shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
-        suite::CipherSuiteId,
-    },
+    aqc::shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
     id::{custom_id, Id},
     misc::sk_misc,
+    tls::CipherSuiteId,
     Engine,
 };
 
