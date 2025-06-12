@@ -113,7 +113,9 @@ impl IdentifierTypeStack {
         if let Some(v) = self.globals.get(name) {
             return Ok(v);
         }
-        Err(CompileErrorType::NotDefined(name.to_string()))
+        Err(CompileErrorType::NotDefined(format!(
+            "Unknown identifier `{name}`"
+        )))
     }
 
     /// Push a new, empty scope on top of the type stack.
