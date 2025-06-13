@@ -12,7 +12,6 @@ use std::{
 
 use aranya_crypto::{
     afc::{BidiChannel, BidiKeys, BidiSecrets, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
-    PolicyId,
     dangerous::spideroak_crypto::{
         aead::{self, Aead, AeadKey, IndCca2, Lifetime, OpenError, SealError},
         csprng::Csprng,
@@ -28,7 +27,7 @@ use aranya_crypto::{
     },
     default::{DefaultCipherSuite, DefaultEngine},
     test_util::TestCs,
-    CipherSuite, EncryptionKey, Engine, Id, IdentityKey,
+    CipherSuite, EncryptionKey, Engine, Id, IdentityKey, PolicyId,
 };
 
 use crate::{

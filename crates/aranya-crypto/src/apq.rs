@@ -29,8 +29,9 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
-    id::{custom_id, IdError, PolicyId},
+    id::{custom_id, IdError},
     misc::{ciphertext, key_misc},
+    policy::PolicyId,
 };
 
 /// A sender's identity.

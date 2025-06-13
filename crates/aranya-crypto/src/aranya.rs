@@ -20,9 +20,9 @@ use crate::{
     engine::unwrapped,
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
-    id::{Id, PolicyId},
+    id::Id,
     misc::{key_misc, SigData},
-    policy::{self, Cmd, CmdId},
+    policy::{self, Cmd, CmdId, PolicyId},
 };
 
 /// A signature created by a signing key.

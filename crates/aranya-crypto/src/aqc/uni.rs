@@ -17,10 +17,11 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
-    id::{custom_id, Id, PolicyId},
+    id::{custom_id, Id},
     misc::sk_misc,
     tls::CipherSuiteId,
     Engine,
+    policy::PolicyId,
 };
 
 /// Contextual information for a unidirectional AQC channel.

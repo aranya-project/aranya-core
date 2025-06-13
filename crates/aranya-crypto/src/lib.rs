@@ -69,7 +69,8 @@ pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};
 pub use error::*;
 pub use groupkey::*;
-pub use id::{Id, Identified, PolicyId};
+pub use id::{Id, Identified};
+pub use policy::PolicyId;
 pub use keystore::{KeyStore, KeyStoreExt};
 pub use policy::*;
 #[doc(no_inline)]

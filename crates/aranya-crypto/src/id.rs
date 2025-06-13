@@ -487,8 +487,3 @@ enum IdErrorRepr {
     #[error("{0}")]
     Msg(&'static str),
 }
-
-custom_id! {
-    /// A unique identifier for a policy.
-    pub struct PolicyId;
-}

@@ -17,9 +17,10 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::{unwrapped, Engine},
     error::Error,
-    id::{custom_id, Id, PolicyId},
+    id::{custom_id, Id},
     misc::sk_misc,
     tls::CipherSuiteId,
+    policy::PolicyId,
 };
 
 /// Contextual information for a bidirectional AQC channel.

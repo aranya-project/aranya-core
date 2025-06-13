@@ -645,13 +645,25 @@ where
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(Version::new(VERSION.as_u32() + 1), &topic, RECORD, &PolicyId::default(), &sig)
+        .verify(
+            Version::new(VERSION.as_u32() + 1),
+            &topic,
+            RECORD,
+            &PolicyId::default(),
+            &sig,
+        )
         .expect_err("should fail: wrong version");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(VERSION, &Topic::new("WrongTopic"), RECORD, &PolicyId::default(), &sig)
+        .verify(
+            VERSION,
+            &Topic::new("WrongTopic"),
+            RECORD,
+            &PolicyId::default(),
+            &sig,
+        )
         .expect_err("should fail: wrong topic");
 
     sign_key
@@ -693,7 +705,8 @@ where
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let want = TopicKey::new(eng, VERSION, &topic, &PolicyId::default()).expect("unable to create new `TopicKey`");
+    let want = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create new `TopicKey`");
     let (enc, ciphertext) = recv_pk
         .seal_topic_key(eng, VERSION, &topic, &send_sk, &want, &PolicyId::default())
         .expect("unable to encrypt `TopicKey`");
@@ -701,7 +714,14 @@ where
     let ciphertext = EncryptedTopicKey::<E::CS>::from_bytes(ciphertext.as_bytes())
         .expect("should be able to decode `EncryptedTopicKey`");
     let got = recv_sk
-        .open_topic_key(VERSION, &topic, &send_pk, &enc, &ciphertext, &PolicyId::default())
+        .open_topic_key(
+            VERSION,
+            &topic,
+            &send_pk,
+            &enc,
+            &ciphertext,
+            &PolicyId::default(),
+        )
         .expect("unable to decrypt `TopicKey`");
     assert_eq!(want.id(), got.id());
 }
@@ -770,17 +790,33 @@ pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default()).expect("unable to create new `TopicKey`");
+    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create new `TopicKey`");
     let ciphertext = {
         let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-        tk.seal_message(eng, &mut dst, INPUT, VERSION, &topic, &ident, &PolicyId::default())
-            .expect("should succeed");
+        tk.seal_message(
+            eng,
+            &mut dst,
+            INPUT,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
     let plaintext = {
         let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
-        tk.open_message(&mut dst, &ciphertext, VERSION, &topic, &ident, &PolicyId::default())
-            .expect("should succeed");
+        tk.open_message(
+            &mut dst,
+            &ciphertext,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
     assert_eq!(&plaintext, INPUT);
@@ -802,18 +838,35 @@ pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let tk1 = TopicKey::new(eng, VERSION, &topic, &PolicyId::default()).expect("unable to create new `TopicKey`");
-    let tk2 = TopicKey::new(eng, VERSION, &topic, &PolicyId::default()).expect("unable to create new `TopicKey`");
+    let tk1 = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create new `TopicKey`");
+    let tk2 = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create new `TopicKey`");
 
     let ciphertext = {
         let mut dst = vec![0u8; INPUT.len() + tk1.overhead()];
-        tk1.seal_message(eng, &mut dst, INPUT, VERSION, &topic, &ident, &PolicyId::default())
-            .expect("should succeed");
+        tk1.seal_message(
+            eng,
+            &mut dst,
+            INPUT,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
     let mut dst = vec![0u8; ciphertext.len() - tk2.overhead()];
     let err = tk2
-        .open_message(&mut dst, &ciphertext, VERSION, &topic, &ident, &PolicyId::default())
+        .open_message(
+            &mut dst,
+            &ciphertext,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
         .expect_err("should have failed");
     assert_eq!(err, Error::Open(OpenError::Authentication));
 }
@@ -842,11 +895,20 @@ pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default()).expect("unable to create `TopicKey`");
+    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create `TopicKey`");
     let ciphertext = {
         let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-        tk.seal_message(eng, &mut dst, INPUT, VERSION, &topic, &ident, &PolicyId::default())
-            .expect("should succeed");
+        tk.seal_message(
+            eng,
+            &mut dst,
+            INPUT,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
 
@@ -854,7 +916,14 @@ pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
         ($msg:expr, $version:expr, $topic:expr, $ident:expr) => {
             let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
             let err = tk
-                .open_message(&mut dst, &ciphertext, $version, $topic, $ident, &PolicyId::default())
+                .open_message(
+                    &mut dst,
+                    &ciphertext,
+                    $version,
+                    $topic,
+                    $ident,
+                    &PolicyId::default(),
+                )
                 .expect_err("should have failed");
             assert_eq!(err, Error::Open(OpenError::Authentication), $msg);
         };
@@ -885,11 +954,20 @@ pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default()).expect("unable to create `TopicKey`");
+    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create `TopicKey`");
     let mut ciphertext = {
         let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-        tk.seal_message(eng, &mut dst, INPUT, VERSION, &topic, &ident, &PolicyId::default())
-            .expect("should succeed");
+        tk.seal_message(
+            eng,
+            &mut dst,
+            INPUT,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
 
@@ -897,7 +975,14 @@ pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
 
     let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
     let err = tk
-        .open_message(&mut dst, &ciphertext, VERSION, &topic, &ident, &PolicyId::default())
+        .open_message(
+            &mut dst,
+            &ciphertext,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
         .expect_err("should have failed");
     assert_eq!(err, Error::Open(OpenError::Authentication));
 }
