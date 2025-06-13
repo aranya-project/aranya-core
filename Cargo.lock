@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "aranya-crypto",
  "buggy",
