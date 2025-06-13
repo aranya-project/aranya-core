@@ -5,7 +5,7 @@ pub mod cbor {
     use alloc::vec::Vec;
 
     pub use ciborium::*;
-    use serde::{de::DeserializeOwned, Serialize};
+    use serde::{Serialize, de::DeserializeOwned};
 
     pub fn to_allocvec<T: Serialize>(data: &T) -> Result<Vec<u8>, ser::Error<()>> {
         use ser::Error::*;

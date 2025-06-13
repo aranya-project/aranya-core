@@ -4,6 +4,7 @@
 use std::{array, num::NonZeroU16, time::Duration};
 
 use aranya_crypto::{
+    CipherSuite, Csprng, OpenError, Random, Rng, SealError,
     afc::{RawOpenKey, RawSealKey},
     dangerous::spideroak_crypto::{
         aead::{Aead, AeadKey, IndCca2, Lifetime},
@@ -15,14 +16,13 @@ use aranya_crypto::{
     default::DefaultCipherSuite,
     test_util::TestCs,
     typenum::{U0, U16},
-    CipherSuite, Csprng, OpenError, Random, Rng, SealError,
 };
 use aranya_fast_channels::{
+    AranyaState, ChannelId, Client, Directed, Label, NodeId,
     crypto::Aes256Gcm,
     shm::{self, Flag, Mode, Path},
-    AranyaState, ChannelId, Client, Directed, Label, NodeId,
 };
-use criterion::{black_box, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_main};
 
 pub struct NoopAead;
 

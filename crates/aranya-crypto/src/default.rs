@@ -12,7 +12,7 @@ use spideroak_crypto::{
     kem::Kem,
     keys::{SecretKey, SecretKeyBytes},
     mac::Mac,
-    oid::{consts::DHKEM_P256_HKDF_SHA256, Identified as _},
+    oid::{Identified as _, consts::DHKEM_P256_HKDF_SHA256},
     rust,
     signer::Signer,
     typenum::U64,
@@ -186,7 +186,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
                     got: data.name(),
                     expected: T::ID.name(),
                 }
-                .into())
+                .into());
             }
         };
         Ok(secret)
@@ -285,7 +285,7 @@ impl<CS: CipherSuite> Identified for WrappedKey<CS> {
 #[allow(clippy::wildcard_imports)]
 mod test {
     use super::*;
-    use crate::{test_engine, test_util::test_ciphersuite, Rng};
+    use crate::{Rng, test_engine, test_util::test_ciphersuite};
 
     test_engine!(
         default_engine,

@@ -4,7 +4,7 @@
 
 use core::{borrow::Borrow, fmt, marker::PhantomData, result::Result};
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use spideroak_crypto::{
     aead::Tag,
     csprng::{Csprng, Random},
@@ -21,7 +21,7 @@ use crate::{
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
     id::Id,
-    misc::{key_misc, SigData},
+    misc::{SigData, key_misc},
     policy::{self, Cmd, CmdId},
 };
 

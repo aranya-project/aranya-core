@@ -10,7 +10,7 @@ use core::{
 use buggy::BugExt;
 use cfg_if::cfg_if;
 use libc::{
-    off_t, MAP_FAILED, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, PROT_READ, PROT_WRITE, S_IRUSR, S_IWUSR,
+    MAP_FAILED, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, PROT_READ, PROT_WRITE, S_IRUSR, S_IWUSR, off_t,
 };
 
 use super::{
@@ -18,7 +18,7 @@ use super::{
     error::Error,
     path::{Flag, Mode, Path},
 };
-use crate::errno::{errno, Errno};
+use crate::errno::{Errno, errno};
 
 // On macOS (and probably other BSDs), shm_open is variadic so
 // its other arguments are interpreted as c_int.
@@ -41,11 +41,7 @@ where
 {
     // SAFETY: FFI call, no invariants
     let fd = unsafe { libc::shm_open(path.as_ref().as_ptr(), flag, mode) };
-    if fd < 0 {
-        Err(errno())
-    } else {
-        Ok(Fd(fd))
-    }
+    if fd < 0 { Err(errno()) } else { Ok(Fd(fd)) }
 }
 
 // See `shm_unlink(2)`.
@@ -55,11 +51,7 @@ where
 {
     // SAFETY: FFI call, no invariants
     let ret = unsafe { libc::shm_unlink(path.as_ref().as_ptr()) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// Memory mapped shared memory.

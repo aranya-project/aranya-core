@@ -6,8 +6,8 @@ use core::{
     slice,
 };
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use sha3_utils::{encode_string, EncodedString};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use sha3_utils::{EncodedString, encode_string};
 use spideroak_crypto::{
     hash,
     kdf::{self, Expand, Kdf as _, KdfError},

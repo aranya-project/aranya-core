@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 use core::{
-    ffi::{c_int, CStr},
+    ffi::{CStr, c_int},
     marker::PhantomData,
 };
 
@@ -21,8 +21,8 @@ cfg_if! {
 }
 
 pub use imp::{
-    mode_t, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP,
-    S_IRUSR, S_IWGRP, S_IWUSR,
+    LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR,
+    S_IWGRP, S_IWUSR, mode_t,
 };
 
 /// Allows borrowing the file descriptor.

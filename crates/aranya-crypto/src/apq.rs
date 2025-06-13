@@ -29,7 +29,7 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
-    id::{custom_id, IdError},
+    id::{IdError, custom_id},
     misc::{ciphertext, key_misc},
 };
 

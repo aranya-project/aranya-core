@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use tracing::trace;
 
 use super::{
-    alloc, Command, CommandId, Engine, EngineError, FactPerspective, Perspective, Policy, PolicyId,
-    Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
+    Command, CommandId, Engine, EngineError, FactPerspective, MAX_COMMAND_LENGTH, Perspective,
+    Policy, PolicyId, Prior, Priority, Sink, StorageError, alloc,
 };
 use crate::{Address, CommandRecall, Keys, MergeIds};
 

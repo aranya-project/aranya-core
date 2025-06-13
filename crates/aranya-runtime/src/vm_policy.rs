@@ -120,17 +120,17 @@ use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::Stri
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
-    ast::Identifier, ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO,
-    MachineStack, OpenContext, PolicyContext, RunState, Stack, Struct, Value,
+    ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
+    OpenContext, PolicyContext, RunState, Stack, Struct, Value, ast::Identifier,
 };
-use buggy::{bug, BugExt};
+use buggy::{BugExt, bug};
 use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
+    CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
     command::{Command, CommandId},
     engine::{EngineError, NullSink, Policy, Sink},
-    CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
 };
 
 mod error;

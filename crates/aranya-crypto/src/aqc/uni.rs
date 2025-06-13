@@ -12,15 +12,15 @@ use spideroak_crypto::{
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
+    Engine,
     aqc::shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
-    id::{custom_id, Id},
+    id::{Id, custom_id},
     misc::sk_misc,
     tls::CipherSuiteId,
-    Engine,
 };
 
 /// Contextual information for a unidirectional AQC channel.

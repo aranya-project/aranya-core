@@ -14,7 +14,7 @@ use super::{
     error::Error,
     path::{Flag, Mode, Path},
 };
-use crate::errno::{errno, Errno};
+use crate::errno::{Errno, errno};
 
 const MMU_ATTR_PROT_SUP_READ: c_uint = 0x00000001;
 const MMU_ATTR_PROT_SUP_WRITE: c_uint = 0x00000002;
@@ -76,21 +76,13 @@ where
     }
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { sdDelete(id, 0) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 fn unmap(id: c_int) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { sdUnmap(id, 0) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// Shared data mapping.

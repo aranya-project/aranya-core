@@ -1,4 +1,4 @@
-use aranya_crypto::{custom_id, CipherSuite, EncryptionPublicKey};
+use aranya_crypto::{CipherSuite, EncryptionPublicKey, custom_id};
 
 /// Decodes a [`EncryptionPublicKey`].
 pub(crate) fn decode_enc_pk<CS: CipherSuite>(

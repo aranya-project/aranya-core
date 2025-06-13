@@ -6,7 +6,7 @@ use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 use crate::{
     aranya::{Signature, SigningKeyId},
     ciphersuite::{CipherSuite, CipherSuiteExt},
-    id::{custom_id, Id},
+    id::{Id, custom_id},
 };
 
 custom_id! {
