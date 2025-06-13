@@ -427,7 +427,7 @@ pub trait Identified {
 }
 
 /// An error that may occur when accessing an Id
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[error("{0}")]
 pub struct IdError(IdErrorRepr);
 
@@ -450,7 +450,7 @@ impl From<PkError> for IdError {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 enum IdErrorRepr {
     #[error("{0}")]
     Bug(Bug),
