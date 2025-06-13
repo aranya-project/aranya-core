@@ -56,7 +56,7 @@ pub mod id;
 pub mod keystore;
 mod misc;
 mod oid;
-mod policy;
+pub mod policy;
 pub mod test_util;
 mod tests;
 pub mod tls;
@@ -71,7 +71,9 @@ pub use error::*;
 pub use groupkey::*;
 pub use id::{Id, Identified};
 pub use keystore::{KeyStore, KeyStoreExt};
-pub use policy::*;
+// These were already exported in the root of the crate, so keep
+// them even though `policy` is a public module now.
+pub use policy::{merge_cmd_id, CmdId, PolicyId};
 #[doc(no_inline)]
 #[cfg(feature = "bearssl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]

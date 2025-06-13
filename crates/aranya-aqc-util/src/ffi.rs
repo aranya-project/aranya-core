@@ -6,16 +6,17 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+use core::convert::Infallible;
 
 use aranya_crypto::{
-    self,
+    self as crypto,
     aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
-    KeyStoreExt, UnwrapError, WrapError,
+    policy, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
+    KeyStore, KeyStoreExt, PolicyId, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
     ffi::{ffi, Type},
-    CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
+    CommandContext, MachineError, MachineErrorType, MachineIOError, Text, Typed, Value,
     ValueConversionError,
 };
 use buggy::Bug;
@@ -213,6 +214,29 @@ function create_uni_channel(
             psk_length_in_bytes: ch.psk_length_in_bytes.into(),
         })
     }
+
+    /// Computes the ID of a label.
+    #[ffi_export(def = r#"
+function label_id(
+    cmd_id id,
+    name string,
+) id
+"#)]
+    pub(crate) fn label_id<E: Engine>(
+        &self,
+        _ctx: &CommandContext,
+        _eng: &mut E,
+        cmd_id: Id,
+        name: Text,
+    ) -> Result<LabelId, Infallible> {
+        // TODO(eric): Use the real policy ID once it's
+        // available.
+        let policy_id = PolicyId::default();
+        let id = policy::label_id::<E::CS>(cmd_id.into(), &name, policy_id)
+            .into_id()
+            .into();
+        Ok(id)
+    }
 }
 
 /// An error returned by [`Ffi`].
@@ -220,7 +244,7 @@ function create_uni_channel(
 pub(crate) enum FfiError {
     /// The [`aranya_crypto`] crate failed.
     #[error("crypto error: {0}")]
-    Crypto(#[from] aranya_crypto::Error),
+    Crypto(#[from] crypto::Error),
     /// An error occurred while manipulating the [`Stack`].
     #[error("unable to manipulate stack: {0}")]
     Stack(#[from] MachineErrorType),
