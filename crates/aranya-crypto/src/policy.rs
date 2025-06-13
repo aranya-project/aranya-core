@@ -38,6 +38,13 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
     .into()
 }
 
+/// Computes a merge command's ID.
+pub fn merge_cmd_id<CS: CipherSuite>(left: CmdId, right: CmdId) -> CmdId {
+    CS::tuple_hash(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
+        .into_array()
+        .into()
+}
+
 /// A policy command.
 #[derive(Copy, Clone, Debug)]
 pub struct Cmd<'a> {
