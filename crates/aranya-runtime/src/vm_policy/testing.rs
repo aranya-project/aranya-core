@@ -50,7 +50,7 @@ impl TestFfiEnvelope {
             bug!("envelope::do_seal called outside seal context");
         };
 
-        let parent_id = ctx.head_id.into();
+        let parent_id = ctx.head_id.into_id();
         let author_id = self.device;
 
         let data = postcard::to_allocvec(&HashedFields {
@@ -63,9 +63,9 @@ impl TestFfiEnvelope {
         let command_id = CommandId::hash_for_testing_only(&data);
 
         Ok(Envelope {
-            parent_id: parent_id.into(),
-            author_id: author_id.into(),
-            command_id: command_id.into(),
+            parent_id: parent_id.into_id(),
+            author_id: author_id.into_id(),
+            command_id: command_id.into_id(),
             payload,
             // TODO(chip): use an actual signature
             signature: b"LOL".to_vec(),

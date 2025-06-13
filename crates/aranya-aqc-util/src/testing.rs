@@ -32,7 +32,6 @@ use crate::{
     handler::{
         BidiChannelCreated, BidiChannelReceived, Handler, UniChannelCreated, UniChannelReceived,
     },
-    shared::LabelId,
 };
 
 /// Encodes a [`EncryptionPublicKey`].
@@ -310,7 +309,7 @@ impl<T: TestImpl> Device<T> {
             .wrap(enc_sk)
             .expect("should be able to wrap `EncryptionKey`");
         store
-            .try_insert(enc_key_id.into(), wrapped)
+            .try_insert(enc_key_id.into_id(), wrapped)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
@@ -383,7 +382,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
@@ -419,14 +418,14 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
         .bidi_channel_created(
             &mut author.eng,
             &BidiChannelCreated {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_key_id: author.enc_key_id,
                 peer_id: peer.device_id,
                 peer_enc_pk: &peer.enc_pk,
                 label_id,
-                author_secrets_id: author_secrets_id.into(),
+                author_secrets_id: author_secrets_id.into_id(),
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
@@ -442,7 +441,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
         .bidi_channel_received(
             &mut peer.eng,
             &BidiChannelReceived {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_pk: &author.enc_pk,
@@ -459,7 +458,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
         .expect("peer should be able to generate PSK");
 
     assert_eq!(
-        &BidiPskId::from((channel_id.into(), suite)),
+        &BidiPskId::from((channel_id.into_id(), suite)),
         author_psk.identity()
     );
     assert_eq!(author_psk.identity(), peer_psk.identity());
@@ -472,7 +471,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniSendOnlyChannel"),
@@ -508,7 +507,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
         .uni_channel_created(
             &mut author.eng,
             &UniChannelCreated {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: author.device_id,
@@ -516,7 +515,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
                 author_enc_key_id: author.enc_key_id,
                 peer_enc_pk: &peer.enc_pk,
                 label_id,
-                author_secrets_id: author_secrets_id.into(),
+                author_secrets_id: author_secrets_id.into_id(),
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
@@ -532,7 +531,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
         .uni_channel_received(
             &mut peer.eng,
             &UniChannelReceived {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: author.device_id,
@@ -550,7 +549,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
         .expect("peer should be able to generate PSK");
 
     assert_eq!(
-        &UniPskId::from((channel_id.into(), suite)),
+        &UniPskId::from((channel_id.into_id(), suite)),
         author_psk.identity()
     );
     assert_eq!(author_psk.identity(), peer_psk.identity());
@@ -563,7 +562,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
     let mut author = T::new(); // recv only
     let mut peer = T::new(); // send only
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniRecvOnlyChannel"),
@@ -599,7 +598,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
         .uni_channel_created(
             &mut author.eng,
             &UniChannelCreated {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: peer.device_id,
@@ -607,7 +606,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
                 author_enc_key_id: author.enc_key_id,
                 peer_enc_pk: &peer.enc_pk,
                 label_id,
-                author_secrets_id: author_secrets_id.into(),
+                author_secrets_id: author_secrets_id.into_id(),
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
@@ -623,7 +622,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
         .uni_channel_received(
             &mut peer.eng,
             &UniChannelReceived {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 send_id: peer.device_id,
@@ -641,7 +640,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
         .expect("peer should be able to generate PSK");
 
     assert_eq!(
-        &UniPskId::from((channel_id.into(), suite)),
+        &UniPskId::from((channel_id.into_id(), suite)),
         author_psk.identity()
     );
     assert_eq!(author_psk.identity(), peer_psk.identity());
@@ -654,7 +653,7 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
         .map(|_| {
@@ -685,18 +684,18 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
                 .expect("author should be able to create a bidi channel");
 
             let created = BidiChannelCreated {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_key_id: author.enc_key_id,
                 peer_id: peer.device_id,
                 peer_enc_pk: &peer.enc_pk,
                 label_id,
-                author_secrets_id: author_secrets_id.into(),
+                author_secrets_id: author_secrets_id.into_id(),
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             };
             let received = BidiChannelReceived {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_pk: &author.enc_pk,
@@ -764,7 +763,7 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
         .map(|_| {
-            let label_id = LabelId::random(&mut Rng);
+            let label_id = Id::random(&mut Rng).into_id();
 
             // This is called via FFI.
             let AqcBidiChannel {
@@ -787,18 +786,18 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
                 .expect("author should be able to create a bidi channel");
 
             let created = BidiChannelCreated {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_key_id: author.enc_key_id,
                 peer_id: peer.device_id,
                 peer_enc_pk: &peer.enc_pk,
                 label_id,
-                author_secrets_id: author_secrets_id.into(),
+                author_secrets_id: author_secrets_id.into_id(),
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             };
             let received = BidiChannelReceived {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_pk: &author.enc_pk,
@@ -864,7 +863,7 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
         .map(|peer| peer.enc_pk.clone())
         .collect::<Vec<_>>();
 
-    let label_id = LabelId::random(&mut Rng);
+    let label_id = Id::random(&mut Rng).into_id();
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = peers
         .iter()
@@ -897,18 +896,18 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
                 .expect("author should be able to create a bidi channel");
 
             let created = BidiChannelCreated {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_key_id: author.enc_key_id,
                 peer_id: peer.device_id,
                 peer_enc_pk: &peer_enc_pks[i],
                 label_id,
-                author_secrets_id: author_secrets_id.into(),
+                author_secrets_id: author_secrets_id.into_id(),
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             };
             let received = BidiChannelReceived {
-                channel_id: channel_id.into(),
+                channel_id: channel_id.into_id(),
                 parent_cmd_id,
                 author_id: author.device_id,
                 author_enc_pk: &author.enc_pk,

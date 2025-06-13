@@ -119,6 +119,7 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
+use aranya_crypto::Id;
 use aranya_policy_vm::{
     ast::Identifier, ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, OpenContext, PolicyContext, RunState, Stack, Struct, Value,
@@ -576,9 +577,9 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 .collect();
             let ctx = CommandContext::Policy(PolicyContext {
                 name: kind.clone(),
-                id: command.id().into(),
+                id: command.id().into_id(),
                 author: author_id,
-                version: CommandId::default().into(),
+                version: Id::default(),
             });
             self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
         }
@@ -607,7 +608,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let ctx = CommandContext::Action(ActionContext {
             name: name.clone(),
-            head_id: ctx_parent.id.into(),
+            head_id: ctx_parent.id.into_id(),
         });
         {
             let mut rs = self.machine.create_run_state(&io, ctx);
@@ -718,7 +719,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             })?;
 
                         // After publishing a new command, the RunState's context must be updated to reflect the new head
-                        rs.update_context_with_new_head(new_command.id().into())?;
+                        rs.update_context_with_new_head(new_command.id().into_id())?;
 
                         // Resume action after last Publish
                         exit_reason = rs.run().map_err(|e| {
@@ -748,12 +749,8 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<Self::Command<'a>, EngineError> {
         let (left, right) = ids.into();
         let c = VmProtocolData::Merge { left, right };
-        let id = aranya_crypto::merge_cmd_id::<E::CS>(
-            left.id.into_id().into(),
-            right.id.into_id().into(),
-        )
-        .into_id()
-        .into();
+        let id =
+            aranya_crypto::merge_cmd_id::<E::CS>(left.id.into_id(), right.id.into_id()).into_id();
         let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
             EngineError::Write

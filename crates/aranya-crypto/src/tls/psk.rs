@@ -15,7 +15,7 @@ use crate::{
     tls::CipherSuiteId,
     util,
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
-    Csprng, Random,
+    Csprng, Id, Random,
 };
 
 type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as Kdf>::PrkSize>;
@@ -156,12 +156,10 @@ unwrapped! {
 }
 
 impl<CS: CipherSuite> Identified for PskSeed<CS> {
-    type Id = PskSeedId;
-
     #[inline]
-    fn id(&self) -> Result<Self::Id, IdError> {
+    fn id(&self) -> Result<Id, IdError> {
         let id = self.try_id().map_err(Bug::clone)?;
-        Ok(*id)
+        Ok(id.into_id())
     }
 }
 
