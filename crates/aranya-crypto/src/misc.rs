@@ -1,6 +1,6 @@
 //! Utility routines for `apq`.
 
-use core::{borrow::Borrow, cell::OnceCell, fmt, fmt::Debug, marker::PhantomData, result::Result};
+use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use spideroak_crypto::{
