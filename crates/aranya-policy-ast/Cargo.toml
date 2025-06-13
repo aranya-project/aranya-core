@@ -8,20 +8,39 @@ license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
+
 [lints]
 workspace = true
 
-[lib]
 
 [features]
 default = []
 
 # Enable `std`.
-std = ["thiserror/std"]
+std = [
+	"aranya-policy-text/std",
+	"serde/std",
+	"thiserror/std",
+]
+
+proptest = [
+	"aranya-policy-text/proptest",
+]
+
 
 [dependencies]
-serde = { workspace = true, default-features = false, features = ["derive", "alloc"] }
-thiserror = { workspace = true }
+aranya-policy-text = { path = "../aranya-policy-text", default-features = false }
+
+serde = { workspace = true, default-features = false, features = ["alloc"] }
+serde_derive = { workspace = true }
+thiserror = { workspace = true, default-features = false }
+
 
 [package.metadata.docs.rs]
 all-features = true
+
+
+[package.metadata.cargo-machete]
+ignored = [
+	"serde", # Used by serde_derive.
+]

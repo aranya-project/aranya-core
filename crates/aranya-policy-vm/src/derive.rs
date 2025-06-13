@@ -41,11 +41,11 @@
 /// ```
 ///
 /// The parameter following the receiver, if any, must be
-/// `&CommandContext<'_, E>`:
+/// `&CommandContext`:
 ///
 /// ```ignore
-/// fn foo<E: Engine>(&self, ctx: &CommandContext<'_, E>, ...)
-/// fn bar<E: Engine>(ctx: &CommandContext<'_, E>, ...)
+/// fn foo<E: Engine>(&self, ctx: &CommandContext, ...)
+/// fn bar<E: Engine>(ctx: &CommandContext, ...)
 /// ```
 ///
 /// Parameters (other than the receiver and
@@ -111,7 +111,7 @@
 ///     /// `FfiModule`'s schema.
 ///     #[ffi_export(def = "function add(x int, y int) int")]
 ///     fn add<E: Engine>(
-///         _ctx: &CommandContext<'_>,
+///         _ctx: &CommandContext,
 ///         _eng: &mut E,
 ///         x: i64,
 ///         y: i64,
@@ -123,7 +123,7 @@
 ///     /// `calc::divide` in the `FfiModule`'s schema.
 ///     #[ffi_export(def = "function quo(x int, y int) int")]
 ///     fn quo<E: Engine>(
-///         _ctx: &CommandContext<'_>,
+///         _ctx: &CommandContext,
 ///         _eng: &mut E,
 ///         x: i64,
 ///         y: i64,
@@ -133,7 +133,7 @@
 ///
 ///     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
 ///     fn custom_def<E: Engine>(
-///         _ctx: &CommandContext<'_>,
+///         _ctx: &CommandContext,
 ///         _eng: &mut E,
 ///         _a: i64,
 ///         _b: Vec<u8>,
@@ -143,7 +143,7 @@
 ///
 ///     #[ffi_export(def = "function struct_fn(x struct S0) struct S1")]
 ///     fn struct_fn<E: Engine>(
-///         _ctx: &CommandContext<'_>,
+///         _ctx: &CommandContext,
 ///         _eng: &mut E,
 ///         x: S0,
 ///     ) -> Result<S1, Infallible> {
