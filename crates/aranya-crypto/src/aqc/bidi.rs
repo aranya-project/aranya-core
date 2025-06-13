@@ -19,8 +19,8 @@ use crate::{
     error::Error,
     id::{custom_id, Id},
     misc::sk_misc,
-    tls::CipherSuiteId,
     policy::PolicyId,
+    tls::CipherSuiteId,
 };
 
 /// Contextual information for a bidirectional AQC channel.

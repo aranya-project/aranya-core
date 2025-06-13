@@ -19,9 +19,9 @@ use crate::{
     error::Error,
     id::{custom_id, Id},
     misc::sk_misc,
+    policy::PolicyId,
     tls::CipherSuiteId,
     Engine,
-    policy::PolicyId,
 };
 
 /// Contextual information for a unidirectional AQC channel.
