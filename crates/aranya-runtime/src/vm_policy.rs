@@ -748,11 +748,16 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<Self::Command<'a>, EngineError> {
         let (left, right) = ids.into();
         let c = VmProtocolData::Merge { left, right };
+        let id = aranya_crypto::merge_cmd_id::<E::CS>(
+            left.id.into_id().into(),
+            right.id.into_id().into(),
+        )
+        .into_id()
+        .into();
         let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
             EngineError::Write
         })?;
-        let id = CommandId::hash_for_testing_only(data);
         Ok(VmProtocol::new(data, id, c, Priority::Merge))
     }
 }
