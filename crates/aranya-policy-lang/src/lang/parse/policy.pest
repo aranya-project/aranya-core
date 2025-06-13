@@ -192,10 +192,12 @@ atom = _{
     function_call |
     foreign_function_call |
     enum_reference |
+    this |
     identifier |
     block_expression |
     "(" ~ expression ~ ")"
 }
+this = { "this" }
 
 // ## Infix operators
 add = { "+" }

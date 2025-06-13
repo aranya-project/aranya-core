@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fmt::Display};
 
-use aranya_policy_ast as ast;
+use aranya_policy_ast::{self as ast, Identifier};
 use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
 use ast::FactDefinition;
 
@@ -15,21 +15,21 @@ pub struct CompileTarget {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Command definitions (`fields`)
-    pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
+    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
     /// Fact schemas
-    pub fact_defs: BTreeMap<String, FactDefinition>,
+    pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
+    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
     /// Command attributes
-    pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
+    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
-    pub globals: BTreeMap<String, Value>,
+    pub globals: BTreeMap<Identifier, Value>,
 }
 
 impl CompileTarget {

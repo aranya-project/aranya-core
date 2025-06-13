@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use aranya_policy_ast::Identifier;
 use aranya_policy_module::{Instruction, Meta, ModuleV0};
 
 use super::{Analyzer, AnalyzerStatus};
@@ -8,16 +9,16 @@ use crate::tracer::TraceError;
 /// Ensures that all values that are read have first been defined.
 #[derive(Clone)]
 pub struct ValueAnalyzer {
-    globals: BTreeSet<String>,
-    value_sets: Vec<BTreeSet<String>>,
+    globals: BTreeSet<Identifier>,
+    value_sets: Vec<BTreeSet<Identifier>>,
 }
 
 impl ValueAnalyzer {
     /// `predefined` is a list of words that are understood to have been defined before
     /// execution starts. Usually used to add things like `this` or global values.
     pub fn new(
-        globals: impl IntoIterator<Item = String>,
-        predefined: impl IntoIterator<Item = String>,
+        globals: impl IntoIterator<Item = Identifier>,
+        predefined: impl IntoIterator<Item = Identifier>,
     ) -> ValueAnalyzer {
         let initial_set = predefined.into_iter().collect();
         ValueAnalyzer {
@@ -26,16 +27,16 @@ impl ValueAnalyzer {
         }
     }
 
-    fn contains(&self, name: &str) -> bool {
+    fn contains(&self, name: &Identifier) -> bool {
         let current_set = self.value_sets.last().expect("no current value set");
         current_set.contains(name) || self.globals.contains(name)
     }
 
-    fn insert(&mut self, name: &str) -> bool {
+    fn insert(&mut self, name: Identifier) -> bool {
         self.value_sets
             .last_mut()
             .expect("no current value set")
-            .insert(name.to_string())
+            .insert(name)
     }
 }
 
@@ -54,7 +55,7 @@ impl Analyzer for ValueAnalyzer {
                 self.value_sets.pop();
             }
             Instruction::Meta(Meta::Let(s)) => {
-                if !self.insert(s) {
+                if !self.insert(s.clone()) {
                     return Ok(AnalyzerStatus::Failed(format!("Value `{s}` is set twice")));
                 }
             }

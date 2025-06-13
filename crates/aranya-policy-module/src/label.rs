@@ -1,8 +1,6 @@
-extern crate alloc;
-
-use alloc::{borrow::ToOwned, string::String};
 use core::fmt::{self, Display};
 
+use aranya_policy_ast::Identifier;
 use serde::{Deserialize, Serialize};
 
 /// Types of Labels
@@ -43,24 +41,21 @@ impl Display for LabelType {
 #[derive(Debug, Clone, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Label {
     /// The address of the label
-    pub name: String,
+    pub name: Identifier,
     /// The type of the label
     pub ltype: LabelType,
 }
 
 impl Label {
     /// Creates a new named label of the given type.
-    pub fn new(name: &str, ltype: LabelType) -> Label {
-        Label {
-            name: name.to_owned(),
-            ltype,
-        }
+    pub fn new(name: Identifier, ltype: LabelType) -> Label {
+        Label { name, ltype }
     }
 
     /// Creates a new temporary label. Used by the compiler.
-    pub fn new_temp(name: &str) -> Label {
+    pub fn new_temp(name: Identifier) -> Label {
         Label {
-            name: name.to_owned(),
+            name,
             ltype: LabelType::Temporary,
         }
     }

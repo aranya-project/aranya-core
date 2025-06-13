@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-crypto"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "aranya-crypto",
  "buggy",
@@ -369,7 +369,9 @@ dependencies = [
 name = "aranya-policy-ast"
 version = "0.5.0"
 dependencies = [
+ "aranya-policy-text",
  "serde",
+ "serde_derive",
  "thiserror 2.0.7",
 ]
 
@@ -459,6 +461,26 @@ dependencies = [
  "proptest-derive",
  "serde",
  "thiserror 2.0.7",
+]
+
+[[package]]
+name = "aranya-policy-text"
+version = "0.1.0"
+dependencies = [
+ "aranya-policy-text-macro",
+ "proptest",
+ "serde",
+ "thiserror 2.0.7",
+]
+
+[[package]]
+name = "aranya-policy-text-macro"
+version = "0.1.0"
+dependencies = [
+ "macro-string",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1808,6 +1830,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
+name = "macro-string"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b27834086c65ec3f9387b096d66e99f221cf081c2b738042aa252bcd41204e3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "markdown"
 version = "1.0.0-alpha.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2991,9 +3024,9 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "syn"
-version = "2.0.90"
+version = "2.0.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "919d3b74a5dd0ccd15aeb8f93e7006bd9e14c295087c9896a110f490752bcf31"
+checksum = "8ce2b7fc941b3a24138a0a7cf8e858bfc6a992e7978a068a5c760deb0ed43caf"
 dependencies = [
  "proc-macro2",
  "quote",
