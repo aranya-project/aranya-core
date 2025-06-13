@@ -41,9 +41,9 @@ command Start {
 
     policy {
         check ProfileX != ProfileO
-        // `envelope::id` is an FFI-provided helper function that returns
+        // `envelope::command_id` is an FFI-provided helper function that returns
         // the ID from the passed in `envelope`.
-        let gameID = envelope::id(envelope)
+        let gameID = envelope::command_id(envelope)
         finish {
             create PlayerProfile[gameID: gameID]=>{x: ProfileX, o: ProfileO}
             create NextPlayer[gameID: gameID]=>{p: "X"}

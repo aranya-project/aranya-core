@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{FieldDefinition, VType, Version};
+use aranya_policy_ast::{ident, text, FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     ffi::{self, ModuleSchema},
@@ -210,11 +210,11 @@ fn test_seal_open_command() {
     assert!(module
         .labels
         .iter()
-        .any(|l| *l.0 == Label::new("Foo", LabelType::CommandSeal)));
+        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal)));
     assert!(module
         .labels
         .iter()
-        .any(|l| *l.0 == Label::new("Foo", LabelType::CommandOpen)));
+        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen)));
 }
 
 #[test]
@@ -309,11 +309,11 @@ fn test_command_attributes() {
             );
             assert_eq!(
                 attrs.get("s").expect("should find 2nd value"),
-                &Value::String("abc".to_string())
+                &Value::String(text!("abc"))
             );
             assert_eq!(
                 attrs.get("priority").expect("should find 3nd value"),
-                &Value::Enum("Priority".to_string(), 1)
+                &Value::Enum(ident!("Priority"), 1)
             );
         }
     }
@@ -377,11 +377,11 @@ fn test_autodefine_struct() {
 
     let want = vec![
         FieldDefinition {
-            identifier: "a".to_string(),
+            identifier: ident!("a"),
             field_type: VType::Int,
         },
         FieldDefinition {
-            identifier: "b".to_string(),
+            identifier: ident!("b"),
             field_type: VType::Int,
         },
     ];
@@ -1341,11 +1341,11 @@ fn test_if_match_block_scope() {
 }
 
 const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
-    name: "test",
+    name: ident!("test"),
     functions: &[ffi::Func {
-        name: "doit",
+        name: ident!("doit"),
         args: &[ffi::Arg {
-            name: "x",
+            name: ident!("x"),
             vtype: ffi::Type::Int,
         }],
         return_type: ffi::Type::Bool,
@@ -1782,10 +1782,10 @@ fn test_struct_composition_global_let_and_command_attributes() {
     let ModuleData::V0(mod_data) = compile_pass(policy_str).data;
 
     let expected = Value::Struct(Struct {
-        name: "Foo".to_string(),
+        name: ident!("Foo"),
         fields: BTreeMap::from([
-            ("x".to_string(), Value::Int(1000)),
-            ("y".to_string(), Value::Int(20)),
+            (ident!("x"), Value::Int(1000)),
+            (ident!("y"), Value::Int(20)),
         ]),
     });
 

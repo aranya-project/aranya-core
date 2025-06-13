@@ -1,8 +1,5 @@
-extern crate alloc;
-
-use alloc::string::String;
-
 use aranya_crypto::Id;
+use aranya_policy_ast::Identifier;
 use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 use buggy::Bug;
 
@@ -52,7 +49,7 @@ where
     /// Insert a fact
     fn fact_insert(
         &mut self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
         value: impl IntoIterator<Item = FactValue>,
     ) -> Result<(), MachineIOError>;
@@ -60,24 +57,24 @@ where
     /// Delete a fact
     fn fact_delete(
         &mut self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<(), MachineIOError>;
 
     /// Query a fact
     fn fact_query(
         &self,
-        name: String,
+        name: Identifier,
         key: impl IntoIterator<Item = FactKey>,
     ) -> Result<Self::QueryIterator, MachineIOError>;
 
     /// Publish a command
-    fn publish(&mut self, name: String, fields: impl IntoIterator<Item = KVPair>);
+    fn publish(&mut self, name: Identifier, fields: impl IntoIterator<Item = KVPair>);
 
     /// Create an effect
     fn effect(
         &mut self,
-        name: String,
+        name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
         command: Id,
         recalled: bool,
@@ -89,6 +86,6 @@ where
         module: usize,
         procedure: usize,
         stack: &mut S,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
     ) -> Result<(), MachineError>;
 }

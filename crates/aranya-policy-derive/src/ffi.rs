@@ -56,15 +56,15 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let vm: Path = parse_quote!(_policy_vm);
 
     let structdefs = structs.iter().map(|d| {
-        let name = &d.inner.identifier;
+        let name = &d.inner.identifier.as_str();
         let fields = d.inner.fields.iter().map(|arg| {
-            let name = &arg.identifier;
+            let name = &arg.identifier.as_str();
             let vtype = VTypeTokens::new(&arg.field_type, &vm);
             quote!(#vm::arg!(#name, #vtype))
         });
         quote! {
             #vm::ffi::Struct {
-                name: #name,
+                name: #vm::ident!(#name),
                 fields: &[#(#fields),*],
             }
         }
@@ -73,17 +73,17 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     // `struct Foo { ... }` definitions as parsed from
     // `#[ffi(def = "...")]`.
     let structs = structs.iter().map(|d| {
-        let name = format_ident!("{}", d.identifier);
+        let name = format_ident!("{}", d.identifier.as_str());
         let name_str = d.identifier.to_string();
         let names = d
             .fields
             .iter()
-            .map(|d| format_ident!("{}", d.identifier))
+            .map(|d| format_ident!("{}", d.identifier.as_str()))
             .collect::<Vec<_>>();
         let fields = d
             .fields
             .iter()
-            .map(|d| format_ident!("__field_{}", d.identifier))
+            .map(|d| format_ident!("__field_{}", d.identifier.as_str()))
             .collect::<Vec<_>>();
         let types = d.fields.iter().map(|d| {
             let vtype = TypeTokens::new(&d.field_type, &alloc, &crypto, &vm);
@@ -99,10 +99,10 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             impl ::core::convert::From<#name> for #vm::Value {
                 fn from(__value: #name) -> Self {
                     let __struct = #vm::Struct::new(
-                        ::core::stringify!(#name),
+                        #vm::ident!(stringify!(#name)),
                         &[
                             #(#vm::KVPair::new(
-                                ::core::stringify!(#names),
+                                #vm::ident!(stringify!(#names)),
                                 __value.#names.into(),
                             )),*,
                         ],
@@ -134,7 +134,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     #(
                         let #fields = __struct.fields.remove(::core::stringify!(#names))
                             .ok_or(#vm::ValueConversionError::InvalidStructMember(
-                                    #alloc::string::String::from(::core::stringify!(#names)),
+                                    #vm::ident!(stringify!(#names)),
                             ))?;
                     )*
                     if !__struct.fields.is_empty() {
@@ -149,29 +149,29 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             }
             #[automatically_derived]
             impl #vm::Typed for #name {
-                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Struct(#name_str);
+                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Struct(#vm::ident!(#name_str));
             }
         }
     });
 
     let enum_defs = enums.iter().map(|d| {
-        let name = &d.inner.identifier;
-        let variants = &d.inner.variants;
+        let name = d.inner.identifier.as_str();
+        let variants = d.inner.variants.iter().map(|v| v.as_str());
         quote! {
             #vm::ffi::Enum {
-                name: #name,
-                variants: &[#(#variants),*],
+                name: #vm::ident!(#name),
+                variants: &[#(#vm::ident!(#variants)),*],
             }
         }
     });
 
     let enums = enums.iter().map(|d| {
-        let name = format_ident!("{}", d.identifier);
+        let name = format_ident!("{}", d.identifier.as_str());
         let name_str = d.identifier.to_string();
         let variants = d
             .variants
             .iter()
-            .map(|v| format_ident!("{}", v))
+            .map(|v| format_ident!("{}", v.as_str()))
             .collect::<Vec<_>>();
         let var_const_names: Vec<_> = variants
             .iter()
@@ -188,7 +188,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             impl ::core::convert::From<#name> for #vm::Value {
                 fn from(__value: #name) -> Self {
                     #vm::Value::Enum(
-                        #name_str.to_string(),
+                        #vm::ident!(#name_str),
                         __value as i64,
                     )
                 }
@@ -223,7 +223,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             }
             #[automatically_derived]
             impl #vm::Typed for #name {
-                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#name_str);
+                const TYPE: #vm::ffi::Type<'static> = #vm::ffi::Type::Enum(#vm::ident!(#name_str));
             }
         }
     });
@@ -284,11 +284,15 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     );
                     let const_assert = quote_spanned! {rtype.span()=>
                         const {
-                            if !<#rtype as #vm::Typed>::TYPE.const_eq(
-                                &#vm::__type!(#vtype),
-                            ) {
+                            let want = #vm::__type!(#vtype);
+                            let got = <#rtype as #vm::Typed>::TYPE;
+                            if !got.const_eq(&want) {
                                 panic!(#msg);
                             }
+                            // This is a silly workaround to "destructor cannot be evaluated at compile time".
+                            // We can't const construct a heap variant for `Identifier`, so this doesn't leak.
+                            ::core::mem::forget(got);
+                            ::core::mem::forget(want);
                         }
                     };
                     quote! {
@@ -322,17 +326,17 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
         let funcs = funcs.iter().map(|f| {
             let name = f.ext_name.to_string();
             let args = f.args.iter().map(|arg| {
-                let name = arg.def.identifier.clone();
+                let name = arg.def.identifier.as_str();
                 let vtype = VTypeTokens::new(&arg.def.field_type, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             });
             let return_type = {
                 let vtype = VTypeTokens::new(&f.result, &vm);
-                quote!(#vm::ffi::Type::#vtype)
+                quote!(#vm::__type!(#vtype))
             };
             quote! {
                 #vm::ffi::Func {
-                    name: #name,
+                    name: #vm::ident!(#name),
                     args: &[#(#args),*],
                     return_type: #return_type,
                 }
@@ -345,7 +349,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                 type Error = #vm::MachineError;
 
                 const SCHEMA: #vm::ffi::ModuleSchema<'static> = #vm::ffi::ModuleSchema {
-                    name: #module,
+                    name: #vm::ident!(#module),
                     functions: &[
                         #(#funcs),*
                     ],
@@ -363,7 +367,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                     &self,
                     __proc: usize,
                     __stack: &mut impl #vm::Stack,
-                    __ctx: &#vm::CommandContext<'_>,
+                    __ctx: &#vm::CommandContext,
                     __eng: &mut __E,
                 ) -> ::core::result::Result<(), Self::Error> {
                     #[allow(non_camel_case_types, clippy::enum_variant_names)]
@@ -378,7 +382,7 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
                             _ => {
                                 return ::core::result::Result::Err(
                                     #vm::MachineError::new(#vm::MachineErrorType::FfiProcedureNotDefined(
-                                        #alloc::string::String::from(Self::SCHEMA.name),
+                                        Self::SCHEMA.name.clone(),
                                         __proc,
                                 )));
                             }
@@ -590,7 +594,7 @@ impl Func {
 
         // TODO(eric): reject ext names with invalid characters,
         // including "::".
-        let ext_name = format_ident!("{}", attr.def.identifier);
+        let ext_name = format_ident!("{}", attr.def.identifier.as_str());
 
         let is_method = item
             .sig
@@ -715,8 +719,14 @@ impl ToTokens for VTypeTokens<'_> {
             VType::Int => quote!(Int),
             VType::Bool => quote!(Bool),
             VType::Id => quote!(Id),
-            VType::Struct(name) => quote!(Struct(#name)),
-            VType::Enum(name) => quote!(Enum(#name)),
+            VType::Struct(name) => {
+                let name = name.as_str();
+                quote!(Struct(#name))
+            }
+            VType::Enum(name) => {
+                let name = name.as_str();
+                quote!(Enum(#name))
+            }
             VType::Optional(vtype) => {
                 let vtype = VTypeTokens::new(vtype, vm);
                 quote!(Optional(&#vm::ffi::Type::#vtype))
@@ -752,7 +762,7 @@ impl ToTokens for TypeTokens<'_> {
         let crypto = self.crypto;
         let vm = self.vm;
         let item = match self.vtype {
-            VType::String => quote!(#alloc::string::String),
+            VType::String => quote!(#vm::Text),
             VType::Bytes => quote!(#alloc::vec::Vec<u8>),
             VType::Int => quote!(i64),
             VType::Bool => quote!(bool),

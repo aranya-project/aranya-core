@@ -22,7 +22,7 @@ impl FfiDevice {
     #[ffi_export(def = r#"function current_device_id() id"#)]
     pub(crate) fn current_device_id<E: aranya_crypto::Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
     ) -> Result<DeviceId, Infallible> {
         Ok(self.id)

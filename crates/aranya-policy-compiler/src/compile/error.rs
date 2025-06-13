@@ -1,6 +1,6 @@
 use std::fmt;
 
-use aranya_policy_ast as ast;
+use aranya_policy_ast::{self as ast, Identifier};
 use aranya_policy_module::CodeMap;
 use buggy::Bug;
 
@@ -34,7 +34,7 @@ pub enum CompileErrorType {
     InvalidCallColor(#[from] InvalidCallColor),
     /// Resolution of branch targets failed to find a valid target
     #[error("bad branch target: {0}")]
-    BadTarget(String),
+    BadTarget(Identifier),
     /// An argument to a function or an item in an expression did not
     /// make sense
     #[error("bad argument: {0}")]
@@ -56,17 +56,17 @@ pub enum CompileErrorType {
     Validation,
     /// Source structs in struct composition have overlapping fields
     #[error("Struct {0} and Struct {1} have at least 1 field with the same name")]
-    DuplicateSourceFields(String, String),
+    DuplicateSourceFields(Identifier, Identifier),
     /// The source struct is not a subset of the base struct
     #[error("Struct {0} must be a subset of Struct {1}")]
-    SourceStructNotSubsetOfBase(String, String),
+    SourceStructNotSubsetOfBase(Identifier, Identifier),
     /// It is an error to add a composed struct when all fields are directly specified
     #[error("A struct literal has all it's fields explicitly specified while also having 1 or more struct compositions")]
     NoOpStructComp,
     /// Invalid Substruct operation - The struct on the RHS of the substruct
     /// operator is not a subset of the struct on the LHS of the substruct operator
     #[error("invalid substruct operation: `Struct {0}` must be a strict subset of `Struct {1}`")]
-    InvalidSubstruct(String, String),
+    InvalidSubstruct(Identifier, Identifier),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(#[from] Bug),

@@ -1,9 +1,9 @@
-extern crate alloc;
-
 use alloc::{borrow::ToOwned, boxed::Box, string::String, vec::Vec};
 use core::{fmt, ops::Deref, str::FromStr};
 
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
+
+use crate::{Identifier, Text};
 
 /// An invalid version string was provided to
 /// [`Version::from_str`].
@@ -88,9 +88,9 @@ pub enum VType {
     /// A unique identifier
     Id,
     /// A named struct
-    Struct(String),
+    Struct(Identifier),
     /// Named enumeration
-    Enum(String),
+    Enum(Identifier),
     /// An optional type of some other type
     Optional(Box<VType>),
 }
@@ -117,7 +117,7 @@ impl fmt::Display for VType {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct FieldDefinition {
     /// the field's name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// the field's type
     pub field_type: VType,
 }
@@ -128,7 +128,7 @@ pub struct FieldDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectFieldDefinition {
     /// the field's name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// the field's type
     pub field_type: VType,
     /// Whether the field is marked "dynamic" or not
@@ -161,11 +161,11 @@ pub enum FactField {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FactLiteral {
     /// the fact's name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// values for the fields of the fact key
-    pub key_fields: Vec<(String, FactField)>,
+    pub key_fields: Vec<(Identifier, FactField)>,
     /// values for the fields of the fact value, which can be absent
-    pub value_fields: Option<Vec<(String, FactField)>>,
+    pub value_fields: Option<Vec<(Identifier, FactField)>>,
 }
 
 /// A function call with a list of arguments.
@@ -174,7 +174,7 @@ pub struct FactLiteral {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionCall {
     /// the function's name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
@@ -183,29 +183,29 @@ pub struct FunctionCall {
 #[derive(Debug, Clone, PartialEq)]
 pub struct NamedStruct {
     /// the struct name - should refer to either a Effect or Command
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The fields, which are pairs of identifiers and expressions
-    pub fields: Vec<(String, Expression)>,
+    pub fields: Vec<(Identifier, Expression)>,
     /// sources is a list of identifiers used in struct composition
-    pub sources: Vec<String>,
+    pub sources: Vec<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 /// Enumeration definition
 pub struct EnumDefinition {
     /// enum name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// list of possible values
-    pub variants: Vec<String>,
+    pub variants: Vec<Identifier>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 /// A reference to an enumeration, e.g. `Color::Red`.
 pub struct EnumReference {
     /// enum name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// name of value inside enum
-    pub value: String,
+    pub value: Identifier,
 }
 
 /// How many facts to expect when counting
@@ -255,9 +255,9 @@ pub enum InternalFunction {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForeignFunctionCall {
     /// the function's module name
-    pub module: String,
+    pub module: Identifier,
     /// the function's name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// values for the function's arguments
     pub arguments: Vec<Expression>,
 }
@@ -268,7 +268,7 @@ pub enum Expression {
     /// A 64-bit signed integer
     Int(i64),
     /// A text string
-    String(String),
+    String(Text),
     /// A boolean literal
     Bool(bool),
     /// An optional literal
@@ -282,7 +282,7 @@ pub enum Expression {
     /// A foreign function call
     ForeignFunctionCall(ForeignFunctionCall),
     /// A variable identifier
-    Identifier(String),
+    Identifier(Identifier),
     /// Enum reference, e.g. `Color::Red`
     EnumReference(EnumReference),
     /// `expr + expr`
@@ -294,7 +294,7 @@ pub enum Expression {
     /// expr || expr`
     Or(Box<Expression>, Box<Expression>),
     /// expr.expr`
-    Dot(Box<Expression>, String),
+    Dot(Box<Expression>, Identifier),
     /// `expr` == `expr`
     Equal(Box<Expression>, Box<Expression>),
     /// `expr` != `expr`
@@ -320,7 +320,7 @@ pub enum Expression {
     /// A block expression
     Block(Vec<AstNode<Statement>>, Box<Expression>),
     /// A substruct expression
-    Substruct(Box<Expression>, String),
+    Substruct(Box<Expression>, Identifier),
     /// Match expression
     Match(Box<MatchExpression>),
 }
@@ -330,7 +330,7 @@ pub enum Expression {
 #[derive(Debug, PartialEq)]
 pub struct FunctionDecl {
     /// The identifier of the function
-    pub identifier: String,
+    pub identifier: Identifier,
     /// A list of the arguments to the function, and their types
     pub arguments: Vec<FieldDefinition>,
     /// The return type of the function, if any
@@ -341,7 +341,7 @@ pub struct FunctionDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LetStatement {
     /// The variable's name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The variable's value
     pub expression: Expression,
 }
@@ -426,7 +426,7 @@ pub struct MapStatement {
     /// Query
     pub fact: FactLiteral,
     /// Identifier of container struct
-    pub identifier: String,
+    pub identifier: Identifier,
     /// Statements to execute for each fact
     pub statements: Vec<AstNode<Statement>>,
 }
@@ -444,7 +444,7 @@ pub struct UpdateStatement {
     /// This fact has to exist as stated
     pub fact: FactLiteral,
     /// The value fields are updated to these values
-    pub to: Vec<(String, FactField)>,
+    pub to: Vec<(Identifier, FactField)>,
 }
 
 /// Delete a fact
@@ -507,7 +507,7 @@ pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
     /// The name of the fact
-    pub identifier: String,
+    pub identifier: Identifier,
     /// Types for all of the key fields
     pub key: Vec<FieldDefinition>,
     /// Types for all of the value fields
@@ -518,7 +518,7 @@ pub struct FactDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActionDefinition {
     /// The name of the action
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The arguments to the action
     pub arguments: Vec<FieldDefinition>,
     /// The statements executed when the action is called
@@ -529,7 +529,7 @@ pub struct ActionDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct EffectDefinition {
     /// The name of the effect
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The fields of the effect and their types
     pub fields: Vec<EffectFieldDefinition>,
 }
@@ -538,7 +538,7 @@ pub struct EffectDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructDefinition {
     /// The name of the struct
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The fields of the struct and their types
     pub fields: Vec<FieldDefinition>,
 }
@@ -547,9 +547,9 @@ pub struct StructDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandDefinition {
     /// Optional attributes
-    pub attributes: Vec<(String, Expression)>,
+    pub attributes: Vec<(Identifier, Expression)>,
     /// The name of the command
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The fields of the command and their types
     pub fields: Vec<FieldDefinition>,
     /// Statements for sealing the command into an envelope
@@ -566,7 +566,7 @@ pub struct CommandDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDefinition {
     /// The name of the function
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The return type
@@ -581,7 +581,7 @@ pub struct FunctionDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FinishFunctionDefinition {
     /// The name of the function
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The argument names and types
     pub arguments: Vec<FieldDefinition>,
     /// The finish block statements
@@ -592,7 +592,7 @@ pub struct FinishFunctionDefinition {
 #[derive(Debug, Clone, PartialEq)]
 pub struct GlobalLetStatement {
     /// The variable's name
-    pub identifier: String,
+    pub identifier: Identifier,
     /// The variable's value
     pub expression: Expression,
 }
@@ -608,7 +608,7 @@ pub struct Policy {
     /// The policy version.
     pub version: Version,
     /// FFI imports
-    pub ffi_imports: Vec<String>,
+    pub ffi_imports: Vec<Identifier>,
     /// The policy's fact definitions.
     pub facts: Vec<AstNode<FactDefinition>>,
     /// The policy's action definitions.
