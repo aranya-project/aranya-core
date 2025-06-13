@@ -197,7 +197,7 @@ mod tests {
             ),
         ];
         for (i, (cmd_id, name, policy_id, want)) in tests.iter().enumerate() {
-            let got = label_id::<CS>(*cmd_id, *name, *policy_id);
+            let got = label_id::<CS>(*cmd_id, name, *policy_id);
             let want = LabelId::decode(*want).unwrap();
             assert_eq!(got, want, "#{i}");
         }
@@ -233,7 +233,7 @@ mod tests {
             ),
         ];
         for (i, (cmd_id, name, policy_id, want)) in tests.iter().enumerate() {
-            let got = role_id::<CS>(*cmd_id, *name, *policy_id);
+            let got = role_id::<CS>(*cmd_id, name, *policy_id);
             let want = RoleId::decode(*want).unwrap();
             assert_eq!(got, want, "#{i}");
         }

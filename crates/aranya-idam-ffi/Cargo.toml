@@ -56,3 +56,6 @@ always_include_features = [
 	"alloc",
 	"testing",
 ]
+
+[package.metadata.cargo-machete]
+ignored = ["serde"]
