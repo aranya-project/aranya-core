@@ -3,7 +3,7 @@
 extern crate alloc;
 
 use alloc::{collections::BTreeSet, vec};
-use core::ops::Add;
+use core::{borrow::Borrow, ops::Add};
 
 use spideroak_crypto::{
     aead::{Aead, OpenError},
@@ -158,6 +158,16 @@ macro_rules! for_each_engine_test {
             test_tls_psk_different_suites,
             test_tls_psk_different_policy_ids,
             test_tls_psk_seed_simple_wrap,
+
+            // PolicyId contextual binding tests
+            test_identity_key_sign_different_policy_ids,
+            test_signing_key_sign_different_policy_ids,
+            test_seal_group_key_different_policy_ids,
+            test_group_key_seal_different_policy_ids,
+            test_apq_topic_key_different_policy_ids,
+            test_apq_message_seal_different_policy_ids,
+            test_apq_sender_sign_different_policy_ids,
+            test_apq_seal_topic_key_different_policy_ids,
         }
     };
 }
@@ -3487,4 +3497,423 @@ pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &mut E) {
         .unwrap(&wrapped)
         .expect("should be able to unwrap `tls::PskSeed`");
     assert_eq!(want.id(), got.id());
+}
+
+/// Different PolicyIds should create different IdentityKey signatures.
+///
+/// E.g., sign(msg, context, policy1) != sign(msg, context, policy2).
+pub fn test_identity_key_sign_different_policy_ids<E: Engine>(eng: &mut E) {
+    let key = IdentityKey::<E::CS>::new(eng);
+    let msg = b"test message";
+    let context = b"test context";
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let sig1 = key
+        .sign(msg, context, &policy1)
+        .expect("should be able to sign with policy1");
+    let sig2 = key
+        .sign(msg, context, &policy2)
+        .expect("should be able to sign with policy2");
+
+    assert_ne!(sig1.to_bytes().borrow(), sig2.to_bytes().borrow());
+
+    // Verify that signatures are valid for their respective policies
+    let verifying_key = key.public().expect("should be able to get public key");
+    verifying_key
+        .verify(msg, context, &policy1, &sig1)
+        .expect("sig1 should verify with policy1");
+    verifying_key
+        .verify(msg, context, &policy2, &sig2)
+        .expect("sig2 should verify with policy2");
+
+    // Verify that signatures fail when verified with wrong policy
+    assert!(verifying_key.verify(msg, context, &policy2, &sig1).is_err());
+    assert!(verifying_key.verify(msg, context, &policy1, &sig2).is_err());
+}
+
+/// Different PolicyIds should create different SigningKey signatures.
+///
+/// E.g., sign(msg, context, policy1) != sign(msg, context, policy2).
+pub fn test_signing_key_sign_different_policy_ids<E: Engine>(eng: &mut E) {
+    let key = DeviceSigningKey::<E::CS>::new(eng);
+    let msg = b"test message";
+    let context = b"test context";
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let sig1 = key
+        .sign(msg, context, &policy1)
+        .expect("should be able to sign with policy1");
+    let sig2 = key
+        .sign(msg, context, &policy2)
+        .expect("should be able to sign with policy2");
+
+    assert_ne!(sig1.to_bytes().borrow(), sig2.to_bytes().borrow());
+
+    // Verify that signatures are valid for their respective policies
+    let verifying_key = key.public().expect("should be able to get public key");
+    verifying_key
+        .verify(msg, context, &policy1, &sig1)
+        .expect("sig1 should verify with policy1");
+    verifying_key
+        .verify(msg, context, &policy2, &sig2)
+        .expect("sig2 should verify with policy2");
+
+    // Verify that signatures fail when verified with wrong policy
+    assert!(verifying_key.verify(msg, context, &policy2, &sig1).is_err());
+    assert!(verifying_key.verify(msg, context, &policy1, &sig2).is_err());
+}
+
+/// Different PolicyIds should create different group key encryptions.
+///
+/// E.g., seal_group_key(key, group, policy1) != seal_group_key(key, group, policy2).
+pub fn test_seal_group_key_different_policy_ids<E: Engine>(eng: &mut E) {
+    let encryption_key = EncryptionKey::<E::CS>::new(eng);
+    let encryption_pk = encryption_key
+        .public()
+        .expect("should be able to get public key");
+    let group_key = GroupKey::<E::CS>::new(eng);
+    let group_id = Id::random(eng);
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let (encap1, encrypted_key1) = encryption_pk
+        .seal_group_key(eng, &group_key, group_id, &policy1)
+        .expect("should be able to seal group key with policy1");
+    let (encap2, encrypted_key2) = encryption_pk
+        .seal_group_key(eng, &group_key, group_id, &policy2)
+        .expect("should be able to seal group key with policy2");
+
+    // Encapsulations should be different due to different PolicyIds
+    assert_ne!(encap1.as_bytes(), encap2.as_bytes());
+
+    // Verify that each can be decrypted with the correct policy
+    let decrypted1 = encryption_key
+        .open_group_key(&encap1, encrypted_key1.clone(), group_id, &policy1)
+        .expect("should be able to decrypt with policy1");
+    let decrypted2 = encryption_key
+        .open_group_key(&encap2, encrypted_key2.clone(), group_id, &policy2)
+        .expect("should be able to decrypt with policy2");
+
+    assert_eq!(
+        group_key.id().expect("group key should have ID"),
+        decrypted1.id().expect("decrypted1 should have ID")
+    );
+    assert_eq!(
+        group_key.id().expect("group key should have ID"),
+        decrypted2.id().expect("decrypted2 should have ID")
+    );
+
+    // Verify that decryption fails with wrong policy
+    assert!(encryption_key
+        .open_group_key(&encap1, encrypted_key1, group_id, &policy2)
+        .is_err());
+    assert!(encryption_key
+        .open_group_key(&encap2, encrypted_key2, group_id, &policy1)
+        .is_err());
+}
+
+/// Different PolicyIds should create different group key event encryptions.
+///
+/// E.g., seal(event, context_with_policy1) != seal(event, context_with_policy2).
+pub fn test_group_key_seal_different_policy_ids<E: Engine>(eng: &mut E) {
+    let group_key = GroupKey::<E::CS>::new(eng);
+    let event = b"test event data";
+    let label = "test_event";
+    let parent = Id::random(eng);
+    let author_sk = DeviceSigningKey::<E::CS>::new(eng);
+    let author_sign_pk = author_sk
+        .public()
+        .expect("should be able to get public key");
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let encrypted1 = {
+        let mut dst = vec![0u8; event.len() + group_key.overhead()];
+        group_key
+            .seal(
+                eng,
+                &mut dst,
+                event,
+                Context {
+                    label,
+                    parent,
+                    author_sign_pk: &author_sign_pk,
+                    policy_id: &policy1,
+                },
+            )
+            .expect("should be able to seal with policy1");
+        dst
+    };
+    let encrypted2 = {
+        let mut dst = vec![0u8; event.len() + group_key.overhead()];
+        group_key
+            .seal(
+                eng,
+                &mut dst,
+                event,
+                Context {
+                    label,
+                    parent,
+                    author_sign_pk: &author_sign_pk,
+                    policy_id: &policy2,
+                },
+            )
+            .expect("should be able to seal with policy2");
+        dst
+    };
+
+    // Encrypted data should be different due to different PolicyIds in context
+    assert_ne!(encrypted1, encrypted2);
+
+    // Verify that each can be decrypted with the correct context
+    let decrypted1 = {
+        let mut dst = vec![0u8; encrypted1.len() - group_key.overhead()];
+        group_key
+            .open(
+                &mut dst,
+                &encrypted1,
+                Context {
+                    label,
+                    parent,
+                    author_sign_pk: &author_sign_pk,
+                    policy_id: &policy1,
+                },
+            )
+            .expect("should be able to decrypt with context1");
+        dst
+    };
+    let decrypted2 = {
+        let mut dst = vec![0u8; encrypted2.len() - group_key.overhead()];
+        group_key
+            .open(
+                &mut dst,
+                &encrypted2,
+                Context {
+                    label,
+                    parent,
+                    author_sign_pk: &author_sign_pk,
+                    policy_id: &policy2,
+                },
+            )
+            .expect("should be able to decrypt with context2");
+        dst
+    };
+
+    assert_eq!(event, decrypted1.as_slice());
+    assert_eq!(event, decrypted2.as_slice());
+
+    // Verify that decryption fails with wrong context
+    let mut dst = vec![0u8; encrypted1.len() - group_key.overhead()];
+    assert!(group_key
+        .open(
+            &mut dst,
+            &encrypted1,
+            Context {
+                label,
+                parent,
+                author_sign_pk: &author_sign_pk,
+                policy_id: &policy2,
+            }
+        )
+        .is_err());
+    let mut dst = vec![0u8; encrypted2.len() - group_key.overhead()];
+    assert!(group_key
+        .open(
+            &mut dst,
+            &encrypted2,
+            Context {
+                label,
+                parent,
+                author_sign_pk: &author_sign_pk,
+                policy_id: &policy1,
+            }
+        )
+        .is_err());
+}
+
+/// Different PolicyIds should create different APQ topic keys.
+///
+/// E.g., TopicKey::new(version, topic, policy1) != TopicKey::new(version, topic, policy2).
+pub fn test_apq_topic_key_different_policy_ids<E: Engine>(eng: &mut E) {
+    let version = Version::new(1);
+    let topic = Topic::new("test_topic");
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let key1 = TopicKey::<E::CS>::new(eng, version, &topic, &policy1)
+        .expect("should be able to create topic key with policy1");
+    let key2 = TopicKey::<E::CS>::new(eng, version, &topic, &policy2)
+        .expect("should be able to create topic key with policy2");
+
+    // Keys should be different due to different PolicyIds
+    assert_ne!(key1.id(), key2.id());
+}
+
+/// Different PolicyIds should create different APQ message encryptions.
+///
+/// E.g., seal_message(msg, policy1) != seal_message(msg, policy2).
+pub fn test_apq_message_seal_different_policy_ids<E: Engine>(eng: &mut E) {
+    let version = Version::new(1);
+    let topic = Topic::new("test_topic");
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+    let message = b"test message";
+
+    // Create sender identity
+    let sender_sk = SenderSecretKey::<E::CS>::new(eng);
+    let sender_sign_sk = SenderSigningKey::<E::CS>::new(eng);
+    let ident = Sender {
+        enc_key: &sender_sk
+            .public()
+            .expect("should be able to get sender public key"),
+        sign_key: &sender_sign_sk
+            .public()
+            .expect("should be able to get sender verifying key"),
+    };
+
+    let key1 = TopicKey::<E::CS>::new(eng, version, &topic, &policy1)
+        .expect("should be able to create topic key with policy1");
+    let key2 = TopicKey::<E::CS>::new(eng, version, &topic, &policy2)
+        .expect("should be able to create topic key with policy2");
+
+    let encrypted1 = {
+        let mut dst = vec![0u8; message.len() + key1.overhead()];
+        key1.seal_message(eng, &mut dst, message, version, &topic, &ident, &policy1)
+            .expect("should be able to seal message with policy1");
+        dst
+    };
+    let encrypted2 = {
+        let mut dst = vec![0u8; message.len() + key2.overhead()];
+        key2.seal_message(eng, &mut dst, message, version, &topic, &ident, &policy2)
+            .expect("should be able to seal message with policy2");
+        dst
+    };
+
+    // Encrypted messages should be different
+    assert_ne!(encrypted1, encrypted2);
+
+    // Verify that each can be decrypted with the correct policy
+    let decrypted1 = {
+        let mut dst = vec![0u8; encrypted1.len() - key1.overhead()];
+        key1.open_message(&mut dst, &encrypted1, version, &topic, &ident, &policy1)
+            .expect("should be able to decrypt with policy1");
+        dst
+    };
+    let decrypted2 = {
+        let mut dst = vec![0u8; encrypted2.len() - key2.overhead()];
+        key2.open_message(&mut dst, &encrypted2, version, &topic, &ident, &policy2)
+            .expect("should be able to decrypt with policy2");
+        dst
+    };
+
+    assert_eq!(message, decrypted1.as_slice());
+    assert_eq!(message, decrypted2.as_slice());
+
+    // Verify that decryption fails with wrong policy
+    let mut dst = vec![0u8; encrypted1.len() - key1.overhead()];
+    assert!(key1
+        .open_message(&mut dst, &encrypted1, version, &topic, &ident, &policy2)
+        .is_err());
+    let mut dst = vec![0u8; encrypted2.len() - key2.overhead()];
+    assert!(key2
+        .open_message(&mut dst, &encrypted2, version, &topic, &ident, &policy1)
+        .is_err());
+}
+
+/// Different PolicyIds should create different APQ sender signatures.
+///
+/// E.g., SenderSigningKey::sign(record, policy1) != SenderSigningKey::sign(record, policy2).
+pub fn test_apq_sender_sign_different_policy_ids<E: Engine>(eng: &mut E) {
+    let sender_sk = SenderSigningKey::<E::CS>::new(eng);
+    let version = Version::new(1);
+    let topic = Topic::new("test_topic");
+    let encrypted_message = b"encrypted message data";
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let sig1 = sender_sk
+        .sign(version, &topic, encrypted_message, &policy1)
+        .expect("should be able to sign with policy1");
+    let sig2 = sender_sk
+        .sign(version, &topic, encrypted_message, &policy2)
+        .expect("should be able to sign with policy2");
+
+    // Signatures should be different due to different PolicyIds
+    assert_ne!(sig1.to_bytes().borrow(), sig2.to_bytes().borrow());
+
+    // Verify that signatures are valid for their respective policies
+    let sender_vk = sender_sk
+        .public()
+        .expect("should be able to get public key");
+    sender_vk
+        .verify(version, &topic, encrypted_message, &policy1, &sig1)
+        .expect("sig1 should verify with policy1");
+    sender_vk
+        .verify(version, &topic, encrypted_message, &policy2, &sig2)
+        .expect("sig2 should verify with policy2");
+
+    // Verify that signatures fail when verified with wrong policy
+    assert!(sender_vk
+        .verify(version, &topic, encrypted_message, &policy2, &sig1)
+        .is_err());
+    assert!(sender_vk
+        .verify(version, &topic, encrypted_message, &policy1, &sig2)
+        .is_err());
+}
+
+/// Different PolicyIds should create different APQ topic key encryptions.
+///
+/// E.g., seal_topic_key(key, policy1) != seal_topic_key(key, policy2).
+pub fn test_apq_seal_topic_key_different_policy_ids<E: Engine>(eng: &mut E)
+where
+    <E::CS as CipherSuite>::Aead: Aead,
+    <<E::CS as CipherSuite>::Aead as Aead>::Overhead: Add<U64>,
+    Sum<<<E::CS as CipherSuite>::Aead as Aead>::Overhead, U64>: ArrayLength,
+{
+    let sender_sk = SenderSecretKey::<E::CS>::new(eng);
+    let sender_pk = sender_sk
+        .public()
+        .expect("should be able to get public key");
+    let receiver_sk = ReceiverSecretKey::<E::CS>::new(eng);
+    let receiver_pk = receiver_sk
+        .public()
+        .expect("should be able to get public key");
+    let version = Version::new(1);
+    let topic = Topic::new("test_topic");
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let topic_key = TopicKey::<E::CS>::new(eng, version, &topic, &policy1)
+        .expect("should be able to create topic key");
+
+    let (encap1, encrypted1) = receiver_pk
+        .seal_topic_key(eng, version, &topic, &sender_sk, &topic_key, &policy1)
+        .expect("should be able to seal topic key with policy1");
+    let (encap2, encrypted2) = receiver_pk
+        .seal_topic_key(eng, version, &topic, &sender_sk, &topic_key, &policy2)
+        .expect("should be able to seal topic key with policy2");
+
+    // Encrypted topic keys should be different due to different PolicyIds
+    assert_ne!(encrypted1.as_bytes(), encrypted2.as_bytes());
+
+    // Verify that each can be decrypted with the correct policy
+    let decrypted1 = receiver_sk
+        .open_topic_key(version, &topic, &sender_pk, &encap1, &encrypted1, &policy1)
+        .expect("should be able to decrypt with policy1");
+    let decrypted2 = receiver_sk
+        .open_topic_key(version, &topic, &sender_pk, &encap2, &encrypted2, &policy2)
+        .expect("should be able to decrypt with policy2");
+
+    assert_eq!(topic_key.id(), decrypted1.id());
+    assert_eq!(topic_key.id(), decrypted2.id());
+
+    // Verify that decryption fails with wrong policy
+    assert!(receiver_sk
+        .open_topic_key(version, &topic, &sender_pk, &encap1, &encrypted1, &policy2)
+        .is_err());
+    assert!(receiver_sk
+        .open_topic_key(version, &topic, &sender_pk, &encap2, &encrypted2, &policy1)
+        .is_err());
 }
