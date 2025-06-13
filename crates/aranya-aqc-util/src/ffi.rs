@@ -8,20 +8,19 @@ extern crate alloc;
 use alloc::vec::Vec;
 
 use aranya_crypto::{
-    self,
+    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
+    KeyStore, KeyStoreExt, UnwrapError, WrapError,
     aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
-    KeyStoreExt, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
-    ffi::{ffi, Type},
     CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
     ValueConversionError,
+    ffi::{Type, ffi},
 };
 use buggy::Bug;
 use spin::Mutex;
 
-use crate::shared::{decode_enc_pk, LabelId};
+use crate::shared::{LabelId, decode_enc_pk};
 
 /// Wraps `tracing::error` to always use the `aqc-ffi` target.
 macro_rules! error {

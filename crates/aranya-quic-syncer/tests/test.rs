@@ -2,16 +2,16 @@ use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use aranya_crypto::Rng;
-use aranya_quic_syncer::{run_syncer, Syncer};
+use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
+    ClientState, GraphId, SyncRequester,
     engine::{Engine, Sink},
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    storage::{memory::MemStorageProvider, StorageProvider},
-    ClientState, GraphId, SyncRequester,
+    storage::{StorageProvider, memory::MemStorageProvider},
 };
 use buggy::BugExt;
-use s2n_quic::{provider::congestion_controller::Bbr, Server};
-use tokio::sync::{mpsc, Mutex as TMutex};
+use s2n_quic::{Server, provider::congestion_controller::Bbr};
+use tokio::sync::{Mutex as TMutex, mpsc};
 
 #[test_log::test(tokio::test)]
 async fn test_sync() -> Result<()> {

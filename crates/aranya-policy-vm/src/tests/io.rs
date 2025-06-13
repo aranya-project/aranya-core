@@ -1,17 +1,17 @@
 extern crate alloc;
-use alloc::collections::{btree_map, BTreeMap};
+use alloc::collections::{BTreeMap, btree_map};
 use core::{cell::RefCell, fmt, ops::DerefMut};
 
 use aranya_crypto::{
-    default::{DefaultCipherSuite, DefaultEngine},
     Id, Rng,
+    default::{DefaultCipherSuite, DefaultEngine},
 };
 use aranya_policy_ast::Identifier;
 
 use super::ffi::*;
 use crate::{
-    ffi::FfiModule, CommandContext, FactKey, FactKeyList, FactValue, FactValueList, KVPair,
-    MachineError, MachineErrorType, MachineIO, MachineIOError, Stack,
+    CommandContext, FactKey, FactKeyList, FactValue, FactValueList, KVPair, MachineError,
+    MachineErrorType, MachineIO, MachineIOError, Stack, ffi::FfiModule,
 };
 
 pub struct TestIO {
@@ -104,7 +104,7 @@ where
             .facts
             .clone()
             .into_iter()
-            .filter(move |f| f.0 .0 == name && prefix_key_match(&f.0 .1, &key))
+            .filter(move |f| f.0.0 == name && prefix_key_match(&f.0.1, &key))
             .map(|((_, k), v)| Ok::<(FactKeyList, FactValueList), MachineIOError>((k, v)));
 
         Ok(Box::new(iter))

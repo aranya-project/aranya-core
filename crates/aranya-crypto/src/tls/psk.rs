@@ -5,17 +5,17 @@ use serde::{Deserialize, Serialize};
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
+    Csprng, Random,
     ciphersuite::{CipherSuite, CipherSuiteExt},
     dangerous::spideroak_crypto::kdf::{self, Kdf},
     engine::unwrapped,
     error::Error,
-    id::{custom_id, IdError, Identified},
+    id::{IdError, Identified, custom_id},
     policy::PolicyId,
     subtle::{Choice, ConstantTimeEq},
     tls::CipherSuiteId,
     util,
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
-    Csprng, Random,
 };
 
 type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as Kdf>::PrkSize>;

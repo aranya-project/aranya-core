@@ -1,9 +1,9 @@
 use aranya_crypto::Engine;
-use aranya_policy_ast::{ident, Text};
+use aranya_policy_ast::{Text, ident};
 
 use crate::{
-    ffi::{self, FfiModule, ModuleSchema},
     CommandContext, MachineError, MachineErrorType, Stack, Value,
+    ffi::{self, FfiModule, ModuleSchema},
 };
 
 pub struct PrintFfi {}

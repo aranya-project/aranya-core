@@ -18,9 +18,9 @@ use crate::{
     },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::{CipherSuite, CipherSuiteExt},
-    engine::{unwrapped, Engine},
+    engine::{Engine, unwrapped},
     error::Error,
-    id::{custom_id, Id, IdError},
+    id::{Id, IdError, custom_id},
     misc::sk_misc,
 };
 

@@ -211,7 +211,7 @@ macro_rules! try_as_ref {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }
@@ -238,7 +238,7 @@ macro_rules! try_as_mut {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }
@@ -266,7 +266,7 @@ macro_rules! try_as_uninit_mut {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }
@@ -307,7 +307,7 @@ macro_rules! try_consume {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }
@@ -331,7 +331,7 @@ macro_rules! try_consume_opt {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }

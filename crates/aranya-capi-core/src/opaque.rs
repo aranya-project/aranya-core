@@ -4,8 +4,8 @@ use core::{
 };
 
 use crate::{
-    safe::{Safe, Typed},
     Builder, InitDefault,
+    safe::{Safe, Typed},
 };
 
 mod imp {

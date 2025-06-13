@@ -1,14 +1,14 @@
 use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
 use aranya_crypto::{
-    default::{DefaultCipherSuite, DefaultEngine},
     Engine, Id, Rng,
+    default::{DefaultCipherSuite, DefaultEngine},
 };
 use aranya_policy_vm::{
-    self,
-    ffi::{ffi, FfiModule, Type},
-    ident, text, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack,
-    PolicyContext, Stack, Text, Typed, Value, ValueConversionError,
+    self, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
+    Stack, Text, Typed, Value, ValueConversionError,
+    ffi::{FfiModule, Type, ffi},
+    ident, text,
 };
 
 #[derive(Debug, PartialEq)]

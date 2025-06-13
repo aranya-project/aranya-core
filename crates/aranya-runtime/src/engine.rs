@@ -7,9 +7,9 @@ use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    Address,
     command::{Command, CommandId},
     storage::{FactPerspective, Perspective},
-    Address,
 };
 
 /// An error returned by the runtime engine.

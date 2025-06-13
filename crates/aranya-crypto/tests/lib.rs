@@ -38,7 +38,7 @@ mod custom_id_tests {
 mod unwrapped_tests {
     use core::marker::PhantomData;
 
-    use aranya_crypto::{id::IdError, unwrapped, Id, Identified};
+    use aranya_crypto::{Id, Identified, id::IdError, unwrapped};
 
     #[test]
     fn test_unwrapped() {

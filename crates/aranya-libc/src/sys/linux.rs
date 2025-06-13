@@ -5,19 +5,15 @@ use core::ffi::c_int;
 #[allow(clippy::wildcard_imports)]
 pub use super::unix::*;
 use crate::{
-    errno::{errno, Errno},
     BorrowedFd,
+    errno::{Errno, errno},
 };
 
 /// See `fallocate(2)`.
 pub fn fallocate(fd: BorrowedFd<'_>, mode: c_int, off: i64, len: i64) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::fallocate64(fd.fd, mode, off, len) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `read(2)`.

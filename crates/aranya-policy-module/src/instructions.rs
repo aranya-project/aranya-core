@@ -10,7 +10,7 @@ mod meta;
 
 pub use meta::*;
 
-use crate::{data::Value, Label};
+use crate::{Label, data::Value};
 
 /// Reason for ending execution.
 #[must_use]

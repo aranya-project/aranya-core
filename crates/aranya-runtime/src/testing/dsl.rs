@@ -60,16 +60,16 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::time::Instant;
 
-use aranya_crypto::{dangerous::spideroak_crypto::csprng::rand::Rng as RRng, Csprng, Rng};
+use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as RRng};
 use buggy::{Bug, BugExt};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, CommandId, EngineError,
+    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
+    StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
     protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    Address, ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location,
-    PeerCache, Prior, Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester,
-    SyncResponder, SyncType, COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
 };
 
 fn default_repeat() -> u64 {

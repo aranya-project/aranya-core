@@ -4,7 +4,7 @@ use anyhow::Context;
 use aranya_capi_codegen::Config;
 use quote::format_ident;
 use syn::parse_quote;
-use tracing_subscriber::{prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, prelude::*};
 
 fn main() -> anyhow::Result<()> {
     println!("cargo::rustc-check-cfg=cfg(cbindgen)");
