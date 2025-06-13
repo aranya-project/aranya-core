@@ -213,7 +213,35 @@ macro_rules! ciphertext {
 #[cfg(feature = "apq")]
 pub(crate) use ciphertext;
 
-/// Asymmetric key misc. impls.
+/// Generate boilerplate for asymmetric key pairs.
+///
+/// It generates the following:
+///
+/// - The type definition for `id`.
+/// - A `fn id(&self) -> Result<id, IdError>` method on both
+///   `sk` and `pk`.
+/// - A `fn public(&self) -> Result<pk, PkError>` method on `sk`.
+/// - `Clone`, `Display`, `Debug`, and `Identified` methods for
+///   both `sk` and `pk`.
+/// - `AsRef`, `Eq`, `PartialEq`, `Serialize`, and `Deserialize`
+///   methods for `pk`.
+///
+/// # Arguments
+///
+/// - `sk` is the secret (private) key type.
+/// - `pk` is the public key type.
+/// - `id` is the key's unique ID.
+///
+/// It assumes `sk` and `pk` are already defined and that both
+/// are unary tuple structs.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// pub struct FooKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
+/// pub struct FooPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
+/// key_misc!(FooKey, FooPublicKey, FooKeyId);
+/// ```
 macro_rules! key_misc {
     ($sk:ident, $pk:ident, $id:ident) => {
         $crate::misc::sk_misc!($sk, $pk, $id);
@@ -222,9 +250,12 @@ macro_rules! key_misc {
 }
 pub(crate) use key_misc;
 
-/// Secret key misc. impls.
+/// Generate boilerplate for secret keys.
+///
+/// See [`key_misc`] for more information.
 macro_rules! sk_misc {
-    // For when the public key isn't used.
+    // For symmetric keys, or asymmetric key pairs when the
+    // public half isn't used.
     ($name:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
@@ -236,21 +267,25 @@ macro_rules! sk_misc {
             #[doc = ::core::concat!("Two `", ::core::stringify!($name), "s` with the same ID are the same secret.")]
             #[inline]
             pub fn id(&self) -> Result<$id, $crate::id::IdError> {
-                const CONTEXT: &'static str = ::core::stringify!($sk);
+                self.id
+                    .get_or_init(|| {
+                        const CONTEXT: &'static str = ::core::stringify!($sk);
 
-                let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.0.public()?);
-                let id = $crate::id::Id::new::<CS>(
-                    ::core::borrow::Borrow::borrow(&pk),
-                    CONTEXT.as_bytes(),
-                );
-                Ok($id(id))
+                        let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.key.public()?);
+                        let id = $crate::id::Id::new::<CS>(
+                            ::core::borrow::Borrow::borrow(&pk),
+                            CONTEXT.as_bytes(),
+                        );
+                        Ok($id(id))
+                    })
+                    .clone()
             }
         }
 
         $crate::misc::sk_misc_inner!($name, $id);
     };
 
-    // For when the public key *is* used.
+    // For asymmetric key pairs when the public half *is* used.
     ($name:ident, $pk:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
@@ -262,13 +297,15 @@ macro_rules! sk_misc {
             #[doc = "Two keys with the same ID are the same key."]
             #[inline]
             pub fn id(&self) -> Result<$id,$crate::id::IdError> {
-                self.public()?.id()
+                self.id
+                    .get_or_init(|| self.public()?.id())
+                    .clone()
             }
 
             /// Returns the public half of the key.
             #[inline]
             pub fn public(&self) -> Result<$pk<CS>, $crate::dangerous::spideroak_crypto::signer::PkError> {
-                Ok($pk(self.0.public()?))
+                Ok($pk(self.key.public()?))
             }
         }
 
@@ -282,7 +319,10 @@ macro_rules! sk_misc_inner {
         impl<CS: $crate::CipherSuite> ::core::clone::Clone for $name<CS> {
             #[inline]
             fn clone(&self) -> Self {
-                Self(::core::clone::Clone::clone(&self.0))
+                Self {
+                    key: ::core::clone::Clone::clone(&self.key),
+                    id: OnceCell::new(),
+                }
             }
         }
 
@@ -314,7 +354,9 @@ macro_rules! sk_misc_inner {
 }
 pub(crate) use sk_misc_inner;
 
-/// Public key misc. impls.
+/// Generate boilerplate for public keys.
+///
+/// See [`key_misc`] for more information.
 macro_rules! pk_misc {
     ($name:ident, $sk:expr, $id:ident) => {
         impl<CS: $crate::CipherSuite> $name<CS> {
