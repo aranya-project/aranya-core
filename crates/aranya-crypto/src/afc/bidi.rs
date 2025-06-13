@@ -237,29 +237,38 @@ unwrapped! {
 /// This should be freely shared with the channel peer.
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct BidiPeerEncap<CS: CipherSuite>(Encap<CS>);
+pub struct BidiPeerEncap<CS: CipherSuite> {
+    encap: Encap<CS>,
+    #[serde(skip)]
+    id: OnceCell<BidiChannelId>,
+}
 
 impl<CS: CipherSuite> BidiPeerEncap<CS> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
-        BidiChannelId(Id::new::<CS>(self.as_bytes(), b"BidiChannelId"))
+        *self
+            .id
+            .get_or_init(|| BidiChannelId(Id::new::<CS>(self.as_bytes(), b"BidiChannelId")))
     }
 
     /// Encodes itself as bytes.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        self.encap.as_bytes()
     }
 
     /// Returns itself from its byte encoding.
     #[inline]
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
-        Ok(Self(Encap::from_bytes(data)?))
+        Ok(Self {
+            encap: Encap::from_bytes(data)?,
+            id: OnceCell::new(),
+        })
     }
 
     fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
-        self.0.as_inner()
+        self.encap.as_inner()
     }
 }
 
@@ -299,7 +308,10 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
             )?;
-            BidiPeerEncap(Encap(enc))
+            BidiPeerEncap {
+                encap: Encap(enc),
+                id: OnceCell::new(),
+            }
         };
         let author = BidiAuthorSecret {
             key: root_sk,
