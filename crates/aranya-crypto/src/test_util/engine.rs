@@ -218,29 +218,29 @@ pub fn test_simple_device_signing_key_sign<E: Engine>(eng: &mut E) {
     let sign_key = DeviceSigningKey::<E::CS>::new(eng);
 
     let sig = sign_key
-        .sign(MSG, CONTEXT)
+        .sign(MSG, CONTEXT, &PolicyId::default())
         .expect("unable to create signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MSG, CONTEXT, &sig)
+        .verify(MSG, CONTEXT, &PolicyId::default(), &sig)
         .expect("the signature should be valid");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MSG, b"wrong context", &sig)
+        .verify(MSG, b"wrong context", &PolicyId::default(), &sig)
         .expect_err("should fail with wrong context");
 
     let wrong_sig = sign_key
-        .sign(b"different", b"signature")
+        .sign(b"different", b"signature", &PolicyId::default())
         .expect("should not fail to create signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MSG, CONTEXT, &wrong_sig)
+        .verify(MSG, CONTEXT, &PolicyId::default(), &wrong_sig)
         .expect_err("should fail with wrong signature");
 }
 
@@ -254,10 +254,10 @@ pub fn test_simple_seal_group_key<E: Engine>(eng: &mut E) {
     let (enc, ciphertext) = enc_key
         .public()
         .expect("public encryption key should be valid")
-        .seal_group_key(eng, &want, group)
+        .seal_group_key(eng, &want, group, &PolicyId::default())
         .expect("unable to encrypt `GroupKey`");
     let got = enc_key
-        .open_group_key(&enc, ciphertext, group)
+        .open_group_key(&enc, ciphertext, group, &PolicyId::default())
         .expect("unable to decrypt `GroupKey`");
     assert_eq!(want.id(), got.id());
 }
@@ -316,29 +316,29 @@ pub fn test_simple_identity_key_sign<E: Engine>(eng: &mut E) {
     const CONTEXT: &[u8] = b"test_simple_identity_key_sign";
 
     let sig = sign_key
-        .sign(MESSAGE, CONTEXT)
+        .sign(MESSAGE, CONTEXT, &PolicyId::default())
         .expect("should not fail to create signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MESSAGE, CONTEXT, &sig)
+        .verify(MESSAGE, CONTEXT, &PolicyId::default(), &sig)
         .expect("should not fail with correct signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MESSAGE, b"wrong context", &sig)
+        .verify(MESSAGE, b"wrong context", &PolicyId::default(), &sig)
         .expect_err("should fail with wrong context");
 
     let wrong_sig = sign_key
-        .sign(b"different", b"signature")
+        .sign(b"different", b"signature", &PolicyId::default())
         .expect("should not fail to create signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(MESSAGE, CONTEXT, &wrong_sig)
+        .verify(MESSAGE, CONTEXT, &PolicyId::default(), &wrong_sig)
         .expect_err("should fail with wrong signature");
 }
 
@@ -416,6 +416,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
                 label: "test_group_key_seal",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &PolicyId::default(),
             },
         )
         .expect("should succeed");
@@ -430,6 +431,7 @@ pub fn test_group_key_seal<E: Engine>(eng: &mut E) {
                 label: "test_group_key_seal",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &PolicyId::default(),
             },
         )
         .expect("should succeed");
@@ -459,6 +461,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &PolicyId::default(),
             },
         )
         .expect("should succeed");
@@ -473,6 +476,7 @@ pub fn test_group_key_open_wrong_key<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &PolicyId::default(),
             },
         )
         .expect_err("should have failed");
@@ -501,6 +505,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_pk1,
+                policy_id: &PolicyId::default(),
             },
         )
         .expect("should succeed");
@@ -522,6 +527,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
             label: "wrong label",
             parent: Id::default(),
             author_sign_pk: &author_pk1,
+            policy_id: &PolicyId::default(),
         }
     );
     should_fail!(
@@ -530,6 +536,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
             label: "some label",
             parent: [1u8; 32].into(),
             author_sign_pk: &author_pk1,
+            policy_id: &PolicyId::default(),
         }
     );
     should_fail!(
@@ -538,6 +545,7 @@ pub fn test_group_key_open_wrong_context<E: Engine>(eng: &mut E) {
             label: "some label",
             parent: Id::default(),
             author_sign_pk: &author_pk2,
+            policy_id: &PolicyId::default(),
         }
     );
 }
@@ -561,6 +569,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &PolicyId::default(),
             },
         )
         .expect("should succeed");
@@ -578,6 +587,7 @@ pub fn test_group_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
                 label: "some label",
                 parent: Id::default(),
                 author_sign_pk: &author_sign_pk,
+                policy_id: &PolicyId::default(),
             },
         )
         .expect_err("should have failed");
@@ -597,7 +607,7 @@ where
     let (enc, ciphertext) = enc_key
         .public()
         .expect("encryption public key should be valid")
-        .seal_group_key(eng, &want, group)
+        .seal_group_key(eng, &want, group, &PolicyId::default())
         .expect("unable to encrypt `GroupKey`");
     let enc = Encap::<E::CS>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
     let ciphertext: EncryptedGroupKey<E::CS> = cbor::from_bytes(
@@ -605,7 +615,7 @@ where
     )
     .expect("should be able to decode `EncryptedGroupKey`");
     let got = enc_key
-        .open_group_key(&enc, ciphertext, group)
+        .open_group_key(&enc, ciphertext, group, &PolicyId::default())
         .expect("unable to decrypt `GroupKey`");
     assert_eq!(want.id(), got.id());
 }
@@ -624,31 +634,43 @@ where
 
     let sign_key = SenderSigningKey::<E::CS>::new(eng);
     let sig = sign_key
-        .sign(VERSION, &topic, RECORD)
+        .sign(VERSION, &topic, RECORD, &PolicyId::default())
         .expect("unable to create signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(VERSION, &topic, RECORD, &sig)
+        .verify(VERSION, &topic, RECORD, &PolicyId::default(), &sig)
         .expect("the signature should be valid");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(Version::new(VERSION.as_u32() + 1), &topic, RECORD, &sig)
+        .verify(
+            Version::new(VERSION.as_u32() + 1),
+            &topic,
+            RECORD,
+            &PolicyId::default(),
+            &sig,
+        )
         .expect_err("should fail: wrong version");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
+        .verify(
+            VERSION,
+            &Topic::new("WrongTopic"),
+            RECORD,
+            &PolicyId::default(),
+            &sig,
+        )
         .expect_err("should fail: wrong topic");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(VERSION, &topic, b"wrong", &sig)
+        .verify(VERSION, &topic, b"wrong", &PolicyId::default(), &sig)
         .expect_err("should fail: wrong record");
 
     let wrong_sig = sign_key
@@ -656,13 +678,14 @@ where
             Version::new(VERSION.as_u32() + 1),
             &Topic::new("AnotherTopic"),
             b"encoded record",
+            &PolicyId::default(),
         )
         .expect("should not fail to create signature");
 
     sign_key
         .public()
         .expect("sender signing key should be valid")
-        .verify(VERSION, &topic, RECORD, &wrong_sig)
+        .verify(VERSION, &topic, RECORD, &PolicyId::default(), &wrong_sig)
         .expect_err("should fail: wrong signature");
 }
 
@@ -683,15 +706,23 @@ where
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let want = TopicKey::new(eng, VERSION, &topic).expect("unable to create new `TopicKey`");
+    let want = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create new `TopicKey`");
     let (enc, ciphertext) = recv_pk
-        .seal_topic_key(eng, VERSION, &topic, &send_sk, &want)
+        .seal_topic_key(eng, VERSION, &topic, &send_sk, &want, &PolicyId::default())
         .expect("unable to encrypt `TopicKey`");
     let enc = Encap::<E::CS>::from_bytes(enc.as_bytes()).expect("should be able to decode `Encap`");
     let ciphertext = EncryptedTopicKey::<E::CS>::from_bytes(ciphertext.as_bytes())
         .expect("should be able to decode `EncryptedTopicKey`");
     let got = recv_sk
-        .open_topic_key(VERSION, &topic, &send_pk, &enc, &ciphertext)
+        .open_topic_key(
+            VERSION,
+            &topic,
+            &send_pk,
+            &enc,
+            &ciphertext,
+            &PolicyId::default(),
+        )
         .expect("unable to decrypt `TopicKey`");
     assert_eq!(want.id(), got.id());
 }
@@ -760,17 +791,33 @@ pub fn test_topic_key_seal<E: Engine>(eng: &mut E) {
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let tk = TopicKey::new(eng, VERSION, &topic).expect("unable to create new `TopicKey`");
+    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create new `TopicKey`");
     let ciphertext = {
         let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-        tk.seal_message(eng, &mut dst, INPUT, VERSION, &topic, &ident)
-            .expect("should succeed");
+        tk.seal_message(
+            eng,
+            &mut dst,
+            INPUT,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
     let plaintext = {
         let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
-        tk.open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
-            .expect("should succeed");
+        tk.open_message(
+            &mut dst,
+            &ciphertext,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
     assert_eq!(&plaintext, INPUT);
@@ -792,18 +839,35 @@ pub fn test_topic_key_open_wrong_key<E: Engine>(eng: &mut E) {
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let tk1 = TopicKey::new(eng, VERSION, &topic).expect("unable to create new `TopicKey`");
-    let tk2 = TopicKey::new(eng, VERSION, &topic).expect("unable to create new `TopicKey`");
+    let tk1 = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create new `TopicKey`");
+    let tk2 = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create new `TopicKey`");
 
     let ciphertext = {
         let mut dst = vec![0u8; INPUT.len() + tk1.overhead()];
-        tk1.seal_message(eng, &mut dst, INPUT, VERSION, &topic, &ident)
-            .expect("should succeed");
+        tk1.seal_message(
+            eng,
+            &mut dst,
+            INPUT,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
     let mut dst = vec![0u8; ciphertext.len() - tk2.overhead()];
     let err = tk2
-        .open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
+        .open_message(
+            &mut dst,
+            &ciphertext,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
         .expect_err("should have failed");
     assert_eq!(err, Error::Open(OpenError::Authentication));
 }
@@ -832,11 +896,20 @@ pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let tk = TopicKey::new(eng, VERSION, &topic).expect("unable to create `TopicKey`");
+    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create `TopicKey`");
     let ciphertext = {
         let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-        tk.seal_message(eng, &mut dst, INPUT, VERSION, &topic, &ident)
-            .expect("should succeed");
+        tk.seal_message(
+            eng,
+            &mut dst,
+            INPUT,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
 
@@ -844,7 +917,14 @@ pub fn test_topic_key_open_wrong_context<E: Engine>(eng: &mut E) {
         ($msg:expr, $version:expr, $topic:expr, $ident:expr) => {
             let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
             let err = tk
-                .open_message(&mut dst, &ciphertext, $version, $topic, $ident)
+                .open_message(
+                    &mut dst,
+                    &ciphertext,
+                    $version,
+                    $topic,
+                    $ident,
+                    &PolicyId::default(),
+                )
                 .expect_err("should have failed");
             assert_eq!(err, Error::Open(OpenError::Authentication), $msg);
         };
@@ -875,11 +955,20 @@ pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
     const VERSION: Version = Version::new(1);
     let topic = Topic::new("SomeTopic");
 
-    let tk = TopicKey::new(eng, VERSION, &topic).expect("unable to create `TopicKey`");
+    let tk = TopicKey::new(eng, VERSION, &topic, &PolicyId::default())
+        .expect("unable to create `TopicKey`");
     let mut ciphertext = {
         let mut dst = vec![0u8; INPUT.len() + tk.overhead()];
-        tk.seal_message(eng, &mut dst, INPUT, VERSION, &topic, &ident)
-            .expect("should succeed");
+        tk.seal_message(
+            eng,
+            &mut dst,
+            INPUT,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
+        .expect("should succeed");
         dst
     };
 
@@ -887,7 +976,14 @@ pub fn test_topic_key_open_bad_ciphertext<E: Engine>(eng: &mut E) {
 
     let mut dst = vec![0u8; ciphertext.len() - tk.overhead()];
     let err = tk
-        .open_message(&mut dst, &ciphertext, VERSION, &topic, &ident)
+        .open_message(
+            &mut dst,
+            &ciphertext,
+            VERSION,
+            &topic,
+            &ident,
+            &PolicyId::default(),
+        )
         .expect_err("should have failed");
     assert_eq!(err, Error::Open(OpenError::Authentication));
 }
@@ -1204,6 +1300,7 @@ pub fn test_afc_derive_bidi_keys<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1214,6 +1311,7 @@ pub fn test_afc_derive_bidi_keys<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.author_info(), ch2.peer_info());
     assert_eq!(ch1.peer_info(), ch2.author_info());
@@ -1244,6 +1342,7 @@ pub fn test_afc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label: 123,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1254,6 +1353,7 @@ pub fn test_afc_derive_bidi_keys_different_labels<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label: 456,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -1291,6 +1391,7 @@ pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1301,6 +1402,7 @@ pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: DeviceId::random(eng),
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -1336,6 +1438,7 @@ pub fn test_afc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: Id::random(eng),
@@ -1346,6 +1449,7 @@ pub fn test_afc_derive_bidi_keys_different_cmd_ids<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -1381,6 +1485,7 @@ pub fn test_afc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1391,6 +1496,7 @@ pub fn test_afc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
             .expect("receiver id should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     // The info params are equal here because they do not
     // include the encryption key IDs. Those are mixed in
@@ -1427,6 +1533,7 @@ pub fn test_afc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let mut ch2 = afc::BidiChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1437,6 +1544,7 @@ pub fn test_afc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
 
     let afc::BidiSecrets { peer, .. } = {
@@ -1476,6 +1584,7 @@ pub fn test_afc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label: 123,
+        policy_id: &PolicyId::default(),
     };
 
     let afc::BidiSecrets { author: want, .. } =
@@ -1554,6 +1663,7 @@ pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1564,6 +1674,7 @@ pub fn test_afc_derive_uni_key<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1595,6 +1706,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label: 123,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1605,6 +1717,7 @@ pub fn test_afc_derive_uni_key_different_labels<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label: 456,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1639,6 +1752,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1649,6 +1763,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: DeviceId::random(eng),
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1683,6 +1798,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: Id::random(eng),
@@ -1693,6 +1809,7 @@ pub fn test_afc_derive_uni_key_different_cmd_ids<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -1727,6 +1844,7 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1737,6 +1855,7 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
 
     let afc::UniSecrets { author, peer } =
@@ -1768,6 +1887,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let mut ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1778,6 +1898,7 @@ pub fn test_afc_derive_uni_seal_key_same_device_id<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1820,6 +1941,7 @@ pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let mut ch2 = afc::UniChannel {
         parent_cmd_id: ch1.parent_cmd_id,
@@ -1830,6 +1952,7 @@ pub fn test_afc_derive_uni_open_key_same_device_id<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -1870,6 +1993,7 @@ pub fn test_afc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label: 123,
+        policy_id: &PolicyId::default(),
     };
 
     let afc::UniSecrets { author: want, .. } =
@@ -1906,6 +2030,7 @@ pub fn test_aqc_derive_bidi_psk<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 32,
@@ -1917,6 +2042,7 @@ pub fn test_aqc_derive_bidi_psk<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.author_info(), ch2.peer_info());
     assert_eq!(ch1.peer_info(), ch2.author_info());
@@ -1952,6 +2078,7 @@ pub fn test_aqc_derive_bidi_psk_different_labels<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label: Id::random(eng),
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 32,
@@ -1963,6 +2090,7 @@ pub fn test_aqc_derive_bidi_psk_different_labels<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label: Id::random(eng),
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -2008,6 +2136,7 @@ pub fn test_aqc_derive_bidi_psk_different_device_ids<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 32,
@@ -2019,6 +2148,7 @@ pub fn test_aqc_derive_bidi_psk_different_device_ids<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: DeviceId::random(eng),
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -2062,6 +2192,7 @@ pub fn test_aqc_derive_bidi_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 32,
@@ -2073,6 +2204,7 @@ pub fn test_aqc_derive_bidi_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -2116,6 +2248,7 @@ pub fn test_aqc_derive_bidi_psk_different_keys<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 32,
@@ -2127,6 +2260,7 @@ pub fn test_aqc_derive_bidi_psk_different_keys<E: Engine>(eng: &mut E) {
             .expect("receiver id should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     // The info params are equal here because they do not
     // include the encryption key IDs. Those are mixed in
@@ -2173,6 +2307,7 @@ pub fn test_aqc_derive_bidi_psk_different_cipher_suites<E: Engine>(eng: &mut E) 
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 32,
@@ -2184,6 +2319,7 @@ pub fn test_aqc_derive_bidi_psk_different_cipher_suites<E: Engine>(eng: &mut E) 
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.author_info(), ch2.peer_info());
     assert_eq!(ch1.peer_info(), ch2.author_info());
@@ -2223,6 +2359,7 @@ pub fn test_aqc_derive_bidi_psk_same_device_id<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let mut ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 32,
@@ -2234,6 +2371,7 @@ pub fn test_aqc_derive_bidi_psk_same_device_id<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
 
     let aqc::BidiSecrets { peer, .. } = {
@@ -2275,6 +2413,7 @@ pub fn test_aqc_derive_bidi_psk_psk_too_short<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 31,
@@ -2286,6 +2425,7 @@ pub fn test_aqc_derive_bidi_psk_psk_too_short<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -2325,6 +2465,7 @@ pub fn test_aqc_derive_bidi_psk_psk_too_long<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::BidiChannel {
         psk_length_in_bytes: 33,
@@ -2336,6 +2477,7 @@ pub fn test_aqc_derive_bidi_psk_psk_too_long<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         their_id: ch1.our_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
     assert_ne!(ch1.peer_info(), ch2.author_info());
@@ -2373,6 +2515,7 @@ pub fn test_aqc_wrap_bidi_author_secret<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label: Id::random(eng),
+        policy_id: &PolicyId::default(),
     };
 
     let aqc::BidiSecrets { author: want, .. } =
@@ -2410,6 +2553,7 @@ pub fn test_aqc_derive_uni_psk<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 32,
@@ -2421,6 +2565,7 @@ pub fn test_aqc_derive_uni_psk<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -2458,6 +2603,7 @@ pub fn test_aqc_derive_uni_psk_different_labels<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label: Id::random(eng),
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 32,
@@ -2469,6 +2615,7 @@ pub fn test_aqc_derive_uni_psk_different_labels<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label: Id::random(eng),
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -2511,6 +2658,7 @@ pub fn test_aqc_derive_uni_psk_different_device_ids<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 32,
@@ -2522,6 +2670,7 @@ pub fn test_aqc_derive_uni_psk_different_device_ids<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: DeviceId::random(eng),
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -2564,6 +2713,7 @@ pub fn test_aqc_derive_uni_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 32,
@@ -2575,6 +2725,7 @@ pub fn test_aqc_derive_uni_psk_different_cmd_ids<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -2617,6 +2768,7 @@ pub fn test_aqc_derive_uni_psk_different_keys<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 32,
@@ -2628,6 +2780,7 @@ pub fn test_aqc_derive_uni_psk_different_keys<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
 
     let aqc::UniSecrets { author, peer } =
@@ -2667,6 +2820,7 @@ pub fn test_aqc_derive_uni_send_psk_same_device_id<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let mut ch2 = aqc::UniChannel {
         psk_length_in_bytes: 32,
@@ -2678,6 +2832,7 @@ pub fn test_aqc_derive_uni_send_psk_same_device_id<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -2720,6 +2875,7 @@ pub fn test_aqc_derive_uni_recv_psk_same_device_id<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let mut ch2 = aqc::UniChannel {
         psk_length_in_bytes: 32,
@@ -2731,6 +2887,7 @@ pub fn test_aqc_derive_uni_recv_psk_same_device_id<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -2773,6 +2930,7 @@ pub fn test_aqc_derive_uni_send_psk_psk_too_short<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 31,
@@ -2784,6 +2942,7 @@ pub fn test_aqc_derive_uni_send_psk_psk_too_short<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -2822,6 +2981,7 @@ pub fn test_aqc_derive_uni_recv_psk_psk_too_short<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 31,
@@ -2833,6 +2993,7 @@ pub fn test_aqc_derive_uni_recv_psk_psk_too_short<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -2871,6 +3032,7 @@ pub fn test_aqc_derive_uni_send_psk_psk_too_long<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 33,
@@ -2882,6 +3044,7 @@ pub fn test_aqc_derive_uni_send_psk_psk_too_long<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -2920,6 +3083,7 @@ pub fn test_aqc_derive_uni_recv_psk_psk_too_long<E: Engine>(eng: &mut E) {
             .id()
             .expect("receiver id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 33,
@@ -2931,6 +3095,7 @@ pub fn test_aqc_derive_uni_recv_psk_psk_too_long<E: Engine>(eng: &mut E) {
             .expect("receiver public encryption key should be valid"),
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_ne!(ch1.info(), ch2.info());
 
@@ -2971,6 +3136,7 @@ pub fn test_aqc_derive_uni_psk_different_cipher_suites<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label,
+        policy_id: &PolicyId::default(),
     };
     let ch2 = aqc::UniChannel {
         psk_length_in_bytes: 32,
@@ -2982,6 +3148,7 @@ pub fn test_aqc_derive_uni_psk_different_cipher_suites<E: Engine>(eng: &mut E) {
         seal_id: ch1.seal_id,
         open_id: ch1.open_id,
         label,
+        policy_id: &PolicyId::default(),
     };
     assert_eq!(ch1.info(), ch2.info());
 
@@ -3018,6 +3185,7 @@ pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
             .id()
             .expect("open id should be valid"),
         label: Id::random(eng),
+        policy_id: &PolicyId::default(),
     };
 
     let aqc::UniSecrets { author: want, .. } =

@@ -22,7 +22,7 @@ use crate::{
     groupkey::{EncryptedGroupKey, GroupKey},
     id::Id,
     misc::{key_misc, SigData},
-    policy::{self, Cmd, CmdId},
+    policy::{self, Cmd, CmdId, PolicyId},
 };
 
 /// A signature created by a signing key.
@@ -113,7 +113,7 @@ impl<CS: CipherSuite> IdentityKey<CS> {
         IdentityKey(Random::random(rng))
     }
 
-    /// Creates a signature over `msg` bound to some `context`.
+    /// Creates a signature over `msg` bound to some `context` and `policy_id`.
     ///
     /// `msg` must NOT be pre-hashed.
     ///
@@ -128,37 +128,48 @@ impl<CS: CipherSuite> IdentityKey<CS> {
     ///         DefaultEngine,
     ///     },
     ///     IdentityKey,
+    ///     PolicyId,
     ///     Rng,
     /// };
     ///
     /// let sk = IdentityKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let policy_id = PolicyId::default();
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
-    /// let sig = sk.sign(MESSAGE, CONTEXT)
+    /// let sig = sk.sign(MESSAGE, CONTEXT, &policy_id)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("identity key should be valid").verify(MESSAGE, CONTEXT, &sig)
+    /// sk.public().expect("identity key should be valid").verify(MESSAGE, CONTEXT, &policy_id, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("identity key should be valid").verify(MESSAGE, b"wrong context", &sig)
+    /// sk.public().expect("identity key should be valid").verify(MESSAGE, b"wrong context", &policy_id, &sig)
     ///     .expect_err("should fail");
     ///
-    /// let wrong_sig = sk.sign(b"different", b"signature")
+    /// let wrong_sig = sk.sign(b"different", b"signature", &policy_id)
     ///     .expect("should not fail");
-    /// sk.public().expect("identity key should be valid").verify(MESSAGE, CONTEXT, &wrong_sig)
+    /// sk.public().expect("identity key should be valid").verify(MESSAGE, CONTEXT, &policy_id, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
-    pub fn sign(&self, msg: &[u8], context: &[u8]) -> Result<Signature<CS>, Error> {
+    pub fn sign(
+        &self,
+        msg: &[u8],
+        context: &[u8],
+        policy_id: &PolicyId,
+    ) -> Result<Signature<CS>, Error> {
         // digest = H(
         //     "IdentityKey",
         //     suites,
         //     pk,
         //     context,
+        //     policy_id,
         //     msg,
         // )
-        let sum = CS::tuple_hash(b"IdentityKey", [self.id()?.as_bytes(), context, msg]);
+        let sum = CS::tuple_hash(
+            b"IdentityKey",
+            [self.id()?.as_bytes(), context, policy_id.as_bytes(), msg],
+        );
         let sig = self.0.sign(&sum)?;
         Ok(Signature(sig))
     }
@@ -176,18 +187,28 @@ pub struct IdentityVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::Verifyi
 
 impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
     /// Verifies the signature allegedly created over `msg` and
-    /// bound to some `context`.
+    /// bound to some `context` and `policy_id`.
     ///
     /// `msg` must NOT be pre-hashed.
-    pub fn verify(&self, msg: &[u8], context: &[u8], sig: &Signature<CS>) -> Result<(), Error> {
+    pub fn verify(
+        &self,
+        msg: &[u8],
+        context: &[u8],
+        policy_id: &PolicyId,
+        sig: &Signature<CS>,
+    ) -> Result<(), Error> {
         // digest = H(
         //     "IdentityKey",
         //     suites,
         //     pk,
         //     context,
+        //     policy_id,
         //     msg,
         // )
-        let sum = CS::tuple_hash(b"IdentityKey", [self.id()?.as_bytes(), context, msg]);
+        let sum = CS::tuple_hash(
+            b"IdentityKey",
+            [self.id()?.as_bytes(), context, policy_id.as_bytes(), msg],
+        );
         Ok(self.0.verify(&sum, &sig.0)?)
     }
 }
@@ -203,7 +224,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
         SigningKey(Random::random(rng))
     }
 
-    /// Creates a signature over `msg` bound to some `context`.
+    /// Creates a signature over `msg` bound to some `context` and `policy_id`.
     ///
     /// `msg` must NOT be pre-hashed.
     ///
@@ -217,38 +238,49 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///         DefaultCipherSuite,
     ///         DefaultEngine,
     ///     },
+    ///     PolicyId,
     ///     Rng,
     ///     SigningKey,
     /// };
     ///
     /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
+    /// let policy_id = PolicyId::default();
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
-    /// let sig = sk.sign(MESSAGE, CONTEXT)
+    /// let sig = sk.sign(MESSAGE, CONTEXT, &policy_id)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("signing key should be valid").verify(MESSAGE, CONTEXT, &sig)
+    /// sk.public().expect("signing key should be valid").verify(MESSAGE, CONTEXT, &policy_id, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("signing key should be valid").verify(MESSAGE, b"wrong context", &sig)
+    /// sk.public().expect("signing key should be valid").verify(MESSAGE, b"wrong context", &policy_id, &sig)
     ///     .expect_err("should fail");
     ///
-    /// let wrong_sig = sk.sign(b"different", b"signature")
+    /// let wrong_sig = sk.sign(b"different", b"signature", &policy_id)
     ///     .expect("should not fail");
-    /// sk.public().expect("signing key should be valid").verify(MESSAGE, CONTEXT, &wrong_sig)
+    /// sk.public().expect("signing key should be valid").verify(MESSAGE, CONTEXT, &policy_id, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
-    pub fn sign(&self, msg: &[u8], context: &[u8]) -> Result<Signature<CS>, Error> {
+    pub fn sign(
+        &self,
+        msg: &[u8],
+        context: &[u8],
+        policy_id: &PolicyId,
+    ) -> Result<Signature<CS>, Error> {
         // digest = H(
         //     "SigningKey",
         //     suites,
         //     pk,
         //     context,
+        //     policy_id,
         //     msg,
         // )
-        let sum = CS::tuple_hash(b"SigningKey", [self.id()?.as_bytes(), context, msg]);
+        let sum = CS::tuple_hash(
+            b"SigningKey",
+            [self.id()?.as_bytes(), context, policy_id.as_bytes(), msg],
+        );
         let sig = self.0.sign(&sum)?;
         Ok(Signature(sig))
     }
@@ -267,6 +299,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     },
     ///     Cmd,
     ///     Id,
+    ///     PolicyId,
     ///     Rng,
     ///     SigningKey,
     /// };
@@ -276,8 +309,9 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let data = b"... some command data ...";
     /// let name = "AddDevice";
     /// let parent_id = &Id::random(&mut Rng);
+    /// let policy_id = &PolicyId::default();
     ///
-    /// let good_cmd = Cmd { data, name, parent_id };
+    /// let good_cmd = Cmd { data, name, parent_id, policy_id };
     /// let (sig, _) = sk.sign_cmd(good_cmd)
     ///     .expect("should not fail");
     /// sk.public().expect("signing key should be valid").verify_cmd(good_cmd, &sig)
@@ -287,6 +321,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     data,
     ///     name: "wrong name",
     ///     parent_id,
+    ///     policy_id,
     /// };
     /// sk.public().expect("signing key should be valid").verify_cmd(wrong_name_cmd, &sig)
     ///     .expect_err("should fail");
@@ -295,6 +330,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     data,
     ///     name,
     ///     parent_id: &Id::random(&mut Rng),
+    ///     policy_id,
     /// };
     /// sk.public().expect("signing key should be valid").verify_cmd(wrong_id_cmd, &sig)
     ///     .expect_err("should fail");
@@ -303,6 +339,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     data: b"different",
     ///     name: "signature",
     ///     parent_id: &Id::random(&mut Rng),
+    ///     policy_id,
     /// };
     /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd)
     ///     .expect("should not fail");
@@ -330,18 +367,28 @@ pub struct VerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
 impl<CS: CipherSuite> VerifyingKey<CS> {
     /// Verifies the signature allegedly created over `msg` and
-    /// bound to some `context`.
+    /// bound to some `context` and `policy_id`.
     ///
     /// `msg` must NOT be pre-hashed.
-    pub fn verify(&self, msg: &[u8], context: &[u8], sig: &Signature<CS>) -> Result<(), Error> {
+    pub fn verify(
+        &self,
+        msg: &[u8],
+        context: &[u8],
+        policy_id: &PolicyId,
+        sig: &Signature<CS>,
+    ) -> Result<(), Error> {
         // digest = H(
         //     "SigningKey",
         //     suites,
         //     pk,
         //     context,
+        //     policy_id,
         //     msg,
         // )
-        let sum = CS::tuple_hash(b"SigningKey", [self.id()?.as_bytes(), context, msg]);
+        let sum = CS::tuple_hash(
+            b"SigningKey",
+            [self.id()?.as_bytes(), context, policy_id.as_bytes(), msg],
+        );
         Ok(self.0.verify(&sum, &sig.0)?)
     }
 
@@ -373,6 +420,7 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         enc: &Encap<CS>,
         ciphertext: EncryptedGroupKey<CS>,
         group: Id,
+        policy_id: &PolicyId,
     ) -> Result<GroupKey<CS>, Error> {
         let EncryptedGroupKey {
             mut ciphertext,
@@ -383,8 +431,9 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         //     "GroupKey",
         //     suite_id,
         //     group,
+        //     policy_id,
         // )
-        let info = CS::tuple_hash(b"GroupKey", [group.as_bytes()]);
+        let info = CS::tuple_hash(b"GroupKey", [group.as_bytes(), policy_id.as_bytes()]);
         let mut ctx =
             Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
         ctx.open_in_place(&mut ciphertext, &tag, &info)?;
@@ -411,13 +460,15 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
         rng: &mut R,
         key: &GroupKey<CS>,
         group: Id,
+        policy_id: &PolicyId,
     ) -> Result<(Encap<CS>, EncryptedGroupKey<CS>), Error> {
         // info = H(
         //     "GroupKey",
         //     suite_id,
         //     group,
+        //     policy_id,
         // )
-        let info = CS::tuple_hash(b"GroupKey", [group.as_bytes()]);
+        let info = CS::tuple_hash(b"GroupKey", [group.as_bytes(), policy_id.as_bytes()]);
         let (enc, mut ctx) =
             Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
         let mut ciphertext = (*key.raw_seed()).into();

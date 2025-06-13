@@ -71,7 +71,7 @@ pub use error::*;
 pub use groupkey::*;
 pub use id::{Id, Identified};
 pub use keystore::{KeyStore, KeyStoreExt};
-pub use policy::*;
+pub use policy::{PolicyId, *};
 #[doc(no_inline)]
 #[cfg(feature = "bearssl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]

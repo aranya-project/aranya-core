@@ -19,6 +19,7 @@ use crate::{
     error::Error,
     id::{custom_id, Id},
     misc::sk_misc,
+    policy::PolicyId,
     tls::CipherSuiteId,
     Engine,
 };
@@ -53,6 +54,7 @@ use crate::{
 ///     Id,
 ///     IdentityKey,
 ///     EncryptionKey,
+///     PolicyId,
 ///     Rng,
 ///     subtle::ConstantTimeEq as _,
 /// };
@@ -79,6 +81,7 @@ use crate::{
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
+///     policy_id: &PolicyId::default(),
 /// };
 /// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `UniSecrets`");
@@ -97,6 +100,7 @@ use crate::{
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
+///     policy_id: &PolicyId::default(),
 /// };
 /// let device2_psk = UniSecret::from_peer_encap(&device2_ch, peer)
 ///     .expect("unable to derive `UniRecvPsk` from peer encap")
@@ -127,6 +131,8 @@ pub struct UniChannel<'a, CS: CipherSuite> {
     pub open_id: DeviceId,
     /// The policy label applied to the channel.
     pub label: Id,
+    /// The policy under which this channel operates.
+    pub policy_id: &'a PolicyId,
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
@@ -139,6 +145,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         //     seal_id,
         //     open_id,
         //     label_id,
+        //     policy_id,
         // )
         CS::tuple_hash(
             b"AqcUniPsk",
@@ -148,6 +155,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
                 self.seal_id.as_bytes(),
                 self.open_id.as_bytes(),
                 self.label.as_bytes(),
+                self.policy_id.as_bytes(),
             ],
         )
     }

@@ -20,6 +20,7 @@ use crate::{
     error::Error,
     id::{custom_id, Id},
     misc::sk_misc,
+    policy::PolicyId,
 };
 
 /// Contextual information for a unidirectional AFC channel.
@@ -55,6 +56,7 @@ use crate::{
 ///         Id,
 ///         IdentityKey,
 ///         EncryptionKey,
+///         PolicyId,
 ///         Rng,
 ///     }
 /// };
@@ -98,6 +100,7 @@ use crate::{
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
+///     policy_id: &PolicyId::default(),
 /// };
 /// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `UniSecrets`");
@@ -112,6 +115,7 @@ use crate::{
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
 ///     label,
+///     policy_id: &PolicyId::default(),
 /// };
 /// let device2 = key_from_peer(&device2_ch, peer);
 ///
@@ -154,6 +158,8 @@ pub struct UniChannel<'a, CS: CipherSuite> {
     pub open_id: DeviceId,
     /// The policy label applied to the channel.
     pub label: u32,
+    /// The policy under which this channel operates.
+    pub policy_id: &'a PolicyId,
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
@@ -166,6 +172,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
         //     seal_id,
         //     open_id,
         //     i2osp(label, 4),
+        //     policy_id,
         // )
         CS::tuple_hash(
             b"AfcUnidirectionalKey",
@@ -174,6 +181,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
                 self.seal_id.as_bytes(),
                 self.open_id.as_bytes(),
                 &self.label.to_be_bytes(),
+                self.policy_id.as_bytes(),
             ],
         )
     }

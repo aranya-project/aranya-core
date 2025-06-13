@@ -11,7 +11,7 @@ use aranya_crypto::{
     self,
     aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
     CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
-    KeyStoreExt, UnwrapError, WrapError,
+    KeyStoreExt, PolicyId, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
     ffi::{ffi, Type},
@@ -130,6 +130,7 @@ function create_bidi_channel(
             their_pk,
             their_id,
             label: label_id.into(),
+            policy_id: &PolicyId::default(),
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
@@ -191,6 +192,7 @@ function create_uni_channel(
             seal_id,
             open_id,
             label: label_id.into(),
+            policy_id: &PolicyId::default(),
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 

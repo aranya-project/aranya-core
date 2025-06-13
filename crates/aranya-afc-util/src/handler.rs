@@ -4,7 +4,7 @@ use aranya_crypto::{
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
-    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
+    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt, PolicyId,
 };
 use aranya_fast_channels::{Directed, Label};
 use serde::{Deserialize, Serialize};
@@ -71,6 +71,7 @@ impl<S: KeyStore> Handler<S> {
             their_pk,
             their_id: effect.peer_id,
             label: effect.label.to_u32(),
+            policy_id: &PolicyId::default(),
         };
 
         let (seal, open) = Transform::transform((&ch, secret)).map_err(|err| {
@@ -114,6 +115,7 @@ impl<S: KeyStore> Handler<S> {
             their_pk,
             their_id: effect.author_id,
             label: effect.label.to_u32(),
+            policy_id: &PolicyId::default(),
         };
 
         let (seal, open) = Transform::transform((&ch, encap)).map_err(|err| {
@@ -231,6 +233,7 @@ impl<S: KeyStore> Handler<S> {
             our_sk,
             their_pk,
             label: effect.label.to_u32(),
+            policy_id: &PolicyId::default(),
         };
 
         if self.device_id == effect.seal_id {
@@ -277,6 +280,7 @@ impl<S: KeyStore> Handler<S> {
             our_sk,
             their_pk,
             label: effect.label.to_u32(),
+            policy_id: &PolicyId::default(),
         };
 
         if self.device_id == effect.seal_id {

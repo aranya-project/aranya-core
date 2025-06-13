@@ -5,7 +5,7 @@ use aranya_crypto::{
         BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiSecret,
         UniAuthorSecretId, UniChannel, UniChannelId, UniPeerEncap, UniSecret,
     },
-    custom_id, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
+    custom_id, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt, PolicyId,
 };
 use buggy::{bug, Bug};
 use serde::{Deserialize, Serialize};
@@ -72,6 +72,7 @@ impl<S: KeyStore> Handler<S> {
             their_pk,
             their_id: effect.peer_id,
             label: effect.label_id.into(),
+            policy_id: &PolicyId::default(),
         };
 
         let secret = BidiSecret::from_author_secret(&ch, secret).inspect_err(|err| {
@@ -114,6 +115,7 @@ impl<S: KeyStore> Handler<S> {
             their_pk,
             their_id: effect.author_id,
             label: effect.label_id.into(),
+            policy_id: &PolicyId::default(),
         };
 
         let secret = BidiSecret::from_peer_encap(&ch, encap).inspect_err(|err| {
@@ -222,6 +224,7 @@ impl<S: KeyStore> Handler<S> {
             our_sk,
             their_pk,
             label: effect.label_id.into(),
+            policy_id: &PolicyId::default(),
         };
 
         let secret = if self.device_id == effect.send_id {
@@ -271,6 +274,7 @@ impl<S: KeyStore> Handler<S> {
             our_sk,
             their_pk,
             label: effect.label_id.into(),
+            policy_id: &PolicyId::default(),
         };
 
         let secret = if self.device_id == effect.send_id {

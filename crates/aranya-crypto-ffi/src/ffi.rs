@@ -4,7 +4,8 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 
 use aranya_crypto::{
-    subtle::ConstantTimeEq, Cmd, Engine, Id, KeyStore, Signature, SigningKey, VerifyingKey,
+    subtle::ConstantTimeEq, Cmd, Engine, Id, KeyStore, PolicyId, Signature, SigningKey,
+    VerifyingKey,
 };
 use aranya_policy_vm::{ffi::ffi, CommandContext};
 
@@ -134,6 +135,7 @@ function sign(
             data: &command_bytes,
             name: ctx.name.as_str(),
             parent_id: &ctx.head_id,
+            policy_id: &PolicyId::default(),
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
@@ -173,6 +175,7 @@ function verify(
             data: &command_bytes,
             name: ctx.name.as_str(),
             parent_id: &parent_id,
+            policy_id: &PolicyId::default(),
         };
         let id = pk.verify_cmd(cmd, &signature)?;
         if bool::from(id.ct_eq(&command_id.into())) {

@@ -31,6 +31,7 @@ use crate::{
     error::Error,
     id::{custom_id, IdError},
     misc::{ciphertext, key_misc},
+    policy::PolicyId,
 };
 
 /// A sender's identity.
@@ -152,8 +153,13 @@ impl<CS: CipherSuite> Clone for TopicKey<CS> {
 
 impl<CS: CipherSuite> TopicKey<CS> {
     /// Creates a new, random `TopicKey`.
-    pub fn new<R: Csprng>(rng: &mut R, version: Version, topic: &Topic) -> Result<Self, Error> {
-        Self::from_seed(Random::random(rng), version, topic)
+    pub fn new<R: Csprng>(
+        rng: &mut R,
+        version: Version,
+        topic: &Topic,
+        policy_id: &PolicyId,
+    ) -> Result<Self, Error> {
+        Self::from_seed(Random::random(rng), version, topic, policy_id)
     }
 
     /// Uniquely identifies the [`TopicKey`].
@@ -217,6 +223,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         DefaultEngine,
     ///     },
     ///     Id,
+    ///     PolicyId,
     ///     Rng,
     ///     DeviceId,
     /// };
@@ -232,7 +239,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         .public().expect("sender signing key should be valid"),
     /// };
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
+    /// let key = TopicKey::new(&mut Rng, VERSION, &topic, &PolicyId::default())
     ///     .expect("should not fail");
     ///
     /// let ciphertext = {
@@ -244,6 +251,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         VERSION,
     ///         &topic,
     ///         &ident,
+    ///         &PolicyId::default(),
     ///     ).expect("should not fail");
     ///     dst
     /// };
@@ -255,6 +263,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         VERSION,
     ///         &topic,
     ///         &ident,
+    ///         &PolicyId::default(),
     ///     ).expect("should not fail");
     ///     dst
     /// };
@@ -269,6 +278,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         version: Version,
         topic: &Topic,
         ident: &Sender<'_, CS>,
+        policy_id: &PolicyId,
     ) -> Result<(), Error> {
         if dst.len() < self.overhead() {
             // Not enough room in `dst`.
@@ -283,6 +293,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         //      topic,
         //      hash(pk(SenderKey)),
         //      hash(pk(SenderSigningKey)),
+        //      policy_id,
         // )
         let ad = CS::tuple_hash(
             b"apq msg",
@@ -291,6 +302,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
                 &topic.as_bytes()[..],
                 ident.enc_key.id()?.as_bytes(),
                 ident.sign_key.id()?.as_bytes(),
+                policy_id.as_bytes(),
             ],
         );
         let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
@@ -311,6 +323,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         version: Version,
         topic: &Topic,
         ident: &Sender<'_, CS>,
+        policy_id: &PolicyId,
     ) -> Result<(), Error> {
         if ciphertext.len() < self.overhead() {
             // Can't find the nonce and/or tag, so it's obviously
@@ -325,6 +338,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         //      topic,
         //      hash(pk(SenderKey)),
         //      hash(pk(SenderSigningKey)),
+        //      policy_id,
         // )
         let ad = CS::tuple_hash(
             b"apq msg",
@@ -333,13 +347,19 @@ impl<CS: CipherSuite> TopicKey<CS> {
                 &topic.as_bytes()[..],
                 ident.enc_key.id()?.as_bytes(),
                 ident.sign_key.id()?.as_bytes(),
+                policy_id.as_bytes(),
             ],
         );
         Ok(CS::Aead::new(&self.key).open(dst, nonce, ciphertext, &ad)?)
     }
 
-    fn from_seed(seed: [u8; 64], version: Version, topic: &Topic) -> Result<Self, Error> {
-        let key = Self::derive_key(&seed, version, topic)?;
+    fn from_seed(
+        seed: [u8; 64],
+        version: Version,
+        topic: &Topic,
+        policy_id: &PolicyId,
+    ) -> Result<Self, Error> {
+        let key = Self::derive_key(&seed, version, topic, policy_id)?;
         Ok(Self { key, seed })
     }
 
@@ -350,6 +370,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
         seed: &[u8; 64],
         version: Version,
         topic: &Topic,
+        policy_id: &PolicyId,
     ) -> Result<<CS::Aead as Aead>::Key, Error> {
         const DOMAIN: &[u8] = b"APQ-v1";
         //  prk = LabeledExtract("APQ-V1", {0}^512, "topic_key_prk", seed)
@@ -357,13 +378,18 @@ impl<CS: CipherSuite> TopicKey<CS> {
         // info = concat(
         //     i2osp(version, 4),
         //     topic,
+        //     policy_id,
         // )
         // key = LabeledExpand("APQ-v1", prk, "topic_key_key", info)
         let key: KeyData<CS::Aead> = CS::labeled_expand(
             DOMAIN,
             &prk,
             b"topic_key_key",
-            [&version.to_be_bytes(), topic.as_bytes()],
+            [
+                &version.to_be_bytes(),
+                topic.as_bytes(),
+                policy_id.as_bytes(),
+            ],
         )?;
 
         Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
@@ -400,7 +426,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///         DefaultCipherSuite,
     ///         DefaultEngine,
     ///     },
-    ///     Rng,
+    ///     PolicyId, Rng,
     /// };
     ///
     /// const VERSION: Version = Version::new(1);
@@ -409,19 +435,19 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///
     /// let sk = SenderSigningKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
-    /// let sig = sk.sign(VERSION, &topic, RECORD)
+    /// let sig = sk.sign(VERSION, &topic, RECORD, &PolicyId::default())
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &PolicyId::default(), &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(Version::new(2), &topic, RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(Version::new(2), &topic, RECORD, &PolicyId::default(), &sig)
     ///     .expect_err("should fail: wrong version");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &Topic::new("WrongTopic"), RECORD, &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &Topic::new("WrongTopic"), RECORD, &PolicyId::default(), &sig)
     ///     .expect_err("should fail: wrong topic");
     ///
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, b"wrong", &sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, b"wrong", &PolicyId::default(), &sig)
     ///     .expect_err("should fail: wrong record");
     ///
     /// let wrong_sig = sk
@@ -429,9 +455,10 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     ///         Version::new(2),
     ///         &Topic::new("AnotherTopic"),
     ///         b"encoded record",
+    ///         &PolicyId::default(),
     ///     )
     ///     .expect("should not fail");
-    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &wrong_sig)
+    /// sk.public().expect("sender signing key should be valid").verify(VERSION, &topic, RECORD, &PolicyId::default(), &wrong_sig)
     ///     .expect_err("should fail: wrong signature");
     /// # }
     /// ```
@@ -440,6 +467,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
         version: Version,
         topic: &Topic,
         record: &[u8],
+        policy_id: &PolicyId,
     ) -> Result<Signature<CS>, Error> {
         // message = concat(
         //      "apq record",
@@ -447,6 +475,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
         //      i2osp(version, 4),
         //      topic,
         //      pk(SenderSigningKey),
+        //      policy_id,
         //      encode(record),
         // )
         let msg = CS::tuple_hash(
@@ -455,6 +484,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
                 &version.to_be_bytes(),
                 &topic.as_bytes()[..],
                 self.public()?.id()?.as_bytes(),
+                policy_id.as_bytes(),
                 record,
             ],
         );
@@ -483,6 +513,7 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
         version: Version,
         topic: &Topic,
         record: &[u8],
+        policy_id: &PolicyId,
         sig: &Signature<CS>,
     ) -> Result<(), Error> {
         // message = concat(
@@ -491,7 +522,7 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
         //      i2osp(version, 4),
         //      topic,
         //      pk(SenderSigningKey),
-        //      context,
+        //      policy_id,
         //      encode(record),
         // )
         let msg = CS::tuple_hash(
@@ -500,6 +531,7 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
                 &version.to_be_bytes(),
                 &topic.as_bytes()[..],
                 self.id()?.as_bytes(),
+                policy_id.as_bytes(),
                 record,
             ],
         );
@@ -555,6 +587,7 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         pk: &SenderPublicKey<CS>,
         enc: &Encap<CS>,
         ciphertext: &EncryptedTopicKey<CS>,
+        policy_id: &PolicyId,
     ) -> Result<TopicKey<CS>, Error>
     where
         <CS::Aead as Aead>::Overhead: Add<U64>,
@@ -565,10 +598,15 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         //     suite_ids,
         //     i2osp(version, 4),
         //     topic,
+        //     policy_id,
         // )
         let ad = CS::tuple_hash(
             b"TopicKeyRotation",
-            [&version.to_be_bytes(), topic.as_bytes()],
+            [
+                &version.to_be_bytes(),
+                topic.as_bytes(),
+                policy_id.as_bytes(),
+            ],
         );
         // ciphertext = HPKE_OneShotOpen(
         //     mode=mode_auth,
@@ -587,7 +625,7 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         )?;
         let mut seed = [0u8; 64];
         ctx.open(&mut seed, ciphertext.as_bytes(), &ad)?;
-        TopicKey::from_seed(seed, version, topic)
+        TopicKey::from_seed(seed, version, topic, policy_id)
     }
 }
 
@@ -626,6 +664,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///         DefaultEngine,
     ///     },
     ///     Id,
+    ///     PolicyId,
     ///     Rng,
     ///     DeviceId,
     /// };
@@ -638,7 +677,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// let recv_sk = ReceiverSecretKey::<DefaultCipherSuite>::new(&mut Rng);
     /// let recv_pk = recv_sk.public().expect("receiver public key should be valid");
     ///
-    /// let key = TopicKey::new(&mut Rng, VERSION, &topic)
+    /// let key = TopicKey::new(&mut Rng, VERSION, &topic, &PolicyId::default())
     ///     .expect("should not fail");
     ///
     /// // The sender encrypts...
@@ -648,6 +687,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     &topic,
     ///     &send_sk,
     ///     &key,
+    ///     &PolicyId::default(),
     /// ).expect("should not fail");
     /// // ...and the receiver decrypts.
     /// let got = recv_sk.open_topic_key(
@@ -656,6 +696,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
+    ///     &PolicyId::default(),
     /// ).expect("should not fail");
     /// assert_eq!(got.id(), key.id());
     ///
@@ -666,6 +707,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
+    ///     &PolicyId::default(),
     /// ).err().expect("should fail: wrong version");
     ///
     /// // Wrong topic.
@@ -675,6 +717,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///     &send_pk,
     ///     &enc,
     ///     &ciphertext,
+    ///     &PolicyId::default(),
     /// ).err().expect("should fail: wrong topic");
     /// # }
     /// ```
@@ -685,6 +728,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         topic: &Topic,
         sk: &SenderSecretKey<CS>,
         key: &TopicKey<CS>,
+        policy_id: &PolicyId,
     ) -> Result<(Encap<CS>, EncryptedTopicKey<CS>), Error>
     where
         <CS::Aead as Aead>::Overhead: Add<U64>,
@@ -695,10 +739,15 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         //     suite_ids,
         //     i2osp(version, 4),
         //     topic,
+        //     policy_id,
         // )
         let ad = CS::tuple_hash(
             b"TopicKeyRotation",
-            [&version.to_be_bytes()[..], &topic.as_bytes()[..]],
+            [
+                &version.to_be_bytes()[..],
+                &topic.as_bytes()[..],
+                policy_id.as_bytes(),
+            ],
         );
         // (enc, ciphertext) = HPKE_OneShotSeal(
         //     mode=mode_auth,
