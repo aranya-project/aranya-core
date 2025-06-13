@@ -1466,7 +1466,13 @@ struct FnInput {
 fn unpack_newtype_glue(ctx: &Ctx, arg: &ExpandedArg) -> Option<Expr> {
     let capi = &ctx.capi;
     let ident = &arg.arg.name;
-    match &arg.ty {
+    let ty = &arg.ty;
+
+    unpack_helper(capi, ident, ty)
+}
+
+fn unpack_helper(capi: &Ident, ident: &Ident, ty: &Type) -> Option<Expr> {
+    match ty {
         Type::Named(_) => Some(parse_quote!(#capi::to_inner!(#ident))),
         Type::OwnedPtr(_) => Some(parse_quote! {
             #capi::to_inner!(#ident)
