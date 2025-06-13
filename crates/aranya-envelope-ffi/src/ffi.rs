@@ -99,7 +99,7 @@ function parent_id(envelope_input struct Envelope) id
 "#)]
     pub(crate) fn parent_id<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
     ) -> Result<Id, Error> {
@@ -119,7 +119,7 @@ function author_id(envelope_input struct Envelope) id
 "#)]
     pub(crate) fn author_id<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
     ) -> Result<Id, Error> {
@@ -140,7 +140,7 @@ function command_id(envelope_input struct Envelope) id
 "#)]
     pub(crate) fn command_id<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
     ) -> Result<Id, Error> {
@@ -161,7 +161,7 @@ function signature(envelope_input struct Envelope) bytes
 "#)]
     pub(crate) fn signature<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
@@ -182,7 +182,7 @@ function payload(envelope_input struct Envelope) bytes
 "#)]
     pub(crate) fn payload<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Error> {
@@ -210,7 +210,7 @@ function new(
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new_envelope<E: Engine>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         parent_id: Id,
         author_id: Id,

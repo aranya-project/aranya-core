@@ -22,6 +22,7 @@ default = []
 
 proptest = [
 	"aranya-crypto/proptest",
+	"aranya-policy-ast/proptest",
 	"dep:proptest",
 	"dep:proptest-derive",
 	"std",

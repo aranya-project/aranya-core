@@ -1,0 +1,44 @@
+[package]
+name = "aranya-policy-text"
+description = "The Aranya Policy Language textual types"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+
+[lints]
+workspace = true
+
+
+[features]
+default = []
+
+# Enable `std`.
+std = [
+	"proptest?/std",
+	"serde/std",
+	"thiserror/std",
+]
+
+proptest = ["dep:proptest"]
+
+
+[dependencies]
+aranya-policy-text-macro = { path = "../aranya-policy-text-macro" }
+
+serde = { workspace = true, default-features = false, features = ["alloc"] }
+thiserror = { workspace = true, default-features = false }
+
+# TODO(jdygert): remove dependency on std (text regex)
+proptest = { workspace = true, default-features = false, features = ["alloc", "std"], optional = true }
+
+
+[dev-dependencies]
+proptest = { workspace = true, features = ["std"] }
+
+
+[package.metadata.docs.rs]
+all-features = true

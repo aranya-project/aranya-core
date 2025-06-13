@@ -1,9 +1,12 @@
 extern crate alloc;
 
-use alloc::{borrow::Cow, collections::BTreeMap, string::String};
+use alloc::{borrow::Cow, collections::BTreeMap};
 
 use aranya_crypto::DeviceId;
-use aranya_policy_vm::{Struct, Value};
+use aranya_policy_vm::{
+    ast::{ident, Identifier},
+    Struct, Value,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -17,8 +20,7 @@ pub enum VmProtocolData<'a> {
     Init {
         policy: [u8; 8],
         author_id: DeviceId,
-        #[serde(borrow)]
-        kind: &'a str,
+        kind: Identifier,
         #[serde(borrow)]
         serialized_fields: &'a [u8],
         #[serde(borrow)]
@@ -31,8 +33,7 @@ pub enum VmProtocolData<'a> {
     Basic {
         parent: Address,
         author_id: DeviceId,
-        #[serde(borrow)]
-        kind: &'a str,
+        kind: Identifier,
         #[serde(borrow)]
         serialized_fields: &'a [u8],
         #[serde(borrow)]
@@ -112,13 +113,13 @@ pub struct Envelope<'a> {
 impl From<Envelope<'_>> for Struct {
     fn from(e: Envelope<'_>) -> Self {
         Self::new(
-            "Envelope",
+            ident!("Envelope"),
             [
-                ("parent_id".into(), e.parent_id.into_id().into()),
-                ("author_id".into(), e.author_id.into_id().into()),
-                ("command_id".into(), e.command_id.into_id().into()),
-                ("payload".into(), e.payload.into_owned().into()),
-                ("signature".into(), e.signature.into_owned().into()),
+                (ident!("parent_id"), e.parent_id.into_id().into()),
+                (ident!("author_id"), e.author_id.into_id().into()),
+                (ident!("command_id"), e.command_id.into_id().into()),
+                (ident!("payload"), e.payload.into_owned().into()),
+                (ident!("signature"), e.signature.into_owned().into()),
             ],
         )
     }
@@ -148,7 +149,7 @@ impl TryFrom<Struct> for Envelope<'_> {
 }
 
 fn get<T: TryFrom<Value>>(
-    fields: &mut BTreeMap<String, Value>,
+    fields: &mut BTreeMap<Identifier, Value>,
     key: &'static str,
 ) -> Result<T, EnvelopeError> {
     fields
@@ -161,7 +162,7 @@ fn get<T: TryFrom<Value>>(
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum EnvelopeError {
     #[error("invalid struct name {0:?}")]
-    InvalidName(String),
+    InvalidName(Identifier),
     #[error("missing field {0:?}")]
     MissingField(&'static str),
     #[error("invalid type for field {0:?}")]
