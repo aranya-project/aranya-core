@@ -135,7 +135,7 @@ custom_id! {
 /// Computes the ID of a label.
 ///
 /// `cmd` must be the command that created (or is creating) the
-/// role. `name` is the name of the role, e.g., `admin`.
+/// label. `name` is the name of the label, e.g., `telemetry`.
 pub fn label_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) -> LabelId {
     // id = H(
     //     "LabelId-v1",
