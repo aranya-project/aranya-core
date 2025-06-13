@@ -127,6 +127,10 @@ pub enum TestRule {
         id: u64,
         policy: u64,
     },
+    RemoveGraph {
+        client: u64,
+        id: u64,
+    },
     Sync {
         graph: u64,
         client: u64,
@@ -296,6 +300,11 @@ impl Display for TestRule {
                 f,
                 r#"{{"NewGraph": {{ "client": {}, "id": {}, "policy": {} }} }},"#,
                 client, id, policy,
+            ),
+            TestRule::RemoveGraph { client, id } => write!(
+                f,
+                r#"{{"RemoveGraph": {{ "client": {}, "id": {} }} }},"#,
+                client, id,
             ),
             TestRule::PrintGraph { client, graph } => write!(
                 f,
@@ -533,6 +542,16 @@ where
                 )?;
 
                 graphs.insert(id, storage_id);
+
+                assert_eq!(0, sink.count());
+            }
+            TestRule::RemoveGraph { client, id } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+                let storage_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
+                state.remove_graph(*storage_id)?;
 
                 assert_eq!(0, sink.count());
             }
@@ -907,6 +926,7 @@ test_vectors! {
     many_branches,
     max_cut,
     missing_parent_after_sync,
+    remove_graph,
     skip_list,
     sync_graph_larger_than_command_max,
     three_client_branch,

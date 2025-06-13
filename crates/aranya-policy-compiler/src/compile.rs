@@ -11,8 +11,8 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, AstNode, FactCountType, FunctionCall, LanguageContext, MatchExpression,
-    MatchStatement, VType,
+    self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
+    MatchExpression, MatchStatement, VType,
 };
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
@@ -43,7 +43,7 @@ enum FunctionColor {
 /// return type. Covers both regular (pure) functions and finish
 /// functions.
 struct FunctionSignature {
-    args: Vec<(String, VType)>,
+    args: Vec<(Identifier, VType)>,
     color: FunctionColor,
 }
 
@@ -87,7 +87,7 @@ struct CompileState<'a> {
     c: usize,
     /// A map between function names and signatures, so that they can
     /// be easily looked up for verification when called.
-    function_signatures: BTreeMap<&'a str, FunctionSignature>,
+    function_signatures: BTreeMap<&'a Identifier, FunctionSignature>,
     /// The last locator seen, for imprecise source locating.
     // TODO(chip): Push more precise source tracking further down into the AST.
     last_locator: usize,
@@ -138,7 +138,7 @@ impl<'a> CompileState<'a> {
         self.wp = self.wp.checked_add(1).expect("self.wp + 1 must not wrap");
     }
 
-    fn append_var(&mut self, identifier: String, vtype: VType) -> Result<(), CompileError> {
+    fn append_var(&mut self, identifier: Identifier, vtype: VType) -> Result<(), CompileError> {
         self.append_instruction(Instruction::Meta(Meta::Let(identifier.clone())));
         self.append_instruction(Instruction::Def(identifier.clone()));
         self.identifier_types
@@ -150,7 +150,9 @@ impl<'a> CompileState<'a> {
     /// Inserts a fact definition
     fn define_fact(&mut self, fact: &FactDefinition) -> Result<(), CompileError> {
         if self.m.fact_defs.contains_key(&fact.identifier) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(fact.identifier.clone())));
+            return Err(self.err(CompileErrorType::AlreadyDefined(
+                fact.identifier.to_string(),
+            )));
         }
 
         // ensure key identifiers are unique
@@ -162,16 +164,16 @@ impl<'a> CompileState<'a> {
                     fact.identifier, key.identifier
                 ))));
             }
-            if !identifiers.insert(key.identifier.as_str()) {
-                return Err(self.err(CompileErrorType::AlreadyDefined(key.identifier.to_owned())));
+            if !identifiers.insert(&key.identifier) {
+                return Err(self.err(CompileErrorType::AlreadyDefined(key.identifier.to_string())));
             }
         }
 
         // ensure value identifiers are unique
         for value in fact.value.iter() {
-            if !identifiers.insert(value.identifier.as_str()) {
+            if !identifiers.insert(&value.identifier) {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
-                    value.identifier.to_owned(),
+                    value.identifier.to_string(),
                 )));
             }
         }
@@ -185,15 +187,15 @@ impl<'a> CompileState<'a> {
     /// Insert a struct definition while preventing duplicates of the struct name and fields
     pub fn define_struct(
         &mut self,
-        identifier: &str,
+        identifier: Identifier,
         fields: &[FieldDefinition],
     ) -> Result<(), CompileError> {
-        match self.m.struct_defs.entry(identifier.to_string()) {
+        match self.m.struct_defs.entry(identifier) {
             Entry::Vacant(e) => {
                 let mut identifiers = BTreeSet::new();
 
                 for field in fields {
-                    if !identifiers.insert(field.identifier.as_str()) {
+                    if !identifiers.insert(field.identifier.clone()) {
                         return Err(CompileError::from_locator(
                             CompileErrorType::AlreadyDefined(field.identifier.to_string()),
                             self.last_locator,
@@ -204,8 +206,9 @@ impl<'a> CompileState<'a> {
                 e.insert(fields.to_vec());
                 Ok(())
             }
-            Entry::Occupied(_) => {
-                Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())))
+            Entry::Occupied(o) => {
+                let identifier = o.key().to_string();
+                Err(self.err(CompileErrorType::AlreadyDefined(identifier)))
             }
         }
     }
@@ -214,10 +217,10 @@ impl<'a> CompileState<'a> {
         &mut self,
         enum_def: &'a EnumDefinition,
     ) -> Result<(), CompileError> {
-        let enum_name = enum_def.identifier.clone();
+        let enum_name = &enum_def.identifier;
         // ensure enum name is unique
-        if self.m.enum_defs.contains_key(&enum_name) {
-            return Err(self.err(CompileErrorType::AlreadyDefined(enum_name)));
+        if self.m.enum_defs.contains_key(enum_name) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(enum_name.to_string())));
         }
 
         // Add values to enum, checking for duplicates
@@ -240,7 +243,7 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.m.enum_defs.insert(enum_name, values);
+        self.m.enum_defs.insert(enum_name.clone(), values);
 
         Ok(())
     }
@@ -252,7 +255,7 @@ impl<'a> CompileState<'a> {
         function_node: &'a AstNode<ast::FunctionDefinition>,
     ) -> Result<&FunctionSignature, CompileError> {
         let def = &function_node.inner;
-        match self.function_signatures.entry(def.identifier.as_str()) {
+        match self.function_signatures.entry(&def.identifier) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def
@@ -265,7 +268,7 @@ impl<'a> CompileState<'a> {
                 Ok(e.insert(signature))
             }
             Entry::Occupied(_) => Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(def.identifier.clone()),
+                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
                 function_node.locator,
                 self.m.codemap.as_ref(),
             )),
@@ -279,7 +282,7 @@ impl<'a> CompileState<'a> {
         function_node: &'a AstNode<ast::FinishFunctionDefinition>,
     ) -> Result<&FunctionSignature, CompileError> {
         let def = &function_node.inner;
-        match self.function_signatures.entry(def.identifier.as_str()) {
+        match self.function_signatures.entry(&def.identifier) {
             Entry::Vacant(e) => {
                 let signature = FunctionSignature {
                     args: def
@@ -292,7 +295,7 @@ impl<'a> CompileState<'a> {
                 Ok(e.insert(signature))
             }
             Entry::Occupied(_) => Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(def.identifier.clone()),
+                CompileErrorType::AlreadyDefined(def.identifier.to_string()),
                 function_node.locator,
                 self.m.codemap.as_ref(),
             )),
@@ -306,7 +309,9 @@ impl<'a> CompileState<'a> {
                 e.insert(addr);
                 Ok(())
             }
-            Entry::Occupied(_) => Err(self.err(CompileErrorType::AlreadyDefined(label.name))),
+            Entry::Occupied(_) => {
+                Err(self.err(CompileErrorType::AlreadyDefined(label.name.to_string())))
+            }
         }
     }
 
@@ -314,7 +319,7 @@ impl<'a> CompileState<'a> {
     pub fn anonymous_label(&mut self) -> Label {
         let name = format!("anonymous{}", self.c);
         self.c = self.c.checked_add(1).expect("self.c + 1 must not wrap");
-        Label::new_temp(&name)
+        Label::new_temp(name.try_into().expect("must be valid identifier"))
     }
 
     /// Maps the current write pointer to a text range supplied by an AST node
@@ -415,11 +420,11 @@ impl<'a> CompileState<'a> {
         CompileError::from_locator(err_type, locator, self.m.codemap.as_ref())
     }
 
-    fn get_fact_def(&self, name: &String) -> Result<&FactDefinition, CompileError> {
+    fn get_fact_def(&self, name: &Identifier) -> Result<&FactDefinition, CompileError> {
         self.m
             .fact_defs
             .get(name)
-            .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.clone())))
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(name.to_string())))
     }
 
     /// Make sure fact literal matches its schema. Checks that:
@@ -473,7 +478,7 @@ impl<'a> CompileState<'a> {
 
     fn verify_fact_values(
         &self,
-        values: &[(String, FactField)],
+        values: &[(Identifier, FactField)],
         fact_def: &FactDefinition,
     ) -> Result<(), CompileError> {
         // value block must have the same number of values as the schema
@@ -690,10 +695,9 @@ impl<'a> CompileState<'a> {
                 }
             },
             Expression::FunctionCall(f) => {
-                let signature = self
-                    .function_signatures
-                    .get(&f.identifier.as_str())
-                    .ok_or_else(|| self.err(CompileErrorType::NotDefined(f.identifier.clone())))?;
+                let signature = self.function_signatures.get(&f.identifier).ok_or_else(|| {
+                    self.err(CompileErrorType::NotDefined(f.identifier.to_string()))
+                })?;
                 // Check that this function is the right color - only
                 // pure functions are allowed in expressions.
                 let FunctionColor::Pure(return_type) = signature.color.clone() else {
@@ -721,7 +725,7 @@ impl<'a> CompileState<'a> {
                 // If the policy hasn't imported this module, don't allow using it
                 if !self.policy.ffi_imports.contains(&f.module) {
                     return Err(CompileError::from_locator(
-                        CompileErrorType::NotDefined(f.module.to_owned()),
+                        CompileErrorType::NotDefined(f.module.to_string()),
                         self.last_locator,
                         self.m.codemap.as_ref(),
                     ));
@@ -740,7 +744,9 @@ impl<'a> CompileState<'a> {
                         .iter()
                         .enumerate()
                         .find(|(_, m)| m.name == f.module)
-                        .ok_or_else(|| self.err(CompileErrorType::NotDefined(f.module.clone())))?;
+                        .ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(f.module.to_string()))
+                        })?;
 
                     // find module function by name
                     let (procedure_id, procedure) = module
@@ -757,7 +763,9 @@ impl<'a> CompileState<'a> {
 
                     // verify number of arguments matches the function signature
                     if f.arguments.len() != procedure.args.len() {
-                        return Err(self.err(CompileErrorType::BadArgument(f.identifier.clone())));
+                        return Err(
+                            self.err(CompileErrorType::BadArgument(f.identifier.to_string()))
+                        );
                     }
 
                     // push args
@@ -865,7 +873,9 @@ impl<'a> CompileState<'a> {
 
                 let field_count = sub_field_defns.len();
                 for field in sub_field_defns {
-                    self.append_instruction(Instruction::Const(Value::String(field.identifier)));
+                    self.append_instruction(Instruction::Const(Value::Identifier(
+                        field.identifier,
+                    )));
                 }
 
                 if let Some(field_count) = NonZeroUsize::new(field_count) {
@@ -1077,7 +1087,7 @@ impl<'a> CompileState<'a> {
             .m
             .enum_defs
             .get(&e.identifier)
-            .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.to_owned())))?;
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(e.identifier.to_string())))?;
         let value = enum_def.get(&e.value).ok_or_else(|| {
             self.err(CompileErrorType::NotDefined(format!(
                 "{}::{}",
@@ -1135,7 +1145,7 @@ impl<'a> CompileState<'a> {
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
                     self.identifier_types
-                        .add(&s.identifier, et)
+                        .add(s.identifier.clone(), et)
                         .map_err(|e| self.err(e))?;
                     self.append_instruction(Instruction::Meta(Meta::Let(s.identifier.clone())));
                     self.append_instruction(Instruction::Def(s.identifier.clone()));
@@ -1375,12 +1385,10 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Emit);
                 }
                 (ast::Statement::FunctionCall(f), StatementContext::Finish) => {
-                    let signature = self
-                        .function_signatures
-                        .get(&f.identifier.as_str())
-                        .ok_or_else(|| {
+                    let signature =
+                        self.function_signatures.get(&f.identifier).ok_or_else(|| {
                             self.err_loc(
-                                CompileErrorType::NotDefined(f.identifier.clone()),
+                                CompileErrorType::NotDefined(f.identifier.to_string()),
                                 statement.locator,
                             )
                         })?;
@@ -1418,7 +1426,7 @@ impl<'a> CompileState<'a> {
                         .find(|a| a.identifier == fc.identifier)
                     else {
                         return Err(CompileError::from_locator(
-                            CompileErrorType::NotDefined(fc.identifier.clone()),
+                            CompileErrorType::NotDefined(fc.identifier.to_string()),
                             statement.locator,
                             self.m.codemap.as_ref(),
                         ));
@@ -1454,7 +1462,7 @@ impl<'a> CompileState<'a> {
                         }
                     }
 
-                    let label = Label::new(&fc.identifier, LabelType::Action);
+                    let label = Label::new(fc.identifier.clone(), LabelType::Action);
                     self.append_instruction(Instruction::Call(Target::Unresolved(label)));
                 }
                 (ast::Statement::DebugAssert(s), _) => {
@@ -1518,7 +1526,7 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let function = &function_node.inner;
         self.define_label(
-            Label::new(&function.identifier, LabelType::Function),
+            Label::new(function.identifier.clone(), LabelType::Function),
             self.wp,
         )?;
         self.map_range(function_node)?;
@@ -1526,7 +1534,7 @@ impl<'a> CompileState<'a> {
 
         if let Some(identifier) = find_duplicate(&function.arguments, |a| &a.identifier) {
             return Err(self.err_loc(
-                CompileErrorType::AlreadyDefined(identifier.clone()),
+                CompileErrorType::AlreadyDefined(identifier.to_string()),
                 function_node.locator,
             ));
         }
@@ -1557,7 +1565,7 @@ impl<'a> CompileState<'a> {
         function_node: &'a AstNode<ast::FinishFunctionDefinition>,
     ) -> Result<(), CompileError> {
         let function = &function_node.inner;
-        self.define_label(Label::new_temp(&function.identifier), self.wp)?;
+        self.define_label(Label::new_temp(function.identifier.clone()), self.wp)?;
         self.map_range(function_node)?;
         self.identifier_types.enter_function();
         for arg in function.arguments.iter().rev() {
@@ -1579,8 +1587,8 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let arg_defs = self
             .function_signatures
-            .get(fc.identifier.as_str())
-            .ok_or_else(|| self.err(CompileErrorType::NotDefined(fc.identifier.clone())))?
+            .get(&fc.identifier)
+            .ok_or_else(|| self.err(CompileErrorType::NotDefined(fc.identifier.to_string())))?
             .args
             .clone();
 
@@ -1599,7 +1607,7 @@ impl<'a> CompileState<'a> {
         }
 
         let label = Label::new(
-            &fc.identifier,
+            fc.identifier.clone(),
             if is_finish {
                 LabelType::Temporary
             } else {
@@ -1617,13 +1625,16 @@ impl<'a> CompileState<'a> {
     ) -> Result<(), CompileError> {
         let action = &action_node.inner;
         self.identifier_types.enter_function();
-        self.define_label(Label::new(&action.identifier, LabelType::Action), self.wp)?;
+        self.define_label(
+            Label::new(action.identifier.clone(), LabelType::Action),
+            self.wp,
+        )?;
         self.map_range(action_node)?;
 
         // check for duplicate args
         if let Some(identifier) = find_duplicate(&action.arguments, |a| &a.identifier) {
             return Err(CompileError::from_locator(
-                CompileErrorType::AlreadyDefined(identifier.clone()),
+                CompileErrorType::AlreadyDefined(identifier.to_string()),
                 action_node.locator,
                 self.m.codemap.as_ref(),
             ));
@@ -1643,7 +1654,7 @@ impl<'a> CompileState<'a> {
             }
             Entry::Occupied(_) => {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
-                    action_node.identifier.clone(),
+                    action_node.identifier.to_string(),
                 )));
             }
         }
@@ -1668,12 +1679,12 @@ impl<'a> CompileState<'a> {
                 e.insert(value);
             }
             Entry::Occupied(_) => {
-                return Err(self.err(CompileErrorType::AlreadyDefined(identifier.clone())));
+                return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
             }
         }
 
         self.identifier_types
-            .add_global(identifier, Typeish::Type(vt))
+            .add_global(identifier.clone(), Typeish::Type(vt))
             .map_err(|e| self.err(e))?;
 
         Ok(())
@@ -1718,24 +1729,24 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
         self.define_label(
-            Label::new(&command.identifier, LabelType::CommandPolicy),
+            Label::new(command.identifier.clone(), LabelType::CommandPolicy),
             self.wp,
         )?;
         self.enter_statement_context(StatementContext::CommandPolicy(command.clone()));
         self.identifier_types.enter_function();
         self.identifier_types
             .add(
-                "this",
+                ident!("this"),
                 Typeish::Type(VType::Struct(command.identifier.clone())),
             )
             .map_err(|e| self.err(e))?;
         self.identifier_types
             .add(
-                "envelope",
-                Typeish::Type(VType::Struct("Envelope".to_string())),
+                ident!("envelope"),
+                Typeish::Type(VType::Struct(ident!("Envelope"))),
             )
             .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def("envelope".into()));
+        self.append_instruction(Instruction::Def(ident!("envelope")));
         self.compile_statements(&command.policy, Scope::Same)?;
         self.identifier_types.exit_function();
         self.exit_statement_context();
@@ -1748,24 +1759,24 @@ impl<'a> CompileState<'a> {
         command: &ast::CommandDefinition,
     ) -> Result<(), CompileError> {
         self.define_label(
-            Label::new(&command.identifier, LabelType::CommandRecall),
+            Label::new(command.identifier.clone(), LabelType::CommandRecall),
             self.wp,
         )?;
         self.enter_statement_context(StatementContext::CommandRecall(command.clone()));
         self.identifier_types.enter_function();
         self.identifier_types
             .add(
-                "this",
+                ident!("this"),
                 Typeish::Type(VType::Struct(command.identifier.clone())),
             )
             .map_err(|e| self.err(e))?;
         self.identifier_types
             .add(
-                "envelope",
-                Typeish::Type(VType::Struct("Envelope".to_string())),
+                ident!("envelope"),
+                Typeish::Type(VType::Struct(ident!("Envelope"))),
             )
             .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def("envelope".into()));
+        self.append_instruction(Instruction::Def(ident!("envelope")));
         self.compile_statements(&command.recall, Scope::Same)?;
         self.identifier_types.exit_function();
         self.exit_statement_context();
@@ -1787,9 +1798,9 @@ impl<'a> CompileState<'a> {
 
         // fake a function def for the seal block
         let seal_function_definition = ast::FunctionDefinition {
-            identifier: String::from("seal"),
+            identifier: ident!("seal"),
             arguments: vec![],
-            return_type: VType::Struct(String::from("Envelope")),
+            return_type: VType::Struct(ident!("Envelope")),
             statements: vec![],
         };
 
@@ -1797,7 +1808,7 @@ impl<'a> CompileState<'a> {
         // uses "return", we need something on the call stack to return
         // to.
         self.define_label(
-            Label::new(&command.identifier, LabelType::CommandSeal),
+            Label::new(command.identifier.clone(), LabelType::CommandSeal),
             self.wp,
         )?;
         let actual_seal = self.anonymous_label();
@@ -1808,11 +1819,11 @@ impl<'a> CompileState<'a> {
         self.identifier_types.enter_function();
         self.identifier_types
             .add(
-                "this",
+                ident!("this"),
                 Typeish::Type(VType::Struct(command.identifier.clone())),
             )
             .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def("this".into()));
+        self.append_instruction(Instruction::Def(ident!("this")));
         let from = self.wp;
         self.compile_statements(&command.seal, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
@@ -1839,7 +1850,7 @@ impl<'a> CompileState<'a> {
 
         // fake a function def for the open block
         let open_function_definition = ast::FunctionDefinition {
-            identifier: String::from("open"),
+            identifier: ident!("open"),
             arguments: vec![],
             return_type: VType::Struct(command.identifier.clone()),
             statements: vec![],
@@ -1847,7 +1858,7 @@ impl<'a> CompileState<'a> {
 
         // Same thing for open.
         self.define_label(
-            Label::new(&command.identifier, LabelType::CommandOpen),
+            Label::new(command.identifier.clone(), LabelType::CommandOpen),
             self.wp,
         )?;
         let actual_open = self.anonymous_label();
@@ -1858,11 +1869,11 @@ impl<'a> CompileState<'a> {
         self.identifier_types.enter_function();
         self.identifier_types
             .add(
-                "envelope",
-                Typeish::Type(VType::Struct("Envelope".to_string())),
+                ident!("envelope"),
+                Typeish::Type(VType::Struct(ident!("Envelope"))),
             )
             .map_err(|e| self.err(e))?;
-        self.append_instruction(Instruction::Def("envelope".into()));
+        self.append_instruction(Instruction::Def(ident!("envelope")));
         let from = self.wp;
         self.compile_statements(&command.open, Scope::Same)?;
         if !self.instruction_range_contains(from..self.wp, |i| matches!(i, Instruction::Return)) {
@@ -1898,7 +1909,7 @@ impl<'a> CompileState<'a> {
                     e.insert(value);
                 }
                 Entry::Occupied(_) => {
-                    return Err(self.err(CompileErrorType::AlreadyDefined(name.clone())));
+                    return Err(self.err(CompileErrorType::AlreadyDefined(name.to_string())));
                 }
             }
         }
@@ -1920,7 +1931,7 @@ impl<'a> CompileState<'a> {
             }
             Entry::Occupied(_) => {
                 return Err(self.err(CompileErrorType::AlreadyDefined(
-                    command_node.identifier.clone(),
+                    command_node.identifier.to_string(),
                 )));
             }
         }
@@ -2129,11 +2140,14 @@ impl<'a> CompileState<'a> {
         for effect in &self.policy.effects {
             let fields: Vec<FieldDefinition> =
                 effect.inner.fields.iter().map(|f| f.into()).collect();
-            self.define_struct(&effect.inner.identifier, &fields)?;
+            self.define_struct(effect.inner.identifier.clone(), &fields)?;
         }
 
         for struct_def in &self.policy.structs {
-            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.fields)?;
+            self.define_struct(
+                struct_def.inner.identifier.clone(),
+                &struct_def.inner.fields,
+            )?;
         }
 
         // define the structs provided by FFI schema
@@ -2143,11 +2157,11 @@ impl<'a> CompileState<'a> {
                     .fields
                     .iter()
                     .map(|a| FieldDefinition {
-                        identifier: a.name.to_string(),
+                        identifier: a.name.to_owned(),
                         field_type: VType::from(&a.vtype),
                     })
                     .collect();
-                self.define_struct(s.name, &fields)?;
+                self.define_struct(s.name.to_owned(), &fields)?;
             }
         }
 
@@ -2161,13 +2175,13 @@ impl<'a> CompileState<'a> {
 
             let fields: Vec<FieldDefinition> = key.iter().chain(value.iter()).cloned().collect();
 
-            self.define_struct(&fact.inner.identifier, &fields)?;
+            self.define_struct(fact.inner.identifier.clone(), &fields)?;
             self.define_fact(&fact.inner)?;
         }
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            self.define_struct(&command.identifier, &command.fields)?;
+            self.define_struct(command.identifier.clone(), &command.fields)?;
         }
 
         // Define the finish function signatures before compiling them, so that they can be

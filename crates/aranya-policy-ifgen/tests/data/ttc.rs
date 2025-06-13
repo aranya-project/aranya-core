@@ -5,10 +5,10 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 extern crate alloc;
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use aranya_policy_ifgen::{
     macros::{actions, effect, effects, value},
-    ClientError, Id, Value,
+    ClientError, Id, Value, Text,
 };
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
@@ -30,14 +30,14 @@ pub enum Effect {
 /// TtcTeamCreated policy effect.
 #[effect]
 pub struct TtcTeamCreated {
-    pub name: String,
+    pub name: Text,
     pub owner_id: Id,
 }
 /// OwnerAdded policy effect.
 #[effect]
 pub struct OwnerAdded {
     pub device_id: Id,
-    pub name: String,
+    pub name: Text,
     pub ident_pk: Vec<u8>,
     pub sign_pk: Vec<u8>,
     pub enc_pk: Vec<u8>,
@@ -46,7 +46,7 @@ pub struct OwnerAdded {
 #[effect]
 pub struct AdminAdded {
     pub device_id: Id,
-    pub name: String,
+    pub name: Text,
     pub ident_pk: Vec<u8>,
     pub sign_pk: Vec<u8>,
     pub enc_pk: Vec<u8>,
@@ -55,7 +55,7 @@ pub struct AdminAdded {
 #[effect]
 pub struct OperatorAdded {
     pub device_id: Id,
-    pub name: String,
+    pub name: Text,
     pub ident_pk: Vec<u8>,
     pub sign_pk: Vec<u8>,
     pub enc_pk: Vec<u8>,
@@ -64,7 +64,7 @@ pub struct OperatorAdded {
 #[effect]
 pub struct SatelliteAdded {
     pub device_id: Id,
-    pub name: String,
+    pub name: Text,
     pub ident_pk: Vec<u8>,
     pub sign_pk: Vec<u8>,
     pub enc_pk: Vec<u8>,
@@ -92,16 +92,16 @@ pub struct SatelliteRemoved {
 /// AfcLabelCreated policy effect.
 #[effect]
 pub struct AfcLabelCreated {
-    pub name: String,
+    pub name: Text,
     pub label: i64,
 }
 /// AfcLabelAssigned policy effect.
 #[effect]
 pub struct AfcLabelAssigned {
     pub device_id: Id,
-    pub name: String,
+    pub name: Text,
     pub label: i64,
-    pub op: String,
+    pub op: Text,
 }
 /// AfcLabelRevoked policy effect.
 #[effect]
@@ -121,8 +121,8 @@ pub struct AfcBidiChannelCreated {
 pub trait ActorExt {
     fn create_ttc_team(
         &mut self,
-        ttc_team_name: String,
-        device_name: String,
+        ttc_team_name: Text,
+        device_name: Text,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
         enc_pk: Vec<u8>,
@@ -130,7 +130,7 @@ pub trait ActorExt {
     fn add_owner(
         &mut self,
         device_id: Id,
-        name: String,
+        name: Text,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
         enc_pk: Vec<u8>,
@@ -138,7 +138,7 @@ pub trait ActorExt {
     fn add_admin(
         &mut self,
         device_id: Id,
-        name: String,
+        name: Text,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
         enc_pk: Vec<u8>,
@@ -146,7 +146,7 @@ pub trait ActorExt {
     fn add_operator(
         &mut self,
         device_id: Id,
-        name: String,
+        name: Text,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
         enc_pk: Vec<u8>,
@@ -154,7 +154,7 @@ pub trait ActorExt {
     fn add_satellite(
         &mut self,
         device_id: Id,
-        name: String,
+        name: Text,
         ident_pk: Vec<u8>,
         sign_pk: Vec<u8>,
         enc_pk: Vec<u8>,
@@ -163,12 +163,12 @@ pub trait ActorExt {
     fn remove_admin(&mut self, device_id: Id) -> Result<(), ClientError>;
     fn remove_operator(&mut self, device_id: Id) -> Result<(), ClientError>;
     fn remove_satellite(&mut self, device_id: Id) -> Result<(), ClientError>;
-    fn create_afc_label(&mut self, name: String, label: i64) -> Result<(), ClientError>;
+    fn create_afc_label(&mut self, name: Text, label: i64) -> Result<(), ClientError>;
     fn assign_afc_label(
         &mut self,
         device_id: Id,
         label: i64,
-        op: String,
+        op: Text,
     ) -> Result<(), ClientError>;
     fn revoke_afc_label(&mut self, device_id: Id, label: i64) -> Result<(), ClientError>;
     fn create_afc_bidi_channel(

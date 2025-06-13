@@ -1,7 +1,7 @@
 [package]
 name = "aranya-crypto"
 description = "The Aranya Cryptography Engine"
-version = "0.6.1"
+version = "0.7.1"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -27,7 +27,11 @@ afc = [
 apq = []
 
 # Enable AQC support.
-aqc = []
+aqc = [
+	# AQC really only needs the cipher suites, but including the
+	# rest of the module is currently NBD.
+	"tls",
+]
 
 # Enable allocations.
 alloc = [
@@ -130,11 +134,15 @@ test_util = [
 	"apq",
 	"aqc",
 	"proptest",
+	"tls",
 
 	"spideroak-crypto/test_util",
 
 	"dep:ciborium",
 ]
+
+# Enable TLS utilities.
+tls = []
 
 # Use a system provided TRNG for the default CSPRNG.
 trng = ["spideroak-crypto/trng"]
@@ -204,6 +212,7 @@ always_include_features = [
 	"rand_compat",
 	"std",
 	"test_util",
+	"tls",
 ]
 
 skip_feature_sets = []
