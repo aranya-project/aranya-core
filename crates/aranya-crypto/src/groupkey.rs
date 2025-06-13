@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use core::{marker::PhantomData, result::Result};
+use core::{cell::OnceCell, marker::PhantomData, result::Result};
 
 use buggy::Bug;
 use serde::{Deserialize, Serialize};
@@ -26,6 +26,7 @@ use crate::{
 /// Key material used to derive per-event encryption keys.
 pub struct GroupKey<CS> {
     seed: [u8; 64],
+    id: OnceCell<Result<GroupKeyId, IdError>>,
     _cs: PhantomData<CS>,
 }
 
@@ -40,6 +41,7 @@ impl<CS> Clone for GroupKey<CS> {
     fn clone(&self) -> Self {
         Self {
             seed: self.seed,
+            id: OnceCell::new(),
             _cs: PhantomData,
         }
     }
@@ -56,23 +58,27 @@ impl<CS: CipherSuite> GroupKey<CS> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> Result<GroupKeyId, IdError> {
-        // prk = LabeledExtract(
-        //     "GroupKeyId-v1",
-        //     {0}^n,
-        //     "prk",
-        //     seed,
-        // )
-        // GroupKey = LabeledExpand(
-        //     "GroupKeyId-v1",
-        //     prk,
-        //     "id",
-        //     {0}^0,
-        // )
-        const DOMAIN: &[u8] = b"GroupKeyId-v1";
-        let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
-        CS::labeled_expand(DOMAIN, &prk, b"id", [])
-            .map_err(|_| IdError::new("unable to expand PRK"))
-            .map(GroupKeyId)
+        self.id
+            .get_or_init(|| {
+                // prk = LabeledExtract(
+                //     "GroupKeyId-v1",
+                //     {0}^n,
+                //     "prk",
+                //     seed,
+                // )
+                // GroupKey = LabeledExpand(
+                //     "GroupKeyId-v1",
+                //     prk,
+                //     "id",
+                //     {0}^0,
+                // )
+                const DOMAIN: &[u8] = b"GroupKeyId-v1";
+                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
+                CS::labeled_expand(DOMAIN, &prk, b"id", [])
+                    .map_err(|_| IdError::new("unable to expand PRK"))
+                    .map(GroupKeyId)
+            })
+            .clone()
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -222,6 +228,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     pub(crate) const fn from_seed(seed: [u8; 64]) -> Self {
         Self {
             seed,
+            id: OnceCell::new(),
             _cs: PhantomData,
         }
     }

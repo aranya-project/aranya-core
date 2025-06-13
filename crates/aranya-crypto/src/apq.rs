@@ -6,7 +6,7 @@
 #![cfg(feature = "apq")]
 #![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
-use core::{borrow::Borrow, fmt, ops::Add, result::Result};
+use core::{borrow::Borrow, cell::OnceCell, fmt, ops::Add, result::Result};
 
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
@@ -132,6 +132,7 @@ pub struct TopicKey<CS: CipherSuite> {
     // large and we have to handle two pieces of key material.
     key: <CS::Aead as Aead>::Key,
     seed: [u8; 64],
+    id: OnceCell<Result<TopicKeyId, IdError>>,
 }
 
 impl<CS: CipherSuite> ZeroizeOnDrop for TopicKey<CS> {}
@@ -146,6 +147,7 @@ impl<CS: CipherSuite> Clone for TopicKey<CS> {
         Self {
             key: self.key.clone(),
             seed: self.seed,
+            id: OnceCell::new(),
         }
     }
 }
@@ -161,23 +163,27 @@ impl<CS: CipherSuite> TopicKey<CS> {
     /// Two keys with the same ID are the same key.
     #[inline]
     pub fn id(&self) -> Result<TopicKeyId, IdError> {
-        // prk = LabeledExtract(
-        //     "TopicKeyId-v1",
-        //     {0}^n,
-        //     "prk",
-        //     seed,
-        // )
-        // TopicKey = LabeledExpand(
-        //     "TopicKeyId-v1",
-        //     prk,
-        //     "id",
-        //     {0}^0,
-        // )
-        const DOMAIN: &[u8] = b"TopicKeyId-v1";
-        let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
-        CS::labeled_expand(DOMAIN, &prk, b"id", [])
-            .map_err(|_| IdError::new("unable to expand PRK"))
-            .map(TopicKeyId)
+        self.id
+            .get_or_init(|| {
+                // prk = LabeledExtract(
+                //     "TopicKeyId-v1",
+                //     {0}^n,
+                //     "prk",
+                //     seed,
+                // )
+                // TopicKey = LabeledExpand(
+                //     "TopicKeyId-v1",
+                //     prk,
+                //     "id",
+                //     {0}^0,
+                // )
+                const DOMAIN: &[u8] = b"TopicKeyId-v1";
+                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
+                CS::labeled_expand(DOMAIN, &prk, b"id", [])
+                    .map_err(|_| IdError::new("unable to expand PRK"))
+                    .map(TopicKeyId)
+            })
+            .clone()
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -340,7 +346,11 @@ impl<CS: CipherSuite> TopicKey<CS> {
 
     fn from_seed(seed: [u8; 64], version: Version, topic: &Topic) -> Result<Self, Error> {
         let key = Self::derive_key(&seed, version, topic)?;
-        Ok(Self { key, seed })
+        Ok(Self {
+            key,
+            seed,
+            id: OnceCell::new(),
+        })
     }
 
     /// Derives a key for [`Self::open`] and [`Self::seal`].
@@ -377,14 +387,20 @@ ciphertext!(EncryptedTopicKey, U64, "An encrypted [`TopicKey`].");
 /// The private half of a [SenderSigningKey].
 ///
 /// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
-pub struct SenderSigningKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
+pub struct SenderSigningKey<CS: CipherSuite> {
+    key: <CS::Signer as Signer>::SigningKey,
+    id: OnceCell<Result<SenderSigningKeyId, IdError>>,
+}
 
 key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
     /// Creates a `SenderSigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        SenderSigningKey(Random::random(rng))
+        SenderSigningKey {
+            key: Random::random(rng),
+            id: OnceCell::new(),
+        }
     }
 
     /// Creates a signature over an encoded record.
@@ -458,7 +474,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
                 record,
             ],
         );
-        let sig = self.0.sign(&msg)?;
+        let sig = self.key.sign(&msg)?;
         Ok(Signature(sig))
     }
 }
@@ -466,8 +482,8 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
 unwrapped! {
     name: SenderSigningKey;
     type: Signing;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+    into: |key: Self| { key.key };
+    from: |key| { Self { key, id: OnceCell::new() } };
 }
 
 /// The public half of a [SenderSigningKey].
@@ -510,22 +526,28 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
 /// The private half of a [SenderKey].
 ///
 /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
-pub struct SenderSecretKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
+pub struct SenderSecretKey<CS: CipherSuite> {
+    key: <CS::Kem as Kem>::DecapKey,
+    id: OnceCell<Result<SenderKeyId, IdError>>,
+}
 
 key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
 
 impl<CS: CipherSuite> SenderSecretKey<CS> {
     /// Creates a `SenderSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        SenderSecretKey(Random::random(rng))
+        SenderSecretKey {
+            key: Random::random(rng),
+            id: OnceCell::new(),
+        }
     }
 }
 
 unwrapped! {
     name: SenderSecretKey;
     type: Decap;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+    into: |key: Self| { key.key };
+    from: |key| { Self { key, id: OnceCell::new() } };
 }
 
 /// The public half of a [SenderKey].
@@ -536,14 +558,20 @@ pub struct SenderPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
 /// The private half of a [ReceiverKey].
 ///
 /// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
-pub struct ReceiverSecretKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
+pub struct ReceiverSecretKey<CS: CipherSuite> {
+    key: <CS::Kem as Kem>::DecapKey,
+    id: OnceCell<Result<ReceiverKeyId, IdError>>,
+}
 
 key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
     /// Creates a `ReceiverSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        ReceiverSecretKey(Random::random(rng))
+        ReceiverSecretKey {
+            key: Random::random(rng),
+            id: OnceCell::new(),
+        }
     }
 
     /// Decrypts and authenticates a [`TopicKey`] received from
@@ -582,7 +610,7 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         let mut ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
             Mode::Auth(&pk.0),
             &enc.0,
-            &self.0,
+            &self.key,
             &ad,
         )?;
         let mut seed = [0u8; 64];
@@ -594,8 +622,8 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
 unwrapped! {
     name: ReceiverSecretKey;
     type: Decap;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+    into: |key: Self| { key.key };
+    from: |key| { Self { key, id: OnceCell::new() } };
 }
 
 /// The public half of a [ReceiverKey].
@@ -709,7 +737,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         //     ad=ad,
         // )
         let (enc, mut ctx) =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Auth(&sk.0), &self.0, &ad)?;
+            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Auth(&sk.key), &self.0, &ad)?;
         let mut dst = GenericArray::default();
         ctx.seal(&mut dst, &key.seed, &ad)?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))

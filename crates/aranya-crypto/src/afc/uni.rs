@@ -1,3 +1,5 @@
+use core::cell::OnceCell;
+
 use buggy::BugExt;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
@@ -18,7 +20,7 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::{Engine, unwrapped},
     error::Error,
-    id::{Id, custom_id},
+    id::{Id, IdError, custom_id},
     misc::sk_misc,
 };
 
@@ -180,22 +182,25 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 }
 
 /// A unirectional channel author's secret.
-pub struct UniAuthorSecret<CS: CipherSuite>(RootChannelKey<CS>);
+pub struct UniAuthorSecret<CS: CipherSuite> {
+    key: RootChannelKey<CS>,
+    id: OnceCell<Result<UniAuthorSecretId, IdError>>,
+}
 
 sk_misc!(UniAuthorSecret, UniAuthorSecretId);
 
 impl<CS: CipherSuite> ConstantTimeEq for UniAuthorSecret<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
-        self.0.ct_eq(&other.0)
+        self.key.ct_eq(&other.key)
     }
 }
 
 unwrapped! {
     name: UniAuthorSecret;
     type: Decap;
-    into: |key: Self| { key.0.into_inner() };
-    from: |key| { Self(RootChannelKey::new(key)) };
+    into: |key: Self| { key.key.into_inner() };
+    from: |key| { Self { key: RootChannelKey::new(key), id: OnceCell::new() } };
 }
 
 /// A unirectional channel peer's encapsulated secret.
@@ -203,29 +208,38 @@ unwrapped! {
 /// This should be freely shared with the channel peer.
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct UniPeerEncap<CS: CipherSuite>(Encap<CS>);
+pub struct UniPeerEncap<CS: CipherSuite> {
+    encap: Encap<CS>,
+    #[serde(skip)]
+    id: OnceCell<UniChannelId>,
+}
 
 impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId"))
+        *self
+            .id
+            .get_or_init(|| UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId")))
     }
 
     /// Encodes itself as bytes.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        self.encap.as_bytes()
     }
 
     /// Returns itself from its byte encoding.
     #[inline]
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
-        Ok(Self(Encap::from_bytes(data)?))
+        Ok(Self {
+            encap: Encap::from_bytes(data)?,
+            id: OnceCell::new(),
+        })
     }
 
     fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
-        self.0.as_inner()
+        self.encap.as_inner()
     }
 }
 
@@ -257,15 +271,21 @@ impl<CS: CipherSuite> UniSecrets<CS> {
         let root_sk = RootChannelKey::random(eng);
         let peer = {
             let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                Mode::Auth(&author_sk.0),
+                Mode::Auth(&author_sk.key),
                 &peer_pk.0,
                 &ch.info(),
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
             )?;
-            UniPeerEncap(Encap(enc))
+            UniPeerEncap {
+                encap: Encap(enc),
+                id: OnceCell::new(),
+            }
         };
-        let author = UniAuthorSecret(root_sk);
+        let author = UniAuthorSecret {
+            key: root_sk,
+            id: OnceCell::new(),
+        };
 
         Ok(UniSecrets { author, peer })
     }
@@ -298,10 +318,10 @@ macro_rules! uni_key {
                 }
 
                 let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                    Mode::Auth(&author_sk.0),
+                    Mode::Auth(&author_sk.key),
                     &peer_pk.0,
                     &ch.info(),
-                    secret.0.into_inner(),
+                    secret.key.into_inner(),
                 )?;
                 let key = {
                     // `SendCtx` only gets rid of the raw key
@@ -333,7 +353,7 @@ macro_rules! uni_key {
                 let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
                     Mode::Auth(&author_pk.0),
                     enc.as_inner(),
-                    &peer_sk.0,
+                    &peer_sk.key,
                     &info,
                 )?;
                 let key = {
