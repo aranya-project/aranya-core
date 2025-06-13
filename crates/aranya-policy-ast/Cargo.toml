@@ -29,7 +29,7 @@ proptest = [
 
 
 [dependencies]
-aranya-policy-text = { path = "../aranya-policy-text", default-features = false }
+aranya-policy-text = { version = "0.1.0", path = "../aranya-policy-text", default-features = false }
 
 serde = { workspace = true, default-features = false, features = ["alloc"] }
 serde_derive = { workspace = true }

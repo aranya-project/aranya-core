@@ -97,6 +97,12 @@ audit-as-crates-io = false
 [policy.aranya-policy-module]
 audit-as-crates-io = false
 
+[policy.aranya-policy-text]
+audit-as-crates-io = false
+
+[policy.aranya-policy-text-macro]
+audit-as-crates-io = false
+
 [policy.aranya-policy-vm]
 audit-as-crates-io = false
 
