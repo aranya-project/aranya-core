@@ -27,7 +27,7 @@ proptest = ["dep:proptest"]
 
 
 [dependencies]
-aranya-policy-text-macro = { path = "../aranya-policy-text-macro" }
+aranya-policy-text-macro = { version = "0.1.0", path = "../aranya-policy-text-macro" }
 
 serde = { workspace = true, default-features = false, features = ["alloc"] }
 thiserror = { workspace = true, default-features = false }

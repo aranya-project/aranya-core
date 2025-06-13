@@ -21,5 +21,7 @@
 | aranya-policy-ifgen-macro | ![Crates.io Version](https://img.shields.io/crates/v/aranya-policy-ifgen-macro) | ![docs.rs](https://img.shields.io/docsrs/aranya-policy-ifgen-macro) |
 | aranya-policy-lang | ![Crates.io Version](https://img.shields.io/crates/v/aranya-policy-lang) | ![docs.rs](https://img.shields.io/docsrs/aranya-policy-lang) |
 | aranya-policy-module | ![Crates.io Version](https://img.shields.io/crates/v/aranya-policy-module) | ![docs.rs](https://img.shields.io/docsrs/aranya-policy-module) |
+| aranya-policy-text | ![Crates.io Version](https://img.shields.io/crates/v/aranya-policy-text) | ![docs.rs](https://img.shields.io/docsrs/aranya-policy-text) |
+| aranya-policy-text-macro | ![Crates.io Version](https://img.shields.io/crates/v/aranya-policy-text-macro) | ![docs.rs](https://img.shields.io/docsrs/aranya-policy-text-macro) |
 | aranya-policy-vm | ![Crates.io Version](https://img.shields.io/crates/v/aranya-policy-vm) | ![docs.rs](https://img.shields.io/docsrs/aranya-policy-vm) |
 | aranya-runtime | ![Crates.io Version](https://img.shields.io/crates/v/aranya-runtime) | ![docs.rs](https://img.shields.io/docsrs/aranya-runtime) |
