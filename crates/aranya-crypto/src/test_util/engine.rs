@@ -112,6 +112,7 @@ macro_rules! for_each_engine_test {
             test_afc_derive_bidi_keys_different_device_ids,
             test_afc_derive_bidi_keys_different_cmd_ids,
             test_afc_derive_bidi_keys_different_keys,
+            test_afc_derive_bidi_keys_different_policy_ids,
             test_afc_derive_bidi_keys_same_device_id,
             test_afc_wrap_bidi_author_secret,
 
@@ -120,6 +121,7 @@ macro_rules! for_each_engine_test {
             test_afc_derive_uni_key_different_device_ids,
             test_afc_derive_uni_key_different_cmd_ids,
             test_afc_derive_uni_key_different_keys,
+            test_afc_derive_uni_key_different_policy_ids,
             test_afc_derive_uni_seal_key_same_device_id,
             test_afc_derive_uni_open_key_same_device_id,
             test_afc_wrap_uni_author_secret,
@@ -132,6 +134,7 @@ macro_rules! for_each_engine_test {
             test_aqc_derive_bidi_psk_different_cmd_ids,
             test_aqc_derive_bidi_psk_different_keys,
             test_aqc_derive_bidi_psk_different_cipher_suites,
+            test_aqc_derive_bidi_psk_different_policy_ids,
             test_aqc_derive_bidi_psk_same_device_id,
             test_aqc_derive_bidi_psk_psk_too_short,
             test_aqc_derive_bidi_psk_psk_too_long,
@@ -142,6 +145,7 @@ macro_rules! for_each_engine_test {
             test_aqc_derive_uni_psk_different_device_ids,
             test_aqc_derive_uni_psk_different_cmd_ids,
             test_aqc_derive_uni_psk_different_keys,
+            test_aqc_derive_uni_psk_different_policy_ids,
             test_aqc_derive_uni_send_psk_same_device_id,
             test_aqc_derive_uni_recv_psk_same_device_id,
             test_aqc_derive_uni_send_psk_psk_too_short,
@@ -1514,6 +1518,55 @@ pub fn test_afc_derive_bidi_keys_different_keys<E: Engine>(eng: &mut E) {
     assert_afc_bidi_keys_mismatch(eng, ck1, ck2);
 }
 
+/// Different PolicyIds should create different [`afc::BidiKeys`].
+///
+/// E.g., derive(label, u1, u2, c1, policy1) != derive(label, u1, u2, c1, policy2).
+pub fn test_afc_derive_bidi_keys_different_policy_ids<E: Engine>(eng: &mut E) {
+    let label = 123;
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let ch1 = afc::BidiChannel {
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2.public().expect("encryption public key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+        policy_id: &policy1,
+    };
+    let ch2 = afc::BidiChannel {
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        our_id: ch1.their_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: ch1.our_id,
+        label,
+        policy_id: &policy2,
+    };
+    assert_ne!(ch1.author_info(), ch2.peer_info());
+    assert_ne!(ch1.peer_info(), ch2.author_info());
+
+    let afc::BidiSecrets { author, peer } =
+        afc::BidiSecrets::new(eng, &ch1).expect("unable to create `afc::BidiSecrets`");
+    let ck1 =
+        afc::BidiKeys::from_author_secret(&ch1, author).expect("unable to decrypt `afc::BidiKeys`");
+    let ck2 =
+        afc::BidiKeys::from_peer_encap(&ch2, peer).expect("unable to decrypt `afc::BidiKeys`");
+
+    // The policy IDs are different, so the keys should also be
+    // different.
+    assert_afc_bidi_keys_mismatch(eng, ck1, ck2);
+}
+
 /// It is an error to use the same `DeviceId` when deriving
 /// [`afc::BidiKeys`].
 pub fn test_afc_derive_bidi_keys_same_device_id<E: Engine>(eng: &mut E) {
@@ -1865,6 +1918,56 @@ pub fn test_afc_derive_uni_key_different_keys<E: Engine>(eng: &mut E) {
     let ck2 = afc::UniOpenKey::from_peer_encap(&ch2, peer)
         .expect("unable to decrypt peer `afc::UniOpenKey`");
 
+    assert_different_afc_uni_key(eng, ck1, ck2);
+}
+
+/// Different PolicyIds should create different [`afc::UniSealKey`] and [`afc::UniOpenKey`].
+///
+/// E.g., derive(label, seal_id, open_id, c1, policy1) != derive(label, seal_id, open_id, c1, policy2).
+pub fn test_afc_derive_uni_key_different_policy_ids<E: Engine>(eng: &mut E) {
+    let label = 123;
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let ch1 = afc::UniChannel {
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
+        label,
+        policy_id: &policy1,
+    };
+    let ch2 = afc::UniChannel {
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: ch1.seal_id,
+        open_id: ch1.open_id,
+        label,
+        policy_id: &policy2,
+    };
+    assert_ne!(ch1.info(), ch2.info());
+
+    let afc::UniSecrets { author, peer } =
+        afc::UniSecrets::new(eng, &ch1).expect("unable to create `afc::UniSecrets`");
+    let ck1 = afc::UniSealKey::from_author_secret(&ch1, author)
+        .expect("unable to decrypt `afc::UniSealKey`");
+    let ck2 =
+        afc::UniOpenKey::from_peer_encap(&ch2, peer).expect("unable to decrypt `afc::UniOpenKey`");
+
+    // The policy IDs are different, so the keys should also be
+    // different.
     assert_different_afc_uni_key(eng, ck1, ck2);
 }
 
@@ -2339,6 +2442,66 @@ pub fn test_aqc_derive_bidi_psk_different_cipher_suites<E: Engine>(eng: &mut E) 
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
+/// Different PolicyIds should create different [`aqc::BidiPsk`]s.
+///
+/// E.g., derive(label, u1, u2, c1, policy1) != derive(label, u1, u2, c1, policy2).
+pub fn test_aqc_derive_bidi_psk_different_policy_ids<E: Engine>(eng: &mut E) {
+    let label = Id::random(eng);
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let ch1 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        our_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("sender id should be valid"),
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("receiver id should be valid"),
+        label,
+        policy_id: &policy1,
+    };
+    let ch2 = aqc::BidiChannel {
+        psk_length_in_bytes: 32,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        our_id: ch1.their_id,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        their_id: ch1.our_id,
+        label,
+        policy_id: &policy2,
+    };
+    assert_ne!(ch1.author_info(), ch2.peer_info());
+    assert_ne!(ch1.peer_info(), ch2.author_info());
+
+    let aqc::BidiSecrets { author, peer } =
+        aqc::BidiSecrets::new(eng, &ch1).expect("unable to create `aqc::BidiSecrets`");
+    let psk1 = aqc::BidiSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::BidiSecret`")
+        .generate_psk(tls::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate `aqc::BidiPsk`");
+    let psk2 = aqc::BidiSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::BidiSecret`")
+        .generate_psk(tls::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate `aqc::BidiPsk`");
+
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
+    // The labels are different, so the keys should also be
+    // different.
+    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
+}
+
 /// It is an error to use the same `DeviceId` when deriving
 /// [`aqc::BidiPsk`]s.
 pub fn test_aqc_derive_bidi_psk_same_device_id<E: Engine>(eng: &mut E) {
@@ -2797,6 +2960,65 @@ pub fn test_aqc_derive_uni_psk_different_keys<E: Engine>(eng: &mut E) {
     // The identities are the same because identities are derived
     // from the peer's encapsulation, not the raw secret bytes.
     assert_eq!(psk1.identity(), psk2.identity());
+    assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
+}
+
+/// Different PolicyIds should create different [`aqc::UniSendPsk`] and [`aqc::UniRecvPsk`].
+///
+/// E.g., derive(label, seal_id, open_id, c1, policy1) != derive(label, seal_id, open_id, c1, policy2).
+pub fn test_aqc_derive_uni_psk_different_policy_ids<E: Engine>(eng: &mut E) {
+    let label = Id::random(eng);
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let policy1 = PolicyId::random(eng);
+    let policy2 = PolicyId::random(eng);
+
+    let ch1 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
+        parent_cmd_id: Id::random(eng),
+        our_sk: &sk1,
+        their_pk: &sk2
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("seal id should be valid"),
+        open_id: IdentityKey::<E::CS>::new(eng)
+            .id()
+            .expect("open id should be valid"),
+        label,
+        policy_id: &policy1,
+    };
+    let ch2 = aqc::UniChannel {
+        psk_length_in_bytes: 32,
+        parent_cmd_id: ch1.parent_cmd_id,
+        our_sk: &sk2,
+        their_pk: &sk1
+            .public()
+            .expect("receiver public encryption key should be valid"),
+        seal_id: ch1.seal_id,
+        open_id: ch1.open_id,
+        label,
+        policy_id: &policy2,
+    };
+    assert_ne!(ch1.info(), ch2.info());
+
+    let aqc::UniSecrets { author, peer } =
+        aqc::UniSecrets::new(eng, &ch1).expect("unable to create `aqc::UniSecrets`");
+    let psk1 = aqc::UniSecret::from_author_secret(&ch1, author)
+        .expect("unable to decrypt author `aqc::UniSecret`")
+        .generate_send_only_psk(tls::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate `aqc::UniSendPsk`");
+    let psk2 = aqc::UniSecret::from_peer_encap(&ch2, peer)
+        .expect("unable to decrypt peer `aqc::UniSecret`")
+        .generate_recv_only_psk(tls::CipherSuiteId::TlsAes128GcmSha256)
+        .expect("unable to generate `aqc::UniRecvPsk`");
+
+    // The identities are the same because identities are derived
+    // from the peer's encapsulation, not the raw secret bytes.
+    assert_eq!(psk1.identity(), psk2.identity());
+    // The labels are different, so the keys should also be
+    // different.
     assert_ne!(psk1.raw_secret_bytes(), psk2.raw_secret_bytes());
 }
 
