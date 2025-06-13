@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    self as crypto,
+    self,
     aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
     policy, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
     KeyStore, KeyStoreExt, PolicyId, UnwrapError, WrapError,
@@ -244,7 +244,7 @@ function label_id(
 pub(crate) enum FfiError {
     /// The [`aranya_crypto`] crate failed.
     #[error("crypto error: {0}")]
-    Crypto(#[from] crypto::Error),
+    Crypto(#[from] aranya_crypto::Error),
     /// An error occurred while manipulating the [`Stack`].
     #[error("unable to manipulate stack: {0}")]
     Stack(#[from] MachineErrorType),
