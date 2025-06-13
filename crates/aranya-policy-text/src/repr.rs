@@ -1,7 +1,5 @@
 //! String representation adapted from `compact_str`.
 
-#![expect(clippy::undocumented_unsafe_blocks, reason = "TODO")]
-
 use core::{
     mem::{transmute, MaybeUninit},
     ptr,
@@ -33,7 +31,9 @@ pub struct Repr {
     len: MaybeUninit<Length>,
 }
 
+/// SAFETY: Repr is thread safe.
 unsafe impl Send for Repr {}
+/// SAFETY: Repr is thread safe.
 unsafe impl Sync for Repr {}
 
 // TODO(jdygert): I can't find a guarantee that pointers contain no padding.
@@ -110,11 +110,14 @@ impl Repr {
         let len = s.len();
         if len <= MAX_INLINE {
             let mut bytes = [MaybeUninit::<u8>::uninit(); MAX_INLINE];
+            // Note: this length will get overwritten if `len == MAX_INLINE`.
+            bytes[MAX_INLINE - 1].write(len as u8 | LENGTH_MASK);
+            // SAFETY: `s.len() <= bytes.len()` and valid pointers.
             unsafe {
-                bytes[MAX_INLINE - 1].write(len as u8 | LENGTH_MASK);
                 ptr::copy_nonoverlapping(s.as_ptr(), bytes.as_mut_ptr().cast::<u8>(), len);
-                transmute::<[MaybeUninit<u8>; MAX_INLINE], Repr>(bytes)
             }
+            // SAFETY: Same size and `Repr` is all `MaybeUninit`.
+            unsafe { transmute::<[MaybeUninit<u8>; MAX_INLINE], Repr>(bytes) }
         } else {
             Self {
                 ptr: MaybeUninit::new(arc::create(s)),
@@ -124,33 +127,35 @@ impl Repr {
     }
 
     pub const fn as_str(&self) -> &str {
+        // SAFETY: We always ensure valid utf8.
         unsafe { core::str::from_utf8_unchecked(self.as_bytes()) }
     }
 
     pub const fn as_bytes(&self) -> &[u8] {
-        unsafe {
-            // initially has the value of the stack pointer, conditionally becomes the heap pointer
-            let mut pointer = ptr::from_ref(self).cast::<u8>();
-            if self.last_byte() >= TAG_ARC {
-                pointer = self.ptr.assume_init();
-            }
-
-            // initially has the value of the stack length, conditionally becomes the heap length
-            let mut length = self.last_byte().wrapping_sub(LENGTH_MASK) as usize;
-            if length > MAX_INLINE {
-                length = MAX_INLINE;
-            }
-            if self.last_byte() >= TAG_ARC {
-                length = self.len.assume_init().untag();
-            }
-
-            // SAFETY: We know the data is valid, aligned, and part of the same contiguous allocated
-            // chunk. It's also valid for the lifetime of self
-            core::slice::from_raw_parts(pointer, length)
+        // initially has the value of the stack pointer, conditionally becomes the heap pointer
+        let mut pointer = ptr::from_ref(self).cast::<u8>();
+        if self.last_byte() >= TAG_ARC {
+            // SAFETY: ptr is initialized when tagged as arc or shared.
+            pointer = unsafe { self.ptr.assume_init() };
         }
+
+        // initially has the value of the stack length, conditionally becomes the heap length
+        let mut length = self.last_byte().wrapping_sub(LENGTH_MASK) as usize;
+        if length > MAX_INLINE {
+            length = MAX_INLINE;
+        }
+        if self.last_byte() >= TAG_ARC {
+            // SAFETY: len is initialized when tagged as arc or shared.
+            length = unsafe { self.len.assume_init() }.untag();
+        }
+
+        // SAFETY: We know the data is valid, aligned, and part of the same contiguous allocated
+        // chunk. It's also valid for the lifetime of self
+        unsafe { core::slice::from_raw_parts(pointer, length) }
     }
 
     const fn last_byte(&self) -> u8 {
+        // SAFETY: The last byte is always initialized.
         unsafe { ptr::from_ref(self).cast::<u8>().add(MAX_INLINE - 1).read() }
     }
 }
@@ -159,11 +164,13 @@ impl Clone for Repr {
     fn clone(&self) -> Self {
         // increment counter if shared
         if self.last_byte() == TAG_ARC {
+            // SAFETY: ptr is initialized and valid arc pointer when tagged as arc
             unsafe {
                 arc::increment(self.ptr.assume_init());
             }
         }
-        // now perform a byte copy
+        // SAFETY: inline/static are fine to bytewise copy.
+        // arc is fine to bytewise copy once we have incremented.
         unsafe { ptr::read(self) }
     }
 }
@@ -171,6 +178,7 @@ impl Clone for Repr {
 impl Drop for Repr {
     fn drop(&mut self) {
         if self.last_byte() == TAG_ARC {
+            // SAFETY: ptr is initialized and valid arc pointer when tagged as arc
             unsafe {
                 arc::decrement(self.ptr.assume_init(), self.len.assume_init());
             }
@@ -287,10 +295,13 @@ mod arc {
     }
 
     unsafe fn strong_from_data(ptr: *const u8) -> *const AtomicUsize {
+        // SAFETY: Given pointer must be valid.
         unsafe { ptr.sub(size_of::<AtomicUsize>()).cast::<AtomicUsize>() }
     }
 
+    /// SAFETY: Must be a live pointer originating from `create`.
     pub(super) unsafe fn increment(ptr: *const u8) {
+        // SAFETY: See function requirements.
         unsafe {
             let strong = strong_from_data(ptr);
             let old = (*strong).fetch_add(1, atomic::Ordering::Relaxed);
@@ -300,7 +311,11 @@ mod arc {
         }
     }
 
+    /// SAFETY: Must be a live pointer originating from `create`.
+    /// The pointer must not be used afterward.
+    /// The length must be the length which the arc was created with.
     pub(super) unsafe fn decrement(ptr: *const u8, len: Length) {
+        // SAFETY: See function requirements.
         unsafe {
             let strong = strong_from_data(ptr);
             if (*strong).fetch_sub(1, atomic::Ordering::Release) != 1 {
