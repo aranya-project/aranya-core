@@ -480,7 +480,7 @@ impl From<PkError> for IdError {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, thiserror::Error)]
+#[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 enum IdErrorRepr {
     #[error("{0}")]
     Bug(Bug),

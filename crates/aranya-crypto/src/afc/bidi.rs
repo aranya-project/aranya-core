@@ -1,3 +1,5 @@
+use core::cell::OnceCell;
+
 use buggy::BugExt;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
@@ -18,7 +20,7 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::{unwrapped, Engine},
     error::Error,
-    id::{custom_id, Id},
+    id::{custom_id, Id, IdError},
     misc::sk_misc,
 };
 
@@ -209,22 +211,25 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
 }
 
 /// A bidirectional channel author's secret.
-pub struct BidiAuthorSecret<CS: CipherSuite>(RootChannelKey<CS>);
+pub struct BidiAuthorSecret<CS: CipherSuite> {
+    key: RootChannelKey<CS>,
+    id: OnceCell<Result<BidiAuthorSecretId, IdError>>,
+}
 
 sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
 
 impl<CS: CipherSuite> ConstantTimeEq for BidiAuthorSecret<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
-        self.0.ct_eq(&other.0)
+        self.key.ct_eq(&other.key)
     }
 }
 
 unwrapped! {
     name: BidiAuthorSecret;
     type: Decap;
-    into: |key: Self| { key.0.into_inner() };
-    from: |key| { Self(RootChannelKey::new(key)) };
+    into: |key: Self| { key.key.into_inner() };
+    from: |key| { Self { key: RootChannelKey::new(key), id: OnceCell::new() } };
 }
 
 /// A bidirectional channel peer's encapsulated secret.
@@ -288,7 +293,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
         let root_sk = RootChannelKey::random(eng);
         let peer = {
             let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                Mode::Auth(&author_sk.0),
+                Mode::Auth(&author_sk.key),
                 &peer_pk.0,
                 &ch.author_info(),
                 // TODO(eric): should HPKE take a ref?
@@ -296,7 +301,10 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
             )?;
             BidiPeerEncap(Encap(enc))
         };
-        let author = BidiAuthorSecret(root_sk);
+        let author = BidiAuthorSecret {
+            key: root_sk,
+            id: OnceCell::new(),
+        };
 
         Ok(BidiSecrets { author, peer })
     }
@@ -331,10 +339,10 @@ impl<CS: CipherSuite> BidiKeys<CS> {
         }
 
         let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-            Mode::Auth(&author_sk.0),
+            Mode::Auth(&author_sk.key),
             &peer_pk.0,
             &ch.author_info(),
-            secret.0.into_inner(),
+            secret.key.into_inner(),
         )?;
 
         // See section 9.8 of RFC 9180.
@@ -373,7 +381,7 @@ impl<CS: CipherSuite> BidiKeys<CS> {
         let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
             Mode::Auth(&author_pk.0),
             enc.as_inner(),
-            &peer_sk.0,
+            &peer_sk.key,
             &ch.peer_info(),
         )?;
 

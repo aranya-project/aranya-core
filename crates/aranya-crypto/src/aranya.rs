@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-use core::{borrow::Borrow, fmt, marker::PhantomData, result::Result};
+use core::{borrow::Borrow, cell::OnceCell, fmt, marker::PhantomData, result::Result};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use spideroak_crypto::{
@@ -20,7 +20,7 @@ use crate::{
     engine::unwrapped,
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
-    id::Id,
+    id::{Id, IdError},
     misc::{key_misc, SigData},
     policy::{self, Cmd, CmdId},
 };
@@ -103,14 +103,20 @@ impl<'de, CS: CipherSuite> Deserialize<'de> for Signature<CS> {
 }
 
 /// The private half of [`IdentityKey`].
-pub struct IdentityKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
+pub struct IdentityKey<CS: CipherSuite> {
+    key: <CS::Signer as Signer>::SigningKey,
+    id: OnceCell<Result<DeviceId, IdError>>,
+}
 
 key_misc!(IdentityKey, IdentityVerifyingKey, DeviceId);
 
 impl<CS: CipherSuite> IdentityKey<CS> {
     /// Creates an `IdentityKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        IdentityKey(Random::random(rng))
+        IdentityKey {
+            key: Random::random(rng),
+            id: OnceCell::new(),
+        }
     }
 
     /// Creates a signature over `msg` bound to some `context`.
@@ -159,7 +165,7 @@ impl<CS: CipherSuite> IdentityKey<CS> {
         //     msg,
         // )
         let sum = CS::tuple_hash(b"IdentityKey", [self.id()?.as_bytes(), context, msg]);
-        let sig = self.0.sign(&sum)?;
+        let sig = self.key.sign(&sum)?;
         Ok(Signature(sig))
     }
 }
@@ -167,8 +173,8 @@ impl<CS: CipherSuite> IdentityKey<CS> {
 unwrapped! {
     name: IdentityKey;
     type: Signing;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+    into: |key: Self| { key.key };
+    from: |key| { Self { key, id: OnceCell::new() } };
 }
 
 /// The public half of [`IdentityKey`].
@@ -193,14 +199,20 @@ impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
 }
 
 /// The private half of [`SigningKey`].
-pub struct SigningKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
+pub struct SigningKey<CS: CipherSuite> {
+    key: <CS::Signer as Signer>::SigningKey,
+    id: OnceCell<Result<SigningKeyId, IdError>>,
+}
 
 key_misc!(SigningKey, VerifyingKey, SigningKeyId);
 
 impl<CS: CipherSuite> SigningKey<CS> {
     /// Creates a `SigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        SigningKey(Random::random(rng))
+        SigningKey {
+            key: Random::random(rng),
+            id: OnceCell::new(),
+        }
     }
 
     /// Creates a signature over `msg` bound to some `context`.
@@ -249,7 +261,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
         //     msg,
         // )
         let sum = CS::tuple_hash(b"SigningKey", [self.id()?.as_bytes(), context, msg]);
-        let sig = self.0.sign(&sum)?;
+        let sig = self.key.sign(&sum)?;
         Ok(Signature(sig))
     }
 
@@ -312,7 +324,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// ```
     pub fn sign_cmd(&self, cmd: Cmd<'_>) -> Result<(Signature<CS>, CmdId), Error> {
         let digest = cmd.digest::<CS>(self.id()?);
-        let sig = Signature(self.0.sign(&digest)?);
+        let sig = Signature(self.key.sign(&digest)?);
         let id = policy::cmd_id(&digest, &sig);
         Ok((sig, id))
     }
@@ -321,8 +333,8 @@ impl<CS: CipherSuite> SigningKey<CS> {
 unwrapped! {
     name: SigningKey;
     type: Signing;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+    into: |key: Self| { key.key };
+    from: |key| { Self { key, id: OnceCell::new() } };
 }
 
 /// The public half of [`SigningKey`].
@@ -356,14 +368,20 @@ impl<CS: CipherSuite> VerifyingKey<CS> {
 }
 
 /// The private half of [`EncryptionKey`].
-pub struct EncryptionKey<CS: CipherSuite>(pub(crate) <CS::Kem as Kem>::DecapKey);
+pub struct EncryptionKey<CS: CipherSuite> {
+    pub(crate) key: <CS::Kem as Kem>::DecapKey,
+    id: OnceCell<Result<EncryptionKeyId, IdError>>,
+}
 
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
     /// Creates a devices's `EncryptionKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        EncryptionKey(Random::random(rng))
+        EncryptionKey {
+            key: Random::random(rng),
+            id: OnceCell::new(),
+        }
     }
 
     /// Decrypts and authenticates a [`GroupKey`] received from
@@ -386,7 +404,7 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         // )
         let info = CS::tuple_hash(b"GroupKey", [group.as_bytes()]);
         let mut ctx =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
+            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(Mode::Base, &enc.0, &self.key, &info)?;
         ctx.open_in_place(&mut ciphertext, &tag, &info)?;
         Ok(GroupKey::from_seed(ciphertext.into()))
     }
@@ -395,8 +413,8 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
 unwrapped! {
     name: EncryptionKey;
     type: Decap;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+    into: |key: Self| { key.key };
+    from: |key| { Self { key, id: OnceCell::new() } };
 }
 
 /// The public half of [`EncryptionKey`].

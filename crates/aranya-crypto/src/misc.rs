@@ -1,6 +1,6 @@
 //! Utility routines for `apq`.
 
-use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
+use core::{borrow::Borrow, cell::OnceCell, fmt, fmt::Debug, marker::PhantomData, result::Result};
 
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use spideroak_crypto::{
@@ -267,14 +267,18 @@ macro_rules! sk_misc {
             #[doc = ::core::concat!("Two `", ::core::stringify!($name), "s` with the same ID are the same secret.")]
             #[inline]
             pub fn id(&self) -> Result<$id, $crate::id::IdError> {
-                const CONTEXT: &'static str = ::core::stringify!($sk);
+                self.id
+                    .get_or_init(|| {
+                        const CONTEXT: &'static str = ::core::stringify!($sk);
 
-                let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.0.public()?);
-                let id = $crate::id::Id::new::<CS>(
-                    ::core::borrow::Borrow::borrow(&pk),
-                    CONTEXT.as_bytes(),
-                );
-                Ok($id(id))
+                        let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.key.public()?);
+                        let id = $crate::id::Id::new::<CS>(
+                            ::core::borrow::Borrow::borrow(&pk),
+                            CONTEXT.as_bytes(),
+                        );
+                        Ok($id(id))
+                    })
+                    .clone()
             }
         }
 
@@ -293,13 +297,15 @@ macro_rules! sk_misc {
             #[doc = "Two keys with the same ID are the same key."]
             #[inline]
             pub fn id(&self) -> Result<$id,$crate::id::IdError> {
-                self.public()?.id()
+                self.id
+                    .get_or_init(|| self.public()?.id())
+                    .clone()
             }
 
             /// Returns the public half of the key.
             #[inline]
             pub fn public(&self) -> Result<$pk<CS>, $crate::dangerous::spideroak_crypto::signer::PkError> {
-                Ok($pk(self.0.public()?))
+                Ok($pk(self.key.public()?))
             }
         }
 
@@ -313,7 +319,10 @@ macro_rules! sk_misc_inner {
         impl<CS: $crate::CipherSuite> ::core::clone::Clone for $name<CS> {
             #[inline]
             fn clone(&self) -> Self {
-                Self(::core::clone::Clone::clone(&self.0))
+                Self {
+                    key: ::core::clone::Clone::clone(&self.key),
+                    id: OnceCell::new(),
+                }
             }
         }
 

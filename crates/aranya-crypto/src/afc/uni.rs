@@ -20,7 +20,7 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::{unwrapped, Engine},
     error::Error,
-    id::{custom_id, Id},
+    id::{custom_id, Id, IdError},
     misc::sk_misc,
 };
 
@@ -182,22 +182,25 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 }
 
 /// A unirectional channel author's secret.
-pub struct UniAuthorSecret<CS: CipherSuite>(RootChannelKey<CS>);
+pub struct UniAuthorSecret<CS: CipherSuite> {
+    key: RootChannelKey<CS>,
+    id: OnceCell<Result<UniAuthorSecretId, IdError>>,
+}
 
 sk_misc!(UniAuthorSecret, UniAuthorSecretId);
 
 impl<CS: CipherSuite> ConstantTimeEq for UniAuthorSecret<CS> {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
-        self.0.ct_eq(&other.0)
+        self.key.ct_eq(&other.key)
     }
 }
 
 unwrapped! {
     name: UniAuthorSecret;
     type: Decap;
-    into: |key: Self| { key.0.into_inner() };
-    from: |key| { Self(RootChannelKey::new(key)) };
+    into: |key: Self| { key.key.into_inner() };
+    from: |key| { Self { key: RootChannelKey::new(key), id: OnceCell::new() } };
 }
 
 /// A unirectional channel peer's encapsulated secret.
@@ -268,7 +271,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
         let root_sk = RootChannelKey::random(eng);
         let peer = {
             let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                Mode::Auth(&author_sk.0),
+                Mode::Auth(&author_sk.key),
                 &peer_pk.0,
                 &ch.info(),
                 // TODO(eric): should HPKE take a ref?
@@ -279,7 +282,10 @@ impl<CS: CipherSuite> UniSecrets<CS> {
                 id: OnceCell::new(),
             }
         };
-        let author = UniAuthorSecret(root_sk);
+        let author = UniAuthorSecret {
+            key: root_sk,
+            id: OnceCell::new(),
+        };
 
         Ok(UniSecrets { author, peer })
     }
@@ -312,10 +318,10 @@ macro_rules! uni_key {
                 }
 
                 let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                    Mode::Auth(&author_sk.0),
+                    Mode::Auth(&author_sk.key),
                     &peer_pk.0,
                     &ch.info(),
-                    secret.0.into_inner(),
+                    secret.key.into_inner(),
                 )?;
                 let key = {
                     // `SendCtx` only gets rid of the raw key
@@ -347,7 +353,7 @@ macro_rules! uni_key {
                 let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
                     Mode::Auth(&author_pk.0),
                     enc.as_inner(),
-                    &peer_sk.0,
+                    &peer_sk.key,
                     &info,
                 )?;
                 let key = {
