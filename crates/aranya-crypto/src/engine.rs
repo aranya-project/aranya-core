@@ -245,22 +245,22 @@ alg_id_from_impl! {
 #[macro_export]
 macro_rules! unwrapped {
     { name: $name:ident; type: Aead; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Aead, $crate::engine::AlgId::_from_aead::<CS>(), $name, $into, $from);
+        $crate::__unwrapped_inner!(Aead, $crate::engine::AlgId::_from_aead::<CS>(), $name, $into, $from);
     };
     { name: $name:ident; type: Decap; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Decap, $crate::engine::AlgId::_from_kem::<CS>(), $name, $into, $from);
+        $crate::__unwrapped_inner!(Decap, $crate::engine::AlgId::_from_kem::<CS>(), $name, $into, $from);
     };
     { name: $name:ident; type: Mac; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Mac, $crate::engine::AlgId::_from_mac::<CS>(), $name, $into, $from);
+        $crate::__unwrapped_inner!(Mac, $crate::engine::AlgId::_from_mac::<CS>(), $name, $into, $from);
     };
     { name: $name:ident; type: Prk; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Prk, $crate::engine::AlgId::_from_kdf::<CS>(), $name, $into, $from);
+        $crate::__unwrapped_inner!(Prk, $crate::engine::AlgId::_from_kdf::<CS>(), $name, $into, $from);
     };
     { name: $name:ident; type: Seed; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Seed, (), $name, $into, $from);
+        $crate::__unwrapped_inner!(Seed, (), $name, $into, $from);
     };
     { name: $name:ident; type: Signing; into: $into:expr; from: $from:expr $(;)? } => {
-        $crate::engine::__unwrapped_inner!(Signing, $crate::engine::AlgId::_from_signer::<CS>(), $name, $into, $from);
+        $crate::__unwrapped_inner!(Signing, $crate::engine::AlgId::_from_signer::<CS>(), $name, $into, $from);
     };
     ($($fallthrough:tt)*) => {
         ::core::compile_error!("unknown variant");
@@ -301,7 +301,6 @@ macro_rules! __unwrapped_inner {
         }
     };
 }
-pub(crate) use __unwrapped_inner;
 
 /// Returned when converting [`UnwrappedKey`]s to concrete key
 /// types.

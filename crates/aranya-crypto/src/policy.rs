@@ -1,12 +1,19 @@
 use core::borrow::Borrow;
 
 use spideroak_crypto::hash::{Digest, Hash};
+use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aranya::{Signature, SigningKeyId},
     ciphersuite::{CipherSuite, CipherSuiteExt},
     id::{custom_id, Id},
 };
+
+custom_id! {
+    /// Uniquely identifies a policy.
+    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
+    pub struct PolicyId;
+}
 
 custom_id! {
     /// The ID of a policy command.
@@ -30,6 +37,14 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
     .into_array()
     .into_array()
     .into()
+}
+
+/// Computes a merge command's ID.
+pub fn merge_cmd_id<CS: CipherSuite>(left: CmdId, right: CmdId) -> CmdId {
+    CS::tuple_hash(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
+        .into_array()
+        .into_array()
+        .into()
 }
 
 /// A policy command.

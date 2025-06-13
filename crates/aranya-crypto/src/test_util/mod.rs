@@ -6,6 +6,7 @@
 
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::panic)]
+#![allow(clippy::unwrap_used)]
 #![cfg(any(test, feature = "test_util"))]
 #![cfg_attr(docsrs, doc(cfg(feature = "test_util")))]
 #![forbid(unsafe_code)]

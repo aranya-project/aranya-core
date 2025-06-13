@@ -4,7 +4,7 @@ use std::{
     fmt::Display,
 };
 
-use aranya_policy_ast::{self as ast};
+use aranya_policy_ast::{self as ast, Identifier};
 use ast::VType;
 
 use crate::{compile::CompileState, CompileErrorType};
@@ -39,8 +39,8 @@ impl From<TypeError> for CompileErrorType {
 /// scope" is the one on the top of the stack.
 #[derive(Debug, Clone)]
 pub struct IdentifierTypeStack {
-    globals: HashMap<String, Typeish>,
-    locals: Vec<Vec<HashMap<String, Typeish>>>,
+    globals: HashMap<Identifier, Typeish>,
+    locals: Vec<Vec<HashMap<Identifier, Typeish>>>,
 }
 
 impl IdentifierTypeStack {
@@ -53,12 +53,11 @@ impl IdentifierTypeStack {
     }
 
     /// Add an identifier-type mapping to the global variables
-    pub fn add_global<S>(&mut self, name: S, value: Typeish) -> Result<(), CompileErrorType>
-    where
-        S: Into<String>,
-    {
-        match self.globals.entry(name.into()) {
-            hash_map::Entry::Occupied(o) => Err(CompileErrorType::AlreadyDefined(o.key().into())),
+    pub fn add_global(&mut self, name: Identifier, value: Typeish) -> Result<(), CompileErrorType> {
+        match self.globals.entry(name) {
+            hash_map::Entry::Occupied(o) => {
+                Err(CompileErrorType::AlreadyDefined(o.key().to_string()))
+            }
             hash_map::Entry::Vacant(e) => {
                 e.insert(value);
                 Ok(())
@@ -67,23 +66,18 @@ impl IdentifierTypeStack {
     }
 
     /// Add an identifier-type mapping to the current scope
-    pub fn add(
-        &mut self,
-        ident: impl AsRef<str> + Into<String>,
-        value: Typeish,
-    ) -> Result<(), CompileErrorType> {
-        let key = ident.as_ref();
-        if self.globals.contains_key(key) {
-            return Err(CompileErrorType::AlreadyDefined(ident.into()));
+    pub fn add(&mut self, ident: Identifier, value: Typeish) -> Result<(), CompileErrorType> {
+        if self.globals.contains_key(&ident) {
+            return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
         }
         let locals = self.locals.last_mut().expect("no function scope");
         for prev in locals.iter().rev().skip(1) {
-            if prev.contains_key(key) {
-                return Err(CompileErrorType::AlreadyDefined(ident.into()));
+            if prev.contains_key(&ident) {
+                return Err(CompileErrorType::AlreadyDefined(ident.to_string()));
             }
         }
         let block = locals.last_mut().expect("no block scope");
-        match block.entry(ident.into()) {
+        match block.entry(ident) {
             hash_map::Entry::Occupied(o) => match (o.get(), &value) {
                 (Typeish::Type(ty1), Typeish::Type(ty2)) if ty1 != ty2 => {
                     Err(CompileErrorType::InvalidType(format!(
@@ -102,7 +96,7 @@ impl IdentifierTypeStack {
 
     /// Retrieve a type for an identifier. Searches lower stack items if a mapping is not
     /// found in the current scope.
-    pub fn get(&self, name: &str) -> Result<Typeish, CompileErrorType> {
+    pub fn get(&self, name: &Identifier) -> Result<Typeish, CompileErrorType> {
         if let Some(locals) = self.locals.last() {
             for scope in locals.iter().rev() {
                 if let Some(v) = scope.get(name) {

@@ -24,7 +24,7 @@ use aranya_crypto::{
     CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
     IdentityKey, KeyStore, Random, Rng,
 };
-use aranya_policy_vm::{ActionContext, CommandContext};
+use aranya_policy_vm::{ident, ActionContext, CommandContext};
 use spin::Mutex;
 
 use crate::{
@@ -385,7 +385,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateBidiChannel",
+        name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -474,7 +474,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateUniSendOnlyChannel",
+        name: ident!("CreateUniSendOnlyChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -565,7 +565,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
     let label_id = Id::random(&mut Rng).into_id();
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateUniRecvOnlyChannel",
+        name: ident!("CreateUniRecvOnlyChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -659,7 +659,7 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
         .map(|_| {
             let parent_cmd_id = Id::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
-                name: "CreateBidiChannel",
+                name: ident!("CreateBidiChannel"),
                 head_id: parent_cmd_id,
             });
 
@@ -757,7 +757,7 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
 
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateBidiChannel",
+        name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -871,7 +871,7 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
         .map(|(i, peer)| {
             let parent_cmd_id = Id::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
-                name: "CreateBidiChannel",
+                name: ident!("CreateBidiChannel"),
                 head_id: parent_cmd_id,
             });
 

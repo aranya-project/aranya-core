@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.9.0...aranya-runtime-v0.10.0) - 2025-06-12
+
+### Other
+
+- check for multiple finalize commands in braid ([#172](https://github.com/aranya-project/aranya-core/pull/172))
+- remove_graph ([#268](https://github.com/aranya-project/aranya-core/pull/268))
+- update base58 ([#270](https://github.com/aranya-project/aranya-core/pull/270))
+- update to spideroak-crypto v0.5.x ([#263](https://github.com/aranya-project/aranya-core/pull/263))
+- clean up dependencies ([#251](https://github.com/aranya-project/aranya-core/pull/251))
+
 ## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.8.0...aranya-runtime-v0.9.0) - 2025-05-28
 
 ### Other
