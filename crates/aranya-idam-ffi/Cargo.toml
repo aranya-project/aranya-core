@@ -38,6 +38,8 @@ testing = [
 aranya-crypto = { version = "0.7.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { version = "0.10.0", path = "../aranya-policy-vm", features = ["derive"] }
 postcard = { workspace = true, default-features = false, features = ["heapless"] }
+# For `custom_id!`
+serde = { workspace = true, default-features = false }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 
@@ -54,3 +56,6 @@ always_include_features = [
 	"alloc",
 	"testing",
 ]
+
+[package.metadata.cargo-machete]
+ignored = ["serde"]
