@@ -2438,16 +2438,16 @@ fn test_struct_conversion() -> anyhow::Result<()> {
     let module = Compiler::new(&policy).compile()?;
     let machine = Machine::from_module(module)?;
     let io = RefCell::new(TestIO::new());
-    let ctx = dummy_ctx_action("test");
+    let ctx = dummy_ctx_action(ident!("test"));
     let mut rs = machine.create_run_state(&io, ctx);
-    let _ = call_action(&mut rs, &io, "test", iter::empty::<Value>())?;
+    let _ = call_action(&mut rs, &io, ident!("test"), iter::empty::<Value>())?;
     assert_eq!(
         io.borrow().publish_stack[0],
         (
-            "Bar".to_string(),
+            ident!("Bar"),
             vec![
-                KVPair::new("x", Value::Int(42)),
-                KVPair::new("y", Value::String("abc".to_string())),
+                KVPair::new(ident!("x"), Value::Int(42)),
+                KVPair::new(ident!("y"), Value::String(text!("abc"))),
             ]
         )
     );

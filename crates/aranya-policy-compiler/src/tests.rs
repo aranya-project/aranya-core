@@ -2402,7 +2402,7 @@ fn test_struct_conversion_errors() {
                 return Foo { a: 1, b: "test" } as Foo
             }
             "#,
-            CompileErrorType::InvalidCast("Foo".to_string(), "Foo".to_string()),
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Foo")),
         ),
         (
             "types don't match",
@@ -2413,7 +2413,7 @@ fn test_struct_conversion_errors() {
                 return Foo { a: 1, b: "test" } as Bar
             }
             "#,
-            CompileErrorType::InvalidCast("Foo".to_string(), "Bar".to_string()),
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
         ),
         (
             "names don't match",
@@ -2424,7 +2424,7 @@ fn test_struct_conversion_errors() {
                 return Foo { a: 1, b: "test" } as Bar
             }
             "#,
-            CompileErrorType::InvalidCast("Foo".to_string(), "Bar".to_string()),
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
         ),
         (
             "different number of fields",
@@ -2435,7 +2435,7 @@ fn test_struct_conversion_errors() {
                 return Foo { a: 1, b: "test" } as Bar
             }
             "#,
-            CompileErrorType::InvalidCast("Foo".to_string(), "Bar".to_string()),
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
         ),
         (
             "different number of fields",
@@ -2446,7 +2446,7 @@ fn test_struct_conversion_errors() {
                 return Foo { a: 1, b: "test" } as Bar
             }
             "#,
-            CompileErrorType::InvalidCast("Foo".to_string(), "Bar".to_string()),
+            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
         ),
     ];
 
