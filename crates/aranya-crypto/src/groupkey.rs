@@ -300,6 +300,7 @@ custom_id! {
 
 /// An encrypted [`GroupKey`].
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(bound = "CS: CipherSuite")]
 pub struct EncryptedGroupKey<CS: CipherSuite> {
     pub(crate) ciphertext: GenericArray<u8, U64>,
     pub(crate) tag: Tag<CS::Aead>,
