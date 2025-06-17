@@ -320,6 +320,7 @@ dependencies = [
  "aranya-idam-ffi",
  "aranya-policy-vm",
  "postcard",
+ "serde",
  "thiserror 2.0.7",
  "tracing",
 ]

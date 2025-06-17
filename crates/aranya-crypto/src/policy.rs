@@ -1,3 +1,5 @@
+//! Aranya policy related routines.
+
 use core::borrow::Borrow;
 
 use spideroak_crypto::hash::{Digest, Hash};
@@ -8,6 +10,12 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     id::{Id, custom_id},
 };
+
+custom_id! {
+    /// Uniquely identifies a group.
+    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
+    pub struct GroupId;
+}
 
 custom_id! {
     /// Uniquely identifies a policy.
@@ -40,6 +48,11 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
 
 /// Computes a merge command's ID.
 pub fn merge_cmd_id<CS: CipherSuite>(left: CmdId, right: CmdId) -> CmdId {
+    // id = H(
+    //     "MergeCommandId-v1",
+    //     left_id,
+    //     right_id,
+    // )
     CS::tuple_hash(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
         .into_array()
         .into()
@@ -88,5 +101,147 @@ impl Cmd<'_> {
                 self.data,
             ],
         )
+    }
+}
+
+custom_id! {
+    /// Uniquely identifies a role.
+    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
+    pub struct RoleId;
+}
+
+/// Computes the ID of a policy role.
+///
+/// `cmd` must be the command that created (or is creating) the
+/// role. `name` is the name of the role, e.g., `admin`.
+pub fn role_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) -> RoleId {
+    // id = H(
+    //     "RoleId-v1",
+    //     cmd_id,
+    //     name,
+    //     policy_id,
+    // )
+    CS::tuple_hash(
+        b"RoleId-v1",
+        [cmd_id.as_bytes(), name.as_bytes(), policy_id.as_bytes()],
+    )
+    .into_array()
+    .into()
+}
+
+custom_id! {
+    /// Uniquely identifies an AQC label.
+    ///
+    /// A label associates an AQC channel with Aranya policy
+    /// rules that govern communication in the channel.
+    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
+    pub struct LabelId;
+}
+
+/// Computes the ID of a label.
+///
+/// `cmd` must be the command that created (or is creating) the
+/// label. `name` is the name of the label, e.g., `telemetry`.
+pub fn label_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) -> LabelId {
+    // id = H(
+    //     "LabelId-v1",
+    //     cmd_id,
+    //     name,
+    //     policy_id,
+    // )
+    CS::tuple_hash(
+        b"LabelId-v1",
+        [cmd_id.as_bytes(), name.as_bytes(), policy_id.as_bytes()],
+    )
+    .into_array()
+    .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use spideroak_crypto::{ed25519::Ed25519, rust};
+
+    use super::*;
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        Ed25519,
+    >;
+
+    /// Golden test for [`label_id`].
+    #[test]
+    fn test_label_id() {
+        let tests = [
+            (
+                CmdId::default(),
+                "foo",
+                PolicyId::default(),
+                "EwfLLZLFzYdgqbZfjXcMfc3hNiHpkgrJsvRHEzyDzpVQ",
+            ),
+            (
+                CmdId::default(),
+                "bar",
+                PolicyId::default(),
+                "7AEhZudswFSSYRXzigAgjeTjt4cCFC8QMxiE7Xnj3GKK",
+            ),
+            (
+                CmdId::from(Id::from_bytes([b'A'; 32])),
+                "bar",
+                PolicyId::default(),
+                "24di1Kgod1CXqJ1Pgi77ptpT6t2Nk3YGifqSTjSttn8z",
+            ),
+            (
+                CmdId::from([b'A'; 32]),
+                "baz",
+                PolicyId::from([b'B'; 32]),
+                "J2miD6wUPVVfxakYHBTA8n2wGFHyAty2P2zLedHz2Nov",
+            ),
+        ];
+        for (i, (cmd_id, name, policy_id, want)) in tests.iter().enumerate() {
+            let got = label_id::<CS>(*cmd_id, name, *policy_id);
+            let want = LabelId::decode(*want).unwrap();
+            assert_eq!(got, want, "#{i}");
+        }
+    }
+
+    /// Golden test for [`role_id`].
+    #[test]
+    fn test_role_id() {
+        let tests = [
+            (
+                CmdId::default(),
+                "foo",
+                PolicyId::default(),
+                "2UKzdrSR8nXYwZB6MKoAHpDkNuGbj4CKhDuJpy1CWAKd",
+            ),
+            (
+                CmdId::default(),
+                "bar",
+                PolicyId::default(),
+                "BXi83x4nTF7gXD21AZAaGTg83yFvJMhezHSDQ7yYT1xx",
+            ),
+            (
+                CmdId::from(Id::from_bytes([b'A'; 32])),
+                "bar",
+                PolicyId::default(),
+                "8syerzb6aY9rcVwDf1mq3m7Qh547tE6wUAFrw8fAJNZq",
+            ),
+            (
+                CmdId::from([b'A'; 32]),
+                "baz",
+                PolicyId::from([b'B'; 32]),
+                "9Nkp9bxw2a7FvhkjexhBM2o4Su59AacWdEGYVmPHMKYr",
+            ),
+        ];
+        for (i, (cmd_id, name, policy_id, want)) in tests.iter().enumerate() {
+            let got = role_id::<CS>(*cmd_id, name, *policy_id);
+            let want = RoleId::decode(*want).unwrap();
+            assert_eq!(got, want, "#{i}");
+        }
     }
 }
