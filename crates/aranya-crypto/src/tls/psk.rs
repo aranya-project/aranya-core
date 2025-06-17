@@ -271,7 +271,7 @@ impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
 }
 
 /// An encrypted [`PskSeed`].
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(bound = "CS: CipherSuite")]
 pub struct EncryptedPskSeed<CS: CipherSuite> {
     // NB: These are only `pub(crate)` for testing purposes.
@@ -286,6 +286,15 @@ impl<CS: CipherSuite> Clone for EncryptedPskSeed<CS> {
             ciphertext: self.ciphertext.clone(),
             tag: self.tag.clone(),
         }
+    }
+}
+
+impl<CS: CipherSuite> fmt::Debug for EncryptedPskSeed<CS> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("EncryptedPskSeed")
+            .field("ciphertext", &self.ciphertext)
+            .field("tag", &self.tag)
+            .finish()
     }
 }
 
