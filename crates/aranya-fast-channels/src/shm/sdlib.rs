@@ -7,6 +7,7 @@ use core::{
 };
 
 use buggy::BugExt;
+use derive_where::derive_where;
 use libc::off_t;
 
 use super::{
