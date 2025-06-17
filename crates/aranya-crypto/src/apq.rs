@@ -6,7 +6,7 @@
 #![cfg(feature = "apq")]
 #![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
-use core::{borrow::Borrow, cell::OnceCell, fmt, ops::Add, result::Result};
+use core::{cell::OnceCell, fmt, ops::Add, result::Result};
 
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
