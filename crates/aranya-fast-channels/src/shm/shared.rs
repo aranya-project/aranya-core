@@ -344,7 +344,7 @@ impl PartialEq<Op> for ChanDirection {
 ///
 /// All integers are little endian.
 #[repr(C)]
-#[derive_where(Clone)]
+#[derive_where(Clone, Debug)]
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
     pub magic: U32,
@@ -358,8 +358,10 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     /// The current encryption sequence counter.
     pub seq: U64,
     /// The key/nonce used to encrypt data for the channel peer.
+    #[derive_where(skip(Debug))]
     pub seal_key: RawSealKey<CS>,
     /// The key/nonce used to decrypt data from the channel peer.
+    #[derive_where(skip(Debug))]
     pub open_key: RawOpenKey<CS>,
     /// Uniquely identifies `seal_key` and `open_key`.
     pub key_id: KeyId,
@@ -495,19 +497,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
         } else {
             Ok(())
         }
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for ShmChan<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ShmChan")
-            .field("magic", &self.magic)
-            .field("node_id", &self.node_id)
-            .field("label", &self.label)
-            .field("direction", &self.direction)
-            .field("seq", &self.seq)
-            .field("key_id", &self.key_id)
-            .finish_non_exhaustive()
     }
 }
 

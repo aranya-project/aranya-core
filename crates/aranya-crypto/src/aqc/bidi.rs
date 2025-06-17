@@ -300,8 +300,10 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
 
 /// The shared bidirectional channel secret used by both the
 /// channel author and channel peer to derive individual PSKs.
+#[derive_where(Debug)]
 pub struct BidiSecret<CS: CipherSuite> {
     id: BidiChannelId,
+    #[derive_where(skip(Debug))]
     ctx: SendOrRecvCtx<CS>,
 }
 
@@ -403,14 +405,6 @@ impl<CS: CipherSuite> BidiSecret<CS> {
     }
 }
 
-impl<CS: CipherSuite> fmt::Debug for BidiSecret<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BidiSecret")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
-    }
-}
-
 /// The context used when generating a [`BidiPsk`].
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Immutable, IntoBytes, KnownLayout)]
@@ -421,8 +415,10 @@ struct PskCtx {
 }
 
 /// A PSK for a bidirectional channel.
+#[derive_where(Debug)]
 pub struct BidiPsk<CS> {
     id: BidiPskId,
+    #[derive_where(skip(Debug))]
     psk: RawPsk<CS>,
 }
 
@@ -445,15 +441,6 @@ impl<CS: CipherSuite> BidiPsk<CS> {
     /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
     pub fn raw_secret_bytes(&self) -> &[u8] {
         self.psk.raw_secret_bytes()
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for BidiPsk<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid leaking `psk`.
-        f.debug_struct("BidiPsk")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
     }
 }
 

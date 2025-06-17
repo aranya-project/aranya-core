@@ -277,8 +277,10 @@ impl<CS: CipherSuite> UniSecrets<CS> {
 
 /// The shared unidirectional channel secret used by both the
 /// channel author and channel peer to derive individual PSKs.
+#[derive_where(Debug)]
 pub struct UniSecret<CS: CipherSuite> {
     id: UniChannelId,
+    #[derive_where(skip(Debug))]
     ctx: SendOrRecvCtx<CS>,
 }
 
@@ -386,14 +388,6 @@ impl<CS: CipherSuite> UniSecret<CS> {
             suite,
         };
         Ok(self.ctx.export(context.as_bytes())?)
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for UniSecret<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("UniSecret")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
     }
 }
 

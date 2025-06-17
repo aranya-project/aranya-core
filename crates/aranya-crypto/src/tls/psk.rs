@@ -170,8 +170,9 @@ impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
 /// PSKs.
 ///
 /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
-#[derive_where(Clone)]
+#[derive_where(Clone, Debug)]
 pub struct Psk<CS> {
+    #[derive_where(skip(Debug))]
     secret: [u8; 32],
     id: PskId,
     _marker: PhantomData<CS>,
@@ -196,15 +197,6 @@ impl<CS: CipherSuite> Psk<CS> {
     /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
     pub fn raw_secret_bytes(&self) -> &[u8] {
         &self.secret
-    }
-}
-
-impl<CS> fmt::Debug for Psk<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid leaking `secret`.
-        f.debug_struct("Psk")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
     }
 }
 
