@@ -1,5 +1,5 @@
 mod error;
-mod target;
+pub mod target;
 mod types;
 
 use std::{
@@ -24,7 +24,8 @@ use ast::{
     MatchPattern, NamedStruct,
 };
 use buggy::{Bug, BugExt};
-pub(crate) use target::CompileTarget;
+use indexmap::IndexMap;
+use target::CompileTarget;
 use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
@@ -246,16 +247,16 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = BTreeMap::new();
+        let mut values = IndexMap::new();
         for (i, value_name) in enum_def.values.iter().enumerate() {
             match values.entry(value_name.clone()) {
-                Entry::Occupied(_) => {
+                indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                         "{}::{}",
                         enum_name, value_name
                     ))));
                 }
-                Entry::Vacant(e) => {
+                indexmap::map::Entry::Vacant(e) => {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
                     // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
                     // then we'll need to ensure those are unique.
@@ -2175,6 +2176,7 @@ impl<'a> CompileState<'a> {
                 })
                 .collect();
             self.define_struct(&effect.inner.identifier, &fields)?;
+            self.m.effects.push(effect.inner.identifier.clone());
         }
 
         // define the structs provided by FFI schema
@@ -2215,7 +2217,17 @@ impl<'a> CompileState<'a> {
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            self.define_struct(&command.identifier, &command.fields)?;
+            self.define_struct(
+                &command.identifier,
+                &command
+                    .fields
+                    .iter()
+                    .map(|si| match si {
+                        StructItem::Field(fd) => StructItem::Field(fd.clone()),
+                        StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                    })
+                    .collect::<Vec<_>>(),
+            )?;
         }
 
         // Define the finish function signatures before compiling them, so that they can be
@@ -2350,6 +2362,27 @@ impl<'a> Compiler<'a> {
         cs.compile()?;
 
         Ok(cs.into_module())
+    }
+
+    pub fn compile_target(self) -> Result<CompileTarget, CompileError> {
+        let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
+        let machine = CompileTarget::new(codemap);
+        let mut cs = CompileState {
+            policy: self.policy,
+            m: machine,
+            wp: 0,
+            c: 0,
+            function_signatures: BTreeMap::new(),
+            last_locator: 0,
+            statement_context: vec![],
+            identifier_types: IdentifierTypeStack::new(),
+            ffi_modules: self.ffi_modules,
+            is_debug: self.is_debug,
+            stub_ffi: self.stub_ffi,
+        };
+
+        cs.compile()?;
+        Ok(cs.m)
     }
 }
 

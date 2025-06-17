@@ -137,7 +137,7 @@ pub struct Machine {
     pub fact_defs: BTreeMap<String, ast::FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
-    /// Enum definitions
+    /// Enum definitions.
     pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
@@ -160,7 +160,7 @@ impl Machine {
             command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
+            enum_defs: BTreeMap::default(),
             command_attributes: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
@@ -176,7 +176,7 @@ impl Machine {
             command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
+            enum_defs: BTreeMap::default(),
             command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
@@ -209,6 +209,7 @@ impl Machine {
                 labels: self.labels,
                 action_defs: self.action_defs,
                 command_defs: self.command_defs,
+                effects: vec![],
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
                 enum_defs: self.enum_defs,

@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, fmt::Display};
 use aranya_policy_ast as ast;
 use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
 use ast::FactDefinition;
+use indexmap::IndexMap;
 
 /// This is a stripped down version of the VM `Machine` type, which exists to be a target
 /// for compilation
@@ -18,12 +19,14 @@ pub struct CompileTarget {
     pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Command definitions (`fields`)
     pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
+    /// Effect identifiers. The effect definitions can be found in `struct_defs`.
+    pub effects: Vec<String>,
     /// Fact schemas
     pub fact_defs: BTreeMap<String, FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
+    pub enum_defs: IndexMap<String, IndexMap<String, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Mapping between program instructions and original code
@@ -40,9 +43,10 @@ impl CompileTarget {
             labels: BTreeMap::new(),
             action_defs: BTreeMap::new(),
             command_defs: BTreeMap::new(),
+            effects: vec![],
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
-            enum_defs: BTreeMap::new(),
+            enum_defs: IndexMap::default(),
             command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
@@ -51,15 +55,26 @@ impl CompileTarget {
 
     /// Converts the `CompileTarget` into a `Module`.
     pub fn into_module(self) -> Module {
+        // Convert enum defs IndexMap into BTreeMap.
+        let mut enum_defs = BTreeMap::new();
+        for (name, values) in self.enum_defs {
+            let mut ev = BTreeMap::new();
+            for (k, v) in values {
+                ev.insert(k, v);
+            }
+            enum_defs.insert(name, ev);
+        }
+
         Module {
             data: ModuleData::V0(ModuleV0 {
                 progmem: self.progmem.into_boxed_slice(),
                 labels: self.labels,
                 action_defs: self.action_defs,
                 command_defs: self.command_defs,
+                effects: self.effects,
                 fact_defs: self.fact_defs,
                 struct_defs: self.struct_defs,
-                enum_defs: self.enum_defs,
+                enum_defs,
                 command_attributes: self.command_attributes,
                 codemap: self.codemap,
                 globals: self.globals,
