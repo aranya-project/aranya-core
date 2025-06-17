@@ -6,5 +6,5 @@
 mod psk;
 mod suite;
 
-pub use psk::{Psk, PskId, PskSeed, PskSeedId};
+pub use psk::{EncryptedPskSeed, Psk, PskId, PskSeed, PskSeedId};
 pub use suite::CipherSuiteId;

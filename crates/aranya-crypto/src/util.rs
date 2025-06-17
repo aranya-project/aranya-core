@@ -1,3 +1,13 @@
+#[cfg(feature = "tls")]
+use crate::ciphersuite::CipherSuite;
+
+#[cfg(feature = "tls")]
+pub(crate) type Hpke<CS> = spideroak_crypto::hpke::Hpke<
+    <CS as CipherSuite>::Kem,
+    <CS as CipherSuite>::Kdf,
+    <CS as CipherSuite>::Aead,
+>;
+
 #[cfg(any(feature = "memstore", feature = "test_util"))]
 pub mod cbor {
     extern crate alloc;
