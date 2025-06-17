@@ -2429,8 +2429,9 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             open { return None }
         }
         action test() {
-            let bar = Foo { x: 42, y: "abc" } as Bar
-            publish bar
+            let foo = Foo { x: 42, y: "abc" }
+            publish foo as Bar
+            publish Foo { x: 1, y: "b" } as Bar
         }
     "#;
 
@@ -2448,6 +2449,16 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             vec![
                 KVPair::new(ident!("x"), Value::Int(42)),
                 KVPair::new(ident!("y"), Value::String(text!("abc"))),
+            ]
+        )
+    );
+    assert_eq!(
+        io.borrow().publish_stack[1],
+        (
+            ident!("Foo"), // TODO is this right?
+            vec![
+                KVPair::new(ident!("x"), Value::Int(1)),
+                KVPair::new(ident!("y"), Value::String(text!("b"))),
             ]
         )
     );
