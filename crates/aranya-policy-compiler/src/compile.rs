@@ -1,5 +1,5 @@
 mod error;
-mod target;
+pub mod target;
 mod types;
 
 use std::{
@@ -15,8 +15,8 @@ use aranya_policy_ast::{
     MatchExpression, MatchStatement, StructItem, VType,
 };
 use aranya_policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module,
-    SipIndexMap, Struct, Target, Value,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
+    Target, Value,
 };
 pub use ast::Policy as AstPolicy;
 use ast::{
@@ -24,13 +24,12 @@ use ast::{
     MatchPattern, NamedStruct,
 };
 use buggy::{Bug, BugExt};
-pub(crate) use target::CompileTarget;
+use indexmap::IndexMap;
+use target::CompileTarget;
 use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
 use self::types::{IdentifierTypeStack, Typeish};
-
-use indexmap::IndexMap;
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -247,7 +246,7 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = SipIndexMap::default();
+        let mut values = IndexMap::new();
         for (i, value_name) in enum_def.values.iter().enumerate() {
             match values.entry(value_name.clone()) {
                 indexmap::map::Entry::Occupied(_) => {
@@ -2359,6 +2358,27 @@ impl<'a> Compiler<'a> {
         cs.compile()?;
 
         Ok(cs.into_module())
+    }
+
+    pub fn compile_target(self) -> Result<CompileTarget, CompileError> {
+        let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
+        let machine = CompileTarget::new(codemap);
+        let mut cs = CompileState {
+            policy: self.policy,
+            m: machine,
+            wp: 0,
+            c: 0,
+            function_signatures: BTreeMap::new(),
+            last_locator: 0,
+            statement_context: vec![],
+            identifier_types: IdentifierTypeStack::new(),
+            ffi_modules: self.ffi_modules,
+            is_debug: self.is_debug,
+            stub_ffi: self.stub_ffi,
+        };
+
+        cs.compile()?;
+        Ok(cs.m)
     }
 }
 

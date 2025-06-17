@@ -12,11 +12,9 @@ rust-version.workspace = true
 aranya-crypto = { version = "0.8.0", path = "../aranya-crypto", default-features = false }
 aranya-policy-ast = { version = "0.6.0", path = "../aranya-policy-ast" }
 
-indexmap = { version = "2.9.0", default-features = false, features = ["serde"] }
 proptest = { workspace = true, default-features = false, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 serde = { workspace = true, default-features = false, features = ["derive"] }
-siphasher = { version = "1", default-features = false }
 thiserror = { workspace = true }
 
 [features]

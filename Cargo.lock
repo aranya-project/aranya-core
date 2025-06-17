@@ -466,11 +466,9 @@ version = "0.11.0"
 dependencies = [
  "aranya-crypto",
  "aranya-policy-ast",
- "indexmap",
  "proptest",
  "proptest-derive",
  "serde",
- "siphasher",
  "thiserror 2.0.7",
 ]
 

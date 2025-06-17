@@ -1,22 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use aranya_policy_ast::{FieldDefinition, VType};
-use aranya_policy_module::{Module, ModuleData, ModuleV0};
+use aranya_policy_compiler::compile::target::CompileTarget;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
 /// Generate rust source code from a policy [`Module`].
 #[allow(clippy::panic)]
-pub fn generate_code(module: &Module) -> String {
-    let m = {
-        match &module.data {
-            ModuleData::V0(m) => m,
-        }
-    };
+pub fn generate_code(target: &CompileTarget) -> String {
+    let reachable = collect_reachable_types(target);
 
-    let reachable = collect_reachable_types(m);
-
-    let structs = m
+    let structs = target
         .struct_defs
         .iter()
         .filter(|(id, _fields)| reachable.contains(id.as_str()))
@@ -34,7 +28,7 @@ pub fn generate_code(module: &Module) -> String {
             }
         });
 
-    let enums = m
+    let enums = target
         .enum_defs
         .iter()
         .filter(|(id, _values)| reachable.contains(id.as_str()))
@@ -51,8 +45,8 @@ pub fn generate_code(module: &Module) -> String {
             }
         });
 
-    let effects = m.effects.iter().map(|s| {
-        let fields = m
+    let effects = target.effects.iter().map(|s| {
+        let fields = target
             .struct_defs
             .get(s)
             .unwrap_or_else(|| panic!("Effect not defined: {s}"));
@@ -70,7 +64,7 @@ pub fn generate_code(module: &Module) -> String {
     });
 
     let effect_enum = {
-        let idents = m.effects.iter().map(|s| mk_ident(s));
+        let idents = target.effects.iter().map(|s| mk_ident(s));
         quote! {
             #[effects]
             pub enum Effect {
@@ -82,7 +76,7 @@ pub fn generate_code(module: &Module) -> String {
     };
 
     let actions = {
-        let sigs = m.action_defs.iter().map(|(id, args)| {
+        let sigs = target.action_defs.iter().map(|(id, args)| {
             let ident = mk_ident(id);
             let argnames = args.iter().map(|arg| mk_ident(&arg.identifier));
             let argtypes = args.iter().map(|arg| vtype_to_rtype(&arg.field_type));
@@ -153,7 +147,7 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
 
 /// Returns the name of all custom types reachable from actions or effects.
 #[allow(clippy::panic)]
-fn collect_reachable_types(module: &ModuleV0) -> HashSet<&str> {
+fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
     fn visit<'a>(
         struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
         found: &mut HashSet<&'a str>,
@@ -175,7 +169,7 @@ fn collect_reachable_types(module: &ModuleV0) -> HashSet<&str> {
         }
     }
 
-    let struct_defs = module
+    let struct_defs = target
         .struct_defs
         .iter()
         .map(|(id, fields)| (id.as_str(), fields.as_slice()))
@@ -183,14 +177,14 @@ fn collect_reachable_types(module: &ModuleV0) -> HashSet<&str> {
 
     let mut found = HashSet::new();
 
-    for args in module.action_defs.values() {
+    for args in target.action_defs.values() {
         for arg in args {
             visit(&struct_defs, &mut found, &arg.field_type);
         }
     }
 
-    for id in &module.effects {
-        let fields = module
+    for id in &target.effects {
+        let fields = target
             .struct_defs
             .get(id)
             .unwrap_or_else(|| panic!("Effect not defined: {id}"));
