@@ -19,7 +19,7 @@ use crate::{
     id::{custom_id, IdError, Identified},
     policy::{GroupId, PolicyId},
     subtle::{Choice, ConstantTimeEq},
-    tls::CipherSuiteId,
+    tls::{self, CipherSuiteId},
     util::{self, Hpke},
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
     Csprng, Random,
@@ -94,6 +94,17 @@ impl<CS: CipherSuite> PskSeed<CS> {
         Self::from_ikm(&ikm, policy)
     }
 
+    /// Imports a `PskSeed` from an existing IKM in a manner
+    /// similar to [RFC 9258].
+    ///
+    /// `ikm` must be cryptographically secure, but need not be
+    /// uniformly random.
+    ///
+    /// [RFC 9258]: https://datatracker.ietf.org/doc/html/rfc9258
+    pub fn import_from_ikm(ikm: &[u8; 32], policy: &PolicyId) -> Self {
+        Self::from_ikm(ikm, policy)
+    }
+
     /// Creates a `PskSeed` from some IKM.
     ///
     /// Only `pub(crate)` for testing purposes.
@@ -145,18 +156,100 @@ impl<CS: CipherSuite> PskSeed<CS> {
     /// This method is deterministic over the `PskSeed` and
     /// cipher suite: calling it with the same `PskSeed` and
     /// cipher suite will generate the same PSK.
-    pub fn generate_psk(&self, suite: CipherSuiteId) -> Result<Psk<CS>, Error> {
-        let id = PskId {
-            id: *self.try_id().map_err(Bug::clone)?,
-            suite,
+    pub fn generate_psk(&self, suite: CipherSuiteId, group: GroupId) -> Result<Psk<CS>, Error> {
+        let id = *self.try_id().map_err(Bug::clone)?;
+        let info = ImportedIdentity {
+            external_identity: id,
+            context: group,
+            target_protocol: tls::Version::Tls13,
+            target_kdf: suite,
         };
-        let secret = CS::labeled_expand(PSK_DOMAIN, &self.prk, b"psk", [suite.as_bytes()])?;
+        let secret = CS::labeled_expand(PSK_DOMAIN, &self.prk, b"psk", [info.as_bytes()])?;
         Ok(Psk {
-            id,
+            id: PskId { id, suite },
             secret,
             _marker: PhantomData,
         })
     }
+}
+
+impl<CS: CipherSuite> Clone for PskSeed<CS> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            prk: self.prk.clone(),
+            id: self.id.clone(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<CS: CipherSuite> fmt::Debug for PskSeed<CS> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Avoid leaking `seed`.
+        f.debug_struct("PskSeed")
+            .field("id", &self.try_id())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<CS: CipherSuite> ZeroizeOnDrop for PskSeed<CS> {}
+impl<CS: CipherSuite> Drop for PskSeed<CS> {
+    #[inline]
+    fn drop(&mut self) {
+        util::is_zeroize_on_drop(&self.prk);
+    }
+}
+
+unwrapped! {
+    name: PskSeed;
+    type: Prk;
+    into: |key: Self| { key.prk.clone() };
+    from: |prk| { Self::from_prk(prk) };
+}
+
+impl<CS: CipherSuite> Identified for PskSeed<CS> {
+    type Id = PskSeedId;
+
+    #[inline]
+    fn id(&self) -> Result<Self::Id, IdError> {
+        let id = self.try_id().map_err(Bug::clone)?;
+        Ok(*id)
+    }
+}
+
+impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
+    #[inline]
+    fn ct_eq(&self, other: &Self) -> Choice {
+        // `self.id` is derived from `self.prk`, so ignore it.
+        self.prk.ct_eq(&other.prk)
+    }
+}
+
+/// From [RFC 9258].
+///
+/// ```text
+/// struct {
+///    opaque external_identity<1...2^16-1>;
+///    opaque context<0..2^16-1>;
+///    uint16 target_protocol;
+///    uint16 target_kdf;
+/// } ImportedIdentity;
+/// ```
+///
+/// [RFC 9258]: https://datatracker.ietf.org/doc/html/rfc9258
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Immutable, IntoBytes, KnownLayout)]
+struct ImportedIdentity {
+    // NB: These two fields are variable-length in the RFC (and
+    // therefore have leading length bytes), but fixed length
+    // here.
+    external_identity: PskSeedId,
+    context: GroupId,
+    target_protocol: tls::Version,
+    // NB: In RFC 9258 this is just the KDF, but we bind it to
+    // the entire cipher suite instead.
+    target_kdf: CipherSuiteId,
 }
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
@@ -214,59 +307,6 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
 
         let prk = Prk::<CS>::new(SecretKeyBytes::new(ciphertext));
         Ok(PskSeed::from_prk(prk))
-    }
-}
-
-impl<CS: CipherSuite> Clone for PskSeed<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            prk: self.prk.clone(),
-            id: self.id.clone(),
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for PskSeed<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid leaking `seed`.
-        f.debug_struct("PskSeed")
-            .field("id", &self.try_id())
-            .finish_non_exhaustive()
-    }
-}
-
-impl<CS: CipherSuite> ZeroizeOnDrop for PskSeed<CS> {}
-impl<CS: CipherSuite> Drop for PskSeed<CS> {
-    #[inline]
-    fn drop(&mut self) {
-        util::is_zeroize_on_drop(&self.prk);
-    }
-}
-
-unwrapped! {
-    name: PskSeed;
-    type: Prk;
-    into: |key: Self| { key.prk.clone() };
-    from: |prk| { Self::from_prk(prk) };
-}
-
-impl<CS: CipherSuite> Identified for PskSeed<CS> {
-    type Id = PskSeedId;
-
-    #[inline]
-    fn id(&self) -> Result<Self::Id, IdError> {
-        let id = self.try_id().map_err(Bug::clone)?;
-        Ok(*id)
-    }
-}
-
-impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
-    #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
-        // `self.id` is derived from `self.prk`, so ignore it.
-        self.prk.ct_eq(&other.prk)
     }
 }
 

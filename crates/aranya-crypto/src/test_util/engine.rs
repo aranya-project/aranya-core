@@ -155,6 +155,7 @@ macro_rules! for_each_engine_test {
 
             test_tls_psk_different_suites,
             test_tls_psk_different_policy_ids,
+            test_tls_psk_different_groups,
             test_tls_psk_seed_simple_wrap,
             test_tls_psk_seed_seal_open,
             test_tls_psk_seed_open_wrong_peer_pk,
@@ -3047,12 +3048,13 @@ pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
 /// different cipher suites.
 pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
     let seed = tls::PskSeed::<E::CS>::new(eng, &PolicyId::default());
+    let group = GroupId::default();
 
     let mut ids = BTreeSet::new();
     let mut secrets = BTreeSet::new();
 
     for &cs in tls::CipherSuiteId::all() {
-        let psk = seed.generate_psk(cs).unwrap();
+        let psk = seed.generate_psk(cs, group).unwrap();
         if !ids.insert(*psk.identity().as_bytes()) {
             panic!("duplicate PSK identity for {cs}: {}", psk.identity());
         }
@@ -3066,9 +3068,37 @@ pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
 }
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
+/// different groups.
+pub fn test_tls_psk_different_groups<E: Engine>(eng: &mut E) {
+    let seed = tls::PskSeed::<E::CS>::new(eng, &PolicyId::default());
+    let mut ids = BTreeSet::new();
+    let mut secrets = BTreeSet::new();
+    for &cs in tls::CipherSuiteId::all() {
+        for i in 0..100 {
+            let group = GroupId::random(eng);
+
+            let psk = seed.generate_psk(cs, group).unwrap();
+            if !ids.insert(*psk.identity().as_bytes()) {
+                panic!(
+                    "duplicate PSK identity for {i},{cs},{group}: {}",
+                    psk.identity()
+                );
+            }
+            if !secrets.insert(psk.raw_secret_bytes().to_vec()) {
+                panic!(
+                    "duplicate PSK secret for {i},{cs},{group}: {:?}",
+                    psk.raw_secret_bytes()
+                );
+            }
+        }
+    }
+}
+
+/// Test that [`tls::PskSeed`] generates different PSKs for
 /// different policy IDs, even if the cipher suites are the same.
 pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
     let ikm = <[u8; 32]>::random(eng);
+    let group = GroupId::default();
     let mut ids = BTreeSet::new();
     let mut secrets = BTreeSet::new();
     for &cs in tls::CipherSuiteId::all() {
@@ -3077,7 +3107,7 @@ pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
             // (and therefore PSKs) should be different.
             let seed = tls::PskSeed::<E::CS>::from_ikm(&ikm, &PolicyId::random(eng));
 
-            let psk = seed.generate_psk(cs).unwrap();
+            let psk = seed.generate_psk(cs, group).unwrap();
             if !ids.insert(*psk.identity().as_bytes()) {
                 panic!("duplicate PSK identity for {i},{cs}: {}", psk.identity());
             }
