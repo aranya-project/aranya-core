@@ -1,5 +1,6 @@
 use core::{cell::OnceCell, fmt};
 
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     csprng::Random,
@@ -195,7 +196,7 @@ unwrapped! {
 /// A bidirectional channel peer's encapsulated secret.
 ///
 /// This should be freely shared with the channel peer.
-#[derive(Serialize, Deserialize)]
+#[derive_where(Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct BidiPeerEncap<CS: CipherSuite> {
     encap: Encap<CS>,

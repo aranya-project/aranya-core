@@ -14,6 +14,7 @@ use aranya_crypto::{
 };
 use buggy::{Bug, BugExt};
 use cfg_if::cfg_if;
+use derive_where::derive_where;
 
 use super::{
     align::{is_aligned_to, layout_repeat, CacheAligned},
@@ -343,6 +344,7 @@ impl PartialEq<Op> for ChanDirection {
 ///
 /// All integers are little endian.
 #[repr(C)]
+#[derive_where(Clone)]
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
     pub magic: U32,
@@ -496,21 +498,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
     }
 }
 
-impl<CS: CipherSuite> Clone for ShmChan<CS> {
-    fn clone(&self) -> Self {
-        Self {
-            magic: self.magic,
-            node_id: self.node_id,
-            label: self.label,
-            direction: self.direction,
-            seq: self.seq,
-            seal_key: self.seal_key.clone(),
-            open_key: self.open_key.clone(),
-            key_id: self.key_id,
-        }
-    }
-}
-
 impl<CS: CipherSuite> fmt::Debug for ShmChan<CS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ShmChan")
@@ -565,7 +552,7 @@ impl ShmLayout {
     ),
     repr(C, align(32))
 )]
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct SharedMem<CS> {
     /// Identifies this memory as a [`SharedMem`].
     ///
@@ -734,7 +721,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
     ),
     repr(C, align(32))
 )]
-#[derive(Debug)]
+#[derive_where(Debug)]
 struct ChanList<CS> {
     /// Identifies this memory as a [`ChanList`].
     ///
@@ -815,7 +802,7 @@ impl<CS: CipherSuite> ChanList<CS> {
 ///
 /// Broken out separately so it can be placed inside a [`Mutex`].
 #[repr(C, align(8))]
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct ChanListData<CS> {
     /// The current generation.
     ///
