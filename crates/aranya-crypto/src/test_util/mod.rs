@@ -166,19 +166,20 @@ impl<T: Kdf> crypto::kdf::Kdf for KdfWithDefaults<T> {
 
     type PrkSize = T::PrkSize;
 
-    fn extract_multi<I>(ikm: I, salt: &[u8]) -> Prk<Self::PrkSize>
+    fn extract_multi<'a, I>(ikm: I, salt: &[u8]) -> Prk<Self::PrkSize>
     where
-        I: IntoIterator,
-        I::Item: AsRef<[u8]>,
+        I: IntoIterator<Item = &'a [u8]>,
     {
         T::extract_multi(ikm, salt)
     }
 
-    fn expand_multi<I>(out: &mut [u8], prk: &Prk<Self::PrkSize>, info: I) -> Result<(), KdfError>
+    fn expand_multi<'a, I>(
+        out: &mut [u8],
+        prk: &Prk<Self::PrkSize>,
+        info: I,
+    ) -> Result<(), KdfError>
     where
-        I: IntoIterator,
-        I::Item: AsRef<[u8]>,
-        I::IntoIter: Clone,
+        I: IntoIterator<Item = &'a [u8], IntoIter: Clone>,
     {
         T::expand_multi(out, prk, info)
     }

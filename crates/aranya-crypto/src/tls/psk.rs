@@ -4,7 +4,6 @@ use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     aead::Tag,
-    hpke::Mode,
     kdf::{self, Kdf},
     keys::SecretKeyBytes,
 };
@@ -16,11 +15,12 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
+    hpke::{self, Mode},
     id::{custom_id, IdError, Identified},
     policy::{GroupId, PolicyId},
     subtle::{Choice, ConstantTimeEq},
     tls::CipherSuiteId,
-    util::{self, Hpke},
+    util,
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
     Csprng, Random,
 };
@@ -175,16 +175,19 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         if &self.public()? == peer_pk {
             return Err(Error::InvalidArgument("same `EncryptionKey`"));
         }
-        // info = H(
+        // info = concat(
         //     "PskSeed-v1",
-        //     suite_id,
         //     group,
         // )
-        let info = CS::tuple_hash(b"PskSeed-v1", [group.as_bytes()]);
-        let (enc, mut ctx) = Hpke::<CS>::setup_send(rng, Mode::Auth(&self.key), &peer_pk.0, &info)?;
+        let info = Info {
+            domain: *b"PskSeed-v1",
+            group: *group,
+        };
+        let (enc, mut ctx) =
+            hpke::setup_send::<CS, _>(rng, Mode::Auth(&self.key), &peer_pk.0, [info.as_bytes()])?;
         let mut ciphertext = seed.prk.clone().into_bytes().into_bytes();
         let mut tag = Tag::<CS::Aead>::default();
-        ctx.seal_in_place(&mut ciphertext, &mut tag, &info)
+        ctx.seal_in_place(&mut ciphertext, &mut tag, info.as_bytes())
             .inspect_err(|_| ciphertext.zeroize())?;
         Ok((Encap(enc), EncryptedPskSeed { ciphertext, tag }))
     }
@@ -203,14 +206,21 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
             tag,
         } = ciphertext;
 
-        // info = H(
+        // info = concat(
         //     "PskSeed-v1",
-        //     suite_id,
         //     group,
         // )
-        let info = CS::tuple_hash(b"PskSeed-v1", [group.as_bytes()]);
-        let mut ctx = Hpke::<CS>::setup_recv(Mode::Auth(&peer_pk.0), &encap.0, &self.key, &info)?;
-        ctx.open_in_place(&mut ciphertext, &tag, &info)?;
+        let info = Info {
+            domain: *b"PskSeed-v1",
+            group: *group,
+        };
+        let mut ctx = hpke::setup_recv::<CS>(
+            Mode::Auth(&peer_pk.0),
+            &encap.0,
+            &self.key,
+            [info.as_bytes()],
+        )?;
+        ctx.open_in_place(&mut ciphertext, &tag, info.as_bytes())?;
 
         let prk = Prk::<CS>::new(SecretKeyBytes::new(ciphertext));
         Ok(PskSeed::from_prk(prk))
@@ -268,6 +278,14 @@ impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
         // `self.id` is derived from `self.prk`, so ignore it.
         self.prk.ct_eq(&other.prk)
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+struct Info {
+    /// Always "PskSeed-v1".
+    domain: [u8; 10],
+    group: GroupId,
 }
 
 /// An encrypted [`PskSeed`].
