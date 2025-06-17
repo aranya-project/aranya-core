@@ -5,12 +5,11 @@ extern crate alloc;
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec::Vec};
 use core::fmt::{self, Display};
 
-use crate::{CodeMap, Instruction, Label, Value};
 use aranya_policy_ast as ast;
 use ast::FactDefinition;
-use indexmap::map::serde_seq;
-use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
+
+use crate::{CodeMap, Instruction, Label, Value};
 
 /// Identifies a [`Module`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
@@ -65,10 +64,6 @@ pub enum ModuleData {
     V0(ModuleV0),
 }
 
-/// IndexMap with SIP hasher
-pub type SipIndexMap<A, B> =
-    IndexMap<A, B, core::hash::BuildHasherDefault<siphasher::sip::SipHasher>>;
-
 /// The Version 0 module format
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -88,8 +83,7 @@ pub struct ModuleV0 {
     /// Struct definitions
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    #[serde(with = "serde_seq")]
-    pub enum_defs: SipIndexMap<String, SipIndexMap<String, i64>>,
+    pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Code map

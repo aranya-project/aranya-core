@@ -16,8 +16,8 @@ use aranya_crypto::Id;
 use aranya_policy_ast as ast;
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
-    LabelType, Module, ModuleData, ModuleV0, SipIndexMap, Struct, Target, TryAsMut,
-    UnsupportedVersion, Value, ValueConversionError,
+    LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
+    ValueConversionError,
 };
 use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
@@ -137,8 +137,8 @@ pub struct Machine {
     pub fact_defs: BTreeMap<String, ast::FactDefinition>,
     /// Struct schemas
     pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
-    /// Enum definitions
-    pub enum_defs: SipIndexMap<String, SipIndexMap<String, i64>>,
+    /// Enum definitions.
+    pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
     /// Mapping between program instructions and original code
@@ -160,7 +160,7 @@ impl Machine {
             command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
-            enum_defs: SipIndexMap::default(),
+            enum_defs: BTreeMap::default(),
             command_attributes: BTreeMap::new(),
             codemap: None,
             globals: BTreeMap::new(),
@@ -176,7 +176,7 @@ impl Machine {
             command_defs: BTreeMap::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
-            enum_defs: SipIndexMap::default(),
+            enum_defs: BTreeMap::default(),
             command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
