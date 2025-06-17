@@ -12,6 +12,12 @@ use crate::{
 };
 
 custom_id! {
+    /// Uniquely identifies a group.
+    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
+    pub struct GroupId;
+}
+
+custom_id! {
     /// Uniquely identifies a policy.
     #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct PolicyId;

@@ -179,13 +179,6 @@ pub struct BidiAuthorSecret<CS: CipherSuite> {
 
 sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
 
-impl<CS: CipherSuite> ConstantTimeEq for BidiAuthorSecret<CS> {
-    #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
-        self.key.ct_eq(&other.key)
-    }
-}
-
 unwrapped! {
     name: BidiAuthorSecret;
     type: Decap;

@@ -8,7 +8,6 @@ use spideroak_crypto::{
     hpke::{Hpke, Mode},
     import::ImportError,
     kem::Kem,
-    subtle::{Choice, ConstantTimeEq},
 };
 
 use crate::{
@@ -188,13 +187,6 @@ pub struct UniAuthorSecret<CS: CipherSuite> {
 }
 
 sk_misc!(UniAuthorSecret, UniAuthorSecretId);
-
-impl<CS: CipherSuite> ConstantTimeEq for UniAuthorSecret<CS> {
-    #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
-        self.key.ct_eq(&other.key)
-    }
-}
 
 unwrapped! {
     name: UniAuthorSecret;
