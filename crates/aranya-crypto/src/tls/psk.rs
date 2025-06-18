@@ -186,7 +186,7 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
             group: *group,
         };
         let (enc, mut ctx) =
-            hpke::setup_send::<CS, _>(rng, Mode::Auth(&self.key), &peer_pk.0, [info.as_bytes()])?;
+            hpke::setup_send::<CS, _>(rng, Mode::Auth(&self.sk), &peer_pk.pk, [info.as_bytes()])?;
         let mut ciphertext = seed.prk.clone().into_bytes().into_bytes();
         let mut tag = Tag::<CS::Aead>::default();
         ctx.seal_in_place(&mut ciphertext, &mut tag, info.as_bytes())
@@ -217,9 +217,9 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
             group: *group,
         };
         let mut ctx = hpke::setup_recv::<CS>(
-            Mode::Auth(&peer_pk.0),
+            Mode::Auth(&peer_pk.pk),
             &encap.0,
-            &self.key,
+            &self.sk,
             [info.as_bytes()],
         )?;
         ctx.open_in_place(&mut ciphertext, &tag, info.as_bytes())?;

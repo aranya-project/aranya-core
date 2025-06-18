@@ -16,9 +16,9 @@ use spideroak_crypto::{
     generic_array::{ArrayLength, GenericArray},
     hex::ToHex,
     import::{Import, ImportError},
-    kem::{DecapKey, Kem},
+    kem::DecapKey,
     keys::PublicKey,
-    signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+    signer::{SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
     typenum::{Sum, U64},
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
@@ -30,7 +30,6 @@ use zerocopy::{
 use crate::{
     aranya::{Encap, Signature},
     ciphersuite::{CipherSuite, CipherSuiteExt},
-    engine::unwrapped,
     error::Error,
     hpke::{self, Mode},
     id::{custom_id, IdError},
@@ -469,7 +468,7 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
                 record,
             ],
         );
-        let sig = self.key.sign(&msg)?;
+        let sig = self.sk.sign(&msg)?;
         Ok(Signature(sig))
     }
 }
@@ -502,7 +501,7 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
                 record,
             ],
         );
-        Ok(self.0.verify(&msg, &sig.0)?)
+        Ok(self.pk.verify(&msg, &sig.0)?)
     }
 }
 
@@ -559,7 +558,7 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         //     ad=ad,
         // )
         let mut ctx =
-            hpke::setup_recv::<CS>(Mode::Auth(&pk.0), &enc.0, &self.key, [ad.as_bytes()])?;
+            hpke::setup_recv::<CS>(Mode::Auth(&pk.pk), &enc.0, &self.sk, [ad.as_bytes()])?;
         let mut seed = [0u8; 64];
         ctx.open(&mut seed, ciphertext.as_bytes(), ad.as_bytes())?;
         TopicKey::from_seed(seed, version, topic)
@@ -682,7 +681,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         //     ad=ad,
         // )
         let (enc, mut ctx) =
-            hpke::setup_send::<CS, _>(rng, Mode::Auth(&sk.key), &self.0, [ad.as_bytes()])?;
+            hpke::setup_send::<CS, _>(rng, Mode::Auth(&sk.sk), &self.pk, [ad.as_bytes()])?;
         let mut dst = GenericArray::default();
         ctx.seal(&mut dst, &key.seed, ad.as_bytes())?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))

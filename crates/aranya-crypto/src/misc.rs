@@ -312,7 +312,7 @@ macro_rules! keypair {
     ) => {
         $(#[$meta])*
         pub struct $sk<CS: $crate::CipherSuite> {
-            sk: $sk_inner,
+            pub(crate) sk: $sk_inner,
             id: ::core::cell::OnceCell<::core::result::Result<$id, $crate::id::IdError>>,
         }
 
@@ -343,7 +343,7 @@ macro_rules! keypair {
         /// The public half of
         #[doc = ::core::concat!("`", ::core::stringify!($sk), "`")]
         pub struct $pk<CS: $crate::CipherSuite> {
-            pk: $pk_inner,
+            pub(crate) pk: $pk_inner,
             id: ::core::cell::OnceCell<::core::result::Result<$id, $crate::id::IdError>>,
         }
 

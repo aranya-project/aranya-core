@@ -8,7 +8,7 @@ use derive_where::derive_where;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use spideroak_crypto::{
     aead::Tag,
-    csprng::{Csprng, Random},
+    csprng::Csprng,
     import::{Import, ImportError},
     kem::{DecapKey, Kem},
     keys::PublicKey,
@@ -21,8 +21,8 @@ use crate::{
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
     hpke::{self, Mode},
-    id::{Id, IdError},
-    misc::{kem_key, key_misc, signing_key, SigData},
+    id::Id,
+    misc::{kem_key, signing_key, SigData},
     policy::{self, Cmd, CmdId},
 };
 
@@ -96,7 +96,7 @@ signing_key! {
     /// The Device Identity Key.
     sk = IdentityKey,
     pk = IdentityVerifyingKey,
-    id = IdentityKeyId,
+    id = DeviceId,
 }
 
 impl<CS: CipherSuite> IdentityKey<CS> {
@@ -348,7 +348,7 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
             domain: *b"GroupKey-v1",
             group,
         };
-        let mut ctx = hpke::setup_recv::<CS>(Mode::Base, &enc.0, &self.key, [info.as_bytes()])?;
+        let mut ctx = hpke::setup_recv::<CS>(Mode::Base, &enc.0, &self.sk, [info.as_bytes()])?;
         ctx.open_in_place(&mut ciphertext, &tag, info.as_bytes())?;
         Ok(GroupKey::from_seed(ciphertext.into()))
     }
@@ -381,7 +381,7 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
             group,
         };
         let (enc, mut ctx) =
-            hpke::setup_send::<CS, _>(rng, Mode::Base, &self.0, [info.as_bytes()])?;
+            hpke::setup_send::<CS, _>(rng, Mode::Base, &self.pk, [info.as_bytes()])?;
         let mut ciphertext = (*key.raw_seed()).into();
         let mut tag = Tag::<CS::Aead>::default();
         ctx.seal_in_place(&mut ciphertext, &mut tag, info.as_bytes())?;

@@ -253,8 +253,8 @@ impl<CS: CipherSuite> UniSecrets<CS> {
         let root_sk = RootChannelKey::random(eng);
         let peer = {
             let (enc, _) = hpke::setup_send_deterministically::<CS>(
-                Mode::Auth(&author_sk.key),
-                &peer_pk.0,
+                Mode::Auth(&author_sk.sk),
+                &peer_pk.pk,
                 [ch.info().as_bytes()],
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
@@ -308,10 +308,10 @@ impl<CS: CipherSuite> UniSecret<CS> {
         }
 
         let (enc, ctx) = hpke::setup_send_deterministically::<CS>(
-            Mode::Auth(&author_sk.key),
-            &peer_pk.0,
+            Mode::Auth(&author_sk.sk),
+            &peer_pk.pk,
             [ch.info().as_bytes()],
-            secret.key.into_inner(),
+            secret.sk.into_inner(),
         )?;
 
         let id = UniPeerEncap::<CS> {
@@ -342,9 +342,9 @@ impl<CS: CipherSuite> UniSecret<CS> {
         }
 
         let ctx = hpke::setup_recv::<CS>(
-            Mode::Auth(&author_pk.0),
+            Mode::Auth(&author_pk.pk),
             enc.as_inner(),
-            &peer_sk.key,
+            &peer_sk.sk,
             [ch.info().as_bytes()],
         )?;
 
