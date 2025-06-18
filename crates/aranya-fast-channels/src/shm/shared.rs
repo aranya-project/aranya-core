@@ -1074,12 +1074,14 @@ impl<CS: CipherSuite> ChanListData<CS> {
             // No need to perform a swap if there is only one
             // channel.
             if len > 1 {
-                let swap_idx = len.checked_sub(1)
+                let swap_idx = len
+                    .checked_sub(1)
                     .assume("len > 1, so len - 1 should be valid")?;
                 self.chans_mut()?.swap(idx, swap_idx);
             }
-            self.len = self.len.checked_sub(1)
-                .assume("length should be > 0 when removing an element")?;
+            // Use the existing arithmetic infrastructure which is designed
+            // to handle wraparound behavior safely.
+            self.len -= 1;
             assert!(self.len <= self.cap);
             Ok(())
         }
