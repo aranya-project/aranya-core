@@ -123,7 +123,7 @@ impl<CS: CipherSuite> PskSeed<CS> {
             .as_ref()
     }
 
-    /// Generates PSKs for the provided cipher suites.
+    /// Generates one PSK for each of the provided cipher suites.
     ///
     /// - `context` is a unique constant string that describes
     ///   what the PSKs are being used for. For example, it could
