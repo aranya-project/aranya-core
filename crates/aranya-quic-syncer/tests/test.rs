@@ -6,8 +6,8 @@ use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, SyncRequester,
     engine::{Engine, Sink},
-    protocol::{TestActions, TestEffect, TestEngine, TestSink},
     storage::{StorageProvider, memory::MemStorageProvider},
+    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
 };
 use buggy::BugExt;
 use s2n_quic::{Server, provider::congestion_controller::Bbr};

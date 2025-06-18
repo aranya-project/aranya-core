@@ -69,7 +69,7 @@ use crate::{
     Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, CommandId, EngineError,
     GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
     StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
-    protocol::{TestActions, TestEffect, TestEngine, TestSink},
+    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
 };
 
 fn default_repeat() -> u64 {

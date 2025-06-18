@@ -18,8 +18,8 @@ use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, Engine, GraphId, StorageProvider, SyncRequester,
     engine::Sink,
-    protocol::{TestActions, TestEffect, TestEngine},
     storage::memory::MemStorageProvider,
+    testing::protocol::{TestActions, TestEffect, TestEngine},
 };
 use clap::Parser;
 use s2n_quic::Server;

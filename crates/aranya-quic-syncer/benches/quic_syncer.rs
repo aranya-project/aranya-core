@@ -17,7 +17,7 @@ use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
     ClientState, GraphId, Sink, SyncRequester,
     memory::MemStorageProvider,
-    protocol::{TestActions, TestEffect, TestEngine},
+    testing::protocol::{TestActions, TestEffect, TestEngine},
 };
 use criterion::{Criterion, criterion_group, criterion_main};
 use s2n_quic::Server;
