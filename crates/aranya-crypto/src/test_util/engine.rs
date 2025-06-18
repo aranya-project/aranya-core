@@ -21,7 +21,7 @@ use crate::{
         TopicKey, Version,
     },
     aqc,
-    aranya::{DeviceId, Encap, EncryptionKey, IdentityKey, SigningKey as DeviceSigningKey},
+    aranya::{Encap, EncryptionKey, IdentityKey, SigningKey as DeviceSigningKey},
     ciphersuite::CipherSuite,
     engine::Engine,
     error::Error,
@@ -1307,7 +1307,7 @@ pub fn test_afc_derive_bidi_keys_different_device_ids<E: Engine>(eng: &mut E) {
         their_pk: &sk1
             .public()
             .expect("receiver public encryption key should be valid"),
-        their_id: DeviceId::random(eng),
+        their_id: Id::random(eng).into_id(),
         label,
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
@@ -1655,7 +1655,7 @@ pub fn test_afc_derive_uni_key_different_device_ids<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
-        open_id: DeviceId::random(eng),
+        open_id: Id::random(eng).into_id(),
         label,
     };
     assert_ne!(ch1.info(), ch2.info());
@@ -2025,7 +2025,7 @@ pub fn test_aqc_derive_bidi_psk_different_device_ids<E: Engine>(eng: &mut E) {
         their_pk: &sk1
             .public()
             .expect("receiver public encryption key should be valid"),
-        their_id: DeviceId::random(eng),
+        their_id: Id::random(eng).into_id(),
         label,
     };
     assert_ne!(ch1.author_info(), ch2.peer_info());
@@ -2528,7 +2528,7 @@ pub fn test_aqc_derive_uni_psk_different_device_ids<E: Engine>(eng: &mut E) {
             .public()
             .expect("receiver public encryption key should be valid"),
         seal_id: ch1.seal_id,
-        open_id: DeviceId::random(eng),
+        open_id: Id::random(eng).into_id(),
         label,
     };
     assert_ne!(ch1.info(), ch2.info());
@@ -3075,7 +3075,7 @@ pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
         for i in 0..100 {
             // Same IKM, but different policy ID, so the PRK
             // (and therefore PSKs) should be different.
-            let seed = tls::PskSeed::<E::CS>::from_ikm(&ikm, &PolicyId::random(eng));
+            let seed = tls::PskSeed::<E::CS>::from_ikm(&ikm, &Id::random(eng).into_id());
 
             let psk = seed.generate_psk(cs).unwrap();
             if !ids.insert(*psk.identity().as_bytes()) {

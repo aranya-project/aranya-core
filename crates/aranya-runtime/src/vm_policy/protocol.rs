@@ -115,9 +115,9 @@ impl From<Envelope<'_>> for Struct {
         Self::new(
             ident!("Envelope"),
             [
-                (ident!("parent_id"), e.parent_id.into_id().into()),
-                (ident!("author_id"), e.author_id.into_id().into()),
-                (ident!("command_id"), e.command_id.into_id().into()),
+                (ident!("parent_id"), Value::Id(e.parent_id.into_id())),
+                (ident!("author_id"), Value::Id(e.author_id.into_id())),
+                (ident!("command_id"), Value::Id(e.command_id.into_id())),
                 (ident!("payload"), e.payload.into_owned().into()),
                 (ident!("signature"), e.signature.into_owned().into()),
             ],
@@ -139,9 +139,9 @@ impl TryFrom<Struct> for Envelope<'_> {
         }
 
         Ok(Self {
-            parent_id: get::<aranya_crypto::Id>(fields, "parent_id")?.into(),
-            author_id: get::<aranya_crypto::Id>(fields, "author_id")?.into(),
-            command_id: get::<aranya_crypto::Id>(fields, "command_id")?.into(),
+            parent_id: get::<aranya_crypto::Id>(fields, "parent_id")?.into_id(),
+            author_id: get::<aranya_crypto::Id>(fields, "author_id")?.into_id(),
+            command_id: get::<aranya_crypto::Id>(fields, "command_id")?.into_id(),
             payload: Cow::Owned(get(fields, "payload")?),
             signature: Cow::Owned(get(fields, "signature")?),
         })

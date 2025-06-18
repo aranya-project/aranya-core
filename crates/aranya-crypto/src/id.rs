@@ -13,7 +13,7 @@ use buggy::Bug;
 #[doc(hidden)]
 pub use proptest as __proptest;
 use serde::{
-    de::{self, DeserializeOwned, SeqAccess, Visitor},
+    de::{self, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
@@ -86,6 +86,15 @@ impl Id {
     #[inline]
     pub const fn as_array(&self) -> &[u8; 32] {
         &self.0
+    }
+
+    /// Converts itself into another ID type.
+    #[inline]
+    pub fn into_id<T>(self) -> T
+    where
+        [u8; 32]: Into<T>,
+    {
+        (*self.as_array()).into()
     }
 
     /// Decode the [`Id`] from a base58 string.
@@ -290,11 +299,6 @@ macro_rules! custom_id {
                 Self($crate::Id::default())
             }
 
-            /// Creates a random ID.
-            pub fn random<R: $crate::Csprng>(rng: &mut R) -> Self {
-                Self($crate::Id::random(rng))
-            }
-
             /// Returns itself as a byte slice.
             #[inline]
             pub const fn as_bytes(&self) -> &[u8] {
@@ -307,10 +311,13 @@ macro_rules! custom_id {
                 self.0.as_array()
             }
 
-            /// Returns itself as a plain `Id`.
+            /// Converts itself into another ID type.
             #[inline]
-            pub const fn into_id(self) -> $crate::Id {
-                self.0
+            pub fn into_id<T>(self) -> T
+            where
+                [u8; 32]: Into<T>,
+            {
+                (*self.as_array()).into()
             }
 
             /// Decode the ID from a base58 string.
@@ -335,15 +342,6 @@ macro_rules! custom_id {
             }
         }
 
-        impl ::core::convert::From<$crate::generic_array::GenericArray<u8, $crate::typenum::U32>>
-            for $name
-        {
-            #[inline]
-            fn from(id: $crate::generic_array::GenericArray<u8, $crate::typenum::U32>) -> Self {
-                Self(id.into())
-            }
-        }
-
         impl ::core::convert::From<[u8; 32]> for $name {
             #[inline]
             fn from(id: [u8; 32]) -> Self {
@@ -355,20 +353,6 @@ macro_rules! custom_id {
             #[inline]
             fn from(id: $name) -> Self {
                 id.0.into()
-            }
-        }
-
-        impl ::core::convert::From<$crate::Id> for $name {
-            #[inline]
-            fn from(id: $crate::Id) -> Self {
-                Self(id)
-            }
-        }
-
-        impl ::core::convert::From<$name> for $crate::Id {
-            #[inline]
-            fn from(id: $name) -> Self {
-                id.0
             }
         }
 
@@ -439,21 +423,7 @@ macro_rules! __custom_id_proptest {
 /// An object with a unique identifier.
 pub trait Identified {
     /// Uniquely identifies the object.
-    type Id: Copy
-        + Clone
-        + Display
-        + Debug
-        + Hash
-        + Eq
-        + PartialEq
-        + Ord
-        + PartialOrd
-        + Serialize
-        + DeserializeOwned
-        + Into<Id>;
-
-    /// Uniquely identifies the object.
-    fn id(&self) -> Result<Self::Id, IdError>;
+    fn id(&self) -> Result<Id, IdError>;
 }
 
 /// An error that may occur when accessing an Id

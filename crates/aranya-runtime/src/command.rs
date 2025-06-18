@@ -20,7 +20,7 @@ impl CommandId {
     /// (unfortunately) some code already depends on it.
     pub fn hash_for_testing_only(data: &[u8]) -> Self {
         use aranya_crypto::dangerous::spideroak_crypto::{hash::Hash, rust::Sha256};
-        Sha256::hash(data).into_array().into()
+        Sha256::hash(data).into_array().into_array().into()
     }
 
     pub fn short_b58(&self) -> String {

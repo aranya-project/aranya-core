@@ -17,7 +17,7 @@ mod custom_id_tests {
 
     #[test]
     fn json_roundtrip() {
-        let id: MyId = aranya_crypto::Id::random(&mut aranya_crypto::Rng).into();
+        let id: MyId = aranya_crypto::Id::random(&mut aranya_crypto::Rng).into_id();
         let ser = serde_json::to_string(&id).unwrap();
         assert_eq!(ser, format!("\"{id}\""));
         let got: MyId = serde_json::from_str(&ser).unwrap();
@@ -26,7 +26,7 @@ mod custom_id_tests {
 
     #[test]
     fn postcard_roundtrip() {
-        let id: MyId = aranya_crypto::Id::random(&mut aranya_crypto::Rng).into();
+        let id: MyId = aranya_crypto::Id::random(&mut aranya_crypto::Rng).into_id();
         let ser = postcard::to_allocvec(&id).unwrap();
         assert_eq!(32, ser[0]); // Length
         assert_eq!(id.as_bytes(), &ser[1..]);
@@ -47,8 +47,7 @@ mod unwrapped_tests {
             _marker: PhantomData<CS>,
         }
         impl<CS> Identified for Seed<CS> {
-            type Id = Id;
-            fn id(&self) -> Result<Self::Id, IdError> {
+            fn id(&self) -> Result<Id, IdError> {
                 Ok(Id::default())
             }
         }

@@ -128,7 +128,7 @@ function sign(
                 .ok_or(KeyNotFound(our_sign_sk_id))?;
             eng.unwrap(&wrapped)?
         };
-        debug_assert_eq!(sk.id()?.into_id(), our_sign_sk_id);
+        debug_assert_eq!(sk.id()?, our_sign_sk_id.into_id());
 
         let (sig, id) = sk.sign_cmd(Cmd {
             data: &command_bytes,
@@ -137,7 +137,7 @@ function sign(
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
-            command_id: id.into(),
+            command_id: id.into_id(),
         })
     }
 
@@ -175,7 +175,7 @@ function verify(
             parent_id: &parent_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;
-        if bool::from(id.ct_eq(&command_id.into())) {
+        if bool::from(id.ct_eq(&command_id.into_id())) {
             Ok(command_bytes)
         } else {
             Err(InvalidCmdId(()).into())

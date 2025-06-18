@@ -173,9 +173,7 @@ mod tests {
     impl WrappedKey for TestKey64 {}
 
     impl Identified for TestKey64 {
-        type Id = Id;
-
-        fn id(&self) -> Result<Self::Id, crate::id::IdError> {
+        fn id(&self) -> Result<Id, crate::id::IdError> {
             Ok(id!(self.0))
         }
     }
@@ -186,9 +184,7 @@ mod tests {
     impl WrappedKey for TestKeyId {}
 
     impl Identified for TestKeyId {
-        type Id = Id;
-
-        fn id(&self) -> Result<Self::Id, crate::id::IdError> {
+        fn id(&self) -> Result<Id, crate::id::IdError> {
             Ok(self.0)
         }
     }
