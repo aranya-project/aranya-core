@@ -506,19 +506,7 @@ uni_psk! {
 
 #[cfg(test)]
 mod tests {
-    use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
-
     use super::*;
-    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
-
-    type CS = TestCs<
-        rust::Aes256Gcm,
-        rust::Sha256,
-        rust::HkdfSha512,
-        DhKemP256HkdfSha256,
-        rust::HmacSha512,
-        Ed25519,
-    >;
 
     /// Golden test for [`UniAuthorSecret`] IDs.
     #[test]
