@@ -19,6 +19,7 @@ use aranya_runtime::{
     testing::dsl::dispatch,
     vm_policy::{VmEffect, VmPolicy, VmPolicyError},
 };
+use derive_where::derive_where;
 
 /// Model engine effect.
 ///
@@ -194,7 +195,8 @@ pub trait Model {
 }
 
 /// Holds a collection of effect data.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
+#[derive_where(Default)]
 pub struct VecSink<E> {
     /// Effects from executing a policy action.
     pub(crate) effects: Vec<E>,

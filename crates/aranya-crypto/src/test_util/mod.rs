@@ -14,12 +14,10 @@
 pub mod ciphersuite;
 pub mod engine;
 
-use core::{
-    fmt::{self, Debug},
-    marker::PhantomData,
-};
+use core::marker::PhantomData;
 
 pub use ciphersuite::test_ciphersuite;
+use derive_where::derive_where;
 pub use engine::test_engine;
 pub use spideroak_crypto::test_util::{
     aead::{self, test_aead},
@@ -239,6 +237,7 @@ impl<T: Signer + ?Sized> Identified for SignerWithDefaults<T> {
 }
 
 /// A [`SigningKey`] that uses the default trait methods.
+#[derive_where(Clone)]
 pub struct SigningKeyWithDefaults<T: Signer + ?Sized>(T::SigningKey);
 
 impl<T: Signer + ?Sized> SigningKey<SignerWithDefaults<T>> for SigningKeyWithDefaults<T> {
@@ -277,15 +276,10 @@ impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for SigningKeyWithDefaults<T> {
     }
 }
 
-impl<T: Signer + ?Sized> Clone for SigningKeyWithDefaults<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
 impl<T: Signer + ?Sized> ZeroizeOnDrop for SigningKeyWithDefaults<T> {}
 
 /// A [`VerifyingKey`] that uses the default trait methods.
+#[derive_where(Clone, Debug, PartialEq, Eq)]
 pub struct VerifyingKeyWithDefaults<T: Signer + ?Sized>(T::VerifyingKey);
 
 impl<T: Signer + ?Sized> VerifyingKey<SignerWithDefaults<T>> for VerifyingKeyWithDefaults<T> {
@@ -308,26 +302,8 @@ impl<'a, T: Signer + ?Sized> Import<&'a [u8]> for VerifyingKeyWithDefaults<T> {
     }
 }
 
-impl<T: Signer + ?Sized> Clone for VerifyingKeyWithDefaults<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T: Signer + ?Sized> Debug for VerifyingKeyWithDefaults<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Debug::fmt(&self.0, f)
-    }
-}
-
-impl<T: Signer + ?Sized> Eq for VerifyingKeyWithDefaults<T> {}
-impl<T: Signer + ?Sized> PartialEq for VerifyingKeyWithDefaults<T> {
-    fn eq(&self, other: &Self) -> bool {
-        PartialEq::eq(&self.0, &other.0)
-    }
-}
-
 /// `Signer::Signature` that uses the default trait methods.
+#[derive_where(Clone, Debug)]
 pub struct SignatureWithDefaults<T: Signer + ?Sized>(T::Signature);
 
 impl<T: Signer + ?Sized> Signature<SignerWithDefaults<T>> for SignatureWithDefaults<T> {
@@ -335,18 +311,6 @@ impl<T: Signer + ?Sized> Signature<SignerWithDefaults<T>> for SignatureWithDefau
 
     fn export(&self) -> Self::Data {
         self.0.export()
-    }
-}
-
-impl<T: Signer + ?Sized> Clone for SignatureWithDefaults<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T: Signer + ?Sized> Debug for SignatureWithDefaults<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Debug::fmt(&self.0, f)
     }
 }
 
