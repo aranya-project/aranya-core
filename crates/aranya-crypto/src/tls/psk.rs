@@ -418,9 +418,12 @@ impl fmt::Display for PskId {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::policy::PolicyId;
-    use crate::tls::{CipherSuiteId, Psk, PskSeed};
-    use crate::{default::DefaultCipherSuite, Rng};
+    use crate::{
+        default::DefaultCipherSuite,
+        policy::PolicyId,
+        tls::{CipherSuiteId, Psk, PskSeed},
+        Rng,
+    };
 
     /// Golden test for [`PskSeed::id`] and [`Psk::identity`] with a zero IKM and TLS_AES_128_GCM_SHA256.
     #[test]

@@ -259,9 +259,10 @@ impl<CS: CipherSuite> ConstantTimeEq for GroupKey<CS> {
 
 #[cfg(test)]
 mod tests {
+    use spideroak_crypto::rust;
+
     use super::*;
     use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
-    use spideroak_crypto::rust;
 
     type CS = TestCs<
         rust::Aes256Gcm,
