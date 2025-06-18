@@ -47,7 +47,7 @@ fn bench_expand<K: Kdf>(c: &mut Criterion, name: &str) {
     {
         g.bench_with_input(
             BenchmarkId::new(name, format!("{}/{}", out.len(), info.len())),
-            &*info,
+            info,
             |b, info| {
                 let prk = S::extract(&[0; 32], &[]);
                 b.iter(|| {
