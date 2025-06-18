@@ -105,7 +105,7 @@ impl<S: AfcState> Client<S> {
         let new_len = data
             .len()
             .checked_add(Self::OVERHEAD)
-            .ok_or_else(|| Self::unlikely(Error::InputTooLarge))?;
+            .assume("try_reserve_exact should have already checked for overflow")?;
         data.try_resize(new_len, 0)?;
 
         // We've padded data, so split it into chunks.
@@ -120,7 +120,6 @@ impl<S: AfcState> Client<S> {
             .len()
             .checked_sub(Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
-        #[allow(clippy::incompatible_msrv)] // clippy#12280
         let (out, tag) = rest
             .split_at_mut_checked(split_pos)
             .assume("split position is within bounds")?;
@@ -263,7 +262,6 @@ impl<S: AfcState> Client<S> {
                 // definition we cannot authenticate the
                 // ciphertext.
                 .ok_or(Error::Authentication)?;
-            #[allow(clippy::incompatible_msrv)] // clippy#12280
             let (ciphertext, tag) = rest
                 .split_at_mut_checked(split_pos)
                 .ok_or(Error::Authentication)?;

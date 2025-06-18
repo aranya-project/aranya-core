@@ -741,7 +741,7 @@ impl<CS: CipherSuite> ChanList<CS> {
         let (page_size, page_aligned) = if cfg!(feature = "page-aligned") {
             let page_size = getpagesize()?.assume("`page-aligned` feature requires `libc`")?;
             let page_aligned = {
-                #[allow(clippy::arithmetic_side_effects)] // safe layout size calculation
+                #[allow(clippy::arithmetic_side_effects)] // layout size is bounded by available memory
                 let double_size = layout.size() * 2;
                 (double_size > page_size) && is_aligned_to(page_size, layout.align())
             };
@@ -833,11 +833,9 @@ impl<CS: CipherSuite> ChanListData<CS> {
     }
 
     fn len(&self) -> Result<usize, Corrupted> {
-        let len = usize::try_from(self.len).map_err(|_| corrupted("`len` is larger than `usize::MAX`"))?;
-        if len > isize::MAX as usize {
-            return Err(corrupted("`len` is larger than `isize::MAX`"));
-        }
-        Ok(len)
+        let len_u64: u64 = self.len.into();
+        let len = isize::try_from(len_u64).map_err(|_| corrupted("`len` is larger than `isize::MAX`"))?;
+        usize::try_from(len).map_err(|_| corrupted("`len` conversion to usize failed"))
     }
 
     fn cap(&self) -> Result<usize, Corrupted> {
@@ -925,6 +923,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
             let id = chan.id()?;
             if !f(id) {
                 // Nope, try the next index.
+                // wrapping_add is safe here: if idx overflows, self.get() will return None, ending the loop
                 idx = idx.wrapping_add(1);
                 continue;
             }
@@ -1054,15 +1053,12 @@ impl<CS: CipherSuite> ChanListData<CS> {
         } else {
             // No need to perform a swap if there is only one
             // channel.
-            if len > 1 {
-                let swap_idx = len
-                    .checked_sub(1)
-                    .assume("len > 1, so len - 1 should be valid")?;
+            if let Some(swap_idx) = len.checked_sub(1) {
                 self.chans_mut()?.swap(idx, swap_idx);
             }
             // Use the existing arithmetic infrastructure which is designed
             // to handle wraparound behavior safely.
-            #[allow(clippy::arithmetic_side_effects)] // U64 has safe SubAssign impl
+            #[allow(clippy::arithmetic_side_effects)] // U64 arithmetic operations are allowed
             { self.len -= 1; }
             assert!(self.len <= self.cap);
             Ok(())
