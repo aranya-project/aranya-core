@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     aead::Tag,
     hex::Hex,
-    hpke::{self, Mode},
     kdf::{self, Kdf},
     keys::SecretKeyBytes,
 };
@@ -18,6 +17,7 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
+    hpke::{self, Mode},
     id::{custom_id, IdError, Identified},
     policy::{GroupId, PolicyId},
     subtle::{Choice, ConstantTimeEq},
