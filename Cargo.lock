@@ -470,7 +470,7 @@ dependencies = [
 
 [[package]]
 name = "aranya-policy-text"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "aranya-policy-text-macro",
  "proptest",

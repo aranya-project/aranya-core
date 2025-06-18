@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- add PSK importer ([#302](https://github.com/aranya-project/aranya-core/pull/302))
 - update to `spideroak-crypto` v0.6 ([#300](https://github.com/aranya-project/aranya-core/pull/300))
 - hide DhKemP256HkdfSha256 in private module ([#306](https://github.com/aranya-project/aranya-core/pull/306))
 - use derive-where for better derive bounds ([#297](https://github.com/aranya-project/aranya-core/pull/297))
