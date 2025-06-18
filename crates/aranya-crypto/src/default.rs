@@ -12,7 +12,7 @@ use spideroak_crypto::{
     kem::Kem,
     keys::{SecretKey, SecretKeyBytes},
     mac::Mac,
-    oid::{consts::DHKEM_P256_HKDF_SHA256, Identified as _},
+    oid::Identified as _,
     rust,
     signer::Signer,
     typenum::U64,
@@ -25,7 +25,6 @@ use crate::{
         WrongKeyType,
     },
     id::{Id, IdError, Identified},
-    kem_with_oid,
 };
 
 /// The default [`CipherSuite`].
@@ -44,16 +43,25 @@ impl CipherSuite for DefaultCipherSuite {
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha256;
     type Kdf = rust::HkdfSha512;
-    type Kem = DhKemP256HkdfSha256;
+    type Kem = __private::DhKemP256HkdfSha256;
     type Mac = rust::HmacSha512;
     type Signer = ed25519::Ed25519;
 }
 
-kem_with_oid! {
-    /// DHKEM(P256, HKDF-SHA256).
-    #[derive(Debug)]
-    pub struct DhKemP256HkdfSha256(rust::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
+// Keep the raw Kem newtype out of the public API surface.
+mod __private {
+    use spideroak_crypto::{oid::consts::DHKEM_P256_HKDF_SHA256, rust};
+
+    crate::kem_with_oid! {
+        /// DHKEM(P256, HKDF-SHA256).
+        #[derive(Debug)]
+        pub struct DhKemP256HkdfSha256(rust::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
+    }
 }
+
+// Expose the newtype for crate-local tests, but keep it hidden externally.
+#[cfg(test)]
+pub use __private::DhKemP256HkdfSha256;
 
 /// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
 pub struct DefaultEngine<R: Csprng = Rng, S: CipherSuite = DefaultCipherSuite> {
