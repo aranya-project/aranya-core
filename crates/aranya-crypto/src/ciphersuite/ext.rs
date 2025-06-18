@@ -176,7 +176,7 @@ impl<CS: CipherSuite + ?Sized> Oids<CS> {
     }
 
     /// Encods the OIDs with [`encode_string`].
-    const fn encode(self) -> EncodedOids<CS> {
+    pub(crate) const fn encode(self) -> EncodedOids<CS> {
         EncodedOids::<CS>(PhantomData)
     }
 }
@@ -199,7 +199,7 @@ where
 ///
 /// [TupleHash]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
 #[derive_where(Copy, Clone, Debug)]
-struct EncodedOids<CS: ?Sized>(PhantomData<CS>);
+pub(crate) struct EncodedOids<CS: ?Sized>(PhantomData<CS>);
 
 impl<CS: CipherSuite + ?Sized> EncodedOids<CS> {
     const ITEMS: [&'static [u8]; 12] = {
