@@ -43,8 +43,7 @@ impl CipherSuite for DefaultCipherSuite {
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha256;
     type Kdf = rust::HkdfSha512;
-    #[cfg_attr(test, allow(unused_qualifications))]
-    type Kem = __private::DhKemP256HkdfSha256;
+    type Kem = DhKemP256HkdfSha256;
     type Mac = rust::HmacSha512;
     type Signer = ed25519::Ed25519;
 }
@@ -61,7 +60,6 @@ mod __private {
 }
 
 // Expose the newtype for crate-local tests, but keep it hidden externally.
-#[cfg(test)]
 pub(crate) use __private::DhKemP256HkdfSha256;
 
 /// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
