@@ -111,6 +111,7 @@ pub struct IdentityKey<CS: CipherSuite> {
 key_misc!(IdentityKey, IdentityVerifyingKey, DeviceId);
 
 impl<CS: CipherSuite> IdentityKey<CS> {
+    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "Device Identity Key";
     /// Creates an `IdentityKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
@@ -208,6 +209,7 @@ pub struct SigningKey<CS: CipherSuite> {
 key_misc!(SigningKey, VerifyingKey, SigningKeyId);
 
 impl<CS: CipherSuite> SigningKey<CS> {
+    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "Signing Key";
     /// Creates a `SigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
@@ -378,6 +380,7 @@ pub struct EncryptionKey<CS: CipherSuite> {
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
+    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "Encryption Key";
     /// Creates a devices's `EncryptionKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
@@ -551,7 +554,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "F7vhWpkKzLNUw8v6NqHvgkSGNFhtGdcLKbKRCQTxgXpe",
+            "1RFHSbbxPwUx523crs9fanmf7yp6ubPgQVKs38vVAckk",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -579,7 +582,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "EcGxqMJRiRUAFXkqFhkmPNBx43r5F9kqxT1yLFwKAmCd",
+            "6WYF4bGwVnCKqz2YCjSfoj9f7YdgCwwvDew4zWchjS4A",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -607,7 +610,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "CZQkdD8g6Ku1Y5DJDfGqfp9P1GaVTCJw3tKUrUvCPUTC",
+            "7sDP73YbhJM42KFro3jJcXERSaxAVJFVEQtDqDreEjkc",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {

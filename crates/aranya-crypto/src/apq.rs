@@ -395,6 +395,7 @@ pub struct SenderSigningKey<CS: CipherSuite> {
 key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
+    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "APQ Sender Signing Key";
     /// Creates a `SenderSigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
@@ -535,6 +536,7 @@ pub struct SenderSecretKey<CS: CipherSuite> {
 key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
 
 impl<CS: CipherSuite> SenderSecretKey<CS> {
+    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "APQ Sender Secret Key";
     /// Creates a `SenderSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
@@ -568,6 +570,7 @@ pub struct ReceiverSecretKey<CS: CipherSuite> {
 key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
+    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "APQ Receiver Secret Key";
     /// Creates a `ReceiverSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
@@ -773,13 +776,13 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "CfKt7BznL8sVKmzxSPGLPTEQWe8efrz1Krf9vEAdtyDj",
+            "ATgYVtSiDiY4HgK2xTZr9Mbx6bLGEKZDvLX3nsLR4msq",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
                 .expect("should import signing key");
-            let sender_signing_key = SenderSigningKey {
+            let sender_signing_key: SenderSigningKey<CS> = SenderSigningKey {
                 key: sk,
                 id: OnceCell::new(),
             };
@@ -802,13 +805,13 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "9FfSKNNkzPsHt7F57Bz9tsBfrj4a9YFHn9oMpfvBqYjw",
+            "Gxg9tkrxQRjkPzACEMA9nCyGZDCGTU22xQ7pBeZ86zkz",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
-            let sender_secret_key = SenderSecretKey {
+            let sender_secret_key: SenderSecretKey<CS> = SenderSecretKey {
                 key: sk,
                 id: OnceCell::new(),
             };
@@ -830,13 +833,13 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "2KNGMuFUvgB6B9PTyEztBNdDvHt4xZcGaRb2SuQm4sWr",
+            "4SHRYW7Dsn4RRtDZzfHvqNonbq8D33JGfihFoQxzip59",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
-            let receiver_secret_key = ReceiverSecretKey {
+            let receiver_secret_key: ReceiverSecretKey<CS> = ReceiverSecretKey {
                 key: sk,
                 id: OnceCell::new(),
             };

@@ -189,6 +189,7 @@ pub struct UniAuthorSecret<CS: CipherSuite> {
 sk_misc!(UniAuthorSecret, UniAuthorSecretId);
 
 impl<CS: CipherSuite> UniAuthorSecret<CS> {
+    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "AFC Uni Author Secret";
 }
 
@@ -431,14 +432,14 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "5exZW6Ri3eX5tgPTQ8qbAmJhBYGFKJr2YauvPa5TvZws",
+            "8QFfLfKymtXHa9MJWhJcKvwYWXtsmuCK3Bsf2tCxpdK1",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
-            let root_key = RootChannelKey::new(sk);
-            let uni_author_secret = UniAuthorSecret {
+            let root_key: RootChannelKey<CS> = RootChannelKey::new(sk);
+            let uni_author_secret: UniAuthorSecret<CS> = UniAuthorSecret {
                 key: root_key,
                 id: OnceCell::new(),
             };

@@ -218,6 +218,7 @@ pub struct BidiAuthorSecret<CS: CipherSuite> {
 sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
 
 impl<CS: CipherSuite> BidiAuthorSecret<CS> {
+    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "AFC Bidi Author Secret";
 }
 
@@ -611,9 +612,18 @@ mod tests {
     /// Golden test for [`BidiAuthorSecret`] IDs.
     #[test]
     fn test_bidi_author_secret_id() {
-        use spideroak_crypto::{import::Import, kem::Kem};
+        use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
 
-        use crate::afc::shared::RootChannelKey;
+        use crate::{afc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};
+
+        type CS = TestCs<
+            rust::Aes256Gcm,
+            rust::Sha256,
+            rust::HkdfSha512,
+            DhKemP256HkdfSha256,
+            rust::HmacSha512,
+            Ed25519,
+        >;
 
         let tests = [(
             // Fixed key bytes for reproducible test
@@ -622,14 +632,14 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "8Mm4hJfW7j9FhxzrpUHyP9vGhiZmUy7iqzTZBvPGY7vG",
+            "ARjYRYoDMcoQmVFY9BMLFJggmLLiH48bMvRkWSxwvjZ4",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
-            let root_key = RootChannelKey::new(sk);
-            let bidi_author_secret = BidiAuthorSecret {
+            let root_key: RootChannelKey<CS> = RootChannelKey::new(sk);
+            let bidi_author_secret: BidiAuthorSecret<CS> = BidiAuthorSecret {
                 key: root_key,
                 id: OnceCell::new(),
             };
