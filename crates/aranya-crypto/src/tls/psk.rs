@@ -1,10 +1,10 @@
 use core::{cell::OnceCell, fmt, marker::PhantomData};
 
 use buggy::{Bug, BugExt};
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     aead::Tag,
-    hpke::Mode,
     kdf::{self, Kdf},
     keys::SecretKeyBytes,
 };
@@ -16,11 +16,12 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
+    hpke::{self, Mode},
     id::{custom_id, IdError, Identified},
     policy::{GroupId, PolicyId},
     subtle::{Choice, ConstantTimeEq},
     tls::CipherSuiteId,
-    util::{self, Hpke},
+    util,
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
     Csprng, Random,
 };
@@ -72,6 +73,7 @@ custom_id! {
 /// assert!(bool::from(psk1.ct_eq(&psk2)));
 /// # }
 /// ```
+#[derive_where(Clone)]
 pub struct PskSeed<CS: CipherSuite> {
     prk: Prk<CS>,
     // The ID is computed with `labeled_expand(...)`, which can
@@ -175,16 +177,19 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         if &self.public()? == peer_pk {
             return Err(Error::InvalidArgument("same `EncryptionKey`"));
         }
-        // info = H(
+        // info = concat(
         //     "PskSeed-v1",
-        //     suite_id,
         //     group,
         // )
-        let info = CS::tuple_hash(b"PskSeed-v1", [group.as_bytes()]);
-        let (enc, mut ctx) = Hpke::<CS>::setup_send(rng, Mode::Auth(&self.key), &peer_pk.0, &info)?;
+        let info = Info {
+            domain: *b"PskSeed-v1",
+            group: *group,
+        };
+        let (enc, mut ctx) =
+            hpke::setup_send::<CS, _>(rng, Mode::Auth(&self.key), &peer_pk.0, [info.as_bytes()])?;
         let mut ciphertext = seed.prk.clone().into_bytes().into_bytes();
         let mut tag = Tag::<CS::Aead>::default();
-        ctx.seal_in_place(&mut ciphertext, &mut tag, &info)
+        ctx.seal_in_place(&mut ciphertext, &mut tag, info.as_bytes())
             .inspect_err(|_| ciphertext.zeroize())?;
         Ok((Encap(enc), EncryptedPskSeed { ciphertext, tag }))
     }
@@ -203,28 +208,24 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
             tag,
         } = ciphertext;
 
-        // info = H(
+        // info = concat(
         //     "PskSeed-v1",
-        //     suite_id,
         //     group,
         // )
-        let info = CS::tuple_hash(b"PskSeed-v1", [group.as_bytes()]);
-        let mut ctx = Hpke::<CS>::setup_recv(Mode::Auth(&peer_pk.0), &encap.0, &self.key, &info)?;
-        ctx.open_in_place(&mut ciphertext, &tag, &info)?;
+        let info = Info {
+            domain: *b"PskSeed-v1",
+            group: *group,
+        };
+        let mut ctx = hpke::setup_recv::<CS>(
+            Mode::Auth(&peer_pk.0),
+            &encap.0,
+            &self.key,
+            [info.as_bytes()],
+        )?;
+        ctx.open_in_place(&mut ciphertext, &tag, info.as_bytes())?;
 
         let prk = Prk::<CS>::new(SecretKeyBytes::new(ciphertext));
         Ok(PskSeed::from_prk(prk))
-    }
-}
-
-impl<CS: CipherSuite> Clone for PskSeed<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            prk: self.prk.clone(),
-            id: self.id.clone(),
-            _marker: PhantomData,
-        }
     }
 }
 
@@ -270,6 +271,14 @@ impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+struct Info {
+    /// Always "PskSeed-v1".
+    domain: [u8; 10],
+    group: GroupId,
+}
+
 /// An encrypted [`PskSeed`].
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "CS: CipherSuite")]
@@ -304,7 +313,9 @@ impl<CS: CipherSuite> fmt::Debug for EncryptedPskSeed<CS> {
 /// PSKs.
 ///
 /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
+#[derive_where(Clone, Debug)]
 pub struct Psk<CS> {
+    #[derive_where(skip(Debug))]
     secret: [u8; 32],
     id: PskId,
     _marker: PhantomData<CS>,
@@ -329,26 +340,6 @@ impl<CS: CipherSuite> Psk<CS> {
     /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
     pub fn raw_secret_bytes(&self) -> &[u8] {
         &self.secret
-    }
-}
-
-impl<CS> Clone for Psk<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            secret: self.secret,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<CS> fmt::Debug for Psk<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid leaking `secret`.
-        f.debug_struct("Psk")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
     }
 }
 

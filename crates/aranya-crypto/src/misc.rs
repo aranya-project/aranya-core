@@ -370,6 +370,12 @@ macro_rules! sk_misc {
     ($name:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
+            #[derive(
+                ::zerocopy::Immutable,
+                ::zerocopy::IntoBytes,
+                ::zerocopy::KnownLayout,
+                ::zerocopy::Unaligned,
+            )]
             pub struct $id;
         }
 
@@ -400,6 +406,12 @@ macro_rules! sk_misc {
     ($name:ident, $pk:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
+            #[derive(
+                ::zerocopy::Immutable,
+                ::zerocopy::IntoBytes,
+                ::zerocopy::KnownLayout,
+                ::zerocopy::Unaligned,
+            )]
             pub struct $id;
         }
 
