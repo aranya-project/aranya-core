@@ -244,6 +244,7 @@ dependencies = [
  "cfg-if",
  "ciborium",
  "ciborium-io",
+ "criterion 0.6.0",
  "postcard",
  "proptest",
  "proptest-derive",
@@ -301,7 +302,7 @@ dependencies = [
  "byteorder",
  "cfg-if",
  "const_format",
- "criterion",
+ "criterion 0.6.0",
  "errno",
  "heapless 0.8.0",
  "hex",
@@ -525,7 +526,7 @@ dependencies = [
  "aranya-runtime",
  "buggy",
  "clap",
- "criterion",
+ "criterion 0.5.1",
  "directories-next",
  "heapless 0.8.0",
  "postcard",
@@ -1023,6 +1024,29 @@ dependencies = [
  "serde_json",
  "tinytemplate",
  "tokio",
+ "walkdir",
+]
+
+[[package]]
+name = "criterion"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bf7af66b0989381bd0be551bd7cc91912a655a58c6918420c9527b1fd8b4679"
+dependencies = [
+ "anes",
+ "cast",
+ "ciborium",
+ "clap",
+ "criterion-plot",
+ "itertools 0.13.0",
+ "num-traits",
+ "oorandom",
+ "plotters",
+ "rayon",
+ "regex",
+ "serde",
+ "serde_json",
+ "tinytemplate",
  "walkdir",
 ]
 
@@ -1726,6 +1750,15 @@ name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]

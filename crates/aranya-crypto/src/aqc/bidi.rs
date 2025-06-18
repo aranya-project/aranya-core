@@ -133,7 +133,6 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
     pub(crate) const fn author_info(&self) -> Info {
         // info = concat(
         //     "AqcBidiPsk-v1",
-        //     suite_id,
         //     iso2p(psk_length_in_bytes, 2),
         //     parent_cmd_id,
         //     author_id,

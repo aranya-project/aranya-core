@@ -106,7 +106,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 aranya-fast-channels = { path = ".", features = ["testing"] }
 
-criterion = { version = "0.5" }
+criterion = { workspace = true }
 serial_test = { version = "3.1.1" }
 
 

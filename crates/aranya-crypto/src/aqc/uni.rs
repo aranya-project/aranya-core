@@ -135,7 +135,6 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
     pub(crate) const fn info(&self) -> Info {
         // info = concat(
         //     "AqcUniPsk-v1",
-        //     suite_id,
         //     i2osp(psk_length_in_bytes, 2),
         //     parent_cmd_id,
         //     seal_id,
