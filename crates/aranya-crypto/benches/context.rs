@@ -58,7 +58,7 @@ fn bench_expand<K: Kdf>(c: &mut Criterion, name: &str) {
     }
 
     let out_sizes = [32, 64, 128, 256];
-    let info_sizes = [/*0, 16, 32, 64,*/ 128, 256];
+    let info_sizes = [0, 16, 32, 64, 128, 256];
 
     let mut g = c.benchmark_group(name);
     for out_size in out_sizes {
