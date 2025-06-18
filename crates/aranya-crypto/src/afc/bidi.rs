@@ -212,7 +212,7 @@ pub(crate) struct Info {
 
 /// A bidirectional channel author's secret.
 pub struct BidiAuthorSecret<CS: CipherSuite> {
-    key: RootChannelKey<CS>,
+    sk: RootChannelKey<CS>,
     id: OnceCell<Result<BidiAuthorSecretId, IdError>>,
 }
 
@@ -221,8 +221,8 @@ sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
 unwrapped! {
     name: BidiAuthorSecret;
     type: Decap;
-    into: |key: Self| { key.key.into_inner() };
-    from: |key| { Self { key: RootChannelKey::new(key), id: OnceCell::new() } };
+    into: |key: Self| { key.sk.into_inner() };
+    from: |key| { Self { sk: RootChannelKey::new(key), id: OnceCell::new() } };
 }
 
 /// A bidirectional channel peer's encapsulated secret.
@@ -295,8 +295,8 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
         let root_sk = RootChannelKey::random(eng);
         let peer = {
             let (enc, _) = hpke::setup_send_deterministically::<CS>(
-                Mode::Auth(&author_sk.key),
-                &peer_pk.0,
+                Mode::Auth(&author_sk.sk),
+                &peer_pk.pk,
                 [ch.author_info().as_bytes()],
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
@@ -307,7 +307,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
             }
         };
         let author = BidiAuthorSecret {
-            key: root_sk,
+            sk: root_sk,
             id: OnceCell::new(),
         };
 
@@ -344,10 +344,10 @@ impl<CS: CipherSuite> BidiKeys<CS> {
         }
 
         let (_, ctx) = hpke::setup_send_deterministically::<CS>(
-            Mode::Auth(&author_sk.key),
-            &peer_pk.0,
+            Mode::Auth(&author_sk.sk),
+            &peer_pk.pk,
             [ch.author_info().as_bytes()],
-            secret.key.into_inner(),
+            secret.sk.into_inner(),
         )?;
 
         // See section 9.8 of RFC 9180.
@@ -384,9 +384,9 @@ impl<CS: CipherSuite> BidiKeys<CS> {
         }
 
         let ctx = hpke::setup_recv::<CS>(
-            Mode::Auth(&author_pk.0),
+            Mode::Auth(&author_pk.pk),
             enc.as_inner(),
-            &peer_sk.key,
+            &peer_sk.sk,
             [ch.peer_info().as_bytes()],
         )?;
 

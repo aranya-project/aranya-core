@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use core::{cell::OnceCell, marker::PhantomData, result::Result};
+use core::{cell::OnceCell, iter, marker::PhantomData, result::Result};
 
 use buggy::Bug;
 use derive_where::derive_where;
@@ -73,7 +73,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
                 //     {0}^0,
                 // )
                 const DOMAIN: &[u8] = b"GroupKeyId-v1";
-                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
+                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
                 CS::labeled_expand(DOMAIN, &prk, b"id", [])
                     .map_err(|_| IdError::new("unable to expand PRK"))
                     .map(GroupKeyId)
@@ -209,7 +209,12 @@ impl<CS: CipherSuite> GroupKey<CS> {
         //     "EventKey_key",
         //     info,
         // )
-        let prk = CS::labeled_extract(b"kdf-ext-v1", &[], b"EventKey_prk", &self.seed);
+        let prk = CS::labeled_extract(
+            b"kdf-ext-v1",
+            &[],
+            b"EventKey_prk",
+            iter::once::<&[u8]>(&self.seed),
+        );
         let key: KeyData<CS::Aead> =
             CS::labeled_expand(b"kdr-exp-v1", &prk, b"EventKey_key", [info])?;
         Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
