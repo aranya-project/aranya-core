@@ -30,7 +30,7 @@ use crate::{
     engine::unwrapped,
     error::Error,
     id::{custom_id, IdError},
-    misc::{ciphertext, key_misc},
+    misc::{ciphertext, kem_key, signing_key},
 };
 
 /// A sender's identity.
@@ -384,25 +384,16 @@ impl<CS: CipherSuite> TopicKey<CS> {
 
 ciphertext!(EncryptedTopicKey, U64, "An encrypted [`TopicKey`].");
 
-/// The private half of a [SenderSigningKey].
-///
-/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
-pub struct SenderSigningKey<CS: CipherSuite> {
-    key: <CS::Signer as Signer>::SigningKey,
-    id: OnceCell<Result<SenderSigningKeyId, IdError>>,
+signing_key! {
+    /// The private half of a [SenderSigningKey].
+    ///
+    /// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
+    sk = SenderSigningKey,
+    pk = SenderVerifyingKey,
+    id = SenderSigningKeyId,
 }
 
-key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
-
 impl<CS: CipherSuite> SenderSigningKey<CS> {
-    /// Creates a `SenderSigningKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        SenderSigningKey {
-            key: Random::random(rng),
-            id: OnceCell::new(),
-        }
-    }
-
     /// Creates a signature over an encoded record.
     ///
     /// # Example
@@ -479,18 +470,6 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
     }
 }
 
-unwrapped! {
-    name: SenderSigningKey;
-    type: Signing;
-    into: |key: Self| { key.key };
-    from: |key| { Self { key, id: OnceCell::new() } };
-}
-
-/// The public half of a [SenderSigningKey].
-///
-/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
-pub struct SenderVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
-
 impl<CS: CipherSuite> SenderVerifyingKey<CS> {
     /// Verifies the signature allegedly created over an encoded
     /// record.
@@ -523,57 +502,25 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
     }
 }
 
-/// The private half of a [SenderKey].
-///
-/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
-pub struct SenderSecretKey<CS: CipherSuite> {
-    key: <CS::Kem as Kem>::DecapKey,
-    id: OnceCell<Result<SenderKeyId, IdError>>,
+kem_key! {
+    /// The private half of a [SenderKey].
+    ///
+    /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
+    sk = SenderSecretKey,
+    pk = SenderPublicKey,
+    id = SenderKeyId,
 }
 
-key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
-
-impl<CS: CipherSuite> SenderSecretKey<CS> {
-    /// Creates a `SenderSecretKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        SenderSecretKey {
-            key: Random::random(rng),
-            id: OnceCell::new(),
-        }
-    }
+kem_key! {
+    /// The private half of a [ReceiverKey].
+    ///
+    /// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
+    sk = ReceiverSecretKey,
+    pk = ReceiverPublicKey,
+    id = ReceiverKeyId,
 }
-
-unwrapped! {
-    name: SenderSecretKey;
-    type: Decap;
-    into: |key: Self| { key.key };
-    from: |key| { Self { key, id: OnceCell::new() } };
-}
-
-/// The public half of a [SenderKey].
-///
-/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
-pub struct SenderPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
-
-/// The private half of a [ReceiverKey].
-///
-/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
-pub struct ReceiverSecretKey<CS: CipherSuite> {
-    key: <CS::Kem as Kem>::DecapKey,
-    id: OnceCell<Result<ReceiverKeyId, IdError>>,
-}
-
-key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
-    /// Creates a `ReceiverSecretKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        ReceiverSecretKey {
-            key: Random::random(rng),
-            id: OnceCell::new(),
-        }
-    }
-
     /// Decrypts and authenticates a [`TopicKey`] received from
     /// a peer.
     pub fn open_topic_key(
@@ -608,9 +555,9 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         //     ad=ad,
         // )
         let mut ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
-            Mode::Auth(&pk.0),
+            Mode::Auth(&pk.pk),
             &enc.0,
-            &self.key,
+            &self.sk,
             &ad,
         )?;
         let mut seed = [0u8; 64];
@@ -618,18 +565,6 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         TopicKey::from_seed(seed, version, topic)
     }
 }
-
-unwrapped! {
-    name: ReceiverSecretKey;
-    type: Decap;
-    into: |key: Self| { key.key };
-    from: |key| { Self { key, id: OnceCell::new() } };
-}
-
-/// The public half of a [ReceiverKey].
-///
-/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
-pub struct ReceiverPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
 
 impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// Encrypts and authenticates the [`TopicKey`] such that it
@@ -737,7 +672,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         //     ad=ad,
         // )
         let (enc, mut ctx) =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Auth(&sk.key), &self.0, &ad)?;
+            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Auth(&sk.sk), &self.0, &ad)?;
         let mut dst = GenericArray::default();
         ctx.seal(&mut dst, &key.seed, &ad)?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))

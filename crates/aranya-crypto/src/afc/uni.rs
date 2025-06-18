@@ -182,7 +182,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 
 /// A unirectional channel author's secret.
 pub struct UniAuthorSecret<CS: CipherSuite> {
-    key: RootChannelKey<CS>,
+    sk: RootChannelKey<CS>,
     id: OnceCell<Result<UniAuthorSecretId, IdError>>,
 }
 
@@ -191,8 +191,8 @@ sk_misc!(UniAuthorSecret, UniAuthorSecretId);
 unwrapped! {
     name: UniAuthorSecret;
     type: Decap;
-    into: |key: Self| { key.key.into_inner() };
-    from: |key| { Self { key: RootChannelKey::new(key), id: OnceCell::new() } };
+    into: |key: Self| { key.sk.into_inner() };
+    from: |key| { Self { sk: RootChannelKey::new(key), id: OnceCell::new() } };
 }
 
 /// A unirectional channel peer's encapsulated secret.
@@ -263,8 +263,8 @@ impl<CS: CipherSuite> UniSecrets<CS> {
         let root_sk = RootChannelKey::random(eng);
         let peer = {
             let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                Mode::Auth(&author_sk.key),
-                &peer_pk.0,
+                Mode::Auth(&author_sk.sk),
+                &peer_pk.pk,
                 &ch.info(),
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
@@ -275,7 +275,7 @@ impl<CS: CipherSuite> UniSecrets<CS> {
             }
         };
         let author = UniAuthorSecret {
-            key: root_sk,
+            sk: root_sk,
             id: OnceCell::new(),
         };
 
@@ -310,8 +310,8 @@ macro_rules! uni_key {
                 }
 
                 let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                    Mode::Auth(&author_sk.key),
-                    &peer_pk.0,
+                    Mode::Auth(&author_sk.sk),
+                    &peer_pk.pk,
                     &ch.info(),
                     secret.key.into_inner(),
                 )?;
@@ -343,9 +343,9 @@ macro_rules! uni_key {
 
                 let info = ch.info();
                 let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
-                    Mode::Auth(&author_pk.0),
+                    Mode::Auth(&author_pk.pk),
                     enc.as_inner(),
-                    &peer_sk.key,
+                    &peer_sk.sk,
                     &info,
                 )?;
                 let key = {

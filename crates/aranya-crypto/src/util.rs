@@ -45,4 +45,6 @@ pub mod cbor {
 }
 
 #[cfg(feature = "tls")]
-pub(crate) const fn is_zeroize_on_drop<T: crate::zeroize::ZeroizeOnDrop>(_: &T) {}
+pub(crate) const fn val_is_zeroize_on_drop<T: crate::zeroize::ZeroizeOnDrop>(_: &T) {}
+
+pub(crate) const fn type_is_zeroize_on_drop<T: crate::zeroize::ZeroizeOnDrop>() {}
