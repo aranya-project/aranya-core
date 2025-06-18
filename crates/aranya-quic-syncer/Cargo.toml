@@ -24,6 +24,7 @@ tracing = { workspace = true }
 
 [dev-dependencies]
 aranya-crypto = { path = "../aranya-crypto", features = ["std"] }
+aranya-runtime = { path = "../aranya-runtime", features = ["std", "testing"] }
 
 criterion = { workspace = true, features = ["async_tokio"] }
 rcgen = { version = "0.13", default-features = false, features = ["pem", "aws_lc_rs"] }
