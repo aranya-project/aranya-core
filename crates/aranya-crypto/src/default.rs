@@ -1,6 +1,6 @@
 //! Default implementations.
 
-use serde::{Deserialize, Serialize};
+use derive_where::derive_where;
 pub use spideroak_crypto::default::Rng;
 use spideroak_crypto::{
     aead::{Aead, Nonce, Tag},
@@ -194,8 +194,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
 }
 
 /// Encrypted [`RawSecret`] bytes.
-#[derive(Serialize, Deserialize)]
-#[serde(bound = "")]
+#[derive_where(Clone, Serialize, Deserialize)]
 enum Ciphertext<CS: CipherSuite> {
     Aead(GenericArray<u8, <<CS::Aead as Aead>::Key as SecretKey>::Size>),
     Decap(GenericArray<u8, <<CS::Kem as Kem>::DecapKey as SecretKey>::Size>),
@@ -224,19 +223,6 @@ impl<CS: CipherSuite> Ciphertext<CS> {
     }
 }
 
-impl<CS: CipherSuite> Clone for Ciphertext<CS> {
-    fn clone(&self) -> Self {
-        match self {
-            Self::Aead(v) => Self::Aead(v.clone()),
-            Self::Decap(v) => Self::Decap(v.clone()),
-            Self::Mac(v) => Self::Mac(v.clone()),
-            Self::Prk(v) => Self::Prk(v.clone()),
-            Self::Seed(v) => Self::Seed(*v),
-            Self::Signing(v) => Self::Signing(v.clone()),
-        }
-    }
-}
-
 impl<CS: CipherSuite> Ciphertext<CS> {
     fn as_bytes_mut(&mut self) -> &mut [u8] {
         match self {
@@ -251,24 +237,12 @@ impl<CS: CipherSuite> Ciphertext<CS> {
 }
 
 /// A key wrapped by [`DefaultEngine`].
-#[derive(Serialize, Deserialize)]
-#[serde(bound = "")]
+#[derive_where(Clone, Serialize, Deserialize)]
 pub struct WrappedKey<CS: CipherSuite> {
     id: Id,
     nonce: GenericArray<u8, <CS::Aead as Aead>::NonceSize>,
     ciphertext: Ciphertext<CS>,
     tag: Tag<CS::Aead>,
-}
-
-impl<CS: CipherSuite> Clone for WrappedKey<CS> {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            nonce: self.nonce.clone(),
-            ciphertext: self.ciphertext.clone(),
-            tag: self.tag.clone(),
-        }
-    }
 }
 
 impl<CS: CipherSuite> engine::WrappedKey for WrappedKey<CS> {}
