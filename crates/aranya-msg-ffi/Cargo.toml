@@ -34,6 +34,9 @@ testing = [
 	"aranya-crypto/memstore",
 ]
 
+# Enable debug features.
+debug = []
+
 [dependencies]
 aranya-crypto = { version = "0.7.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
 aranya-policy-vm = { version = "0.10.0", path = "../aranya-policy-vm", features = ["derive"] }
@@ -44,9 +47,7 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-aranya-msg-ffi = { path = ".", features = ["testing"] }
-
-aranya-crypto = { path = "../aranya-crypto", features = ["alloc"] }
+aranya-crypto = { path = "../aranya-crypto", features = ["alloc", "memstore"] }
 
 [package.metadata.docs.rs]
 all-features = true

@@ -363,7 +363,6 @@ name = "aranya-msg-ffi"
 version = "0.10.0"
 dependencies = [
  "aranya-crypto",
- "aranya-msg-ffi",
  "aranya-policy-vm",
  "postcard",
  "serde",
