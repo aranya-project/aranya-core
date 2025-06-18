@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- feature gate test protocol engine and ID test hashing ([#221](https://github.com/aranya-project/aranya-core/pull/221))
 - use `CS::tuple_hash` for merge ID ([#219](https://github.com/aranya-project/aranya-core/pull/219))
 - use custom types for identifiers and text ([#231](https://github.com/aranya-project/aranya-core/pull/231))
 

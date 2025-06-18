@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Other
 
+- update to `spideroak-crypto` v0.6 ([#300](https://github.com/aranya-project/aranya-core/pull/300))
+- hide DhKemP256HkdfSha256 in private module ([#306](https://github.com/aranya-project/aranya-core/pull/306))
+- use derive-where for better derive bounds ([#297](https://github.com/aranya-project/aranya-core/pull/297))
 - encrypt PSK seeds for other devices ([#296](https://github.com/aranya-project/aranya-core/pull/296))
 - add routines to compute label and role IDs ([#294](https://github.com/aranya-project/aranya-core/pull/294))
 - cache computed IDs ([#285](https://github.com/aranya-project/aranya-core/pull/285))
