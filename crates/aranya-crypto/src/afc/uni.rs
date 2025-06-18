@@ -1,8 +1,15 @@
 use core::cell::OnceCell;
 
 use buggy::BugExt;
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
-use spideroak_crypto::{csprng::Random, import::ImportError, kem::Kem};
+use spideroak_crypto::{
+    csprng::Random,
+    hash::{Digest, Hash},
+    hpke::{Hpke, Mode},
+    import::ImportError,
+    kem::Kem,
+};
 use zerocopy::{
     byteorder::{BE, U32},
     ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
@@ -203,7 +210,7 @@ unwrapped! {
 /// A unirectional channel peer's encapsulated secret.
 ///
 /// This should be freely shared with the channel peer.
-#[derive(Serialize, Deserialize)]
+#[derive_where(Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct UniPeerEncap<CS: CipherSuite> {
     encap: Encap<CS>,

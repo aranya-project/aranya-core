@@ -158,6 +158,7 @@ byteorder = { workspace = true, default-features = false, optional = true }
 cfg-if = { workspace = true, default-features = false, optional = true }
 ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
+derive-where = { workspace = true, default-features = false, features = ["serde"] }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }

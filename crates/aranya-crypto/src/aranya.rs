@@ -4,6 +4,7 @@
 
 use core::{borrow::Borrow, cell::OnceCell, fmt, marker::PhantomData, result::Result};
 
+use derive_where::derive_where;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use spideroak_crypto::{
     aead::Tag,
@@ -27,6 +28,7 @@ use crate::{
 };
 
 /// A signature created by a signing key.
+#[derive_where(Clone, Debug)]
 pub struct Signature<CS: CipherSuite>(pub(crate) <CS::Signer as Signer>::Signature);
 
 impl<CS: CipherSuite> Signature<CS> {
@@ -47,18 +49,6 @@ impl<CS: CipherSuite> Signature<CS> {
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
         let sig = <CS::Signer as Signer>::Signature::import(data)?;
         Ok(Self(sig))
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for Signature<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Signature").field(&self.0).finish()
-    }
-}
-
-impl<CS: CipherSuite> Clone for Signature<CS> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
     }
 }
 

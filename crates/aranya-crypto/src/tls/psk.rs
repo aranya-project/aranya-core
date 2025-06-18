@@ -1,6 +1,7 @@
 use core::{cell::OnceCell, fmt, marker::PhantomData};
 
 use buggy::{Bug, BugExt};
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     aead::Tag,
@@ -72,6 +73,7 @@ custom_id! {
 /// assert!(bool::from(psk1.ct_eq(&psk2)));
 /// # }
 /// ```
+#[derive_where(Clone)]
 pub struct PskSeed<CS: CipherSuite> {
     prk: Prk<CS>,
     // The ID is computed with `labeled_expand(...)`, which can
@@ -227,17 +229,6 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
     }
 }
 
-impl<CS: CipherSuite> Clone for PskSeed<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            prk: self.prk.clone(),
-            id: self.id.clone(),
-            _marker: PhantomData,
-        }
-    }
-}
-
 impl<CS: CipherSuite> fmt::Debug for PskSeed<CS> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // Avoid leaking `seed`.
@@ -322,7 +313,9 @@ impl<CS: CipherSuite> fmt::Debug for EncryptedPskSeed<CS> {
 /// PSKs.
 ///
 /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
+#[derive_where(Clone, Debug)]
 pub struct Psk<CS> {
+    #[derive_where(skip(Debug))]
     secret: [u8; 32],
     id: PskId,
     _marker: PhantomData<CS>,
@@ -347,26 +340,6 @@ impl<CS: CipherSuite> Psk<CS> {
     /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
     pub fn raw_secret_bytes(&self) -> &[u8] {
         &self.secret
-    }
-}
-
-impl<CS> Clone for Psk<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            secret: self.secret,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<CS> fmt::Debug for Psk<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid leaking `secret`.
-        f.debug_struct("Psk")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
     }
 }
 
