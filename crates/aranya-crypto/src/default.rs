@@ -58,8 +58,6 @@ mod __private {
         pub struct DhKemP256HkdfSha256(rust::DhKemP256HkdfSha256) => DHKEM_P256_HKDF_SHA256
     }
 }
-
-// Expose the newtype for crate-local tests, but keep it hidden externally.
 pub(crate) use __private::DhKemP256HkdfSha256;
 
 /// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
