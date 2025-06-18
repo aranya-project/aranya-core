@@ -116,11 +116,11 @@ impl<S: AfcState> Client<S> {
         let (rest, header) = data
             .split_last_chunk_mut()
             .assume("we've already checked that `data` can fit a header")?;
-        #[allow(clippy::incompatible_msrv)] // clippy#12280
         let split_pos = rest
             .len()
             .checked_sub(Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
+        #[allow(clippy::incompatible_msrv)] // clippy#12280
         let (out, tag) = rest
             .split_at_mut_checked(split_pos)
             .assume("split position is within bounds")?;
@@ -256,7 +256,6 @@ impl<S: AfcState> Client<S> {
                 .split_last_chunk_mut()
                 .ok_or(HeaderError::InvalidSize)?;
             let DataHeader { label, seq, .. } = DataHeader::try_parse(header)?;
-            #[allow(clippy::incompatible_msrv)] // clippy#12280
             let split_pos = rest
                 .len()
                 .checked_sub(Self::TAG_SIZE)
@@ -264,6 +263,7 @@ impl<S: AfcState> Client<S> {
                 // definition we cannot authenticate the
                 // ciphertext.
                 .ok_or(Error::Authentication)?;
+            #[allow(clippy::incompatible_msrv)] // clippy#12280
             let (ciphertext, tag) = rest
                 .split_at_mut_checked(split_pos)
                 .ok_or(Error::Authentication)?;

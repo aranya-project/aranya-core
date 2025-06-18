@@ -953,6 +953,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
                 // As a precaution, update the generation before
                 // we actually delete anything.
                 let generation = self.generation.fetch_add(1, Ordering::AcqRel);
+                // Note: generation counter can wrap after 2^32 operations, which is acceptable
+                // for this use case as it's used for cache invalidation, not security.
                 debug!("side generation={}", generation.saturating_add(1));
 
                 updated = true;
