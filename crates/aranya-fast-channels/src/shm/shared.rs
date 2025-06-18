@@ -14,6 +14,7 @@ use aranya_crypto::{
 };
 use buggy::{Bug, BugExt};
 use cfg_if::cfg_if;
+use derive_where::derive_where;
 
 use super::{
     align::{is_aligned_to, layout_repeat, CacheAligned},
@@ -343,6 +344,7 @@ impl PartialEq<Op> for ChanDirection {
 ///
 /// All integers are little endian.
 #[repr(C)]
+#[derive_where(Clone, Debug)]
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
     pub magic: U32,
@@ -356,8 +358,10 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     /// The current encryption sequence counter.
     pub seq: U64,
     /// The key/nonce used to encrypt data for the channel peer.
+    #[derive_where(skip(Debug))]
     pub seal_key: RawSealKey<CS>,
     /// The key/nonce used to decrypt data from the channel peer.
+    #[derive_where(skip(Debug))]
     pub open_key: RawOpenKey<CS>,
     /// Uniquely identifies `seal_key` and `open_key`.
     pub key_id: KeyId,
@@ -496,34 +500,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
     }
 }
 
-impl<CS: CipherSuite> Clone for ShmChan<CS> {
-    fn clone(&self) -> Self {
-        Self {
-            magic: self.magic,
-            node_id: self.node_id,
-            label: self.label,
-            direction: self.direction,
-            seq: self.seq,
-            seal_key: self.seal_key.clone(),
-            open_key: self.open_key.clone(),
-            key_id: self.key_id,
-        }
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for ShmChan<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ShmChan")
-            .field("magic", &self.magic)
-            .field("node_id", &self.node_id)
-            .field("label", &self.label)
-            .field("direction", &self.direction)
-            .field("seq", &self.seq)
-            .field("key_id", &self.key_id)
-            .finish_non_exhaustive()
-    }
-}
-
 /// Describes the memory layout of a [`SharedMem`].
 pub(super) struct ShmLayout {
     layout: Layout,
@@ -565,7 +541,7 @@ impl ShmLayout {
     ),
     repr(C, align(32))
 )]
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct SharedMem<CS> {
     /// Identifies this memory as a [`SharedMem`].
     ///
@@ -734,7 +710,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
     ),
     repr(C, align(32))
 )]
-#[derive(Debug)]
+#[derive_where(Debug)]
 struct ChanList<CS> {
     /// Identifies this memory as a [`ChanList`].
     ///
@@ -815,7 +791,7 @@ impl<CS: CipherSuite> ChanList<CS> {
 ///
 /// Broken out separately so it can be placed inside a [`Mutex`].
 #[repr(C, align(8))]
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct ChanListData<CS> {
     /// The current generation.
     ///

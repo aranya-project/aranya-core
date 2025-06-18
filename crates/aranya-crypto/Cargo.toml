@@ -12,6 +12,7 @@ rust-version.workspace = true
 workspace = true
 
 [lib]
+bench = false
 
 [features]
 default = [
@@ -151,12 +152,13 @@ trng = ["spideroak-crypto/trng"]
 buggy = { version = "0.1.0", default-features = false }
 
 spideroak-base58 = { version = "0.2.0", default-features = false }
-spideroak-crypto = { version = "0.5.2", default-features = false, features = ["serde"] }
+spideroak-crypto = { version = "0.6.0", default-features = false, features = ["serde"] }
 
 byteorder = { workspace = true, default-features = false, optional = true }
 cfg-if = { workspace = true, default-features = false, optional = true }
 ciborium = { version = "0.2", default-features = false, optional = true }
 ciborium-io = { version = "0.2", default-features = false, optional = true }
+derive-where = { workspace = true, default-features = false, features = ["serde"] }
 proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
 proptest-derive = { workspace = true, optional = true }
 rustix = { version = "0.38", default-features = false, features = ["fs"], optional = true }
@@ -171,11 +173,16 @@ zerocopy = { version = "0.8", default-features = false, features = ["derive"] }
 # examples.
 aranya-crypto = { path = ".", features = ["alloc", "test_util"] }
 
+criterion = { workspace = true }
 postcard = { workspace = true, features = ["alloc"] }
 rand = { workspace = true, features = ["std", "std_rng"] }
 serde = { workspace = true, default-features = false, features = ["derive"] }
 serde_json = { version = "1", default-features = false }
 tempfile = { version = "3" }
+
+[[bench]]
+name = "context"
+harness = false
 
 [[example]]
 name = "hsm"
