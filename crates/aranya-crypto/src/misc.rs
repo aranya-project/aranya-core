@@ -269,12 +269,12 @@ macro_rules! sk_misc {
             pub fn id(&self) -> Result<$id, $crate::id::IdError> {
                 self.id
                     .get_or_init(|| {
-                        const CONTEXT: &'static str = ::core::stringify!($sk);
+                        let context = <$name<CS>>::CONTEXT;
 
                         let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.key.public()?);
                         let id = $crate::id::Id::new::<CS>(
                             ::core::borrow::Borrow::borrow(&pk),
-                            CONTEXT.as_bytes(),
+                            context.as_bytes(),
                         );
                         Ok($id(id))
                     })

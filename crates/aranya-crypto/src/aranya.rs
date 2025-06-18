@@ -111,6 +111,7 @@ pub struct IdentityKey<CS: CipherSuite> {
 key_misc!(IdentityKey, IdentityVerifyingKey, DeviceId);
 
 impl<CS: CipherSuite> IdentityKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "Device Identity Key";
     /// Creates an `IdentityKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         IdentityKey {
@@ -207,6 +208,7 @@ pub struct SigningKey<CS: CipherSuite> {
 key_misc!(SigningKey, VerifyingKey, SigningKeyId);
 
 impl<CS: CipherSuite> SigningKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "Signing Key";
     /// Creates a `SigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         SigningKey {
@@ -376,6 +378,7 @@ pub struct EncryptionKey<CS: CipherSuite> {
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "Encryption Key";
     /// Creates a devices's `EncryptionKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         EncryptionKey {
@@ -519,5 +522,106 @@ where
             }
         }
         d.deserialize_bytes(EncapVisitor(PhantomData))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust, signer::Signer};
+
+    use super::*;
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        Ed25519,
+    >;
+
+    /// Golden test for [`IdentityKey`] IDs.
+    #[test]
+    fn test_identity_key_id() {
+        let tests = [(
+            // Fixed key bytes for reproducible test
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "F7vhWpkKzLNUw8v6NqHvgkSGNFhtGdcLKbKRCQTxgXpe",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
+                .expect("should import signing key");
+            let identity_key: IdentityKey<CS> = IdentityKey {
+                key: sk,
+                id: OnceCell::new(),
+            };
+
+            let got_id = identity_key.id().expect("should compute ID");
+            let expected = DeviceId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
+    }
+
+    /// Golden test for [`SigningKey`] IDs.
+    #[test]
+    fn test_signing_key_id() {
+        let tests = [(
+            // Fixed key bytes for reproducible test
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "EcGxqMJRiRUAFXkqFhkmPNBx43r5F9kqxT1yLFwKAmCd",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
+                .expect("should import signing key");
+            let signing_key: SigningKey<CS> = SigningKey {
+                key: sk,
+                id: OnceCell::new(),
+            };
+
+            let got_id = signing_key.id().expect("should compute ID");
+            let expected = SigningKeyId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
+    }
+
+    /// Golden test for [`EncryptionKey`] IDs.
+    #[test]
+    fn test_encryption_key_id() {
+        let tests = [(
+            // Fixed key bytes for reproducible test
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "CZQkdD8g6Ku1Y5DJDfGqfp9P1GaVTCJw3tKUrUvCPUTC",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
+                .expect("should import decap key");
+            let encryption_key: EncryptionKey<CS> = EncryptionKey {
+                key: sk,
+                id: OnceCell::new(),
+            };
+
+            let got_id = encryption_key.id().expect("should compute ID");
+            let expected = EncryptionKeyId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
     }
 }
