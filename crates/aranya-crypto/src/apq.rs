@@ -61,6 +61,34 @@ impl Version {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+    use spideroak_crypto::rust;
+
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        spideroak_crypto::ed25519::Ed25519,
+    >;
+
+    /// Golden test for [`TopicKey::id`] with a zeroed seed, version 0, empty topic.
+    #[test]
+    fn test_topic_key_id_zero() {
+        let seed = [0u8; 64];
+        let version = Version::new(0);
+        let topic = Topic::new(b"");
+        let key = TopicKey::<CS>::from_seed(seed, version, &topic).unwrap();
+        let got = key.id().unwrap();
+        let want = TopicKeyId::decode("8Skv8TwywX18r79PvZYTBPp6weCEGZSj9dhvTptacvgx").unwrap();
+        assert_eq!(got, want);
+    }
+}
+
 /// The APQ topic being used.
 #[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Topic([u8; 16]);

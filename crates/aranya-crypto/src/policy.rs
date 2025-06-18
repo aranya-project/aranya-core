@@ -244,4 +244,14 @@ mod tests {
             assert_eq!(got, want, "#{i}");
         }
     }
+    /// Helper to print the MergeCommandId for two default `CmdId`s.
+    ///
+    /// Run with `-- --nocapture` to update the golden value.
+    /// Golden test for [`merge_cmd_id`] of two default `CmdId`s.
+    #[test]
+    fn test_merge_cmd_default() {
+        let got = merge_cmd_id::<CS>(CmdId::default(), CmdId::default());
+        let want = CmdId::decode("8G66oCqtaEvfKN5rP1jb3kykp8qxzQVXqRQJBCMWR1yE").unwrap();
+        assert_eq!(got, want);
+    }
 }

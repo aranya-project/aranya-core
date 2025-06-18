@@ -257,6 +257,31 @@ impl<CS: CipherSuite> ConstantTimeEq for GroupKey<CS> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+    use spideroak_crypto::rust;
+
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        spideroak_crypto::ed25519::Ed25519,
+    >;
+
+    /// Golden test for [`GroupKey::id`] with a zeroed seed.
+    #[test]
+    fn test_group_key_id_zero() {
+        let key = GroupKey::<CS>::from_seed([0u8; 64]);
+        let got = key.id().unwrap();
+        let want = GroupKeyId::decode("7cgE8Z5ZFUg5iCxgnocQruUb3anU7WnZgoNG5aYDaJ4b").unwrap();
+        assert_eq!(got, want);
+    }
+}
+
 /// Contextual binding for [`GroupKey::seal`] and
 /// [`GroupKey::open`].
 pub struct Context<'a, CS: CipherSuite> {

@@ -423,3 +423,28 @@ impl fmt::Display for PskId {
         write!(f, "Psk-{id}-{suite}")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::policy::PolicyId;
+    use crate::tls::{CipherSuiteId, Psk, PskSeed};
+    use crate::{default::DefaultCipherSuite, Rng};
+
+    /// Golden test for [`PskSeed::id`] and [`Psk::identity`] with a zero IKM and TLS_AES_128_GCM_SHA256.
+    #[test]
+    fn test_psk_ids_zero() {
+        let seed = PskSeed::<DefaultCipherSuite>::from_ikm(&[0u8; 32], &PolicyId::default());
+        let got_seed_id = seed.id().unwrap();
+        let want_seed_id =
+            PskSeedId::decode("CqZDtMWqB1YFa6HVcT4Q9D9BtJp8x6A5Lht5ghcn2rDK").unwrap();
+        assert_eq!(got_seed_id, want_seed_id);
+
+        let psk = seed
+            .generate_psk(CipherSuiteId::TlsAes128GcmSha256)
+            .unwrap();
+        let got_psk_id = psk.identity();
+        let want_psk_id = PskId::from((want_seed_id, CipherSuiteId::TlsAes128GcmSha256));
+        assert_eq!(*got_psk_id, want_psk_id);
+    }
+}
