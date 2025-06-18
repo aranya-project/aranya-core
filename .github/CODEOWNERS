@@ -14,7 +14,7 @@
 /crates/aranya-device-ffi @chip-so @jdygert-spok
 /crates/aranya-envelope-ffi @elagergren-spideroak @ycarmy
 /crates/aranya-idam-ffi @elagergren-spideroak @ycarmy
-/crates/aranya-model @smckeon-so @jdygert-spok
+/crates/aranya-model @jdygert-spok
 /crates/aranya-perspective-ffi @apetkov-so @chip-so
 
 /crates/aranya-policy-* @chip-so @apetkov-so
