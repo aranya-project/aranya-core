@@ -1,5 +1,6 @@
 use core::{cell::OnceCell, fmt};
 
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     csprng::Random,
@@ -107,7 +108,7 @@ use crate::{
 /// assert!(bool::from(device1_psk.raw_secret_bytes().ct_eq(device2_psk.raw_secret_bytes())));
 /// # }
 /// ```
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub struct UniChannel<'a, CS: CipherSuite> {
     /// The size in bytes of the PSK.
     ///
@@ -175,7 +176,7 @@ unwrapped! {
 /// A unirectional channel peer's encapsulated secret.
 ///
 /// This should be freely shared with the channel peer.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive_where(Debug, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct UniPeerEncap<CS: CipherSuite> {
     encap: Encap<CS>,
@@ -273,8 +274,10 @@ impl<CS: CipherSuite> UniSecrets<CS> {
 
 /// The shared unidirectional channel secret used by both the
 /// channel author and channel peer to derive individual PSKs.
+#[derive_where(Debug)]
 pub struct UniSecret<CS: CipherSuite> {
     id: UniChannelId,
+    #[derive_where(skip(Debug))]
     ctx: SendOrRecvCtx<CS>,
 }
 
@@ -382,14 +385,6 @@ impl<CS: CipherSuite> UniSecret<CS> {
             suite,
         };
         Ok(self.ctx.export(context.as_bytes())?)
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for UniSecret<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("UniSecret")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
     }
 }
 
