@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.5.1](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.5.0...aranya-aqc-util-v0.5.1) - 2025-06-18
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.5.0...aranya-aqc-util-v0.6.0) - 2025-06-18
 
 ### Other
 

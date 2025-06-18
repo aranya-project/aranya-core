@@ -1,7 +1,7 @@
 [package]
 name = "aranya-aqc-util"
 description = "Utilities for Aranya QUIC Channels"
-version = "0.5.1"
+version = "0.6.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
