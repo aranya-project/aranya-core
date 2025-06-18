@@ -1,3 +1,6 @@
+//! Quick and dirty benchmarking of different methods of
+//! generating contextual binding for KDFs.
+
 use std::{hint::black_box, marker::PhantomData, time::Duration};
 
 use aranya_crypto::dangerous::spideroak_crypto::{
@@ -17,6 +20,7 @@ trait Spec<K: Kdf> {
     fn expand(out: &mut [u8], prk: &Prk<K::PrkSize>, info: &[u8]) -> Result<(), KdfError>;
 }
 
+/// Raw expansion without any additional processing.
 struct Raw<K>(PhantomData<K>);
 impl<K: Kdf> Spec<K> for Raw<K> {
     #[inline]
@@ -25,6 +29,7 @@ impl<K: Kdf> Spec<K> for Raw<K> {
     }
 }
 
+/// Hash the info before expanding.
 struct Hashed<K, H>(PhantomData<(K, H)>);
 impl<K, H> Spec<K> for Hashed<K, H>
 where
@@ -38,6 +43,19 @@ where
     }
 }
 
+// NB: This benchmark is written so that you see output like
+//
+// HKDF-SHA256/raw/32/0
+// HKDF-SHA256/hashed/32/0
+// HKDF-SHA256/raw/32/16
+// HKDF-SHA256/hashed/32/16
+//
+// instead of
+//
+// HKDF-SHA256/raw/32/0
+// HKDF-SHA256/raw/32/16
+// HKDF-SHA256/hashed/32/0
+// HKDF-SHA256/hashed/32/16
 fn bench_expand<K: Kdf>(c: &mut Criterion, name: &str) {
     fn bench<S, K, M>(g: &mut BenchmarkGroup<'_, M>, name: &str, out: &mut [u8], info: &[u8])
     where
@@ -47,7 +65,7 @@ fn bench_expand<K: Kdf>(c: &mut Criterion, name: &str) {
     {
         g.bench_with_input(
             BenchmarkId::new(name, format!("{}/{}", out.len(), info.len())),
-            &*info,
+            info,
             |b, info| {
                 let prk = S::extract(&[0; 32], &[]);
                 b.iter(|| {
