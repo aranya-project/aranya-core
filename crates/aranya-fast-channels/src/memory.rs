@@ -12,6 +12,7 @@ use aranya_crypto::{
     CipherSuite,
 };
 use buggy::{Bug, BugExt};
+use derive_where::derive_where;
 
 use crate::{
     error::Error,
@@ -21,25 +22,10 @@ use crate::{
 
 /// An im-memory implementation of [`AfcState`] and
 /// [`AranyaState`].
+#[derive_where(Clone, Default)]
 pub struct State<CS: CipherSuite> {
     #[allow(clippy::type_complexity)]
     chans: Arc<StdMutex<BTreeMap<ChannelId, Directed<SealKey<CS>, OpenKey<CS>>>>>,
-}
-
-impl<CS: CipherSuite> Clone for State<CS> {
-    fn clone(&self) -> Self {
-        State {
-            chans: self.chans.clone(),
-        }
-    }
-}
-
-impl<CS: CipherSuite> Default for State<CS> {
-    fn default() -> Self {
-        Self {
-            chans: Arc::default(),
-        }
-    }
 }
 
 impl<CS: CipherSuite> State<CS> {

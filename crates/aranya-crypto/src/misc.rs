@@ -259,6 +259,12 @@ macro_rules! sk_misc {
     ($name:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
+            #[derive(
+                ::zerocopy::Immutable,
+                ::zerocopy::IntoBytes,
+                ::zerocopy::KnownLayout,
+                ::zerocopy::Unaligned,
+            )]
             pub struct $id;
         }
 
@@ -289,6 +295,12 @@ macro_rules! sk_misc {
     ($name:ident, $pk:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
+            #[derive(
+                ::zerocopy::Immutable,
+                ::zerocopy::IntoBytes,
+                ::zerocopy::KnownLayout,
+                ::zerocopy::Unaligned,
+            )]
             pub struct $id;
         }
 
@@ -296,7 +308,7 @@ macro_rules! sk_misc {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             #[inline]
-            pub fn id(&self) -> Result<$id,$crate::id::IdError> {
+            pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
                 self.id
                     .get_or_init(|| self.public()?.id())
                     .clone()
@@ -304,8 +316,8 @@ macro_rules! sk_misc {
 
             /// Returns the public half of the key.
             #[inline]
-            pub fn public(&self) -> Result<$pk<CS>, $crate::dangerous::spideroak_crypto::signer::PkError> {
-                Ok($pk(self.key.public()?))
+            pub fn public(&self) -> ::core::result::Result<$pk<CS>, $crate::dangerous::spideroak_crypto::signer::PkError> {
+                ::core::result::Result::Ok($pk(self.key.public()?))
             }
         }
 
@@ -321,8 +333,15 @@ macro_rules! sk_misc_inner {
             fn clone(&self) -> Self {
                 Self {
                     key: ::core::clone::Clone::clone(&self.key),
-                    id: OnceCell::new(),
+                    id: ::core::cell::OnceCell::new(),
                 }
+            }
+        }
+
+        impl<CS: $crate::CipherSuite> $crate::subtle::ConstantTimeEq for $name<CS> {
+            #[inline]
+            fn ct_eq(&self, other: &Self) -> $crate::subtle::Choice {
+                $crate::subtle::ConstantTimeEq::ct_eq(&self.key, &other.key)
             }
         }
 
@@ -346,7 +365,7 @@ macro_rules! sk_misc_inner {
             type Id = $id;
 
             #[inline]
-            fn id(&self) -> Result<Self::Id, $crate::id::IdError> {
+            fn id(&self) -> ::core::result::Result<Self::Id, $crate::id::IdError> {
                 self.id()
             }
         }
@@ -362,9 +381,9 @@ macro_rules! pk_misc {
         impl<CS: $crate::CipherSuite> $name<CS> {
             #[doc = ::core::concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
-            pub fn id(&self) -> Result<$id, $crate::id::IdError> {
-                Ok($id($crate::id::Id::new::<CS>(
-                    self.0.export().borrow(),
+            pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
+                ::core::result::Result::Ok($id($crate::id::Id::new::<CS>(
+                    ::core::borrow::Borrow::borrow(&self.0.export()),
                     $sk.as_bytes(),
                 )))
             }
@@ -373,7 +392,7 @@ macro_rules! pk_misc {
         impl<CS: $crate::CipherSuite> ::core::clone::Clone for $name<CS> {
             #[inline]
             fn clone(&self) -> Self {
-                Self(self.0.clone())
+                Self(::core::clone::Clone::clone(&self.0))
             }
         }
 
@@ -431,9 +450,11 @@ macro_rules! pk_misc {
                         deserializer,
                     )?;
                 if !data.is_type($crate::misc::ExportedDataType::$name) {
-                    Err(::serde::de::Error::custom(ImportError::InvalidContext))
+                    ::core::result::Result::Err(::serde::de::Error::custom(
+                        ImportError::InvalidContext,
+                    ))
                 } else {
-                    Ok(Self(data.data.0))
+                    ::core::result::Result::Ok(Self(data.data.0))
                 }
             }
         }
@@ -442,7 +463,7 @@ macro_rules! pk_misc {
             type Id = $id;
 
             #[inline]
-            fn id(&self) -> Result<Self::Id, $crate::id::IdError> {
+            fn id(&self) -> ::core::result::Result<Self::Id, $crate::id::IdError> {
                 self.id()
             }
         }
