@@ -9,18 +9,19 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use spideroak_crypto::{
     aead::Tag,
     csprng::{Csprng, Random},
-    hpke::{Hpke, Mode},
     import::{Import, ImportError},
     kem::{DecapKey, Kem},
     keys::PublicKey,
     signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
 };
+use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
     groupkey::{EncryptedGroupKey, GroupKey},
+    hpke::{self, Mode},
     id::{Id, IdError},
     misc::{key_misc, SigData},
     policy::{self, Cmd, CmdId},
@@ -387,15 +388,16 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
             tag,
         } = ciphertext;
 
-        // info = H(
-        //     "GroupKey",
-        //     suite_id,
+        // info = concat(
+        //     "GroupKey-v1",
         //     group,
         // )
-        let info = CS::tuple_hash(b"GroupKey", [group.as_bytes()]);
-        let mut ctx =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(Mode::Base, &enc.0, &self.key, &info)?;
-        ctx.open_in_place(&mut ciphertext, &tag, &info)?;
+        let info = GroupKeyInfo {
+            domain: *b"GroupKey-v1",
+            group,
+        };
+        let mut ctx = hpke::setup_recv::<CS>(Mode::Base, &enc.0, &self.key, [info.as_bytes()])?;
+        ctx.open_in_place(&mut ciphertext, &tag, info.as_bytes())?;
         Ok(GroupKey::from_seed(ciphertext.into()))
     }
 }
@@ -405,6 +407,14 @@ unwrapped! {
     type: Decap;
     into: |key: Self| { key.key };
     from: |key| { Self { key, id: OnceCell::new() } };
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+struct GroupKeyInfo {
+    /// Always "GroupKey-v1".
+    domain: [u8; 11],
+    group: Id,
 }
 
 /// The public half of [`EncryptionKey`].
@@ -420,17 +430,19 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
         key: &GroupKey<CS>,
         group: Id,
     ) -> Result<(Encap<CS>, EncryptedGroupKey<CS>), Error> {
-        // info = H(
-        //     "GroupKey",
-        //     suite_id,
+        // info = concat(
+        //     "GroupKey-v1",
         //     group,
         // )
-        let info = CS::tuple_hash(b"GroupKey", [group.as_bytes()]);
+        let info = GroupKeyInfo {
+            domain: *b"GroupKey-v1",
+            group,
+        };
         let (enc, mut ctx) =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
+            hpke::setup_send::<CS, _>(rng, Mode::Base, &self.0, [info.as_bytes()])?;
         let mut ciphertext = (*key.raw_seed()).into();
         let mut tag = Tag::<CS::Aead>::default();
-        ctx.seal_in_place(&mut ciphertext, &mut tag, &info)?;
+        ctx.seal_in_place(&mut ciphertext, &mut tag, info.as_bytes())?;
         Ok((Encap(enc), EncryptedGroupKey { ciphertext, tag }))
     }
 }
