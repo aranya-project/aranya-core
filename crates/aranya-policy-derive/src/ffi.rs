@@ -5,16 +5,16 @@ use aranya_policy_lang::{
     lang,
 };
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, quote_spanned, ToTokens};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
+    Attribute, Error, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, LitStr, Meta, Pat, PatIdent,
+    PatType, Path, ReturnType, Token,
     parse::{Parse, ParseStream},
     parse_quote,
     spanned::Spanned,
-    Attribute, Error, FnArg, Ident, ImplItem, ImplItemFn, ItemImpl, LitStr, Meta, Pat, PatIdent,
-    PatType, Path, ReturnType, Token,
 };
 
-use crate::attr::{get_lit_str, Attr, Symbol};
+use crate::attr::{Attr, Symbol, get_lit_str};
 
 // TODO(eric): allow `#[ffi_export("foo")]` as an alternative to
 // `#[ffi_export(name = "foo")]`?
@@ -619,14 +619,16 @@ impl Func {
                         "too few function arguments: {} < {num_skip}",
                         item.sig.inputs.len()
                     ),
-                ))
+                ));
             }
         };
         let num_def_args = attr.def.arguments.len();
         if num_args != num_def_args {
             return Err(Error::new_spanned(
                 &item.sig,
-                format!("incorrect number of arguments per `def`: found {num_args}, want {num_def_args}"),
+                format!(
+                    "incorrect number of arguments per `def`: found {num_args}, want {num_def_args}"
+                ),
             ));
         }
 

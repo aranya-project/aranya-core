@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{spanned::Spanned, FnArg, Ident, ItemTrait, Pat, Signature, TraitItem};
+use syn::{FnArg, Ident, ItemTrait, Pat, Signature, TraitItem, spanned::Spanned};
 
 pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
     let act: ItemTrait = syn::parse2(item)?;
@@ -43,7 +43,7 @@ fn get_args(sig: &Signature) -> syn::Result<Vec<&Ident>> {
     match iter.next() {
         Some(FnArg::Receiver(_)) => {}
         Some(FnArg::Typed(typed)) => {
-            return Err(syn::Error::new(typed.span(), "expected receiver"))
+            return Err(syn::Error::new(typed.span(), "expected receiver"));
         }
         None => return Err(syn::Error::new(sig.span(), "expected receiver")),
     }

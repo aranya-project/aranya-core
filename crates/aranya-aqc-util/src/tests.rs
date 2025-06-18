@@ -1,11 +1,11 @@
 #![cfg(test)]
 
 use aranya_crypto::{
-    default::{DefaultCipherSuite, DefaultEngine},
     Rng,
+    default::{DefaultCipherSuite, DefaultEngine},
 };
 
-use crate::testing::{test_all, Device, MemStore, TestImpl};
+use crate::testing::{Device, MemStore, TestImpl, test_all};
 
 struct DefaultImpl;
 

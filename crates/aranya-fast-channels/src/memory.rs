@@ -8,8 +8,8 @@ extern crate alloc;
 use alloc::{collections::BTreeMap, sync::Arc};
 
 use aranya_crypto::{
-    afc::{OpenKey, SealKey},
     CipherSuite,
+    afc::{OpenKey, SealKey},
 };
 use buggy::{Bug, BugExt};
 use derive_where::derive_where;
@@ -119,8 +119,8 @@ mod tests {
     #![allow(clippy::indexing_slicing)]
 
     use aranya_crypto::{
-        afc::{BidiKeys, UniOpenKey, UniSealKey},
         Rng,
+        afc::{BidiKeys, UniOpenKey, UniSealKey},
     };
 
     use super::*;

@@ -2,7 +2,7 @@ extern crate alloc;
 use alloc::string::String;
 
 use aranya_crypto::Id;
-use aranya_policy_vm::{ffi::ffi, CommandContext, MachineError, MachineErrorType};
+use aranya_policy_vm::{CommandContext, MachineError, MachineErrorType, ffi::ffi};
 
 /// Implements 'perspective` FFI module.
 ///

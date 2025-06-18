@@ -1,12 +1,13 @@
 use aranya_policy_ast as ast;
 use buggy::BugExt;
 use markdown::{
+    ParseOptions,
     mdast::{Node, Yaml},
-    to_mdast, ParseOptions,
+    to_mdast,
 };
 use serde::Deserialize;
 
-use crate::lang::{parse_policy_chunk, ParseError, ParseErrorKind, Version};
+use crate::lang::{ParseError, ParseErrorKind, Version, parse_policy_chunk};
 
 #[derive(Deserialize)]
 struct FrontMatter {
@@ -27,7 +28,7 @@ fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
                 },
                 "Update `policy-version`.".to_string(),
                 None,
-            ))
+            ));
         }
     };
     Ok(v)

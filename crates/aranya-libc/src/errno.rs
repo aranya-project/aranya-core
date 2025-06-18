@@ -32,7 +32,7 @@ impl Errno {
 
     /// Returns the underlying code.
     pub const fn code(self) -> c_int {
-        self.0 .0
+        self.0.0
     }
 }
 

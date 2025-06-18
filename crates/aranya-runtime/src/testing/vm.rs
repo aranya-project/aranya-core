@@ -3,20 +3,20 @@
 extern crate alloc;
 use alloc::{boxed::Box, vec, vec::Vec};
 
-use aranya_crypto::{default::DefaultEngine, DeviceId, Rng};
+use aranya_crypto::{DeviceId, Rng, default::DefaultEngine};
 use aranya_policy_module::Module;
-use aranya_policy_vm::{ast::ident, FactKey, HashableValue, KVPair, Machine, Value};
+use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value, ast::ident};
 use tracing::trace;
 
 use super::dsl::dispatch;
 use crate::{
+    ClientState, CommandId, GraphId, MAX_SYNC_MESSAGE_SIZE, NullSink, PeerCache, SyncRequester,
+    VmEffect, VmEffectData, VmPolicy, VmPolicyError,
     engine::{Engine, EngineError, PolicyId, Sink},
     ser_keys,
-    storage::{memory::MemStorageProvider, Query, Storage, StorageProvider},
+    storage::{Query, Storage, StorageProvider, memory::MemStorageProvider},
     vm_action, vm_effect,
     vm_policy::testing::TestFfiEnvelope,
-    ClientState, CommandId, GraphId, NullSink, PeerCache, SyncRequester, VmEffect, VmEffectData,
-    VmPolicy, VmPolicyError, MAX_SYNC_MESSAGE_SIZE,
 };
 
 /// The policy used by these tests.

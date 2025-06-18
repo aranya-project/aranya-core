@@ -16,9 +16,9 @@ use spideroak_base58::{String32, ToBase58};
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
+    Id, KeyStore,
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant},
-    Id, KeyStore,
 };
 
 /// A file system backed [`KeyStore`].

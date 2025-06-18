@@ -1,18 +1,18 @@
 use alloc::vec;
 use core::mem;
 
-use buggy::{bug, BugExt};
+use buggy::{BugExt, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    requester::SyncRequestMessage, CommandMeta, SyncError, COMMAND_RESPONSE_MAX,
-    COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, SEGMENT_BUFFER_MAX,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
+    SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
 };
 use crate::{
+    StorageError, SyncType,
     command::{Address, Command, CommandId},
     storage::{GraphId, Location, Segment, Storage, StorageProvider},
-    StorageError, SyncType,
 };
 
 #[derive(Default, Debug)]

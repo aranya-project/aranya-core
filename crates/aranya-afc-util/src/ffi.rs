@@ -9,15 +9,14 @@ use alloc::vec::Vec;
 use core::result::Result;
 
 use aranya_crypto::{
-    self,
+    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
+    KeyStore, KeyStoreExt, UnwrapError, WrapError,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
-    KeyStoreExt, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
-    ffi::{ffi, Type},
     CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
     ValueConversionError,
+    ffi::{Type, ffi},
 };
 use buggy::Bug;
 use spin::Mutex;

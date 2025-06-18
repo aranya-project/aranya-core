@@ -9,7 +9,7 @@ use spideroak_crypto::{
     kem::Kem,
 };
 
-use crate::{ciphersuite::CipherSuite, Csprng};
+use crate::{Csprng, ciphersuite::CipherSuite};
 
 type Hpke<CS> =
     hpke::Hpke<<CS as CipherSuite>::Kem, <CS as CipherSuite>::Kdf, <CS as CipherSuite>::Aead>;
