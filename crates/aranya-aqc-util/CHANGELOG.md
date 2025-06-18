@@ -2,10 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.5.1](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.5.0...aranya-aqc-util-v0.5.1) - 2025-06-18
+
+### Other
+
+- add routines to compute label and role IDs ([#294](https://github.com/aranya-project/aranya-core/pull/294))
+- use custom types for identifiers and text ([#231](https://github.com/aranya-project/aranya-core/pull/231))
 
 ## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-aqc-util-v0.4.0...aranya-aqc-util-v0.5.0) - 2025-06-12
 

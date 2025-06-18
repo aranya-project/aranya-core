@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.10.0...aranya-runtime-v0.10.1) - 2025-06-18
+
+### Other
+
+- use `CS::tuple_hash` for merge ID ([#219](https://github.com/aranya-project/aranya-core/pull/219))
+- use custom types for identifiers and text ([#231](https://github.com/aranya-project/aranya-core/pull/231))
+
 ## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-runtime-v0.9.0...aranya-runtime-v0.10.0) - 2025-06-12
 
 ### Other

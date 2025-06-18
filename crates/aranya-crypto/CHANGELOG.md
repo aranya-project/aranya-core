@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.7.1...aranya-crypto-v0.8.0) - 2025-06-18
+
+### Other
+
+- encrypt PSK seeds for other devices ([#296](https://github.com/aranya-project/aranya-core/pull/296))
+- add routines to compute label and role IDs ([#294](https://github.com/aranya-project/aranya-core/pull/294))
+- cache computed IDs ([#285](https://github.com/aranya-project/aranya-core/pull/285))
+- use `CS::tuple_hash` for merge ID ([#219](https://github.com/aranya-project/aranya-core/pull/219))
+
 ## [0.7.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.7.0...aranya-crypto-v0.7.1) - 2025-06-13
 
 ### Other
