@@ -833,7 +833,11 @@ impl<CS: CipherSuite> ChanListData<CS> {
     }
 
     fn len(&self) -> Result<usize, Corrupted> {
-        usize::try_from(self.len).map_err(|_| corrupted("`len` is larger than `usize::MAX`"))
+        let len = usize::try_from(self.len).map_err(|_| corrupted("`len` is larger than `usize::MAX`"))?;
+        if len > isize::MAX as usize {
+            return Err(corrupted("`len` is larger than `isize::MAX`"));
+        }
+        Ok(len)
     }
 
     fn cap(&self) -> Result<usize, Corrupted> {
@@ -851,7 +855,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         let ptr = ptr::addr_of!(self.chans).cast::<ShmChan<CS>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY: `ptr` is correctly aligned and non-null. `self.len()` is in [0, isize::MAX].
         Ok(unsafe { slice::from_raw_parts(ptr, self.len()?) })
     }
 
@@ -860,7 +864,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
         self.check();
 
         let ptr = ptr::addr_of_mut!(self.chans).cast::<ShmChan<CS>>();
-        // SAFETY: `ptr` is correctly aligned and non-null.
+        // SAFETY: `ptr` is correctly aligned and non-null. `self.len()` is in [0, isize::MAX].
         Ok(unsafe { slice::from_raw_parts_mut(ptr, self.len()?) })
     }
 
@@ -921,9 +925,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
             let id = chan.id()?;
             if !f(id) {
                 // Nope, try the next index.
-                idx = idx
-                    .checked_add(1)
-                    .assume("index should not overflow when iterating channels")?;
+                idx = idx.wrapping_add(1);
                 continue;
             }
             debug!("removing chan {id}");
@@ -932,9 +934,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
                 // As a precaution, update the generation before
                 // we actually delete anything.
                 let generation = self.generation.fetch_add(1, Ordering::AcqRel);
-                // Note: generation counter can wrap after 2^32 operations, which is acceptable
-                // for this use case as it's used for cache invalidation, not security.
-                debug!("side generation={}", generation.saturating_add(1));
+                debug!("side generation={}", generation.wrapping_add(1));
 
                 updated = true;
             }
