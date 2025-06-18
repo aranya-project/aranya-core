@@ -6,7 +6,7 @@
 #![cfg(feature = "apq")]
 #![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
-use core::{cell::OnceCell, fmt, ops::Add, result::Result};
+use core::{cell::OnceCell, fmt, iter, ops::Add, result::Result};
 
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
@@ -211,7 +211,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
                 //     {0}^0,
                 // )
                 const DOMAIN: &[u8] = b"TopicKeyId-v1";
-                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", &self.seed);
+                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
                 CS::labeled_expand(DOMAIN, &prk, b"id", [])
                     .map_err(|_| IdError::new("unable to expand PRK"))
                     .map(TopicKeyId)
@@ -396,7 +396,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ) -> Result<<CS::Aead as Aead>::Key, Error> {
         const DOMAIN: &[u8] = b"APQ-v1";
         //  prk = LabeledExtract("APQ-V1", {0}^512, "topic_key_prk", seed)
-        let prk = CS::labeled_extract(DOMAIN, &[], b"topic_key_prk", seed);
+        let prk = CS::labeled_extract(DOMAIN, &[], b"topic_key_prk", iter::once::<&[u8]>(seed));
         // info = concat(
         //     i2osp(version, 4),
         //     topic,
