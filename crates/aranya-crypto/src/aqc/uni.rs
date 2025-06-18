@@ -4,20 +4,22 @@ use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     csprng::Random,
-    hash::{Digest, Hash},
-    hpke::{Hpke, Mode},
     import::ImportError,
     kem::Kem,
     subtle::{Choice, ConstantTimeEq},
 };
-use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::{
+    byteorder::{BE, U16},
+    ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+};
 
 use crate::{
     aqc::shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::CipherSuite,
     engine::unwrapped,
     error::Error,
+    hpke::{self, Mode},
     id::{custom_id, Id, IdError},
     misc::sk_misc,
     tls::CipherSuiteId,
@@ -131,27 +133,36 @@ pub struct UniChannel<'a, CS: CipherSuite> {
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
-    pub(crate) fn info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
-        // info = H(
-        //     "AqcUniPsk",
-        //     suite_id,
+    pub(crate) const fn info(&self) -> Info {
+        // info = concat(
+        //     "AqcUniPsk-v1",
         //     i2osp(psk_length_in_bytes, 2),
         //     parent_cmd_id,
         //     seal_id,
         //     open_id,
         //     label_id,
         // )
-        CS::tuple_hash(
-            b"AqcUniPsk",
-            [
-                &self.psk_length_in_bytes.to_be_bytes(),
-                self.parent_cmd_id.as_bytes(),
-                self.seal_id.as_bytes(),
-                self.open_id.as_bytes(),
-                self.label.as_bytes(),
-            ],
-        )
+        Info {
+            domain: *b"AqcUniPsk-v1",
+            psk_length_in_bytes: U16::new(self.psk_length_in_bytes),
+            parent_cmd_id: self.parent_cmd_id,
+            seal_id: self.seal_id,
+            open_id: self.open_id,
+            label: self.label,
+        }
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+pub(crate) struct Info {
+    /// Always "AqcUniPsk-v1".
+    domain: [u8; 12],
+    psk_length_in_bytes: U16<BE>,
+    parent_cmd_id: Id,
+    seal_id: DeviceId,
+    open_id: DeviceId,
+    label: Id,
 }
 
 /// A unirectional channel author's secret.
@@ -245,10 +256,10 @@ impl<CS: CipherSuite> UniSecrets<CS> {
 
         let root_sk = RootChannelKey::random(eng);
         let peer = {
-            let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
+            let (enc, _) = hpke::setup_send_deterministically::<CS>(
                 Mode::Auth(&author_sk.key),
                 &peer_pk.0,
-                &ch.info(),
+                [ch.info().as_bytes()],
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
             )?;
@@ -300,10 +311,10 @@ impl<CS: CipherSuite> UniSecret<CS> {
             return Err(Error::same_device_id());
         }
 
-        let (enc, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
+        let (enc, ctx) = hpke::setup_send_deterministically::<CS>(
             Mode::Auth(&author_sk.key),
             &peer_pk.0,
-            &ch.info(),
+            [ch.info().as_bytes()],
             secret.key.into_inner(),
         )?;
 
@@ -334,12 +345,11 @@ impl<CS: CipherSuite> UniSecret<CS> {
             return Err(Error::same_device_id());
         }
 
-        let info = ch.info();
-        let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
+        let ctx = hpke::setup_recv::<CS>(
             Mode::Auth(&author_pk.0),
             enc.as_inner(),
             &peer_sk.key,
-            &info,
+            [ch.info().as_bytes()],
         )?;
 
         Ok(Self {
