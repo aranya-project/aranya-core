@@ -62,7 +62,7 @@ mod __private {
 
 // Expose the newtype for crate-local tests, but keep it hidden externally.
 #[cfg(test)]
-pub use __private::DhKemP256HkdfSha256;
+pub(crate) use __private::DhKemP256HkdfSha256;
 
 /// A basic [`Engine`] implementation that wraps keys with its [`Aead`].
 pub struct DefaultEngine<R: Csprng = Rng, S: CipherSuite = DefaultCipherSuite> {
