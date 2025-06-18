@@ -740,8 +740,11 @@ impl<CS: CipherSuite> ChanList<CS> {
         // straddle multiple pages, align each to the page size.
         let (page_size, page_aligned) = if cfg!(feature = "page-aligned") {
             let page_size = getpagesize()?.assume("`page-aligned` feature requires `libc`")?;
-            let page_aligned =
-                (layout.size() * 2 > page_size) && is_aligned_to(page_size, layout.align());
+            let page_aligned = {
+                #[allow(clippy::arithmetic_side_effects)] // safe layout size calculation
+                let double_size = layout.size() * 2;
+                (double_size > page_size) && is_aligned_to(page_size, layout.align())
+            };
             (page_size, page_aligned)
         } else {
             (0, false)
@@ -1059,7 +1062,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
             }
             // Use the existing arithmetic infrastructure which is designed
             // to handle wraparound behavior safely.
-            self.len -= 1;
+            #[allow(clippy::arithmetic_side_effects)] // U64 has safe SubAssign impl
+            { self.len -= 1; }
             assert!(self.len <= self.cap);
             Ok(())
         }

@@ -102,7 +102,8 @@ where
             if grow {
                 // Use the existing arithmetic infrastructure which is designed
                 // to handle wraparound behavior safely.
-                side.len += 1;
+                #[allow(clippy::arithmetic_side_effects)] // U64 has safe AddAssign impl
+                { side.len += 1; }
             }
             assert!(side.len <= side.cap);
             debug!("write side len={}", side.len);
@@ -128,7 +129,8 @@ where
             if grow {
                 // Use the existing arithmetic infrastructure which is designed
                 // to handle wraparound behavior safely.
-                side.len += 1;
+                #[allow(clippy::arithmetic_side_effects)] // U64 has safe AddAssign impl
+                { side.len += 1; }
             }
             assert!(side.len <= side.cap);
             debug!("read side len={}", side.len);
