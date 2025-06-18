@@ -126,7 +126,7 @@ impl<CS: CipherSuite> PskSeed<CS> {
     /// Generates PSKs for the provided cipher suites.
     ///
     /// - `context` is a unique constant string that describes
-    ///   that the PSKs are being used for. For example, it could
+    ///   what the PSKs are being used for. For example, it could
     ///   be `b"quic-syncer-v4"`.
     ///
     /// This method is deterministic over each (`PskSeed`,
