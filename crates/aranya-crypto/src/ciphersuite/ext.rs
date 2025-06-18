@@ -6,6 +6,7 @@ use core::{
     slice,
 };
 
+use derive_where::derive_where;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use sha3_utils::{encode_string, EncodedString};
 use spideroak_crypto::{
@@ -138,8 +139,7 @@ pub(crate) type Digest<CS> = hash::Digest<<<CS as CipherSuite>::Hash as hash::Ha
 pub(crate) type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as kdf::Kdf>::PrkSize>;
 
 /// The OIDs used by a [`CipherSuite`].
-#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(bound = "CS: CipherSuite")]
+#[derive_where(Copy, Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Oids<CS: CipherSuite + ?Sized> {
     aead: AeadOid<CS>,
     hash: HashOid<CS>,
@@ -176,7 +176,7 @@ impl<CS: CipherSuite + ?Sized> Oids<CS> {
     }
 
     /// Encods the OIDs with [`encode_string`].
-    const fn encode(self) -> EncodedOids<CS> {
+    pub(crate) const fn encode(self) -> EncodedOids<CS> {
         EncodedOids::<CS>(PhantomData)
     }
 }
@@ -198,8 +198,8 @@ where
 /// [`EncodedString`]s into their parts.
 ///
 /// [TupleHash]: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-185.pdf
-#[derive(Copy, Clone, Debug)]
-struct EncodedOids<CS: ?Sized>(PhantomData<CS>);
+#[derive_where(Copy, Clone, Debug)]
+pub(crate) struct EncodedOids<CS: ?Sized>(PhantomData<CS>);
 
 impl<CS: CipherSuite + ?Sized> EncodedOids<CS> {
     const ITEMS: [&'static [u8]; 12] = {
@@ -249,7 +249,7 @@ where
 /// OID.
 macro_rules! oid_repr {
     ($($name:ident => $ty:ident),* $(,)?) => {$(
-        #[derive(Copy, Clone, Debug, Eq, PartialEq)]
+        #[derive_where(Copy, Clone, Debug, Eq, PartialEq)]
         struct $name<CS: ?Sized>(PhantomData<CS>);
 
         impl<CS: CipherSuite + ?Sized> Identified for $name<CS> {

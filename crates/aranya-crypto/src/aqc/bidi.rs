@@ -1,22 +1,25 @@
 use core::{cell::OnceCell, fmt};
 
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     csprng::Random,
-    hash::{Digest, Hash},
-    hpke::{Hpke, Mode},
     import::ImportError,
     kem::Kem,
     subtle::{Choice, ConstantTimeEq},
 };
-use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::{
+    byteorder::{BE, U16},
+    ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+};
 
 use crate::{
     aqc::shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::CipherSuite,
     engine::{unwrapped, Engine},
     error::Error,
+    hpke::{self, Mode},
     id::{custom_id, Id, IdError},
     misc::sk_misc,
     tls::CipherSuiteId,
@@ -127,47 +130,52 @@ pub struct BidiChannel<'a, CS: CipherSuite> {
 }
 
 impl<CS: CipherSuite> BidiChannel<'_, CS> {
-    const LABEL: &'static [u8] = b"AqcBidiPsk";
-
     /// The author's `info` parameter.
-    pub(crate) fn author_info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
-        // info = H(
-        //     "AqcBidiPsk",
-        //     suite_id,
+    pub(crate) const fn author_info(&self) -> Info {
+        // info = concat(
+        //     "AqcBidiPsk-v1",
         //     iso2p(psk_length_in_bytes, 2),
         //     parent_cmd_id,
         //     author_id,
         //     peer_id,
         //     label_id,
         // )
-        CS::tuple_hash(
-            Self::LABEL,
-            [
-                &self.psk_length_in_bytes.to_be_bytes(),
-                self.parent_cmd_id.as_bytes(),
-                self.our_id.as_bytes(),
-                self.their_id.as_bytes(),
-                self.label.as_bytes(),
-            ],
-        )
+        Info {
+            domain: *b"AqcBidiPsk-v1",
+            psk_length_in_bytes: U16::new(self.psk_length_in_bytes),
+            parent_cmd_id: self.parent_cmd_id,
+            seal_id: self.our_id,
+            open_id: self.their_id,
+            label: self.label,
+        }
     }
 
     /// The peer's `info` parameter.
-    pub(crate) fn peer_info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
+    pub(crate) const fn peer_info(&self) -> Info {
         // Same as the author's info, except that we're computing
         // it from the peer's perspective, so `our_id` and
         // `their_id` are reversed.
-        CS::tuple_hash(
-            Self::LABEL,
-            [
-                &self.psk_length_in_bytes.to_be_bytes(),
-                self.parent_cmd_id.as_bytes(),
-                self.their_id.as_bytes(),
-                self.our_id.as_bytes(),
-                self.label.as_bytes(),
-            ],
-        )
+        Info {
+            domain: *b"AqcBidiPsk-v1",
+            psk_length_in_bytes: U16::new(self.psk_length_in_bytes),
+            parent_cmd_id: self.parent_cmd_id,
+            seal_id: self.their_id,
+            open_id: self.our_id,
+            label: self.label,
+        }
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+pub(crate) struct Info {
+    /// Always "AqcBidiPsk-v1".
+    domain: [u8; 13],
+    psk_length_in_bytes: U16<BE>,
+    parent_cmd_id: Id,
+    seal_id: DeviceId,
+    open_id: DeviceId,
+    label: Id,
 }
 
 /// A bidirectional channel author's secret.
@@ -188,7 +196,7 @@ unwrapped! {
 /// A bidirectional channel peer's encapsulated secret.
 ///
 /// This should be freely shared with the channel peer.
-#[derive(Serialize, Deserialize)]
+#[derive_where(Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct BidiPeerEncap<CS: CipherSuite> {
     encap: Encap<CS>,
@@ -261,10 +269,10 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
 
         let root_sk = RootChannelKey::random(eng);
         let peer = {
-            let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
+            let (enc, _) = hpke::setup_send_deterministically::<CS>(
                 Mode::Auth(&author_sk.key),
                 &peer_pk.0,
-                &ch.author_info(),
+                [ch.author_info().as_bytes()],
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
             )?;
@@ -292,8 +300,10 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
 
 /// The shared bidirectional channel secret used by both the
 /// channel author and channel peer to derive individual PSKs.
+#[derive_where(Debug)]
 pub struct BidiSecret<CS: CipherSuite> {
     id: BidiChannelId,
+    #[derive_where(skip(Debug))]
     ctx: SendOrRecvCtx<CS>,
 }
 
@@ -318,10 +328,10 @@ impl<CS: CipherSuite> BidiSecret<CS> {
             return Err(Error::same_device_id());
         }
 
-        let (enc, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
+        let (enc, ctx) = hpke::setup_send_deterministically::<CS>(
             Mode::Auth(&author_sk.key),
             &peer_pk.0,
-            &ch.author_info(),
+            [ch.author_info().as_bytes()],
             secret.key.into_inner(),
         )?;
 
@@ -356,11 +366,11 @@ impl<CS: CipherSuite> BidiSecret<CS> {
             return Err(Error::same_device_id());
         }
 
-        let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
+        let ctx = hpke::setup_recv::<CS>(
             Mode::Auth(&author_pk.0),
             enc.as_inner(),
             &peer_sk.key,
-            &ch.peer_info(),
+            [ch.peer_info().as_bytes()],
         )?;
 
         let id = enc.id();
@@ -395,14 +405,6 @@ impl<CS: CipherSuite> BidiSecret<CS> {
     }
 }
 
-impl<CS: CipherSuite> fmt::Debug for BidiSecret<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BidiSecret")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
-    }
-}
-
 /// The context used when generating a [`BidiPsk`].
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Immutable, IntoBytes, KnownLayout)]
@@ -413,8 +415,10 @@ struct PskCtx {
 }
 
 /// A PSK for a bidirectional channel.
+#[derive_where(Debug)]
 pub struct BidiPsk<CS> {
     id: BidiPskId,
+    #[derive_where(skip(Debug))]
     psk: RawPsk<CS>,
 }
 
@@ -437,15 +441,6 @@ impl<CS: CipherSuite> BidiPsk<CS> {
     /// [RFC 8446]: https://datatracker.ietf.org/doc/html/rfc8446#autoid-37
     pub fn raw_secret_bytes(&self) -> &[u8] {
         self.psk.raw_secret_bytes()
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for BidiPsk<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid leaking `psk`.
-        f.debug_struct("BidiPsk")
-            .field("id", &self.id)
-            .finish_non_exhaustive()
     }
 }
 

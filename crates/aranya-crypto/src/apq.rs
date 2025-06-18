@@ -15,7 +15,6 @@ use spideroak_crypto::{
     csprng::{Csprng, Random},
     generic_array::{ArrayLength, GenericArray},
     hex::ToHex,
-    hpke::{Hpke, Mode},
     import::{Import, ImportError},
     kem::{DecapKey, Kem},
     keys::PublicKey,
@@ -23,12 +22,17 @@ use spideroak_crypto::{
     typenum::{Sum, U64},
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
+use zerocopy::{
+    byteorder::{BE, U32},
+    ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+};
 
 use crate::{
     aranya::{Encap, Signature},
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
+    hpke::{self, Mode},
     id::{custom_id, IdError},
     misc::{ciphertext, key_misc},
 };
@@ -617,15 +621,15 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
-        //     "TopicKeyRotation",
-        //     suite_ids,
+        //     "TopicKeyRotation-v1",
         //     i2osp(version, 4),
         //     topic,
         // )
-        let ad = CS::tuple_hash(
-            b"TopicKeyRotation",
-            [&version.to_be_bytes(), topic.as_bytes()],
-        );
+        let ad = TopicKeyRotationInfo {
+            domain: *b"TopicKeyRotation-v1",
+            version: U32::new(version.as_u32()),
+            topic: topic.0,
+        };
         // ciphertext = HPKE_OneShotOpen(
         //     mode=mode_auth,
         //     skR=sk(ReceiverKey),
@@ -635,16 +639,22 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         //     ciphertext=ciphertext,
         //     ad=ad,
         // )
-        let mut ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
-            Mode::Auth(&pk.0),
-            &enc.0,
-            &self.key,
-            &ad,
-        )?;
+        let mut ctx =
+            hpke::setup_recv::<CS>(Mode::Auth(&pk.0), &enc.0, &self.key, [ad.as_bytes()])?;
         let mut seed = [0u8; 64];
-        ctx.open(&mut seed, ciphertext.as_bytes(), &ad)?;
+        ctx.open(&mut seed, ciphertext.as_bytes(), ad.as_bytes())?;
         TopicKey::from_seed(seed, version, topic)
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+struct TopicKeyRotationInfo {
+    /// Always "TopicKeyRotation-v1".
+    domain: [u8; 19],
+    version: U32<BE>,
+    /// [`Topic`].
+    topic: [u8; 16],
 }
 
 unwrapped! {
@@ -747,15 +757,15 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
-        //     "TopicKeyRotation",
-        //     suite_ids,
+        //     "TopicKeyRotation-v1",
         //     i2osp(version, 4),
         //     topic,
         // )
-        let ad = CS::tuple_hash(
-            b"TopicKeyRotation",
-            [&version.to_be_bytes()[..], &topic.as_bytes()[..]],
-        );
+        let ad = TopicKeyRotationInfo {
+            domain: *b"TopicKeyRotation-v1",
+            version: U32::new(version.as_u32()),
+            topic: topic.0,
+        };
         // (enc, ciphertext) = HPKE_OneShotSeal(
         //     mode=mode_auth,
         //     pkR=pk(ReceiverKey),
@@ -765,9 +775,9 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         //     ad=ad,
         // )
         let (enc, mut ctx) =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Auth(&sk.key), &self.0, &ad)?;
+            hpke::setup_send::<CS, _>(rng, Mode::Auth(&sk.key), &self.0, [ad.as_bytes()])?;
         let mut dst = GenericArray::default();
-        ctx.seal(&mut dst, &key.seed, &ad)?;
+        ctx.seal(&mut dst, &key.seed, ad.as_bytes())?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))
     }
 }

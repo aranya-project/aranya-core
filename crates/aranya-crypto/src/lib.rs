@@ -52,6 +52,7 @@ pub mod default;
 pub mod engine;
 mod error;
 mod groupkey;
+mod hpke;
 pub mod id;
 pub mod keystore;
 mod misc;
