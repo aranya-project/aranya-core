@@ -1,10 +1,12 @@
 #![cfg(test)]
 
+use std::collections::BTreeMap;
+
 use aranya_policy_ast::{ident, text, FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
     ffi::{self, ModuleSchema},
-    Label, LabelType, Module, ModuleData, Value,
+    Label, LabelType, Module, ModuleData, Struct, Value,
 };
 
 use crate::{validate::validate, CompileErrorType, Compiler, InvalidCallColor};
@@ -994,6 +996,22 @@ fn test_match_arm_should_be_limited_to_literals() {
             }
         }
         "#,
+        r#"
+            struct Foo {
+                x int,
+                y string,
+            }
+            struct Bar {
+                y string
+            }
+            action foo(x struct Foo) {
+                let b = Bar { y: "y" }
+                match x {
+                    Foo { x: 10, ...b } => {}
+                    _ => {}
+                }
+            }
+        "#,
     ];
 
     for text in policies {
@@ -1591,6 +1609,35 @@ fn test_type_errors() {
         },
         Case {
             t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x string }
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected field `x` of `b` to be a `int`",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(b bool) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Expected `b` to be a struct",
+        },
+        Case {
+            t: r#"
                 struct Baz {
                     y int,
                 }
@@ -1619,6 +1666,139 @@ fn test_type_errors() {
         };
         assert_eq!(s, c.e);
     }
+}
+
+#[test]
+fn test_struct_composition_errors() {
+    struct Case {
+        t: &'static str,
+        e: &'static str,
+    }
+    let cases = [
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool, z string}
+                function baz(b struct Bar) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Struct Bar must be a subset of Struct Foo",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x int, y bool }
+                struct Thud { x int }
+                function baz(b struct Bar, t struct Thud) struct Foo {
+                    let new_foo = Foo {
+                        y: true,
+                        ...b,
+                        ...t
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Struct Thud and Struct Bar have at least 1 field with the same name",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                function baz(f struct Foo) struct Foo {
+                    let new_foo = Foo {
+                        x: 3,
+                        y: true,
+                        ...f
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "A struct literal has all it's fields explicitly specified while also having 1 or more struct compositions",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+
+                function baz() struct Foo {
+                    let new_foo = Foo {
+                        ...x
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "not defined: Unknown identifier `x`",
+        },
+    ];
+
+    for (i, c) in cases.iter().enumerate() {
+        let err = compile_fail(c.t);
+        match compile_fail(c.t) {
+            CompileErrorType::DuplicateSourceFields(_, _) => {}
+            CompileErrorType::SourceStructNotSubsetOfBase(_, _) => {}
+            CompileErrorType::NotDefined(_) => {}
+            CompileErrorType::NoOpStructComp => {}
+            err => {
+                panic!(
+                    "Did not get DuplicateSourceFields, SourceStructNotSubsetOfBase, NoOpStructComp, or NotDefined for case {i}: {err:?} ({err})"
+                );
+            }
+        }
+
+        assert_eq!(err.to_string(), c.e);
+    }
+}
+
+#[test]
+fn test_struct_composition_global_let_and_command_attributes() {
+    let policy_str = r#"
+        struct Foo {
+            x int,
+            y int
+        }
+
+        let foo = Foo { x: 10, y: 20 }
+        let foo2 = Foo { x: 1000, ...foo }
+
+        command Bar {
+            attributes {
+                foo_attr: Foo { ...foo2 },
+            }
+            seal { return None }
+            open { return None }
+            policy {
+                finish {}
+            }
+        }
+    "#;
+
+    let ModuleData::V0(mod_data) = compile_pass(policy_str).data;
+
+    let expected = Value::Struct(Struct {
+        name: ident!("Foo"),
+        fields: BTreeMap::from([
+            (ident!("x"), Value::Int(1000)),
+            (ident!("y"), Value::Int(20)),
+        ]),
+    });
+
+    assert_eq!(*mod_data.globals.get("foo2").unwrap(), expected);
+    assert_eq!(
+        *mod_data
+            .command_attributes
+            .get("Bar")
+            .unwrap()
+            .get("foo_attr")
+            .unwrap(),
+        expected
+    );
 }
 
 #[test]
