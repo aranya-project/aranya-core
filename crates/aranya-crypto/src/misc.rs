@@ -245,7 +245,7 @@ pub(crate) use ciphertext;
 macro_rules! key_misc {
     ($sk:ident, $pk:ident, $id:ident) => {
         $crate::misc::sk_misc!($sk, $pk, $id);
-        $crate::misc::pk_misc!($pk, ::core::stringify!($sk), $id);
+        $crate::misc::pk_misc!($pk, $id);
     };
 }
 pub(crate) use key_misc;
@@ -365,14 +365,14 @@ pub(crate) use sk_misc_inner;
 ///
 /// See [`key_misc`] for more information.
 macro_rules! pk_misc {
-    ($name:ident, $sk:expr, $id:ident) => {
+    ($name:ident, $id:ident) => {
         impl<CS: $crate::CipherSuite> $name<CS> {
             #[doc = ::core::concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
                 ::core::result::Result::Ok($id($crate::id::Id::new::<CS>(
                     ::core::borrow::Borrow::borrow(&self.0.export()),
-                    $sk.as_bytes(),
+                    <$name<CS>>::CONTEXT.as_bytes(),
                 )))
             }
         }

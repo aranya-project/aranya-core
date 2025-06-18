@@ -492,6 +492,7 @@ unwrapped! {
 pub struct SenderVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
 impl<CS: CipherSuite> SenderVerifyingKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "APQ Sender Signing Key";
     /// Verifies the signature allegedly created over an encoded
     /// record.
     pub fn verify(
@@ -554,6 +555,10 @@ unwrapped! {
 ///
 /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
 pub struct SenderPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
+
+impl<CS: CipherSuite> SenderPublicKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "APQ Sender Secret Key";
+}
 
 /// The private half of a [ReceiverKey].
 ///
@@ -632,6 +637,7 @@ unwrapped! {
 pub struct ReceiverPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
 
 impl<CS: CipherSuite> ReceiverPublicKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "APQ Receiver Secret Key";
     /// Encrypts and authenticates the [`TopicKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`ReceiverPublicKey`].
@@ -770,7 +776,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "ATgYVtSiDiY4HgK2xTZr9Mbx6bLGEKZDvLX3nsLR4msq",
+            "G4Pkv96MYr9yAfVgzCpU4kFkHSxZmSjaPsSBe7Fvt9Tk",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -799,7 +805,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "Gxg9tkrxQRjkPzACEMA9nCyGZDCGTU22xQ7pBeZ86zkz",
+            "FVZQtS6DA1exxJgBHdrsMHX58m5dXgtxtJJqpeUTXxPp",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -827,7 +833,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "4SHRYW7Dsn4RRtDZzfHvqNonbq8D33JGfihFoQxzip59",
+            "BLHC25sfZNYzq6G9oHvBkmR22hyj7tCGbUwi7QCDDv8n",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {

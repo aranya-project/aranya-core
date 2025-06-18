@@ -181,6 +181,7 @@ unwrapped! {
 pub struct IdentityVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
 impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "Device Identity Key";
     /// Verifies the signature allegedly created over `msg` and
     /// bound to some `context`.
     ///
@@ -341,6 +342,7 @@ unwrapped! {
 pub struct VerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
 impl<CS: CipherSuite> VerifyingKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "Signing Key";
     /// Verifies the signature allegedly created over `msg` and
     /// bound to some `context`.
     ///
@@ -421,6 +423,7 @@ unwrapped! {
 pub struct EncryptionPublicKey<CS: CipherSuite>(pub(crate) <CS::Kem as Kem>::EncapKey);
 
 impl<CS: CipherSuite> EncryptionPublicKey<CS> {
+    pub(crate) const CONTEXT: &'static str = "Encryption Key";
     /// Encrypts and authenticates the [`GroupKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`EncryptionPublicKey`].
@@ -548,7 +551,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "1RFHSbbxPwUx523crs9fanmf7yp6ubPgQVKs38vVAckk",
+            "59UGNZdGcshSmuw3vM5AhbhNAZZNEyQDb9TKNug2cnGn",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -576,7 +579,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "6WYF4bGwVnCKqz2YCjSfoj9f7YdgCwwvDew4zWchjS4A",
+            "6jCqUDv8kXc86NkhCJ8keofMGaZCwTGkuE3AerziDqv4",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -604,7 +607,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "7sDP73YbhJM42KFro3jJcXERSaxAVJFVEQtDqDreEjkc",
+            "ChneJTCrvP3PX9AEmQUJgDPohpNW2uKmvidGzbtrBisY",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
