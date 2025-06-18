@@ -18,14 +18,17 @@ use crate::error::Error;
 ///
 /// - `K` should be an implementation of [`KeyStore`]
 pub struct Ffi<K> {
-    store: K,
+    // NOTE: The KeyStore was used by group key FFI functions that were
+    // moved to aranya-msg-ffi. Currently unused by IDAM operations
+    // but kept for API compatibility and future IDAM key operations.
+    _store: K,
 }
 
 impl<K> Ffi<K> {
     /// Creates a new `Ffi`
     #[inline]
     pub const fn new(store: K) -> Self {
-        Self { store }
+        Self { _store: store }
     }
 }
 
