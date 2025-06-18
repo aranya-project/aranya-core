@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     aead::Tag,
     hex::Hex,
-    hpke::Mode,
+    hpke::{self, Mode},
     kdf::{self, Kdf},
     keys::SecretKeyBytes,
 };
@@ -18,12 +18,11 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
-    hpke::{self, Mode},
     id::{custom_id, IdError, Identified},
     policy::{GroupId, PolicyId},
     subtle::{Choice, ConstantTimeEq},
     tls::{self, CipherSuiteId},
-    util::{self, Hpke},
+    util,
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
     Csprng, Random,
 };
@@ -325,6 +324,15 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
         let prk = Prk::<CS>::new(SecretKeyBytes::new(ciphertext));
         Ok(PskSeed::from_prk(prk))
     }
+}
+
+/// Contextual binding for encrypting PSKs.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+struct Info {
+    /// Always "PskSeed-v1".
+    domain: [u8; 10],
+    group: GroupId,
 }
 
 /// An encrypted [`PskSeed`].
