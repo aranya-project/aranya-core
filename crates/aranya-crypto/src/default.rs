@@ -43,7 +43,7 @@ impl CipherSuite for DefaultCipherSuite {
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha256;
     type Kdf = rust::HkdfSha512;
-    #[allow(unused_qualifications)]
+    #[cfg_attr(test, allow(unused_qualifications))]
     type Kem = __private::DhKemP256HkdfSha256;
     type Mac = rust::HmacSha512;
     type Signer = ed25519::Ed25519;
