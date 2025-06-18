@@ -108,7 +108,7 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
         let labeled_ikm = iter::once(domain)
             .chain(CS::OIDS.encode())
             .chain(iter::once(label))
-            .chain(ikm.into_iter());
+            .chain(ikm);
         Self::Kdf::extract_multi(labeled_ikm, salt)
     }
 
