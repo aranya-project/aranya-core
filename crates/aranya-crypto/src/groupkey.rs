@@ -3,7 +3,7 @@
 use core::{cell::OnceCell, marker::PhantomData, result::Result};
 
 use buggy::Bug;
-use serde::{Deserialize, Serialize};
+use derive_where::derive_where;
 use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError, Tag},
     csprng::{Csprng, Random},
@@ -299,19 +299,8 @@ custom_id! {
 }
 
 /// An encrypted [`GroupKey`].
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(bound = "CS: CipherSuite")]
+#[derive_where(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedGroupKey<CS: CipherSuite> {
     pub(crate) ciphertext: GenericArray<u8, U64>,
     pub(crate) tag: Tag<CS::Aead>,
-}
-
-impl<CS: CipherSuite> Clone for EncryptedGroupKey<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            ciphertext: self.ciphertext,
-            tag: self.tag.clone(),
-        }
-    }
 }
