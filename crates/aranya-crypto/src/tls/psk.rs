@@ -42,38 +42,6 @@ custom_id! {
 }
 
 /// A cryptographic seed used to derive multiple [`Psk`]s.
-///
-/// # Example
-///
-/// ```rust
-/// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
-/// # {
-/// use aranya_crypto::{
-///     default::{
-///         DefaultCipherSuite,
-///         DefaultEngine,
-///     },
-///     PolicyId,
-///     Rng,
-///     subtle::ConstantTimeEq,
-///     tls::{CipherSuiteId, PskSeed},
-/// };
-/// type CS = DefaultCipherSuite;
-/// // NB: In a real application the policy ID would be
-/// // deterministically generated from the policy used to create
-/// // the team.
-/// let policy_id = PolicyId::random(&mut Rng);
-/// let seed = PskSeed::<CS>::new(&mut Rng, &policy_id);
-///
-/// let psk1 = seed.generate_psk(CipherSuiteId::TlsAes128GcmSha256).unwrap();
-/// let psk2 = seed.generate_psk(CipherSuiteId::TlsAes256GcmSha384).unwrap();
-/// assert!(!bool::from(psk1.ct_eq(&psk2)));
-///
-/// let psk1 = seed.generate_psk(CipherSuiteId::TlsAes128GcmSha256).unwrap();
-/// let psk2 = seed.generate_psk(CipherSuiteId::TlsAes128GcmSha256).unwrap();
-/// assert!(bool::from(psk1.ct_eq(&psk2)));
-/// # }
-/// ```
 #[derive_where(Clone, Debug)]
 pub struct PskSeed<CS: CipherSuite> {
     #[derive_where(skip(Debug))]
@@ -162,8 +130,9 @@ impl<CS: CipherSuite> PskSeed<CS> {
     ///   be `b"quic-syncer-v4"`.
     ///
     /// This method is deterministic over each (`PskSeed`,
-    /// `context`, `GroupId`, and `CipherSuiteId` tuple). Calling
-    /// it with the same tuple will generate the same PSKs.
+    /// `context`, `GroupId`, `PolicyId`, and `CipherSuiteId`
+    /// tuple). Calling it with the same tuple will generate the
+    /// same PSKs.
     pub fn generate_psks<I>(
         self,
         context: &'static [u8],
