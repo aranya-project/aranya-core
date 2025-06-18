@@ -262,7 +262,7 @@ macro_rules! unwrapped {
         $crate::__unwrapped_inner!(Signing, $crate::engine::AlgId::_from_signer::<CS>(), $name, $into, $from);
     };
     ($($fallthrough:tt)*) => {
-        ::core::compile_error!(::core::concat!("unknown variant", ::core::stringify!($($fallthrough)*)));
+        ::core::compile_error!("unknown variant");
     };
 }
 pub(crate) use unwrapped;
