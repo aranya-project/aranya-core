@@ -9,7 +9,7 @@
 
 /crates/aranya-capi* @elagergren-spideroak @jdygert-spok @chip-so
 
-/crates/aranya-crypto* @elagergren-spideroak @ycarmy
+/crates/aranya-crypto* @elagergren-spideroak @ycarmy @jdygert-spok
 
 /crates/aranya-device-ffi @chip-so @jdygert-spok
 /crates/aranya-envelope-ffi @elagergren-spideroak @ycarmy
