@@ -55,11 +55,11 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
     /// is unambiguously encoded with [`encode_string`].
     ///
     /// [RFC 9180]: https://www.rfc-editor.org/rfc/rfc9180.html#name-cryptographic-dependencies
-    fn labeled_extract(
+    fn labeled_extract<'a>(
         domain: &'static [u8],
         salt: &[u8],
         label: &'static [u8],
-        ikm: &[u8],
+        ikm: impl IntoIterator<Item = &'a [u8]>,
     ) -> Prk<Self>;
 
     /// Performs `LabeledExpand` per [RFC 9180].
@@ -99,16 +99,16 @@ impl<CS: CipherSuite> CipherSuiteExt for CS {
         hash::tuple_hash::<Self::Hash, _>(iter)
     }
 
-    fn labeled_extract(
+    fn labeled_extract<'a>(
         domain: &'static [u8],
         salt: &[u8],
         label: &'static [u8],
-        ikm: &[u8],
+        ikm: impl IntoIterator<Item = &'a [u8]>,
     ) -> Prk<Self> {
         let labeled_ikm = iter::once(domain)
             .chain(CS::OIDS.encode())
             .chain(iter::once(label))
-            .chain(iter::once(ikm));
+            .chain(ikm.into_iter());
         Self::Kdf::extract_multi(labeled_ikm, salt)
     }
 
@@ -345,8 +345,10 @@ mod tests {
 
         #[test]
         fn test_smoke() {
-            let lhs = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
-            let rhs = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
+            let lhs =
+                CS::labeled_extract(b"domain", b"salt", b"label", iter::once::<&[u8]>(b"ikm"));
+            let rhs =
+                CS::labeled_extract(b"domain", b"salt", b"label", iter::once::<&[u8]>(b"ikm"));
             assert_ct_eq!(lhs, rhs);
         }
 
@@ -375,8 +377,8 @@ mod tests {
                 ),
             ];
             for (i, (name, lhs, rhs)) in tests.iter().enumerate() {
-                let lhs = CS::labeled_extract(lhs.0, lhs.1, lhs.2, lhs.3);
-                let rhs = CS::labeled_extract(rhs.0, rhs.1, rhs.2, rhs.3);
+                let lhs = CS::labeled_extract(lhs.0, lhs.1, lhs.2, iter::once::<&[u8]>(lhs.3));
+                let rhs = CS::labeled_extract(rhs.0, rhs.1, rhs.2, iter::once::<&[u8]>(rhs.3));
                 assert_ct_ne!(lhs, rhs, "#{i}: `{name}`:");
             }
         }
@@ -387,7 +389,8 @@ mod tests {
 
         #[test]
         fn test_smoke() {
-            let prk = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
+            let prk =
+                CS::labeled_extract(b"domain", b"salt", b"label", iter::once::<&[u8]>(b"ikm"));
             let lhs: [u8; 16] =
                 CS::labeled_expand(b"domain", &prk, b"label", [b"ikm", b"info"]).unwrap();
             let rhs: [u8; 16] =
@@ -397,8 +400,10 @@ mod tests {
 
         #[test]
         fn test_different_inputs() {
-            let prk1 = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
-            let prk2 = CS::labeled_extract(b"DOMAIN", b"SALT", b"LABEL", b"IKM");
+            let prk1 =
+                CS::labeled_extract(b"domain", b"salt", b"label", iter::once::<&[u8]>(b"ikm"));
+            let prk2 =
+                CS::labeled_extract(b"DOMAIN", b"SALT", b"LABEL", iter::once::<&[u8]>(b"IKM"));
             #[allow(
                 clippy::type_complexity,
                 reason = "I wouldn't need this if Rust's type inference were better"
@@ -434,7 +439,8 @@ mod tests {
 
         #[test]
         fn test_info_concat() {
-            let prk = CS::labeled_extract(b"domain", b"salt", b"label", b"ikm");
+            let prk =
+                CS::labeled_extract(b"domain", b"salt", b"label", iter::once::<&[u8]>(b"ikm"));
 
             macro_rules! tests {
                 ($(($lhs:expr, $rhs:expr),)*) => {$({
