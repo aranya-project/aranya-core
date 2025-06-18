@@ -942,7 +942,9 @@ impl<CS: CipherSuite> ChanListData<CS> {
             let id = chan.id()?;
             if !f(id) {
                 // Nope, try the next index.
-                idx += 1;
+                idx = idx
+                    .checked_add(1)
+                    .assume("index should not overflow when iterating channels")?;
                 continue;
             }
             debug!("removing chan {id}");
@@ -951,7 +953,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
                 // As a precaution, update the generation before
                 // we actually delete anything.
                 let generation = self.generation.fetch_add(1, Ordering::AcqRel);
-                debug!("side generation={}", generation + 1);
+                debug!("side generation={}", generation.saturating_add(1));
 
                 updated = true;
             }
@@ -1072,9 +1074,12 @@ impl<CS: CipherSuite> ChanListData<CS> {
             // No need to perform a swap if there is only one
             // channel.
             if len > 1 {
-                self.chans_mut()?.swap(idx, len - 1);
+                let swap_idx = len.checked_sub(1)
+                    .assume("len > 1, so len - 1 should be valid")?;
+                self.chans_mut()?.swap(idx, swap_idx);
             }
-            self.len -= 1;
+            self.len = self.len.checked_sub(1)
+                .assume("length should be > 0 when removing an element")?;
             assert!(self.len <= self.cap);
             Ok(())
         }

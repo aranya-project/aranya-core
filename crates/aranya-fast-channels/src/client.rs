@@ -102,7 +102,11 @@ impl<S: AfcState> Client<S> {
         data.try_reserve_exact(Self::OVERHEAD)?;
 
         // Append zeros for the tag and header.
-        data.try_resize(data.len() + Self::OVERHEAD, 0)?;
+        let new_len = data
+            .len()
+            .checked_add(Self::OVERHEAD)
+            .ok_or_else(|| Self::unlikely(Error::InputTooLarge))?;
+        data.try_resize(new_len, 0)?;
 
         // We've padded data, so split it into chunks.
         //
@@ -113,9 +117,13 @@ impl<S: AfcState> Client<S> {
             .split_last_chunk_mut()
             .assume("we've already checked that `data` can fit a header")?;
         #[allow(clippy::incompatible_msrv)] // clippy#12280
-        let (out, tag) = rest
-            .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
+        let split_pos = rest
+            .len()
+            .checked_sub(Self::TAG_SIZE)
             .assume("we've already checked that `data` can fit a tag")?;
+        let (out, tag) = rest
+            .split_at_mut_checked(split_pos)
+            .assume("split position is within bounds")?;
 
         self.do_seal(id, header, |aead, ad| {
             aead.seal_in_place(out, tag, ad).map_err(Into::into)
@@ -249,11 +257,15 @@ impl<S: AfcState> Client<S> {
                 .ok_or(HeaderError::InvalidSize)?;
             let DataHeader { label, seq, .. } = DataHeader::try_parse(header)?;
             #[allow(clippy::incompatible_msrv)] // clippy#12280
-            let (ciphertext, tag) = rest
-                .split_at_mut_checked(rest.len() - Self::TAG_SIZE)
+            let split_pos = rest
+                .len()
+                .checked_sub(Self::TAG_SIZE)
                 // Missing an authentication tag, so by
                 // definition we cannot authenticate the
                 // ciphertext.
+                .ok_or(Error::Authentication)?;
+            let (ciphertext, tag) = rest
+                .split_at_mut_checked(split_pos)
                 .ok_or(Error::Authentication)?;
             (label, seq, ciphertext, tag)
         };
