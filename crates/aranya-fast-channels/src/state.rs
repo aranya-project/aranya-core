@@ -9,6 +9,7 @@ use aranya_crypto::{
     CipherSuite,
 };
 use byteorder::{ByteOrder, LittleEndian};
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -238,6 +239,7 @@ impl From<u32> for Label {
 
 /// An AFC channel.
 #[derive(Copy, Clone)]
+#[derive_where(Debug)]
 pub struct Channel<S, O> {
     /// Uniquely identifies the channel.
     pub id: ChannelId,
@@ -252,15 +254,6 @@ impl<S, O> Channel<S, O> {
             id: self.id,
             keys: self.keys.as_ref(),
         }
-    }
-}
-
-impl<S, O> Debug for Channel<S, O> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Channel")
-            .field("id", &self.id)
-            .field("keys", &self.keys)
-            .finish()
     }
 }
 
@@ -425,6 +418,7 @@ mod test {
         CipherSuite, Rng,
     };
     use buggy::Bug;
+    use derive_where::derive_where;
 
     use crate::{
         error::Error,
@@ -440,24 +434,9 @@ mod test {
 
     /// An implementation of [`AfcState`] and [`AranyaState`]
     /// that defers to default trait methods.
+    #[derive_where(Clone, Default)]
     pub struct DefaultState<CS: CipherSuite> {
         state: memory::State<CS>,
-    }
-
-    impl<CS: CipherSuite> Clone for DefaultState<CS> {
-        fn clone(&self) -> Self {
-            DefaultState {
-                state: self.state.clone(),
-            }
-        }
-    }
-
-    impl<CS: CipherSuite> Default for DefaultState<CS> {
-        fn default() -> Self {
-            Self {
-                state: memory::State::default(),
-            }
-        }
     }
 
     impl<CS: CipherSuite> DefaultState<CS> {
