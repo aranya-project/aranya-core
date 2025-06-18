@@ -165,7 +165,7 @@ impl<CS: CipherSuite> ZeroizeOnDrop for PskSeed<CS> {}
 impl<CS: CipherSuite> Drop for PskSeed<CS> {
     #[inline]
     fn drop(&mut self) {
-        util::is_zeroize_on_drop(&self.prk);
+        util::val_is_zeroize_on_drop(&self.prk);
     }
 }
 
