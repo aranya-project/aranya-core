@@ -395,8 +395,6 @@ pub struct SenderSigningKey<CS: CipherSuite> {
 key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
-    #[allow(dead_code)]
-    pub(crate) const CONTEXT: &'static str = "APQ Sender Signing Key";
     /// Creates a `SenderSigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         SenderSigningKey {
@@ -536,8 +534,6 @@ pub struct SenderSecretKey<CS: CipherSuite> {
 key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
 
 impl<CS: CipherSuite> SenderSecretKey<CS> {
-    #[allow(dead_code)]
-    pub(crate) const CONTEXT: &'static str = "APQ Sender Secret Key";
     /// Creates a `SenderSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         SenderSecretKey {
@@ -570,8 +566,6 @@ pub struct ReceiverSecretKey<CS: CipherSuite> {
 key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
-    #[allow(dead_code)]
-    pub(crate) const CONTEXT: &'static str = "APQ Receiver Secret Key";
     /// Creates a `ReceiverSecretKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         ReceiverSecretKey {

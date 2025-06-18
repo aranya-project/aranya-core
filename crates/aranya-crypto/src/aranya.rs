@@ -111,8 +111,6 @@ pub struct IdentityKey<CS: CipherSuite> {
 key_misc!(IdentityKey, IdentityVerifyingKey, DeviceId);
 
 impl<CS: CipherSuite> IdentityKey<CS> {
-    #[allow(dead_code)]
-    pub(crate) const CONTEXT: &'static str = "Device Identity Key";
     /// Creates an `IdentityKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         IdentityKey {
@@ -209,8 +207,6 @@ pub struct SigningKey<CS: CipherSuite> {
 key_misc!(SigningKey, VerifyingKey, SigningKeyId);
 
 impl<CS: CipherSuite> SigningKey<CS> {
-    #[allow(dead_code)]
-    pub(crate) const CONTEXT: &'static str = "Signing Key";
     /// Creates a `SigningKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         SigningKey {
@@ -380,8 +376,6 @@ pub struct EncryptionKey<CS: CipherSuite> {
 key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
-    #[allow(dead_code)]
-    pub(crate) const CONTEXT: &'static str = "Encryption Key";
     /// Creates a devices's `EncryptionKey`.
     pub fn new<R: Csprng>(rng: &mut R) -> Self {
         EncryptionKey {

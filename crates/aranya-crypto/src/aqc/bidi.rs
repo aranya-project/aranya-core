@@ -179,7 +179,6 @@ pub struct BidiAuthorSecret<CS: CipherSuite> {
 sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
 
 impl<CS: CipherSuite> BidiAuthorSecret<CS> {
-    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "AQC Bidi Author Secret";
 }
 

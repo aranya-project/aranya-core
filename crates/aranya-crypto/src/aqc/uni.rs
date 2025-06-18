@@ -162,7 +162,6 @@ pub struct UniAuthorSecret<CS: CipherSuite> {
 sk_misc!(UniAuthorSecret, UniAuthorSecretId);
 
 impl<CS: CipherSuite> UniAuthorSecret<CS> {
-    #[allow(dead_code)]
     pub(crate) const CONTEXT: &'static str = "AQC Uni Author Secret";
 }
 
