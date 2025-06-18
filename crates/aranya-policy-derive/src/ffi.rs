@@ -58,10 +58,10 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
     let vm: Path = parse_quote!(_policy_vm);
 
     let structdefs = structs.iter().map(|d| {
-        let name = &d.inner.identifier;
+        let name = &d.inner.identifier.as_str();
         let fields = d.inner.items.iter().map(|arg| match arg {
             StructItem::Field(arg) => {
-                let name = &arg.identifier;
+                let name = &arg.identifier.as_str();
                 let vtype = VTypeTokens::new(&arg.field_type, &vm);
                 quote!(#vm::arg!(#name, #vtype))
             }
@@ -87,8 +87,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<TokenSt
             .iter()
             .map(|d| match d {
                 StructItem::Field(d) => (
-                    format_ident!("{}", d.identifier),
-                    format_ident!("__field_{}", d.identifier),
+                    format_ident!("{}", d.identifier.as_str()),
+                    format_ident!("__field_{}", d.identifier.as_str()),
                 ),
                 StructItem::StructRef(s) => {
                     todo!("`+{s}`: Struct field insertion is not implemented for FFI structs.")

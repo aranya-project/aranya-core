@@ -380,9 +380,9 @@ fn test_parse_effect_with_field_insertion() {
         }
         "#,
         vec![
-            ast::StructItem::StructRef("Foo".to_string()),
+            ast::StructItem::StructRef(ident!("Foo")),
             ast::StructItem::Field(ast::EffectFieldDefinition {
-                identifier: String::from("y"),
+                identifier: ident!("y"),
                 field_type: ast::VType::Int,
                 dynamic: false,
             }),
@@ -642,15 +642,15 @@ fn parse_policy_test() -> Result<(), ParseError> {
         policy.effects,
         vec![AstNode::new(
             ast::EffectDefinition {
-                identifier: String::from("Added"),
+                identifier: ident!("Added"),
                 items: vec![
                     ast::StructItem::Field(ast::EffectFieldDefinition {
-                        identifier: String::from("x"),
+                        identifier: ident!("x"),
                         field_type: ast::VType::Int,
                         dynamic: true,
                     }),
                     ast::StructItem::Field(ast::EffectFieldDefinition {
-                        identifier: String::from("y"),
+                        identifier: ident!("y"),
                         field_type: ast::VType::Int,
                         dynamic: false,
                     }),
@@ -664,9 +664,9 @@ fn parse_policy_test() -> Result<(), ParseError> {
         vec![AstNode::new(
             ast::CommandDefinition {
                 attributes: vec![],
-                identifier: String::from("Add"),
+                identifier: ident!("Add"),
                 fields: vec![ast::StructItem::Field(ast::FieldDefinition {
-                    identifier: String::from("count"),
+                    identifier: ident!("count"),
                     field_type: ast::VType::Int,
                 })],
                 seal: vec![],
@@ -1191,9 +1191,9 @@ fn parse_struct() {
         policy.structs,
         vec![AstNode::new(
             ast::StructDefinition {
-                identifier: String::from("Foo"),
+                identifier: ident!("Foo"),
                 items: vec![ast::StructItem::Field(ast::FieldDefinition {
-                    identifier: String::from("x"),
+                    identifier: ident!("x"),
                     field_type: ast::VType::Int,
                 })]
             },
@@ -1241,9 +1241,9 @@ fn parse_struct_with_field_insertion() {
         }
         "#,
         vec![
-            ast::StructItem::StructRef("Foo".to_string()),
+            ast::StructItem::StructRef(ident!("Foo")),
             ast::StructItem::Field(ast::FieldDefinition {
-                identifier: String::from("y"),
+                identifier: ident!("y"),
                 field_type: ast::VType::Int,
             }),
         ],
@@ -1339,14 +1339,14 @@ fn parse_ffi_structs_enums() {
         vec![
             AstNode {
                 inner: ast::StructDefinition {
-                    identifier: String::from("A"),
+                    identifier: ident!("A"),
                     items: vec![
                         ast::StructItem::Field(ast::FieldDefinition {
-                            identifier: String::from("x"),
+                            identifier: ident!("x"),
                             field_type: ast::VType::Int
                         }),
                         ast::StructItem::Field(ast::FieldDefinition {
-                            identifier: String::from("y"),
+                            identifier: ident!("y"),
                             field_type: ast::VType::Bool
                         })
                     ]
@@ -1355,7 +1355,7 @@ fn parse_ffi_structs_enums() {
             },
             AstNode {
                 inner: ast::StructDefinition {
-                    identifier: String::from("B"),
+                    identifier: ident!("B"),
                     items: vec![],
                 },
                 locator: 68,

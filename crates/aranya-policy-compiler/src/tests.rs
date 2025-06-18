@@ -381,11 +381,11 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
     let ModuleData::V0(module) = module.data;
 
     let want = BTreeMap::from([
-        ("a".to_string(), VType::Int),
-        ("b".to_string(), VType::String),
-        ("c".to_string(), VType::Bool),
+        (ident!("a"), VType::Int),
+        (ident!("b"), VType::String),
+        (ident!("c"), VType::Bool),
     ]);
-    let got = module.command_defs.get("Foo").unwrap();
+    let got = module.command_defs.get(&ident!("Foo")).unwrap();
     assert_eq!(got, &want);
 
     Ok(())
@@ -560,11 +560,11 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: "a".to_string(),
+                    identifier: ident!("a"),
                     field_type: VType::Int,
                 },
                 FieldDefinition {
-                    identifier: "b".to_string(),
+                    identifier: ident!("b"),
                     field_type: VType::String,
                 },
             ],
@@ -577,15 +577,15 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: "s".to_string(),
+                    identifier: ident!("s"),
                     field_type: VType::String,
                 },
                 FieldDefinition {
-                    identifier: "i".to_string(),
+                    identifier: ident!("i"),
                     field_type: VType::Int,
                 },
                 FieldDefinition {
-                    identifier: "b".to_string(),
+                    identifier: ident!("b"),
                     field_type: VType::Bool,
                 },
             ],
@@ -616,11 +616,11 @@ fn test_effect_with_field_insertion() {
 
     let foo_want = vec![
         FieldDefinition {
-            identifier: "b".to_string(),
+            identifier: ident!("b"),
             field_type: VType::Bool,
         },
         FieldDefinition {
-            identifier: "s".to_string(),
+            identifier: ident!("s"),
             field_type: VType::String,
         },
     ];
@@ -629,15 +629,15 @@ fn test_effect_with_field_insertion() {
 
     let baz_want = vec![
         FieldDefinition {
-            identifier: "i".to_string(),
+            identifier: ident!("i"),
             field_type: VType::Int,
         },
         FieldDefinition {
-            identifier: "b".to_string(),
+            identifier: ident!("b"),
             field_type: VType::Bool,
         },
         FieldDefinition {
-            identifier: "s".to_string(),
+            identifier: ident!("s"),
             field_type: VType::String,
         },
     ];

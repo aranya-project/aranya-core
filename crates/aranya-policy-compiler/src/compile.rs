@@ -187,10 +187,10 @@ impl<'a> CompileState<'a> {
     /// Insert a struct definition while preventing duplicates of the struct name and fields
     pub fn define_struct(
         &mut self,
-        identifier: &str,
+        identifier: Identifier,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        if self.m.struct_defs.contains_key(identifier) {
+        if self.m.struct_defs.contains_key(&identifier) {
             return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
         }
 
@@ -211,11 +211,10 @@ impl<'a> CompileState<'a> {
                     field_definitions.push(field.clone());
                 }
                 StructItem::StructRef(ident) => {
-                    let other = self
-                        .m
-                        .struct_defs
-                        .get(ident)
-                        .ok_or_else(|| self.err(CompileErrorType::NotDefined(ident.clone())))?;
+                    let other =
+                        self.m.struct_defs.get(ident).ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ident.to_string()))
+                        })?;
                     for field in other {
                         if field_definitions
                             .iter()
@@ -231,9 +230,7 @@ impl<'a> CompileState<'a> {
             }
         }
 
-        self.m
-            .struct_defs
-            .insert(identifier.to_string(), field_definitions);
+        self.m.struct_defs.insert(identifier, field_definitions);
         Ok(())
     }
 
@@ -1946,7 +1943,7 @@ impl<'a> CompileState<'a> {
         // fields
         if self.m.command_defs.contains_key(&command.identifier) {
             return Err(self.err(CompileErrorType::AlreadyDefined(
-                command_node.identifier.clone(),
+                command_node.identifier.to_string(),
             )));
         }
         let mut map = BTreeMap::new();
@@ -1956,10 +1953,9 @@ impl<'a> CompileState<'a> {
                     map.insert(f.identifier.clone(), f.field_type.clone());
                 }
                 StructItem::StructRef(ref_name) => {
-                    let struct_def =
-                        self.m.struct_defs.get(ref_name).ok_or_else(|| {
-                            self.err(CompileErrorType::NotDefined(ref_name.clone()))
-                        })?;
+                    let struct_def = self.m.struct_defs.get(ref_name).ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                    })?;
                     for fd in struct_def {
                         map.insert(fd.identifier.clone(), fd.field_type.clone());
                     }
@@ -2171,7 +2167,7 @@ impl<'a> CompileState<'a> {
         }
 
         for struct_def in &self.policy.structs {
-            self.define_struct(&struct_def.inner.identifier, &struct_def.inner.items)?;
+            self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
         }
 
         for effect in &self.policy.effects {
@@ -2184,7 +2180,7 @@ impl<'a> CompileState<'a> {
                     StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                 })
                 .collect();
-            self.define_struct(&effect.inner.identifier, &fields)?;
+            self.define_struct(effect.inner.identifier.clone(), &fields)?;
         }
 
         // define the structs provided by FFI schema
@@ -2195,7 +2191,7 @@ impl<'a> CompileState<'a> {
                     .iter()
                     .map(|a| {
                         StructItem::Field(FieldDefinition {
-                            identifier: a.name.to_string(),
+                            identifier: a.name.clone(),
                             field_type: VType::from(&a.vtype),
                         })
                     })
@@ -2225,7 +2221,7 @@ impl<'a> CompileState<'a> {
 
         // Define command structs before compiling functions
         for command in &self.policy.commands {
-            self.define_struct(&command.identifier, &command.fields)?;
+            self.define_struct(command.identifier.clone(), &command.fields)?;
         }
 
         // Define the finish function signatures before compiling them, so that they can be

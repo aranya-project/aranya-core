@@ -547,7 +547,7 @@ pub enum StructItem<T> {
     /// Field definition
     Field(T),
     /// Named struct from whose fields to add to the current struct
-    StructRef(String),
+    StructRef(Identifier),
 }
 
 impl<T> StructItem<T> {
