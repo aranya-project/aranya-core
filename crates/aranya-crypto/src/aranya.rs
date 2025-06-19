@@ -487,22 +487,13 @@ mod tests {
     #[test]
     fn test_device_id() {
         use spideroak_crypto::import::Import;
-        
+
         let tests = [
-            (
-                [0u8; 32],
-                "4WvDDSvXv8Cqj85xHAkesJo3uVLy3LRczojr98KBNG8e",
-            ),
-            (
-                [1u8; 32],
-                "7czZtx4VW5V6K3eu59rSBJKiqeVZjDX2gyJ4tkJqvqEM",
-            ),
-            (
-                [0xFF; 32],
-                "DqAAPgZfS8KCo1W4M7C9A36SRXwoMKeLox5qzS1L7Bki",
-            ),
+            ([0u8; 32], "4WvDDSvXv8Cqj85xHAkesJo3uVLy3LRczojr98KBNG8e"),
+            ([1u8; 32], "7czZtx4VW5V6K3eu59rSBJKiqeVZjDX2gyJ4tkJqvqEM"),
+            ([0xFF; 32], "DqAAPgZfS8KCo1W4M7C9A36SRXwoMKeLox5qzS1L7Bki"),
         ];
-        
+
         for (i, (key_bytes, expected)) in tests.iter().enumerate() {
             let sk = IdentityKey::<CS>::from_inner(Import::import(&key_bytes[..]).unwrap());
             let got = sk.id().unwrap();
@@ -515,22 +506,13 @@ mod tests {
     #[test]
     fn test_signing_key_id() {
         use spideroak_crypto::import::Import;
-        
+
         let tests = [
-            (
-                [0u8; 32],
-                "DTSYenur9akPjgwULDLDhPdaZ9pmEKq7pYJ6vvST2kWs",
-            ),
-            (
-                [1u8; 32],
-                "6fuCv2oLzQzK2sBDyKh5eHcTZ2b6uJXC5txoNwqyWuQ5",
-            ),
-            (
-                [0xFF; 32],
-                "EgLiA9CxqVLKgdgLen9N5JJzh96vxDDrPXTGdBnpFzYe",
-            ),
+            ([0u8; 32], "DTSYenur9akPjgwULDLDhPdaZ9pmEKq7pYJ6vvST2kWs"),
+            ([1u8; 32], "6fuCv2oLzQzK2sBDyKh5eHcTZ2b6uJXC5txoNwqyWuQ5"),
+            ([0xFF; 32], "EgLiA9CxqVLKgdgLen9N5JJzh96vxDDrPXTGdBnpFzYe"),
         ];
-        
+
         for (i, (key_bytes, expected)) in tests.iter().enumerate() {
             let sk = SigningKey::<CS>::from_inner(Import::import(&key_bytes[..]).unwrap());
             let got = sk.id().unwrap();
@@ -543,7 +525,7 @@ mod tests {
     #[test]
     fn test_encryption_key_id() {
         use spideroak_crypto::import::Import;
-        
+
         // Use well-known P256 private keys that are valid scalars
         let tests = [
             (
@@ -556,7 +538,7 @@ mod tests {
                 "BHJHCs6ozYTwWRnZs86N1tYoqriNs8a2BLcVNTGmzXyh",
             ),
             (
-                // Another valid P256 private key (2) 
+                // Another valid P256 private key (2)
                 {
                     let mut key_bytes = [0u8; 32];
                     key_bytes[31] = 2;
@@ -575,7 +557,7 @@ mod tests {
                 "2BsoFVd3YVsTj5wrfgXPQ3GUUYwh45F2xmi1K2iGH485",
             ),
         ];
-        
+
         for (i, (key_bytes, expected)) in tests.iter().enumerate() {
             let sk = EncryptionKey::<CS>::from_inner(Import::import(&key_bytes[..]).unwrap());
             let got = sk.id().unwrap();
