@@ -23,17 +23,23 @@ macro_rules! little_endian {
                 }
 
                 /// Checked addition.
-                pub fn checked_add(self, rhs: $type) -> Option<Self> {
-                    self.into().checked_add(rhs).map(Self::new)
+                pub const fn checked_add(self, rhs: $type) -> Option<Self> {
+                    match self.into().checked_add(rhs) {
+                        Some(val) => Some(Self::new(val)),
+                        None => None,
+                    }
                 }
 
                 /// Checked subtraction.
-                pub fn checked_sub(self, rhs: $type) -> Option<Self> {
-                    self.into().checked_sub(rhs).map(Self::new)
+                pub const fn checked_sub(self, rhs: $type) -> Option<Self> {
+                    match self.into().checked_sub(rhs) {
+                        Some(val) => Some(Self::new(val)),
+                        None => None,
+                    }
                 }
 
                 /// Wrapping subtraction.
-                pub fn wrapping_sub(self, rhs: $type) -> Self {
+                pub const fn wrapping_sub(self, rhs: $type) -> Self {
                     Self::new(self.into().wrapping_sub(rhs))
                 }
             }

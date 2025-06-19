@@ -743,7 +743,7 @@ impl<CS: CipherSuite> ChanList<CS> {
             let page_aligned = {
                 #[allow(
                     clippy::arithmetic_side_effects,
-                    reason = "Layout::extend ensures layout.size() < isize::MAX/2, so * 2 cannot overflow"
+                    reason = "Layout::size() is in [0, isize::MAX], so * 2 cannot overflow"
                 )]
                 let double_size = layout.size() * 2;
                 (double_size > page_size) && is_aligned_to(page_size, layout.align())
