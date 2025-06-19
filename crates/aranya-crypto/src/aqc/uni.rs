@@ -171,7 +171,7 @@ pub struct UniAuthorSecret<CS: CipherSuite> {
     id: OnceCell<Result<UniAuthorSecretId, IdError>>,
 }
 
-sk_misc!(UniAuthorSecret, UniAuthorSecretId);
+sk_misc!(UniAuthorSecret, UniAuthorSecretId, "AQC Uni Author Secret");
 
 unwrapped! {
     name: UniAuthorSecret;
@@ -503,4 +503,51 @@ uni_psk! {
     /// A PSK for a unidirectional channel where the user is
     /// receiving data.
     struct UniRecvPsk;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Golden test for [`UniAuthorSecret`] IDs.
+    #[test]
+    fn test_uni_author_secret_id() {
+        use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
+
+        use crate::{aqc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};
+
+        type CS = TestCs<
+            rust::Aes256Gcm,
+            rust::Sha256,
+            rust::HkdfSha512,
+            DhKemP256HkdfSha256,
+            rust::HmacSha512,
+            Ed25519,
+        >;
+
+        let tests = [(
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "1S3KBvgcjZL8vdzhLrkGookzZfEL1e48jrLazNN7zSGw",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
+                .expect("should import decap key");
+            let root_key = RootChannelKey::<CS>::new(sk);
+            let uni_author_secret = UniAuthorSecret {
+                sk: root_key,
+                id: OnceCell::new(),
+            };
+
+            let got_id = uni_author_secret.id().expect("should compute ID");
+            let expected =
+                UniAuthorSecretId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
+    }
 }
