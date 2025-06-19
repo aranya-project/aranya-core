@@ -23,13 +23,7 @@ pub(super) fn is_aligned_to(v: usize, align: usize) -> bool {
 
 /// Reports whether `ptr` is aligned to `align`.
 fn is_aligned<T>(ptr: *const T) -> bool {
-    #[allow(
-        clippy::arithmetic_side_effects,
-        reason = "align_of::<T>() is always non-zero"
-    )]
-    {
-        (ptr as usize) % align_of::<T>() == 0
-    }
+    ptr.is_aligned()
 }
 
 /// A cache-aligned `T`.
