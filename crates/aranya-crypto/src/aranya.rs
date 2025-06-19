@@ -540,12 +540,47 @@ mod tests {
     }
 
     /// Golden test for [`EncryptionKey::id`] (EncryptionKeyId) with deterministic keys.
-    /// TODO: Implement deterministic key generation for KEM keys
     #[test]
-    #[ignore]
     fn test_encryption_key_id() {
-        // This test is temporarily disabled because KEM key deterministic generation
-        // requires a different approach than Ed25519 signing keys.
-        // TODO: Research how to create deterministic P256 private keys from byte arrays
+        use spideroak_crypto::import::Import;
+        
+        // Use well-known P256 private keys that are valid scalars
+        let tests = [
+            (
+                // A simple valid P256 private key (1)
+                {
+                    let mut key_bytes = [0u8; 32];
+                    key_bytes[31] = 1;
+                    key_bytes
+                },
+                "BHJHCs6ozYTwWRnZs86N1tYoqriNs8a2BLcVNTGmzXyh",
+            ),
+            (
+                // Another valid P256 private key (2) 
+                {
+                    let mut key_bytes = [0u8; 32];
+                    key_bytes[31] = 2;
+                    key_bytes
+                },
+                "AuXu55LDVk9qbBZ4LmqGA5EoQyPSwLSTYnX4KHTtx29y",
+            ),
+            (
+                // A third valid P256 private key (0x42...)
+                {
+                    let mut key_bytes = [0u8; 32];
+                    key_bytes[0] = 0x42;
+                    key_bytes[31] = 0x42;
+                    key_bytes
+                },
+                "2BsoFVd3YVsTj5wrfgXPQ3GUUYwh45F2xmi1K2iGH485",
+            ),
+        ];
+        
+        for (i, (key_bytes, expected)) in tests.iter().enumerate() {
+            let sk = EncryptionKey::<CS>::from_inner(Import::import(&key_bytes[..]).unwrap());
+            let got = sk.id().unwrap();
+            let want = EncryptionKeyId::decode(expected).unwrap();
+            assert_eq!(got, want, "test case #{i}");
+        }
     }
 }
