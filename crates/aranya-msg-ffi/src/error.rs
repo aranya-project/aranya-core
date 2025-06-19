@@ -66,12 +66,6 @@ impl From<ImportError> for Error {
     }
 }
 
-impl From<KeyNotFound> for Error {
-    fn from(err: KeyNotFound) -> Self {
-        Self::new(ErrorKind::KeyNotFound, err)
-    }
-}
-
 impl From<postcard::Error> for Error {
     fn from(err: postcard::Error) -> Self {
         Self::new(ErrorKind::Encoding, err)
