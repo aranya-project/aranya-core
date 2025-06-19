@@ -171,11 +171,7 @@ pub struct UniAuthorSecret<CS: CipherSuite> {
     id: OnceCell<Result<UniAuthorSecretId, IdError>>,
 }
 
-sk_misc!(UniAuthorSecret, UniAuthorSecretId);
-
-impl<CS: CipherSuite> UniAuthorSecret<CS> {
-    pub(crate) const CONTEXT: &'static str = "AQC Uni Author Secret";
-}
+sk_misc!(UniAuthorSecret, UniAuthorSecretId, "AQC Uni Author Secret");
 
 unwrapped! {
     name: UniAuthorSecret;
@@ -544,7 +540,7 @@ mod tests {
                 .expect("should import decap key");
             let root_key: RootChannelKey<CS> = RootChannelKey::new(sk);
             let uni_author_secret: UniAuthorSecret<CS> = UniAuthorSecret {
-                key: root_key,
+                sk: root_key,
                 id: OnceCell::new(),
             };
 

@@ -216,11 +216,11 @@ pub struct BidiAuthorSecret<CS: CipherSuite> {
     id: OnceCell<Result<BidiAuthorSecretId, IdError>>,
 }
 
-sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
-
-impl<CS: CipherSuite> BidiAuthorSecret<CS> {
-    pub(crate) const CONTEXT: &'static str = "AFC Bidi Author Secret";
-}
+sk_misc!(
+    BidiAuthorSecret,
+    BidiAuthorSecretId,
+    "AFC Bidi Author Secret"
+);
 
 unwrapped! {
     name: BidiAuthorSecret;
@@ -640,7 +640,7 @@ mod tests {
                 .expect("should import decap key");
             let root_key: RootChannelKey<CS> = RootChannelKey::new(sk);
             let bidi_author_secret: BidiAuthorSecret<CS> = BidiAuthorSecret {
-                key: root_key,
+                sk: root_key,
                 id: OnceCell::new(),
             };
 

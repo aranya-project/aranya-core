@@ -97,6 +97,7 @@ signing_key! {
     sk = IdentityKey,
     pk = IdentityVerifyingKey,
     id = DeviceId,
+    context = "Device Identity Key",
 }
 
 impl<CS: CipherSuite> IdentityKey<CS> {
@@ -152,7 +153,6 @@ impl<CS: CipherSuite> IdentityKey<CS> {
 }
 
 impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
-    pub(crate) const CONTEXT: &'static str = "Device Identity Key";
     /// Verifies the signature allegedly created over `msg` and
     /// bound to some `context`.
     ///
@@ -175,6 +175,7 @@ signing_key! {
     sk = SigningKey,
     pk = VerifyingKey,
     id = SigningKeyId,
+    context = "Device Signing Key",
 }
 
 impl<CS: CipherSuite> SigningKey<CS> {
@@ -294,7 +295,6 @@ impl<CS: CipherSuite> SigningKey<CS> {
 }
 
 impl<CS: CipherSuite> VerifyingKey<CS> {
-    pub(crate) const CONTEXT: &'static str = "Signing Key";
     /// Verifies the signature allegedly created over `msg` and
     /// bound to some `context`.
     ///
@@ -326,6 +326,7 @@ kem_key! {
     sk = EncryptionKey,
     pk = EncryptionPublicKey,
     id = EncryptionKeyId,
+    context = "Device Encryption Key",
 }
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
@@ -365,7 +366,6 @@ struct GroupKeyInfo {
 }
 
 impl<CS: CipherSuite> EncryptionPublicKey<CS> {
-    pub(crate) const CONTEXT: &'static str = "Encryption Key";
     /// Encrypts and authenticates the [`GroupKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`EncryptionPublicKey`].
@@ -471,6 +471,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use core::cell::OnceCell;
     use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust, signer::Signer};
 
     use super::*;
@@ -502,7 +503,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
                 .expect("should import signing key");
             let identity_key: IdentityKey<CS> = IdentityKey {
-                key: sk,
+                sk: sk,
                 id: OnceCell::new(),
             };
 
@@ -523,14 +524,14 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "6jCqUDv8kXc86NkhCJ8keofMGaZCwTGkuE3AerziDqv4",
+            "3iA8wJfibGhEGKbhzjiANKEQdRhv7TV7hRb4FWhTzwU5",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
                 .expect("should import signing key");
             let signing_key: SigningKey<CS> = SigningKey {
-                key: sk,
+                sk: sk,
                 id: OnceCell::new(),
             };
 
@@ -551,14 +552,14 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "ChneJTCrvP3PX9AEmQUJgDPohpNW2uKmvidGzbtrBisY",
+            "HaE6SCVCRnY4vasF8fimaTbuT1FE6jkTjJfvGc5SrXJj",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
             let encryption_key: EncryptionKey<CS> = EncryptionKey {
-                key: sk,
+                sk: sk,
                 id: OnceCell::new(),
             };
 

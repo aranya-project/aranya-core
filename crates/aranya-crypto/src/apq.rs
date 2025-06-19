@@ -394,6 +394,7 @@ signing_key! {
     sk = SenderSigningKey,
     pk = SenderVerifyingKey,
     id = SenderSigningKeyId,
+    context = "APQ Sender Signing Key",
 }
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
@@ -474,7 +475,6 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
 }
 
 impl<CS: CipherSuite> SenderVerifyingKey<CS> {
-    pub(crate) const CONTEXT: &'static str = "APQ Sender Signing Key";
     /// Verifies the signature allegedly created over an encoded
     /// record.
     pub fn verify(
@@ -513,6 +513,7 @@ kem_key! {
     sk = SenderSecretKey,
     pk = SenderPublicKey,
     id = SenderKeyId,
+    context = "APQ Sender Secret Key",
 }
 
 kem_key! {
@@ -522,15 +523,9 @@ kem_key! {
     sk = ReceiverSecretKey,
     pk = ReceiverPublicKey,
     id = ReceiverKeyId,
+    context = "APQ Receiver Secret Key",
 }
 
-impl<CS: CipherSuite> SenderPublicKey<CS> {
-    pub(crate) const CONTEXT: &'static str = "APQ Sender Secret Key";
-}
-
-impl<CS: CipherSuite> ReceiverPublicKey<CS> {
-    pub(crate) const CONTEXT: &'static str = "APQ Receiver Secret Key";
-}
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
     /// Decrypts and authenticates a [`TopicKey`] received from
     /// a peer.
@@ -584,7 +579,6 @@ struct TopicKeyRotationInfo {
 }
 
 impl<CS: CipherSuite> ReceiverPublicKey<CS> {
-    pub(crate) const CONTEXT: &'static str = "APQ Receiver Secret Key";
     /// Encrypts and authenticates the [`TopicKey`] such that it
     /// can only be decrypted by the holder of the private half
     /// of the [`ReceiverPublicKey`].
@@ -730,7 +724,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
                 .expect("should import signing key");
             let sender_signing_key: SenderSigningKey<CS> = SenderSigningKey {
-                key: sk,
+                sk: sk,
                 id: OnceCell::new(),
             };
 
@@ -759,7 +753,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
             let sender_secret_key: SenderSecretKey<CS> = SenderSecretKey {
-                key: sk,
+                sk: sk,
                 id: OnceCell::new(),
             };
 
@@ -787,7 +781,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
             let receiver_secret_key: ReceiverSecretKey<CS> = ReceiverSecretKey {
-                key: sk,
+                sk: sk,
                 id: OnceCell::new(),
             };
 
