@@ -753,11 +753,21 @@ impl ChunkParser<'_> {
         fields: Pairs<'_, Rule>,
     ) -> Result<Vec<(Identifier, Expression)>, ParseError> {
         let mut out = vec![];
+        let mut seen_fields = std::collections::HashSet::new();
 
         for field in fields {
-            let pc = descend(field);
+            let pc = descend(field.clone());
             let identifier = pc.consume_identifier()?;
             let expression = pc.consume_expression(self)?;
+            
+            if seen_fields.contains(&identifier) {
+                return Err(ParseError::new(
+                    ParseErrorKind::DuplicateField,
+                    format!("field '{}' appears more than once", identifier),
+                    Some(field.as_span()),
+                ));
+            }
+            seen_fields.insert(identifier.clone());
             out.push((identifier, expression));
         }
 
@@ -769,13 +779,14 @@ impl ChunkParser<'_> {
         fields: Pairs<'_, Rule>,
     ) -> Result<Vec<(Identifier, FactField)>, ParseError> {
         let mut out = vec![];
+        let mut seen_fields = std::collections::HashSet::new();
 
         for field in fields {
-            let pc = descend(field);
+            let pc = descend(field.clone());
             let identifier = pc.consume_identifier()?;
 
             let token = pc.consume()?;
-            let field = match token.as_rule() {
+            let field_value = match token.as_rule() {
                 Rule::expression => FactField::Expression(self.parse_expression(token)?),
                 Rule::bind => FactField::Bind,
                 _ => {
@@ -786,7 +797,16 @@ impl ChunkParser<'_> {
                     ))
                 }
             };
-            out.push((identifier, field));
+            
+            if seen_fields.contains(&identifier) {
+                return Err(ParseError::new(
+                    ParseErrorKind::DuplicateField,
+                    format!("field '{}' appears more than once", identifier),
+                    Some(field.as_span()),
+                ));
+            }
+            seen_fields.insert(identifier.clone());
+            out.push((identifier, field_value));
         }
 
         Ok(out)

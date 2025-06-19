@@ -41,6 +41,8 @@ pub enum ParseErrorKind {
     FrontMatter,
     /// An identifier was shared with a keyword
     ReservedIdentifier,
+    /// A field name appears more than once in a struct or fact literal
+    DuplicateField,
     /// An implementation bug
     Bug,
     /// Every other possible error.
@@ -87,6 +89,7 @@ impl Display for ParseError {
             ParseErrorKind::Syntax => "Syntax error",
             ParseErrorKind::FrontMatter => "Front matter YAML parse error",
             ParseErrorKind::ReservedIdentifier => "Reserved identifier",
+            ParseErrorKind::DuplicateField => "Duplicate field",
             ParseErrorKind::Bug => "Bug",
             ParseErrorKind::Unknown => "Unknown error",
         };

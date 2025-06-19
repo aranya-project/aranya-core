@@ -1884,3 +1884,99 @@ fn test_invalid_text() {
         assert_eq!(err.kind, ParseErrorKind::InvalidString, "{src:?}");
     }
 }
+
+#[test]
+fn test_duplicate_fields_in_struct_literals() {
+    let cases = [
+        r#"
+            action test() {
+                let x = Add {
+                    count: 1,
+                    count: 2
+                }
+            }
+        "#,
+        r#"
+            action test() {
+                emit SomeEffect {
+                    x: 1,
+                    y: 2,
+                    x: 3
+                }
+            }
+        "#,
+        r#"
+            action test() {
+                publish Command {
+                    a: "hello",
+                    b: "world", 
+                    a: "duplicate"
+                }
+            }
+        "#,
+    ];
+
+    for src in cases {
+        let err = parse_policy_str(src, Version::V2).unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::DuplicateField, "{src:?}");
+    }
+}
+
+#[test]
+fn test_duplicate_fields_in_fact_literals() {
+    let cases = [
+        r#"
+            action test() {
+                create Fact[x: 1, x: 2]=>{}
+            }
+        "#,
+        r#"
+            action test() {
+                create Fact[]=>{x: 1, y: 2, x: 3}
+            }
+        "#,
+        r#"
+            action test() {
+                update Fact[identifier: 1]=>{x: 2} to {x: 3, y: 4, x: 5}
+            }
+        "#,
+    ];
+
+    for src in cases {
+        let err = parse_policy_str(src, Version::V2).unwrap_err();
+        assert_eq!(err.kind, ParseErrorKind::DuplicateField, "{src:?}");
+    }
+}
+
+#[test]
+fn test_valid_struct_and_fact_literals() {
+    // These should parse successfully - no duplicate fields
+    let cases = [
+        r#"
+            action test() {
+                let x = Add {
+                    count: 1,
+                    other: 2
+                }
+            }
+        "#,
+        r#"
+            action test() {
+                create Fact[x: 1, y: 2]=>{a: 3, b: 4}
+            }
+        "#,
+        r#"
+            action test() {
+                emit Effect {
+                    field1: 1,
+                    field2: 2,
+                    field3: 3
+                }
+            }
+        "#,
+    ];
+
+    for src in cases {
+        parse_policy_str(src, Version::V2).expect(&format!("Should parse successfully: {src:?}"));
+    }
+}
