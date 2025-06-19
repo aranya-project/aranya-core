@@ -433,16 +433,15 @@ mod tests {
             PskSeedId::decode("6SLqJ4Dq4dFTrJuMJZWttWJaRK6EjbrKYULX4FTfGqJW").unwrap();
         assert_eq!(got_seed_id, want_seed_id);
 
-        let mut psks = seed
-            .generate_psks(
-                b"test-context",
-                GroupId::default(),
-                PolicyId::default(),
-                [CipherSuiteId::TlsAes128GcmSha256].into_iter(),
-            );
+        let mut psks = seed.generate_psks(
+            b"test-context",
+            GroupId::default(),
+            PolicyId::default(),
+            [CipherSuiteId::TlsAes128GcmSha256].into_iter(),
+        );
         let psk = psks.next().unwrap().unwrap();
         let got_psk_id = psk.identity();
-        
+
         // Create expected PskId by constructing ImportedIdentity manually
         let expected_identity = ImportedIdentity {
             external_identity: want_seed_id,
