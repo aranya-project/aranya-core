@@ -759,7 +759,7 @@ impl ChunkParser<'_> {
             let pc = descend(field.clone());
             let identifier = pc.consume_identifier()?;
             let expression = pc.consume_expression(self)?;
-            
+
             if seen_fields.contains(&identifier) {
                 return Err(ParseError::new(
                     ParseErrorKind::DuplicateField,
@@ -797,7 +797,7 @@ impl ChunkParser<'_> {
                     ))
                 }
             };
-            
+
             if seen_fields.contains(&identifier) {
                 return Err(ParseError::new(
                     ParseErrorKind::DuplicateField,
