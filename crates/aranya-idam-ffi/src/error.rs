@@ -158,7 +158,6 @@ impl fmt::Display for ErrorKind {
 #[error("unable to allocate memory")]
 pub struct AllocError(());
 
-// AllocError is a simple unit struct with no constructor needed
 
 /// Unable to find a key in the [`KeyStore`][aranya_crypto::KeyStore].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
