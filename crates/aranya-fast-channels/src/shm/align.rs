@@ -13,13 +13,17 @@ use super::shared::assert_ffi_safe;
 pub(super) fn is_aligned_to(v: usize, align: usize) -> bool {
     assert!(align.is_power_of_two());
     #[allow(clippy::arithmetic_side_effects)] // checking alignment
-    { v % align == 0 }
+    {
+        v % align == 0
+    }
 }
 
 /// Reports whether `ptr` is aligned to `align`.
 fn is_aligned<T>(ptr: *const T) -> bool {
     #[allow(clippy::arithmetic_side_effects)] // checking pointer alignment
-    { (ptr as usize) % align_of::<T>() == 0 }
+    {
+        (ptr as usize) % align_of::<T>() == 0
+    }
 }
 
 /// A cache-aligned `T`.

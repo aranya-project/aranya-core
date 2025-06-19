@@ -741,7 +741,8 @@ impl<CS: CipherSuite> ChanList<CS> {
         let (page_size, page_aligned) = if cfg!(feature = "page-aligned") {
             let page_size = getpagesize()?.assume("`page-aligned` feature requires `libc`")?;
             let page_aligned = {
-                #[allow(clippy::arithmetic_side_effects)] // layout.size() < isize::MAX, so * 2 cannot overflow
+                #[allow(clippy::arithmetic_side_effects)]
+                // layout.size() < isize::MAX, so * 2 cannot overflow
                 let double_size = layout.size() * 2;
                 (double_size > page_size) && is_aligned_to(page_size, layout.align())
             };
@@ -833,7 +834,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
     }
 
     fn len(&self) -> Result<usize, Corrupted> {
-        let len = isize::try_from(self.len).map_err(|_| corrupted("`len` is larger than `isize::MAX`"))?;
+        let len = isize::try_from(self.len)
+            .map_err(|_| corrupted("`len` is larger than `isize::MAX`"))?;
         usize::try_from(len).map_err(|_| corrupted("`len` conversion to usize failed"))
     }
 
@@ -1058,7 +1060,9 @@ impl<CS: CipherSuite> ChanListData<CS> {
             // Use the existing arithmetic infrastructure which is designed
             // to handle wraparound behavior safely.
             #[allow(clippy::arithmetic_side_effects)] // U64::SubAssign handles this safely
-            { self.len -= 1; }
+            {
+                self.len -= 1;
+            }
             assert!(self.len <= self.cap);
             Ok(())
         }
