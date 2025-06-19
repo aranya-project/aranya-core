@@ -711,7 +711,6 @@ mod tests {
     #[test]
     fn test_sender_signing_key_id() {
         let tests = [(
-            // Fixed key bytes for reproducible test
             [
                 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
@@ -723,10 +722,7 @@ mod tests {
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
                 .expect("should import signing key");
-            let sender_signing_key: SenderSigningKey<CS> = SenderSigningKey {
-                sk,
-                id: OnceCell::new(),
-            };
+            let sender_signing_key = SenderSigningKey::<CS>::from_inner(sk);
 
             let got_id = sender_signing_key.id().expect("should compute ID");
             let expected =
@@ -740,7 +736,6 @@ mod tests {
     #[test]
     fn test_sender_secret_key_id() {
         let tests = [(
-            // Fixed key bytes for reproducible test
             [
                 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
@@ -752,10 +747,7 @@ mod tests {
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
-            let sender_secret_key: SenderSecretKey<CS> = SenderSecretKey {
-                sk,
-                id: OnceCell::new(),
-            };
+            let sender_secret_key = SenderSecretKey::<CS>::from_inner(sk);
 
             let got_id = sender_secret_key.id().expect("should compute ID");
             let expected = SenderKeyId::decode(expected_id).expect("should decode expected ID");
@@ -768,7 +760,6 @@ mod tests {
     #[test]
     fn test_receiver_secret_key_id() {
         let tests = [(
-            // Fixed key bytes for reproducible test
             [
                 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
@@ -780,10 +771,7 @@ mod tests {
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
-            let receiver_secret_key: ReceiverSecretKey<CS> = ReceiverSecretKey {
-                sk,
-                id: OnceCell::new(),
-            };
+            let receiver_secret_key = ReceiverSecretKey::<CS>::from_inner(sk);
 
             let got_id = receiver_secret_key.id().expect("should compute ID");
             let expected = ReceiverKeyId::decode(expected_id).expect("should decode expected ID");
