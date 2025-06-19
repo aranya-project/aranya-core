@@ -12,7 +12,10 @@ use super::shared::assert_ffi_safe;
 /// Reports whether `v` is aligned to `align`.
 pub(super) fn is_aligned_to(v: usize, align: usize) -> bool {
     assert!(align.is_power_of_two());
-    #[allow(clippy::arithmetic_side_effects)] // checking alignment
+    #[allow(
+        clippy::arithmetic_side_effects,
+        reason = "align is a power of two and therefore non-zero"
+    )]
     {
         v % align == 0
     }
@@ -20,7 +23,10 @@ pub(super) fn is_aligned_to(v: usize, align: usize) -> bool {
 
 /// Reports whether `ptr` is aligned to `align`.
 fn is_aligned<T>(ptr: *const T) -> bool {
-    #[allow(clippy::arithmetic_side_effects)] // checking pointer alignment
+    #[allow(
+        clippy::arithmetic_side_effects,
+        reason = "align_of::<T>() is always non-zero"
+    )]
     {
         (ptr as usize) % align_of::<T>() == 0
     }

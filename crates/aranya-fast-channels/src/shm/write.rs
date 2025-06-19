@@ -98,12 +98,10 @@ where
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
             if grow {
-                // Use the existing arithmetic infrastructure which is designed
-                // to handle wraparound behavior safely.
-                #[allow(clippy::arithmetic_side_effects)] // U64::AddAssign handles this safely
-                {
-                    side.len += 1;
-                }
+                side.len = side
+                    .len
+                    .checked_add(1)
+                    .assume("len < cap, so adding 1 cannot overflow")?;
             }
             assert!(side.len <= side.cap);
             debug!("write side len={}", side.len);
@@ -125,12 +123,10 @@ where
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
             if grow {
-                // Use the existing arithmetic infrastructure which is designed
-                // to handle wraparound behavior safely.
-                #[allow(clippy::arithmetic_side_effects)] // U64::AddAssign handles this safely
-                {
-                    side.len += 1;
-                }
+                side.len = side
+                    .len
+                    .checked_add(1)
+                    .assume("len < cap, so adding 1 cannot overflow")?;
             }
             assert!(side.len <= side.cap);
             debug!("read side len={}", side.len);

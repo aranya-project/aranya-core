@@ -21,6 +21,21 @@ macro_rules! little_endian {
                 pub const fn into(self) -> $type {
                     <$type>::from_le(self.0)
                 }
+
+                /// Checked addition.
+                pub fn checked_add(self, rhs: $type) -> Option<Self> {
+                    self.into().checked_add(rhs).map(Self::new)
+                }
+
+                /// Checked subtraction.
+                pub fn checked_sub(self, rhs: $type) -> Option<Self> {
+                    self.into().checked_sub(rhs).map(Self::new)
+                }
+
+                /// Wrapping subtraction.
+                pub fn wrapping_sub(self, rhs: $type) -> Self {
+                    Self::new(self.into().wrapping_sub(rhs))
+                }
             }
 
             impl ::core::cmp::PartialEq<$type> for $name {
@@ -84,7 +99,7 @@ macro_rules! little_endian {
                 type Error = <isize as ::core::convert::TryFrom<$type>>::Error;
 
                 fn try_from(v: $name) -> Result<Self, Self::Error> {
-                    isize::try_from(v.into())
+                    isize::try_from(v.0)
                 }
             }
 

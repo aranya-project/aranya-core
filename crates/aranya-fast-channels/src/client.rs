@@ -116,13 +116,14 @@ impl<S: AfcState> Client<S> {
         let (rest, header) = data
             .split_last_chunk_mut()
             .assume("we've already checked that `data` can fit a header")?;
-        let split_pos = rest
-            .len()
-            .checked_sub(Self::TAG_SIZE)
-            .assume("we've already checked that `data` can fit a tag")?;
-        let (out, tag) = rest
-            .split_at_mut_checked(split_pos)
-            .assume("split position is within bounds")?;
+        let (out, tag) = {
+            let split_pos = rest
+                .len()
+                .checked_sub(Self::TAG_SIZE)
+                .assume("we've already checked that `data` can fit a tag")?;
+            rest.split_at_mut_checked(split_pos)
+                .assume("split position is within bounds")?
+        };
 
         self.do_seal(id, header, |aead, ad| {
             aead.seal_in_place(out, tag, ad).map_err(Into::into)
@@ -255,16 +256,17 @@ impl<S: AfcState> Client<S> {
                 .split_last_chunk_mut()
                 .ok_or(HeaderError::InvalidSize)?;
             let DataHeader { label, seq, .. } = DataHeader::try_parse(header)?;
-            let split_pos = rest
-                .len()
-                .checked_sub(Self::TAG_SIZE)
-                // Missing an authentication tag, so by
-                // definition we cannot authenticate the
-                // ciphertext.
-                .ok_or(Error::Authentication)?;
-            let (ciphertext, tag) = rest
-                .split_at_mut_checked(split_pos)
-                .ok_or(Error::Authentication)?;
+            let (ciphertext, tag) = {
+                let split_pos = rest
+                    .len()
+                    .checked_sub(Self::TAG_SIZE)
+                    // Missing an authentication tag, so by
+                    // definition we cannot authenticate the
+                    // ciphertext.
+                    .ok_or(Error::Authentication)?;
+                rest.split_at_mut_checked(split_pos)
+                    .ok_or(Error::Authentication)?
+            };
             (label, seq, ciphertext, tag)
         };
         debug!(
