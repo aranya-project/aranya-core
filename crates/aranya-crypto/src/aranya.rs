@@ -472,6 +472,7 @@ where
 #[cfg(test)]
 mod tests {
     use core::cell::OnceCell;
+
     use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust, signer::Signer};
 
     use super::*;
@@ -503,7 +504,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
                 .expect("should import signing key");
             let identity_key: IdentityKey<CS> = IdentityKey {
-                sk: sk,
+                sk,
                 id: OnceCell::new(),
             };
 
@@ -531,7 +532,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
                 .expect("should import signing key");
             let signing_key: SigningKey<CS> = SigningKey {
-                sk: sk,
+                sk,
                 id: OnceCell::new(),
             };
 
@@ -559,7 +560,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
             let encryption_key: EncryptionKey<CS> = EncryptionKey {
-                sk: sk,
+                sk,
                 id: OnceCell::new(),
             };
 

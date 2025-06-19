@@ -724,7 +724,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
                 .expect("should import signing key");
             let sender_signing_key: SenderSigningKey<CS> = SenderSigningKey {
-                sk: sk,
+                sk,
                 id: OnceCell::new(),
             };
 
@@ -753,7 +753,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
             let sender_secret_key: SenderSecretKey<CS> = SenderSecretKey {
-                sk: sk,
+                sk,
                 id: OnceCell::new(),
             };
 
@@ -781,7 +781,7 @@ mod tests {
             let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
                 .expect("should import decap key");
             let receiver_secret_key: ReceiverSecretKey<CS> = ReceiverSecretKey {
-                sk: sk,
+                sk,
                 id: OnceCell::new(),
             };
 
