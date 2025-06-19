@@ -278,13 +278,20 @@ mod tests {
         spideroak_crypto::ed25519::Ed25519,
     >;
 
-    /// Golden test for [`GroupKey::id`] with a zeroed seed.
+    /// Golden test for [`GroupKey::id`] with various seeds.
     #[test]
-    fn test_group_key_id_zero() {
-        let key = GroupKey::<CS>::from_seed([0u8; 64]);
-        let got = key.id().unwrap();
-        let want = GroupKeyId::decode("7cgE8Z5ZFUg5iCxgnocQruUb3anU7WnZgoNG5aYDaJ4b").unwrap();
-        assert_eq!(got, want);
+    fn test_group_key_id() {
+        let tests = [
+            ([0u8; 64], "7cgE8Z5ZFUg5iCxgnocQruUb3anU7WnZgoNG5aYDaJ4b"),
+            ([1u8; 64], "FYShTXWtELpdw4XpvPtUJDAo1HW5RGF3VKr8558RJiVR"),
+            ([0xAA; 64], "2kN64kPfMa8cg6YF71N4da8PcUUYcmkd8Qa9krWZwCEv"),
+        ];
+        for (i, (seed, expected)) in tests.iter().enumerate() {
+            let key = GroupKey::<CS>::from_seed(*seed);
+            let got = key.id().unwrap();
+            let want = GroupKeyId::decode(expected).unwrap();
+            assert_eq!(got, want, "test case #{i}");
+        }
     }
 }
 
