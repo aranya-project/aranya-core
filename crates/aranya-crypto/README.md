@@ -5,16 +5,16 @@
 
 The Aranya Cryptography Engine.
 
-## What's Contained
+## Overview
 
-Rather than scattered cryptographic operations throughout the codebase,
-Aranya centralizes all cryptography within the *cryptography engine*.
-This engine provides a consistent interface while allowing algorithm
-flexibility through cipher suites.
+Aranya centralizes cryptography in a single *cryptography engine*
+instead of spreading it throughout the codebase. The engine provides
+a consistent interface while allowing algorithm flexibility through
+cipher suites.
 
 The engine requires cryptographic primitives (e.g., 128-bit AEAD) rather
-than specific algorithms (e.g., AES-GCM). This design enables users to
-select preferred implementations while maintaining security guarantees.
+than specific algorithms (e.g., AES-GCM). This allows users to select
+their preferred implementations while maintaining security guarantees.
 
 ## Key Components
 
@@ -23,8 +23,8 @@ select preferred implementations while maintaining security guarantees.
 - **Protocol Support**: AFC, AQC, APQ, and TLS integration
 - **HSM Integration**: Extensible architecture for hardware security
   modules
-- **No-std Support**: Compatible with embedded and constrained
-  environments
+- **No-std/No-alloc**: Works without standard library or allocator
+  by default
 
 ## Get Started
 
@@ -40,35 +40,30 @@ aranya-crypto = "0.7"
 ```rust
 use aranya_crypto::{Engine, default::DefaultEngine, Rng};
 
-// Create engine with default cipher suite
-let mut engine = DefaultEngine::new();
+// Create engine with default cipher suite  
+let (mut engine, _key) = DefaultEngine::from_entropy(Rng);
 
 // Generate random bytes
 let mut buf = [0u8; 32];
-Rng.fill_bytes(&mut buf);
+engine.fill_bytes(&mut buf);
 ```
 
-### Custom Engine Implementation
+### Custom Cipher Suite
 
-See [`examples/hsm/`](examples/hsm/) for a complete HSM-backed engine:
+See [`examples/basic.rs`](examples/basic.rs) for a complete example:
 
 ```rust
-use aranya_crypto::{Engine, CipherSuite};
+use aranya_crypto::{CipherSuite, dangerous::spideroak_crypto::{rust, ed25519}};
 
-struct MyEngine;
+struct MyCipherSuite;
 
-impl CipherSuite for MyEngine {
+impl CipherSuite for MyCipherSuite {
     type Aead = rust::Aes256Gcm;
     type Hash = rust::Sha256;
     type Kdf = rust::HkdfSha512;
     type Kem = rust::DhKemP256HkdfSha256;
     type Mac = rust::HmacSha512;
-    type Signer = rust::Ed25519;
-}
-
-impl Engine for MyEngine {
-    type CS = Self;
-    type WrappedKey = MyWrappedKey;
+    type Signer = ed25519::Ed25519;
 }
 ```
 
@@ -115,7 +110,7 @@ wrapped/unwrapped transparently based on the storage backend.
 
 - [API docs](https://docs.rs/aranya-crypto)
 - [Changelog](CHANGELOG.md)
-- [Examples](examples/)
+- [Examples](examples/) ([basic.rs](examples/basic.rs), [hsm/](examples/hsm/))
 
 ## License
 
