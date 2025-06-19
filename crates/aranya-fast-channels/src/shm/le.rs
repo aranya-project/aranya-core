@@ -80,6 +80,14 @@ macro_rules! little_endian {
                 }
             }
 
+            impl ::core::convert::TryFrom<$name> for isize {
+                type Error = <isize as ::core::convert::TryFrom<$type>>::Error;
+
+                fn try_from(v: $name) -> Result<Self, Self::Error> {
+                    isize::try_from(v.into())
+                }
+            }
+
             impl ::core::fmt::Display for $name {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     write!(f, "{}", self.0)

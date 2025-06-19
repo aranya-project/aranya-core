@@ -100,7 +100,7 @@ where
             if grow {
                 // Use the existing arithmetic infrastructure which is designed
                 // to handle wraparound behavior safely.
-                #[allow(clippy::arithmetic_side_effects)] // U64 arithmetic operations are allowed
+                #[allow(clippy::arithmetic_side_effects)] // U64::AddAssign handles this safely
                 { side.len += 1; }
             }
             assert!(side.len <= side.cap);
@@ -125,7 +125,7 @@ where
             if grow {
                 // Use the existing arithmetic infrastructure which is designed
                 // to handle wraparound behavior safely.
-                #[allow(clippy::arithmetic_side_effects)] // U64 arithmetic operations are allowed
+                #[allow(clippy::arithmetic_side_effects)] // U64::AddAssign handles this safely
                 { side.len += 1; }
             }
             assert!(side.len <= side.cap);
