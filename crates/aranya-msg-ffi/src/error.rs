@@ -66,12 +66,6 @@ impl From<ImportError> for Error {
     }
 }
 
-impl From<KeyNotFound> for Error {
-    fn from(err: KeyNotFound) -> Self {
-        Self::new(ErrorKind::KeyNotFound, err)
-    }
-}
-
 impl From<postcard::Error> for Error {
     fn from(err: postcard::Error) -> Self {
         Self::new(ErrorKind::Encoding, err)
@@ -157,6 +151,12 @@ impl fmt::Display for ErrorKind {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[error("unable to allocate memory")]
 pub struct AllocError(());
+
+impl AllocError {
+    pub(crate) const fn new() -> Self {
+        Self(())
+    }
+}
 
 /// Unable to find a key in the [`KeyStore`][aranya_crypto::KeyStore].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
