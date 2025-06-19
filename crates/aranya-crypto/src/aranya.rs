@@ -465,3 +465,24 @@ where
         d.deserialize_bytes(EncapVisitor(PhantomData))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use spideroak_crypto::rust;
+
+    use super::*;
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        spideroak_crypto::ed25519::Ed25519,
+    >;
+
+    // TODO: Add golden test for DeviceId
+    // This requires creating a deterministic signing key, which needs more investigation
+    // into the proper way to create Ed25519 keys from deterministic seeds in this codebase
+}
