@@ -485,4 +485,12 @@ mod tests {
     // TODO: Add golden test for DeviceId
     // This requires creating a deterministic signing key, which needs more investigation
     // into the proper way to create Ed25519 keys from deterministic seeds in this codebase
+
+    // TODO: Add golden test for SigningKeyId
+    // This requires creating a deterministic signing key, which needs more investigation
+    // into the proper way to create Ed25519 keys from deterministic seeds in this codebase
+
+    // TODO: Add golden test for EncryptionKeyId
+    // This requires creating a deterministic KEM key, which needs more investigation
+    // into the proper way to create deterministic KEM keys in this codebase
 }
