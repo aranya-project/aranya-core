@@ -470,9 +470,9 @@ where
 mod tests {
     use spideroak_crypto::rust;
 
-    use super::*;
     use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
 
+    #[allow(dead_code)]
     type CS = TestCs<
         rust::Aes256Gcm,
         rust::Sha256,
