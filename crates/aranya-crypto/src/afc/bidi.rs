@@ -2,12 +2,10 @@ use core::cell::OnceCell;
 
 use buggy::BugExt;
 use derive_where::derive_where;
-use spideroak_crypto::{
-    csprng::Random,
-    hash::{Digest, Hash},
-    hpke::{Hpke, Mode},
-    import::ImportError,
-    kem::Kem,
+use spideroak_crypto::{csprng::Random, import::ImportError, kem::Kem};
+use zerocopy::{
+    byteorder::{BE, U32},
+    ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
 };
 
 use crate::{
@@ -16,9 +14,10 @@ use crate::{
         shared::{RawOpenKey, RawSealKey, RootChannelKey},
     },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::{CipherSuite, CipherSuiteExt},
+    ciphersuite::CipherSuite,
     engine::{unwrapped, Engine},
     error::Error,
+    hpke::{self, Mode},
     id::{custom_id, Id, IdError},
     misc::sk_misc,
 };
@@ -168,50 +167,52 @@ pub struct BidiChannel<'a, CS: CipherSuite> {
 }
 
 impl<CS: CipherSuite> BidiChannel<'_, CS> {
-    const LABEL: &'static [u8] = b"AfcChannelKeys";
-
     /// The author's `info` parameter.
-    pub(crate) fn author_info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
-        // info = H(
-        //     "AfcChannelKeys",
-        //     suite_id,
-        //     engine_id,
+    pub(crate) const fn author_info(&self) -> Info {
+        // info = concat(
+        //     "AfcBidiKeys-v1",
         //     parent_cmd_id,
-        //     author_id,
-        //     peer_id,
+        //     their_id,
+        //     our_id,
         //     i2osp(label, 4),
         // )
-        CS::tuple_hash(
-            Self::LABEL,
-            [
-                self.parent_cmd_id.as_bytes(),
-                self.our_id.as_bytes(),
-                self.their_id.as_bytes(),
-                &self.label.to_be_bytes(),
-            ],
-        )
+        Info {
+            domain: *b"AfcBidiKeys-v1",
+            parent_cmd_id: self.parent_cmd_id,
+            their_id: self.their_id,
+            our_id: self.our_id,
+            label: U32::new(self.label),
+        }
     }
 
     /// The peer's `info` parameter.
-    pub(crate) fn peer_info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
+    pub(crate) const fn peer_info(&self) -> Info {
         // Same as the author's info, except that we're computing
         // it from the peer's perspective, so `our_id` and
         // `their_id` are reversed.
-        CS::tuple_hash(
-            Self::LABEL,
-            [
-                self.parent_cmd_id.as_bytes(),
-                self.their_id.as_bytes(),
-                self.our_id.as_bytes(),
-                &self.label.to_be_bytes(),
-            ],
-        )
+        Info {
+            domain: *b"AfcBidiKeys-v1",
+            parent_cmd_id: self.parent_cmd_id,
+            their_id: self.our_id,
+            our_id: self.their_id,
+            label: U32::new(self.label),
+        }
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+pub(crate) struct Info {
+    domain: [u8; 14],
+    parent_cmd_id: Id,
+    their_id: DeviceId,
+    our_id: DeviceId,
+    label: U32<BE>,
 }
 
 /// A bidirectional channel author's secret.
 pub struct BidiAuthorSecret<CS: CipherSuite> {
-    key: RootChannelKey<CS>,
+    sk: RootChannelKey<CS>,
     id: OnceCell<Result<BidiAuthorSecretId, IdError>>,
 }
 
@@ -220,8 +221,8 @@ sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
 unwrapped! {
     name: BidiAuthorSecret;
     type: Decap;
-    into: |key: Self| { key.key.into_inner() };
-    from: |key| { Self { key: RootChannelKey::new(key), id: OnceCell::new() } };
+    into: |key: Self| { key.sk.into_inner() };
+    from: |key| { Self { sk: RootChannelKey::new(key), id: OnceCell::new() } };
 }
 
 /// A bidirectional channel peer's encapsulated secret.
@@ -293,10 +294,10 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
 
         let root_sk = RootChannelKey::random(eng);
         let peer = {
-            let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                Mode::Auth(&author_sk.key),
-                &peer_pk.0,
-                &ch.author_info(),
+            let (enc, _) = hpke::setup_send_deterministically::<CS>(
+                Mode::Auth(&author_sk.sk),
+                &peer_pk.pk,
+                [ch.author_info().as_bytes()],
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
             )?;
@@ -306,7 +307,7 @@ impl<CS: CipherSuite> BidiSecrets<CS> {
             }
         };
         let author = BidiAuthorSecret {
-            key: root_sk,
+            sk: root_sk,
             id: OnceCell::new(),
         };
 
@@ -342,11 +343,11 @@ impl<CS: CipherSuite> BidiKeys<CS> {
             return Err(Error::same_device_id());
         }
 
-        let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-            Mode::Auth(&author_sk.key),
-            &peer_pk.0,
-            &ch.author_info(),
-            secret.key.into_inner(),
+        let (_, ctx) = hpke::setup_send_deterministically::<CS>(
+            Mode::Auth(&author_sk.sk),
+            &peer_pk.pk,
+            [ch.author_info().as_bytes()],
+            secret.sk.into_inner(),
         )?;
 
         // See section 9.8 of RFC 9180.
@@ -382,11 +383,11 @@ impl<CS: CipherSuite> BidiKeys<CS> {
             return Err(Error::same_device_id());
         }
 
-        let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
-            Mode::Auth(&author_pk.0),
+        let ctx = hpke::setup_recv::<CS>(
+            Mode::Auth(&author_pk.pk),
             enc.as_inner(),
-            &peer_sk.key,
-            &ch.peer_info(),
+            &peer_sk.sk,
+            [ch.peer_info().as_bytes()],
         )?;
 
         // See section 9.8 of RFC 9180.

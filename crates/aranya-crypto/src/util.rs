@@ -1,13 +1,3 @@
-#[cfg(feature = "tls")]
-use crate::ciphersuite::CipherSuite;
-
-#[cfg(feature = "tls")]
-pub(crate) type Hpke<CS> = spideroak_crypto::hpke::Hpke<
-    <CS as CipherSuite>::Kem,
-    <CS as CipherSuite>::Kdf,
-    <CS as CipherSuite>::Aead,
->;
-
 #[cfg(any(feature = "memstore", feature = "test_util"))]
 pub mod cbor {
     extern crate alloc;
@@ -45,4 +35,6 @@ pub mod cbor {
 }
 
 #[cfg(feature = "tls")]
-pub(crate) const fn is_zeroize_on_drop<T: crate::zeroize::ZeroizeOnDrop>(_: &T) {}
+pub(crate) const fn val_is_zeroize_on_drop<T: crate::zeroize::ZeroizeOnDrop>(_: &T) {}
+
+pub(crate) const fn type_is_zeroize_on_drop<T: crate::zeroize::ZeroizeOnDrop>() {}

@@ -5,7 +5,7 @@ use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use spideroak_crypto::{
     aead::Tag,
-    hpke::Mode,
+    hex::Hex,
     kdf::{self, Kdf},
     keys::SecretKeyBytes,
 };
@@ -17,11 +17,12 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
+    hpke::{self, Mode},
     id::{custom_id, IdError, Identified},
     policy::{GroupId, PolicyId},
     subtle::{Choice, ConstantTimeEq},
-    tls::CipherSuiteId,
-    util::{self, Hpke},
+    tls::{self, CipherSuiteId},
+    util,
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
     Csprng, Random,
 };
@@ -41,40 +42,9 @@ custom_id! {
 }
 
 /// A cryptographic seed used to derive multiple [`Psk`]s.
-///
-/// # Example
-///
-/// ```rust
-/// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
-/// # {
-/// use aranya_crypto::{
-///     default::{
-///         DefaultCipherSuite,
-///         DefaultEngine,
-///     },
-///     PolicyId,
-///     Rng,
-///     subtle::ConstantTimeEq,
-///     tls::{CipherSuiteId, PskSeed},
-/// };
-/// type CS = DefaultCipherSuite;
-/// // NB: In a real application the policy ID would be
-/// // deterministically generated from the policy used to create
-/// // the team.
-/// let policy_id = PolicyId::random(&mut Rng);
-/// let seed = PskSeed::<CS>::new(&mut Rng, &policy_id);
-///
-/// let psk1 = seed.generate_psk(CipherSuiteId::TlsAes128GcmSha256).unwrap();
-/// let psk2 = seed.generate_psk(CipherSuiteId::TlsAes256GcmSha384).unwrap();
-/// assert!(!bool::from(psk1.ct_eq(&psk2)));
-///
-/// let psk1 = seed.generate_psk(CipherSuiteId::TlsAes128GcmSha256).unwrap();
-/// let psk2 = seed.generate_psk(CipherSuiteId::TlsAes128GcmSha256).unwrap();
-/// assert!(bool::from(psk1.ct_eq(&psk2)));
-/// # }
-/// ```
-#[derive_where(Clone)]
+#[derive_where(Clone, Debug)]
 pub struct PskSeed<CS: CipherSuite> {
+    #[derive_where(skip(Debug))]
     prk: Prk<CS>,
     // The ID is computed with `labeled_expand(...)`, which can
     // be slow, relative to just returning a struct field,
@@ -88,19 +58,30 @@ pub struct PskSeed<CS: CipherSuite> {
 
 impl<CS: CipherSuite> PskSeed<CS> {
     /// Generates a random `PskSeed`.
-    pub fn new<R>(rng: &mut R, policy: &PolicyId) -> Self
+    pub fn new<R>(rng: &mut R, group: &GroupId) -> Self
     where
         R: Csprng,
     {
         let ikm = Zeroizing::new(Random::random(rng));
-        Self::from_ikm(&ikm, policy)
+        Self::from_ikm(&ikm, group)
+    }
+
+    /// Imports a `PskSeed` from an existing IKM in a manner
+    /// similar to [RFC 9258].
+    ///
+    /// - `ikm` must be cryptographically secure, but need not be
+    ///   uniformly random.
+    ///
+    /// [RFC 9258]: https://datatracker.ietf.org/doc/html/rfc9258
+    pub fn import_from_ikm(ikm: &[u8; 32], group: &GroupId) -> Self {
+        Self::from_ikm(ikm, group)
     }
 
     /// Creates a `PskSeed` from some IKM.
     ///
     /// Only `pub(crate)` for testing purposes.
-    pub(crate) fn from_ikm(ikm: &[u8; 32], policy: &PolicyId) -> Self {
-        let prk = CS::labeled_extract(SEED_DOMAIN, policy.as_bytes(), b"prk", ikm);
+    pub(crate) fn from_ikm(ikm: &[u8; 32], group: &GroupId) -> Self {
+        let prk = CS::labeled_extract(SEED_DOMAIN, &[], b"prk", [group.as_bytes(), ikm]);
         Self::from_prk(prk)
     }
 
@@ -142,89 +123,41 @@ impl<CS: CipherSuite> PskSeed<CS> {
             .as_ref()
     }
 
-    /// Generates a PSK for the cipher suite.
+    /// Generates one PSK for each of the provided cipher suites.
     ///
-    /// This method is deterministic over the `PskSeed` and
-    /// cipher suite: calling it with the same `PskSeed` and
-    /// cipher suite will generate the same PSK.
-    pub fn generate_psk(&self, suite: CipherSuiteId) -> Result<Psk<CS>, Error> {
-        let id = PskId {
-            id: *self.try_id().map_err(Bug::clone)?,
-            suite,
-        };
-        let secret = CS::labeled_expand(PSK_DOMAIN, &self.prk, b"psk", [suite.as_bytes()])?;
-        Ok(Psk {
-            id,
-            secret,
-            _marker: PhantomData,
+    /// - `context` is a unique constant string that describes
+    ///   what the PSKs are being used for. For example, it could
+    ///   be `b"quic-syncer-v4"`.
+    ///
+    /// This method is deterministic over each (`PskSeed`,
+    /// `context`, `GroupId`, `PolicyId`, and `CipherSuiteId`
+    /// tuple). Calling it with the same tuple will generate the
+    /// same PSKs.
+    pub fn generate_psks<I>(
+        self,
+        context: &'static [u8],
+        group: GroupId,
+        policy: PolicyId,
+        suites: I,
+    ) -> impl Iterator<Item = Result<Psk<CS>, Error>>
+    where
+        I: Iterator<Item = CipherSuiteId>,
+    {
+        suites.into_iter().map(move |suite| {
+            let id = ImportedIdentity {
+                external_identity: *self.try_id().map_err(Bug::clone)?,
+                context: PskCtx { group, policy },
+                target_protocol: tls::Version::Tls13,
+                target_kdf: suite,
+            };
+            let secret =
+                CS::labeled_expand(PSK_DOMAIN, &self.prk, b"psk", [id.as_bytes(), context])?;
+            Ok(Psk {
+                id: PskId(id),
+                secret,
+                _marker: PhantomData,
+            })
         })
-    }
-}
-
-impl<CS: CipherSuite> EncryptionKey<CS> {
-    /// Uses `self` to encrypt and authenticate the [`PskSeed`]
-    /// such that it can only be decrypted by the holder of the
-    /// private half of `peer_pk`.
-    ///
-    /// It is an error if `pk` is the public key for `self`.
-    pub fn seal_psk_seed<R: Csprng>(
-        &self,
-        rng: &mut R,
-        seed: &PskSeed<CS>,
-        peer_pk: &EncryptionPublicKey<CS>,
-        group: &GroupId,
-    ) -> Result<(Encap<CS>, EncryptedPskSeed<CS>), Error> {
-        if &self.public()? == peer_pk {
-            return Err(Error::InvalidArgument("same `EncryptionKey`"));
-        }
-        // info = H(
-        //     "PskSeed-v1",
-        //     suite_id,
-        //     group,
-        // )
-        let info = CS::tuple_hash(b"PskSeed-v1", [group.as_bytes()]);
-        let (enc, mut ctx) = Hpke::<CS>::setup_send(rng, Mode::Auth(&self.key), &peer_pk.0, &info)?;
-        let mut ciphertext = seed.prk.clone().into_bytes().into_bytes();
-        let mut tag = Tag::<CS::Aead>::default();
-        ctx.seal_in_place(&mut ciphertext, &mut tag, &info)
-            .inspect_err(|_| ciphertext.zeroize())?;
-        Ok((Encap(enc), EncryptedPskSeed { ciphertext, tag }))
-    }
-
-    /// Uses `self` to decrypt and authenticate a [`PskSeed`]
-    /// that was encrypted by `peer_pk`.
-    pub fn open_psk_seed(
-        &self,
-        encap: &Encap<CS>,
-        ciphertext: EncryptedPskSeed<CS>,
-        peer_pk: &EncryptionPublicKey<CS>,
-        group: &GroupId,
-    ) -> Result<PskSeed<CS>, Error> {
-        let EncryptedPskSeed {
-            mut ciphertext,
-            tag,
-        } = ciphertext;
-
-        // info = H(
-        //     "PskSeed-v1",
-        //     suite_id,
-        //     group,
-        // )
-        let info = CS::tuple_hash(b"PskSeed-v1", [group.as_bytes()]);
-        let mut ctx = Hpke::<CS>::setup_recv(Mode::Auth(&peer_pk.0), &encap.0, &self.key, &info)?;
-        ctx.open_in_place(&mut ciphertext, &tag, &info)?;
-
-        let prk = Prk::<CS>::new(SecretKeyBytes::new(ciphertext));
-        Ok(PskSeed::from_prk(prk))
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for PskSeed<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Avoid leaking `seed`.
-        f.debug_struct("PskSeed")
-            .field("id", &self.try_id())
-            .finish_non_exhaustive()
     }
 }
 
@@ -232,7 +165,7 @@ impl<CS: CipherSuite> ZeroizeOnDrop for PskSeed<CS> {}
 impl<CS: CipherSuite> Drop for PskSeed<CS> {
     #[inline]
     fn drop(&mut self) {
-        util::is_zeroize_on_drop(&self.prk);
+        util::val_is_zeroize_on_drop(&self.prk);
     }
 }
 
@@ -261,32 +194,122 @@ impl<CS: CipherSuite> ConstantTimeEq for PskSeed<CS> {
     }
 }
 
+/// From [RFC 9258].
+///
+/// ```text
+/// struct {
+///    opaque external_identity<1...2^16-1>;
+///    opaque context<0..2^16-1>;
+///    uint16 target_protocol;
+///    uint16 target_kdf;
+/// } ImportedIdentity;
+/// ```
+///
+/// [RFC 9258]: https://datatracker.ietf.org/doc/html/rfc9258
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
+struct ImportedIdentity {
+    // NB: These two fields are variable-length in the RFC (and
+    // therefore have leading length bytes), but fixed length
+    // here.
+    external_identity: PskSeedId,
+    context: PskCtx,
+    target_protocol: tls::Version,
+    // NB: In RFC 9258 this is just the KDF, but we bind it to
+    // the entire cipher suite instead.
+    target_kdf: CipherSuiteId,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
+struct PskCtx {
+    group: GroupId,
+    policy: PolicyId,
+}
+
+impl<CS: CipherSuite> EncryptionKey<CS> {
+    /// Uses `self` to encrypt and authenticate the [`PskSeed`]
+    /// such that it can only be decrypted by the holder of the
+    /// private half of `peer_pk`.
+    ///
+    /// It is an error if `pk` is the public key for `self`.
+    pub fn seal_psk_seed<R: Csprng>(
+        &self,
+        rng: &mut R,
+        seed: &PskSeed<CS>,
+        peer_pk: &EncryptionPublicKey<CS>,
+        group: &GroupId,
+    ) -> Result<(Encap<CS>, EncryptedPskSeed<CS>), Error> {
+        if &self.public()? == peer_pk {
+            return Err(Error::InvalidArgument("same `EncryptionKey`"));
+        }
+        // info = concat(
+        //     "PskSeed-v1",
+        //     group,
+        // )
+        let info = Info {
+            domain: *b"PskSeed-v1",
+            group: *group,
+        };
+        let (enc, mut ctx) =
+            hpke::setup_send::<CS, _>(rng, Mode::Auth(&self.sk), &peer_pk.pk, [info.as_bytes()])?;
+        let mut ciphertext = seed.prk.clone().into_bytes().into_bytes();
+        let mut tag = Tag::<CS::Aead>::default();
+        ctx.seal_in_place(&mut ciphertext, &mut tag, info.as_bytes())
+            .inspect_err(|_| ciphertext.zeroize())?;
+        Ok((Encap(enc), EncryptedPskSeed { ciphertext, tag }))
+    }
+
+    /// Uses `self` to decrypt and authenticate a [`PskSeed`]
+    /// that was encrypted by `peer_pk`.
+    pub fn open_psk_seed(
+        &self,
+        encap: &Encap<CS>,
+        ciphertext: EncryptedPskSeed<CS>,
+        peer_pk: &EncryptionPublicKey<CS>,
+        group: &GroupId,
+    ) -> Result<PskSeed<CS>, Error> {
+        let EncryptedPskSeed {
+            mut ciphertext,
+            tag,
+        } = ciphertext;
+
+        // info = concat(
+        //     "PskSeed-v1",
+        //     group,
+        // )
+        let info = Info {
+            domain: *b"PskSeed-v1",
+            group: *group,
+        };
+        let mut ctx = hpke::setup_recv::<CS>(
+            Mode::Auth(&peer_pk.pk),
+            &encap.0,
+            &self.sk,
+            [info.as_bytes()],
+        )?;
+        ctx.open_in_place(&mut ciphertext, &tag, info.as_bytes())?;
+
+        let prk = Prk::<CS>::new(SecretKeyBytes::new(ciphertext));
+        Ok(PskSeed::from_prk(prk))
+    }
+}
+
+/// Contextual binding for encrypting PSKs.
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+struct Info {
+    /// Always "PskSeed-v1".
+    domain: [u8; 10],
+    group: GroupId,
+}
+
 /// An encrypted [`PskSeed`].
-#[derive(Serialize, Deserialize)]
-#[serde(bound = "CS: CipherSuite")]
+#[derive_where(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedPskSeed<CS: CipherSuite> {
     // NB: These are only `pub(crate)` for testing purposes.
     pub(crate) ciphertext: GenericArray<u8, <<CS as CipherSuite>::Kdf as Kdf>::PrkSize>,
     pub(crate) tag: Tag<CS::Aead>,
-}
-
-impl<CS: CipherSuite> Clone for EncryptedPskSeed<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            ciphertext: self.ciphertext.clone(),
-            tag: self.tag.clone(),
-        }
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for EncryptedPskSeed<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EncryptedPskSeed")
-            .field("ciphertext", &self.ciphertext)
-            .field("tag", &self.tag)
-            .finish()
-    }
 }
 
 /// A TLS 1.3 external pre-shared key.
@@ -354,25 +377,28 @@ impl<CS> ConstantTimeEq for Psk<CS> {
 /// which PSKs are present. In general, prefer [`ConstantTimeEq`]
 /// to [`PartialEq`].
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Serialize, Deserialize)]
-pub struct PskId {
-    id: PskSeedId,
-    suite: CipherSuiteId,
-}
+pub struct PskId(ImportedIdentity);
 
 impl PskId {
     /// Returns the seed's unique ID.
     pub const fn seed_id(&self) -> &PskSeedId {
-        &self.id
+        &self.0.external_identity
+    }
+
+    /// Returns the group ID.
+    pub const fn group_id(&self) -> &GroupId {
+        &self.0.context.group
     }
 
     /// Returns the TLS 1.3 cipher suite ID.
     pub const fn cipher_suite(&self) -> CipherSuiteId {
-        self.suite
+        self.0.target_kdf
     }
 
     /// Converts the ID to its byte encoding.
-    pub const fn as_bytes(&self) -> &[u8; 34] {
-        zerocopy::transmute_ref!(self)
+    pub const fn as_bytes(&self) -> &[u8] {
+        let bytes: &[u8; 100] = zerocopy::transmute_ref!(self);
+        bytes
     }
 }
 
@@ -383,16 +409,8 @@ impl ConstantTimeEq for PskId {
     }
 }
 
-impl From<(PskSeedId, CipherSuiteId)> for PskId {
-    #[inline]
-    fn from((id, suite): (PskSeedId, CipherSuiteId)) -> Self {
-        Self { id, suite }
-    }
-}
-
 impl fmt::Display for PskId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { id, suite } = self;
-        write!(f, "Psk-{id}-{suite}")
+        Hex::new(self.as_bytes()).fmt(f)
     }
 }
