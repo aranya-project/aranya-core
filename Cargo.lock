@@ -473,6 +473,7 @@ name = "aranya-policy-text"
 version = "0.1.0"
 dependencies = [
  "aranya-policy-text-macro",
+ "cfg-if",
  "proptest",
  "serde",
  "thiserror 2.0.7",
