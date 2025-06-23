@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.7.1...aranya-crypto-v0.8.0) - 2025-06-18
+
+### Other
+
+- "simplify" key pair creation ([#313](https://github.com/aranya-project/aranya-core/pull/313))
+- add PSK importer ([#302](https://github.com/aranya-project/aranya-core/pull/302))
+- update to `spideroak-crypto` v0.6 ([#300](https://github.com/aranya-project/aranya-core/pull/300))
+- hide DhKemP256HkdfSha256 in private module ([#306](https://github.com/aranya-project/aranya-core/pull/306))
+- use derive-where for better derive bounds ([#297](https://github.com/aranya-project/aranya-core/pull/297))
+- encrypt PSK seeds for other devices ([#296](https://github.com/aranya-project/aranya-core/pull/296))
+- add routines to compute label and role IDs ([#294](https://github.com/aranya-project/aranya-core/pull/294))
+- cache computed IDs ([#285](https://github.com/aranya-project/aranya-core/pull/285))
+- use `CS::tuple_hash` for merge ID ([#219](https://github.com/aranya-project/aranya-core/pull/219))
+
 ## [0.7.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.7.0...aranya-crypto-v0.7.1) - 2025-06-13
 
 ### Other
