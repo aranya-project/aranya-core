@@ -987,6 +987,8 @@ impl<'a> CompileState<'a> {
                                 rhs_ident.clone(),
                             )));
                         }
+
+                        self.append_instruction(Instruction::Cast(rhs_ident.clone()));
                     }
                     Typeish::Indeterminate => {}
                     Typeish::Type(_) => {
@@ -995,16 +997,6 @@ impl<'a> CompileState<'a> {
                         )));
                     }
                 }
-
-                // Go back to the StructNew(LHS-ident) instruction, and replace it with StructNew(RHS-ident).
-                // The field order may be different, but the VM sets them by name, so the order doesn't matter.
-                let i = self
-                    .m
-                    .progmem
-                    .iter()
-                    .position(|i| matches!(i, &Instruction::StructNew(_)))
-                    .expect("should have found a StructNew instruction");
-                self.m.progmem[i] = Instruction::StructNew(rhs_ident.clone());
 
                 Typeish::Type(VType::Struct(rhs_ident.clone()))
             }

@@ -947,6 +947,32 @@ where
                 self.ipush(s)?;
             }
             Instruction::Meta(_m) => {}
+            Instruction::Cast(identifier) => {
+                let value = self.ipop_value()?;
+                match value {
+                    Value::Struct(s) => {
+                        // make sure identifier is a valid struct name
+                        if !self.machine.struct_defs.contains_key(&identifier) {
+                            return Err(self.err(MachineErrorType::invalid_type(
+                                "Struct",
+                                identifier.to_string(),
+                                "Cast RHS",
+                            )));
+                        }
+                        // Cast to Struct
+                        let mut s = s.clone();
+                        s.name = identifier.clone();
+                        self.ipush(Value::Struct(s))?;
+                    }
+                    _ => {
+                        return Err(self.err(MachineErrorType::invalid_type(
+                            "Struct",
+                            value.type_name(),
+                            "Cast LHS",
+                        )));
+                    }
+                }
+            }
         }
 
         self.pc = self.pc.checked_add(1).assume("self.pc + 1 must not wrap")?;

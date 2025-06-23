@@ -2422,18 +2422,25 @@ fn test_comparison_operators() {
 #[test]
 fn test_struct_conversion() -> anyhow::Result<()> {
     let policy = r#"
-        struct Foo { x int, y string }
+        struct Foo { y string, x int }
+
         command Bar {
             fields { x int, y string }
             seal { return None }
             open { return None }
         }
-        action test() {
-            let foo = Foo { x: 42, y: "abc" }
-            publish foo as Bar
-            publish Foo { x: 1, y: "b" } as Bar
+        
+        function new_foo(x int, y string) struct Foo {
+            return Foo { y:y, x: x }
         }
-    "#;
+
+        action test() {
+            let foo = Foo { y: "abc", x: 42 }
+            publish foo as Bar // var reference
+            publish Foo { y: "b", x: 1 } as Bar // struct literal
+            publish new_foo(5, "def") as Bar // function return value
+        }
+        "#;
 
     let policy = parse_policy_str(policy, Version::V2)?;
     let module = Compiler::new(&policy).compile()?;
@@ -2455,10 +2462,20 @@ fn test_struct_conversion() -> anyhow::Result<()> {
     assert_eq!(
         io.borrow().publish_stack[1],
         (
-            ident!("Foo"), // TODO is this right?
+            ident!("Bar"),
             vec![
                 KVPair::new(ident!("x"), Value::Int(1)),
                 KVPair::new(ident!("y"), Value::String(text!("b"))),
+            ]
+        )
+    );
+    assert_eq!(
+        io.borrow().publish_stack[2],
+        (
+            ident!("Bar"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(5)),
+                KVPair::new(ident!("y"), Value::String(text!("def"))),
             ]
         )
     );
