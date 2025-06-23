@@ -2,10 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), 
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.9.0...aranya-fast-channels-v0.10.0) - 2025-06-18
+
+### Other
+
+- update to `spideroak-crypto` v0.6 ([#300](https://github.com/aranya-project/aranya-core/pull/300))
+- use derive-where for better derive bounds ([#297](https://github.com/aranya-project/aranya-core/pull/297))
 
 ## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-fast-channels-v0.8.0...aranya-fast-channels-v0.9.0) - 2025-06-12
 
