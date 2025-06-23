@@ -145,6 +145,8 @@ pub enum Instruction {
     MStructSet(NonZeroUsize),
     /// Get multiple members from the struct
     MStructGet(NonZeroUsize),
+    /// Cast previous stack value to given type
+    Cast(Identifier),
     // context-specific
     /// Publish a struct as a command
     Publish,
@@ -219,6 +221,7 @@ impl Display for Instruction {
             Instruction::Serialize => write!(f, "serialize"),
             Instruction::Deserialize => write!(f, "deserialize"),
             Instruction::Meta(m) => write!(f, "meta: {m}"),
+            Instruction::Cast(identifier) => write!(f, "cast {identifier}"),
         }
     }
 }
