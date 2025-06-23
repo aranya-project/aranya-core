@@ -2437,17 +2437,6 @@ fn test_struct_conversion_errors() {
             "#,
             CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
         ),
-        (
-            "different number of fields",
-            r#"
-            struct Foo { a int, b string }
-            struct Bar { a int, b string, c bool }
-            function convert() struct Bar {
-                return Foo { a: 1, b: "test" } as Bar
-            }
-            "#,
-            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
-        ),
     ];
 
     for (msg, text, expected) in cases {

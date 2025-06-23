@@ -959,7 +959,7 @@ where
                                 "Cast RHS",
                             )));
                         }
-                        // Cast to Struct
+                        // replace value on stack with clone, under new name
                         let mut s = s.clone();
                         s.name = identifier.clone();
                         self.ipush(Value::Struct(s))?;

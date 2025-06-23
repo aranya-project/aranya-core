@@ -954,7 +954,9 @@ impl<'a> CompileState<'a> {
 
                 result_type
             }
-            Expression::StructAs(lhs, rhs_ident) => {
+            Expression::Cast(lhs, rhs_ident) => {
+                // NOTE this is implemented for structs
+
                 // make sure other struct is defined
                 let rhs_fields = self.m.struct_defs.get(rhs_ident).cloned().ok_or_else(|| {
                     self.err(CompileErrorType::NotDefined(format!("struct {rhs_ident}")))

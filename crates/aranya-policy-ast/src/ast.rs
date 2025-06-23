@@ -345,8 +345,8 @@ pub enum Expression {
     Block(Vec<AstNode<Statement>>, Box<Expression>),
     /// A substruct expression
     Substruct(Box<Expression>, Identifier),
-    /// As expression (struct isomorphic conversion, e.g. Foo as Bar)
-    StructAs(Box<Expression>, Identifier),
+    /// Type cast expression
+    Cast(Box<Expression>, Identifier),
     /// Match expression
     Match(Box<MatchExpression>),
 }
