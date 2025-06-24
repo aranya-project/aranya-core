@@ -1,3 +1,4 @@
+use derive_where::derive_where;
 use spideroak_crypto::{
     csprng::{Csprng, Random},
     import::{ExportError, Import, ImportError},
@@ -11,6 +12,7 @@ use spideroak_crypto::{
 use crate::ciphersuite::CipherSuite;
 
 /// The root key material for a channel.
+#[derive_where(Clone)]
 pub(crate) struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 impl<CS: CipherSuite> RootChannelKey<CS> {
@@ -24,12 +26,6 @@ impl<CS: CipherSuite> RootChannelKey<CS> {
 
     pub(super) fn into_inner(self) -> <CS::Kem as Kem>::DecapKey {
         self.0
-    }
-}
-
-impl<CS: CipherSuite> Clone for RootChannelKey<CS> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
     }
 }
 
