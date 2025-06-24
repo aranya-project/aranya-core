@@ -45,6 +45,7 @@ use crate::{
 ///             UniSealKey,
 ///             UniSecrets,
 ///         },
+///         id::IdExt as _,
 ///         CipherSuite,
 ///         Csprng,
 ///         default::{

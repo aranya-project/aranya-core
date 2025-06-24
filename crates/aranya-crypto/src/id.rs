@@ -2,7 +2,7 @@
 
 #![forbid(unsafe_code)]
 
-pub use aranya_id::{custom_id, id::*};
+pub use aranya_id::*;
 use buggy::Bug;
 use spideroak_crypto::{csprng::Csprng, signer::PkError};
 

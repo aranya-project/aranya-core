@@ -248,15 +248,11 @@ dependencies = [
  "criterion",
  "derive-where",
  "postcard",
- "proptest",
- "proptest-derive",
  "rand 0.8.5",
  "rustix",
  "serde",
- "serde_json",
  "sha3-utils",
  "siphasher",
- "spideroak-base58",
  "spideroak-crypto",
  "tempfile",
  "thiserror 2.0.7",
@@ -320,17 +316,14 @@ dependencies = [
 name = "aranya-id"
 version = "0.1.0"
 dependencies = [
- "generic-array 1.1.1",
  "postcard",
  "proptest",
- "proptest-derive",
- "rand 0.8.5",
  "serde",
  "serde_json",
  "spideroak-base58",
  "subtle",
- "typenum",
  "zerocopy 0.8.25",
+ "zerocopy-derive 0.8.25",
 ]
 
 [[package]]

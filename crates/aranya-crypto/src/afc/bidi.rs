@@ -43,6 +43,7 @@ use crate::{
 ///             OpenKey,
 ///             SealKey,
 ///         },
+///         id::IdExt as _,
 ///         CipherSuite,
 ///         Csprng,
 ///         default::{

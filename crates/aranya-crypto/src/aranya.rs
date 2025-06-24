@@ -239,6 +239,7 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///         DefaultCipherSuite,
     ///         DefaultEngine,
     ///     },
+    ///     id::IdExt as _,
     ///     Cmd,
     ///     Id,
     ///     Rng,

@@ -57,6 +57,7 @@
 //!         RawOpenKey,
 //!         RawSealKey,
 //!     },
+//!     id::IdExt as _,
 //!     Csprng,
 //!     EncryptionKey,
 //!     Engine,

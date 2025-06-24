@@ -43,6 +43,7 @@ use crate::{
 ///         BidiSecret,
 ///         CipherSuiteId,
 ///     },
+///     id::IdExt as _,
 ///     CipherSuite,
 ///     Csprng,
 ///     default::{

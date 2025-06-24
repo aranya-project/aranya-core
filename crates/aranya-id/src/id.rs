@@ -1,4 +1,4 @@
-//! [`Id`]s and generation of [`custom_id`] types.
+//! [`Id`]s and generation of [`custom_id`][crate::custom_id] types.
 
 #![forbid(unsafe_code)]
 
@@ -8,18 +8,13 @@ use core::{
     str::FromStr,
 };
 
-use generic_array::GenericArray;
-#[cfg(feature = "proptest")]
-#[doc(hidden)]
-pub use proptest as __proptest;
 use serde::{
     de::{self, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
 use subtle::{Choice, ConstantTimeEq};
-use typenum::U32;
-use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
+use zerocopy::FromBytes;
 
 /// A unique cryptographic ID.
 ///
@@ -33,13 +28,12 @@ use zerocopy::{FromBytes, Immutable, IntoBytes, KnownLayout, Unaligned};
     PartialEq,
     Ord,
     PartialOrd,
-    Immutable,
-    IntoBytes,
-    KnownLayout,
-    Unaligned,
-    FromBytes,
+    zerocopy_derive::Immutable,
+    zerocopy_derive::IntoBytes,
+    zerocopy_derive::KnownLayout,
+    zerocopy_derive::Unaligned,
+    zerocopy_derive::FromBytes,
 )]
-#[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct Id([u8; 32]);
 
 impl Id {
@@ -91,13 +85,6 @@ impl AsRef<[u8]> for Id {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
-    }
-}
-
-impl From<GenericArray<u8, U32>> for Id {
-    #[inline]
-    fn from(id: GenericArray<u8, U32>) -> Self {
-        Self(id.into())
     }
 }
 
@@ -219,6 +206,8 @@ impl<'de> Deserialize<'de> for Id {
     }
 }
 
+crate::__impl_arbitrary!(Id => [u8; 32]);
+
 /// Creates a custom [`Id`].
 #[macro_export]
 macro_rules! custom_id {
@@ -236,8 +225,6 @@ macro_rules! custom_id {
             PartialEq,
             Ord,
             PartialOrd,
-            ::serde::Serialize,
-            ::serde::Deserialize,
         )]
         $(#[$meta])*
         $vis struct $name($crate::Id);
@@ -276,14 +263,14 @@ macro_rules! custom_id {
             /// Decode the ID from a base58 string.
             pub fn decode<T: ::core::convert::AsRef<[u8]>>(
                 s: T,
-            ) -> ::core::result::Result<Self, $crate::id::DecodeError> {
+            ) -> ::core::result::Result<Self, $crate::base58::DecodeError> {
                 $crate::Id::decode(s).map(Self)
             }
         }
 
-        impl $crate::subtle::ConstantTimeEq for $name {
+        impl $crate::__hidden::subtle::ConstantTimeEq for $name {
             #[inline]
-            fn ct_eq(&self, other: &Self) -> $crate::subtle::Choice {
+            fn ct_eq(&self, other: &Self) -> $crate::__hidden::subtle::Choice {
                 self.0.ct_eq(&other.0)
             }
         }
@@ -292,15 +279,6 @@ macro_rules! custom_id {
             #[inline]
             fn as_ref(&self) -> &[u8] {
                 self.0.as_ref()
-            }
-        }
-
-        impl ::core::convert::From<$crate::generic_array::GenericArray<u8, $crate::typenum::U32>>
-            for $name
-        {
-            #[inline]
-            fn from(id: $crate::generic_array::GenericArray<u8, $crate::typenum::U32>) -> Self {
-                Self(id.into())
             }
         }
 
@@ -333,7 +311,7 @@ macro_rules! custom_id {
         }
 
         impl ::core::str::FromStr for $name {
-            type Err = $crate::id::DecodeError;
+            type Err = $crate::base58::DecodeError;
 
             fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
                 Self::decode(s)
@@ -352,34 +330,53 @@ macro_rules! custom_id {
             }
         }
 
-        impl $crate::id::ToBase58 for $name {
-            type Output = $crate::id::String32;
+        impl $crate::base58::ToBase58 for $name {
+            type Output = $crate::base58::String32;
 
             fn to_base58(&self) -> Self::Output {
-                $crate::id::ToBase58::to_base58(&self.0)
+                $crate::base58::ToBase58::to_base58(&self.0)
             }
         }
 
-        $crate::__custom_id_proptest!($name);
+        impl<'de> $crate::__hidden::serde::Deserialize<'de> for $name {
+            fn deserialize<D>(deserializer: D) -> ::core::result::Result<Self, D::Error>
+            where
+                D: $crate::__hidden::serde::Deserializer<'de>,
+            {
+                ::core::result::Result::map($crate::Id::deserialize(deserializer), Self)
+            }
+        }
+
+        impl $crate::__hidden::serde::Serialize for $name {
+            fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
+            where
+                S: $crate::__hidden::serde::Serializer,
+            {
+                $crate::__hidden::serde::Serialize::serialize(&self.0, serializer)
+            }
+        }
+
+        $crate::__impl_arbitrary!($name => $crate::Id);
     };
 }
 
 #[cfg(feature = "proptest")]
 #[doc(hidden)]
 #[macro_export]
-macro_rules! __custom_id_proptest {
-    ($name:ident) => {
-        impl $crate::id::__proptest::arbitrary::Arbitrary for $name {
+macro_rules! __impl_arbitrary {
+    ($outer:ty => $inner:ty) => {
+        #[cfg_attr(docsrs, doc(cfg(feature = "proptest")))]
+        impl $crate::__hidden::proptest::arbitrary::Arbitrary for $outer {
             type Parameters =
-                <$crate::Id as $crate::id::__proptest::arbitrary::Arbitrary>::Parameters;
-            type Strategy = $crate::id::__proptest::strategy::Map<
-                <$crate::Id as $crate::id::__proptest::arbitrary::Arbitrary>::Strategy,
-                fn($crate::Id) -> Self,
+                <$inner as $crate::__hidden::proptest::arbitrary::Arbitrary>::Parameters;
+            type Strategy = $crate::__hidden::proptest::strategy::Map<
+                <$inner as $crate::__hidden::proptest::arbitrary::Arbitrary>::Strategy,
+                fn($inner) -> Self,
             >;
             fn arbitrary_with(params: Self::Parameters) -> Self::Strategy {
                 {
-                    $crate::id::__proptest::strategy::Strategy::prop_map(
-                        $crate::id::__proptest::arbitrary::any_with::<$crate::Id>(params),
+                    $crate::__hidden::proptest::strategy::Strategy::prop_map(
+                        <$inner as $crate::__hidden::proptest::arbitrary::Arbitrary>::arbitrary_with(params),
                         Self,
                     )
                 }
@@ -391,6 +388,6 @@ macro_rules! __custom_id_proptest {
 #[cfg(not(feature = "proptest"))]
 #[doc(hidden)]
 #[macro_export]
-macro_rules! __custom_id_proptest {
-    ($name:ident) => {};
+macro_rules! __impl_arbitrary {
+    ($outer:ty => $inner:ty) => {};
 }
