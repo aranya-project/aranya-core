@@ -184,7 +184,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
                 let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
                 CS::labeled_expand(DOMAIN, &prk, b"id", [])
                     .map_err(|_| IdError::new("unable to expand PRK"))
-                    .map(TopicKeyId)
+                    .map(TopicKeyId::from_bytes)
             })
             .clone()
     }

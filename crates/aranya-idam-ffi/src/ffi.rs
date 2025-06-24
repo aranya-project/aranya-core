@@ -4,9 +4,9 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    custom_id, engine::Engine, policy, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey,
-    EncryptionKey, EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt,
-    PolicyId, SigningKey, VerifyingKey,
+    custom_id, engine::Engine, id::IdExt as _, policy, zeroize::Zeroizing, Context, Encap,
+    EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey,
+    KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey,
 };
 use aranya_policy_vm::{
     ffi::{ffi, Type},

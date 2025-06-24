@@ -21,6 +21,7 @@ use aranya_crypto::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
+    id::IdExt as _,
     keystore::{memstore, Entry, Occupied, Vacant},
     CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
     IdentityKey, KeyStore, Rng,

@@ -39,60 +39,15 @@
 
 #![allow(unstable_name_collisions)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![cfg_attr(not(any(test, doctest, feature = "std")), no_std)]
-#![cfg_attr(not(all(test, feature = "trng")), deny(unsafe_code))]
+#![cfg_attr(not(any(test, doctest)), no_std)]
+#![deny(unsafe_code)]
 #![warn(missing_docs)]
 
-pub mod afc;
-pub mod apq;
-pub mod aqc;
-mod aranya;
-mod ciphersuite;
-pub mod default;
-pub mod engine;
-mod error;
-mod groupkey;
-mod hpke;
 pub mod id;
-pub mod keystore;
-mod misc;
-mod oid;
-pub mod policy;
-pub mod test_util;
-mod tests;
-pub mod tls;
-mod util;
 
-pub use aranya::*;
-pub use buggy;
-pub use ciphersuite::*;
-pub use default::Rng;
-pub use engine::{Engine, UnwrapError, WrapError};
-pub use error::*;
-pub use groupkey::*;
-pub use id::{custom_id, Id, Identified};
-pub use keystore::{KeyStore, KeyStoreExt};
-// These were already exported in the root of the crate, so keep
-// them even though `policy` is a public module now.
-pub use policy::{merge_cmd_id, Cmd, CmdId, PolicyId};
-#[doc(no_inline)]
-#[cfg(feature = "bearssl")]
-#[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]
-pub use spideroak_crypto::bearssl;
-/// Constant time cryptographic operations.
-#[doc(inline)]
-pub use spideroak_crypto::subtle;
-#[doc(inline)]
-pub use spideroak_crypto::{
-    csprng::{Csprng, Random},
-    zeroize,
-};
-pub use spideroak_crypto::{generic_array, typenum};
+// These crates are public dependencies.
+pub use ::generic_array;
+pub use ::subtle;
+pub use ::typenum;
 
-/// Dangerous cryptography.
-pub mod dangerous {
-    #[doc(inline)]
-    pub use siphasher;
-    #[doc(inline)]
-    pub use spideroak_crypto;
-}
+pub use crate::id::Id;

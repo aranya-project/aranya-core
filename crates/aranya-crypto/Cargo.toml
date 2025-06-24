@@ -101,7 +101,7 @@ memstore = [
 ]
 
 # Enable `proptest::arbitrary::Arbitrary` implemenations
-proptest = ["alloc", "dep:proptest", "dep:proptest-derive"]
+proptest = ["aranya-id/proptest"]
 
 # Enable compat with the `rand`, `rand_core`, etc. crates.
 rand_compat = ["spideroak-crypto/rand_compat"]
@@ -149,8 +149,9 @@ tls = []
 trng = ["spideroak-crypto/trng"]
 
 [dependencies]
-buggy = { version = "0.1.0", default-features = false }
+aranya-id = { version = "0.1.0", path = "../aranya-id", default-features = false }
 
+buggy = { version = "0.1.0", default-features = false }
 spideroak-base58 = { version = "0.2.0", default-features = false }
 spideroak-crypto = { version = "0.6.0", default-features = false, features = ["serde"] }
 

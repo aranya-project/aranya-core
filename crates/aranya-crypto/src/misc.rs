@@ -494,7 +494,7 @@ macro_rules! pk_misc {
             #[doc = ::core::concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
-                ::core::result::Result::Ok($id($crate::id::Id::new::<CS>(
+                ::core::result::Result::Ok($id($crate::id::IdExt::new::<CS>(
                     ::core::borrow::Borrow::borrow(&self.pk.export()),
                     $sk.as_bytes(),
                 )))

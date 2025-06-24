@@ -20,7 +20,7 @@ use crate::{
     engine::{unwrapped, Engine},
     error::Error,
     hpke::{self, Mode},
-    id::{custom_id, Id, IdError},
+    id::{custom_id, Id, IdError, IdExt as _},
     misc::sk_misc,
     tls::CipherSuiteId,
 };

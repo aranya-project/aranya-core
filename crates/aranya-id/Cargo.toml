@@ -1,0 +1,43 @@
+[package]
+name = "aranya-id"
+description = "Aranya ID types"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+
+[lints]
+workspace = true
+
+
+[lib]
+bench = false
+
+
+[features]
+default = []
+
+# Enable `proptest::arbitrary::Arbitrary` implemenations
+proptest = ["dep:proptest", "dep:proptest-derive"]
+
+
+[dependencies]
+spideroak-base58 = { version = "0.2.0", default-features = false }
+
+generic-array = { version = "1", default-features = false }
+typenum = { version = "1", default-features = false }
+subtle = { version = "2", default-features = false }
+proptest = { workspace = true, default-features = false, features = ["alloc"], optional = true }
+proptest-derive = { workspace = true, optional = true }
+serde = { workspace = true, default-features = false, features = ["derive"] }
+zerocopy = { version = "0.8", default-features = false, features = ["derive"] }
+
+
+[dev-dependencies]
+postcard = { workspace = true, features = ["alloc"] }
+rand = { workspace = true, features = ["std", "std_rng"] }
+serde = { workspace = true, default-features = false, features = ["derive"] }
+serde_json = { version = "1", default-features = true }

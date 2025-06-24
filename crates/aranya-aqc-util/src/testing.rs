@@ -20,6 +20,7 @@ use aranya_crypto::{
     self,
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
     engine::WrappedKey,
+    id::IdExt as _,
     keystore::{memstore, Entry, Occupied, Vacant},
     CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
     IdentityKey, KeyStore, Random, Rng,
