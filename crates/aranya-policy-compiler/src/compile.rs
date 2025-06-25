@@ -988,8 +988,6 @@ impl<'a> CompileState<'a> {
                                 rhs_ident.clone(),
                             )));
                         }
-
-                        self.append_instruction(Instruction::Cast(rhs_ident.clone()));
                     }
                     Typeish::Indeterminate => {}
                     Typeish::Type(_) => {
@@ -998,6 +996,8 @@ impl<'a> CompileState<'a> {
                         )));
                     }
                 }
+
+                self.append_instruction(Instruction::Cast(rhs_ident.clone()));
 
                 Typeish::Type(VType::Struct(rhs_ident.clone()))
             }
