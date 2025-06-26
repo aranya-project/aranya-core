@@ -5,7 +5,7 @@ use aranya_policy_compiler::compile::target::CompileTarget;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
-/// Generate rust source code from a policy [`Module`].
+/// Generate rust source code from a policy [`CompileTarget`].
 #[allow(clippy::panic)]
 pub fn generate_code(target: &CompileTarget) -> String {
     let reachable = collect_reachable_types(target);
@@ -64,7 +64,7 @@ pub fn generate_code(target: &CompileTarget) -> String {
     });
 
     let effect_enum = {
-        let idents = target.effects.iter().map(|s| mk_ident(s));
+        let idents = target.effects.iter().map(mk_ident);
         quote! {
             #[effects]
             pub enum Effect {
