@@ -560,16 +560,6 @@ impl<T> StructItem<T> {
     }
 }
 
-impl<T> StructItem<T> {
-    /// Get the field definition from this struct item
-    pub fn field(&self) -> Option<&T> {
-        match self {
-            StructItem::Field(f) => Some(f),
-            StructItem::StructRef(_) => None,
-        }
-    }
-}
-
 /// A command definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandDefinition {

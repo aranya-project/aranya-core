@@ -138,7 +138,7 @@ pub struct Machine {
     /// Struct schemas
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: SipIndexMap<Identifier, SipIndexMap<Identifier, i64>>,
+    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code

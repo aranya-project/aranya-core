@@ -20,7 +20,7 @@ pub struct CompileTarget {
     /// Command definitions (`fields`)
     pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
     /// Effect identifiers. The effect definitions can be found in `struct_defs`.
-    pub effects: Vec<String>,
+    pub effects: Vec<Identifier>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas

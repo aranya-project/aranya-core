@@ -385,123 +385,6 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
         (ident!("b"), VType::String),
         (ident!("c"), VType::Bool),
     ]);
-    let got = module.command_defs.get(&ident!("Foo")).unwrap();
-    assert_eq!(got, &want);
-
-    Ok(())
-}
-
-#[test]
-fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
-    let cases = [
-        (
-            r#"
-            command Foo {
-                fields {
-                    +Bar, // Bar is not defined
-                    b string
-                }
-                seal { return None }
-                open { return None }
-                policy {}
-            }
-            "#,
-            CompileErrorType::NotDefined(String::from("Bar")),
-        ),
-        (
-            r#"
-            struct Bar { a int }
-            command Foo {
-                fields {
-                    +Bar,
-                    a bool // Duplicate field `a`
-                }
-                seal { return None }
-                open { return None }
-                policy {}
-            }
-            "#,
-            CompileErrorType::AlreadyDefined(String::from("a")),
-        ),
-    ];
-
-    for (text, expected_error) in cases {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
-        assert_eq!(err, expected_error);
-    }
-
-    Ok(())
-}
-
-#[test]
-fn test_command_duplicate_fields() -> anyhow::Result<()> {
-    let cases = [
-        (
-            r#"
-        command Foo {
-            fields {
-                a int,
-                a string
-            }
-            seal { return None }
-            open { return None }
-            policy {}
-        }
-        "#,
-            CompileErrorType::AlreadyDefined(String::from("a")),
-        ),
-        (
-            r#"
-        struct Bar { a int }
-        command Foo {
-            fields {
-                +Bar,
-                a string
-            }
-            seal { return None }
-            open { return None }
-            policy {}
-        }
-        "#,
-            CompileErrorType::AlreadyDefined(String::from("a")),
-        ),
-    ];
-
-    for (text, e) in cases {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
-        assert_eq!(err, e);
-    }
-
-    Ok(())
-}
-
-#[test]
-fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
-    let text = r#"
-        struct Bar { a int }
-        struct Baz { +Bar, b string }
-        command Foo {
-            fields {
-                +Baz,
-                c bool
-            }
-            seal { return None }
-            open { return None }
-            policy {}
-        }
-    "#;
-
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
-    let ModuleData::V0(module) = module.data;
-
-    let want = BTreeMap::from([
-        ("a".to_string(), VType::Int),
-        ("b".to_string(), VType::String),
-        ("c".to_string(), VType::Bool),
-    ]);
     let got = module.command_defs.get("Foo").unwrap();
     assert_eq!(got, &want);
 
@@ -676,11 +559,11 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: "a".to_string(),
+                    identifier: ident!("a"),
                     field_type: VType::Int,
                 },
                 FieldDefinition {
-                    identifier: "b".to_string(),
+                    identifier: ident!("b"),
                     field_type: VType::String,
                 },
             ],
@@ -693,15 +576,15 @@ fn test_struct_field_insertion() {
             "#,
             vec![
                 FieldDefinition {
-                    identifier: "a".to_string(),
+                    identifier: ident!("a"),
                     field_type: VType::Int,
                 },
                 FieldDefinition {
-                    identifier: "b".to_string(),
+                    identifier: ident!("b"),
                     field_type: VType::String,
                 },
                 FieldDefinition {
-                    identifier: "c".to_string(),
+                    identifier: ident!("c"),
                     field_type: VType::Bool,
                 },
             ],
@@ -712,57 +595,6 @@ fn test_struct_field_insertion() {
         let policy = parse_policy_str(text, Version::V2).expect("should parse");
         let result = Compiler::new(&policy).compile().expect("should compile");
         let ModuleData::V0(module) = result.data;
-
-        let got = module.struct_defs.get("Foo").unwrap();
-        assert_eq!(got, &want);
-    }
-}
-
-#[test]
-fn test_struct_field_insertion() {
-    let cases = vec![
-        (
-            r#"
-            struct Bar { a int }
-            struct Foo { +Bar, b string }
-            "#,
-            vec![
-                FieldDefinition {
-                    identifier: ident!("a"),
-                    field_type: VType::Int,
-                },
-                FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::String,
-                },
-            ],
-        ),
-        (
-            r#"
-            struct Bar { i int }
-            struct Baz { +Bar, b bool }
-            struct Foo { s string, +Baz }
-            "#,
-            vec![
-                FieldDefinition {
-                    identifier: ident!("s"),
-                    field_type: VType::String,
-                },
-                FieldDefinition {
-                    identifier: ident!("i"),
-                    field_type: VType::Int,
-                },
-                FieldDefinition {
-                    identifier: ident!("b"),
-                    field_type: VType::Bool,
-                },
-            ],
-        ),
-    ];
-
-    for (text, want) in cases {
-        let module = compile_pass(text);
-        let ModuleData::V0(module) = module.data;
 
         let got = module.struct_defs.get("Foo").unwrap();
         assert_eq!(got, &want);

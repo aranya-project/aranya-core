@@ -83,8 +83,7 @@ pub struct ModuleV0 {
     /// Struct definitions
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    #[serde(with = "serde_seq")]
-    pub enum_defs: SipIndexMap<Identifier, SipIndexMap<Identifier, i64>>,
+    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Code map

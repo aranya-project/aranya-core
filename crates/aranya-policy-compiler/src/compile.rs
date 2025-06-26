@@ -247,7 +247,7 @@ impl<'a> CompileState<'a> {
 
         // Add values to enum, checking for duplicates
         let mut values = IndexMap::new();
-        for (i, value_name) in enum_def.values.iter().enumerate() {
+        for (i, value_name) in enum_def.variants.iter().enumerate() {
             match values.entry(value_name.clone()) {
                 indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
@@ -2181,7 +2181,7 @@ impl<'a> CompileState<'a> {
                     StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                 })
                 .collect();
-            self.define_struct(&effect.inner.identifier, &fields)?;
+            self.define_struct(effect.inner.identifier.clone(), &fields)?;
             self.m.effects.push(effect.inner.identifier.clone());
         }
 
