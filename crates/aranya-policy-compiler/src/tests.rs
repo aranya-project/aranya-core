@@ -45,8 +45,8 @@ fn test_compile() {
                 a int,
                 b int
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {}
             }
@@ -198,8 +198,8 @@ fn test_seal_open_command() {
     let text = r#"
         command Foo {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {}
         }
     "#;
@@ -238,7 +238,7 @@ fn test_command_without_open_block() {
     let text = r#"
         command Foo {
             fields {}
-            seal { return None }
+            seal { return todo() }
             policy {}
         }
     "#;
@@ -256,7 +256,7 @@ fn test_command_with_no_return_in_seal_block() {
         command Foo {
             fields {}
             seal { let x = 3 }
-            open { return None }
+            open { return todo() }
             policy {}
         }
     "#;
@@ -270,7 +270,7 @@ fn test_command_with_no_return_in_open_block() {
     let text = r#"
         command Foo {
             fields {}
-            seal { return None }
+            seal { return todo() }
             open { let x = 3 }
             policy {}
         }
@@ -290,8 +290,8 @@ fn test_command_attributes() {
                 s: "abc",
                 priority: Priority::High
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
     "#;
 
@@ -327,8 +327,8 @@ fn test_command_attributes_should_be_unique() {
             a: 5,
             a: "five"
         }
-        open { return None }
-        seal { return None }
+        open { return todo() }
+        seal { return todo() }
     }
     "#;
     let err = compile_fail(text);
@@ -341,15 +341,15 @@ fn test_command_attributes_must_be_literals() {
         r#"
         command A {
             attributes { i: 2 + 1 }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }"#,
         r#"
         function f() int { return 3 }
         command A {
             attributes { i: f() }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
     "#,
     ];
@@ -370,8 +370,8 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
                 +Baz,
                 c bool
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {}
         }
     "#;
@@ -401,8 +401,8 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
                     +Bar, // Bar is not defined
                     b string
                 }
-                seal { return None }
-                open { return None }
+                seal { return todo() }
+                open { return todo() }
                 policy {}
             }
             "#,
@@ -416,8 +416,8 @@ fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
                     +Bar,
                     a bool // Duplicate field `a`
                 }
-                seal { return None }
-                open { return None }
+                seal { return todo() }
+                open { return todo() }
                 policy {}
             }
             "#,
@@ -444,8 +444,8 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
                 a int,
                 a string
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {}
         }
         "#,
@@ -459,8 +459,8 @@ fn test_command_duplicate_fields() -> anyhow::Result<()> {
                 +Bar,
                 a string
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {}
         }
         "#,
@@ -872,8 +872,8 @@ fn test_fact_update_invalid_to_type() {
         fact Foo[i int] => {a string}
         command test {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     update Foo[i: 1]=>{a: 1} to {a: 0}
@@ -892,8 +892,8 @@ fn test_immutable_fact_can_be_created_and_deleted() {
         immutable fact Foo[i int] => {a string}
         command test {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create Foo[i: 1]=>{a: ""}
@@ -912,8 +912,8 @@ fn test_immutable_fact_cannot_be_updated() {
         immutable fact Foo[i int] => {a string}
         command test {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     update Foo[i: 1]=>{a: 1} to {a: 0}
@@ -948,8 +948,8 @@ fn finish_block_should_exit() {
         fact Blah[] => {}
         command Foo {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 check true
                 finish {
@@ -977,8 +977,8 @@ fn test_should_not_allow_bind_key_in_fact_creation() {
 
         command CreateBindKey {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create F[i:?] => {s: "abc"}
@@ -1001,8 +1001,8 @@ fn test_should_not_allow_bind_value_in_fact_creation() {
 
         command CreateBindValue {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create F[i:1] => {s:?}
@@ -1025,8 +1025,8 @@ fn test_should_not_allow_bind_key_in_fact_update() {
 
         command CreateBindValue {
             fields {}
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
             policy {
                 finish {
                     create F[i:1] => {s: ""}
@@ -1121,8 +1121,8 @@ fn test_match_duplicate() {
                 fields {
                     x int
                 }
-                seal { return None }
-                open { return None }
+                seal { return todo() }
+                open { return todo() }
             }
 
             action foo(x int) {
@@ -1163,8 +1163,8 @@ fn test_match_alternation_duplicates() {
             fields {
                 x int
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
 
         action foo(x int) {
@@ -1192,8 +1192,8 @@ fn test_match_default_not_last() {
             fields {
                 x int
             }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
 
         action foo(x int) {
@@ -1245,19 +1245,33 @@ fn test_match_arm_should_be_limited_to_literals() {
 
 #[test]
 fn test_match_expression() {
-    let invalid_cases = vec![(
-        // arms expressions have different types
-        r#"action foo(a int) {
+    let invalid_cases = vec![
+        (
+            // arms expressions have different types
+            r#"action foo(a int) {
                 let x = match a {
                     1 => { :"one" }
                     _ => { :false }
                 }
             }
             "#,
-        CompileErrorType::InvalidType(
-            "match arm expression type mismatch; expected string, got bool".to_string(),
+            CompileErrorType::InvalidType(
+                "match arm expression type mismatch: Type Error: types do not match: string and bool".to_string(),
+            ),
         ),
-    )];
+        (
+            r#"action f(n int) {
+            let x = match n {
+                0 => todo()
+                1 => 1
+                _ => false
+            }
+        }"#,
+            CompileErrorType::InvalidType(
+                "match arm expression type mismatch: Type Error: types do not match: int and bool".to_string(),
+            ),
+        ),
+    ];
     for (src, expected) in invalid_cases {
         let actual = compile_fail(src);
         assert_eq!(actual, expected);
@@ -1272,19 +1286,11 @@ fn test_match_expression() {
             }
             check b
         }"#,
-        // match expression type is indeterminate
+        // match expression type is optional
         r#"action f(n int) {
-            check match n {
+            let x = match n {
                 0 => None
-                _ => 0
-            }
-        }"#,
-        // TODO: this should fail
-        r#"action f(n int) {
-            check match n {
-                0 => None
-                1 => 1
-                _ => false
+                _ => Some(0)
             }
         }"#,
     ];
@@ -1715,7 +1721,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "Emit must be given a struct",
+            e: "Cannot emit `int`, must be an effect struct",
         },
         Case {
             t: r#"
@@ -1731,7 +1737,7 @@ fn test_type_errors() {
             t: r#"
                 command Foo {
                     seal {
-                        return None
+                        return todo()
                     }
                     open {
                       return deserialize(3)
@@ -1769,7 +1775,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "match expression is `int` but arm expression 1 is `string`",
+            e: "arm `0` has bad type: Type Error: types do not match: int and string",
         },
         Case {
             t: r#"
@@ -1861,8 +1867,13 @@ fn test_type_errors() {
 
 #[test]
 fn test_optional_types() {
+    let err = compile_fail("function f() bool { return unwrap None }");
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidType("Cannot unwrap None".into())
+    );
+
     let cases = [
-        "42 == unwrap None",
         "42 == unwrap Some(42)",
         "None is Some",
         "None is None",
@@ -1915,9 +1926,9 @@ fn test_duplicate_definitions() {
         Case {
             t: r#"
                 function f() bool {
-                    // this is allowed because None is indeterminate
+                    // this is allowed because todo() is indeterminate
                     let x = 3
-                    let x = None
+                    let x = todo()
                     return false
                 }
             "#,
@@ -1934,7 +1945,7 @@ fn test_duplicate_definitions() {
                 }
         "#,
             e: Some(CompileErrorType::InvalidType(
-                "Definitions of `x` do not have the same type: int != string".to_string(),
+                "types do not match: int and string".to_string(),
             )),
         },
     ];
@@ -2221,8 +2232,8 @@ fn test_substruct_errors() {
                         y bool,
                         z string,
                     }
-                    seal { return None }
-                    open { return None }
+                    seal { return todo() }
+                    open { return todo() }
                 }
                 struct Bar {
                     x int,

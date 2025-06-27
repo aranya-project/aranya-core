@@ -25,10 +25,12 @@ use ast::{
 };
 use buggy::{Bug, BugExt};
 pub(crate) use target::CompileTarget;
+use tracing::warn;
 use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
 use self::types::{IdentifierTypeStack, Typeish};
+use crate::compile::types::NullableVType;
 
 #[derive(Clone, Debug)]
 enum FunctionColor {
@@ -142,7 +144,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Meta(Meta::Let(identifier.clone())));
         self.append_instruction(Instruction::Def(identifier.clone()));
         self.identifier_types
-            .add(identifier, Typeish::Type(vtype))
+            .add(identifier, Typeish::known(vtype))
             .map_err(|e| self.err(e))?;
         Ok(())
     }
@@ -422,7 +424,7 @@ impl<'a> CompileState<'a> {
                 })?
                 .field_type;
             let t = self.compile_expression(e)?;
-            if !t.is_maybe(def_field_type) {
+            if !t.fits_type(def_field_type) {
                 return Err(self.err(CompileErrorType::InvalidType(format!(
                     "`Struct {}` field `{}` is not {}",
                     s.identifier, field_name, def_field_type
@@ -542,7 +544,7 @@ impl<'a> CompileState<'a> {
                     })?
                     .field_type;
                 let t = self.compile_expression(e)?;
-                if !t.is_maybe(def_field_type) {
+                if !t.fits_type(def_field_type) {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
                         "Fact `{}` key field `{}` is not `{}`",
                         f.identifier, k, def_field_type
@@ -567,7 +569,7 @@ impl<'a> CompileState<'a> {
                         })?
                         .field_type;
                     let t = self.compile_expression(e)?;
-                    if !t.is_maybe(def_field_type) {
+                    if !t.fits_type(def_field_type) {
                         return Err(self.err(CompileErrorType::InvalidType(format!(
                             "Fact `{}` value field `{}` is not `{}`",
                             f.identifier, k, def_field_type
@@ -592,35 +594,38 @@ impl<'a> CompileState<'a> {
         let expression_type = match expression {
             Expression::Int(n) => {
                 self.append_instruction(Instruction::Const(Value::Int(*n)));
-                Typeish::Type(VType::Int)
+                Typeish::known(VType::Int)
             }
             Expression::String(s) => {
                 self.append_instruction(Instruction::Const(Value::String(s.clone())));
-                Typeish::Type(VType::String)
+                Typeish::known(VType::String)
             }
             Expression::Bool(b) => {
                 self.append_instruction(Instruction::Const(Value::Bool(*b)));
-                Typeish::Type(VType::Bool)
+                Typeish::known(VType::Bool)
             }
             Expression::Optional(o) => match o {
                 None => {
                     self.append_instruction(Instruction::Const(Value::None));
-                    Typeish::Indeterminate
+                    Typeish::Definitely(NullableVType::Null)
                 }
                 Some(v) => self
                     .compile_expression(v)?
-                    .map_result(|v| {
-                        if matches!(v, VType::Optional(_)) {
+                    .try_map(|nty| match nty {
+                        NullableVType::Type(VType::Optional(_)) | NullableVType::Null => {
                             Err(TypeError::new("Cannot wrap option in another option"))
-                        } else {
-                            Ok(Typeish::Type(VType::Optional(Box::new(v))))
+                        }
+                        NullableVType::Type(ty) => {
+                            Ok(NullableVType::Type(VType::Optional(Box::new(ty))))
                         }
                     })
-                    .map_err(|e| self.err(e.into()))?,
+                    .map_err(|err| self.err(err.into()))?,
             },
             Expression::NamedStruct(s) => {
+                // TODO: Carry intederminism from struct fields? Same for all compile_struct_literals.
                 self.compile_struct_literal(s)?;
-                self.struct_type(s).map_err(|e| self.err(e.into()))?
+                let vtype = self.struct_type(s).map_err(|e| self.err(e.into()))?;
+                Typeish::known(vtype)
             }
             Expression::InternalFunction(f) => match f {
                 ast::InternalFunction::Query(f) => {
@@ -628,9 +633,8 @@ impl<'a> CompileState<'a> {
                     self.compile_fact_literal(f)?;
                     self.append_instruction(Instruction::Query);
 
-                    self.query_fact_type(f)
-                        .map_err(|e| self.err(e.into()))?
-                        .map_vtype(|t| VType::Optional(Box::new(t)))
+                    let vtype = self.query_fact_type(f).map_err(|e| self.err(e.into()))?;
+                    Typeish::known(VType::Optional(Box::new(vtype)))
                 }
                 ast::InternalFunction::Exists(f) => {
                     self.verify_fact_against_schema(f, false)?;
@@ -640,21 +644,21 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::Eq);
                     self.append_instruction(Instruction::Not);
 
-                    Typeish::Type(VType::Bool)
+                    Typeish::known(VType::Bool)
                 }
                 ast::InternalFunction::FactCount(cmp_type, n, fact) => {
                     self.compile_counting_function(cmp_type, *n, fact)?;
 
                     match cmp_type {
-                        FactCountType::UpTo => Typeish::Type(VType::Int),
-                        _ => Typeish::Type(VType::Bool),
+                        FactCountType::UpTo => Typeish::known(VType::Int),
+                        _ => Typeish::known(VType::Bool),
                     }
                 }
                 ast::InternalFunction::If(c, t, f) => {
                     let else_name = self.anonymous_label();
                     let end_name = self.anonymous_label();
                     let condition_type = self.compile_expression(c)?;
-                    if !condition_type.is_maybe(&VType::Bool) {
+                    if !condition_type.fits_type(&VType::Bool) {
                         return Err(self.err(
                             TypeError::new("if condition must be a boolean expression").into(),
                         ));
@@ -693,7 +697,7 @@ impl<'a> CompileState<'a> {
                     // TODO(chip): Use information about which command
                     // we're in to throw an error when this is used on a
                     // struct that is not the current command struct
-                    Typeish::Type(VType::Bytes)
+                    Typeish::known(VType::Bytes)
                 }
                 ast::InternalFunction::Deserialize(e) => {
                     if !matches!(
@@ -703,7 +707,7 @@ impl<'a> CompileState<'a> {
                         return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
                     }
                     let t = self.compile_expression(e)?;
-                    if !t.is_maybe(&VType::Bytes) {
+                    if !t.fits_type(&VType::Bytes) {
                         return Err(self.err(CompileErrorType::InvalidType(String::from(
                             "Deserializing non-bytes",
                         ))));
@@ -713,6 +717,16 @@ impl<'a> CompileState<'a> {
                     // TODO(chip): Use information about which command
                     // we're in to determine this concretely
                     Typeish::Indeterminate
+                }
+                ast::InternalFunction::Todo => {
+                    let err = self.err(CompileErrorType::TodoFound);
+                    if self.is_debug {
+                        warn!("{err}");
+                        self.append_instruction(Instruction::Exit(ExitReason::Panic));
+                        Typeish::Indeterminate
+                    } else {
+                        return Err(err);
+                    }
                 }
             },
             Expression::FunctionCall(f) => {
@@ -740,7 +754,7 @@ impl<'a> CompileState<'a> {
                 }
                 self.compile_function_call(f, false)?;
 
-                Typeish::Type(return_type)
+                Typeish::known(return_type)
             }
             Expression::ForeignFunctionCall(f) => {
                 // If the policy hasn't imported this module, don't allow using it
@@ -795,7 +809,7 @@ impl<'a> CompileState<'a> {
                     {
                         let arg_t = self.compile_expression(arg_e)?;
                         let arg_def_vtype = (&arg_def.vtype).into();
-                        if !arg_t.is_maybe(&arg_def_vtype) {
+                        if !arg_t.fits_type(&arg_def_vtype) {
                             let arg_n = i
                                 .checked_add(1)
                                 .assume("function argument count overflow")?;
@@ -808,7 +822,7 @@ impl<'a> CompileState<'a> {
 
                     self.append_instruction(Instruction::ExtCall(module_id, procedure_id));
 
-                    Typeish::Type(VType::from(&procedure.return_type))
+                    Typeish::known(VType::from(&procedure.return_type))
                 }
             }
             Expression::Identifier(i) => {
@@ -827,32 +841,33 @@ impl<'a> CompileState<'a> {
             Expression::EnumReference(e) => {
                 let value = self.enum_value(e)?;
                 self.append_instruction(Instruction::Const(value));
-                Typeish::Type(VType::Enum(e.identifier.clone()))
+                Typeish::known(VType::Enum(e.identifier.clone()))
             }
             Expression::Dot(t, s) => {
                 let left_type = self.compile_expression(t)?;
                 self.append_instruction(Instruction::StructGet(s.clone()));
 
                 left_type
-                    .map_result(|t| {
-                        let VType::Struct(name) = &t else {
-                            return Err(TypeError::new("Expression left of `.` is not a struct"));
-                        };
-                        let Some(struct_def) = self.m.struct_defs.get(name) else {
-                            return Err(TypeError::new_owned(format!(
-                                "Struct `{}` not defined",
-                                name
-                            )));
-                        };
-                        match struct_def.iter().find(|f| &f.identifier == s) {
-                            Some(field_def) => Ok(Typeish::Type(field_def.field_type.clone())),
-                            None => Err(TypeError::new_owned(format!(
-                                "Struct `{}` has no member `{}`",
-                                name, s
-                            ))),
+                    .try_map(|nty| match nty {
+                        NullableVType::Type(VType::Struct(name)) => {
+                            let struct_def =
+                                self.m.struct_defs.get(name.as_str()).ok_or_else(|| {
+                                    TypeError::new_owned(format!("Struct `{name}` not defined"))
+                                })?;
+                            let field_def = struct_def
+                                .iter()
+                                .find(|f| &f.identifier == s)
+                                .ok_or_else(|| {
+                                    TypeError::new_owned(format!(
+                                        "Struct `{}` has no member `{}`",
+                                        name, s
+                                    ))
+                                })?;
+                            Ok(NullableVType::Type(field_def.field_type.clone()))
                         }
+                        _ => Err(TypeError::new("Expression left of `.` is not a struct")),
                     })
-                    .map_err(|e| self.err(e.into()))?
+                    .map_err(|err| self.err(err.into()))?
             }
             Expression::Substruct(lhs, sub) => {
                 self.append_instruction(Instruction::StructNew(sub.clone()));
@@ -864,33 +879,34 @@ impl<'a> CompileState<'a> {
                 };
 
                 let lhs_expression = self.compile_expression(lhs)?;
-                match lhs_expression {
-                    Typeish::Type(VType::Struct(lhs_struct_name)) => {
-                        let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name) else {
-                            return Err(self.err(CompileErrorType::NotDefined(format!(
-                                "Struct `{lhs_struct_name}` is not defined",
-                            ))));
-                        };
+                let result_type = lhs_expression
+                    .try_map(|nty| match nty {
+                        NullableVType::Type(VType::Struct(lhs_struct_name)) => {
+                            let Some(lhs_field_defns) = self.m.struct_defs.get(&lhs_struct_name)
+                            else {
+                                return Err(CompileErrorType::NotDefined(format!(
+                                    "Struct `{lhs_struct_name}` is not defined",
+                                )));
+                            };
 
-                        // Check that the struct type on the RHS is a subset of the struct expression on the LHS
-                        if !sub_field_defns
-                            .iter()
-                            .all(|field_def| lhs_field_defns.contains(field_def))
-                        {
-                            return Err(self.err(CompileErrorType::InvalidSubstruct(
-                                sub.clone(),
-                                lhs_struct_name,
-                            )));
+                            // Check that the struct type on the RHS is a subset of the struct expression on the LHS
+                            if !sub_field_defns
+                                .iter()
+                                .all(|field_def| lhs_field_defns.contains(field_def))
+                            {
+                                return Err(CompileErrorType::InvalidSubstruct(
+                                    sub.clone(),
+                                    lhs_struct_name,
+                                ));
+                            }
+                            Ok(NullableVType::Type(VType::Struct(sub.clone())))
                         }
-                    }
-                    Typeish::Indeterminate => {}
-                    Typeish::Type(_) => {
-                        return Err(self.err(CompileErrorType::InvalidType(
+                        _ => Err(CompileErrorType::InvalidType(
                             "Expression to the left of the substruct operator is not a struct"
-                                .to_string(),
-                        )));
-                    }
-                }
+                                .into(),
+                        )),
+                    })
+                    .map_err(|err| self.err(err))?;
 
                 let field_count = sub_field_defns.len();
                 for field in sub_field_defns {
@@ -904,7 +920,7 @@ impl<'a> CompileState<'a> {
                     self.append_instruction(Instruction::MStructSet(field_count));
                 }
 
-                Typeish::Type(VType::Struct(sub.clone()))
+                result_type
             }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -923,7 +939,7 @@ impl<'a> CompileState<'a> {
                 )
                 .map_err(|e| self.err(e.into()))?;
 
-                Typeish::Type(VType::Int)
+                Typeish::known(VType::Int)
             }
             Expression::And(a, b) | Expression::Or(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -942,7 +958,7 @@ impl<'a> CompileState<'a> {
                 )
                 .map_err(|e| self.err(e.into()))?;
 
-                Typeish::Type(VType::Bool)
+                Typeish::known(VType::Bool)
             }
             Expression::Equal(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -954,7 +970,7 @@ impl<'a> CompileState<'a> {
                 let _ = self
                     .unify_pair(left_type, right_type)
                     .map_err(|e| self.err(e.into()));
-                Typeish::Type(VType::Bool)
+                Typeish::known(VType::Bool)
             }
             Expression::NotEqual(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -965,7 +981,7 @@ impl<'a> CompileState<'a> {
                 let _ = self
                     .unify_pair(left_type, right_type)
                     .map_err(|e| self.err(e.into()));
-                Typeish::Type(VType::Bool)
+                Typeish::known(VType::Bool)
             }
             Expression::GreaterThan(a, b) | Expression::LessThan(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -984,7 +1000,7 @@ impl<'a> CompileState<'a> {
                     "Cannot compare non-int expressions",
                 )
                 .map_err(|e| self.err(e.into()))?;
-                Typeish::Type(VType::Bool)
+                Typeish::known(VType::Bool)
             }
             Expression::GreaterThanOrEqual(a, b) | Expression::LessThanOrEqual(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -1024,7 +1040,7 @@ impl<'a> CompileState<'a> {
                     "Cannot compare non-int expressions",
                 )
                 .map_err(|e| self.err(e.into()))?;
-                Typeish::Type(VType::Bool)
+                Typeish::known(VType::Bool)
             }
             Expression::Negative(e) => {
                 // Evaluate the expression
@@ -1043,7 +1059,7 @@ impl<'a> CompileState<'a> {
                 inner_type
                     .check_type(VType::Int, "Cannot negate non-int expression")
                     .map_err(|e| self.err(e.into()))?;
-                Typeish::Type(VType::Int)
+                Typeish::known(VType::Int)
             }
             Expression::Not(e) => {
                 // Evaluate the expression
@@ -1055,7 +1071,7 @@ impl<'a> CompileState<'a> {
                 inner_type
                     .check_type(VType::Bool, "Cannot invert non-boolean expression")
                     .map_err(|e| self.err(e.into()))?;
-                Typeish::Type(VType::Bool)
+                Typeish::known(VType::Bool)
             }
             Expression::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
             Expression::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
@@ -1073,16 +1089,15 @@ impl<'a> CompileState<'a> {
                 // The result true or false is on the stack
 
                 inner_type
-                    .map_result(|t| {
-                        if let VType::Optional(_) = t {
-                            Ok(Typeish::Type(VType::Bool))
-                        } else {
-                            Err(TypeError::new(
-                                "`is` must operate on an optional expression",
-                            ))
+                    .try_map(|nty| match nty {
+                        NullableVType::Type(VType::Optional(_)) | NullableVType::Null => {
+                            Ok(NullableVType::Type(VType::Bool))
                         }
+                        _ => Err(TypeError::new(
+                            "`is` must operate on an optional expression",
+                        )),
                     })
-                    .map_err(|e| self.err(e.into()))?
+                    .map_err(|err| self.err(err.into()))?
             }
             Expression::Block(statements, e) => {
                 self.append_instruction(Instruction::Block);
@@ -1179,7 +1194,7 @@ impl<'a> CompileState<'a> {
                     | StatementContext::CommandRecall(_),
                 ) => {
                     let et = self.compile_expression(&s.expression)?;
-                    if !et.is_maybe(&VType::Bool) {
+                    if !et.fits_type(&VType::Bool) {
                         return Err(self.err(CompileErrorType::InvalidType(String::from(
                             "check must have boolean expression",
                         ))));
@@ -1236,28 +1251,27 @@ impl<'a> CompileState<'a> {
                 }
                 (ast::Statement::Publish(s), StatementContext::Action(_)) => {
                     let t = self.compile_expression(s)?;
-                    match t {
-                        Typeish::Type(VType::Struct(n)) => {
-                            if !self.m.command_defs.contains_key(&n) {
-                                return Err(self.err(CompileErrorType::InvalidType(format!(
-                                    "Struct `{}` is not a Command struct",
-                                    n
-                                ))));
+                    let _ty: Typeish = t
+                        .try_map(|nty| match nty {
+                            NullableVType::Type(VType::Struct(ref n)) => {
+                                if !self.m.command_defs.contains_key(n.as_str()) {
+                                    return Err(CompileErrorType::InvalidType(format!(
+                                        "Struct `{n}` is not a Command struct",
+                                    )));
+                                }
+                                Ok(nty)
                             }
-                        }
-                        Typeish::Type(ot) => {
-                            return Err(self.err(CompileErrorType::InvalidType(format!(
+                            ot => Err(CompileErrorType::InvalidType(format!(
                                 "Cannot publish `{ot}`, must be a command struct"
-                            ))))
-                        }
-                        _ => {}
-                    }
+                            ))),
+                        })
+                        .map_err(|err| self.err(err))?;
                     self.append_instruction(Instruction::Publish);
                 }
                 (ast::Statement::Return(s), StatementContext::PureFunction(fd)) => {
                     // ensure return expression type matches function signature
                     let et = self.compile_expression(&s.expression)?;
-                    if !et.is_maybe(&fd.return_type) {
+                    if !et.fits_type(&fd.return_type) {
                         return Err(self.err(CompileErrorType::InvalidType(format!(
                             "Return value of `{}()` must be {}",
                             fd.identifier, fd.return_type
@@ -1296,7 +1310,7 @@ impl<'a> CompileState<'a> {
                     self.identifier_types
                         .add(
                             map_stmt.identifier.clone(),
-                            Typeish::Type(VType::Struct(map_stmt.fact.identifier.clone())),
+                            Typeish::known(VType::Struct(map_stmt.fact.identifier.clone())),
                         )
                         .map_err(|e| self.err(e))?;
                     // Consume results...
@@ -1379,7 +1393,7 @@ impl<'a> CompileState<'a> {
                                     })?
                                     .field_type;
                                 let t = self.compile_expression(e)?;
-                                if !t.is_maybe(def_field_type) {
+                                if !t.fits_type(def_field_type) {
                                     return Err(self.err(CompileErrorType::InvalidType(format!(
                                         "Fact `{}` value field `{}` found `{}`, not `{}`",
                                         s.fact.identifier, k, t, def_field_type
@@ -1398,11 +1412,23 @@ impl<'a> CompileState<'a> {
                 }
                 (ast::Statement::Emit(s), StatementContext::Finish) => {
                     let et = self.compile_expression(s)?;
-                    if !matches!(et, Typeish::Type(VType::Struct(_))) {
-                        return Err(self.err(CompileErrorType::InvalidType(String::from(
-                            "Emit must be given a struct",
-                        ))));
-                    }
+                    let _ty: Typeish = et
+                        .try_map(|nty| match nty {
+                            NullableVType::Type(VType::Struct(ref _n)) => {
+                                // TODO: effect_defs
+                                // if !self.m.effect_defs.contains_key(n.as_str()) {
+                                //     return Err(CompileErrorType::InvalidType(format!(
+                                //         "Struct `{}` is not an effect struct",
+                                //         n
+                                //     )));
+                                // }
+                                Ok(nty)
+                            }
+                            ot => Err(CompileErrorType::InvalidType(format!(
+                                "Cannot emit `{ot}`, must be an effect struct"
+                            ))),
+                        })
+                        .map_err(|err| self.err(err))?;
                     self.append_instruction(Instruction::Emit);
                 }
                 (ast::Statement::FunctionCall(f), StatementContext::Finish) => {
@@ -1468,18 +1494,16 @@ impl<'a> CompileState<'a> {
 
                     for (i, arg) in fc.arguments.iter().enumerate() {
                         let arg_type = self.compile_expression(arg)?;
-                        match arg_type {
-                            Typeish::Type(t) => {
-                                let expected_arg = &action_def.arguments[i];
-                                if t != expected_arg.field_type {
-                                    return Err(CompileError::from_locator(CompileErrorType::BadArgument(format!("invalid argument type for `{}`: expected `{}`, but got `{t}`",
-                                            expected_arg.identifier,
-                                            expected_arg.field_type)
-                                        ),
-                                        statement.locator, self.m.codemap.as_ref()));
-                                }
-                            }
-                            Typeish::Indeterminate => {}
+                        let expected_arg = &action_def.arguments[i];
+                        if !arg_type.fits_type(&expected_arg.field_type) {
+                            return Err(CompileError::from_locator(
+                                CompileErrorType::BadArgument(format!(
+                                    "invalid argument type for `{}`: expected `{}`, but got `{arg_type}`",
+                                    expected_arg.identifier, expected_arg.field_type
+                                )),
+                                statement.locator,
+                                self.m.codemap.as_ref(),
+                            ));
                         }
                     }
 
@@ -1616,7 +1640,7 @@ impl<'a> CompileState<'a> {
         for (i, ((def_name, def_t), arg_e)) in arg_defs.iter().zip(fc.arguments.iter()).enumerate()
         {
             let arg_t = self.compile_expression(arg_e)?;
-            if !arg_t.is_maybe(def_t) {
+            if !arg_t.fits_type(def_t) {
                 let arg_n = i
                     .checked_add(1)
                     .assume("function argument count overflow")?;
@@ -1705,7 +1729,7 @@ impl<'a> CompileState<'a> {
         }
 
         self.identifier_types
-            .add_global(identifier.clone(), Typeish::Type(vt))
+            .add_global(identifier.clone(), Typeish::known(vt))
             .map_err(|e| self.err(e))?;
 
         Ok(())
@@ -1735,14 +1759,12 @@ impl<'a> CompileState<'a> {
         self.define_label(not_none, self.wp)?;
 
         inner_type
-            .map_result(|t| {
-                if let VType::Optional(t) = t {
-                    Ok(Typeish::Type(*t))
-                } else {
-                    Err(TypeError::new("Cannot unwrap non-option expression"))
-                }
+            .try_map(|nty| match nty {
+                NullableVType::Type(VType::Optional(t)) => Ok(NullableVType::Type(*t)),
+                NullableVType::Null => Err(TypeError::new("Cannot unwrap None")),
+                _ => Err(TypeError::new("Cannot unwrap non-option expression")),
             })
-            .map_err(|e| self.err(e.into()))
+            .map_err(|err| self.err(err.into()))
     }
 
     fn compile_command_policy(
@@ -1758,13 +1780,13 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add(
                 ident!("this"),
-                Typeish::Type(VType::Struct(command.identifier.clone())),
+                Typeish::known(VType::Struct(command.identifier.clone())),
             )
             .map_err(|e| self.err(e))?;
         self.identifier_types
             .add(
                 ident!("envelope"),
-                Typeish::Type(VType::Struct(ident!("Envelope"))),
+                Typeish::known(VType::Struct(ident!("Envelope"))),
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
@@ -1788,13 +1810,13 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add(
                 ident!("this"),
-                Typeish::Type(VType::Struct(command.identifier.clone())),
+                Typeish::known(VType::Struct(command.identifier.clone())),
             )
             .map_err(|e| self.err(e))?;
         self.identifier_types
             .add(
                 ident!("envelope"),
-                Typeish::Type(VType::Struct(ident!("Envelope"))),
+                Typeish::known(VType::Struct(ident!("Envelope"))),
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
@@ -1841,7 +1863,7 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add(
                 ident!("this"),
-                Typeish::Type(VType::Struct(command.identifier.clone())),
+                Typeish::known(VType::Struct(command.identifier.clone())),
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("this")));
@@ -1891,7 +1913,7 @@ impl<'a> CompileState<'a> {
         self.identifier_types
             .add(
                 ident!("envelope"),
-                Typeish::Type(VType::Struct(ident!("Envelope"))),
+                Typeish::known(VType::Struct(ident!("Envelope"))),
             )
             .map_err(|e| self.err(e))?;
         self.append_instruction(Instruction::Def(ident!("envelope")));
@@ -2046,7 +2068,7 @@ impl<'a> CompileState<'a> {
             LanguageContext::Statement(s) => &s.expression,
             LanguageContext::Expression(e) => &e.scrutinee,
         };
-        let expr_t = self.compile_expression(expr)?;
+        let mut expr_pat_t = self.compile_expression(expr)?;
 
         let end_label = self.anonymous_label();
 
@@ -2067,13 +2089,11 @@ impl<'a> CompileState<'a> {
                             ))));
                         }
                         let arm_t = self.compile_expression(value)?;
-                        if !arm_t.is_maybe_equal(&expr_t) {
-                            let arm_n = i.checked_add(1).assume("match arm count overflow")?;
-                            return Err(self.err(CompileErrorType::InvalidType(format!(
-                                "match expression is `{}` but arm expression {} is `{}`",
-                                expr_t, arm_n, arm_t
-                            ))));
-                        }
+                        expr_pat_t = self.unify_pair(expr_pat_t, arm_t).map_err(|err| {
+                            self.err(CompileErrorType::InvalidType(format!(
+                                "arm `{i}` has bad type: {err}"
+                            )))
+                        })?;
 
                         // if value == target, jump to start-of-arm
                         self.append_instruction(Instruction::Eq);
@@ -2134,13 +2154,12 @@ impl<'a> CompileState<'a> {
                     let etype = self.compile_expression(&arm.expression)?;
                     match expr_type {
                         None => expr_type = Some(etype),
-                        Some(ref t) => {
-                            if !t.is_maybe_equal(&etype) {
-                                return Err(self.err(CompileErrorType::InvalidType(format!(
-                                    "match arm expression type mismatch; expected {}, got {}",
-                                    t, etype
-                                ))));
-                            }
+                        Some(t) => {
+                            expr_type = Some(self.unify_pair(t, etype).map_err(|err| {
+                                self.err(CompileErrorType::InvalidType(format!(
+                                    "match arm expression type mismatch: {err}"
+                                )))
+                            })?);
                         }
                     }
 

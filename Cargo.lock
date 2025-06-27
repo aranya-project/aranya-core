@@ -392,6 +392,7 @@ dependencies = [
  "ciborium",
  "clap",
  "thiserror 2.0.7",
+ "tracing",
 ]
 
 [[package]]
