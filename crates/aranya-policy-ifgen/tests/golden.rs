@@ -21,7 +21,14 @@ fn dotest(name: &str) {
     write!(file, "{rust_code}").unwrap();
 }
 
+// Regenerate interface files with `UPDATE_GOLDENFILES=1 cargo test -p aranya-policy-ifgen --tests`
+
 #[test]
 fn tictactoe() {
     dotest("tictactoe");
+}
+
+#[test]
+fn structs() {
+    dotest("structs");
 }
