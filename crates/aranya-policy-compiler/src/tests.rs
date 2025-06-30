@@ -932,10 +932,19 @@ fn test_immutable_fact_cannot_be_updated() {
 #[test]
 fn test_serialize_deserialize() {
     let text = r#"
-        struct Foo {}
-        function foo(input struct Foo) struct Foo {
-            let b = serialize(input)
-            return deserialize(b)
+        struct Envelope {
+            payload bytes
+        }
+        command Foo {
+            fields {}
+            seal {
+                return Envelope {
+                    payload: serialize(this),
+                }
+            }
+            open {
+                return deserialize(envelope.payload)
+            }
         }
     "#;
 

@@ -696,12 +696,20 @@ impl<'a> CompileState<'a> {
                     Typeish::Type(VType::Bytes)
                 }
                 ast::InternalFunction::Deserialize(e) => {
-                    if !matches!(
-                        self.get_statement_context()?,
-                        StatementContext::PureFunction(_)
-                    ) {
-                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
-                    }
+                    // A bit hacky, but you can't manually define a function named "open".
+                    let struct_name = match self.get_statement_context()? {
+                        StatementContext::PureFunction(ast::FunctionDefinition {
+                            identifier,
+                            return_type: VType::Struct(struct_name),
+                            ..
+                        }) if identifier == "open" => struct_name,
+                        _ => {
+                            return Err(
+                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
+                            );
+                        }
+                    };
+
                     let t = self.compile_expression(e)?;
                     if !t.is_maybe(&VType::Bytes) {
                         return Err(self.err(CompileErrorType::InvalidType(String::from(
@@ -710,9 +718,7 @@ impl<'a> CompileState<'a> {
                     }
                     self.append_instruction(Instruction::Deserialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to determine this concretely
-                    Typeish::Indeterminate
+                    Typeish::Type(VType::Struct(struct_name))
                 }
             },
             Expression::FunctionCall(f) => {
