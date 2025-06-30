@@ -2262,11 +2262,6 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Finish compilation; return the internal machine
-    pub fn into_module(self) -> Module {
-        self.m.into_module()
-    }
-
     /// Get expression value, e.g. Expression::Int => Value::Int
     fn expression_value(&self, e: &Expression) -> Option<Value> {
         match e {
@@ -2339,28 +2334,11 @@ impl<'a> Compiler<'a> {
 
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
-        let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
-        let machine = CompileTarget::new(codemap);
-        let mut cs = CompileState {
-            policy: self.policy,
-            m: machine,
-            wp: 0,
-            c: 0,
-            function_signatures: BTreeMap::new(),
-            last_locator: 0,
-            statement_context: vec![],
-            identifier_types: IdentifierTypeStack::new(),
-            ffi_modules: self.ffi_modules,
-            is_debug: self.is_debug,
-            stub_ffi: self.stub_ffi,
-        };
-
-        cs.compile()?;
-
-        Ok(cs.into_module())
+        let target = self.compile_to_target()?;
+        Ok(target.into_module())
     }
 
-    pub fn compile_target(self) -> Result<CompileTarget, CompileError> {
+    pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {

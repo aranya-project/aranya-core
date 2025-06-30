@@ -56,14 +56,11 @@ impl CompileTarget {
     /// Converts the `CompileTarget` into a `Module`.
     pub fn into_module(self) -> Module {
         // Convert enum defs IndexMap into BTreeMap.
-        let mut enum_defs = BTreeMap::new();
-        for (name, values) in self.enum_defs {
-            let mut ev = BTreeMap::new();
-            for (k, v) in values {
-                ev.insert(k, v);
-            }
-            enum_defs.insert(name, ev);
-        }
+        let enum_defs = self
+            .enum_defs
+            .into_iter()
+            .map(|(k, v)| (k, v.into_iter().collect()))
+            .collect::<BTreeMap<_, _>>();
 
         Module {
             data: ModuleData::V0(ModuleV0 {

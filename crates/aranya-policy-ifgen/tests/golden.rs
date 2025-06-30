@@ -14,7 +14,7 @@ fn dotest(name: &str) {
     let doc = std::fs::read_to_string(data.join(format!("{name}.md"))).unwrap();
     let doc = parse_policy_document(&doc).unwrap();
 
-    let target = Compiler::new(&doc).compile_target().unwrap();
+    let target = Compiler::new(&doc).compile_to_target().unwrap();
     let rust_code = generate_code(&target);
 
     let mut file = mint.new_goldenfile(format!("{name}.rs")).unwrap();
