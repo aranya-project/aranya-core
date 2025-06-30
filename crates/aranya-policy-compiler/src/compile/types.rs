@@ -137,9 +137,7 @@ impl IdentifierTypeStack {
 /// information we need to calculate it.
 ///
 /// [`PartialEq`] and [`Eq`] are intentionally not derived, as naive equality doesn't make
-/// sense here. Use [`is_equal()`](Typeish::is_equal),
-/// [`is_indeterminate()`](Typeish::is_indeterminate), and
-/// [`is_maybe()`](Typeish::is_indeterminate).
+/// sense here. Use one of the helper methods such as [`Self::unify`] or pattern matching.
 //
 // TODO(chip): This _should_
 // eventually go away as every expression should be well-defined by the language. But we're
@@ -147,49 +145,15 @@ impl IdentifierTypeStack {
 #[must_use]
 #[derive(Debug, Clone)]
 pub enum Typeish {
+    /// A definitely known type.
     Definitely(NullableVType),
+    /// A known type unified with unknown type.
+    ///
+    /// This lets us type check more expressions while indicating that a runtime type check would
+    /// be needed before blindly trusting this type.
     Probably(NullableVType),
+    /// An unknown type.
     Indeterminate,
-}
-
-#[must_use]
-#[derive(Debug, Clone)]
-pub enum NullableVType {
-    Type(VType),
-    Null,
-}
-
-impl NullableVType {
-    pub fn fits_type(&self, ot: &VType) -> bool {
-        match self {
-            Self::Type(vtype) => vtype == ot,
-            Self::Null => matches!(ot, VType::Optional(_)),
-        }
-    }
-
-    /// Equal types will unify, and null will unify with any optional.
-    fn unify(self, rhs: NullableVType) -> Result<Self, TypeError> {
-        match (self, rhs) {
-            (t @ NullableVType::Type(VType::Optional(_)), NullableVType::Null)
-            | (NullableVType::Null, t @ NullableVType::Type(VType::Optional(_))) => Ok(t),
-            (NullableVType::Type(left), NullableVType::Type(right)) if left == right => {
-                Ok(NullableVType::Type(left))
-            }
-            (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
-            (left, right) => Err(TypeError::new_owned(format!(
-                "types do not match: {left} and {right}"
-            ))),
-        }
-    }
-}
-
-impl Display for NullableVType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Type(vtype) => vtype.fmt(f),
-            Self::Null => f.write_str("null"),
-        }
-    }
 }
 
 impl Typeish {
@@ -238,6 +202,7 @@ impl Typeish {
         })
     }
 
+    /// Tries to unify two types, propagating uncertainty from either type.
     pub fn unify(self, other: Self) -> Result<Self, TypeError> {
         Ok(match (self, other) {
             // Two Indeterminate are Indeterminate
@@ -266,6 +231,47 @@ impl Display for Typeish {
             Typeish::Definitely(t) => t.fmt(f),
             Typeish::Probably(t) => write!(f, "probably {t}"),
             Typeish::Indeterminate => f.write_str("unknown"),
+        }
+    }
+}
+
+#[must_use]
+#[derive(Debug, Clone)]
+pub enum NullableVType {
+    Type(VType),
+    Null,
+}
+
+impl NullableVType {
+    /// Returns whether the type matches. Null will match any optional.
+    pub fn fits_type(&self, ot: &VType) -> bool {
+        match self {
+            Self::Type(vtype) => vtype == ot,
+            Self::Null => matches!(ot, VType::Optional(_)),
+        }
+    }
+
+    /// Equal types will unify, and null will unify with any optional.
+    fn unify(self, rhs: NullableVType) -> Result<Self, TypeError> {
+        match (self, rhs) {
+            (t @ NullableVType::Type(VType::Optional(_)), NullableVType::Null)
+            | (NullableVType::Null, t @ NullableVType::Type(VType::Optional(_))) => Ok(t),
+            (NullableVType::Type(left), NullableVType::Type(right)) if left == right => {
+                Ok(NullableVType::Type(left))
+            }
+            (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
+            (left, right) => Err(TypeError::new_owned(format!(
+                "types do not match: {left} and {right}"
+            ))),
+        }
+    }
+}
+
+impl Display for NullableVType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Type(vtype) => vtype.fmt(f),
+            Self::Null => f.write_str("null"),
         }
     }
 }
