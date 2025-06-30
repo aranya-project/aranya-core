@@ -15,8 +15,20 @@ pub fn generate_code(policy: &Policy) -> String {
         .map(|s| {
             let doc = format!(" {} policy struct.", s.identifier);
             let name = mk_ident(&s.identifier);
-            let names = s.fields.iter().map(|f| mk_ident(&f.identifier));
-            let types = s.fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+            let names = s.items.iter().map(|i| {
+                mk_ident(
+                    &i.field()
+                        .expect("should not be a struct ref here")
+                        .identifier,
+                )
+            });
+            let types = s.items.iter().map(|i| {
+                vtype_to_rtype(
+                    &i.field()
+                        .expect("should not be a struct ref here")
+                        .field_type,
+                )
+            });
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -46,8 +58,14 @@ pub fn generate_code(policy: &Policy) -> String {
     let effects = policy.effects.iter().map(|s| {
         let doc = format!(" {} policy effect.", s.identifier);
         let ident = mk_ident(&s.identifier);
-        let field_idents = s.fields.iter().map(|f| mk_ident(&f.identifier));
-        let field_types = s.fields.iter().map(|f| vtype_to_rtype(&f.field_type));
+        let field_idents = s
+            .items
+            .iter()
+            .map(|i| mk_ident(&i.field().expect("effect item should be a field").identifier));
+        let field_types = s
+            .items
+            .iter()
+            .map(|i| vtype_to_rtype(&i.field().expect("effect item should be a field").field_type));
         quote! {
             #[doc = #doc]
             #[effect]
@@ -145,14 +163,14 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
 /// Returns the name of all custom types reachable from actions or effects.
 fn collect_reachable_types(policy: &Policy) -> HashSet<&str> {
     fn visit<'a>(
-        struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
+        struct_defs: &HashMap<&str, Vec<&'a FieldDefinition>>,
         found: &mut HashSet<&'a str>,
         ty: &'a VType,
     ) {
         match ty {
             VType::Struct(s) => {
                 if found.insert(s.as_str()) {
-                    for field in struct_defs[s.as_str()] {
+                    for field in &struct_defs[s.as_str()] {
                         visit(struct_defs, found, &field.field_type);
                     }
                 }
@@ -168,7 +186,15 @@ fn collect_reachable_types(policy: &Policy) -> HashSet<&str> {
     let struct_defs = policy
         .structs
         .iter()
-        .map(|s| (s.identifier.as_str(), s.fields.as_slice()))
+        .map(|s| {
+            (
+                s.identifier.as_str(),
+                s.items
+                    .iter()
+                    .map(|i| i.field().expect("should not be a struct ref here"))
+                    .collect::<Vec<_>>(),
+            )
+        })
         .collect::<HashMap<_, _>>();
 
     let mut found = HashSet::new();
@@ -180,7 +206,8 @@ fn collect_reachable_types(policy: &Policy) -> HashSet<&str> {
     }
 
     for effect in &policy.effects {
-        for field in &effect.fields {
+        for item in &effect.items {
+            let field = item.field().expect("Expected field in effect item");
             visit(&struct_defs, &mut found, &field.field_type);
         }
     }
