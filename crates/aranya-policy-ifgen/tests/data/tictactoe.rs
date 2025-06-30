@@ -25,9 +25,16 @@ pub enum Player {
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
 pub enum Effect {
+    GameOver(GameOver),
     GameStart(GameStart),
     GameUpdate(GameUpdate),
-    GameOver(GameOver),
+}
+/// GameOver policy effect.
+#[effect]
+pub struct GameOver {
+    pub gameID: Id,
+    pub winner: Id,
+    pub p: Player,
 }
 /// GameStart policy effect.
 #[effect]
@@ -43,13 +50,6 @@ pub struct GameUpdate {
     pub p: Player,
     pub X: i64,
     pub Y: i64,
-}
-/// GameOver policy effect.
-#[effect]
-pub struct GameOver {
-    pub gameID: Id,
-    pub winner: Id,
-    pub p: Player,
 }
 /// Implements all supported policy actions.
 #[actions]

@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, fmt::Display};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt::Display,
+};
 
 use aranya_policy_ast::{self as ast, Identifier};
 use aranya_policy_module::{CodeMap, Instruction, Label, Module, ModuleData, ModuleV0, Value};
@@ -20,7 +23,7 @@ pub struct CompileTarget {
     /// Command definitions (`fields`)
     pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
     /// Effect identifiers. The effect definitions can be found in `struct_defs`.
-    pub effects: Vec<Identifier>,
+    pub effects: BTreeSet<Identifier>,
     /// Fact schemas
     pub fact_defs: BTreeMap<Identifier, FactDefinition>,
     /// Struct schemas
@@ -43,7 +46,7 @@ impl CompileTarget {
             labels: BTreeMap::new(),
             action_defs: BTreeMap::new(),
             command_defs: BTreeMap::new(),
-            effects: vec![],
+            effects: BTreeSet::new(),
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
             enum_defs: BTreeMap::new(),
