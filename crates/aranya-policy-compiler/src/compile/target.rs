@@ -26,7 +26,7 @@ pub struct CompileTarget {
     /// Struct schemas
     pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: IndexMap<Identifier, IndexMap<Identifier, i64>>,
+    pub enum_defs: BTreeMap<Identifier, IndexMap<Identifier, i64>>,
     /// Command attributes
     pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code
@@ -46,7 +46,7 @@ impl CompileTarget {
             effects: vec![],
             fact_defs: BTreeMap::new(),
             struct_defs: BTreeMap::new(),
-            enum_defs: IndexMap::default(),
+            enum_defs: BTreeMap::new(),
             command_attributes: BTreeMap::new(),
             codemap: Some(codemap),
             globals: BTreeMap::new(),
