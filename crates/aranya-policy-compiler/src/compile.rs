@@ -1,5 +1,5 @@
 mod error;
-mod target;
+pub mod target;
 mod types;
 
 use std::{
@@ -24,7 +24,8 @@ use ast::{
     MatchPattern, NamedStruct,
 };
 use buggy::{Bug, BugExt};
-pub(crate) use target::CompileTarget;
+use indexmap::IndexMap;
+use target::CompileTarget;
 use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
@@ -245,16 +246,16 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = BTreeMap::new();
+        let mut values = IndexMap::new();
         for (i, value_name) in enum_def.variants.iter().enumerate() {
             match values.entry(value_name.clone()) {
-                Entry::Occupied(_) => {
+                indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                         "{}::{}",
                         enum_name, value_name
                     ))));
                 }
-                Entry::Vacant(e) => {
+                indexmap::map::Entry::Vacant(e) => {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
                     // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
                     // then we'll need to ensure those are unique.
@@ -2187,6 +2188,7 @@ impl<'a> CompileState<'a> {
                 })
                 .collect();
             self.define_struct(effect.inner.identifier.clone(), &fields)?;
+            self.m.effects.insert(effect.inner.identifier.clone());
         }
 
         // define the structs provided by FFI schema
@@ -2266,11 +2268,6 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Finish compilation; return the internal machine
-    pub fn into_module(self) -> Module {
-        self.m.into_module()
-    }
-
     /// Get expression value, e.g. Expression::Int => Value::Int
     fn expression_value(&self, e: &Expression) -> Option<Value> {
         match e {
@@ -2343,6 +2340,11 @@ impl<'a> Compiler<'a> {
 
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
+        let target = self.compile_to_target()?;
+        Ok(target.into_module())
+    }
+
+    pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {
@@ -2360,8 +2362,7 @@ impl<'a> Compiler<'a> {
         };
 
         cs.compile()?;
-
-        Ok(cs.into_module())
+        Ok(cs.m)
     }
 }
 
