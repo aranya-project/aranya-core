@@ -389,7 +389,7 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
         (ident!("b"), VType::String),
         (ident!("c"), VType::Bool),
     ]);
-    let got = module.command_defs.get(&ident!("Foo")).unwrap();
+    let got = module.command_defs.get("Foo").unwrap();
     assert_eq!(got, &want);
 
     Ok(())
@@ -548,9 +548,8 @@ fn test_struct_field_insertion_errors() {
         ),
     ];
     for (text, err_type) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type();
-        assert_eq!(result, err_type);
+        let err = compile_fail(text);
+        assert_eq!(err, err_type);
     }
 }
 
@@ -575,21 +574,21 @@ fn test_struct_field_insertion() {
         ),
         (
             r#"
-            struct Bar { i int }
-            struct Baz { +Bar, b bool }
-            struct Foo { s string, +Baz }
+            struct Bar { a int }
+            struct Baz { c bool }
+            struct Foo { +Bar, b string, +Baz }
             "#,
             vec![
                 FieldDefinition {
-                    identifier: ident!("s"),
-                    field_type: VType::String,
-                },
-                FieldDefinition {
-                    identifier: ident!("i"),
+                    identifier: ident!("a"),
                     field_type: VType::Int,
                 },
                 FieldDefinition {
                     identifier: ident!("b"),
+                    field_type: VType::String,
+                },
+                FieldDefinition {
+                    identifier: ident!("c"),
                     field_type: VType::Bool,
                 },
             ],
