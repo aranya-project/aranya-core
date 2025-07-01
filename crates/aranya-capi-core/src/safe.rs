@@ -542,7 +542,8 @@ impl<T> fmt::Pointer for OwnedPtr<T> {
 }
 
 // SAFETY: `T` is `NewType`.
-unsafe impl<T: NewType> NewType for OwnedPtr<T> {
+// TODO: OwnedPtr<T: ?Sized>
+unsafe impl<T: NewType<Inner: Sized>> NewType for OwnedPtr<T> {
     type Inner = OwnedPtr<T::Inner>;
 }
 
