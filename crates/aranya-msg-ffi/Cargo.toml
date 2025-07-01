@@ -1,0 +1,62 @@
+[package]
+name = "aranya-msg-ffi"
+description = "The Message Encryption FFI for Aranya Policy"
+version = "0.10.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["alloc"]
+
+# Enable allocations.
+alloc = [
+	"aranya-crypto/alloc",
+]
+
+# Enable `std`.
+std = [
+	"alloc",
+
+	"aranya-crypto/std",
+	"aranya-policy-vm/std",
+	"postcard/use-std",
+	"thiserror/std",
+]
+
+# Enable the testing feature.
+testing = [
+	"aranya-crypto/memstore",
+]
+
+# Enable debug features.
+debug = []
+
+[dependencies]
+aranya-crypto = { version = "0.7.0", path = "../aranya-crypto", default-features = false, features = ["alloc"] }
+aranya-policy-vm = { version = "0.10.0", path = "../aranya-policy-vm", features = ["derive"] }
+postcard = { workspace = true, default-features = false, features = ["heapless"] }
+# For `custom_id!`
+serde = { workspace = true, default-features = false }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+aranya-crypto = { path = "../aranya-crypto", features = ["alloc", "memstore"] }
+
+[package.metadata.docs.rs]
+all-features = true
+
+[package.metadata.cargo-all-features]
+always_include_features = [
+	"alloc",
+	"testing",
+]
+
+[package.metadata.cargo-machete]
+ignored = ["serde"]

@@ -363,6 +363,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "aranya-msg-ffi"
+version = "0.10.0"
+dependencies = [
+ "aranya-crypto",
+ "aranya-policy-vm",
+ "postcard",
+ "serde",
+ "thiserror 2.0.7",
+ "tracing",
+]
+
+[[package]]
 name = "aranya-perspective-ffi"
 version = "0.11.0"
 dependencies = [
