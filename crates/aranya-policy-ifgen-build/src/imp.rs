@@ -1,34 +1,24 @@
 use std::collections::{HashMap, HashSet};
 
-use aranya_policy_ast::{FieldDefinition, Policy, VType};
+use aranya_policy_ast::{FieldDefinition, VType};
+use aranya_policy_compiler::compile::target::CompileTarget;
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 
-/// Generate rust source code from a [`Policy`] AST.
-pub fn generate_code(policy: &Policy) -> String {
-    let reachable = collect_reachable_types(policy);
+/// Generate rust source code from a policy [`CompileTarget`].
+#[allow(clippy::panic)]
+pub fn generate_code(target: &CompileTarget) -> String {
+    let reachable = collect_reachable_types(target);
 
-    let structs = policy
-        .structs
+    let structs = target
+        .struct_defs
         .iter()
-        .filter(|s| reachable.contains(s.identifier.as_str()))
-        .map(|s| {
-            let doc = format!(" {} policy struct.", s.identifier);
-            let name = mk_ident(&s.identifier);
-            let names = s.items.iter().map(|i| {
-                mk_ident(
-                    &i.field()
-                        .expect("should not be a struct ref here")
-                        .identifier,
-                )
-            });
-            let types = s.items.iter().map(|i| {
-                vtype_to_rtype(
-                    &i.field()
-                        .expect("should not be a struct ref here")
-                        .field_type,
-                )
-            });
+        .filter(|(id, _fields)| reachable.contains(id.as_str()))
+        .map(|(id, fields)| {
+            let doc = format!(" {} policy struct.", id);
+            let name = mk_ident(id);
+            let names = fields.iter().map(|f| mk_ident(&f.identifier));
+            let types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -38,14 +28,14 @@ pub fn generate_code(policy: &Policy) -> String {
             }
         });
 
-    let enums = policy
-        .enums
+    let enums = target
+        .enum_defs
         .iter()
-        .filter(|e| reachable.contains(e.identifier.as_str()))
-        .map(|e| {
-            let doc = format!(" {} policy enum.", e.identifier);
-            let name = mk_ident(&e.identifier);
-            let names = e.variants.iter().map(mk_ident);
+        .filter(|(id, _values)| reachable.contains(id.as_str()))
+        .map(|(id, values)| {
+            let doc = format!(" {} policy enum.", id);
+            let name = mk_ident(id);
+            let names = values.iter().map(|(id, _)| mk_ident(id));
             quote! {
                 #[doc = #doc]
                 #[value]
@@ -55,17 +45,15 @@ pub fn generate_code(policy: &Policy) -> String {
             }
         });
 
-    let effects = policy.effects.iter().map(|s| {
-        let doc = format!(" {} policy effect.", s.identifier);
-        let ident = mk_ident(&s.identifier);
-        let field_idents = s
-            .items
-            .iter()
-            .map(|i| mk_ident(&i.field().expect("effect item should be a field").identifier));
-        let field_types = s
-            .items
-            .iter()
-            .map(|i| vtype_to_rtype(&i.field().expect("effect item should be a field").field_type));
+    let effects = target.effects.iter().map(|s| {
+        let fields = target
+            .struct_defs
+            .get(s)
+            .unwrap_or_else(|| panic!("Effect not defined: {s}"));
+        let doc = format!(" {} policy effect.", s);
+        let ident = mk_ident(s);
+        let field_idents = fields.iter().map(|f| mk_ident(&f.identifier));
+        let field_types = fields.iter().map(|f| vtype_to_rtype(&f.field_type));
         quote! {
             #[doc = #doc]
             #[effect]
@@ -76,7 +64,7 @@ pub fn generate_code(policy: &Policy) -> String {
     });
 
     let effect_enum = {
-        let idents = policy.effects.iter().map(|s| mk_ident(&s.identifier));
+        let idents = target.effects.iter().map(mk_ident);
         quote! {
             #[effects]
             pub enum Effect {
@@ -88,13 +76,10 @@ pub fn generate_code(policy: &Policy) -> String {
     };
 
     let actions = {
-        let sigs = policy.actions.iter().map(|action| {
-            let ident = mk_ident(&action.identifier);
-            let argnames = action.arguments.iter().map(|arg| mk_ident(&arg.identifier));
-            let argtypes = action
-                .arguments
-                .iter()
-                .map(|arg| vtype_to_rtype(&arg.field_type));
+        let sigs = target.action_defs.iter().map(|(id, args)| {
+            let ident = mk_ident(id);
+            let argnames = args.iter().map(|arg| mk_ident(&arg.identifier));
+            let argtypes = args.iter().map(|arg| vtype_to_rtype(&arg.field_type));
             quote! {
                 fn #ident(&mut self, #(#argnames: #argtypes),*) -> Result<(), ClientError>;
             }
@@ -161,16 +146,17 @@ fn vtype_to_rtype(ty: &VType) -> TokenStream {
 }
 
 /// Returns the name of all custom types reachable from actions or effects.
-fn collect_reachable_types(policy: &Policy) -> HashSet<&str> {
+#[allow(clippy::panic)]
+fn collect_reachable_types(target: &CompileTarget) -> HashSet<&str> {
     fn visit<'a>(
-        struct_defs: &HashMap<&str, Vec<&'a FieldDefinition>>,
+        struct_defs: &HashMap<&str, &'a [FieldDefinition]>,
         found: &mut HashSet<&'a str>,
         ty: &'a VType,
     ) {
         match ty {
             VType::Struct(s) => {
                 if found.insert(s.as_str()) {
-                    for field in &struct_defs[s.as_str()] {
+                    for field in struct_defs[s.as_str()] {
                         visit(struct_defs, found, &field.field_type);
                     }
                 }
@@ -183,31 +169,26 @@ fn collect_reachable_types(policy: &Policy) -> HashSet<&str> {
         }
     }
 
-    let struct_defs = policy
-        .structs
+    let struct_defs = target
+        .struct_defs
         .iter()
-        .map(|s| {
-            (
-                s.identifier.as_str(),
-                s.items
-                    .iter()
-                    .map(|i| i.field().expect("should not be a struct ref here"))
-                    .collect::<Vec<_>>(),
-            )
-        })
+        .map(|(id, fields)| (id.as_str(), fields.as_slice()))
         .collect::<HashMap<_, _>>();
 
     let mut found = HashSet::new();
 
-    for action in &policy.actions {
-        for arg in &action.arguments {
+    for args in target.action_defs.values() {
+        for arg in args {
             visit(&struct_defs, &mut found, &arg.field_type);
         }
     }
 
-    for effect in &policy.effects {
-        for item in &effect.items {
-            let field = item.field().expect("Expected field in effect item");
+    for id in &target.effects {
+        let fields = target
+            .struct_defs
+            .get(id)
+            .unwrap_or_else(|| panic!("Effect not defined: {id}"));
+        for field in fields {
             visit(&struct_defs, &mut found, &field.field_type);
         }
     }
