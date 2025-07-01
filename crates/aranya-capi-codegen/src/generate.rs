@@ -2,7 +2,7 @@ use std::{fs::File, io::Write};
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_quote, Ident, Path};
+use syn::{Ident, Path, parse_quote};
 use tracing::{debug, info, instrument};
 
 use super::{

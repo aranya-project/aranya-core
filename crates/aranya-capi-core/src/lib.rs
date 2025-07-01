@@ -11,10 +11,10 @@ mod traits;
 pub mod types;
 mod utf8;
 
-pub use cstr::{write_c_str, WriteCStrError};
+pub use cstr::{WriteCStrError, write_c_str};
 pub use error::{ErrorCode, ExtendedError, InvalidArg, InvalidArgReason};
 #[doc(hidden)]
-pub use internal::conv::{slice::InvalidSlice, ConvError};
+pub use internal::conv::{ConvError, slice::InvalidSlice};
 pub use macros::*;
 pub use traits::{Builder, InitDefault};
 pub use utf8::Utf8Str;
@@ -24,7 +24,7 @@ pub mod prelude {
     pub use core::mem::MaybeUninit;
 
     pub use super::{
-        safe::{CBytes, CStr, OwnedPtr, Safe, Writer},
         Builder, ErrorCode, InitDefault,
+        safe::{CBytes, CStr, OwnedPtr, Safe, Writer},
     };
 }

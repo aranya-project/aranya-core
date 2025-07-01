@@ -3,14 +3,14 @@
 use core::ffi::{c_int, c_uint};
 
 pub use libc::{
-    mode_t, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP,
-    S_IRUSR, S_IWGRP, S_IWUSR,
+    LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR,
+    S_IWGRP, S_IWUSR, mode_t,
 };
 
 use crate::{
-    errno::{errno, Errno},
-    path::Path,
     AsAtRoot, AsFd, BorrowedFd, OwnedFd,
+    errno::{Errno, errno},
+    path::Path,
 };
 
 /// A raw file descriptor.
@@ -37,11 +37,7 @@ pub fn open(path: &Path, oflag: c_int, mode: mode_t) -> Result<RawFd, Errno> {
         // SAFETY: FFI call, no invariants.
         unsafe { libc::open(path, oflag, c_uint::from(mode)) }
     });
-    if fd < 0 {
-        Err(errno())
-    } else {
-        Ok(fd)
-    }
+    if fd < 0 { Err(errno()) } else { Ok(fd) }
 }
 
 /// See `open(2)`.
@@ -50,44 +46,28 @@ pub fn openat(fd: BorrowedFd<'_>, path: &Path, oflag: c_int, mode: mode_t) -> Re
         // SAFETY: FFI call, no invariants.
         unsafe { libc::openat(fd.fd, path, oflag, c_uint::from(mode)) }
     });
-    if fd < 0 {
-        Err(errno())
-    } else {
-        Ok(fd)
-    }
+    if fd < 0 { Err(errno()) } else { Ok(fd) }
 }
 
 /// See `close(2)`.
 pub fn close(fd: RawFd) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::close(fd) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `flock(2)`.
 pub fn flock(fd: BorrowedFd<'_>, op: c_int) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::flock(fd.fd, op) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `fsync(2)`.
 pub fn fsync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::fsync(fd.fd) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `unlinkat(2)`.
@@ -97,22 +77,14 @@ pub fn unlinkat(fd: BorrowedFd<'_>, path: &Path, flags: c_int) -> Result<(), Err
         // SAFETY: FFI call, no invariants.
         unsafe { libc::unlinkat(fd.fd, path, flags) }
     });
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `dup(2)`.
 pub fn dup(old_fd: BorrowedFd<'_>) -> Result<RawFd, Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::dup(old_fd.fd) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(ret)
-    }
+    if ret < 0 { Err(errno()) } else { Ok(ret) }
 }
 
 /// See `fdopendir(2)`.
@@ -161,9 +133,5 @@ pub fn rewinddir(dir: RawDir) {
 pub fn closedir(dir: RawDir) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::closedir(dir) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }

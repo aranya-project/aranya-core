@@ -29,8 +29,8 @@ pub mod testing;
 
 use alloc::{boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
 
-use aranya_crypto::{dangerous::spideroak_crypto::csprng::rand::Rng as _, Csprng, Rng};
-use buggy::{bug, Bug, BugExt};
+use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as _};
+use buggy::{Bug, BugExt, bug};
 use serde::{Deserialize, Serialize};
 use vec1::Vec1;
 
@@ -1066,7 +1066,9 @@ impl<R: Read> Revertable for LinearPerspective<R> {
         }
 
         if checkpoint.index > self.commands.len() {
-            bug!("A checkpoint's index should always be less than or equal to the length of a perspective's command history!");
+            bug!(
+                "A checkpoint's index should always be less than or equal to the length of a perspective's command history!"
+            );
         }
 
         self.commands.truncate(checkpoint.index);
@@ -1162,7 +1164,7 @@ mod test {
     use testing::Manager;
 
     use super::*;
-    use crate::testing::dsl::{test_suite, StorageBackend};
+    use crate::testing::dsl::{StorageBackend, test_suite};
 
     #[test]
     fn test_query_prefix() {

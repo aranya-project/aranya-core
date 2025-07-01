@@ -1,13 +1,13 @@
 use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Ordering};
 
 use aranya_crypto::{
-    afc::{RawOpenKey, RawSealKey},
     CipherSuite, Csprng,
+    afc::{RawOpenKey, RawSealKey},
 };
 use buggy::BugExt;
 
 use super::{
-    error::{corrupted, Corrupted, Error},
+    error::{Corrupted, Error, corrupted},
     path::{Flag, Mode, Path},
     shared::{ShmChan, State},
 };

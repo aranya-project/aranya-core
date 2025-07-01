@@ -7,8 +7,8 @@ use core::{
 };
 
 use super::{
-    safe::{self, InvalidPtr},
     InvalidSlice,
+    safe::{self, InvalidPtr},
 };
 
 /// An error code returned by the C API.

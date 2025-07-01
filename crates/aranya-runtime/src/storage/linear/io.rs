@@ -6,7 +6,7 @@
 //! example, accidentally running two instances of the program will cause
 //! issues.
 
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 
 use crate::{GraphId, Location, StorageError};
 
@@ -21,7 +21,7 @@ pub trait IoManager {
     fn remove(&mut self, id: GraphId) -> Result<(), StorageError>;
     /// List all existing graph IDs.
     fn list(&mut self)
-        -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
+    -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError>;
 }
 
 /// Exclusive writer for a linear storage graph.

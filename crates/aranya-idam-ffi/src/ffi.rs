@@ -4,13 +4,13 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    custom_id, engine::Engine, policy, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey,
-    EncryptionKey, EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt,
-    PolicyId, SigningKey, VerifyingKey,
+    Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, Id,
+    IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey, custom_id,
+    engine::Engine, policy, zeroize::Zeroizing,
 };
 use aranya_policy_vm::{
-    ffi::{ffi, Type},
     CommandContext, Text, Typed, Value, ValueConversionError,
+    ffi::{Type, ffi},
 };
 
 use crate::error::{AllocError, Error, ErrorKind, KeyNotFound, WrongContext};

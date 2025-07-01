@@ -9,7 +9,7 @@ mod tests;
 use core::convert::Infallible;
 
 use aranya_crypto::DeviceId;
-use aranya_policy_vm::{ffi::ffi, CommandContext};
+use aranya_policy_vm::{CommandContext, ffi::ffi};
 
 /// Implements the FFI `Device` module
 pub struct FfiDevice {

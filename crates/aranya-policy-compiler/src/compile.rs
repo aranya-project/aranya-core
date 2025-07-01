@@ -3,7 +3,7 @@ pub mod target;
 mod types;
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -11,12 +11,12 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
-    MatchExpression, MatchStatement, StructItem, VType,
+    self as ast, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
+    MatchExpression, MatchStatement, StructItem, VType, ident,
 };
 use aranya_policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
-    Target, Value,
+    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
+    ffi::ModuleSchema,
 };
 pub use ast::Policy as AstPolicy;
 use ast::{
@@ -1249,7 +1249,7 @@ impl<'a> CompileState<'a> {
                         Typeish::Type(ot) => {
                             return Err(self.err(CompileErrorType::InvalidType(format!(
                                 "Cannot publish `{ot}`, must be a command struct"
-                            ))))
+                            ))));
                         }
                         _ => {}
                     }
@@ -1473,11 +1473,14 @@ impl<'a> CompileState<'a> {
                             Typeish::Type(t) => {
                                 let expected_arg = &action_def.arguments[i];
                                 if t != expected_arg.field_type {
-                                    return Err(CompileError::from_locator(CompileErrorType::BadArgument(format!("invalid argument type for `{}`: expected `{}`, but got `{t}`",
-                                            expected_arg.identifier,
-                                            expected_arg.field_type)
-                                        ),
-                                        statement.locator, self.m.codemap.as_ref()));
+                                    return Err(CompileError::from_locator(
+                                        CompileErrorType::BadArgument(format!(
+                                            "invalid argument type for `{}`: expected `{}`, but got `{t}`",
+                                            expected_arg.identifier, expected_arg.field_type
+                                        )),
+                                        statement.locator,
+                                        self.m.codemap.as_ref(),
+                                    ));
                                 }
                             }
                             Typeish::Indeterminate => {}
@@ -1504,7 +1507,7 @@ impl<'a> CompileState<'a> {
                     return Err(self.err_loc(
                         CompileErrorType::InvalidStatement(context),
                         statement.locator,
-                    ))
+                    ));
                 }
             }
         }
