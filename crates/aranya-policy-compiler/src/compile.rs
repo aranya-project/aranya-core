@@ -1,5 +1,5 @@
 mod error;
-mod target;
+pub mod target;
 mod types;
 
 use std::{
@@ -12,7 +12,7 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
-    MatchExpression, MatchStatement, VType,
+    MatchExpression, MatchStatement, StructItem, VType,
 };
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
@@ -24,7 +24,8 @@ use ast::{
     MatchPattern, NamedStruct,
 };
 use buggy::{Bug, BugExt};
-pub(crate) use target::CompileTarget;
+use indexmap::IndexMap;
+use target::CompileTarget;
 use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
@@ -188,29 +189,50 @@ impl<'a> CompileState<'a> {
     pub fn define_struct(
         &mut self,
         identifier: Identifier,
-        fields: &[FieldDefinition],
+        items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        match self.m.struct_defs.entry(identifier) {
-            Entry::Vacant(e) => {
-                let mut identifiers = BTreeSet::new();
+        if self.m.struct_defs.contains_key(&identifier) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
+        }
 
-                for field in fields {
-                    if !identifiers.insert(field.identifier.clone()) {
-                        return Err(CompileError::from_locator(
-                            CompileErrorType::AlreadyDefined(field.identifier.to_string()),
-                            self.last_locator,
-                            self.m.codemap.as_ref(),
-                        ));
+        // Add explicitly-defined fields and those from struct insertions
+
+        let mut field_definitions = Vec::new();
+        for item in items {
+            match item {
+                StructItem::Field(field) => {
+                    if field_definitions
+                        .iter()
+                        .any(|f: &FieldDefinition| f.identifier == field.identifier)
+                    {
+                        return Err(self.err(CompileErrorType::AlreadyDefined(
+                            field.identifier.to_string(),
+                        )));
+                    }
+                    field_definitions.push(field.clone());
+                }
+                StructItem::StructRef(ident) => {
+                    let other =
+                        self.m.struct_defs.get(ident).ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ident.to_string()))
+                        })?;
+                    for field in other {
+                        if field_definitions
+                            .iter()
+                            .any(|f: &FieldDefinition| f.identifier == field.identifier)
+                        {
+                            return Err(self.err(CompileErrorType::AlreadyDefined(
+                                field.identifier.to_string(),
+                            )));
+                        }
+                        field_definitions.push(field.clone());
                     }
                 }
-                e.insert(fields.to_vec());
-                Ok(())
-            }
-            Entry::Occupied(o) => {
-                let identifier = o.key().to_string();
-                Err(self.err(CompileErrorType::AlreadyDefined(identifier)))
             }
         }
+
+        self.m.struct_defs.insert(identifier, field_definitions);
+        Ok(())
     }
 
     fn compile_enum_definition(
@@ -224,16 +246,16 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = BTreeMap::new();
+        let mut values = IndexMap::new();
         for (i, value_name) in enum_def.variants.iter().enumerate() {
             match values.entry(value_name.clone()) {
-                Entry::Occupied(_) => {
+                indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                         "{}::{}",
                         enum_name, value_name
                     ))));
                 }
-                Entry::Vacant(e) => {
+                indexmap::map::Entry::Vacant(e) => {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
                     // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
                     // then we'll need to ensure those are unique.
@@ -1920,21 +1942,29 @@ impl<'a> CompileState<'a> {
         }
 
         // fields
-        match self.m.command_defs.entry(command_node.identifier.clone()) {
-            Entry::Vacant(e) => {
-                let map = command_node
-                    .fields
-                    .iter()
-                    .map(|f| (f.identifier.clone(), f.field_type.clone()))
-                    .collect();
-                e.insert(map);
-            }
-            Entry::Occupied(_) => {
-                return Err(self.err(CompileErrorType::AlreadyDefined(
-                    command_node.identifier.to_string(),
-                )));
+        if self.m.command_defs.contains_key(&command.identifier) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(
+                command_node.identifier.to_string(),
+            )));
+        }
+        let mut map = BTreeMap::new();
+        for si in &command_node.fields {
+            match si {
+                StructItem::Field(f) => {
+                    map.insert(f.identifier.clone(), f.field_type.clone());
+                }
+                StructItem::StructRef(ref_name) => {
+                    let struct_def = self.m.struct_defs.get(ref_name).ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                    })?;
+                    for fd in struct_def {
+                        map.insert(fd.identifier.clone(), fd.field_type.clone());
+                    }
+                }
             }
         }
+        self.m.command_defs.insert(command.identifier.clone(), map);
+
         Ok(())
     }
 
@@ -2137,28 +2167,35 @@ impl<'a> CompileState<'a> {
             self.compile_global_let(global_let)?;
         }
 
-        for effect in &self.policy.effects {
-            let fields: Vec<FieldDefinition> =
-                effect.inner.fields.iter().map(|f| f.into()).collect();
-            self.define_struct(effect.inner.identifier.clone(), &fields)?;
+        for struct_def in &self.policy.structs {
+            self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
         }
 
-        for struct_def in &self.policy.structs {
-            self.define_struct(
-                struct_def.inner.identifier.clone(),
-                &struct_def.inner.fields,
-            )?;
+        for effect in &self.policy.effects {
+            let fields: Vec<StructItem<FieldDefinition>> = effect
+                .inner
+                .items
+                .iter()
+                .map(|i| match i {
+                    StructItem::Field(f) => StructItem::Field(f.into()),
+                    StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                })
+                .collect();
+            self.define_struct(effect.inner.identifier.clone(), &fields)?;
+            self.m.effects.insert(effect.inner.identifier.clone());
         }
 
         // define the structs provided by FFI schema
         for ffi_mod in self.ffi_modules {
             for s in ffi_mod.structs {
-                let fields: Vec<FieldDefinition> = s
+                let fields: Vec<StructItem<FieldDefinition>> = s
                     .fields
                     .iter()
-                    .map(|a| FieldDefinition {
-                        identifier: a.name.to_owned(),
-                        field_type: VType::from(&a.vtype),
+                    .map(|a| {
+                        StructItem::Field(FieldDefinition {
+                            identifier: a.name.clone(),
+                            field_type: VType::from(&a.vtype),
+                        })
                     })
                     .collect();
                 self.define_struct(s.name.to_owned(), &fields)?;
@@ -2173,7 +2210,12 @@ impl<'a> CompileState<'a> {
         for fact in &self.policy.facts {
             let FactDefinition { key, value, .. } = &fact.inner;
 
-            let fields: Vec<FieldDefinition> = key.iter().chain(value.iter()).cloned().collect();
+            let fields: Vec<StructItem<FieldDefinition>> = key
+                .iter()
+                .chain(value.iter())
+                .cloned()
+                .map(StructItem::Field)
+                .collect();
 
             self.define_struct(fact.inner.identifier.clone(), &fields)?;
             self.define_fact(&fact.inner)?;
@@ -2218,11 +2260,6 @@ impl<'a> CompileState<'a> {
         self.resolve_targets()?;
 
         Ok(())
-    }
-
-    /// Finish compilation; return the internal machine
-    pub fn into_module(self) -> Module {
-        self.m.into_module()
     }
 
     /// Get expression value, e.g. Expression::Int => Value::Int
@@ -2297,6 +2334,11 @@ impl<'a> Compiler<'a> {
 
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
+        let target = self.compile_to_target()?;
+        Ok(target.into_module())
+    }
+
+    pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {
@@ -2314,8 +2356,7 @@ impl<'a> Compiler<'a> {
         };
 
         cs.compile()?;
-
-        Ok(cs.into_module())
+        Ok(cs.m)
     }
 }
 
