@@ -414,3 +414,52 @@ impl fmt::Display for PskId {
         Hex::new(self.as_bytes()).fmt(f)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        default::DefaultCipherSuite,
+        policy::{GroupId, PolicyId},
+        tls::CipherSuiteId,
+    };
+
+    /// Golden test for [`PskSeed::id`] and [`Psk::identity`] with various IKMs.
+    #[test]
+    fn test_psk_ids() {
+        let tests = [
+            ([0u8; 32], "6SLqJ4Dq4dFTrJuMJZWttWJaRK6EjbrKYULX4FTfGqJW"),
+            ([1u8; 32], "EVJRKT2kgMirEypyXsaBfhDREoekVt8o85p5GPuqkyWP"),
+            ([0xFF; 32], "5r71wwrEFsX9XDX7i9VAKi8c23XFY9SPYjxApE7yXCgi"),
+        ];
+
+        for (i, (ikm, expected_seed_id)) in tests.iter().enumerate() {
+            let seed = PskSeed::<DefaultCipherSuite>::from_ikm(ikm, &GroupId::default());
+            let got_seed_id = seed.id().unwrap();
+            let want_seed_id = PskSeedId::decode(expected_seed_id).unwrap();
+            assert_eq!(got_seed_id, want_seed_id, "seed test case #{i}");
+
+            let mut psks = seed.generate_psks(
+                b"test-context",
+                GroupId::default(),
+                PolicyId::default(),
+                [CipherSuiteId::TlsAes128GcmSha256].into_iter(),
+            );
+            let psk = psks.next().unwrap().unwrap();
+            let got_psk_id = psk.identity();
+
+            // Create expected PskId by constructing ImportedIdentity manually
+            let expected_identity = ImportedIdentity {
+                external_identity: want_seed_id,
+                context: PskCtx {
+                    group: GroupId::default(),
+                    policy: PolicyId::default(),
+                },
+                target_protocol: tls::Version::Tls13,
+                target_kdf: CipherSuiteId::TlsAes128GcmSha256,
+            };
+            let want_psk_id = PskId(expected_identity);
+            assert_eq!(*got_psk_id, want_psk_id, "psk test case #{i}");
+        }
+    }
+}

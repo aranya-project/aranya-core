@@ -465,3 +465,104 @@ where
         d.deserialize_bytes(EncapVisitor(PhantomData))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use spideroak_crypto::rust;
+
+    use super::*;
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+
+    #[allow(dead_code)]
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        spideroak_crypto::ed25519::Ed25519,
+    >;
+
+    /// Golden test for [`IdentityKey::id`] (DeviceId) with deterministic keys.
+    #[test]
+    fn test_device_id() {
+        use spideroak_crypto::import::Import;
+
+        let tests = [
+            ([0u8; 32], "4WvDDSvXv8Cqj85xHAkesJo3uVLy3LRczojr98KBNG8e"),
+            ([1u8; 32], "7czZtx4VW5V6K3eu59rSBJKiqeVZjDX2gyJ4tkJqvqEM"),
+            ([0xFF; 32], "DqAAPgZfS8KCo1W4M7C9A36SRXwoMKeLox5qzS1L7Bki"),
+        ];
+
+        for (i, (key_bytes, expected)) in tests.iter().enumerate() {
+            let sk = IdentityKey::<CS>::from_inner(Import::import(&key_bytes[..]).unwrap());
+            let got = sk.id().unwrap();
+            let want = DeviceId::decode(expected).unwrap();
+            assert_eq!(got, want, "test case #{i}");
+        }
+    }
+
+    /// Golden test for [`SigningKey::id`] (SigningKeyId) with deterministic keys.
+    #[test]
+    fn test_signing_key_id() {
+        use spideroak_crypto::import::Import;
+
+        let tests = [
+            ([0u8; 32], "DTSYenur9akPjgwULDLDhPdaZ9pmEKq7pYJ6vvST2kWs"),
+            ([1u8; 32], "6fuCv2oLzQzK2sBDyKh5eHcTZ2b6uJXC5txoNwqyWuQ5"),
+            ([0xFF; 32], "EgLiA9CxqVLKgdgLen9N5JJzh96vxDDrPXTGdBnpFzYe"),
+        ];
+
+        for (i, (key_bytes, expected)) in tests.iter().enumerate() {
+            let sk = SigningKey::<CS>::from_inner(Import::import(&key_bytes[..]).unwrap());
+            let got = sk.id().unwrap();
+            let want = SigningKeyId::decode(expected).unwrap();
+            assert_eq!(got, want, "test case #{i}");
+        }
+    }
+
+    /// Golden test for [`EncryptionKey::id`] (EncryptionKeyId) with deterministic keys.
+    #[test]
+    fn test_encryption_key_id() {
+        use spideroak_crypto::import::Import;
+
+        // Use well-known P256 private keys that are valid scalars
+        let tests = [
+            (
+                // A simple valid P256 private key (1)
+                {
+                    let mut key_bytes = [0u8; 32];
+                    key_bytes[31] = 1;
+                    key_bytes
+                },
+                "BHJHCs6ozYTwWRnZs86N1tYoqriNs8a2BLcVNTGmzXyh",
+            ),
+            (
+                // Another valid P256 private key (2)
+                {
+                    let mut key_bytes = [0u8; 32];
+                    key_bytes[31] = 2;
+                    key_bytes
+                },
+                "AuXu55LDVk9qbBZ4LmqGA5EoQyPSwLSTYnX4KHTtx29y",
+            ),
+            (
+                // A third valid P256 private key (0x42...)
+                {
+                    let mut key_bytes = [0u8; 32];
+                    key_bytes[0] = 0x42;
+                    key_bytes[31] = 0x42;
+                    key_bytes
+                },
+                "2BsoFVd3YVsTj5wrfgXPQ3GUUYwh45F2xmi1K2iGH485",
+            ),
+        ];
+
+        for (i, (key_bytes, expected)) in tests.iter().enumerate() {
+            let sk = EncryptionKey::<CS>::from_inner(Import::import(&key_bytes[..]).unwrap());
+            let got = sk.id().unwrap();
+            let want = EncryptionKeyId::decode(expected).unwrap();
+            assert_eq!(got, want, "test case #{i}");
+        }
+    }
+}
