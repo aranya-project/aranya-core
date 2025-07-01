@@ -13,6 +13,25 @@ enum Player {
     O,
 }
 
+command Start {
+    fields {
+        players struct Players
+    }
+    seal { return None }
+    open { return None }
+}
+
+command Move {
+    fields {
+        gameID id,
+        X int,
+        Y int,
+    }
+    seal { return None }
+    open { return None }
+}
+
+
 action StartGame(players struct Players) {
     publish Start {
         players: players,
