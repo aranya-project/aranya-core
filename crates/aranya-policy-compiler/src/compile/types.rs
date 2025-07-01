@@ -161,8 +161,7 @@ impl Typeish {
     /// always match.
     pub fn fits_type(&self, ot: &VType) -> bool {
         match self {
-            Self::Definitely(t) => t.fits_type(ot),
-            Self::Probably(t) => t.fits_type(ot),
+            Self::Definitely(t) | Self::Probably(t) => t.fits_type(ot),
             Self::Indeterminate => true,
         }
     }
@@ -178,16 +177,29 @@ impl Typeish {
     }
 
     /// If self is not indeterminate and not the target type, return a [`TypeError`]
-    pub fn check_type(&self, target_type: VType, errmsg: &'static str) -> Result<(), TypeError> {
-        if !self.fits_type(&target_type) {
-            return Err(TypeError::new(errmsg));
+    pub fn check_type(self, target_type: VType, errmsg: &'static str) -> Result<Self, TypeError> {
+        match &self {
+            Self::Definitely(ty) | Self::Probably(ty) if ty.fits_type(&target_type) => Ok(self),
+            Self::Indeterminate => Ok(Self::Probably(NullableVType::Type(target_type))),
+            _ => Err(TypeError::new(errmsg)),
         }
-        Ok(())
     }
 
     /// Create a definitely known type.
-    pub fn known(vtype: VType) -> Typeish {
+    pub fn known(vtype: VType) -> Self {
         Self::Definitely(NullableVType::Type(vtype))
+    }
+
+    /// Map over a type, preserving indeterminism.
+    pub fn map<F>(self, f: F) -> Self
+    where
+        F: FnOnce(NullableVType) -> NullableVType,
+    {
+        match self {
+            Self::Definitely(t) => Self::Definitely(f(t)),
+            Self::Probably(t) => Self::Probably(f(t)),
+            Self::Indeterminate => Self::Indeterminate,
+        }
     }
 
     /// Try to map over a type, preserving indeterminism.
@@ -318,7 +330,7 @@ impl CompileState<'_> {
         right_type: Typeish,
         target_type: VType,
         errmsg: &'static str,
-    ) -> Result<(), TypeError> {
+    ) -> Result<Typeish, TypeError> {
         self.unify_pair(left_type, right_type)?
             .check_type(target_type, errmsg)
     }

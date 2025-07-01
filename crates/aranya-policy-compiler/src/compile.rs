@@ -937,9 +937,7 @@ impl<'a> CompileState<'a> {
                     VType::Int,
                     "Cannot do math on non-int types",
                 )
-                .map_err(|e| self.err(e.into()))?;
-
-                Typeish::known(VType::Int)
+                .map_err(|e| self.err(e.into()))?
             }
             Expression::And(a, b) | Expression::Or(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -956,9 +954,7 @@ impl<'a> CompileState<'a> {
                     VType::Bool,
                     "Cannot use boolean operator on non-bool types",
                 )
-                .map_err(|e| self.err(e.into()))?;
-
-                Typeish::known(VType::Bool)
+                .map_err(|e| self.err(e.into()))?
             }
             Expression::Equal(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -967,10 +963,9 @@ impl<'a> CompileState<'a> {
 
                 // We don't actually care what types the subexpressions
                 // are as long as they can be tested for equality.
-                let _ = self
-                    .unify_pair(left_type, right_type)
-                    .map_err(|e| self.err(e.into()));
-                Typeish::known(VType::Bool)
+                self.unify_pair(left_type, right_type)
+                    .map_err(|e| self.err(e.into()))?
+                    .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::NotEqual(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -978,10 +973,9 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Eq);
                 self.append_instruction(Instruction::Not);
 
-                let _ = self
-                    .unify_pair(left_type, right_type)
-                    .map_err(|e| self.err(e.into()));
-                Typeish::known(VType::Bool)
+                self.unify_pair(left_type, right_type)
+                    .map_err(|e| self.err(e.into()))?
+                    .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::GreaterThan(a, b) | Expression::LessThan(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -999,8 +993,8 @@ impl<'a> CompileState<'a> {
                     VType::Int,
                     "Cannot compare non-int expressions",
                 )
-                .map_err(|e| self.err(e.into()))?;
-                Typeish::known(VType::Bool)
+                .map_err(|e| self.err(e.into()))?
+                .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::GreaterThanOrEqual(a, b) | Expression::LessThanOrEqual(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -1039,8 +1033,8 @@ impl<'a> CompileState<'a> {
                     VType::Int,
                     "Cannot compare non-int expressions",
                 )
-                .map_err(|e| self.err(e.into()))?;
-                Typeish::known(VType::Bool)
+                .map_err(|e| self.err(e.into()))?
+                .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::Negative(e) => {
                 // Evaluate the expression
@@ -1058,8 +1052,7 @@ impl<'a> CompileState<'a> {
 
                 inner_type
                     .check_type(VType::Int, "Cannot negate non-int expression")
-                    .map_err(|e| self.err(e.into()))?;
-                Typeish::known(VType::Int)
+                    .map_err(|e| self.err(e.into()))?
             }
             Expression::Not(e) => {
                 // Evaluate the expression
@@ -1070,8 +1063,7 @@ impl<'a> CompileState<'a> {
 
                 inner_type
                     .check_type(VType::Bool, "Cannot invert non-boolean expression")
-                    .map_err(|e| self.err(e.into()))?;
-                Typeish::known(VType::Bool)
+                    .map_err(|e| self.err(e.into()))?
             }
             Expression::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
             Expression::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
@@ -1231,7 +1223,8 @@ impl<'a> CompileState<'a> {
                     for (cond, branch) in &s.branches {
                         let next_label = self.anonymous_label();
                         let t = self.compile_expression(cond)?;
-                        t.check_type(VType::Bool, "if condition must be boolean")
+                        let _: Typeish = t
+                            .check_type(VType::Bool, "if condition must be boolean")
                             .map_err(|e| self.err(e.into()))?;
 
                         self.append_instruction(Instruction::Not);
@@ -1514,7 +1507,8 @@ impl<'a> CompileState<'a> {
                     if self.is_debug {
                         // Compile the expression within `debug_assert(e)`
                         let t = self.compile_expression(s)?;
-                        t.check_type(VType::Bool, "debug assertion must be a boolean expression")
+                        let _: Typeish = t
+                            .check_type(VType::Bool, "debug assertion must be a boolean expression")
                             .map_err(|e| self.err(e.into()))?;
                         // Now, branch to the next instruction if the top of the stack is true
                         let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
