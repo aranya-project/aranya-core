@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 
-use serde::{Deserialize, Serialize};
+use derive_where::derive_where;
 use spideroak_crypto::{
     csprng::{Csprng, Random},
     hpke::{RecvCtx, SendCtx},
@@ -17,6 +17,7 @@ use spideroak_crypto::{
 use crate::ciphersuite::CipherSuite;
 
 /// The root key material for a channel.
+#[derive_where(Clone)]
 pub(crate) struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 impl<CS: CipherSuite> RootChannelKey<CS> {
@@ -30,12 +31,6 @@ impl<CS: CipherSuite> RootChannelKey<CS> {
 
     pub(super) fn into_inner(self) -> <CS::Kem as Kem>::DecapKey {
         self.0
-    }
-}
-
-impl<CS: CipherSuite> Clone for RootChannelKey<CS> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
     }
 }
 
@@ -70,7 +65,7 @@ impl<'a, CS: CipherSuite> Import<&'a [u8]> for RootChannelKey<CS> {
 }
 
 /// A raw PSK.
-#[derive(Serialize, Deserialize)]
+#[derive_where(Clone, Serialize, Deserialize)]
 pub(super) struct RawPsk<CS> {
     // TODO(eric): support different sizes?
     psk: [u8; 32],
@@ -82,16 +77,6 @@ impl<CS: CipherSuite> RawPsk<CS> {
     #[inline]
     pub(super) const fn raw_secret_bytes(&self) -> &[u8] {
         &self.psk
-    }
-}
-
-impl<CS: CipherSuite> Clone for RawPsk<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            psk: self.psk,
-            _marker: PhantomData,
-        }
     }
 }
 

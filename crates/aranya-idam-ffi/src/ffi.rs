@@ -1,13 +1,17 @@
 extern crate alloc;
 
 use alloc::{vec, vec::Vec};
+use core::convert::Infallible;
 
 use aranya_crypto::{
-    engine::Engine, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey, EncryptionKey,
-    EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt, SigningKey,
-    VerifyingKey,
+    custom_id, engine::Engine, policy, zeroize::Zeroizing, Context, Encap, EncryptedGroupKey,
+    EncryptionKey, EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey, KeyStore, KeyStoreExt,
+    PolicyId, SigningKey, VerifyingKey,
 };
-use aranya_policy_vm::{ffi::ffi, CommandContext, Text};
+use aranya_policy_vm::{
+    ffi::{ffi, Type},
+    CommandContext, Text, Typed, Value, ValueConversionError,
+};
 
 use crate::error::{AllocError, Error, ErrorKind, KeyNotFound, WrongContext};
 
@@ -302,5 +306,52 @@ function compute_change_id(
             current_change_id.as_bytes(),
             new_cmd_id.as_bytes(),
         ))
+    }
+
+    /// Computes the ID of a role.
+    #[ffi_export(def = r#"
+function label_id(
+    cmd_id id,
+    name string,
+) id
+"#)]
+    pub(crate) fn label_id<E: Engine>(
+        &self,
+        _ctx: &CommandContext,
+        _eng: &mut E,
+        cmd_id: Id,
+        name: Text,
+    ) -> Result<RoleId, Infallible> {
+        // TODO(eric): Use the real policy ID once it's
+        // available.
+        let policy_id = PolicyId::default();
+        let id = policy::role_id::<E::CS>(cmd_id.into(), &name, policy_id)
+            .into_id()
+            .into();
+        Ok(id)
+    }
+}
+
+custom_id! {
+    /// Uniquely identifies a role.
+    pub struct RoleId;
+}
+
+impl Typed for RoleId {
+    const TYPE: Type<'static> = Type::Id;
+}
+
+impl TryFrom<Value> for RoleId {
+    type Error = ValueConversionError;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        let id: Id = value.try_into()?;
+        Ok(RoleId::from(id))
+    }
+}
+
+impl From<RoleId> for Value {
+    fn from(id: RoleId) -> Value {
+        Value::Id(id.into())
     }
 }

@@ -1,7 +1,7 @@
 [package]
 name = "aranya-fast-channels"
 description = "High throughput, low latency encryption protected by Aranya Policy"
-version = "0.9.0"
+version = "0.10.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -86,12 +86,13 @@ try_find = []
 
 
 [dependencies]
-aranya-crypto = { version = "0.7.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
+aranya-crypto = { version = "0.8.0", path = "../aranya-crypto", default-features = false, features = ["afc", "getrandom"] }
 buggy = { version = "0.1.0", default-features = false }
 
 byteorder = { version = "1", default-features = false }
 cfg-if = { workspace = true }
 const_format = { version = "0.2.31", features = ["assertcp"] }
+derive-where = { workspace = true }
 errno = { workspace = true, default-features = false }
 heapless = { workspace = true, default-features = false }
 # Only enabled by the `testing` feature which already enables
@@ -106,7 +107,7 @@ thiserror = { workspace = true }
 [dev-dependencies]
 aranya-fast-channels = { path = ".", features = ["testing"] }
 
-criterion = { version = "0.5" }
+criterion = { workspace = true }
 serial_test = { version = "3.1.1" }
 
 

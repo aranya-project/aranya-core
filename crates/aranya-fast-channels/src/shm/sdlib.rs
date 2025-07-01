@@ -7,6 +7,7 @@ use core::{
 };
 
 use buggy::BugExt;
+use derive_where::derive_where;
 use libc::off_t;
 
 use super::{
@@ -94,7 +95,7 @@ fn unmap(id: c_int) -> Result<(), Errno> {
 }
 
 /// Shared data mapping.
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,

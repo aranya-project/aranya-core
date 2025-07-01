@@ -9,12 +9,12 @@
 
 /crates/aranya-capi* @elagergren-spideroak @jdygert-spok @chip-so
 
-/crates/aranya-crypto* @elagergren-spideroak @ycarmy
+/crates/aranya-crypto* @elagergren-spideroak @ycarmy @jdygert-spok
 
-/crates/aranya-device-ffi @chip-so @jdygert-spok @rfraser-spideroak
+/crates/aranya-device-ffi @chip-so @jdygert-spok
 /crates/aranya-envelope-ffi @elagergren-spideroak @ycarmy
 /crates/aranya-idam-ffi @elagergren-spideroak @ycarmy
-/crates/aranya-model @smckeon-so @jdygert-spok
+/crates/aranya-model @jdygert-spok
 /crates/aranya-perspective-ffi @apetkov-so @chip-so
 
 /crates/aranya-policy-* @chip-so @apetkov-so
@@ -27,4 +27,3 @@
 /.github @djohnson-spideroak @elagergren-spideroak @gknopf-aranya @jdygert-spok
 
 CHANGELOG.md @benz-spideroak @chip-so @djohnson-spideroak @elagergren-spideroak @gknopf-aranya @jdygert-spok
-*.toml @benz-spideroak @chip-so @djohnson-spideroak @elagergren-spideroak @gknopf-aranya @jdygert-spok

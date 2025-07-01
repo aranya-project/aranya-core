@@ -9,6 +9,7 @@ use core::{
 
 use buggy::BugExt;
 use cfg_if::cfg_if;
+use derive_where::derive_where;
 use libc::{
     off_t, MAP_FAILED, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, PROT_READ, PROT_WRITE, S_IRUSR, S_IWUSR,
 };
@@ -63,7 +64,7 @@ where
 }
 
 /// Memory mapped shared memory.
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,

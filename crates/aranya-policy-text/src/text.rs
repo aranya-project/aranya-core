@@ -1,5 +1,6 @@
 use alloc::string::String;
 use core::{
+    ffi::CStr,
     fmt,
     ops::{Add, Deref},
     str::FromStr,
@@ -117,6 +118,15 @@ impl TryFrom<String> for Text {
     type Error = InvalidText;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         value.as_str().parse()
+    }
+}
+
+impl TryFrom<&CStr> for Text {
+    type Error = core::str::Utf8Error;
+    fn try_from(value: &CStr) -> Result<Self, Self::Error> {
+        let s: &str = value.to_str()?;
+        // NB: CStr cannot contain nul.
+        Ok(Self(Repr::from_str(s)))
     }
 }
 

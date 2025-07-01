@@ -7,6 +7,7 @@
 use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
+use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 
 mod imp;
@@ -19,9 +20,9 @@ pub fn generate(input: impl AsRef<Path>, output: impl AsRef<Path>) -> Result<()>
 
 fn generate_(input: &Path, output: &Path) -> Result<()> {
     let policy_source = fs::read_to_string(input).with_context(|| format!("reading {input:?}"))?;
-
-    let policy_doc = parse_policy_document(&policy_source)?;
-    let rust_code = generate_code(&policy_doc);
+    let policy_ast = parse_policy_document(&policy_source)?;
+    let target = Compiler::new(&policy_ast).compile_to_target()?;
+    let rust_code = generate_code(&target);
 
     fs::write(output, rust_code).with_context(|| format!("writing to {output:?}"))?;
 

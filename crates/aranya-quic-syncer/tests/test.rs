@@ -5,8 +5,8 @@ use aranya_crypto::Rng;
 use aranya_quic_syncer::{run_syncer, Syncer};
 use aranya_runtime::{
     engine::{Engine, Sink},
-    protocol::{TestActions, TestEffect, TestEngine, TestSink},
     storage::{memory::MemStorageProvider, StorageProvider},
+    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
     ClientState, GraphId, SyncRequester,
 };
 use buggy::BugExt;

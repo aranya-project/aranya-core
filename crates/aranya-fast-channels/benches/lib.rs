@@ -1,7 +1,7 @@
 #![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::unwrap_used)]
 
-use std::{array, num::NonZeroU16, time::Duration};
+use std::{array, hint::black_box, num::NonZeroU16, time::Duration};
 
 use aranya_crypto::{
     afc::{RawOpenKey, RawSealKey},
@@ -22,7 +22,7 @@ use aranya_fast_channels::{
     shm::{self, Flag, Mode, Path},
     AranyaState, ChannelId, Client, Directed, Label, NodeId,
 };
-use criterion::{black_box, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{criterion_main, BenchmarkId, Criterion, Throughput};
 
 pub struct NoopAead;
 

@@ -1,7 +1,7 @@
 [package]
 name = "aranya-policy-ifgen-macro"
 description = "Proc macros for aranya-policy-ifgen"
-version = "0.3.0"
+version = "0.4.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

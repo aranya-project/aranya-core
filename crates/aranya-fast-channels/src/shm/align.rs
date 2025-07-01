@@ -5,6 +5,8 @@ use core::{
     ptr::NonNull,
 };
 
+use derive_where::derive_where;
+
 use super::shared::assert_ffi_safe;
 
 /// Reports whether `v` is aligned to `align`.
@@ -54,18 +56,10 @@ impl<T> Deref for CacheAligned<T> {
 
 /// A non-null pointer aligned to `T`.
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive_where(Copy, Clone, Debug)]
 pub(super) struct Aligned<T: Sized> {
     ptr: NonNull<T>,
 }
-
-impl<T: Sized> Clone for Aligned<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T: Sized> Copy for Aligned<T> {}
 
 impl<T: Sized> Aligned<T> {
     /// Creates an [`Aligned`] from a pointer with the

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.10.0...aranya-policy-module-v0.11.0) - 2025-06-18
+
+### Other
+
+- use custom types for identifiers and text ([#231](https://github.com/aranya-project/aranya-core/pull/231))
+
 ## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-policy-module-v0.9.0...aranya-policy-module-v0.10.0) - 2025-06-12
 
 ### Other

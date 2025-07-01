@@ -2,6 +2,7 @@
 
 use std::{io::Write, path::Path};
 
+use aranya_policy_compiler::Compiler;
 use aranya_policy_ifgen_build::generate_code;
 use aranya_policy_lang::lang::parse_policy_document;
 
@@ -13,11 +14,14 @@ fn dotest(name: &str) {
     let doc = std::fs::read_to_string(data.join(format!("{name}.md"))).unwrap();
     let doc = parse_policy_document(&doc).unwrap();
 
-    let rust_code = generate_code(&doc);
+    let target = Compiler::new(&doc).compile_to_target().unwrap();
+    let rust_code = generate_code(&target);
 
     let mut file = mint.new_goldenfile(format!("{name}.rs")).unwrap();
     write!(file, "{rust_code}").unwrap();
 }
+
+// Regenerate interface files with `UPDATE_GOLDENFILES=1 cargo test -p aranya-policy-ifgen --tests`
 
 #[test]
 fn tictactoe() {
@@ -25,6 +29,6 @@ fn tictactoe() {
 }
 
 #[test]
-fn ttc() {
-    dotest("ttc");
+fn structs() {
+    dotest("structs");
 }

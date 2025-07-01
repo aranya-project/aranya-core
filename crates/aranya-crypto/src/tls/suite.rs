@@ -3,6 +3,26 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 use zerocopy::{Immutable, IntoBytes, KnownLayout};
 
+/// A TLS version.
+#[repr(u16)]
+#[derive(
+    Copy,
+    Clone,
+    Debug,
+    Eq,
+    PartialEq,
+    Hash,
+    Immutable,
+    IntoBytes,
+    KnownLayout,
+    Serialize,
+    Deserialize,
+)]
+#[non_exhaustive]
+pub(crate) enum Version {
+    Tls13 = u16::to_be(0x0304),
+}
+
 /// A TLS 1.3 cipher suite.
 #[repr(u16)]
 #[derive(

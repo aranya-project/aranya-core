@@ -2,13 +2,14 @@
 
 extern crate alloc;
 
-use alloc::{collections::BTreeSet, vec};
+use alloc::{collections::BTreeSet, vec, vec::Vec};
 use core::ops::Add;
 
 use spideroak_crypto::{
     aead::{Aead, OpenError},
     csprng::Random,
     generic_array::ArrayLength,
+    hpke::HpkeError,
     typenum::{Sum, U64},
 };
 
@@ -26,7 +27,7 @@ use crate::{
     error::Error,
     groupkey::{Context, EncryptedGroupKey, GroupKey},
     id::{Id, Identified as _},
-    policy::PolicyId,
+    policy::{GroupId, PolicyId},
     tls,
     util::cbor,
 };
@@ -151,9 +152,18 @@ macro_rules! for_each_engine_test {
             test_aqc_wrap_uni_author_secret,
 
             // TLS
+
             test_tls_psk_different_suites,
             test_tls_psk_different_policy_ids,
+            test_tls_psk_different_contexts,
+            test_tls_psk_different_groups,
             test_tls_psk_seed_simple_wrap,
+            test_tls_psk_seed_seal_open,
+            test_tls_psk_seed_open_wrong_peer_pk,
+            test_tls_psk_seed_open_wrong_sk,
+            test_tls_psk_seed_open_wrong_group,
+            test_tls_psk_seed_open_wrong_ciphertext,
+            test_tls_psk_seed_open_wrong_tag,
         }
     };
 }
@@ -3038,54 +3048,135 @@ pub fn test_aqc_wrap_uni_author_secret<E: Engine>(eng: &mut E) {
 /// Test that [`tls::PskSeed`] generates different PSKs for
 /// different cipher suites.
 pub fn test_tls_psk_different_suites<E: Engine>(eng: &mut E) {
-    let seed = tls::PskSeed::<E::CS>::new(eng, &PolicyId::default());
+    let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
     let mut ids = BTreeSet::new();
     let mut secrets = BTreeSet::new();
 
-    for &cs in tls::CipherSuiteId::all() {
-        let psk = seed.generate_psk(cs).unwrap();
-        if !ids.insert(*psk.identity().as_bytes()) {
-            panic!("duplicate PSK identity for {cs}: {}", psk.identity());
+    let psks = seed
+        .generate_psks(
+            b"context",
+            GroupId::default(),
+            PolicyId::default(),
+            tls::CipherSuiteId::all().iter().copied(),
+        )
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    for psk in &psks {
+        let ident = psk.identity();
+        if !ids.insert(ident.as_bytes()) {
+            let cs = ident.cipher_suite();
+            panic!("duplicate PSK identity for {cs}: {ident}");
         }
         if !secrets.insert(psk.raw_secret_bytes().to_vec()) {
             panic!(
-                "duplicate PSK secret for {cs}: {:?}",
-                psk.raw_secret_bytes()
+                "duplicate PSK secret for {}: {:?}",
+                psk.identity().cipher_suite(),
+                psk.raw_secret_bytes(),
             );
         }
     }
 }
 
 /// Test that [`tls::PskSeed`] generates different PSKs for
-/// different policy IDs, even if the cipher suites are the same.
-pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
-    let ikm = <[u8; 32]>::random(eng);
-    let mut ids = BTreeSet::new();
-    let mut secrets = BTreeSet::new();
-    for &cs in tls::CipherSuiteId::all() {
-        for i in 0..100 {
-            // Same IKM, but different policy ID, so the PRK
-            // (and therefore PSKs) should be different.
-            let seed = tls::PskSeed::<E::CS>::from_ikm(&ikm, &PolicyId::random(eng));
+/// different contexts.
+pub fn test_tls_psk_different_contexts<E: Engine>(eng: &mut E) {
+    let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
 
-            let psk = seed.generate_psk(cs).unwrap();
-            if !ids.insert(*psk.identity().as_bytes()) {
-                panic!("duplicate PSK identity for {i},{cs}: {}", psk.identity());
-            }
-            if !secrets.insert(psk.raw_secret_bytes().to_vec()) {
-                panic!(
-                    "duplicate PSK secret for {i},{cs}: {:?}",
-                    psk.raw_secret_bytes()
-                );
-            }
-        }
+    let psks1 = seed
+        .clone()
+        .generate_psks(
+            b"CONTEXT",
+            GroupId::default(),
+            PolicyId::default(),
+            tls::CipherSuiteId::all().iter().copied(),
+        )
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let psks2 = seed
+        .clone()
+        .generate_psks(
+            b"different context",
+            GroupId::default(),
+            PolicyId::default(),
+            tls::CipherSuiteId::all().iter().copied(),
+        )
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(psks1.len(), psks2.len());
+    for (i, (lhs, rhs)) in psks1.into_iter().zip(psks2).enumerate() {
+        assert_ct_ne!(lhs, rhs, "#{i}");
+    }
+}
+
+/// Test that [`tls::PskSeed`] generates different PSKs for
+/// different groups.
+pub fn test_tls_psk_different_groups<E: Engine>(eng: &mut E) {
+    let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
+
+    let psks1 = seed
+        .clone()
+        .generate_psks(
+            b"context",
+            GroupId::random(eng),
+            PolicyId::default(),
+            tls::CipherSuiteId::all().iter().copied(),
+        )
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let psks2 = seed
+        .clone()
+        .generate_psks(
+            b"context",
+            GroupId::random(eng),
+            PolicyId::default(),
+            tls::CipherSuiteId::all().iter().copied(),
+        )
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(psks1.len(), psks2.len());
+    for (i, (lhs, rhs)) in psks1.into_iter().zip(psks2).enumerate() {
+        assert_ct_ne!(lhs, rhs, "#{i}");
+    }
+}
+
+/// Test that [`tls::PskSeed`] generates different PSKs for
+/// different policy IDs.
+pub fn test_tls_psk_different_policy_ids<E: Engine>(eng: &mut E) {
+    let seed = tls::PskSeed::<E::CS>::new(eng, &GroupId::default());
+
+    let psks1 = seed
+        .clone()
+        .generate_psks(
+            b"context",
+            GroupId::default(),
+            PolicyId::random(eng),
+            tls::CipherSuiteId::all().iter().copied(),
+        )
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    let psks2 = seed
+        .clone()
+        .generate_psks(
+            b"context",
+            GroupId::default(),
+            PolicyId::random(eng),
+            tls::CipherSuiteId::all().iter().copied(),
+        )
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+
+    assert_eq!(psks1.len(), psks2.len());
+    for (i, (lhs, rhs)) in psks1.into_iter().zip(psks2).enumerate() {
+        assert_ct_ne!(lhs, rhs, "#{i}");
     }
 }
 
 /// Simple positive test for wrapping [`tls::PskSeed`]s.
 pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &mut E) {
-    let want = tls::PskSeed::new(eng, &PolicyId::default());
+    let want = tls::PskSeed::new(eng, &GroupId::default());
     let bytes = cbor::to_allocvec(
         &eng.wrap(want.clone())
             .expect("should be able to wrap `tls::PskSeed`"),
@@ -3097,4 +3188,159 @@ pub fn test_tls_psk_seed_simple_wrap<E: Engine>(eng: &mut E) {
         .unwrap(&wrapped)
         .expect("should be able to unwrap `tls::PskSeed`");
     assert_eq!(want.id(), got.id());
+}
+
+/// Simple positive test for encrypting/decrypting
+/// [`tls::PskSeed`]s.
+pub fn test_tls_psk_seed_seal_open<E: Engine>(eng: &mut E) {
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let pk1 = sk1.public().expect("`sk1` public half should be valid");
+
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let pk2 = sk2.public().expect("`sk2` public half should be valid");
+
+    let group = GroupId::default();
+    let seed = tls::PskSeed::new(eng, &GroupId::default());
+
+    let (enc, ct) = {
+        let (enc, ct) = sk1
+            .seal_psk_seed(eng, &seed, &pk2, &group)
+            .expect("unable to encrypt `PskSeed`");
+
+        // Make sure that we can encode and decode the encap and
+        // ciphertext.
+        let enc_buf = cbor::to_allocvec(&enc).expect("unable to encode `PskSeedEnc`");
+        let ct_buf = cbor::to_allocvec(&ct).expect("unable to encode `PskSeedCt`");
+
+        let enc = cbor::from_bytes(&enc_buf).expect("unable to decode `PskSeedEnc`");
+        let ct = cbor::from_bytes(&ct_buf).expect("unable to decode `PskSeedCt`");
+        (enc, ct)
+    };
+
+    let got = sk2
+        .open_psk_seed(&enc, ct, &pk1, &group)
+        .expect("unable to decrypt `PskSeed`");
+    assert_ct_eq!(got, seed);
+}
+
+/// Negative test for decrypting a [`tls::PskSeed`] with the
+/// wrong peer public key.
+pub fn test_tls_psk_seed_open_wrong_peer_pk<E: Engine>(eng: &mut E) {
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let pk2 = sk2.public().expect("`sk2` public half should be valid");
+
+    let sk3 = EncryptionKey::<E::CS>::new(eng);
+    let pk3 = sk3.public().expect("`sk3` public half should be valid");
+
+    assert_ne!(pk2, pk3); // pedantic
+
+    let group = GroupId::default();
+    let seed = tls::PskSeed::new(eng, &GroupId::default());
+    let (enc, ct) = sk1
+        .seal_psk_seed(eng, &seed, &pk2, &group)
+        .expect("unable to encrypt `PskSeed`");
+    // The peer is `pk1`, `pk3`.
+    let err = sk2
+        .open_psk_seed(&enc, ct, &pk3, &group)
+        .expect_err("`PskSeed` decryption should fail");
+    assert_eq!(err, Error::Hpke(HpkeError::Open(OpenError::Authentication)));
+}
+
+/// Negative test for decrypting a [`tls::PskSeed`] with the
+/// wrong secret key (i.e., trying to open a PSK seed that was
+/// encrypted for somebody else).
+pub fn test_tls_psk_seed_open_wrong_sk<E: Engine>(eng: &mut E) {
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let pk1 = sk1.public().expect("`pk1` public half should be valid");
+
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let pk2 = sk2.public().expect("`sk2` public half should be valid");
+
+    let sk3 = EncryptionKey::<E::CS>::new(eng);
+
+    assert_ct_ne!(sk2.id().unwrap(), sk3.id().unwrap()); // pedantic
+
+    let group = GroupId::default();
+    let seed = tls::PskSeed::new(eng, &GroupId::default());
+    let (enc, ct) = sk1
+        .seal_psk_seed(eng, &seed, &pk2, &group)
+        .expect("unable to encrypt `PskSeed`");
+    // `(enc, ct)` are for `(sk2, pk2)`, not `(sk3, pk3)`.
+    let err = sk3
+        .open_psk_seed(&enc, ct, &pk1, &group)
+        .expect_err("`PskSeed` decryption should fail");
+    assert_eq!(err, Error::Hpke(HpkeError::Open(OpenError::Authentication)));
+}
+
+/// Negative test for decrypting a [`tls::PskSeed`] with the
+/// wrong group ID.
+pub fn test_tls_psk_seed_open_wrong_group<E: Engine>(eng: &mut E) {
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let pk1 = sk1.public().expect("`pk1` public half should be valid");
+
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let pk2 = sk2.public().expect("`sk2` public half should be valid");
+
+    let group1 = GroupId::random(eng);
+    let group2 = GroupId::random(eng);
+    assert_ne!(group1, group2); // pedantic
+
+    let seed = tls::PskSeed::new(eng, &GroupId::default());
+    let (enc, ct) = sk1
+        .seal_psk_seed(eng, &seed, &pk2, &group1)
+        .expect("unable to encrypt `PskSeed`");
+    let err = sk2
+        .open_psk_seed(&enc, ct, &pk1, &group2)
+        .expect_err("`PskSeed` decryption should fail");
+    assert_eq!(err, Error::Hpke(HpkeError::Open(OpenError::Authentication)));
+}
+
+/// Negative test for decrypting a [`tls::PskSeed`] with
+/// malformed ciphertext.
+pub fn test_tls_psk_seed_open_wrong_ciphertext<E: Engine>(eng: &mut E) {
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let pk1 = sk1.public().expect("`pk1` public half should be valid");
+
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let pk2 = sk2.public().expect("`sk2` public half should be valid");
+
+    let group = GroupId::default();
+
+    let seed = tls::PskSeed::new(eng, &GroupId::default());
+    let (enc, mut ct) = sk1
+        .seal_psk_seed(eng, &seed, &pk2, &group)
+        .expect("unable to encrypt `PskSeed`");
+
+    ct.ciphertext[0] = ct.ciphertext[0].wrapping_add(1);
+
+    let err = sk2
+        .open_psk_seed(&enc, ct, &pk1, &group)
+        .expect_err("`PskSeed` decryption should fail");
+    assert_eq!(err, Error::Hpke(HpkeError::Open(OpenError::Authentication)));
+}
+
+/// Negative test for decrypting a [`tls::PskSeed`] with
+/// malformed auth tag.
+pub fn test_tls_psk_seed_open_wrong_tag<E: Engine>(eng: &mut E) {
+    let sk1 = EncryptionKey::<E::CS>::new(eng);
+    let pk1 = sk1.public().expect("`pk1` public half should be valid");
+
+    let sk2 = EncryptionKey::<E::CS>::new(eng);
+    let pk2 = sk2.public().expect("`sk2` public half should be valid");
+
+    let group = GroupId::default();
+
+    let seed = tls::PskSeed::new(eng, &GroupId::default());
+    let (enc, mut ct) = sk1
+        .seal_psk_seed(eng, &seed, &pk2, &group)
+        .expect("unable to encrypt `PskSeed`");
+
+    ct.tag[0] = ct.tag[0].wrapping_add(1);
+
+    let err = sk2
+        .open_psk_seed(&enc, ct, &pk1, &group)
+        .expect_err("`PskSeed` decryption should fail");
+    assert_eq!(err, Error::Hpke(HpkeError::Open(OpenError::Authentication)));
 }

@@ -3,6 +3,7 @@ use aranya_crypto::{
     CipherSuite, DeviceId, Engine, IdentityKey, IdentityVerifyingKey, KeyStore, KeyStoreExt,
     SigningKey, SigningKeyId, VerifyingKey,
 };
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
 /// A key bundle.
@@ -22,7 +23,7 @@ pub struct MinKeyBundle {
 }
 
 /// Public keys from key bundle.
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub struct PublicKeys<CS: CipherSuite> {
     /// Public identity key.
     pub ident_pk: IdentityVerifyingKey<CS>,

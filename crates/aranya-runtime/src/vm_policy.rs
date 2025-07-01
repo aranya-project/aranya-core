@@ -700,7 +700,8 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                                 signature: &envelope.signature,
                             },
                         };
-                        let wrapped = postcard::to_allocvec(&data)?;
+                        let wrapped = postcard::to_allocvec(&data)
+                            .assume("can serialize vm protocol data")?;
                         let new_command =
                             VmProtocol::new(&wrapped, envelope.command_id, data, priority);
 
