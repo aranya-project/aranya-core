@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{
     borrow::Cow,
     collections::{hash_map, HashMap},
@@ -24,7 +25,7 @@ impl TypeError {
 }
 
 impl Display for TypeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Type Error: {}", self.0)
     }
 }
@@ -32,6 +33,26 @@ impl Display for TypeError {
 impl From<TypeError> for CompileErrorType {
     fn from(value: TypeError) -> Self {
         CompileErrorType::InvalidType(value.0.into_owned())
+    }
+}
+
+pub struct TypeUnifyError {
+    pub left: NullableVType,
+    pub right: NullableVType,
+    pub ctx: &'static str,
+}
+
+impl Display for TypeUnifyError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { left, right, ctx } = self;
+        write!(f, "{ctx}: {left} != {right}")
+    }
+}
+
+// TODO: Remove and force callers to make better error.
+impl From<TypeUnifyError> for CompileErrorType {
+    fn from(err: TypeUnifyError) -> Self {
+        CompileErrorType::InvalidType(err.to_string())
     }
 }
 
@@ -177,11 +198,21 @@ impl Typeish {
     }
 
     /// If self is not indeterminate and not the target type, return a [`TypeError`]
-    pub fn check_type(self, target_type: VType, errmsg: &'static str) -> Result<Self, TypeError> {
-        match &self {
-            Self::Definitely(ty) | Self::Probably(ty) if ty.fits_type(&target_type) => Ok(self),
+    pub fn check_type(
+        self,
+        target_type: VType,
+        errmsg: &'static str,
+    ) -> Result<Self, TypeUnifyError> {
+        match self {
+            Self::Definitely(ref ty) | Self::Probably(ref ty) if ty.fits_type(&target_type) => {
+                Ok(self)
+            }
             Self::Indeterminate => Ok(Self::Probably(NullableVType::Type(target_type))),
-            _ => Err(TypeError::new(errmsg)),
+            Self::Definitely(ty) | Self::Probably(ty) => Err(TypeUnifyError {
+                left: ty,
+                right: NullableVType::Type(target_type),
+                ctx: errmsg,
+            }),
         }
     }
 
@@ -215,7 +246,7 @@ impl Typeish {
     }
 
     /// Tries to unify two types, propagating uncertainty from either type.
-    pub fn unify(self, other: Self) -> Result<Self, TypeError> {
+    pub fn unify(self, other: Self) -> Result<Self, TypeUnifyError> {
         Ok(match (self, other) {
             // Two Indeterminate are Indeterminate
             (Self::Indeterminate, Self::Indeterminate) => Self::Indeterminate,
@@ -264,7 +295,7 @@ impl NullableVType {
     }
 
     /// Equal types will unify, and null will unify with any optional.
-    fn unify(self, rhs: NullableVType) -> Result<Self, TypeError> {
+    fn unify(self, rhs: NullableVType) -> Result<Self, TypeUnifyError> {
         match (self, rhs) {
             (t @ NullableVType::Type(VType::Optional(_)), NullableVType::Null)
             | (NullableVType::Null, t @ NullableVType::Type(VType::Optional(_))) => Ok(t),
@@ -272,9 +303,11 @@ impl NullableVType {
                 Ok(NullableVType::Type(left))
             }
             (NullableVType::Null, NullableVType::Null) => Ok(NullableVType::Null),
-            (left, right) => Err(TypeError::new_owned(format!(
-                "types do not match: {left} and {right}"
-            ))),
+            (left, right) => Err(TypeUnifyError {
+                left,
+                right,
+                ctx: "type mismatch",
+            }),
         }
     }
 }
@@ -318,7 +351,7 @@ impl CompileState<'_> {
         &self,
         left_type: Typeish,
         right_type: Typeish,
-    ) -> Result<Typeish, TypeError> {
+    ) -> Result<Typeish, TypeUnifyError> {
         left_type.unify(right_type)
     }
 
@@ -330,8 +363,14 @@ impl CompileState<'_> {
         right_type: Typeish,
         target_type: VType,
         errmsg: &'static str,
-    ) -> Result<Typeish, TypeError> {
-        self.unify_pair(left_type, right_type)?
-            .check_type(target_type, errmsg)
+    ) -> Result<Typeish, CompileErrorType> {
+        Ok(self.unify_pair(
+            left_type
+                .check_type(target_type.clone(), errmsg)
+                .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
+            right_type
+                .check_type(target_type, errmsg)
+                .map_err(|_| CompileErrorType::InvalidType(errmsg.into()))?,
+        )?)
     }
 }

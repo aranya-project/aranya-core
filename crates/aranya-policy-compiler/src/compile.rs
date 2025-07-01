@@ -660,9 +660,10 @@ impl<'a> CompileState<'a> {
                     let end_name = self.anonymous_label();
                     let condition_type = self.compile_expression(c)?;
                     if !condition_type.fits_type(&VType::Bool) {
-                        return Err(self.err(
-                            TypeError::new("if condition must be a boolean expression").into(),
-                        ));
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "if condition must be a boolean expression, was type {}",
+                            condition_type,
+                        ))));
                     }
                     self.append_instruction(Instruction::Branch(Target::Unresolved(
                         else_name.clone(),
@@ -938,7 +939,7 @@ impl<'a> CompileState<'a> {
                     VType::Int,
                     "Cannot do math on non-int types",
                 )
-                .map_err(|e| self.err(e.into()))?
+                .map_err(|e| self.err(e))?
             }
             Expression::And(a, b) | Expression::Or(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -955,7 +956,7 @@ impl<'a> CompileState<'a> {
                     VType::Bool,
                     "Cannot use boolean operator on non-bool types",
                 )
-                .map_err(|e| self.err(e.into()))?
+                .map_err(|e| self.err(e))?
             }
             Expression::Equal(a, b) => {
                 let left_type = self.compile_expression(a)?;
@@ -994,7 +995,7 @@ impl<'a> CompileState<'a> {
                     VType::Int,
                     "Cannot compare non-int expressions",
                 )
-                .map_err(|e| self.err(e.into()))?
+                .map_err(|e| self.err(e))?
                 .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::GreaterThanOrEqual(a, b) | Expression::LessThanOrEqual(a, b) => {
@@ -1034,7 +1035,7 @@ impl<'a> CompileState<'a> {
                     VType::Int,
                     "Cannot compare non-int expressions",
                 )
-                .map_err(|e| self.err(e.into()))?
+                .map_err(|e| self.err(e))?
                 .map(|_| NullableVType::Type(VType::Bool))
             }
             Expression::Negative(e) => {
@@ -1052,8 +1053,14 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Sub);
 
                 inner_type
-                    .check_type(VType::Int, "Cannot negate non-int expression")
-                    .map_err(|e| self.err(e.into()))?
+                    .check_type(VType::Int, "")
+                    .map_err(|err| {
+                        CompileErrorType::InvalidType(format!(
+                            "cannot negate non-int expression of type {}",
+                            err.left
+                        ))
+                    })
+                    .map_err(|e| self.err(e))?
             }
             Expression::Not(e) => {
                 // Evaluate the expression
@@ -1063,8 +1070,14 @@ impl<'a> CompileState<'a> {
                 self.append_instruction(Instruction::Not);
 
                 inner_type
-                    .check_type(VType::Bool, "Cannot invert non-boolean expression")
-                    .map_err(|e| self.err(e.into()))?
+                    .check_type(VType::Bool, "")
+                    .map_err(|err| {
+                        CompileErrorType::InvalidType(format!(
+                            "cannot invert non-boolean expression of type {}",
+                            err.left
+                        ))
+                    })
+                    .map_err(|e| self.err(e))?
             }
             Expression::Unwrap(e) => self.compile_unwrap(e, ExitReason::Panic)?,
             Expression::CheckUnwrap(e) => self.compile_unwrap(e, ExitReason::Check)?,
@@ -1223,10 +1236,13 @@ impl<'a> CompileState<'a> {
                     let end_label = self.anonymous_label();
                     for (cond, branch) in &s.branches {
                         let next_label = self.anonymous_label();
-                        let t = self.compile_expression(cond)?;
-                        let _: Typeish = t
-                            .check_type(VType::Bool, "if condition must be boolean")
-                            .map_err(|e| self.err(e.into()))?;
+                        let condition_type = self.compile_expression(cond)?;
+                        if !condition_type.fits_type(&VType::Bool) {
+                            return Err(self.err(CompileErrorType::InvalidType(format!(
+                                "if condition must be a boolean expression, was type {}",
+                                condition_type,
+                            ))));
+                        }
 
                         self.append_instruction(Instruction::Not);
                         self.append_instruction(Instruction::Branch(Target::Unresolved(
@@ -1509,8 +1525,14 @@ impl<'a> CompileState<'a> {
                         // Compile the expression within `debug_assert(e)`
                         let t = self.compile_expression(s)?;
                         let _: Typeish = t
-                            .check_type(VType::Bool, "debug assertion must be a boolean expression")
-                            .map_err(|e| self.err(e.into()))?;
+                            .check_type(VType::Bool, "")
+                            .map_err(|err| {
+                                CompileErrorType::InvalidType(format!(
+                                    "debug assertion must be a boolean expression, was type {}",
+                                    err.left
+                                ))
+                            })
+                            .map_err(|e| self.err(e))?;
                         // Now, branch to the next instruction if the top of the stack is true
                         let next = self.wp.checked_add(2).expect("self.wp + 2 must not wrap");
                         self.append_instruction(Instruction::Branch(Target::Resolved(next)));
@@ -2070,25 +2092,31 @@ impl<'a> CompileState<'a> {
         // 1. Generate branching instructions, and arm-start labels
         let mut arm_labels: Vec<Label> = vec![];
 
+        let mut n: usize = 0;
         for pattern in &patterns {
             let arm_label = self.anonymous_label();
             arm_labels.push(arm_label.clone());
 
             match pattern {
                 MatchPattern::Values(values) => {
-                    for (i, value) in values.iter().enumerate() {
+                    for value in values {
+                        n = n.checked_add(1).assume("can't have usize::MAX patterns")?;
                         self.append_instruction(Instruction::Dup(0));
                         if !value.is_literal() {
-                            return Err(self.err(CompileErrorType::InvalidType(String::from(
-                                "match arm is not a literal expression",
+                            return Err(self.err(CompileErrorType::InvalidType(format!(
+                                "match pattern {n} is not a literal expression",
                             ))));
                         }
                         let arm_t = self.compile_expression(value)?;
-                        expr_pat_t = self.unify_pair(expr_pat_t, arm_t).map_err(|err| {
-                            self.err(CompileErrorType::InvalidType(format!(
-                                "arm `{i}` has bad type: {err}"
-                            )))
-                        })?;
+                        expr_pat_t = self
+                            .unify_pair(expr_pat_t, arm_t)
+                            .map_err(|err| {
+                                CompileErrorType::InvalidType(format!(
+                                    "match pattern {n} has type {}, expected type {}",
+                                    err.right, err.left
+                                ))
+                            })
+                            .map_err(|err| self.err(err))?;
 
                         // if value == target, jump to start-of-arm
                         self.append_instruction(Instruction::Eq);
@@ -2150,11 +2178,21 @@ impl<'a> CompileState<'a> {
                     match expr_type {
                         None => expr_type = Some(etype),
                         Some(t) => {
-                            expr_type = Some(self.unify_pair(t, etype).map_err(|err| {
-                                self.err(CompileErrorType::InvalidType(format!(
-                                    "match arm expression type mismatch: {err}"
-                                )))
-                            })?);
+                            expr_type = Some(
+                                self.unify_pair(t, etype)
+                                    .map_err(|err| {
+                                        #[allow(
+                                            clippy::arithmetic_side_effects,
+                                            reason = "can't have usize::MAX arms"
+                                        )]
+                                        let n = i + 1;
+                                        CompileErrorType::InvalidType(format!(
+                                            "match arm expression {n} has type {}, expected {}",
+                                            err.right, err.left
+                                        ))
+                                    })
+                                    .map_err(|err| self.err(err))?,
+                            );
                         }
                     }
 

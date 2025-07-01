@@ -1237,7 +1237,9 @@ fn test_match_arm_should_be_limited_to_literals() {
         let err = compile_fail(text);
         assert_eq!(
             err,
-            CompileErrorType::InvalidType(String::from("match arm is not a literal expression"))
+            CompileErrorType::InvalidType(String::from(
+                "match pattern 1 is not a literal expression"
+            ))
         );
     }
 }
@@ -1255,19 +1257,19 @@ fn test_match_expression() {
             }
             "#,
             CompileErrorType::InvalidType(
-                "match arm expression type mismatch: Type Error: types do not match: string and bool".to_string(),
+                "match arm expression 2 has type bool, expected string".into(),
             ),
         ),
         (
             r#"action f(n int) {
-            let x = match n {
-                0 => todo()
-                1 => 1
-                _ => false
-            }
-        }"#,
+                let x = match n {
+                    0 => todo()
+                    1 => 1
+                    _ => false
+                }
+            }"#,
             CompileErrorType::InvalidType(
-                "match arm expression type mismatch: Type Error: types do not match: int and bool".to_string(),
+                "match arm expression 3 has type bool, expected int".into(),
             ),
         ),
     ];
@@ -1592,7 +1594,7 @@ fn test_type_errors() {
                     return x + "foo"
                 }
             "#,
-            e: "types do not match: int and string",
+            e: "Cannot do math on non-int types",
         },
         Case {
             t: r#"
@@ -1600,7 +1602,7 @@ fn test_type_errors() {
                     return if 0 { :3 } else { :4 }
                 }
             "#,
-            e: "if condition must be a boolean expression",
+            e: "if condition must be a boolean expression, was type int",
         },
         Case {
             t: r#"
@@ -1658,7 +1660,7 @@ fn test_type_errors() {
                     return -x
                 }
             "#,
-            e: "Cannot negate non-int expression",
+            e: "cannot negate non-int expression of type string",
         },
         Case {
             t: r#"
@@ -1666,7 +1668,7 @@ fn test_type_errors() {
                     return !x
                 }
             "#,
-            e: "Cannot invert non-boolean expression",
+            e: "cannot invert non-boolean expression of type int",
         },
         Case {
             t: r#"
@@ -1774,7 +1776,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "arm `0` has bad type: Type Error: types do not match: int and string",
+            e: "match pattern 1 has type string, expected type int",
         },
         Case {
             t: r#"
@@ -1783,16 +1785,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "if condition must be boolean",
-        },
-        Case {
-            t: r#"
-                function foo(x int) bool {
-                    if 3 {
-                    }
-                }
-            "#,
-            e: "if condition must be boolean",
+            e: "if condition must be a boolean expression, was type int",
         },
         Case {
             t: r#"
@@ -1830,7 +1823,7 @@ fn test_type_errors() {
                     debug_assert(3)
                 }
             "#,
-            e: "debug assertion must be a boolean expression",
+            e: "debug assertion must be a boolean expression, was type int",
         },
         Case {
             t: r#"
@@ -1944,7 +1937,7 @@ fn test_duplicate_definitions() {
                 }
         "#,
             e: Some(CompileErrorType::InvalidType(
-                "types do not match: int and string".to_string(),
+                "type mismatch: int != string".to_string(),
             )),
         },
     ];
