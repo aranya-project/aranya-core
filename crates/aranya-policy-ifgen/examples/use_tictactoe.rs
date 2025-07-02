@@ -1,10 +1,9 @@
 #[rustfmt::skip]
-#[path = "../tests/data/ttc.rs"]
-pub mod ttc;
+#[path = "../tests/data/tictactoe.rs"]
+pub mod tictactoe;
 
 use aranya_policy_ifgen::{Actor, ClientError, Id, VmAction};
-use aranya_policy_vm::text;
-use ttc::ActorExt;
+use tictactoe::{ActorExt, Players};
 
 struct PrintClient;
 impl Actor for PrintClient {
@@ -17,6 +16,9 @@ impl Actor for PrintClient {
 fn main() {
     let mut client = PrintClient;
     client
-        .assign_afc_label(Id::default(), 42, text!("foo"))
+        .StartGame(Players {
+            X: Id::default(),
+            O: Id::default(),
+        })
         .expect("no panic");
 }
