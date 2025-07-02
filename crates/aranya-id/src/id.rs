@@ -9,7 +9,7 @@ use core::{
 };
 
 use serde::{
-    de::{self, SeqAccess, Visitor},
+    de::{self, DeserializeOwned, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
@@ -17,7 +17,28 @@ use subtle::{Choice, ConstantTimeEq};
 use zerocopy::FromBytes;
 
 /// A trait signifying an `Id` type.
-pub trait Identity: From<[u8; 32]> + Into<[u8; 32]> {}
+pub trait Identity:
+    Copy
+    + Clone
+    + Display
+    + Debug
+    + Default
+    + Hash
+    + Eq
+    + PartialEq
+    + Ord
+    + PartialOrd
+    + Serialize
+    + DeserializeOwned
+    + ToBase58<Output = String32>
+    + ConstantTimeEq
+    + AsRef<[u8]>
+    + AsRef<[u8; 32]>
+    + FromStr
+    + From<Id>
+    + Into<Id>
+{
+}
 
 /// A unique cryptographic ID.
 ///
@@ -90,6 +111,13 @@ impl AsRef<[u8]> for Id {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
+    }
+}
+
+impl AsRef<[u8; 32]> for Id {
+    #[inline]
+    fn as_ref(&self) -> &[u8; 32] {
+        self.as_array()
     }
 }
 
@@ -288,6 +316,14 @@ macro_rules! custom_id {
                 self.0.as_ref()
             }
         }
+
+        impl ::core::convert::AsRef<[u8; 32]> for $name {
+            #[inline]
+            fn as_ref(&self) -> &[u8; 32] {
+                self.0.as_ref()
+            }
+        }
+
 
         impl ::core::convert::From<[u8; 32]> for $name {
             #[inline]

@@ -9,7 +9,7 @@ use spideroak_crypto::{csprng::Csprng, signer::PkError};
 use crate::{CipherSuite, CipherSuiteExt};
 
 /// Extension trait for IDs.
-pub trait IdExt: Sized {
+pub trait IdExt: Identity {
     /// Derives an [`Id`] from the hash of some data.
     fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Self;
 
@@ -21,35 +21,26 @@ impl<I: Identity> IdExt for I {
     /// Derives an [`Id`] from the hash of some data.
     fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Self {
         // id = H("ID-v1" || suites || data || tag)
-        CS::tuple_hash(b"ID-v1", [data, tag])
-            .into_array()
-            .into_array()
-            .into()
+        Id::from_bytes(
+            CS::tuple_hash(b"ID-v1", [data, tag])
+                .into_array()
+                .into_array(),
+        )
+        .into()
     }
 
     /// Creates a random ID.
     fn random<R: Csprng>(rng: &mut R) -> Self {
         let mut b = [0u8; 32];
         rng.fill_bytes(&mut b);
-        b.into()
+        Id::from_bytes(b).into()
     }
 }
 
 /// An object with a unique identifier.
 pub trait Identified {
     /// Uniquely identifies the object.
-    type Id: Copy
-        + Clone
-        + core::fmt::Display
-        + core::fmt::Debug
-        + core::hash::Hash
-        + Eq
-        + PartialEq
-        + Ord
-        + PartialOrd
-        + serde::Serialize
-        + serde::de::DeserializeOwned
-        + Into<Id>;
+    type Id: Identity;
 
     /// Uniquely identifies the object.
     fn id(&self) -> Result<Self::Id, IdError>;
