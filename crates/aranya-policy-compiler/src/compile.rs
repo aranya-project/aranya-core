@@ -955,7 +955,7 @@ impl<'a> CompileState<'a> {
                 result_type
             }
             Expression::Cast(lhs, rhs_ident) => {
-                // NOTE this is implemented for structs
+                // NOTE this is implemented only for structs
 
                 // make sure other struct is defined
                 let rhs_fields = self.m.struct_defs.get(rhs_ident).cloned().ok_or_else(|| {
@@ -971,14 +971,6 @@ impl<'a> CompileState<'a> {
                                     "struct {lhs_struct_name}"
                                 )))
                             })?;
-
-                        // Don't allow converting to same type
-                        if &lhs_struct_name == rhs_ident {
-                            return Err(self.err(CompileErrorType::InvalidCast(
-                                lhs_struct_name,
-                                rhs_ident.clone(),
-                            )));
-                        }
 
                         // Check that both structs have the same field names and types (though not necessarily in the same order)
                         if lhs_fields.len() != rhs_fields.len()

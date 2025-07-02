@@ -2439,6 +2439,7 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             publish foo as Bar // var reference
             publish Foo { y: "b", x: 1 } as Bar // struct literal
             publish new_foo(5, "def") as Bar // function return value
+            publish Bar { x: 100, y: "xyz" } as Bar
         }
         "#;
 
@@ -2476,6 +2477,16 @@ fn test_struct_conversion() -> anyhow::Result<()> {
             vec![
                 KVPair::new(ident!("x"), Value::Int(5)),
                 KVPair::new(ident!("y"), Value::String(text!("def"))),
+            ]
+        )
+    );
+    assert_eq!(
+        io.borrow().publish_stack[3],
+        (
+            ident!("Bar"),
+            vec![
+                KVPair::new(ident!("x"), Value::Int(100)),
+                KVPair::new(ident!("y"), Value::String(text!("xyz"))),
             ]
         )
     );
