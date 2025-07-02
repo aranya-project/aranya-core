@@ -16,6 +16,9 @@ pub use spideroak_base58::{DecodeError, String32, ToBase58};
 use subtle::{Choice, ConstantTimeEq};
 use zerocopy::FromBytes;
 
+/// A trait signifying an `Id` type.
+pub trait Identity: From<[u8; 32]> + Into<[u8; 32]> {}
+
 /// A unique cryptographic ID.
 ///
 /// IDs are intended to be public (non-secret) identifiers.
@@ -35,6 +38,8 @@ use zerocopy::FromBytes;
     zerocopy_derive::FromBytes,
 )]
 pub struct Id([u8; 32]);
+
+impl Identity for Id {}
 
 impl Id {
     /// Same as [`Default`], but const.
@@ -228,6 +233,8 @@ macro_rules! custom_id {
         )]
         $(#[$meta])*
         $vis struct $name($crate::Id);
+
+        impl $crate::Identity for $name {}
 
         impl $name {
             /// Same as [`Default`], but const.

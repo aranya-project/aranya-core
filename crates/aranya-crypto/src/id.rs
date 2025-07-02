@@ -17,10 +17,7 @@ pub trait IdExt: Sized {
     fn random<R: Csprng>(rng: &mut R) -> Self;
 }
 
-impl<I> IdExt for I
-where
-    [u8; 32]: Into<I>,
-{
+impl<I: Identity> IdExt for I {
     /// Derives an [`Id`] from the hash of some data.
     fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Self {
         // id = H("ID-v1" || suites || data || tag)
