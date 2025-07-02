@@ -7,12 +7,12 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use aranya_crypto::Id;
 use core::{
     cell::RefCell,
     fmt::{self, Display},
 };
 
+use aranya_crypto::Id;
 use aranya_policy_ast::{self as ast, ident, Identifier};
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
@@ -985,10 +985,10 @@ where
                         // make sure identifier is a valid struct name
                         let rhs_struct =
                             self.machine.struct_defs.get(&identifier).ok_or_else(|| {
-                                return self.err(MachineErrorType::NotDefined(alloc::format!(
+                                self.err(MachineErrorType::NotDefined(alloc::format!(
                                     "struct `{}`",
-                                    identifier.to_string()
-                                )));
+                                    identifier
+                                )))
                             })?;
 
                         // Check that all required fields exist and have matching types
