@@ -2279,16 +2279,6 @@ fn test_struct_conversion_errors() {
             CompileErrorType::NotDefined("struct Bar".to_string()),
         ),
         (
-            "LHS is same as RHS",
-            r#"
-            struct Foo { a int, b string }
-            function convert() struct Foo {
-                return Foo { a: 1, b: "test" } as Foo
-            }
-            "#,
-            CompileErrorType::InvalidCast(ident!("Foo"), ident!("Foo")),
-        ),
-        (
             "types don't match",
             r#"
             struct Foo { a int, b string }
@@ -2300,7 +2290,7 @@ fn test_struct_conversion_errors() {
             CompileErrorType::InvalidCast(ident!("Foo"), ident!("Bar")),
         ),
         (
-            "names don't match",
+            "field names don't match",
             r#"
             struct Foo { a int, b string }
             struct Bar { a bool, s string }
@@ -2371,6 +2361,15 @@ fn test_struct_conversion() {
                 publish bar
             }
         "#,
+        ),
+        (
+            "cast to self - noop",
+            r#"
+            struct Foo { a int, b string }
+            function convert() struct Foo {
+                return Foo { a: 1, b: "test" } as Foo
+            }
+            "#,
         ),
     ];
 
