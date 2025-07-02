@@ -100,7 +100,7 @@ macro_rules! little_endian {
                 type Error = <usize as ::core::convert::TryFrom<$type>>::Error;
 
                 fn try_from(v: $name) -> Result<Self, Self::Error> {
-                    usize::try_from(v.0.into())
+                    usize::try_from(v.into())
                 }
             }
 
