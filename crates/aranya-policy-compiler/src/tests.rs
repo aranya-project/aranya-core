@@ -2469,8 +2469,8 @@ fn test_struct_conversion() {
                     a int,
                     b string,
                 }
-                seal { return None }
-                open { return None }
+                seal { return todo() }
+                open { return todo() }
             }
             action convert() {
                 let bar = Foo { a: 1, b: "test" } as Bar

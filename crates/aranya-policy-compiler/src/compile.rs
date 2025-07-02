@@ -964,7 +964,7 @@ impl<'a> CompileState<'a> {
 
                 let lhs_type = self.compile_expression(lhs)?;
                 match lhs_type {
-                    Typeish::Type(VType::Struct(lhs_struct_name)) => {
+                    Typeish::Definitely(NullableVType::Type(VType::Struct(lhs_struct_name))) => {
                         let lhs_fields =
                             self.m.struct_defs.get(&lhs_struct_name).ok_or_else(|| {
                                 self.err(CompileErrorType::NotDefined(format!(
@@ -982,17 +982,17 @@ impl<'a> CompileState<'a> {
                             )));
                         }
                     }
-                    Typeish::Indeterminate => {}
-                    Typeish::Type(_) => {
+                    Typeish::Definitely(_) => {
                         return Err(self.err(CompileErrorType::InvalidType(
                             "Expression to the left of `as` is not a struct".to_string(),
                         )));
                     }
+                    Typeish::Indeterminate | Typeish::Probably(_) => {}
                 }
 
                 self.append_instruction(Instruction::Cast(rhs_ident.clone()));
 
-                Typeish::Type(VType::Struct(rhs_ident.clone()))
+                Typeish::Definitely(NullableVType::Type(VType::Struct(rhs_ident.clone())))
             }
             Expression::Add(a, b) | Expression::Subtract(a, b) => {
                 let left_type = self.compile_expression(a)?;

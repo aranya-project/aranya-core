@@ -2426,8 +2426,8 @@ fn test_struct_conversion() -> anyhow::Result<()> {
 
         command Bar {
             fields { x int, y string }
-            seal { return None }
-            open { return None }
+            seal { return todo() }
+            open { return todo() }
         }
         
         function new_foo(x int, y string) struct Foo {
