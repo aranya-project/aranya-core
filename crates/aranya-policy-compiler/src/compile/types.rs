@@ -1,8 +1,7 @@
-use core::fmt;
 use std::{
     borrow::Cow,
     collections::{hash_map, HashMap},
-    fmt::Display,
+    fmt::{self, Display},
 };
 
 use aranya_policy_ast::{self as ast, Identifier};
@@ -269,7 +268,7 @@ impl Typeish {
 }
 
 impl Display for Typeish {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Typeish::Definitely(t) => t.fmt(f),
             Typeish::Probably(t) => write!(f, "probably {t}"),
@@ -313,7 +312,7 @@ impl NullableVType {
 }
 
 impl Display for NullableVType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Type(vtype) => vtype.fmt(f),
             Self::Null => f.write_str("null"),
