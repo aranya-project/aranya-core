@@ -812,8 +812,8 @@ mod test {
                         {attrs}
                     }}
                     fields {{ }}
-                    seal {{ return None }}
-                    open {{ return None }}
+                    seal {{ return todo() }}
+                    open {{ return todo() }}
                     policy {{ }}
                 }}
                 "#
