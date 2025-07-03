@@ -20,7 +20,7 @@ use crate::{
     engine::{unwrapped, Engine},
     error::Error,
     hpke::{self, Mode},
-    id::{custom_id, Id, IdError},
+    id::{custom_id, Id, IdError, IdExt as _},
     misc::sk_misc,
     tls::CipherSuiteId,
 };
@@ -43,6 +43,7 @@ use crate::{
 ///         BidiSecret,
 ///         CipherSuiteId,
 ///     },
+///     id::IdExt as _,
 ///     CipherSuite,
 ///     Csprng,
 ///     default::{
@@ -214,7 +215,7 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     pub fn id(&self) -> BidiChannelId {
         *self
             .id
-            .get_or_init(|| BidiChannelId(Id::new::<CS>(self.as_bytes(), b"AqcBidiChannelId")))
+            .get_or_init(|| BidiChannelId::new::<CS>(self.as_bytes(), b"AqcBidiChannelId"))
     }
 
     /// Encodes itself as bytes.

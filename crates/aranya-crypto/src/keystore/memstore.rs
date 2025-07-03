@@ -163,7 +163,7 @@ mod tests {
     macro_rules! id {
         ($id:expr) => {{
             let data = ($id as u64).to_le_bytes();
-            Id::new::<DefaultCipherSuite>(&data, b"TestKey")
+            $crate::id::IdExt::new::<DefaultCipherSuite>(&data, b"TestKey")
         }};
     }
 

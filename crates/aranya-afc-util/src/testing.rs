@@ -21,6 +21,7 @@ use aranya_crypto::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
+    id::IdExt as _,
     keystore::{memstore, Entry, Occupied, Vacant},
     CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
     IdentityKey, KeyStore, Rng,
@@ -240,7 +241,7 @@ impl<T: TestImpl> Device<T> {
             .wrap(enc_sk)
             .expect("should be able to wrap `EncryptionKey`");
         store
-            .try_insert(enc_key_id.into(), wrapped)
+            .try_insert(enc_key_id.into_id(), wrapped)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {

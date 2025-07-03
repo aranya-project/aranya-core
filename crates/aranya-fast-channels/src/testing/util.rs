@@ -26,6 +26,7 @@ use aranya_crypto::{
         typenum::{IsGreaterOrEqual, IsLess, U16, U65536},
     },
     default::{DefaultCipherSuite, DefaultEngine},
+    id::IdExt as _,
     test_util::TestCs,
     CipherSuite, EncryptionKey, Engine, Id, IdentityKey,
 };

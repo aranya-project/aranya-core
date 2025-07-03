@@ -20,6 +20,7 @@ use aranya_crypto::{
     self,
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
     engine::WrappedKey,
+    id::IdExt as _,
     keystore::{memstore, Entry, Occupied, Vacant},
     CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
     IdentityKey, KeyStore, Random, Rng,
@@ -310,7 +311,7 @@ impl<T: TestImpl> Device<T> {
             .wrap(enc_sk)
             .expect("should be able to wrap `EncryptionKey`");
         store
-            .try_insert(enc_key_id.into(), wrapped)
+            .try_insert(enc_key_id.into_id(), wrapped)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {

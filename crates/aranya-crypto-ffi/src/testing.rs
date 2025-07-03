@@ -6,7 +6,9 @@
 
 use core::marker::PhantomData;
 
-use aranya_crypto::{Csprng, DeviceId, Engine, Id, KeyStore, Random, SignerError, SigningKey};
+use aranya_crypto::{
+    id::IdExt as _, Csprng, DeviceId, Engine, Id, KeyStore, Random, SignerError, SigningKey,
+};
 use aranya_policy_vm::{
     ident, ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
 };

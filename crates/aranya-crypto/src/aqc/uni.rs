@@ -20,7 +20,7 @@ use crate::{
     engine::unwrapped,
     error::Error,
     hpke::{self, Mode},
-    id::{custom_id, Id, IdError},
+    id::{custom_id, Id, IdError, IdExt as _},
     misc::sk_misc,
     tls::CipherSuiteId,
     Engine,
@@ -46,6 +46,7 @@ use crate::{
 ///         UniSecrets,
 ///         UniSecret,
 ///     },
+///     id::IdExt as _,
 ///     CipherSuite,
 ///     Csprng,
 ///     default::{
@@ -197,7 +198,7 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     pub fn id(&self) -> UniChannelId {
         *self
             .id
-            .get_or_init(|| UniChannelId(Id::new::<CS>(self.as_bytes(), b"AqcUniChannelId")))
+            .get_or_init(|| UniChannelId::new::<CS>(self.as_bytes(), b"AqcUniChannelId"))
     }
 
     /// Encodes itself as bytes.

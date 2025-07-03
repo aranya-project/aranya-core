@@ -6,6 +6,7 @@ use std::{fs, marker::PhantomData};
 
 use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
+    id::IdExt as _,
     keystore::fs_keystore::Store,
     DeviceId, Rng,
 };
