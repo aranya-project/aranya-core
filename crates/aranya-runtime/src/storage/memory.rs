@@ -818,6 +818,7 @@ pub mod graphviz {
 
     #[allow(clippy::wildcard_imports)]
     use super::*;
+    use crate::testing::ShortB58;
 
     fn loc(location: impl Into<Location>) -> String {
         let location = location.into();
@@ -865,7 +866,7 @@ pub mod graphviz {
             for (i, cmd) in segment.commands.iter().enumerate() {
                 {
                     let mut node = cluster.node_named(loc((segment.index, i)));
-                    node.set_label(&short_b58(cmd.command.id));
+                    node.set_label(&ShortB58(cmd.command.id).to_string());
                     match cmd.command.parent {
                         Prior::None => {
                             node.set("shape", "house", false);

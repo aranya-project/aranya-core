@@ -119,7 +119,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
-    /// const PARENT: Id = BaseId::default();
+    /// const PARENT: BaseId = BaseId::default();
     /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public().expect("signing key should be valid");
     ///
     /// let key = GroupKey::new(&mut Rng);
