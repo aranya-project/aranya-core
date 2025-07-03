@@ -3,7 +3,7 @@
 use aranya_crypto::{
     default::{DefaultEngine, Rng},
     id::IdExt as _,
-    DeviceId, Id,
+    BaseId, DeviceId,
 };
 use aranya_policy_vm::{
     ident, ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
@@ -20,26 +20,26 @@ fn test_current_device_id() {
     let contexts = vec![
         CommandContext::Action(ActionContext {
             name: ident!("action"),
-            head_id: Id::default(),
+            head_id: BaseId::default(),
         }),
         CommandContext::Seal(SealContext {
             name: ident!("seal"),
-            head_id: Id::default(),
+            head_id: BaseId::default(),
         }),
         CommandContext::Open(OpenContext {
             name: ident!("open"),
         }),
         CommandContext::Policy(PolicyContext {
             name: ident!("policy"),
-            id: Id::default(),
+            id: BaseId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         }),
         CommandContext::Recall(PolicyContext {
             name: ident!("recall"),
-            id: Id::default(),
+            id: BaseId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         }),
     ];
 

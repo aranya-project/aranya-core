@@ -5,7 +5,7 @@ use aranya_crypto::{
         BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiSecret,
         UniAuthorSecretId, UniChannel, UniChannelId, UniPeerEncap, UniSecret,
     },
-    custom_id, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
+    custom_id, BaseId, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
 };
 use buggy::{bug, Bug};
 use serde::{Deserialize, Serialize};
@@ -132,7 +132,7 @@ pub struct BidiChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encryption key ID.
@@ -161,7 +161,7 @@ pub struct BidiChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encoded
@@ -295,7 +295,7 @@ pub struct UniChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can send messages.
@@ -325,7 +325,7 @@ pub struct UniChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can send messages.

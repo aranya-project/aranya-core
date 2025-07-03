@@ -1,4 +1,4 @@
-//! [`Id`]s and generation of [`custom_id`] types.
+//! [`BaseId`] and generation of [`custom_id`] types.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest)), no_std)]
@@ -10,7 +10,7 @@ mod id;
 pub use spideroak_base58 as base58;
 
 #[doc(inline)]
-pub use crate::id::Id;
+pub use crate::id::BaseId;
 
 #[doc(hidden)]
 pub mod __hidden {

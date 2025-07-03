@@ -23,7 +23,7 @@ use aranya_crypto::{
     engine::WrappedKey,
     id::IdExt as _,
     keystore::{memstore, Entry, Occupied, Vacant},
-    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
+    BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine,
     IdentityKey, KeyStore, Rng,
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
@@ -63,7 +63,7 @@ impl KeyStore for MemStore {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error> {
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
         let entry = match self.0.entry(id)? {
             GuardedEntry::Vacant(v) => Entry::Vacant(VacantEntry(v)),
             GuardedEntry::Occupied(v) => Entry::Occupied(OccupiedEntry(v)),
@@ -71,7 +71,7 @@ impl KeyStore for MemStore {
         Ok(entry)
     }
 
-    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error> {
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match self.0.entry(id)? {
             GuardedEntry::Vacant(_) => Ok(None),
             GuardedEntry::Occupied(v) => Ok(Some(v.get()?)),
@@ -113,7 +113,7 @@ struct MemStoreInner {
 }
 
 impl MemStoreInner {
-    fn entry<T: WrappedKey>(&self, id: Id) -> Result<GuardedEntry<'_, T>, memstore::Error> {
+    fn entry<T: WrappedKey>(&self, id: BaseId) -> Result<GuardedEntry<'_, T>, memstore::Error> {
         mem::forget(self.mutex.lock());
 
         // SAFETY: we've locked `self.mutex`, so access to
@@ -396,7 +396,7 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = BaseId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
@@ -502,7 +502,7 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = BaseId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
         head_id: parent_cmd_id,
@@ -610,7 +610,7 @@ where
     let mut peer = T::new(); // seal only
 
     let label = Label::new(42);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = BaseId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniOnlyChannel"),
         head_id: parent_cmd_id,

@@ -4,7 +4,7 @@ use core::{cell::RefCell, fmt, ops::DerefMut};
 
 use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
-    Id, Rng,
+    BaseId, Rng,
 };
 use aranya_policy_ast::Identifier;
 
@@ -121,7 +121,7 @@ where
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        _command: Id,
+        _command: BaseId,
         _recalled: bool,
     ) {
         let mut fields: Vec<_> = fields.into_iter().collect();

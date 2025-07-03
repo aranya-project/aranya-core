@@ -5,7 +5,7 @@ mod bits;
 
 use std::{cell::RefCell, collections::BTreeMap, iter};
 
-use aranya_crypto::Id;
+use aranya_crypto::BaseId;
 use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
@@ -20,14 +20,14 @@ use ciborium as cbor;
 fn dummy_ctx_action(name: Identifier) -> CommandContext {
     CommandContext::Action(ActionContext {
         name,
-        head_id: Id::default(),
+        head_id: BaseId::default(),
     })
 }
 
 fn dummy_ctx_seal(name: Identifier) -> CommandContext {
     CommandContext::Seal(SealContext {
         name,
-        head_id: Id::default(),
+        head_id: BaseId::default(),
     })
 }
 
@@ -38,9 +38,9 @@ fn dummy_ctx_open(name: Identifier) -> CommandContext {
 fn dummy_ctx_policy(name: Identifier) -> CommandContext {
     CommandContext::Policy(PolicyContext {
         name,
-        id: Id::default(),
-        author: Id::default().into(),
-        version: Id::default(),
+        id: BaseId::default(),
+        author: BaseId::default().into(),
+        version: BaseId::default(),
     })
 }
 
@@ -85,7 +85,7 @@ fn test_bytes() -> anyhow::Result<()> {
             &mut rs,
             &io,
             name.clone(),
-            [Value::Id(Id::default()), Value::Bytes(vec![0, 255, 42])],
+            [Value::Id(BaseId::default()), Value::Bytes(vec![0, 255, 42])],
         )?
         .success();
     }
@@ -95,14 +95,14 @@ fn test_bytes() -> anyhow::Result<()> {
         (
             ident!("Foo"),
             vec![
-                KVPair::new(ident!("id_field"), Value::Id(Id::default())),
+                KVPair::new(ident!("id_field"), Value::Id(BaseId::default())),
                 KVPair::new(ident!("x"), Value::Bytes(vec![0, 255, 42]))
             ]
         )
     );
     assert_eq!(
         format!("{}", io.borrow().publish_stack[0].1[0]),
-        format!("id_field: {}", Id::default().to_string())
+        format!("id_field: {}", BaseId::default().to_string())
     );
 
     Ok(())
@@ -157,7 +157,7 @@ fn test_structs() -> anyhow::Result<()> {
             &mut rs,
             &io,
             name.clone(),
-            [Value::Id(Id::default()), Value::Int(3)],
+            [Value::Id(BaseId::default()), Value::Int(3)],
         )?
         .success();
     }
@@ -174,7 +174,7 @@ fn test_structs() -> anyhow::Result<()> {
                         [KVPair::new(ident!("x"), Value::Int(3))]
                     ))
                 ),
-                KVPair::new(ident!("id_field"), Value::Id(Id::default())),
+                KVPair::new(ident!("id_field"), Value::Id(BaseId::default())),
             ]
         )
     );

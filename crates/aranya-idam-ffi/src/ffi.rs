@@ -4,8 +4,8 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    custom_id, engine::Engine, id::IdExt as _, policy, zeroize::Zeroizing, Context, Encap,
-    EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, Id, IdentityVerifyingKey,
+    custom_id, engine::Engine, id::IdExt as _, policy, zeroize::Zeroizing, BaseId, Context, Encap,
+    EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, IdentityVerifyingKey,
     KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey,
 };
 use aranya_policy_vm::{
@@ -65,7 +65,7 @@ function derive_enc_key_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         enc_pk: Vec<u8>,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&enc_pk)?;
         Ok(pk.id()?.into_id())
     }
@@ -82,7 +82,7 @@ function derive_sign_key_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         sign_pk: Vec<u8>,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&sign_pk)?;
         Ok(pk.id().map_err(aranya_crypto::Error::from)?.into_id())
     }
@@ -99,7 +99,7 @@ function derive_device_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         ident_pk: Vec<u8>,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         let pk: IdentityVerifyingKey<E::CS> = postcard::from_bytes(&ident_pk)?;
         Ok(pk.id().map_err(aranya_crypto::Error::from)?.into_id())
     }
@@ -136,7 +136,7 @@ function seal_group_key(
         eng: &mut E,
         wrapped_group_key: Vec<u8>,
         peer_enc_pk: Vec<u8>,
-        group_id: Id,
+        group_id: BaseId,
     ) -> Result<SealedGroupKey, Error> {
         let group_key: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&wrapped_group_key)?;
@@ -163,8 +163,8 @@ function open_group_key(
         _ctx: &CommandContext,
         eng: &mut E,
         sealed_group_key: SealedGroupKey,
-        our_enc_sk_id: Id,
-        group_id: Id,
+        our_enc_sk_id: BaseId,
+        group_id: BaseId,
     ) -> Result<StoredGroupKey, Error> {
         let sk: EncryptionKey<E::CS> = self
             .store
@@ -208,7 +208,7 @@ function encrypt_message(
         eng: &mut E,
         plaintext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
-        our_sign_sk_id: Id,
+        our_sign_sk_id: BaseId,
         label: Text,
     ) -> Result<Vec<u8>, Error> {
         let plaintext = Zeroizing::new(plaintext);
@@ -258,7 +258,7 @@ function decrypt_message(
         &self,
         ctx: &CommandContext,
         eng: &mut E,
-        parent_id: Id,
+        parent_id: BaseId,
         ciphertext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
         author_sign_pk: Vec<u8>,
@@ -298,11 +298,11 @@ function compute_change_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        new_cmd_id: Id,
-        current_change_id: Id,
-    ) -> Result<Id, Error> {
+        new_cmd_id: BaseId,
+        current_change_id: BaseId,
+    ) -> Result<BaseId, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
-        Ok(Id::new::<E::CS>(
+        Ok(BaseId::new::<E::CS>(
             current_change_id.as_bytes(),
             new_cmd_id.as_bytes(),
         ))
@@ -319,7 +319,7 @@ function label_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        cmd_id: Id,
+        cmd_id: BaseId,
         name: Text,
     ) -> Result<RoleId, Infallible> {
         // TODO(eric): Use the real policy ID once it's
@@ -345,7 +345,7 @@ impl TryFrom<Value> for RoleId {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let id: Id = value.try_into()?;
+        let id: BaseId = value.try_into()?;
         Ok(RoleId::from(id))
     }
 }

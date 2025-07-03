@@ -2,7 +2,7 @@
 
 use crate::{
     engine::{Engine, UnwrappedKey, WrappedKey},
-    id::Id,
+    id::BaseId,
 };
 
 pub mod fs_keystore;
@@ -20,15 +20,15 @@ pub trait KeyStore {
     type Occupied<'a, T: WrappedKey>: Occupied<T, Error = Self::Error>;
 
     /// Accesses a particular entry.
-    fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error>;
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error>;
 
     /// Retrieves a stored `WrappedKey`.
-    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error>;
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error>;
 
     /// Stores a `WrappedKey`.
     ///
     /// It is an error if the key already exists.
-    fn try_insert<T: WrappedKey>(&mut self, id: Id, key: T) -> Result<(), Self::Error> {
+    fn try_insert<T: WrappedKey>(&mut self, id: BaseId, key: T) -> Result<(), Self::Error> {
         match self.entry(id)? {
             Entry::Vacant(v) => v.insert(key),
             Entry::Occupied(_) => Err(<Self as KeyStore>::Error::new(
@@ -39,7 +39,7 @@ pub trait KeyStore {
     }
 
     /// Retrieves and removes a stored `WrappedKey`.
-    fn remove<T: WrappedKey>(&mut self, id: Id) -> Result<Option<T>, Self::Error> {
+    fn remove<T: WrappedKey>(&mut self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match self.entry(id)? {
             Entry::Vacant(_) => Ok(None),
             Entry::Occupied(v) => Ok(Some(v.remove()?)),
@@ -117,13 +117,13 @@ pub enum ErrorKind {
 /// An extension trait.
 pub trait KeyStoreExt: KeyStore {
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: Id) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &mut E, id: BaseId) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: Id) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &mut E, id: BaseId) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
@@ -131,7 +131,7 @@ pub trait KeyStoreExt: KeyStore {
 
 impl<T: KeyStore> KeyStoreExt for T {
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: Id) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &mut E, id: BaseId) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
@@ -147,7 +147,7 @@ impl<T: KeyStore> KeyStoreExt for T {
     }
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: Id) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &mut E, id: BaseId) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,

@@ -1,4 +1,4 @@
-use aranya_crypto::Id;
+use aranya_crypto::BaseId;
 use aranya_policy_ast::Identifier;
 use aranya_policy_module::{FactKey, FactKeyList, FactValue, FactValueList, KVPair};
 use buggy::Bug;
@@ -76,7 +76,7 @@ where
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        command: Id,
+        command: BaseId,
         recalled: bool,
     );
 

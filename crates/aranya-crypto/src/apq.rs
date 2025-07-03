@@ -225,7 +225,7 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///         DefaultCipherSuite,
     ///         DefaultEngine,
     ///     },
-    ///     Id,
+    ///     BaseId,
     ///     Rng,
     ///     DeviceId,
     /// };
@@ -600,7 +600,7 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     ///         DefaultCipherSuite,
     ///         DefaultEngine,
     ///     },
-    ///     Id,
+    ///     BaseId,
     ///     Rng,
     ///     DeviceId,
     /// };

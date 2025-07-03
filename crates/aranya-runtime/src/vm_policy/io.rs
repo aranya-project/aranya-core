@@ -6,7 +6,7 @@ use core::{
     ops::{Deref, DerefMut},
 };
 
-use aranya_crypto::Id;
+use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ast::{Identifier, Text},
     ffi::FfiModule,
@@ -147,7 +147,7 @@ where
         &mut self,
         name: Identifier,
         fields: impl IntoIterator<Item = KVPair>,
-        command: Id,
+        command: BaseId,
         recalled: bool,
     ) {
         let fields: Vec<_> = fields.into_iter().collect();
@@ -300,7 +300,7 @@ fn deser_key(bytes: &[u8]) -> Result<FactKey, &'static str> {
         }
         KeyType::Id => {
             let bytes = bytes.try_into().map_err(|_| "invalid ID length")?;
-            let id = Id::from_bytes(bytes);
+            let id = BaseId::from_bytes(bytes);
             HashableValue::Id(id)
         }
         KeyType::Enum => {
@@ -412,7 +412,7 @@ mod test {
         }
 
         #[test]
-        fn test_id_ord(identifier: Identifier, v1: Id, v2: Id) {
+        fn test_id_ord(identifier: Identifier, v1: BaseId, v2: BaseId) {
             let b1 = ser_key(&FactKey {
                 identifier: identifier.clone(),
                 value: HashableValue::Id(v1),

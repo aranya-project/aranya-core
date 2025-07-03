@@ -11,8 +11,8 @@ use core::convert::Infallible;
 use aranya_crypto::{
     self,
     aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    policy, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
-    KeyStore, KeyStoreExt, PolicyId, UnwrapError, WrapError,
+    policy, BaseId, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine,
+    ImportError, KeyStore, KeyStoreExt, PolicyId, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
     ffi::{ffi, Type},
@@ -108,7 +108,7 @@ function create_bidi_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: BaseId,
         our_enc_key_id: EncryptionKeyId,
         our_id: DeviceId,
         their_enc_pk: Vec<u8>,
@@ -169,7 +169,7 @@ function create_uni_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: BaseId,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,
         seal_id: DeviceId,
@@ -226,7 +226,7 @@ function label_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        cmd_id: Id,
+        cmd_id: BaseId,
         name: Text,
     ) -> Result<LabelId, Infallible> {
         // TODO(eric): Use the real policy ID once it's
@@ -304,7 +304,7 @@ impl TryFrom<Value> for LabelId {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let id: Id = value.try_into()?;
+        let id: BaseId = value.try_into()?;
         Ok(LabelId::from(id))
     }
 }

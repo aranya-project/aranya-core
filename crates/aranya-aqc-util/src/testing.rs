@@ -22,7 +22,7 @@ use aranya_crypto::{
     engine::WrappedKey,
     id::IdExt as _,
     keystore::{memstore, Entry, Occupied, Vacant},
-    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
+    BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine,
     IdentityKey, KeyStore, Random, Rng,
 };
 use aranya_policy_vm::{ident, ActionContext, CommandContext};
@@ -143,7 +143,7 @@ impl KeyStore for MemStore {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error> {
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
         let entry = match self.0.entry(id)? {
             GuardedEntry::Vacant(v) => Entry::Vacant(VacantEntry(v)),
             GuardedEntry::Occupied(v) => Entry::Occupied(OccupiedEntry(v)),
@@ -151,7 +151,7 @@ impl KeyStore for MemStore {
         Ok(entry)
     }
 
-    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error> {
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match self.0.entry(id)? {
             GuardedEntry::Vacant(_) => Ok(None),
             GuardedEntry::Occupied(v) => Ok(Some(v.get()?)),
@@ -193,7 +193,7 @@ struct MemStoreInner {
 }
 
 impl MemStoreInner {
-    fn entry<T: WrappedKey>(&self, id: Id) -> Result<GuardedEntry<'_, T>, memstore::Error> {
+    fn entry<T: WrappedKey>(&self, id: BaseId) -> Result<GuardedEntry<'_, T>, memstore::Error> {
         mem::forget(self.mutex.lock());
 
         // SAFETY: we've locked `self.mutex`, so access to
@@ -385,7 +385,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let mut peer = T::new();
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = BaseId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
@@ -474,7 +474,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let mut peer = T::new();
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = BaseId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniSendOnlyChannel"),
         head_id: parent_cmd_id,
@@ -565,7 +565,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
     let mut peer = T::new(); // send only
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = BaseId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniRecvOnlyChannel"),
         head_id: parent_cmd_id,
@@ -659,7 +659,7 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
         .map(|_| {
-            let parent_cmd_id = Id::random(&mut Rng);
+            let parent_cmd_id = BaseId::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
                 name: ident!("CreateBidiChannel"),
                 head_id: parent_cmd_id,
@@ -757,7 +757,7 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let parent_cmd_id = Id::random(&mut Rng);
+    let parent_cmd_id = BaseId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
@@ -871,7 +871,7 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
         .iter()
         .enumerate()
         .map(|(i, peer)| {
-            let parent_cmd_id = Id::random(&mut Rng);
+            let parent_cmd_id = BaseId::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
                 name: ident!("CreateBidiChannel"),
                 head_id: parent_cmd_id,

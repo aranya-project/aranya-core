@@ -11,8 +11,8 @@ use core::result::Result;
 use aranya_crypto::{
     self,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
-    KeyStoreExt, UnwrapError, WrapError,
+    BaseId, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
+    KeyStore, KeyStoreExt, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
     ffi::{ffi, Type},
@@ -81,7 +81,7 @@ function create_bidi_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: BaseId,
         our_enc_key_id: EncryptionKeyId,
         our_id: DeviceId,
         their_enc_pk: Vec<u8>,
@@ -138,7 +138,7 @@ function create_uni_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: Id,
+        parent_cmd_id: BaseId,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,
         seal_id: DeviceId,

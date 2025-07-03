@@ -2,7 +2,7 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 
-use aranya_crypto::{engine::Engine, Id};
+use aranya_crypto::{engine::Engine, BaseId};
 use aranya_policy_vm::{ffi::ffi, CommandContext};
 
 use crate::error::{Error, WrongContext};
@@ -102,7 +102,7 @@ function parent_id(envelope_input struct Envelope) id
         ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.parent_id)
@@ -122,7 +122,7 @@ function author_id(envelope_input struct Envelope) id
         ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.author_id)
@@ -143,7 +143,7 @@ function command_id(envelope_input struct Envelope) id
         ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
-    ) -> Result<Id, Error> {
+    ) -> Result<BaseId, Error> {
         match ctx {
             CommandContext::Open(_) | CommandContext::Policy(_) | CommandContext::Recall(_) => {
                 Ok(envelope_input.command_id)
@@ -212,9 +212,9 @@ function new(
         &self,
         ctx: &CommandContext,
         _eng: &mut E,
-        parent_id: Id,
-        author_id: Id,
-        command_id: Id,
+        parent_id: BaseId,
+        author_id: BaseId,
+        command_id: BaseId,
         signature: Vec<u8>,
         payload: Vec<u8>,
     ) -> Result<Envelope, Error> {
