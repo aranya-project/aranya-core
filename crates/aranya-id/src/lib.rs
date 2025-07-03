@@ -10,7 +10,7 @@ mod id;
 pub use spideroak_base58 as base58;
 
 #[doc(inline)]
-pub use crate::id::Id;
+pub use crate::id::{Id, Identity};
 
 #[doc(hidden)]
 pub mod __hidden {

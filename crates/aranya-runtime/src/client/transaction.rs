@@ -442,6 +442,7 @@ fn get_policy<'a, E: Engine>(
 mod test {
     use std::collections::HashMap;
 
+    use aranya_crypto::id::Identity;
     use buggy::Bug;
     use test_log::test;
 
@@ -759,11 +760,8 @@ mod test {
         }
     }
 
-    fn mkid<T>(x: &str) -> T
-    where
-        aranya_crypto::Id: Into<T>,
-    {
-        x.parse::<aranya_crypto::Id>().unwrap().into()
+    fn mkid<T: Identity>(x: &str) -> T {
+        x.parse().unwrap()
     }
 
     /// See tests for usage.
