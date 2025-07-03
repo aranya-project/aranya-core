@@ -8,7 +8,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc", "fs-keystore"] }
+aranya-crypto = { path = "../aranya-crypto", features = ["std", "fs-keystore"] }
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
 aranya-policy-vm = { path = "../aranya-policy-vm" }
