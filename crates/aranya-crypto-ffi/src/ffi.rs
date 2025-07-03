@@ -175,7 +175,7 @@ function verify(
             parent_id: &parent_id,
         };
         let id = pk.verify_cmd(cmd, &signature)?;
-        if bool::from(id.ct_eq(&command_id.into())) {
+        if bool::from(id.ct_eq(&command_id.from_id())) {
             Ok(command_bytes)
         } else {
             Err(InvalidCmdId(()).into())

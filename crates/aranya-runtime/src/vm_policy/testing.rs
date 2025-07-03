@@ -7,7 +7,7 @@ use aranya_crypto::DeviceId;
 use aranya_policy_vm::{ffi::ffi, CommandContext, MachineError};
 use buggy::{bug, BugExt};
 
-use crate::CommandId;
+use crate::{testing::hash_cmd_for_testing_only, CommandId};
 
 pub struct TestFfiEnvelope {
     pub device: DeviceId,
@@ -50,7 +50,7 @@ impl TestFfiEnvelope {
             bug!("envelope::do_seal called outside seal context");
         };
 
-        let parent_id = ctx.head_id.into();
+        let parent_id = ctx.head_id.from_id();
         let author_id = self.device;
 
         let data = postcard::to_allocvec(&HashedFields {
@@ -60,7 +60,7 @@ impl TestFfiEnvelope {
         })
         .assume("can serialize `HashedFields`")?;
 
-        let command_id = CommandId::hash_for_testing_only(&data);
+        let command_id = hash_cmd_for_testing_only(&data);
 
         Ok(Envelope {
             parent_id: parent_id.into_id(),

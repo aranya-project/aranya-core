@@ -3,7 +3,6 @@
 use core::borrow::Borrow;
 
 use spideroak_crypto::hash::{Digest, Hash};
-use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
     aranya::{Signature, SigningKeyId},
@@ -13,13 +12,11 @@ use crate::{
 
 custom_id! {
     /// Uniquely identifies a group.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct GroupId;
 }
 
 custom_id! {
     /// Uniquely identifies a policy.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct PolicyId;
 }
 
@@ -108,7 +105,6 @@ impl Cmd<'_> {
 
 custom_id! {
     /// Uniquely identifies a role.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct RoleId;
 }
 
@@ -137,7 +133,6 @@ custom_id! {
     ///
     /// A label associates an AQC channel with Aranya policy
     /// rules that govern communication in the channel.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct LabelId;
 }
 

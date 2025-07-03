@@ -4,14 +4,15 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    custom_id, engine::Engine, id::IdExt as _, policy, zeroize::Zeroizing, BaseId, Context, Encap,
-    EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, IdentityVerifyingKey,
-    KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey,
+    engine::Engine,
+    id::IdExt as _,
+    policy::{self, RoleId},
+    zeroize::Zeroizing,
+    BaseId, CmdId, Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
+    EncryptionPublicKey, GroupKey, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId,
+    SigningKey, SigningKeyId, VerifyingKey,
 };
-use aranya_policy_vm::{
-    ffi::{ffi, Type},
-    CommandContext, Text, Typed, Value, ValueConversionError,
-};
+use aranya_policy_vm::{ffi::ffi, CommandContext, Text};
 
 use crate::error::{AllocError, Error, ErrorKind, KeyNotFound, WrongContext};
 
@@ -65,9 +66,9 @@ function derive_enc_key_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         enc_pk: Vec<u8>,
-    ) -> Result<BaseId, Error> {
+    ) -> Result<EncryptionKeyId, Error> {
         let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&enc_pk)?;
-        Ok(pk.id()?.into_id())
+        Ok(pk.id()?)
     }
 
     /// Returns the ID of an encoded [`VerifyingKey`].
@@ -82,9 +83,9 @@ function derive_sign_key_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         sign_pk: Vec<u8>,
-    ) -> Result<BaseId, Error> {
+    ) -> Result<SigningKeyId, Error> {
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&sign_pk)?;
-        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into_id())
+        Ok(pk.id()?)
     }
 
     /// Returns the ID of an encoded [`IdentityVerifyingKey`].
@@ -99,9 +100,9 @@ function derive_device_id(
         _ctx: &CommandContext,
         _eng: &mut E,
         ident_pk: Vec<u8>,
-    ) -> Result<BaseId, Error> {
+    ) -> Result<DeviceId, Error> {
         let pk: IdentityVerifyingKey<E::CS> = postcard::from_bytes(&ident_pk)?;
-        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into_id())
+        Ok(pk.id()?)
     }
 
     /// Generates a random [`GroupKey`].
@@ -319,39 +320,13 @@ function label_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        cmd_id: BaseId,
+        cmd_id: CmdId,
         name: Text,
     ) -> Result<RoleId, Infallible> {
         // TODO(eric): Use the real policy ID once it's
         // available.
         let policy_id = PolicyId::default();
-        let id = policy::role_id::<E::CS>(cmd_id.into(), &name, policy_id)
-            .into_id()
-            .into();
+        let id = policy::role_id::<E::CS>(cmd_id, &name, policy_id);
         Ok(id)
-    }
-}
-
-custom_id! {
-    /// Uniquely identifies a role.
-    pub struct RoleId;
-}
-
-impl Typed for RoleId {
-    const TYPE: Type<'static> = Type::Id;
-}
-
-impl TryFrom<Value> for RoleId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let id: BaseId = value.try_into()?;
-        Ok(RoleId::from(id))
-    }
-}
-
-impl From<RoleId> for Value {
-    fn from(id: RoleId) -> Value {
-        Value::Id(id.into_id())
     }
 }

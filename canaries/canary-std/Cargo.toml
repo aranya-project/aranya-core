@@ -13,7 +13,6 @@ aranya-crypto = { path = "../../crates/aranya-crypto", default-features = false,
 	"alloc",
 	"committing-aead",
 	"clone-aead",
-	"proptest",
 	"rand_compat",
 ] }
 aranya-crypto-ffi = { path = "../../crates/aranya-crypto-ffi", features = ["alloc"] }

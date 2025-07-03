@@ -43,9 +43,9 @@ impl fmt::Debug for IdPath {
     }
 }
 
-impl GraphId {
-    pub(super) fn to_path(self) -> IdPath {
-        IdPath(self.to_base58())
+impl From<GraphId> for IdPath {
+    fn from(id: GraphId) -> IdPath {
+        IdPath(id.to_base58())
     }
 }
 
@@ -58,7 +58,7 @@ mod tests {
         let root = Path::new("/foo/bar");
         let id = GraphId::default();
 
-        let got = root.join(id.to_path());
+        let got = root.join(IdPath::from(id));
         let want = format!("/foo/bar/{id}");
 
         assert_eq!(got, want.as_str());

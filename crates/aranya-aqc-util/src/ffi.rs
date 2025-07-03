@@ -11,18 +11,16 @@ use core::convert::Infallible;
 use aranya_crypto::{
     self,
     aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    policy, BaseId, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine,
+    policy, BaseId, CipherSuite, CmdId, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine,
     ImportError, KeyStore, KeyStoreExt, PolicyId, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
-    ffi::{ffi, Type},
-    CommandContext, MachineError, MachineErrorType, MachineIOError, Text, Typed, Value,
-    ValueConversionError,
+    ffi::ffi, CommandContext, MachineError, MachineErrorType, MachineIOError, Text,
 };
 use buggy::Bug;
 use spin::Mutex;
 
-use crate::shared::{decode_enc_pk, LabelId};
+use crate::{shared::decode_enc_pk, LabelId};
 
 /// Wraps `tracing::error` to always use the `aqc-ffi` target.
 macro_rules! error {
@@ -226,15 +224,13 @@ function label_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        cmd_id: BaseId,
+        cmd_id: CmdId,
         name: Text,
     ) -> Result<LabelId, Infallible> {
         // TODO(eric): Use the real policy ID once it's
         // available.
         let policy_id = PolicyId::default();
-        let id = policy::label_id::<E::CS>(cmd_id.into(), &name, policy_id)
-            .into_id()
-            .into();
+        let id = policy::label_id::<E::CS>(cmd_id, &name, policy_id);
         Ok(id)
     }
 }
@@ -293,24 +289,5 @@ impl From<Bug> for FfiError {
     #[inline]
     fn from(bug: Bug) -> Self {
         Self::Bug(bug)
-    }
-}
-
-impl Typed for LabelId {
-    const TYPE: Type<'static> = Type::Id;
-}
-
-impl TryFrom<Value> for LabelId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        let id: BaseId = value.try_into()?;
-        Ok(LabelId::from(id))
-    }
-}
-
-impl From<LabelId> for Value {
-    fn from(id: LabelId) -> Value {
-        Value::Id(id.into_id())
     }
 }

@@ -6,6 +6,7 @@ use postcard::ser_flavors::Slice;
 use serde::{Deserialize, Serialize};
 use tracing::{error, trace};
 
+use super::hash_cmd_for_testing_only;
 use crate::{
     alloc, Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
     MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, MAX_COMMAND_LENGTH,
@@ -155,7 +156,7 @@ impl TestPolicy {
 
         let command = WireProtocol::Init(message);
         let data = write(target, &command)?;
-        let id = CommandId::hash_for_testing_only(data);
+        let id = hash_cmd_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -176,7 +177,7 @@ impl TestPolicy {
 
         let command = WireProtocol::Basic(message);
         let data = write(target, &command)?;
-        let id = CommandId::hash_for_testing_only(data);
+        let id = hash_cmd_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }
@@ -291,7 +292,7 @@ impl Policy for TestPolicy {
         let (left, right) = ids.into();
         let command = WireProtocol::Merge(WireMerge { left, right });
         let data = write(target, &command)?;
-        let id = CommandId::hash_for_testing_only(data);
+        let id = hash_cmd_for_testing_only(data);
 
         Ok(TestProtocol { id, command, data })
     }

@@ -628,8 +628,7 @@ where
             .public()
             .expect("encryption public key should be valid")
             .id()
-            .expect("encryption key ID should be valid")
-            .into_id();
+            .expect("encryption key ID should be valid");
         let enc_pk =
             postcard::to_allocvec(&sk.public().expect("public encryption key should be valid"))
                 .expect("should be able to encode `EncryptionPublicKey`");
@@ -647,8 +646,7 @@ where
             .public()
             .expect("verifying key should be valid")
             .id()
-            .expect("signing key ID should be valid")
-            .into_id();
+            .expect("signing key ID should be valid");
         let sign_pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
             .expect("should be able to encode `VerifyingKey`");
         let got = ffi
@@ -665,8 +663,7 @@ where
             .public()
             .expect("identity verifying key should be valid")
             .id()
-            .expect("device ID should be valid")
-            .into_id();
+            .expect("device ID should be valid");
         let ident_pk =
             postcard::to_allocvec(&sk.public().expect("identity verifying key should be valid"))
                 .expect("should be able to encode `IdentityVerifyingKey`");
