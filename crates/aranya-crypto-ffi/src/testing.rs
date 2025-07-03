@@ -7,7 +7,7 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    id::IdExt as _, Csprng, DeviceId, Engine, Id, KeyStore, Random, SignerError, SigningKey,
+    id::IdExt as _, BaseId, Csprng, DeviceId, Engine, KeyStore, Random, SignerError, SigningKey,
 };
 use aranya_policy_vm::{
     ident, ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
@@ -78,7 +78,7 @@ where
 {
     const SEAL_CTX: CommandContext = CommandContext::Seal(SealContext {
         name: ident!("dummy"),
-        head_id: Id::default(),
+        head_id: BaseId::default(),
     });
 
     const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
@@ -122,7 +122,7 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                BaseId::default(),
                 command.clone(),
                 command_id,
                 signature,
@@ -176,7 +176,7 @@ where
             &Self::OPEN_CTX,
             &mut eng,
             pk,
-            Id::default(),
+            BaseId::default(),
             command,
             command_id,
             signature,
@@ -227,7 +227,7 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                BaseId::default(),
                 command,
                 command_id,
                 signature,
@@ -245,7 +245,7 @@ where
     pub fn test_verify_reject_different_cmd_name(mut eng: E, mut store: S) {
         const SEAL_CTX: CommandContext = CommandContext::Seal(SealContext {
             name: ident!("foo"),
-            head_id: Id::default(),
+            head_id: BaseId::default(),
         });
 
         const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
@@ -288,7 +288,7 @@ where
                 &OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                BaseId::default(),
                 command,
                 command_id,
                 signature,
@@ -326,7 +326,7 @@ where
 
         let seal_ctx = CommandContext::Seal(SealContext {
             name: ident!("dummy"),
-            head_id: Id::random(&mut eng),
+            head_id: BaseId::random(&mut eng),
         });
         let Signed {
             signature,
@@ -348,7 +348,7 @@ where
                 &open_ctx,
                 &mut eng,
                 pk,
-                Id::default(),
+                BaseId::default(),
                 command,
                 command_id,
                 signature,
@@ -403,7 +403,7 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                Id::default(),
+                BaseId::default(),
                 command,
                 command_id,
                 signature,
@@ -440,22 +440,22 @@ where
         for ctx in &[
             CommandContext::Action(ActionContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: BaseId::default(),
             }),
             CommandContext::Open(OpenContext {
                 name: ident!("dummy"),
             }),
             CommandContext::Policy(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: BaseId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: BaseId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
         ] {
             let err = ffi
@@ -508,23 +508,23 @@ where
         for ctx in &[
             CommandContext::Action(ActionContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: BaseId::default(),
             }),
             CommandContext::Seal(SealContext {
                 name: ident!("dummy"),
-                head_id: Id::default(),
+                head_id: BaseId::default(),
             }),
             CommandContext::Policy(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: BaseId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
             CommandContext::Recall(PolicyContext {
                 name: ident!("dummy"),
-                id: Id::default(),
+                id: BaseId::default(),
                 author: DeviceId::default(),
-                version: Id::default(),
+                version: BaseId::default(),
             }),
         ] {
             let err = ffi
@@ -532,7 +532,7 @@ where
                     ctx,
                     &mut eng,
                     pk.clone(),
-                    Id::default(),
+                    BaseId::default(),
                     command.clone(),
                     command_id,
                     signature.clone(),

@@ -14,12 +14,12 @@ use alloc::{
 use core::marker::PhantomData;
 
 use super::{Entry, ErrorKind, KeyStore, Occupied, Vacant};
-use crate::{engine::WrappedKey, id::Id, util::cbor};
+use crate::{engine::WrappedKey, id::BaseId, util::cbor};
 
 /// An in-memory implementation of [`KeyStore`].
 #[derive(Clone, Default, Debug)]
 pub struct MemStore {
-    keys: BTreeMap<Id, StoredKey>,
+    keys: BTreeMap<BaseId, StoredKey>,
 }
 
 impl MemStore {
@@ -38,7 +38,7 @@ impl KeyStore for MemStore {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(&mut self, id: Id) -> Result<Entry<'_, Self, T>, Self::Error> {
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
         match self.keys.entry(id) {
             btree_map::Entry::Vacant(entry) => Ok(Entry::Vacant(VacantEntry {
                 entry,
@@ -51,7 +51,7 @@ impl KeyStore for MemStore {
         }
     }
 
-    fn get<T: WrappedKey>(&self, id: Id) -> Result<Option<T>, Self::Error> {
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match self.keys.get(&id) {
             Some(v) => Ok(Some(v.to_wrapped()?)),
             None => Ok(None),
@@ -77,7 +77,7 @@ impl StoredKey {
 
 /// A vacant entry.
 pub struct VacantEntry<'a, T> {
-    entry: btree_map::VacantEntry<'a, Id, StoredKey>,
+    entry: btree_map::VacantEntry<'a, BaseId, StoredKey>,
     _t: PhantomData<T>,
 }
 
@@ -92,7 +92,7 @@ impl<T: WrappedKey> Vacant<T> for VacantEntry<'_, T> {
 
 /// An occupied entry.
 pub struct OccupiedEntry<'a, T> {
-    entry: btree_map::OccupiedEntry<'a, Id, StoredKey>,
+    entry: btree_map::OccupiedEntry<'a, BaseId, StoredKey>,
     _t: PhantomData<T>,
 }
 
@@ -157,7 +157,7 @@ mod tests {
     use super::*;
     use crate::{
         default::DefaultCipherSuite,
-        id::{Id, Identified},
+        id::{BaseId, Identified},
     };
 
     macro_rules! id {
@@ -173,7 +173,7 @@ mod tests {
     impl WrappedKey for TestKey64 {}
 
     impl Identified for TestKey64 {
-        type Id = Id;
+        type Id = BaseId;
 
         fn id(&self) -> Result<Self::Id, crate::id::IdError> {
             Ok(id!(self.0))
@@ -181,12 +181,12 @@ mod tests {
     }
 
     #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-    struct TestKeyId(Id);
+    struct TestKeyId(BaseId);
 
     impl WrappedKey for TestKeyId {}
 
     impl Identified for TestKeyId {
-        type Id = Id;
+        type Id = BaseId;
 
         fn id(&self) -> Result<Self::Id, crate::id::IdError> {
             Ok(self.0)

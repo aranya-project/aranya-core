@@ -34,9 +34,9 @@ use zerocopy::FromBytes;
     zerocopy_derive::Unaligned,
     zerocopy_derive::FromBytes,
 )]
-pub struct Id([u8; 32]);
+pub struct BaseId([u8; 32]);
 
-impl Id {
+impl BaseId {
     /// Same as [`Default`], but const.
     #[inline]
     pub const fn default() -> Self {
@@ -49,60 +49,60 @@ impl Id {
         Self(bytes)
     }
 
-    /// Returns the [`Id`] as a byte slice.
+    /// Returns the ID as a byte slice.
     #[inline]
     pub const fn as_bytes(&self) -> &[u8] {
         &self.0
     }
 
-    /// Returns the [`Id`] as a byte array.
+    /// Returns the ID as a byte array.
     #[inline]
     pub const fn as_array(&self) -> &[u8; 32] {
         &self.0
     }
 
-    /// Decode the [`Id`] from a base58 string.
+    /// Decode the ID from a base58 string.
     pub fn decode<T: AsRef<[u8]>>(s: T) -> Result<Self, DecodeError> {
         String32::decode(s).map(Self::from)
     }
 }
 
-impl Default for Id {
+impl Default for BaseId {
     #[inline]
     fn default() -> Self {
         Self([0u8; 32])
     }
 }
 
-impl ConstantTimeEq for Id {
+impl ConstantTimeEq for BaseId {
     #[inline]
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
     }
 }
 
-impl AsRef<[u8]> for Id {
+impl AsRef<[u8]> for BaseId {
     #[inline]
     fn as_ref(&self) -> &[u8] {
         self.as_bytes()
     }
 }
 
-impl From<[u8; 32]> for Id {
+impl From<[u8; 32]> for BaseId {
     #[inline]
     fn from(id: [u8; 32]) -> Self {
         Self(id)
     }
 }
 
-impl From<Id> for [u8; 32] {
+impl From<BaseId> for [u8; 32] {
     #[inline]
-    fn from(id: Id) -> Self {
+    fn from(id: BaseId) -> Self {
         id.0
     }
 }
 
-impl FromStr for Id {
+impl FromStr for BaseId {
     type Err = DecodeError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -110,19 +110,19 @@ impl FromStr for Id {
     }
 }
 
-impl Debug for Id {
+impl Debug for BaseId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Id({})", self.0.to_base58())
     }
 }
 
-impl Display for Id {
+impl Display for BaseId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.to_base58())
     }
 }
 
-impl ToBase58 for Id {
+impl ToBase58 for BaseId {
     type Output = String32;
 
     fn to_base58(&self) -> Self::Output {
@@ -130,7 +130,7 @@ impl ToBase58 for Id {
     }
 }
 
-impl Serialize for Id {
+impl Serialize for BaseId {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -143,14 +143,14 @@ impl Serialize for Id {
     }
 }
 
-impl<'de> Deserialize<'de> for Id {
+impl<'de> Deserialize<'de> for BaseId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
         struct Base58Visitor;
         impl Visitor<'_> for Base58Visitor {
-            type Value = Id;
+            type Value = BaseId;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "a base58 string")
@@ -168,10 +168,10 @@ impl<'de> Deserialize<'de> for Id {
 
         struct IdVisitor;
         impl<'de> Visitor<'de> for IdVisitor {
-            type Value = Id;
+            type Value = BaseId;
 
             fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "an array of length {}", Id::default().0.len())
+                write!(f, "an array of length {}", BaseId::default().0.len())
             }
 
             fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
@@ -187,7 +187,7 @@ impl<'de> Deserialize<'de> for Id {
             where
                 A: SeqAccess<'de>,
             {
-                let mut id = Id::default();
+                let mut id = BaseId::default();
                 for (i, v) in id.0.iter_mut().enumerate() {
                     match seq.next_element()? {
                         Some(e) => *v = e,
@@ -206,9 +206,9 @@ impl<'de> Deserialize<'de> for Id {
     }
 }
 
-crate::__impl_arbitrary!(Id => [u8; 32]);
+crate::__impl_arbitrary!(BaseId => [u8; 32]);
 
-/// Creates a custom [`Id`].
+/// Creates a custom ID.
 #[macro_export]
 macro_rules! custom_id {
     (
@@ -227,19 +227,19 @@ macro_rules! custom_id {
             PartialOrd,
         )]
         $(#[$meta])*
-        $vis struct $name($crate::Id);
+        $vis struct $name($crate::BaseId);
 
         impl $name {
             /// Same as [`Default`], but const.
             #[inline]
             pub const fn default() -> Self {
-                Self($crate::Id::default())
+                Self($crate::BaseId::default())
             }
 
             /// Creates itself from a byte array.
             #[inline]
             pub const fn from_bytes(arr: [u8; 32]) -> Self {
-                Self($crate::Id::from_bytes(arr))
+                Self($crate::BaseId::from_bytes(arr))
             }
 
             /// Returns itself as a byte slice.
@@ -254,9 +254,9 @@ macro_rules! custom_id {
                 self.0.as_array()
             }
 
-            /// Returns itself as a plain `Id`.
+            /// Returns itself as a plain [`BaseId`][$crate::BaseId].
             #[inline]
-            pub const fn into_id(self) -> $crate::Id {
+            pub const fn into_id(self) -> $crate::BaseId {
                 self.0
             }
 
@@ -264,7 +264,7 @@ macro_rules! custom_id {
             pub fn decode<T: ::core::convert::AsRef<[u8]>>(
                 s: T,
             ) -> ::core::result::Result<Self, $crate::base58::DecodeError> {
-                $crate::Id::decode(s).map(Self)
+                $crate::BaseId::decode(s).map(Self)
             }
         }
 
@@ -296,14 +296,14 @@ macro_rules! custom_id {
             }
         }
 
-        impl ::core::convert::From<$crate::Id> for $name {
+        impl ::core::convert::From<$crate::BaseId> for $name {
             #[inline]
-            fn from(id: $crate::Id) -> Self {
+            fn from(id: $crate::BaseId) -> Self {
                 Self(id)
             }
         }
 
-        impl ::core::convert::From<$name> for $crate::Id {
+        impl ::core::convert::From<$name> for $crate::BaseId {
             #[inline]
             fn from(id: $name) -> Self {
                 id.0
@@ -343,7 +343,7 @@ macro_rules! custom_id {
             where
                 D: $crate::__hidden::serde::Deserializer<'de>,
             {
-                ::core::result::Result::map($crate::Id::deserialize(deserializer), Self)
+                ::core::result::Result::map($crate::BaseId::deserialize(deserializer), Self)
             }
         }
 
@@ -356,7 +356,7 @@ macro_rules! custom_id {
             }
         }
 
-        $crate::__impl_arbitrary!($name => $crate::Id);
+        $crate::__impl_arbitrary!($name => $crate::BaseId);
     };
 }
 

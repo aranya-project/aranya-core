@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 
 use aranya_crypto::{
-    subtle::ConstantTimeEq, Cmd, Engine, Id, KeyStore, Signature, SigningKey, VerifyingKey,
+    subtle::ConstantTimeEq, BaseId, Cmd, Engine, KeyStore, Signature, SigningKey, VerifyingKey,
 };
 use aranya_policy_vm::{ffi::ffi, CommandContext};
 
@@ -113,7 +113,7 @@ function sign(
         &self,
         ctx: &CommandContext,
         eng: &mut E,
-        our_sign_sk_id: Id,
+        our_sign_sk_id: BaseId,
         command_bytes: Vec<u8>,
     ) -> Result<Signed, Error> {
         let CommandContext::Seal(ctx) = ctx else {
@@ -157,9 +157,9 @@ function verify(
         ctx: &CommandContext,
         _eng: &mut E,
         author_sign_pk: Vec<u8>,
-        parent_id: Id,
+        parent_id: BaseId,
         command_bytes: Vec<u8>,
-        command_id: Id,
+        command_id: BaseId,
         signature: Vec<u8>,
     ) -> Result<Vec<u8>, Error> {
         let CommandContext::Open(ctx) = ctx else {

@@ -4,7 +4,7 @@ use aranya_crypto::{
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
-    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
+    BaseId, CipherSuite, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
 };
 use aranya_fast_channels::{Directed, Label};
 use serde::{Deserialize, Serialize};
@@ -128,7 +128,7 @@ impl<S: KeyStore> Handler<S> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BidiChannelCreated<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encryption key ID.
@@ -147,7 +147,7 @@ pub struct BidiChannelCreated<'a> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BidiChannelReceived<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
@@ -164,10 +164,10 @@ pub struct BidiChannelReceived<'a> {
 
 /// Uniquely identifies a bidirectional channel.
 #[derive(Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub struct BidiKeyId(Id);
+pub struct BidiKeyId(BaseId);
 
-impl From<Id> for BidiKeyId {
-    fn from(id: Id) -> Self {
+impl From<BaseId> for BidiKeyId {
+    fn from(id: BaseId) -> Self {
         Self(id)
     }
 }
@@ -291,7 +291,7 @@ impl<S: KeyStore> Handler<S> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct UniChannelCreated<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can encrypt messages.
@@ -312,7 +312,7 @@ pub struct UniChannelCreated<'a> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct UniChannelReceived<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can encrypt messages.
@@ -331,10 +331,10 @@ pub struct UniChannelReceived<'a> {
 
 /// Uniquely identifies a unirectional channel.
 #[derive(Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub struct UniKeyId(Id);
+pub struct UniKeyId(BaseId);
 
-impl From<Id> for UniKeyId {
-    fn from(id: Id) -> Self {
+impl From<BaseId> for UniKeyId {
+    fn from(id: BaseId) -> Self {
         Self(id)
     }
 }

@@ -13,7 +13,7 @@ test_ciphersuite!(default_ciphersuite, DefaultCipherSuite);
 mod unwrapped_tests {
     use core::marker::PhantomData;
 
-    use aranya_crypto::{id::IdError, unwrapped, Id, Identified};
+    use aranya_crypto::{id::IdError, unwrapped, BaseId, Identified};
 
     #[test]
     fn test_unwrapped() {
@@ -22,9 +22,9 @@ mod unwrapped_tests {
             _marker: PhantomData<CS>,
         }
         impl<CS> Identified for Seed<CS> {
-            type Id = Id;
+            type Id = BaseId;
             fn id(&self) -> Result<Self::Id, IdError> {
-                Ok(Id::default())
+                Ok(BaseId::default())
             }
         }
         unwrapped! {

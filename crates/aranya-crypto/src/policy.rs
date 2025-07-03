@@ -8,7 +8,7 @@ use zerocopy::{Immutable, IntoBytes, KnownLayout, Unaligned};
 use crate::{
     aranya::{Signature, SigningKeyId},
     ciphersuite::{CipherSuite, CipherSuiteExt},
-    id::{custom_id, Id},
+    id::{custom_id, BaseId},
 };
 
 custom_id! {
@@ -70,7 +70,7 @@ pub struct Cmd<'a> {
     /// E.g., `AddDevice`.
     pub name: &'a str,
     /// The parent command in the graph.
-    pub parent_id: &'a Id,
+    pub parent_id: &'a BaseId,
 }
 
 impl Cmd<'_> {

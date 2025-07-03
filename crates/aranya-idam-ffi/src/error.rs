@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::fmt;
 
-use aranya_crypto::{id::IdError, Id, ImportError, UnwrapError, WrapError};
+use aranya_crypto::{id::IdError, BaseId, ImportError, UnwrapError, WrapError};
 use aranya_policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
 
@@ -167,7 +167,7 @@ impl AllocError {
 /// Unable to find a key in the [`KeyStore`][aranya_crypto::KeyStore].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[error("key not found: {0}")]
-pub struct KeyNotFound(pub(crate) Id);
+pub struct KeyNotFound(pub(crate) BaseId);
 
 /// A method was called in the wrong context.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, thiserror::Error)]

@@ -3,7 +3,7 @@
 
 use aranya_crypto::{
     default::{DefaultEngine, Rng},
-    DeviceId, Id,
+    BaseId, DeviceId,
 };
 use aranya_policy_vm::{
     ident, ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext,
@@ -15,7 +15,7 @@ use crate::FfiPerspective;
 fn test_head_id() {
     let (mut eng, _) = DefaultEngine::<_>::from_entropy(Rng);
     let perspective = FfiPerspective {};
-    let head_id = Id::default();
+    let head_id = BaseId::default();
 
     {
         let context = CommandContext::Action(ActionContext {
@@ -51,9 +51,9 @@ fn test_head_id() {
     {
         let context = CommandContext::Policy(PolicyContext {
             name: ident!("policy"),
-            id: Id::default(),
+            id: BaseId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         });
         assert_eq!(
             perspective
@@ -69,9 +69,9 @@ fn test_head_id() {
     {
         let context = CommandContext::Recall(PolicyContext {
             name: ident!("recall"),
-            id: Id::default(),
+            id: BaseId::default(),
             author: DeviceId::default(),
-            version: Id::default(),
+            version: BaseId::default(),
         });
         assert_eq!(
             perspective

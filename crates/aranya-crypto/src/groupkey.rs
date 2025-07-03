@@ -20,7 +20,7 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
-    id::{custom_id, Id, IdError, Identified},
+    id::{custom_id, BaseId, IdError, Identified},
 };
 
 /// Key material used to derive per-event encryption keys.
@@ -112,14 +112,14 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///         DefaultEngine,
     ///     },
     ///     GroupKey,
-    ///     Id,
+    ///     BaseId,
     ///     Rng,
     ///     SigningKey,
     /// };
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
-    /// const PARENT: Id = Id::default();
+    /// const PARENT: Id = BaseId::default();
     /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public().expect("signing key should be valid");
     ///
     /// let key = GroupKey::new(&mut Rng);
@@ -270,7 +270,7 @@ pub struct Context<'a, CS: CipherSuite> {
     /// For example, it could be an event name.
     pub label: &'a str,
     /// The stable ID of the parent event.
-    pub parent: Id,
+    pub parent: BaseId,
     /// The public key of the author of the encrypted data.
     pub author_sign_pk: &'a VerifyingKey<CS>,
 }

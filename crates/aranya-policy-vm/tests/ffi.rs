@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     id::IdExt as _,
-    Engine, Id, Rng,
+    BaseId, Engine, Rng,
 };
 use aranya_policy_vm::{
     self,
@@ -48,9 +48,9 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
     fn call(&mut self, name: &str) -> Result<(), TestStateError<M::Error>> {
         let ctx = CommandContext::Policy(PolicyContext {
             name: ident!("SomeCommand"),
-            id: Id::default(),
-            author: Id::default().into(),
-            version: Id::default(),
+            id: BaseId::default(),
+            author: BaseId::default().into(),
+            version: BaseId::default(),
         });
         let idx = self.procs.get(name).ok_or(TestStateError::UnknownFunc)?;
         self.module
@@ -202,8 +202,8 @@ impl<T, G> TestModule<'_, T, G> {
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        id_input: Id,
-    ) -> Result<Id, Infallible> {
+        id_input: BaseId,
+    ) -> Result<BaseId, Infallible> {
         Ok(id_input)
     }
 
@@ -344,8 +344,8 @@ fn test_ffi_derive() {
 
     // Positive test for `identity`.
     {
-        let a = Id::default();
-        let b = Id::random(&mut Rng);
+        let a = BaseId::default();
+        let b = BaseId::random(&mut Rng);
 
         state.push(b);
         state.push(a);
@@ -354,7 +354,7 @@ fn test_ffi_derive() {
             state
                 .call("renamed_identity")
                 .expect("`test::renamed_identity` should not fail");
-            let got = state.pop::<Id>().expect("should have got an `Id`");
+            let got = state.pop::<BaseId>().expect("should have got an `Id`");
             assert_eq!(
                 got, id,
                 "`test::renamed_identity` returned the wrong result"
@@ -417,7 +417,7 @@ fn test_ffi_derive() {
             b: vec![1, 2, 3, 4],
             c: 42,
             d: true,
-            e: Id::random(&mut Rng),
+            e: BaseId::random(&mut Rng),
             f: S0 { x: 1234 },
             g: Some(42),
         };
