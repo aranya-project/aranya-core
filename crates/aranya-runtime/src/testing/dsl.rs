@@ -66,7 +66,10 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::{debug, error};
 
 use crate::{
-    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
+    testing::{
+        protocol::{TestActions, TestEffect, TestEngine, TestSink},
+        ShortB58,
+    },
     Address, ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location,
     PeerCache, Prior, Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester,
     SyncResponder, SyncType, COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
@@ -787,9 +790,9 @@ impl Display for Parent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
             Prior::Merge(a, b) => {
-                write!(f, "Merge({}, {})", &a.id.short_b58(), &b.id.short_b58())
+                write!(f, "Merge({}, {})", ShortB58(a.id), ShortB58(b.id))
             }
-            Prior::Single(a) => write!(f, "Single({})", &a.id.short_b58()),
+            Prior::Single(a) => write!(f, "Single({})", ShortB58(a.id)),
             Prior::None => write!(f, "None"),
         }
     }
@@ -811,7 +814,7 @@ where
         for command in commands.iter().rev() {
             debug!(
                 "id: {} location {:?} max_cut: {} parent: {}",
-                &command.id().short_b58(),
+                ShortB58(command.id()),
                 storage
                     .get_location(command.address()?)?
                     .assume("location must exist"),
@@ -856,7 +859,7 @@ fn walk<S: Storage>(storage: &S) -> impl Iterator<Item = CommandId> + '_ {
 fn graph_eq<S: Storage>(storage_a: &S, storage_b: &S) -> bool {
     for (a, b) in iter::zip(walk(storage_a), walk(storage_b)) {
         if a != b {
-            error!(a = %a.short_b58(), b = %b.short_b58(), "graph mismatch");
+            error!(a = %ShortB58(a), b = %ShortB58(b), "graph mismatch");
             return false;
         }
     }

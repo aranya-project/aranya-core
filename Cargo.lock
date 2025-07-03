@@ -316,6 +316,8 @@ dependencies = [
 name = "aranya-id"
 version = "0.1.0"
 dependencies = [
+ "derive-where",
+ "paste",
  "postcard",
  "proptest",
  "serde",
@@ -334,7 +336,6 @@ dependencies = [
  "aranya-idam-ffi",
  "aranya-policy-vm",
  "postcard",
- "serde",
  "thiserror 2.0.7",
  "tracing",
 ]
@@ -474,7 +475,7 @@ dependencies = [
 name = "aranya-policy-module"
 version = "0.11.0"
 dependencies = [
- "aranya-crypto",
+ "aranya-id",
  "aranya-policy-ast",
  "proptest",
  "proptest-derive",

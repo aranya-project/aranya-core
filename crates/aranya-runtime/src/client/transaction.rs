@@ -442,11 +442,16 @@ fn get_policy<'a, E: Engine>(
 mod test {
     use std::collections::HashMap;
 
+    use aranya_crypto::id::{Id, IdTag};
     use buggy::Bug;
     use test_log::test;
 
     use super::*;
-    use crate::{memory::MemStorageProvider, ClientState, Keys, MergeIds, Priority};
+    use crate::{
+        memory::MemStorageProvider,
+        testing::{hash_cmd_for_testing_only, ShortB58},
+        ClientState, Keys, MergeIds, Priority,
+    };
 
     struct SeqEngine;
 
@@ -532,7 +537,7 @@ mod test {
         ) -> Result<Self::Command<'a>, EngineError> {
             let (left, right): (Address, Address) = ids.into();
             let parents = [*left.id.as_array(), *right.id.as_array()];
-            let id = CommandId::hash_for_testing_only(parents.as_flattened());
+            let id = hash_cmd_for_testing_only(parents.as_flattened());
 
             Ok(SeqCommand::new(
                 id,
@@ -547,7 +552,7 @@ mod test {
 
     impl SeqCommand {
         fn new(id: CommandId, prior: Prior<Address>, max_cut: usize) -> Self {
-            let data = id.short_b58().into_boxed_str();
+            let data = ShortB58(id).to_string().into_boxed_str();
             Self {
                 id,
                 prior,
@@ -558,7 +563,7 @@ mod test {
         }
 
         fn finalize(id: CommandId, prev: Address, max_cut: usize) -> Self {
-            let data = id.short_b58().into_boxed_str();
+            let data = ShortB58(id).to_string().into_boxed_str();
             Self {
                 id,
                 prior: Prior::Single(prev),
@@ -634,7 +639,7 @@ mod test {
             mut client: ClientState<SeqEngine, SP>,
             ids: &[CommandId],
         ) -> Result<Self, ClientError> {
-            let mut trx = Transaction::new(GraphId::from(ids[0].into_id()));
+            let mut trx = Transaction::new(ids[0].into_id().from_id());
             let mut prior: Prior<Address> = Prior::None;
             let mut max_cuts = HashMap::new();
             for (max_cut, &id) in ids.iter().enumerate() {
@@ -759,11 +764,8 @@ mod test {
         }
     }
 
-    fn mkid<T>(x: &str) -> T
-    where
-        aranya_crypto::BaseId: Into<T>,
-    {
-        x.parse::<aranya_crypto::BaseId>().unwrap().into()
+    fn mkid<Tag: IdTag>(x: &str) -> Id<Tag> {
+        x.parse().unwrap()
     }
 
     /// See tests for usage.

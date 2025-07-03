@@ -92,7 +92,7 @@ impl StorageProvider for MemStorageProvider {
         if update.commands.is_empty() {
             return Err(StorageError::EmptyPerspective);
         }
-        let graph_id = GraphId::from(update.commands[0].command.id.into_id());
+        let graph_id = update.commands[0].command.id.into_id().from_id();
         let entry = match self.storage.entry(graph_id) {
             Entry::Vacant(v) => v,
             Entry::Occupied(_) => return Err(StorageError::StorageExists),
@@ -818,6 +818,7 @@ pub mod graphviz {
 
     #[allow(clippy::wildcard_imports)]
     use super::*;
+    use crate::testing::ShortB58;
 
     fn loc(location: impl Into<Location>) -> String {
         let location = location.into();
@@ -865,7 +866,7 @@ pub mod graphviz {
             for (i, cmd) in segment.commands.iter().enumerate() {
                 {
                     let mut node = cluster.node_named(loc((segment.index, i)));
-                    node.set_label(&cmd.command.id.short_b58());
+                    node.set_label(&ShortB58(cmd.command.id).to_string());
                     match cmd.command.parent {
                         Prior::None => {
                             node.set("shape", "house", false);

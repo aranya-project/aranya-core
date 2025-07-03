@@ -100,9 +100,6 @@ memstore = [
 	"dep:ciborium",
 ]
 
-# Enable `proptest::arbitrary::Arbitrary` implemenations
-proptest = ["aranya-id/proptest"]
-
 # Enable compat with the `rand`, `rand_core`, etc. crates.
 rand_compat = ["spideroak-crypto/rand_compat"]
 
@@ -132,7 +129,6 @@ test_util = [
 	"alloc",
 	"apq",
 	"aqc",
-	"proptest",
 	"tls",
 
 	"spideroak-crypto/test_util",
@@ -210,7 +206,6 @@ always_include_features = [
 	"getrandom",
 	"hazmat",
 	"memstore",
-	"proptest",
 	"rand_compat",
 	"std",
 	"test_util",

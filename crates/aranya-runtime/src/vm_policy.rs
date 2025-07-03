@@ -119,6 +119,7 @@ extern crate alloc;
 use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
+use aranya_crypto::BaseId;
 use aranya_policy_vm::{
     ast::Identifier, ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO,
     MachineStack, OpenContext, PolicyContext, RunState, Stack, Struct, Value,
@@ -578,7 +579,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                 name: kind.clone(),
                 id: command.id().into_id(),
                 author: author_id,
-                version: CommandId::default().into_id(),
+                version: BaseId::default(),
             });
             self.evaluate_rule(kind, fields.as_slice(), envelope, facts, sink, ctx, recall)?
         }
@@ -750,11 +751,11 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let (left, right) = ids.into();
         let c = VmProtocolData::Merge { left, right };
         let id = aranya_crypto::merge_cmd_id::<E::CS>(
-            left.id.into_id().into(),
-            right.id.into_id().into(),
+            left.id.into_id().from_id(),
+            right.id.into_id().from_id(),
         )
         .into_id()
-        .into();
+        .from_id();
         let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
             EngineError::Write
