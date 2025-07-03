@@ -215,7 +215,7 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     pub fn id(&self) -> BidiChannelId {
         *self
             .id
-            .get_or_init(|| BidiChannelId(Id::new::<CS>(self.as_bytes(), b"AqcBidiChannelId")))
+            .get_or_init(|| BidiChannelId::new::<CS>(self.as_bytes(), b"AqcBidiChannelId"))
     }
 
     /// Encodes itself as bytes.

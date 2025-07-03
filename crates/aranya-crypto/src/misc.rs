@@ -392,11 +392,11 @@ macro_rules! sk_misc {
                 self.id
                     .get_or_init(|| {
                         let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.sk.public()?);
-                        let id = $crate::id::Id::new::<CS>(
+                        let id = $crate::id::IdExt::new::<CS>(
                             ::core::borrow::Borrow::borrow(&pk),
                             $context.as_bytes(),
                         );
-                        Ok($id(id))
+                        Ok(id)
                     })
                     .clone()
             }
@@ -498,10 +498,10 @@ macro_rules! pk_misc {
             #[doc = "Two keys with the same ID are the same key."]
             pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
                 const CONTEXT: &'static str = $context;
-                ::core::result::Result::Ok($id($crate::id::IdExt::new::<CS>(
+                ::core::result::Result::Ok($crate::id::IdExt::new::<CS>(
                     ::core::borrow::Borrow::borrow(&self.pk.export()),
                     CONTEXT.as_bytes(),
-                )))
+                ))
             }
         }
 

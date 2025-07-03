@@ -198,7 +198,7 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     pub fn id(&self) -> UniChannelId {
         *self
             .id
-            .get_or_init(|| UniChannelId(Id::new::<CS>(self.as_bytes(), b"AqcUniChannelId")))
+            .get_or_init(|| UniChannelId::new::<CS>(self.as_bytes(), b"AqcUniChannelId"))
     }
 
     /// Encodes itself as bytes.
