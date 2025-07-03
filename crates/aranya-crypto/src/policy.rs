@@ -194,15 +194,15 @@ mod tests {
                 "7AEhZudswFSSYRXzigAgjeTjt4cCFC8QMxiE7Xnj3GKK",
             ),
             (
-                CmdId::from(Id::from_bytes([b'A'; 32])),
+                CmdId::from_bytes([b'A'; 32]),
                 "bar",
                 PolicyId::default(),
                 "24di1Kgod1CXqJ1Pgi77ptpT6t2Nk3YGifqSTjSttn8z",
             ),
             (
-                CmdId::from([b'A'; 32]),
+                CmdId::from_bytes([b'A'; 32]),
                 "baz",
-                PolicyId::from([b'B'; 32]),
+                PolicyId::from_bytes([b'B'; 32]),
                 "J2miD6wUPVVfxakYHBTA8n2wGFHyAty2P2zLedHz2Nov",
             ),
         ];
@@ -230,15 +230,15 @@ mod tests {
                 "BXi83x4nTF7gXD21AZAaGTg83yFvJMhezHSDQ7yYT1xx",
             ),
             (
-                CmdId::from(Id::from_bytes([b'A'; 32])),
+                CmdId::from_bytes([b'A'; 32]),
                 "bar",
                 PolicyId::default(),
                 "8syerzb6aY9rcVwDf1mq3m7Qh547tE6wUAFrw8fAJNZq",
             ),
             (
-                CmdId::from([b'A'; 32]),
+                CmdId::from_bytes([b'A'; 32]),
                 "baz",
-                PolicyId::from([b'B'; 32]),
+                PolicyId::from_bytes([b'B'; 32]),
                 "9Nkp9bxw2a7FvhkjexhBM2o4Su59AacWdEGYVmPHMKYr",
             ),
         ];
