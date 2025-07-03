@@ -1,4 +1,4 @@
-//! [`Id`]s and generation of [`custom_id`] types.
+//! [`aranya_id::BaseId`] related traits and types.
 
 #![forbid(unsafe_code)]
 

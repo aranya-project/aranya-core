@@ -1,7 +1,3 @@
-//! [`Id`]s and generation of [`custom_id`][crate::custom_id] types.
-
-#![forbid(unsafe_code)]
-
 use core::{
     fmt::{self, Debug, Display},
     hash::Hash,
