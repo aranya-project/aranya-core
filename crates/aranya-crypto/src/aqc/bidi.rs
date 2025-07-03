@@ -185,7 +185,11 @@ pub struct BidiAuthorSecret<CS: CipherSuite> {
     id: OnceCell<Result<BidiAuthorSecretId, IdError>>,
 }
 
-sk_misc!(BidiAuthorSecret, BidiAuthorSecretId);
+sk_misc!(
+    BidiAuthorSecret,
+    BidiAuthorSecretId,
+    "AQC Bidi Author Secret"
+);
 
 unwrapped! {
     name: BidiAuthorSecret;
@@ -666,6 +670,48 @@ mod tests {
         for (name, ch1, ch2) in cases {
             assert_ne!(ch1.author_info(), ch2.peer_info(), "test failed: {name}");
             assert_ne!(ch1.peer_info(), ch2.author_info(), "test failed: {name}");
+        }
+    }
+
+    /// Golden test for [`BidiAuthorSecret`] IDs.
+    #[test]
+    fn test_bidi_author_secret_id() {
+        use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
+
+        use crate::{aqc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};
+
+        type CS = TestCs<
+            rust::Aes256Gcm,
+            rust::Sha256,
+            rust::HkdfSha512,
+            DhKemP256HkdfSha256,
+            rust::HmacSha512,
+            Ed25519,
+        >;
+
+        let tests = [(
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "Efo3AYjbWpxHmFqMZyGQY3dD9s9UGKMGjSJvPb8fVzr8",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
+                .expect("should import decap key");
+            let root_key = RootChannelKey::<CS>::new(sk);
+            let bidi_author_secret = BidiAuthorSecret {
+                sk: root_key,
+                id: OnceCell::new(),
+            };
+
+            let got_id = bidi_author_secret.id().expect("should compute ID");
+            let expected =
+                BidiAuthorSecretId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
         }
     }
 }
