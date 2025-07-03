@@ -691,7 +691,7 @@ impl<'a> CompileState<'a> {
                     let struct_type = self
                         .identifier_types
                         .get(&ident!("this"))
-                        .assume("seal must has `this`")?;
+                        .assume("seal must have `this`")?;
                     let Typeish::Type(struct_type @ VType::Struct(_)) = struct_type else {
                         bug!("seal::this must be a struct type");
                     };
