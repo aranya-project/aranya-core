@@ -23,7 +23,7 @@ use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt};
+use buggy::{bug, Bug, BugExt};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use types::TypeError;
@@ -688,17 +688,21 @@ impl<'a> CompileState<'a> {
                             );
                         }
                     }
+                    let struct_type = self
+                        .identifier_types
+                        .get(&ident!("this"))
+                        .assume("seal must has `this`")?;
+                    let Typeish::Type(struct_type @ VType::Struct(_)) = struct_type else {
+                        bug!("seal::this must be a struct type");
+                    };
                     let t = self.compile_expression(e)?;
-                    if !t.is_any_struct() {
-                        return Err(self.err(CompileErrorType::InvalidType(String::from(
-                            "Serializing non-struct",
+                    if !t.is_maybe(&struct_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "serializing {t}, expected {struct_type}"
                         ))));
                     }
                     self.append_instruction(Instruction::Serialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to throw an error when this is used on a
-                    // struct that is not the current command struct
                     Typeish::Type(VType::Bytes)
                 }
                 ast::InternalFunction::Deserialize(e) => {

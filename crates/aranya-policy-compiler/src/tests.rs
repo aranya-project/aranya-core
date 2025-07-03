@@ -1733,7 +1733,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "Serializing non-struct",
+            e: "serializing int, expected struct Foo",
         },
         Case {
             t: r#"
