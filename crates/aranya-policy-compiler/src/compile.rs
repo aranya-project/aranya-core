@@ -677,11 +677,16 @@ impl<'a> CompileState<'a> {
                         .map_err(|e| self.err(e.into()))?
                 }
                 ast::InternalFunction::Serialize(e) => {
-                    if !matches!(
-                        self.get_statement_context()?,
-                        StatementContext::PureFunction(_)
-                    ) {
-                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
+                    match self.get_statement_context()? {
+                        StatementContext::PureFunction(ast::FunctionDefinition {
+                            identifier,
+                            ..
+                        }) if identifier == "seal" => {}
+                        _ => {
+                            return Err(
+                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
+                            );
+                        }
                     }
                     let t = self.compile_expression(e)?;
                     if !t.is_any_struct() {
