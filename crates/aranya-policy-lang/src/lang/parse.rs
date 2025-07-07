@@ -1687,12 +1687,13 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | Priority | Op |
 /// |----------|----|
 /// | 1        | `.` |
-/// | 2        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
-/// | 3        | `%` |
-/// | 4        | `+`, `-` (infix) |
-/// | 5        | `>`, `<`, `>=`, `<=`, `is` |
-/// | 6        | `==`, `!=` |
-/// | 7        | `&&`, \|\| (\| conflicts with markdown tables :[) |
+/// | 2        | `substruct`, `cast` (infix) |
+/// | 3        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
+/// | 4        | `%` |
+/// | 5        | `+`, `-` (infix) |
+/// | 6        | `>`, `<`, `>=`, `<=`, `is` |
+/// | 7        | `==`, `!=` |
+/// | 8        | `&&`, \|\| (\| conflicts with markdown tables :[) |
 pub fn get_pratt_parser() -> PrattParser<Rule> {
     PrattParser::new()
         .op(Op::infix(Rule::and, Assoc::Left) | Op::infix(Rule::or, Assoc::Left))
