@@ -1453,14 +1453,12 @@ impl<'a> CompileState<'a> {
                     let et = self.compile_expression(s)?;
                     let _ty: Typeish = et
                         .try_map(|nty| match nty {
-                            NullableVType::Type(VType::Struct(ref _n)) => {
-                                // TODO: effect_defs
-                                // if !self.m.effect_defs.contains_key(n.as_str()) {
-                                //     return Err(CompileErrorType::InvalidType(format!(
-                                //         "Struct `{}` is not an effect struct",
-                                //         n
-                                //     )));
-                                // }
+                            NullableVType::Type(VType::Struct(ref struct_name)) => {
+                                if !self.m.effects.contains(struct_name.as_str()) {
+                                    return Err(CompileErrorType::InvalidType(format!(
+                                        "Struct `{struct_name}` is not an effect struct",
+                                    )));
+                                }
                                 Ok(nty)
                             }
                             ot => Err(CompileErrorType::InvalidType(format!(
