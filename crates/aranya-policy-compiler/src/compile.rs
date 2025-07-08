@@ -23,7 +23,7 @@ use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt};
+use buggy::{bug, Bug, BugExt};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use tracing::warn;
@@ -682,43 +682,72 @@ impl<'a> CompileState<'a> {
                         .map_err(|e| self.err(e.into()))?
                 }
                 ast::InternalFunction::Serialize(e) => {
-                    if !matches!(
-                        self.get_statement_context()?,
-                        StatementContext::PureFunction(_)
-                    ) {
-                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
+                    match self.get_statement_context()? {
+                        StatementContext::PureFunction(ast::FunctionDefinition {
+                            identifier,
+                            ..
+                        }) if identifier == "seal" => {}
+                        _ => {
+                            return Err(
+                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
+                            );
+                        }
                     }
-                    let t = self.compile_expression(e)?;
-                    if !t.is_any_struct() {
-                        return Err(self.err(CompileErrorType::InvalidType(String::from(
-                            "Serializing non-struct",
-                        ))));
-                    }
+
+                    let Typeish::Definitely(NullableVType::Type(struct_type @ VType::Struct(_))) =
+                        self.identifier_types
+                            .get(&ident!("this"))
+                            .assume("seal must have `this`")?
+                    else {
+                        bug!("seal::this must be a struct type");
+                    };
+
+                    let result_type = self
+                        .compile_expression(e)?
+                        .try_map(|ty| {
+                            if !ty.fits_type(&struct_type) {
+                                return Err(CompileErrorType::InvalidType(format!(
+                                    "serializing {ty}, expected {struct_type}"
+                                )));
+                            }
+                            Ok(NullableVType::Type(VType::Bytes))
+                        })
+                        .map_err(|err| self.err(err))?;
+
                     self.append_instruction(Instruction::Serialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to throw an error when this is used on a
-                    // struct that is not the current command struct
-                    Typeish::known(VType::Bytes)
+                    result_type
                 }
                 ast::InternalFunction::Deserialize(e) => {
-                    if !matches!(
-                        self.get_statement_context()?,
-                        StatementContext::PureFunction(_)
-                    ) {
-                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
-                    }
-                    let t = self.compile_expression(e)?;
-                    if !t.fits_type(&VType::Bytes) {
-                        return Err(self.err(CompileErrorType::InvalidType(String::from(
-                            "Deserializing non-bytes",
-                        ))));
-                    }
+                    // A bit hacky, but you can't manually define a function named "open".
+                    let struct_name = match self.get_statement_context()? {
+                        StatementContext::PureFunction(ast::FunctionDefinition {
+                            identifier,
+                            return_type: VType::Struct(struct_name),
+                            ..
+                        }) if identifier == "open" => struct_name,
+                        _ => {
+                            return Err(
+                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
+                            );
+                        }
+                    };
+
+                    let result_type = self
+                        .compile_expression(e)?
+                        .try_map(|ty| {
+                            if !ty.fits_type(&VType::Bytes) {
+                                return Err(CompileErrorType::InvalidType(format!(
+                                    "deserializing {ty}, expected bytes",
+                                )));
+                            }
+                            Ok(NullableVType::Type(VType::Struct(struct_name)))
+                        })
+                        .map_err(|err| self.err(err))?;
+
                     self.append_instruction(Instruction::Deserialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to determine this concretely
-                    Typeish::Indeterminate
+                    result_type
                 }
                 ast::InternalFunction::Todo => {
                     let err = self.err(CompileErrorType::TodoFound);

@@ -186,16 +186,6 @@ impl Typeish {
         }
     }
 
-    /// Is this a struct of any kind or indeterminate?
-    pub fn is_any_struct(&self) -> bool {
-        matches!(
-            self,
-            Self::Definitely(NullableVType::Type(VType::Struct(_)))
-                | Self::Probably(NullableVType::Type(VType::Struct(_)))
-                | Self::Indeterminate
-        )
-    }
-
     /// If self is not indeterminate and not the target type, return a [`TypeError`]
     pub fn check_type(
         self,
