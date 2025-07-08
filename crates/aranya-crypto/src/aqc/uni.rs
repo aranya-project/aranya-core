@@ -1,4 +1,4 @@
-use core::{cell::OnceCell, fmt};
+use core::{cell::OnceCell, fmt, iter};
 
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
@@ -196,9 +196,9 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        *self
-            .id
-            .get_or_init(|| UniChannelId::new::<CS>(self.as_bytes(), b"AqcUniChannelId"))
+        *self.id.get_or_init(|| {
+            UniChannelId::new::<CS>(b"AqcUniChannelId", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.
