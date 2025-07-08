@@ -2,16 +2,21 @@
 
 #![forbid(unsafe_code)]
 
+use core::iter;
+
 pub use aranya_id::*;
 use buggy::Bug;
-use spideroak_crypto::{csprng::Csprng, signer::PkError};
+use spideroak_crypto::{csprng::Csprng, hash, signer::PkError};
 
-use crate::{CipherSuite, CipherSuiteExt};
+use crate::CipherSuite;
 
 /// Extension trait for IDs.
 pub trait IdExt: Sized {
     /// Derives an ID from the hash of some data.
-    fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Self;
+    fn new<'a, CS: CipherSuite>(
+        tag: &'static [u8],
+        context: impl IntoIterator<Item = &'a [u8]>,
+    ) -> Self;
 
     /// Creates a random ID.
     fn random<R: Csprng>(rng: &mut R) -> Self;
@@ -21,9 +26,16 @@ impl<I> IdExt for I
 where
     [u8; 32]: Into<I>,
 {
-    fn new<CS: CipherSuite>(data: &[u8], tag: &[u8]) -> Self {
+    fn new<'a, CS: CipherSuite>(
+        tag: &'static [u8],
+        data: impl IntoIterator<Item = &'a [u8]>,
+    ) -> Self {
         // id = H("ID-v1" || suites || data || tag)
-        CS::tuple_hash(b"ID-v1", [data, tag])
+        let iter = iter::once(b"ID-v1".as_slice())
+            .chain(CS::OIDS.into_iter().map(|oid| oid.as_bytes()))
+            .chain(data)
+            .chain(iter::once(tag));
+        hash::tuple_hash::<CS::Hash, _>(iter)
             .into_array()
             .into_array()
             .into()

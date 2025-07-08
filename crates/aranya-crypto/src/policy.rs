@@ -7,7 +7,7 @@ use spideroak_crypto::hash::{Digest, Hash};
 use crate::{
     aranya::{Signature, SigningKeyId},
     ciphersuite::{CipherSuite, CipherSuiteExt},
-    id::{custom_id, BaseId},
+    id::{custom_id, BaseId, IdExt as _},
 };
 
 custom_id! {
@@ -35,13 +35,10 @@ pub(crate) fn cmd_id<CS: CipherSuite>(
     //     command,
     //     signature,
     // )
-    CS::tuple_hash(
+    CmdId::new::<CS>(
         b"PolicyCommandId-v1",
         [cmd.as_bytes(), sig.raw_sig().borrow()],
     )
-    .into_array()
-    .into_array()
-    .into()
 }
 
 /// Computes a merge command's ID.
@@ -51,10 +48,7 @@ pub fn merge_cmd_id<CS: CipherSuite>(left: CmdId, right: CmdId) -> CmdId {
     //     left_id,
     //     right_id,
     // )
-    CS::tuple_hash(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
-        .into_array()
-        .into_array()
-        .into()
+    CmdId::new::<CS>(b"MergeCommandId-v1", [left.as_bytes(), right.as_bytes()])
 }
 
 /// A policy command.
@@ -119,13 +113,10 @@ pub fn role_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId) 
     //     name,
     //     policy_id,
     // )
-    CS::tuple_hash(
+    RoleId::new::<CS>(
         b"RoleId-v1",
         [cmd_id.as_bytes(), name.as_bytes(), policy_id.as_bytes()],
     )
-    .into_array()
-    .into_array()
-    .into()
 }
 
 custom_id! {
@@ -147,13 +138,10 @@ pub fn label_id<CS: CipherSuite>(cmd_id: CmdId, name: &str, policy_id: PolicyId)
     //     name,
     //     policy_id,
     // )
-    CS::tuple_hash(
+    LabelId::new::<CS>(
         b"LabelId-v1",
         [cmd_id.as_bytes(), name.as_bytes(), policy_id.as_bytes()],
     )
-    .into_array()
-    .into_array()
-    .into()
 }
 
 #[cfg(test)]

@@ -387,8 +387,8 @@ macro_rules! sk_misc {
                     .get_or_init(|| {
                         let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.sk.public()?);
                         let id = $crate::id::IdExt::new::<CS>(
-                            ::core::borrow::Borrow::borrow(&pk),
                             $context.as_bytes(),
+                            ::core::iter::once(::core::borrow::Borrow::borrow(&pk)),
                         );
                         Ok(id)
                     })
@@ -487,8 +487,8 @@ macro_rules! pk_misc {
             pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
                 const CONTEXT: &'static str = $context;
                 ::core::result::Result::Ok($crate::id::IdExt::new::<CS>(
-                    ::core::borrow::Borrow::borrow(&self.pk.export()),
                     CONTEXT.as_bytes(),
+                    ::core::iter::once(::core::borrow::Borrow::borrow(&self.pk.export())),
                 ))
             }
         }

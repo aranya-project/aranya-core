@@ -1,4 +1,4 @@
-use core::cell::OnceCell;
+use core::{cell::OnceCell, iter};
 
 use buggy::BugExt;
 use derive_where::derive_where;
@@ -247,7 +247,7 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     pub fn id(&self) -> BidiChannelId {
         *self
             .id
-            .get_or_init(|| BidiChannelId::new::<CS>(self.as_bytes(), b"BidiChannelId"))
+            .get_or_init(|| BidiChannelId::new::<CS>(b"BidiChannelId", iter::once(self.as_bytes())))
     }
 
     /// Encodes itself as bytes.
