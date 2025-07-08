@@ -1,4 +1,4 @@
-use core::cell::OnceCell;
+use core::{cell::OnceCell, iter};
 
 use buggy::BugExt;
 use derive_where::derive_where;
@@ -218,7 +218,7 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     pub fn id(&self) -> UniChannelId {
         *self
             .id
-            .get_or_init(|| UniChannelId::new::<CS>(self.as_bytes(), b"UniChannelId"))
+            .get_or_init(|| UniChannelId::new::<CS>(b"UniChannelId", iter::once(self.as_bytes())))
     }
 
     /// Encodes itself as bytes.

@@ -1,4 +1,4 @@
-use core::{cell::OnceCell, fmt};
+use core::{cell::OnceCell, fmt, iter};
 
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
@@ -213,9 +213,9 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
-        *self
-            .id
-            .get_or_init(|| BidiChannelId::new::<CS>(self.as_bytes(), b"AqcBidiChannelId"))
+        *self.id.get_or_init(|| {
+            BidiChannelId::new::<CS>(b"AqcBidiChannelId", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.

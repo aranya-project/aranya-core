@@ -303,8 +303,8 @@ function compute_change_id(
     ) -> Result<Id, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
         Ok(Id::new::<E::CS>(
-            current_change_id.as_bytes(),
-            new_cmd_id.as_bytes(),
+            b"ChangeId",
+            [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))
     }
 
