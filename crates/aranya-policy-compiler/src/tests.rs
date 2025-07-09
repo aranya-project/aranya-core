@@ -1634,7 +1634,34 @@ fn test_type_errors() {
                     return new_foo
                 }
             "#,
-            e: "Expected `b` to be a struct",
+            e: "Expected `b` to be a struct, but it's a(n) bool",
+        },
+        Case {
+            t: r#"
+                struct Foo { x int, y bool }
+                struct Bar { x string }
+                function baz(b struct Bar) struct Foo {
+                    let maybe_bar = if true {
+                        :Some(b)
+                    } else {
+                        :None
+                    }
+                    
+
+                    let new_foo = Foo {
+                        y: true,
+                        ...maybe_bar
+                    }
+
+                    return new_foo
+                }
+            "#,
+            e: "Cannot perform struct composition on `maybe_bar` - type unknown\n\
+                        \n\
+                        The type resolver couldn't determine what `maybe_bar` is.\n\
+                                    Common causes:\n\
+                                    • Optional values returned from conditional expressions \n\
+                                    • Using the return value of `deserialize`",
         },
         Case {
             t: r#"

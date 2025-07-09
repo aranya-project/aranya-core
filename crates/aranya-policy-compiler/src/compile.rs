@@ -2305,9 +2305,20 @@ impl<'a> CompileState<'a> {
 
             let src_struct_type_name = match src_type {
                 Typeish::Type(VType::Struct(type_name)) => type_name,
-                Typeish::Type(_) | Typeish::Indeterminate => {
+                // Known type, but not a struct
+                Typeish::Type(other_type) => {
                     return Err(self.err(CompileErrorType::InvalidType(format!(
-                        "Expected `{src_var_name}` to be a struct"
+                        "Expected `{src_var_name}` to be a struct, but it's a(n) {other_type}",
+                    ))))
+                }
+                Typeish::Indeterminate => {
+                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                        "Cannot perform struct composition on `{src_var_name}` - type unknown\n\
+                        \n\
+                        The type resolver couldn't determine what `{src_var_name}` is.\n\
+                                    Common causes:\n\
+                                    • Optional values returned from conditional expressions \n\
+                                    • Using the return value of `deserialize`"
                     ))))
                 }
             };
