@@ -227,7 +227,7 @@ where
     {
         let device_id = NodeId::new({
             let old = self.next_id.get();
-            let new = old + 1;
+            let new = old.checked_add(1).expect("device ID should not overflow");
             self.next_id.set(new);
             new
         });
