@@ -26,7 +26,7 @@ proptest = ["dep:proptest"]
 
 
 [dependencies]
-spideroak-base58 = { version = "0.2.0", default-features = false }
+spideroak-base58 = { workspace = true, default-features = false }
 
 derive-where = { workspace = true, default-features = false }
 paste = { version = "1", default-features = false }
@@ -40,3 +40,9 @@ zerocopy-derive = { workspace = true }
 [dev-dependencies]
 postcard = { workspace = true, features = ["alloc"] }
 serde_json = { version = "1", features = ["alloc"] }
+
+
+[package.metadata.cargo-machete]
+ignored = [
+	"zerocopy", # for zerocopy-derive
+]

@@ -1,13 +1,13 @@
 use alloc::collections::{BTreeMap, VecDeque};
 use core::{marker::PhantomData, mem};
 
-use buggy::{bug, BugExt};
+use buggy::{BugExt, bug};
 
 use super::braiding;
 use crate::{
     Address, ClientError, Command, CommandId, CommandRecall, Engine, EngineError, GraphId,
-    Location, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable, Segment, Sink, Storage,
-    StorageError, StorageProvider, MAX_COMMAND_LENGTH,
+    Location, MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Revertable,
+    Segment, Sink, Storage, StorageError, StorageProvider,
 };
 
 /// Transaction used to receive many commands at once.
@@ -448,9 +448,9 @@ mod test {
 
     use super::*;
     use crate::{
-        memory::MemStorageProvider,
-        testing::{hash_cmd_for_testing_only, ShortB58},
         ClientState, Keys, MergeIds, Priority,
+        memory::MemStorageProvider,
+        testing::{ShortB58, hash_cmd_for_testing_only},
     };
 
     struct SeqEngine;

@@ -20,7 +20,7 @@ use crate::{
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
-    id::{custom_id, BaseId, IdError, Identified},
+    id::{BaseId, IdError, Identified, custom_id},
 };
 
 /// Key material used to derive per-event encryption keys.

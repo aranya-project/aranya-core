@@ -6,12 +6,10 @@ use core::{
 
 use derive_where::derive_where;
 use serde::{
-    de::{self, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{self, SeqAccess, Visitor},
 };
-pub use spideroak_base58::{DecodeError, String32, ToBase58};
-use subtle::{Choice, ConstantTimeEq};
-use zerocopy::FromBytes;
+use spideroak_base58::ToBase58;
 
 /// A unique cryptographic ID.
 ///
@@ -72,8 +70,9 @@ impl<Tag: IdTag> Id<Tag> {
     }
 
     /// Decode the ID from a base58 string.
-    pub fn decode<T: AsRef<[u8]>>(s: T) -> Result<Self, DecodeError> {
-        String32::decode(s).map(Self::from_bytes)
+    pub fn decode<T: AsRef<[u8]>>(s: T) -> Result<Self, ParseIdError> {
+        let s32 = spideroak_base58::String32::decode(s).map_err(ParseIdError)?;
+        Ok(Self::from_bytes(s32))
     }
 
     /// Cast between two tagged IDs.
@@ -104,9 +103,9 @@ impl<Tag: IdTag> Default for Id<Tag> {
     }
 }
 
-impl<Tag: IdTag> ConstantTimeEq for Id<Tag> {
+impl<Tag: IdTag> subtle::ConstantTimeEq for Id<Tag> {
     #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
         self.bytes.ct_eq(&other.bytes)
     }
 }
@@ -139,7 +138,7 @@ impl<Tag: IdTag> From<Id<Tag>> for [u8; 32] {
 }
 
 impl<Tag: IdTag> FromStr for Id<Tag> {
-    type Err = DecodeError;
+    type Err = ParseIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::decode(s)
@@ -159,7 +158,7 @@ impl<Tag: IdTag> Display for Id<Tag> {
 }
 
 impl<Tag: IdTag> ToBase58 for Id<Tag> {
-    type Output = String32;
+    type Output = spideroak_base58::String32;
 
     fn to_base58(&self) -> Self::Output {
         self.bytes.to_base58()
@@ -193,11 +192,11 @@ impl<'de, Tag: IdTag> Deserialize<'de> for Id<Tag> {
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                v.parse().map_err(|e| match e {
-                    DecodeError::BadInput => {
+                v.parse().map_err(|e: ParseIdError| match e.0 {
+                    spideroak_base58::DecodeError::BadInput => {
                         E::invalid_value(de::Unexpected::Str(v), &"a base58 string")
                     }
-                    DecodeError::Bug(bug) => de::Error::custom(bug),
+                    spideroak_base58::DecodeError::Bug(bug) => de::Error::custom(bug),
                 })
             }
         }
@@ -218,9 +217,10 @@ impl<'de, Tag: IdTag> Deserialize<'de> for Id<Tag> {
             where
                 E: de::Error,
             {
-                let id = FromBytes::read_from_bytes(v)
+                let bytes = v
+                    .try_into()
                     .map_err(|_| de::Error::invalid_length(v.len(), &self))?;
-                Ok(id)
+                Ok(Id::from_bytes(bytes))
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -263,6 +263,18 @@ impl<Tag: IdTag> proptest::arbitrary::Arbitrary for Id<Tag> {
         }
     }
 }
+
+/// An error returned when parsing an ID from a string fails.
+#[derive(Clone, Debug)]
+pub struct ParseIdError(spideroak_base58::DecodeError);
+
+impl Display for ParseIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "could not parse ID: {}", self.0)
+    }
+}
+
+impl core::error::Error for ParseIdError {}
 
 /// Creates a custom ID.
 #[macro_export]

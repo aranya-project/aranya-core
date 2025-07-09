@@ -17,17 +17,17 @@ use core::{
 };
 
 use aranya_crypto::{
+    BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine,
+    IdentityKey, KeyStore, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
     id::IdExt as _,
-    keystore::{memstore, Entry, Occupied, Vacant},
-    BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine,
-    IdentityKey, KeyStore, Rng,
+    keystore::{Entry, Occupied, Vacant, memstore},
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
-use aranya_policy_vm::{ident, ActionContext, CommandContext};
+use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use indexmap::IndexSet;
 use siphasher::sip::SipHasher13;
 use spin::Mutex;

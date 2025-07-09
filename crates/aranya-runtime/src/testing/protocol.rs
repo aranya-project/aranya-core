@@ -8,8 +8,8 @@ use tracing::{error, trace};
 
 use super::hash_cmd_for_testing_only;
 use crate::{
-    alloc, Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
-    MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, MAX_COMMAND_LENGTH,
+    Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

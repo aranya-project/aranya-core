@@ -3,11 +3,11 @@ fn benchmark_1() {
     use aranya_policy_lang::lang::parse_policy_document;
     use aranya_policy_vm::{bench_measurements, ffi::FfiModule};
     use aranya_runtime::{
+        ClientState,
         memory::MemStorageProvider,
-        testing::vm::{TestEngine, TestSink, TEST_POLICY_1},
+        testing::vm::{TEST_POLICY_1, TestEngine, TestSink},
         vm_action, vm_effect,
         vm_policy::testing::TestFfiEnvelope,
-        ClientState,
     };
 
     let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
@@ -96,13 +96,13 @@ policy-version: 1
 
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{bench_measurements, ffi::FfiModule, Text};
+    use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule};
     use aranya_runtime::{
+        ClientState,
         memory::MemStorageProvider,
         testing::vm::{TestEngine, TestSink},
         vm_action,
         vm_policy::testing::TestFfiEnvelope,
-        ClientState,
     };
 
     let policy = parse_policy_document(test).expect("should parse");

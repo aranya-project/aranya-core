@@ -1,16 +1,17 @@
 //! An effect handler for AQC.
 
 use aranya_crypto::{
+    BaseId, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
     aqc::{
         BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiSecret,
         UniAuthorSecretId, UniChannel, UniChannelId, UniPeerEncap, UniSecret,
     },
-    custom_id, BaseId, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
+    custom_id,
 };
-use buggy::{bug, Bug};
+use buggy::{Bug, bug};
 use serde::{Deserialize, Serialize};
 
-use crate::{shared::decode_enc_pk, LabelId};
+use crate::{LabelId, shared::decode_enc_pk};
 
 /// Wraps `tracing::error` to always use the `aqc-handler`
 /// target.

@@ -2,20 +2,20 @@
 
 use std::{
     cell::RefCell,
-    collections::{hash_map, BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, hash_map},
     fs::OpenOptions,
-    io::{stdin, Read},
+    io::{Read, stdin},
 };
 
 use aranya_crypto::{BaseId, DeviceId};
 use aranya_policy_compiler::Compiler;
-use aranya_policy_lang::lang::{parse_policy_document, parse_policy_str, Version};
+use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactKey, FactKeyList, FactValue, FactValueList,
     Identifier, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,
     MachineIOError, MachineStack, MachineStatus, PolicyContext, RunState, Stack, Struct, Value,
 };
-use clap::{arg, ArgGroup, Parser, ValueEnum};
+use clap::{ArgGroup, Parser, ValueEnum, arg};
 
 #[derive(Debug, Copy, Clone, PartialEq, ValueEnum)]
 enum Mode {

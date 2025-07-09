@@ -9,18 +9,18 @@ use alloc::vec::Vec;
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    self,
-    aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    policy, BaseId, CipherSuite, CmdId, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine,
+    self, BaseId, CipherSuite, CmdId, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine,
     ImportError, KeyStore, KeyStoreExt, PolicyId, UnwrapError, WrapError,
+    aqc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
+    policy,
 };
 use aranya_policy_vm::{
-    ffi::ffi, CommandContext, MachineError, MachineErrorType, MachineIOError, Text,
+    CommandContext, MachineError, MachineErrorType, MachineIOError, Text, ffi::ffi,
 };
 use buggy::Bug;
 use spin::Mutex;
 
-use crate::{shared::decode_enc_pk, LabelId};
+use crate::{LabelId, shared::decode_enc_pk};
 
 /// Wraps `tracing::error` to always use the `aqc-ffi` target.
 macro_rules! error {

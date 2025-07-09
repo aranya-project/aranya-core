@@ -11,6 +11,7 @@ use std::{
 };
 
 use aranya_crypto::{
+    BaseId, CipherSuite, EncryptionKey, Engine, IdentityKey,
     afc::{BidiChannel, BidiKeys, BidiSecrets, UniChannel, UniOpenKey, UniSealKey, UniSecrets},
     dangerous::spideroak_crypto::{
         aead::{self, Aead, AeadKey, IndCca2, Lifetime, OpenError, SealError},
@@ -28,7 +29,6 @@ use aranya_crypto::{
     default::{DefaultCipherSuite, DefaultEngine},
     id::IdExt as _,
     test_util::TestCs,
-    BaseId, CipherSuite, EncryptionKey, Engine, IdentityKey,
 };
 
 use crate::{

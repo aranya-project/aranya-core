@@ -21,7 +21,7 @@ pub struct ShortB58(pub CommandId);
 impl fmt::Display for ShortB58 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #![allow(clippy::arithmetic_side_effects)]
-        use aranya_crypto::id::base58::ToBase58;
+        use spideroak_base58::ToBase58;
         let b58 = self.0.to_base58();
         let trimmed = b58.trim_start_matches('1');
         let len = trimmed.len();

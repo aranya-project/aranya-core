@@ -70,11 +70,11 @@ pub use default::Rng;
 pub use engine::{Engine, UnwrapError, WrapError};
 pub use error::*;
 pub use groupkey::*;
-pub use id::{custom_id, BaseId, Identified};
+pub use id::{BaseId, Identified, custom_id};
 pub use keystore::{KeyStore, KeyStoreExt};
 // These were already exported in the root of the crate, so keep
 // them even though `policy` is a public module now.
-pub use policy::{merge_cmd_id, Cmd, CmdId, PolicyId};
+pub use policy::{Cmd, CmdId, PolicyId, merge_cmd_id};
 #[doc(no_inline)]
 #[cfg(feature = "bearssl")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bearssl")))]

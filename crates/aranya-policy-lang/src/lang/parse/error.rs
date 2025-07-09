@@ -3,8 +3,8 @@ use std::fmt::Display;
 use aranya_policy_ast::Version;
 use buggy::Bug;
 use pest::{
-    error::{Error as PestError, LineColLocation},
     Span,
+    error::{Error as PestError, LineColLocation},
 };
 
 use crate::lang::parse::Rule;

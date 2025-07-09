@@ -6,9 +6,9 @@ use alloc::vec::Vec;
 use core::iter;
 
 use aranya_crypto::{
-    default::DefaultEngine, id::IdExt as _, BaseId, Csprng, DeviceId, Random, Rng,
+    BaseId, Csprng, DeviceId, Random, Rng, default::DefaultEngine, id::IdExt as _,
 };
-use aranya_policy_vm::{ident, CommandContext, OpenContext, PolicyContext, SealContext};
+use aranya_policy_vm::{CommandContext, OpenContext, PolicyContext, SealContext, ident};
 
 use crate::{Envelope, Ffi};
 
