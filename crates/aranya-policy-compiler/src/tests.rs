@@ -1251,6 +1251,9 @@ fn test_match_expression() {
                     1 => { :"one" }
                     _ => { :false }
                 }
+                let y = match a {
+                    1 => "one" 2 => false
+                }
             }
             "#,
         CompileErrorType::InvalidType(
