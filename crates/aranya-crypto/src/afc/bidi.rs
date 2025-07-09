@@ -4,8 +4,8 @@ use buggy::BugExt;
 use derive_where::derive_where;
 use spideroak_crypto::{csprng::Random, import::ImportError, kem::Kem};
 use zerocopy::{
-    byteorder::{BE, U32},
     ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+    byteorder::{BE, U32},
 };
 
 use crate::{
@@ -15,10 +15,10 @@ use crate::{
     },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::CipherSuite,
-    engine::{unwrapped, Engine},
+    engine::{Engine, unwrapped},
     error::Error,
     hpke::{self, Mode},
-    id::{custom_id, BaseId, IdError, IdExt as _},
+    id::{BaseId, IdError, IdExt as _, custom_id},
     misc::sk_misc,
 };
 
@@ -245,9 +245,9 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
-        *self
-            .id
-            .get_or_init(|| BidiChannelId::new::<CS>(b"BidiChannelId", iter::once(self.as_bytes())))
+        *self.id.get_or_init(|| {
+            BidiChannelId::new::<CS>(b"BidiChannelId-v1", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.

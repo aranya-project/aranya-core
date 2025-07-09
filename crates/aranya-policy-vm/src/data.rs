@@ -1,6 +1,6 @@
 pub use aranya_crypto::BaseId;
 use aranya_crypto::DeviceId;
-use buggy::{bug, Bug};
+use buggy::{Bug, bug};
 
 use crate::Identifier;
 
@@ -79,7 +79,9 @@ impl CommandContext {
                 head_id: *head_id,
             }))
         } else {
-            bug!("Trying to call CommandContext::seal_from_action on a variant that isn't CommandContext::Action")
+            bug!(
+                "Trying to call CommandContext::seal_from_action on a variant that isn't CommandContext::Action"
+            )
         }
     }
 }

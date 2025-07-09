@@ -1,19 +1,19 @@
 use std::{
     cell::RefCell,
-    collections::{btree_map, BTreeMap},
+    collections::{BTreeMap, btree_map},
     fmt,
     ops::DerefMut,
 };
 
 use aranya_crypto::{
-    default::{DefaultCipherSuite, DefaultEngine},
     BaseId, Rng,
+    default::{DefaultCipherSuite, DefaultEngine},
 };
 use aranya_policy_ast::Identifier;
 use aranya_policy_vm::{
-    ffi::{FfiModule, ModuleSchema},
     CommandContext, FactKey, FactKeyList, FactValue, FactValueList, KVPair, MachineError,
     MachineErrorType, MachineIO, MachineIOError, Stack,
+    ffi::{FfiModule, ModuleSchema},
 };
 
 use super::printffi::*;
@@ -111,7 +111,7 @@ where
             .facts
             .clone()
             .into_iter()
-            .filter(move |f| f.0 .0 == name && prefix_key_match(&f.0 .1, &key))
+            .filter(move |f| f.0.0 == name && prefix_key_match(&f.0.1, &key))
             .map(|((_, k), v)| Ok::<(FactKeyList, FactValueList), MachineIOError>((k, v)));
 
         Ok(Box::new(iter))

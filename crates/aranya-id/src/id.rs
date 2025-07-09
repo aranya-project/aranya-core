@@ -5,12 +5,10 @@ use core::{
 };
 
 use serde::{
-    de::{self, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{self, SeqAccess, Visitor},
 };
-pub use spideroak_base58::{DecodeError, String32, ToBase58};
-use subtle::{Choice, ConstantTimeEq};
-use zerocopy::FromBytes;
+use spideroak_base58::ToBase58;
 
 /// A unique cryptographic ID.
 ///
@@ -58,8 +56,9 @@ impl BaseId {
     }
 
     /// Decode the ID from a base58 string.
-    pub fn decode<T: AsRef<[u8]>>(s: T) -> Result<Self, DecodeError> {
-        String32::decode(s).map(Self::from)
+    pub fn decode<T: AsRef<[u8]>>(s: T) -> Result<Self, ParseIdError> {
+        let s32 = spideroak_base58::String32::decode(s).map_err(ParseIdError)?;
+        Ok(Self::from_bytes(s32))
     }
 }
 
@@ -70,9 +69,9 @@ impl Default for BaseId {
     }
 }
 
-impl ConstantTimeEq for BaseId {
+impl subtle::ConstantTimeEq for BaseId {
     #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
         self.0.ct_eq(&other.0)
     }
 }
@@ -99,7 +98,7 @@ impl From<BaseId> for [u8; 32] {
 }
 
 impl FromStr for BaseId {
-    type Err = DecodeError;
+    type Err = ParseIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::decode(s)
@@ -119,7 +118,7 @@ impl Display for BaseId {
 }
 
 impl ToBase58 for BaseId {
-    type Output = String32;
+    type Output = spideroak_base58::String32;
 
     fn to_base58(&self) -> Self::Output {
         self.0.to_base58()
@@ -153,11 +152,11 @@ impl<'de> Deserialize<'de> for BaseId {
             }
 
             fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
-                v.parse().map_err(|e| match e {
-                    DecodeError::BadInput => {
+                v.parse().map_err(|e: ParseIdError| match e.0 {
+                    spideroak_base58::DecodeError::BadInput => {
                         E::invalid_value(de::Unexpected::Str(v), &"a base58 string")
                     }
-                    DecodeError::Bug(bug) => de::Error::custom(bug),
+                    spideroak_base58::DecodeError::Bug(bug) => de::Error::custom(bug),
                 })
             }
         }
@@ -174,9 +173,10 @@ impl<'de> Deserialize<'de> for BaseId {
             where
                 E: de::Error,
             {
-                let id = FromBytes::read_from_bytes(v)
+                let bytes = v
+                    .try_into()
                     .map_err(|_| de::Error::invalid_length(v.len(), &self))?;
-                Ok(id)
+                Ok(BaseId::from_bytes(bytes))
             }
 
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -203,6 +203,18 @@ impl<'de> Deserialize<'de> for BaseId {
 }
 
 crate::__impl_arbitrary!(BaseId => [u8; 32]);
+
+/// An error returned when parsing an ID from a string fails.
+#[derive(Clone, Debug)]
+pub struct ParseIdError(spideroak_base58::DecodeError);
+
+impl Display for ParseIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "could not parse ID: {}", self.0)
+    }
+}
+
+impl core::error::Error for ParseIdError {}
 
 /// Creates a custom ID.
 #[macro_export]
@@ -259,7 +271,7 @@ macro_rules! custom_id {
             /// Decode the ID from a base58 string.
             pub fn decode<T: ::core::convert::AsRef<[u8]>>(
                 s: T,
-            ) -> ::core::result::Result<Self, $crate::base58::DecodeError> {
+            ) -> ::core::result::Result<Self, $crate::ParseIdError> {
                 $crate::BaseId::decode(s).map(Self)
             }
         }
@@ -307,7 +319,7 @@ macro_rules! custom_id {
         }
 
         impl ::core::str::FromStr for $name {
-            type Err = $crate::base58::DecodeError;
+            type Err = $crate::ParseIdError;
 
             fn from_str(s: &str) -> ::core::result::Result<Self, Self::Err> {
                 Self::decode(s)
@@ -326,11 +338,11 @@ macro_rules! custom_id {
             }
         }
 
-        impl $crate::base58::ToBase58 for $name {
-            type Output = $crate::base58::String32;
+        impl $crate::__hidden::spideroak_base58::ToBase58 for $name {
+            type Output = $crate::__hidden::spideroak_base58::String32;
 
             fn to_base58(&self) -> Self::Output {
-                $crate::base58::ToBase58::to_base58(&self.0)
+                $crate::__hidden::spideroak_base58::ToBase58::to_base58(&self.0)
             }
         }
 

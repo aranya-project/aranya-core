@@ -4,13 +4,13 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    custom_id, engine::Engine, id::IdExt as _, policy, zeroize::Zeroizing, BaseId, Context, Encap,
-    EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, IdentityVerifyingKey,
-    KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey,
+    BaseId, Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey,
+    IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey, custom_id,
+    engine::Engine, id::IdExt as _, policy, zeroize::Zeroizing,
 };
 use aranya_policy_vm::{
-    ffi::{ffi, Type},
     CommandContext, Text, Typed, Value, ValueConversionError,
+    ffi::{Type, ffi},
 };
 
 use crate::error::{AllocError, Error, ErrorKind, KeyNotFound, WrongContext};
@@ -303,7 +303,7 @@ function compute_change_id(
     ) -> Result<BaseId, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
         Ok(BaseId::new::<E::CS>(
-            b"ChangeId",
+            b"ChangeId-v1",
             [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))
     }

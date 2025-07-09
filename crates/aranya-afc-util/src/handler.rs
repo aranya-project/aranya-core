@@ -1,10 +1,10 @@
 //! An effect handler for AFC.
 
 use aranya_crypto::{
+    BaseId, CipherSuite, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
-    BaseId, CipherSuite, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
 };
 use aranya_fast_channels::{Directed, Label};
 use serde::{Deserialize, Serialize};

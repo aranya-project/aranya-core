@@ -191,7 +191,7 @@ impl<R: Csprng, S: CipherSuite> RawSecretWrap<Self> for DefaultEngine<R, S> {
                     got: data.name(),
                     expected: T::ID.name(),
                 }
-                .into())
+                .into());
             }
         };
         Ok(secret)
@@ -264,7 +264,7 @@ impl<CS: CipherSuite> Identified for WrappedKey<CS> {
 #[allow(clippy::wildcard_imports)]
 mod test {
     use super::*;
-    use crate::{test_engine, test_util::test_ciphersuite, Rng};
+    use crate::{Rng, test_engine, test_util::test_ciphersuite};
 
     test_engine!(
         default_engine,

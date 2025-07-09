@@ -6,6 +6,7 @@ use std::{
 };
 
 use aranya_crypto::{
+    Rng,
     dangerous::spideroak_crypto::{
         aead::Aead,
         csprng::Random,
@@ -17,7 +18,6 @@ use aranya_crypto::{
         rust::{Aes256Gcm, Sha256},
         signer::PkError,
     },
-    Rng,
 };
 use aranya_id::custom_id;
 use buggy::{Bug, BugExt};

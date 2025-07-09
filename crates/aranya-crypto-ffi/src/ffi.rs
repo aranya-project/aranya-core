@@ -4,9 +4,9 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 
 use aranya_crypto::{
-    subtle::ConstantTimeEq, BaseId, Cmd, Engine, KeyStore, Signature, SigningKey, VerifyingKey,
+    BaseId, Cmd, Engine, KeyStore, Signature, SigningKey, VerifyingKey, subtle::ConstantTimeEq,
 };
-use aranya_policy_vm::{ffi::ffi, CommandContext};
+use aranya_policy_vm::{CommandContext, ffi::ffi};
 
 use crate::error::{Error, ErrorKind, InvalidCmdId, KeyNotFound, WrongContext};
 

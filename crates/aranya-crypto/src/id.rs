@@ -6,9 +6,9 @@ use core::iter;
 
 pub use aranya_id::*;
 use buggy::Bug;
-use spideroak_crypto::{csprng::Csprng, hash, signer::PkError};
+use spideroak_crypto::{csprng::Csprng, signer::PkError};
 
-use crate::CipherSuite;
+use crate::{CipherSuite, CipherSuiteExt};
 
 /// Extension trait for IDs.
 pub trait IdExt: Sized {
@@ -31,11 +31,7 @@ where
         data: impl IntoIterator<Item = &'a [u8]>,
     ) -> Self {
         // id = H("ID-v1" || suites || data || tag)
-        let iter = iter::once(b"ID-v1".as_slice())
-            .chain(CS::OIDS.into_iter().map(|oid| oid.as_bytes()))
-            .chain(data)
-            .chain(iter::once(tag));
-        hash::tuple_hash::<CS::Hash, _>(iter)
+        CS::tuple_hash(b"ID-v1", data.into_iter().chain(iter::once(tag)))
             .into_array()
             .into_array()
             .into()

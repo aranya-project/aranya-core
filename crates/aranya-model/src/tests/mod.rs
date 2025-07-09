@@ -5,10 +5,10 @@ use core::cell::RefCell;
 use std::{fs, marker::PhantomData};
 
 use aranya_crypto::{
+    DeviceId, Rng,
     default::{DefaultCipherSuite, DefaultEngine},
     id::IdExt as _,
     keystore::fs_keystore::Store,
-    DeviceId, Rng,
 };
 use aranya_crypto_ffi::Ffi as CryptoFfi;
 use aranya_device_ffi::FfiDevice as DeviceFfi;
@@ -18,23 +18,24 @@ use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_document;
 use aranya_policy_vm::{
+    Machine, Value,
     ffi::{FfiModule, ModuleSchema},
-    text, Machine, Value,
+    text,
 };
 use aranya_runtime::{
+    ClientState, Engine, FfiCallable, StorageProvider, VmEffect,
     memory::MemStorageProvider,
     storage::linear,
     vm_action, vm_effect,
-    vm_policy::{testing::TestFfiEnvelope, VmPolicy},
-    ClientState, Engine, FfiCallable, StorageProvider, VmEffect,
+    vm_policy::{VmPolicy, testing::TestFfiEnvelope},
 };
 use tempfile::tempdir;
 use test_log::test;
 
 use crate::{
-    tests::keygen::{KeyBundle, MinKeyBundle, PublicKeys},
     ClientFactory, Model, ModelClient, ModelEngine, ModelError, ProxyClientId, ProxyGraphId,
     RuntimeModel,
+    tests::keygen::{KeyBundle, MinKeyBundle, PublicKeys},
 };
 
 // Policy loaded from md file.

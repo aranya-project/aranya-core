@@ -7,8 +7,8 @@ use core::{
 };
 
 use derive_where::derive_where;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use sha3_utils::{encode_string, EncodedString};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use sha3_utils::{EncodedString, encode_string};
 use spideroak_crypto::{
     hash,
     kdf::{self, Expand, Kdf as _, KdfError},
@@ -35,7 +35,9 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
     ///     context,
     /// )
     /// ```
-    fn tuple_hash<const N: usize>(tag: &[u8], context: [&[u8]; N]) -> Digest<Self>;
+    fn tuple_hash<'a, I>(tag: &'a [u8], context: I) -> Digest<Self>
+    where
+        I: IntoIterator<Item = &'a [u8]>;
 
     /// Performs `LabeledExtract` per [RFC 9180].
     ///
@@ -92,10 +94,13 @@ pub(crate) trait CipherSuiteExt: CipherSuite {
 }
 
 impl<CS: CipherSuite> CipherSuiteExt for CS {
-    fn tuple_hash<const N: usize>(tag: &[u8], context: [&[u8]; N]) -> Digest<Self> {
+    fn tuple_hash<'a, I>(tag: &'a [u8], context: I) -> Digest<Self>
+    where
+        I: IntoIterator<Item = &'a [u8]>,
+    {
         let iter = iter::once(tag)
             .chain(CS::OIDS.into_iter().map(|oid| oid.as_bytes()))
-            .chain(context.iter().copied());
+            .chain(context);
         hash::tuple_hash::<Self::Hash, _>(iter)
     }
 

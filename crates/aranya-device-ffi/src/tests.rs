@@ -1,12 +1,12 @@
 #![cfg(test)]
 
 use aranya_crypto::{
+    BaseId, DeviceId,
     default::{DefaultEngine, Rng},
     id::IdExt as _,
-    BaseId, DeviceId,
 };
 use aranya_policy_vm::{
-    ident, ActionContext, CommandContext, OpenContext, PolicyContext, SealContext,
+    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
 };
 
 use crate::FfiDevice;
