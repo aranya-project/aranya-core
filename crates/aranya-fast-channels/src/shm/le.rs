@@ -108,7 +108,7 @@ macro_rules! little_endian {
                 type Error = <isize as ::core::convert::TryFrom<$type>>::Error;
 
                 fn try_from(v: $name) -> Result<Self, Self::Error> {
-                    isize::try_from(v.0.into())
+                    isize::try_from(v.into())
                 }
             }
 
