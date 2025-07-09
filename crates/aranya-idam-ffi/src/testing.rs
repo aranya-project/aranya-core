@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 
 use aranya_crypto::{
     DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore, OpenError,
-    SigningKey, subtle::ConstantTimeEq,
+    SigningKey, id::IdExt as _, subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
@@ -153,7 +153,7 @@ where
                 &mut eng,
                 WANT.to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id.into_id(),
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -198,7 +198,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id.into_id(),
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -250,7 +250,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id.into_id(),
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -308,7 +308,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id.into_id(),
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -363,7 +363,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into(),
+                key_id.into_id(),
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");

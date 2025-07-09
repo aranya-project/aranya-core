@@ -48,7 +48,7 @@ impl KeyBundle {
                     eng.wrap(sk)
                         .context(concat!("unable to wrap `", stringify!($key), "`"))?;
 
-                store.try_insert(id.into(), wrapped).context(concat!(
+                store.try_insert(id.into_id(), wrapped).context(concat!(
                     "unable to insert wrapped `",
                     stringify!($key),
                     "`"
@@ -71,12 +71,12 @@ impl KeyBundle {
     {
         Ok(PublicKeys {
             ident_pk: store
-                .get_key::<_, IdentityKey<E::CS>>(eng, self.device_id.into())
+                .get_key::<_, IdentityKey<E::CS>>(eng, self.device_id.into_id())
                 .context("unable to load `IdentityKey`")?
                 .context("unable to find `IdentityKey`")?
                 .public()?,
             sign_pk: store
-                .get_key::<_, SigningKey<E::CS>>(eng, self.sign_id.into())
+                .get_key::<_, SigningKey<E::CS>>(eng, self.sign_id.into_id())
                 .context("unable to load `SigningKey`")?
                 .context("unable to find `SigningKey`")?
                 .public()?,
@@ -101,7 +101,7 @@ impl MinKeyBundle {
                     eng.wrap(sk)
                         .context(concat!("unable to wrap `", stringify!($key), "`"))?;
 
-                store.try_insert(id.into(), wrapped).context(concat!(
+                store.try_insert(id.into_id(), wrapped).context(concat!(
                     "unable to insert wrapped `",
                     stringify!($key),
                     "`"

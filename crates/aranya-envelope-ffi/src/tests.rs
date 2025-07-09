@@ -5,7 +5,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core::iter;
 
-use aranya_crypto::{Csprng, DeviceId, Id, Random, Rng, default::DefaultEngine};
+use aranya_crypto::{Csprng, DeviceId, Id, Random, Rng, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_vm::{CommandContext, OpenContext, PolicyContext, SealContext, ident};
 
 use crate::{Envelope, Ffi};

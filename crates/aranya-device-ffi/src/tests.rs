@@ -3,6 +3,7 @@
 use aranya_crypto::{
     DeviceId, Id,
     default::{DefaultEngine, Rng},
+    id::IdExt as _,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,

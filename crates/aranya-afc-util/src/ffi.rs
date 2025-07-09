@@ -92,7 +92,7 @@ function create_bidi_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, our_enc_key_id.into())
+            .get_key(eng, our_enc_key_id.into_id())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
@@ -106,7 +106,7 @@ function create_bidi_channel(
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
-        let key_id = peer.id().into();
+        let key_id = peer.id().into_id();
         let wrapped = eng.wrap(author)?;
         self.store
             .lock()
@@ -149,7 +149,7 @@ function create_uni_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, author_enc_key_id.into())
+            .get_key(eng, author_enc_key_id.into_id())
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
@@ -163,7 +163,7 @@ function create_uni_channel(
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
-        let key_id = peer.id().into();
+        let key_id = peer.id().into_id();
         let wrapped = eng.wrap(author)?;
         self.store
             .lock()

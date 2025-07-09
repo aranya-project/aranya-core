@@ -10,6 +10,7 @@
 | aranya-device-ffi | ![Crates.io Version](https://img.shields.io/crates/v/aranya-device-ffi) | ![docs.rs](https://img.shields.io/docsrs/aranya-device-ffi) |
 | aranya-envelope-ffi | ![Crates.io Version](https://img.shields.io/crates/v/aranya-envelope-ffi) | ![docs.rs](https://img.shields.io/docsrs/aranya-envelope-ffi) |
 | aranya-fast-channels | ![Crates.io Version](https://img.shields.io/crates/v/aranya-fast-channels) | ![docs.rs](https://img.shields.io/docsrs/aranya-fast-channels) |
+| aranya-id | ![Crates.io Version](https://img.shields.io/crates/v/aranya-id) | ![docs.rs](https://img.shields.io/docsrs/aranya-id) |
 | aranya-idam-ffi | ![Crates.io Version](https://img.shields.io/crates/v/aranya-idam-ffi) | ![docs.rs](https://img.shields.io/docsrs/aranya-idam-ffi) |
 | aranya-libc | ![Crates.io Version](https://img.shields.io/crates/v/aranya-libc) | ![docs.rs](https://img.shields.io/docsrs/aranya-libc) |
 | aranya-perspective-ffi | ![Crates.io Version](https://img.shields.io/crates/v/aranya-perspective-ffi) | ![docs.rs](https://img.shields.io/docsrs/aranya-perspective-ffi) |

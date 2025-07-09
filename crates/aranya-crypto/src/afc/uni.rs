@@ -1,4 +1,4 @@
-use core::cell::OnceCell;
+use core::{cell::OnceCell, iter};
 
 use buggy::BugExt;
 use derive_where::derive_where;
@@ -18,7 +18,7 @@ use crate::{
     engine::{Engine, unwrapped},
     error::Error,
     hpke::{self, Mode},
-    id::{Id, IdError, custom_id},
+    id::{Id, IdError, IdExt as _, custom_id},
     misc::sk_misc,
 };
 
@@ -45,6 +45,7 @@ use crate::{
 ///             UniSealKey,
 ///             UniSecrets,
 ///         },
+///         id::IdExt as _,
 ///         CipherSuite,
 ///         Csprng,
 ///         default::{
@@ -215,9 +216,9 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        *self
-            .id
-            .get_or_init(|| UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId")))
+        *self.id.get_or_init(|| {
+            UniChannelId::new::<CS>(b"UniChannelId-v1", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.
