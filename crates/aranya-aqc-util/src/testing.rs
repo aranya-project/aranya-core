@@ -28,11 +28,11 @@ use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
 use crate::{
+    LabelId,
     ffi::{AqcBidiChannel, AqcUniChannel, Ffi},
     handler::{
         BidiChannelCreated, BidiChannelReceived, Handler, UniChannelCreated, UniChannelReceived,
     },
-    LabelId,
 };
 
 /// Encodes a [`EncryptionPublicKey`].

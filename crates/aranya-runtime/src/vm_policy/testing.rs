@@ -7,7 +7,7 @@ use aranya_crypto::DeviceId;
 use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
 use buggy::{BugExt, bug};
 
-use crate::{testing::hash_cmd_for_testing_only, CommandId};
+use crate::{CommandId, testing::hash_cmd_for_testing_only};
 
 pub struct TestFfiEnvelope {
     pub device: DeviceId,

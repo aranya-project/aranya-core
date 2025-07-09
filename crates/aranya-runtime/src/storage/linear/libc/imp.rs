@@ -9,7 +9,7 @@ use buggy::{BugExt, bug};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, warn};
 
-use super::{error::Error, IdPath};
+use super::{IdPath, error::Error};
 use crate::{
     GraphId, Location, StorageError,
     linear::io::{IoManager, Read, Write},
