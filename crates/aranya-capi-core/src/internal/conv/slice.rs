@@ -120,7 +120,7 @@ macro_rules! try_as_slice {
                         ),
                         err,
                     ),
-                ))
+                ));
             }
         }
     }};
@@ -164,7 +164,7 @@ macro_rules! try_as_str {
                         ),
                         $crate::InvalidArgReason::InvalidUtf8(err),
                     ),
-                ))
+                ));
             }
         }
     }};
@@ -198,7 +198,7 @@ macro_rules! try_as_mut_slice {
                         ),
                         err,
                     ),
-                ))
+                ));
             }
         }
     }};
@@ -233,7 +233,7 @@ macro_rules! try_as_writer {
                         ),
                         err,
                     ),
-                ))
+                ));
             }
         }
     }};

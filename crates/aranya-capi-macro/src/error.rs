@@ -1,15 +1,16 @@
 use std::ffi::CString;
 
 use aranya_capi_codegen::{
+    IdentExt, KeyValPair,
     attr::{Attr, Symbol},
     syntax::Repr,
-    IdentExt, KeyValPair,
 };
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
+    Error, Ident, ItemEnum, LitCStr, LitStr, Path,
     parse::{Parse, ParseStream, Result},
-    parse_quote, Error, Ident, ItemEnum, LitCStr, LitStr, Path,
+    parse_quote,
 };
 use tracing::info;
 

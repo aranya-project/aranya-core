@@ -8,14 +8,14 @@
 use core::{cell::Cell, ffi::c_int, marker::PhantomData};
 
 pub use libc::{
-    mode_t, O_CLOEXEC, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, SEEK_SET, S_IRGRP, S_IRUSR, S_IWGRP,
-    S_IWUSR,
+    O_CLOEXEC, O_CREAT, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR, SEEK_SET,
+    mode_t,
 };
 
 use crate::{
-    errno::{errno, Errno},
-    path::Path,
     AsAtRoot, BorrowedFd,
+    errno::{Errno, errno},
+    path::Path,
 };
 
 /// Does not exist on VxWorks.
@@ -81,11 +81,7 @@ pub fn openat(fd: &Path, path: &Path, oflag: c_int, mode: mode_t) -> Result<RawF
 pub fn close(fd: RawFd) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::close(fd.fd) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// See `flock(2)`.
@@ -144,9 +140,5 @@ pub fn pwrite(fd: BorrowedFd<'_>, buf: &[u8], off: i64) -> Result<usize, Errno> 
 pub fn fsync(fd: BorrowedFd<'_>) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { libc::fsync(fd.as_raw()) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
