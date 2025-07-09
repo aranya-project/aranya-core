@@ -1,14 +1,14 @@
 use std::{borrow::Cow, cmp, fmt};
 
 use proc_macro2::{Delimiter, Group, Span, TokenStream};
-use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 use syn::{
+    Abi, Attribute, BareFnArg, BareVariadic, Error, GenericArgument, Ident, Lifetime, Path,
+    PathArguments, PathSegment, Result, Token, TypeBareFn, TypePath, TypeSlice,
     parse_quote_spanned,
     punctuated::Punctuated,
     spanned::Spanned,
     token::{Bracket, Paren},
-    Abi, Attribute, BareFnArg, BareVariadic, Error, GenericArgument, Ident, Lifetime, Path,
-    PathArguments, PathSegment, Result, Token, TypeBareFn, TypePath, TypeSlice,
 };
 use tracing::{debug, instrument, trace};
 

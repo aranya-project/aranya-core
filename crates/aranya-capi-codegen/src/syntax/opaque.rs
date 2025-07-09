@@ -1,8 +1,8 @@
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{
-    parse::{Parse, ParseStream, Result},
     Error, Ident, LitBool, LitInt,
+    parse::{Parse, ParseStream, Result},
 };
 
 use crate::{

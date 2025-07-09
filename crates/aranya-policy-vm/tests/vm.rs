@@ -10,9 +10,9 @@ use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_vm::{
-    ident, text, ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
+    ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
     MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext, PolicyContext,
-    RunState, SealContext, Stack, Struct, Value,
+    RunState, SealContext, Stack, Struct, Value, ident, text,
 };
 use bits::{policies::*, testio::*};
 use ciborium as cbor;

@@ -20,5 +20,5 @@ pub mod syntax;
 mod util;
 
 pub use error::BuildError;
-pub use generate::{dump, format, Config};
+pub use generate::{Config, dump, format};
 pub use util::{IdentExt, KeyValPair};

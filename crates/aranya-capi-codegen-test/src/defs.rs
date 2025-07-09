@@ -1,7 +1,7 @@
 use aranya_capi_core::{
+    InvalidArg,
     prelude::*,
     safe::{TypeId, Typed},
-    InvalidArg,
 };
 
 pub fn test_unit_unit0() {}
