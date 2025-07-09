@@ -4,8 +4,8 @@ use buggy::BugExt;
 use derive_where::derive_where;
 use spideroak_crypto::{csprng::Random, import::ImportError, kem::Kem};
 use zerocopy::{
-    byteorder::{BE, U32},
     ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+    byteorder::{BE, U32},
 };
 
 use crate::{
@@ -15,10 +15,10 @@ use crate::{
     },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::CipherSuite,
-    engine::{unwrapped, Engine},
+    engine::{Engine, unwrapped},
     error::Error,
     hpke::{self, Mode},
-    id::{custom_id, Id, IdError},
+    id::{Id, IdError, custom_id},
     misc::sk_misc,
 };
 

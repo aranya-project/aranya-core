@@ -2,17 +2,17 @@ use alloc::sync::Arc;
 use core::{cmp::Ordering, hash::Hasher};
 
 use aranya_libc::{
-    self as libc, AsAtRoot, Errno, OwnedDir, OwnedFd, Path, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT,
-    O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
+    self as libc, AsAtRoot, Errno, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
+    O_RDONLY, O_RDWR, OwnedDir, OwnedFd, Path, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
-use buggy::{bug, BugExt};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use buggy::{BugExt, bug};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, warn};
 
 use super::error::Error;
 use crate::{
-    linear::io::{IoManager, Read, Write},
     GraphId, Location, StorageError,
+    linear::io::{IoManager, Read, Write},
 };
 
 struct GraphIdIterator {

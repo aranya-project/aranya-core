@@ -19,7 +19,7 @@ mod stack;
 mod tests;
 
 pub use aranya_policy_ast as ast;
-pub use aranya_policy_ast::{ident, text, Identifier, Text};
+pub use aranya_policy_ast::{Identifier, Text, ident, text};
 pub use aranya_policy_module::*;
 #[cfg(feature = "bench")]
 #[cfg_attr(docsrs, doc(cfg(feature = "bench")))]

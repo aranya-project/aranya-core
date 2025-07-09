@@ -10,16 +10,16 @@ use alloc::collections::BTreeMap;
 use core::cell::RefCell;
 
 use aranya_crypto::Id;
-use aranya_policy_ast::{ident, text, Identifier, Text};
+use aranya_policy_ast::{Identifier, Text, ident, text};
 use io::TestIO;
 
 use crate::{
+    ActionContext, CodeMap, CommandContext, ExitReason, Fact, Instruction, Label, LabelType,
+    MachineError, PolicyContext, Struct, Target, Value,
     error::MachineErrorType,
     io::{MachineIO, MachineIOError},
     machine::{Machine, MachineStatus, RunState},
     stack::Stack,
-    ActionContext, CodeMap, CommandContext, ExitReason, Fact, Instruction, Label, LabelType,
-    MachineError, PolicyContext, Struct, Target, Value,
 };
 
 fn dummy_ctx_action(name: Identifier) -> CommandContext {
@@ -82,9 +82,10 @@ fn test_swap_top() {
     let mut rs = machine.create_run_state(&io, ctx);
 
     rs.stack.push(5).unwrap();
-    assert!(rs
-        .step()
-        .is_err_and(|result| result.err_type == MachineErrorType::InvalidInstruction));
+    assert!(
+        rs.step()
+            .is_err_and(|result| result.err_type == MachineErrorType::InvalidInstruction)
+    );
 }
 
 #[test]
@@ -113,9 +114,10 @@ fn test_dup_underflow() {
 
     // Try to dup with invalid stack index - should fail
     rs.stack.push(3).unwrap();
-    assert!(rs
-        .step()
-        .is_err_and(|result| result.err_type == MachineErrorType::StackUnderflow));
+    assert!(
+        rs.step()
+            .is_err_and(|result| result.err_type == MachineErrorType::StackUnderflow)
+    );
 }
 
 #[test]

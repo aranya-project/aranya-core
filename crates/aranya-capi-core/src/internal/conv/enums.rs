@@ -56,7 +56,7 @@ macro_rules! try_as_enum {
                             ::core::stringify!($repr),
                             $crate::InvalidArgReason::Other("invalid enum repr"),
                         ),
-                    ))
+                    ));
                 }
             },
         }

@@ -13,8 +13,8 @@ use buggy::Bug;
 #[doc(hidden)]
 pub use proptest as __proptest;
 use serde::{
-    de::{self, DeserializeOwned, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{self, DeserializeOwned, SeqAccess, Visitor},
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
 use spideroak_crypto::{

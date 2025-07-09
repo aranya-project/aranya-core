@@ -1,10 +1,10 @@
 use std::hash::Hash;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{ToTokens, quote, quote_spanned};
 use syn::{
-    parse::{ParseStream, Result},
     Ident, Path, Token,
+    parse::{ParseStream, Result},
 };
 
 use crate::ctx::Ctx;
