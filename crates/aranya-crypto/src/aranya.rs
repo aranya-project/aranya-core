@@ -498,7 +498,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "59UGNZdGcshSmuw3vM5AhbhNAZZNEyQDb9TKNug2cnGn",
+            "FzsznndyXSmwS8LjWbg2g7CGp1jAD8RMArG1BCdWYkRE",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -526,7 +526,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "3iA8wJfibGhEGKbhzjiANKEQdRhv7TV7hRb4FWhTzwU5",
+            "4NQYLfhYhMWDR7Rmu3ubH24NP3e4HUP4f6mcpBKdygWF",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
@@ -554,7 +554,7 @@ mod tests {
                 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
                 0x1d, 0x1e, 0x1f, 0x20,
             ],
-            "HaE6SCVCRnY4vasF8fimaTbuT1FE6jkTjJfvGc5SrXJj",
+            "GDi3zb242AU8zW6QQKUypadFffRaDWA5PhX2eQ1ANphz",
         )];
 
         for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
