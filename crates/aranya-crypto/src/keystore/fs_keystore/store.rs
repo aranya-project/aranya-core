@@ -12,15 +12,14 @@ use rustix::{
     io::{self, Errno},
     path::Arg,
 };
+use spideroak_base58::{String32, ToBase58};
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
     Id, KeyStore,
     engine::WrappedKey,
-    id::base58::{String32, ToBase58},
     keystore::{Entry, Occupied, Vacant},
 };
-
 /// A file system backed [`KeyStore`].
 pub struct Store {
     root: OwnedFd,

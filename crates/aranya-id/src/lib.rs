@@ -7,15 +7,14 @@
 
 mod id;
 
-pub use spideroak_base58 as base58;
-
 #[doc(inline)]
-pub use crate::id::Id;
+pub use crate::id::{Id, ParseIdError};
 
 #[doc(hidden)]
 pub mod __hidden {
     #[cfg(feature = "proptest")]
     pub use ::proptest;
     pub use ::serde;
+    pub use ::spideroak_base58;
     pub use ::subtle;
 }

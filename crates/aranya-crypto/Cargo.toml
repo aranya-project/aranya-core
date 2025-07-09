@@ -150,6 +150,7 @@ trng = ["spideroak-crypto/trng"]
 aranya-id = { version = "0.1.0", path = "../aranya-id", default-features = false }
 
 buggy = { version = "0.1.0", default-features = false }
+spideroak-base58 = { workspace = true, default-features = false }
 spideroak-crypto = { version = "0.6.0", default-features = false, features = ["serde"] }
 
 byteorder = { workspace = true, default-features = false, optional = true }

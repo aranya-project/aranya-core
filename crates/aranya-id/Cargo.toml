@@ -26,7 +26,7 @@ proptest = ["dep:proptest"]
 
 
 [dependencies]
-spideroak-base58 = { version = "0.2.0", default-features = false }
+spideroak-base58 = { workspace = true, default-features = false }
 
 proptest = { workspace = true, default-features = false, optional = true }
 serde = { workspace = true, default-features = false }
