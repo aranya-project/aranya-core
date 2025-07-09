@@ -361,6 +361,123 @@ fn test_command_attributes_must_be_literals() {
 }
 
 #[test]
+fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
+    let text = r#"
+        struct Bar { a int }
+        struct Baz { +Bar, b string }
+        command Foo {
+            fields {
+                +Baz,
+                c bool
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let ModuleData::V0(module) = module.data;
+
+    let want = BTreeMap::from([
+        (ident!("a"), VType::Int),
+        (ident!("b"), VType::String),
+        (ident!("c"), VType::Bool),
+    ]);
+    let got = module.command_defs.get("Foo").unwrap();
+    assert_eq!(got, &want);
+
+    Ok(())
+}
+
+#[test]
+fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+            command Foo {
+                fields {
+                    +Bar, // Bar is not defined
+                    b string
+                }
+                seal { return None }
+                open { return None }
+                policy {}
+            }
+            "#,
+            CompileErrorType::NotDefined(String::from("Bar")),
+        ),
+        (
+            r#"
+            struct Bar { a int }
+            command Foo {
+                fields {
+                    +Bar,
+                    a bool // Duplicate field `a`
+                }
+                seal { return None }
+                open { return None }
+                policy {}
+            }
+            "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+    ];
+
+    for (text, expected_error) in cases {
+        let policy = parse_policy_str(text, Version::V2)?;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
+        assert_eq!(err, expected_error);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_command_duplicate_fields() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+        command Foo {
+            fields {
+                a int,
+                a string
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+        "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+        (
+            r#"
+        struct Bar { a int }
+        command Foo {
+            fields {
+                +Bar,
+                a string
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+        "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+    ];
+
+    for (text, e) in cases {
+        let policy = parse_policy_str(text, Version::V2)?;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
+        assert_eq!(err, e);
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_autodefine_struct() {
     let text = r#"
         fact Foo[a int]=>{b int}
@@ -407,6 +524,124 @@ fn test_duplicate_struct_fact_names() {
         let err = compile_fail(text);
         assert!(matches!(err, CompileErrorType::AlreadyDefined(_)));
     }
+}
+
+#[test]
+fn test_struct_field_insertion_errors() {
+    let cases = [
+        (
+            "struct Foo { +Bar }",
+            CompileErrorType::NotDefined("Bar".to_string()),
+        ),
+        (
+            r#"struct Bar { a int }
+            struct Foo { +Bar, a string }"#,
+            CompileErrorType::AlreadyDefined("a".to_string()),
+        ),
+        (
+            r#"struct Foo { +Foo }"#,
+            CompileErrorType::NotDefined("Foo".to_string()),
+        ),
+    ];
+    for (text, err_type) in cases {
+        let err = compile_fail(text);
+        assert_eq!(err, err_type);
+    }
+}
+
+#[test]
+fn test_struct_field_insertion() {
+    let cases = vec![
+        (
+            r#"
+            struct Bar { a int }
+            struct Foo { +Bar, b string }
+            "#,
+            vec![
+                FieldDefinition {
+                    identifier: ident!("a"),
+                    field_type: VType::Int,
+                },
+                FieldDefinition {
+                    identifier: ident!("b"),
+                    field_type: VType::String,
+                },
+            ],
+        ),
+        (
+            r#"
+            struct Bar { a int }
+            struct Baz { c bool }
+            struct Foo { +Bar, b string, +Baz }
+            "#,
+            vec![
+                FieldDefinition {
+                    identifier: ident!("a"),
+                    field_type: VType::Int,
+                },
+                FieldDefinition {
+                    identifier: ident!("b"),
+                    field_type: VType::String,
+                },
+                FieldDefinition {
+                    identifier: ident!("c"),
+                    field_type: VType::Bool,
+                },
+            ],
+        ),
+    ];
+
+    for (text, want) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let result = Compiler::new(&policy).compile().expect("should compile");
+        let ModuleData::V0(module) = result.data;
+
+        let got = module.struct_defs.get("Foo").unwrap();
+        assert_eq!(got, &want);
+    }
+}
+
+#[test]
+fn test_effect_with_field_insertion() {
+    let text = r#"
+        struct Bar { b bool }
+        effect Foo { +Bar, s string }
+        effect Baz { i int, +Foo }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
+    let m = Compiler::new(&policy).compile().expect("should compile");
+    let ModuleData::V0(module) = m.data;
+
+    let foo_want = vec![
+        FieldDefinition {
+            identifier: ident!("b"),
+            field_type: VType::Bool,
+        },
+        FieldDefinition {
+            identifier: ident!("s"),
+            field_type: VType::String,
+        },
+    ];
+    let foo_got = module.struct_defs.get("Foo").unwrap();
+    assert_eq!(foo_got, &foo_want);
+
+    let baz_want = vec![
+        FieldDefinition {
+            identifier: ident!("i"),
+            field_type: VType::Int,
+        },
+        FieldDefinition {
+            identifier: ident!("b"),
+            field_type: VType::Bool,
+        },
+        FieldDefinition {
+            identifier: ident!("s"),
+            field_type: VType::String,
+        },
+    ];
+    let baz_got = module.struct_defs.get("Baz").unwrap();
+    assert_eq!(baz_got, &baz_want);
 }
 
 #[test]
@@ -696,10 +931,19 @@ fn test_immutable_fact_cannot_be_updated() {
 #[test]
 fn test_serialize_deserialize() {
     let text = r#"
-        struct Foo {}
-        function foo(input struct Foo) struct Foo {
-            let b = serialize(input)
-            return deserialize(b)
+        struct Envelope {
+            payload bytes
+        }
+        command Foo {
+            fields {}
+            seal {
+                return Envelope {
+                    payload: serialize(this),
+                }
+            }
+            open {
+                return deserialize(envelope.payload)
+            }
         }
     "#;
 
@@ -1505,7 +1749,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "Serializing non-struct",
+            e: "serializing int, expected struct Foo",
         },
         Case {
             t: r#"

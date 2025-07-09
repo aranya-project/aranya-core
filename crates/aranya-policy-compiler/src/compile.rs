@@ -1,5 +1,5 @@
 mod error;
-mod target;
+pub mod target;
 mod types;
 
 use std::{
@@ -13,7 +13,7 @@ use std::{
 
 use aranya_policy_ast::{
     self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
-    MatchExpression, MatchStatement, VType,
+    MatchExpression, MatchStatement, StructItem, VType,
 };
 use aranya_policy_module::{
     ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
@@ -24,8 +24,9 @@ use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt};
-pub(crate) use target::CompileTarget;
+use buggy::{bug, Bug, BugExt};
+use indexmap::IndexMap;
+use target::CompileTarget;
 use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
@@ -189,29 +190,50 @@ impl<'a> CompileState<'a> {
     pub fn define_struct(
         &mut self,
         identifier: Identifier,
-        fields: &[FieldDefinition],
+        items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
-        match self.m.struct_defs.entry(identifier) {
-            Entry::Vacant(e) => {
-                let mut identifiers = BTreeSet::new();
+        if self.m.struct_defs.contains_key(&identifier) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
+        }
 
-                for field in fields {
-                    if !identifiers.insert(field.identifier.clone()) {
-                        return Err(CompileError::from_locator(
-                            CompileErrorType::AlreadyDefined(field.identifier.to_string()),
-                            self.last_locator,
-                            self.m.codemap.as_ref(),
-                        ));
+        // Add explicitly-defined fields and those from struct insertions
+
+        let mut field_definitions = Vec::new();
+        for item in items {
+            match item {
+                StructItem::Field(field) => {
+                    if field_definitions
+                        .iter()
+                        .any(|f: &FieldDefinition| f.identifier == field.identifier)
+                    {
+                        return Err(self.err(CompileErrorType::AlreadyDefined(
+                            field.identifier.to_string(),
+                        )));
+                    }
+                    field_definitions.push(field.clone());
+                }
+                StructItem::StructRef(ident) => {
+                    let other =
+                        self.m.struct_defs.get(ident).ok_or_else(|| {
+                            self.err(CompileErrorType::NotDefined(ident.to_string()))
+                        })?;
+                    for field in other {
+                        if field_definitions
+                            .iter()
+                            .any(|f: &FieldDefinition| f.identifier == field.identifier)
+                        {
+                            return Err(self.err(CompileErrorType::AlreadyDefined(
+                                field.identifier.to_string(),
+                            )));
+                        }
+                        field_definitions.push(field.clone());
                     }
                 }
-                e.insert(fields.to_vec());
-                Ok(())
-            }
-            Entry::Occupied(o) => {
-                let identifier = o.key().to_string();
-                Err(self.err(CompileErrorType::AlreadyDefined(identifier)))
             }
         }
+
+        self.m.struct_defs.insert(identifier, field_definitions);
+        Ok(())
     }
 
     fn compile_enum_definition(
@@ -225,16 +247,16 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = BTreeMap::new();
+        let mut values = IndexMap::new();
         for (i, value_name) in enum_def.variants.iter().enumerate() {
             match values.entry(value_name.clone()) {
-                Entry::Occupied(_) => {
+                indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                         "{}::{}",
                         enum_name, value_name
                     ))));
                 }
-                Entry::Vacant(e) => {
+                indexmap::map::Entry::Vacant(e) => {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
                     // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
                     // then we'll need to ensure those are unique.
@@ -659,32 +681,49 @@ impl<'a> CompileState<'a> {
                         .map_err(|e| self.err(e.into()))?
                 }
                 ast::InternalFunction::Serialize(e) => {
-                    if !matches!(
-                        self.get_statement_context()?,
-                        StatementContext::PureFunction(_)
-                    ) {
-                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
+                    match self.get_statement_context()? {
+                        StatementContext::PureFunction(ast::FunctionDefinition {
+                            identifier,
+                            ..
+                        }) if identifier == "seal" => {}
+                        _ => {
+                            return Err(
+                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
+                            );
+                        }
                     }
+                    let struct_type = self
+                        .identifier_types
+                        .get(&ident!("this"))
+                        .assume("seal must have `this`")?;
+                    let Typeish::Type(struct_type @ VType::Struct(_)) = struct_type else {
+                        bug!("seal::this must be a struct type");
+                    };
                     let t = self.compile_expression(e)?;
-                    if !t.is_any_struct() {
-                        return Err(self.err(CompileErrorType::InvalidType(String::from(
-                            "Serializing non-struct",
+                    if !t.is_maybe(&struct_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "serializing {t}, expected {struct_type}"
                         ))));
                     }
                     self.append_instruction(Instruction::Serialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to throw an error when this is used on a
-                    // struct that is not the current command struct
                     Typeish::Type(VType::Bytes)
                 }
                 ast::InternalFunction::Deserialize(e) => {
-                    if !matches!(
-                        self.get_statement_context()?,
-                        StatementContext::PureFunction(_)
-                    ) {
-                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
-                    }
+                    // A bit hacky, but you can't manually define a function named "open".
+                    let struct_name = match self.get_statement_context()? {
+                        StatementContext::PureFunction(ast::FunctionDefinition {
+                            identifier,
+                            return_type: VType::Struct(struct_name),
+                            ..
+                        }) if identifier == "open" => struct_name,
+                        _ => {
+                            return Err(
+                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
+                            );
+                        }
+                    };
+
                     let t = self.compile_expression(e)?;
                     if !t.is_maybe(&VType::Bytes) {
                         return Err(self.err(CompileErrorType::InvalidType(String::from(
@@ -693,9 +732,7 @@ impl<'a> CompileState<'a> {
                     }
                     self.append_instruction(Instruction::Deserialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to determine this concretely
-                    Typeish::Indeterminate
+                    Typeish::Type(VType::Struct(struct_name))
                 }
             },
             Expression::FunctionCall(f) => {
@@ -1919,21 +1956,29 @@ impl<'a> CompileState<'a> {
         }
 
         // fields
-        match self.m.command_defs.entry(command_node.identifier.clone()) {
-            Entry::Vacant(e) => {
-                let map = command_node
-                    .fields
-                    .iter()
-                    .map(|f| (f.identifier.clone(), f.field_type.clone()))
-                    .collect();
-                e.insert(map);
-            }
-            Entry::Occupied(_) => {
-                return Err(self.err(CompileErrorType::AlreadyDefined(
-                    command_node.identifier.to_string(),
-                )));
+        if self.m.command_defs.contains_key(&command.identifier) {
+            return Err(self.err(CompileErrorType::AlreadyDefined(
+                command_node.identifier.to_string(),
+            )));
+        }
+        let mut map = BTreeMap::new();
+        for si in &command_node.fields {
+            match si {
+                StructItem::Field(f) => {
+                    map.insert(f.identifier.clone(), f.field_type.clone());
+                }
+                StructItem::StructRef(ref_name) => {
+                    let struct_def = self.m.struct_defs.get(ref_name).ok_or_else(|| {
+                        self.err(CompileErrorType::NotDefined(ref_name.to_string()))
+                    })?;
+                    for fd in struct_def {
+                        map.insert(fd.identifier.clone(), fd.field_type.clone());
+                    }
+                }
             }
         }
+        self.m.command_defs.insert(command.identifier.clone(), map);
+
         Ok(())
     }
 
@@ -2132,10 +2177,7 @@ impl<'a> CompileState<'a> {
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
         for struct_def in &self.policy.structs {
-            self.define_struct(
-                struct_def.inner.identifier.clone(),
-                &struct_def.inner.fields,
-            )?;
+            self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
         }
 
         // Compile global let statements
@@ -2144,20 +2186,30 @@ impl<'a> CompileState<'a> {
         }
 
         for effect in &self.policy.effects {
-            let fields: Vec<FieldDefinition> =
-                effect.inner.fields.iter().map(|f| f.into()).collect();
+            let fields: Vec<StructItem<FieldDefinition>> = effect
+                .inner
+                .items
+                .iter()
+                .map(|i| match i {
+                    StructItem::Field(f) => StructItem::Field(f.into()),
+                    StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+                })
+                .collect();
             self.define_struct(effect.inner.identifier.clone(), &fields)?;
+            self.m.effects.insert(effect.inner.identifier.clone());
         }
 
         // define the structs provided by FFI schema
         for ffi_mod in self.ffi_modules {
             for s in ffi_mod.structs {
-                let fields: Vec<FieldDefinition> = s
+                let fields: Vec<StructItem<FieldDefinition>> = s
                     .fields
                     .iter()
-                    .map(|a| FieldDefinition {
-                        identifier: a.name.to_owned(),
-                        field_type: VType::from(&a.vtype),
+                    .map(|a| {
+                        StructItem::Field(FieldDefinition {
+                            identifier: a.name.clone(),
+                            field_type: VType::from(&a.vtype),
+                        })
                     })
                     .collect();
                 self.define_struct(s.name.to_owned(), &fields)?;
@@ -2172,7 +2224,12 @@ impl<'a> CompileState<'a> {
         for fact in &self.policy.facts {
             let FactDefinition { key, value, .. } = &fact.inner;
 
-            let fields: Vec<FieldDefinition> = key.iter().chain(value.iter()).cloned().collect();
+            let fields: Vec<StructItem<FieldDefinition>> = key
+                .iter()
+                .chain(value.iter())
+                .cloned()
+                .map(StructItem::Field)
+                .collect();
 
             self.define_struct(fact.inner.identifier.clone(), &fields)?;
             self.define_fact(&fact.inner)?;
@@ -2217,11 +2274,6 @@ impl<'a> CompileState<'a> {
         self.resolve_targets()?;
 
         Ok(())
-    }
-
-    /// Finish compilation; return the internal machine
-    pub fn into_module(self) -> Module {
-        self.m.into_module()
     }
 
     /// Get expression value, e.g. Expression::Int => Value::Int
@@ -2424,6 +2476,11 @@ impl<'a> Compiler<'a> {
 
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
+        let target = self.compile_to_target()?;
+        Ok(target.into_module())
+    }
+
+    pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {
@@ -2441,8 +2498,7 @@ impl<'a> Compiler<'a> {
         };
 
         cs.compile()?;
-
-        Ok(cs.into_module())
+        Ok(cs.m)
     }
 }
 

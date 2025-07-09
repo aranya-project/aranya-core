@@ -531,7 +531,7 @@ pub struct EffectDefinition {
     /// The name of the effect
     pub identifier: Identifier,
     /// The fields of the effect and their types
-    pub fields: Vec<EffectFieldDefinition>,
+    pub items: Vec<StructItem<EffectFieldDefinition>>,
 }
 
 /// A struct definition
@@ -540,7 +540,26 @@ pub struct StructDefinition {
     /// The name of the struct
     pub identifier: Identifier,
     /// The fields of the struct and their types
-    pub fields: Vec<FieldDefinition>,
+    pub items: Vec<StructItem<FieldDefinition>>,
+}
+
+/// Struct field or insertion reference
+#[derive(Debug, Clone, PartialEq)]
+pub enum StructItem<T> {
+    /// Field definition
+    Field(T),
+    /// Named struct from whose fields to add to the current struct
+    StructRef(Identifier),
+}
+
+impl<T> StructItem<T> {
+    /// Get the field definition from this struct item
+    pub fn field(&self) -> Option<&T> {
+        match self {
+            StructItem::Field(f) => Some(f),
+            StructItem::StructRef(_) => None,
+        }
+    }
 }
 
 /// A command definition
@@ -551,7 +570,7 @@ pub struct CommandDefinition {
     /// The name of the command
     pub identifier: Identifier,
     /// The fields of the command and their types
-    pub fields: Vec<FieldDefinition>,
+    pub fields: Vec<StructItem<FieldDefinition>>,
     /// Statements for sealing the command into an envelope
     pub seal: Vec<AstNode<Statement>>,
     /// Statements for opening the command envelope

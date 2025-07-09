@@ -213,14 +213,6 @@ impl Typeish {
         }
     }
 
-    /// Is this a struct of any kind or indeterminate?
-    pub fn is_any_struct(&self) -> bool {
-        match self {
-            Self::Type(t) => matches!(t, VType::Struct(_)),
-            _ => true,
-        }
-    }
-
     /// If self is not indeterminate and not the target type, return a [`TypeError`]
     pub fn check_type(&self, target_type: VType, errmsg: &'static str) -> Result<(), TypeError> {
         match self {
