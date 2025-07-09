@@ -5,8 +5,8 @@ use core::ffi::c_int;
 #[allow(clippy::wildcard_imports)]
 pub use super::unix::*;
 use crate::{
-    errno::{errno, Errno},
     BorrowedFd,
+    errno::{Errno, errno},
 };
 
 /// See `fallocate(2)`.

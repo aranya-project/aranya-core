@@ -6,10 +6,10 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    id::IdExt as _, subtle::ConstantTimeEq, DeviceId, EncryptionKey, Engine, GroupKey, HpkeError,
-    Id, IdentityKey, KeyStore, OpenError, SigningKey,
+    DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore, OpenError,
+    SigningKey, id::IdExt as _, subtle::ConstantTimeEq,
 };
-use aranya_policy_vm::{ident, text, ActionContext, CommandContext, PolicyContext};
+use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
 use crate::{
     error::ErrorKind,

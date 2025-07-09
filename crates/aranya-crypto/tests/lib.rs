@@ -13,7 +13,7 @@ test_ciphersuite!(default_ciphersuite, DefaultCipherSuite);
 mod unwrapped_tests {
     use core::marker::PhantomData;
 
-    use aranya_crypto::{id::IdError, unwrapped, Id, Identified};
+    use aranya_crypto::{Id, Identified, id::IdError, unwrapped};
 
     #[test]
     fn test_unwrapped() {

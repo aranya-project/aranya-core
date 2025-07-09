@@ -15,10 +15,10 @@ use rustix::{
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
+    Id, KeyStore,
     engine::WrappedKey,
     id::base58::{String32, ToBase58},
     keystore::{Entry, Occupied, Vacant},
-    Id, KeyStore,
 };
 
 /// A file system backed [`KeyStore`].

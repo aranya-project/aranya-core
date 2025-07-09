@@ -5,7 +5,7 @@
 use core::{borrow::Borrow, fmt, marker::PhantomData, result::Result};
 
 use derive_where::derive_where;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use spideroak_crypto::{
     aead::Tag,
     csprng::Csprng,
@@ -22,7 +22,7 @@ use crate::{
     groupkey::{EncryptedGroupKey, GroupKey},
     hpke::{self, Mode},
     id::Id,
-    misc::{kem_key, signing_key, SigData},
+    misc::{SigData, kem_key, signing_key},
     policy::{self, Cmd, CmdId},
 };
 

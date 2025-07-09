@@ -12,19 +12,19 @@ use spideroak_crypto::{
 use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
 
 use crate::{
+    Csprng, Random,
     aranya::{Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
     hpke::{self, Mode},
-    id::{custom_id, IdError, Identified},
+    id::{IdError, Identified, custom_id},
     policy::{GroupId, PolicyId},
     subtle::{Choice, ConstantTimeEq},
     tls::{self, CipherSuiteId},
     util,
     zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing},
-    Csprng, Random,
 };
 
 type Prk<CS> = kdf::Prk<<<CS as CipherSuite>::Kdf as Kdf>::PrkSize>;

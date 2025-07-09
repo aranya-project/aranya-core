@@ -9,8 +9,8 @@ use core::{
 };
 
 use serde::{
-    de::{self, SeqAccess, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
+    de::{self, SeqAccess, Visitor},
 };
 pub use spideroak_base58::{DecodeError, String32, ToBase58};
 use subtle::{Choice, ConstantTimeEq};

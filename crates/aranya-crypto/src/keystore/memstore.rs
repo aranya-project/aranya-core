@@ -249,9 +249,11 @@ mod tests {
         assert_eq!(got, TestKey64(2));
 
         // But key=1 should not.
-        assert!(store
-            .get::<TestKey64>(id!(1))
-            .expect("`get` should not fail")
-            .is_none());
+        assert!(
+            store
+                .get::<TestKey64>(id!(1))
+                .expect("`get` should not fail")
+                .is_none()
+        );
     }
 }

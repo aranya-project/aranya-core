@@ -23,8 +23,8 @@ use spideroak_crypto::{
     zeroize::{Zeroize, ZeroizeOnDrop},
 };
 use zerocopy::{
-    byteorder::{BE, U32},
     ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+    byteorder::{BE, U32},
 };
 
 use crate::{
@@ -32,7 +32,7 @@ use crate::{
     ciphersuite::{CipherSuite, CipherSuiteExt},
     error::Error,
     hpke::{self, Mode},
-    id::{custom_id, IdError},
+    id::{IdError, custom_id},
     misc::{ciphertext, kem_key, signing_key},
 };
 

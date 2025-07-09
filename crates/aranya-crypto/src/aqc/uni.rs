@@ -9,21 +9,21 @@ use spideroak_crypto::{
     subtle::{Choice, ConstantTimeEq},
 };
 use zerocopy::{
-    byteorder::{BE, U16},
     ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+    byteorder::{BE, U16},
 };
 
 use crate::{
+    Engine,
     aqc::shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::CipherSuite,
     engine::unwrapped,
     error::Error,
     hpke::{self, Mode},
-    id::{custom_id, Id, IdError, IdExt as _},
+    id::{Id, IdError, IdExt as _, custom_id},
     misc::sk_misc,
     tls::CipherSuiteId,
-    Engine,
 };
 
 /// Contextual information for a unidirectional AQC channel.
