@@ -154,16 +154,16 @@ impl<T: ?Sized> Mutex<T> {
     ))]
     fn sys_lock(&self) {
         loop {
-            if likely!(self
-                .key
-                .compare_exchange(
-                    Self::MUTEX_UNLOCKED,
-                    Self::MUTEX_LOCKED,
-                    Ordering::SeqCst,
-                    Ordering::SeqCst,
-                )
-                .is_ok())
-            {
+            if likely!(
+                self.key
+                    .compare_exchange(
+                        Self::MUTEX_UNLOCKED,
+                        Self::MUTEX_LOCKED,
+                        Ordering::SeqCst,
+                        Ordering::SeqCst,
+                    )
+                    .is_ok()
+            ) {
                 return;
             }
             core::hint::spin_loop();
@@ -196,16 +196,16 @@ impl<T: ?Sized> Mutex<T> {
         loop {
             for _ in 0..PASSIVE_SPIN {
                 while self.key.load(Ordering::Relaxed) == Self::MUTEX_UNLOCKED {
-                    if likely!(self
-                        .key
-                        .compare_exchange(
-                            Self::MUTEX_UNLOCKED,
-                            wait,
-                            Ordering::SeqCst,
-                            Ordering::SeqCst,
-                        )
-                        .is_ok())
-                    {
+                    if likely!(
+                        self.key
+                            .compare_exchange(
+                                Self::MUTEX_UNLOCKED,
+                                wait,
+                                Ordering::SeqCst,
+                                Ordering::SeqCst,
+                            )
+                            .is_ok()
+                    ) {
                         return;
                     }
                     // SAFETY: FFI call, no invariants.
@@ -258,9 +258,9 @@ mod linux {
     use core::{ptr, sync::atomic::AtomicU32};
 
     use buggy::{Bug, BugExt};
-    use libc::{c_int, syscall, timespec, SYS_futex, FUTEX_WAIT, FUTEX_WAKE};
+    use libc::{FUTEX_WAIT, FUTEX_WAKE, SYS_futex, c_int, syscall, timespec};
 
-    use crate::errno::{errno, Errno};
+    use crate::errno::{Errno, errno};
 
     fn futex(
         uaddr: *const AtomicU32,

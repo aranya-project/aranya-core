@@ -1,11 +1,11 @@
 use std::fmt;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, quote_spanned, ToTokens};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::{
+    AttrStyle, Attribute, Expr, Ident, Lit, LitStr, Meta,
     parse::{Parse, ParseStream, Result},
     spanned::Spanned,
-    AttrStyle, Attribute, Expr, Ident, Lit, LitStr, Meta,
 };
 use tracing::{debug, instrument};
 

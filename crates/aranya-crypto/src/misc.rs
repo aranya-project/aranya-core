@@ -2,7 +2,7 @@
 
 use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use spideroak_crypto::{
     keys::PublicKey,
     signer::{Signature, Signer},
