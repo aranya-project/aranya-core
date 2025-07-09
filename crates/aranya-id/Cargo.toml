@@ -38,3 +38,9 @@ zerocopy-derive = { workspace = true }
 [dev-dependencies]
 postcard = { workspace = true, features = ["alloc"] }
 serde_json = { version = "1", features = ["alloc"] }
+
+
+[package.metadata.cargo-machete]
+ignored = [
+	"zerocopy", # for zerocopy-derive
+]
