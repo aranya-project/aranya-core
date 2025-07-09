@@ -97,7 +97,7 @@ signing_key! {
     sk = IdentityKey,
     pk = IdentityVerifyingKey,
     id = DeviceId,
-    context = "Device Identity Key",
+    context = "Device Identity Key V1",
 }
 
 impl<CS: CipherSuite> IdentityKey<CS> {
@@ -175,7 +175,7 @@ signing_key! {
     sk = SigningKey,
     pk = VerifyingKey,
     id = SigningKeyId,
-    context = "Device Signing Key",
+    context = "Device Signing Key V1",
 }
 
 impl<CS: CipherSuite> SigningKey<CS> {
@@ -327,7 +327,7 @@ kem_key! {
     sk = EncryptionKey,
     pk = EncryptionPublicKey,
     id = EncryptionKeyId,
-    context = "Device Encryption Key",
+    context = "Device Encryption Key V1",
 }
 
 impl<CS: CipherSuite> EncryptionKey<CS> {

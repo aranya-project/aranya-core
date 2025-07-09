@@ -197,7 +197,7 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     #[inline]
     pub fn id(&self) -> UniChannelId {
         *self.id.get_or_init(|| {
-            UniChannelId::new::<CS>(b"AqcUniChannelId", iter::once(self.as_bytes()))
+            UniChannelId::new::<CS>(b"AqcUniChannelId-v1", iter::once(self.as_bytes()))
         })
     }
 

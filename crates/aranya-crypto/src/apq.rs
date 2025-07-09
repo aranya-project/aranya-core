@@ -394,7 +394,7 @@ signing_key! {
     sk = SenderSigningKey,
     pk = SenderVerifyingKey,
     id = SenderSigningKeyId,
-    context = "APQ Sender Signing Key",
+    context = "APQ Sender Signing Key V1",
 }
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
@@ -513,7 +513,7 @@ kem_key! {
     sk = SenderSecretKey,
     pk = SenderPublicKey,
     id = SenderKeyId,
-    context = "APQ Sender Secret Key",
+    context = "APQ Sender Secret Key V1",
 }
 
 kem_key! {
@@ -523,7 +523,7 @@ kem_key! {
     sk = ReceiverSecretKey,
     pk = ReceiverPublicKey,
     id = ReceiverKeyId,
-    context = "APQ Receiver Secret Key",
+    context = "APQ Receiver Secret Key V1",
 }
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {

@@ -216,9 +216,9 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        *self
-            .id
-            .get_or_init(|| UniChannelId::new::<CS>(b"UniChannelId", iter::once(self.as_bytes())))
+        *self.id.get_or_init(|| {
+            UniChannelId::new::<CS>(b"UniChannelId-v1", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.

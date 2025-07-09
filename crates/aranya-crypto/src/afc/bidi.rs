@@ -245,9 +245,9 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
-        *self
-            .id
-            .get_or_init(|| BidiChannelId::new::<CS>(b"BidiChannelId", iter::once(self.as_bytes())))
+        *self.id.get_or_init(|| {
+            BidiChannelId::new::<CS>(b"BidiChannelId-v1", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.
