@@ -761,9 +761,9 @@ mod test {
 
     fn mkid<T>(x: &str) -> T
     where
-        aranya_crypto::Id: Into<T>,
+        aranya_crypto::BaseId: Into<T>,
     {
-        x.parse::<aranya_crypto::Id>().unwrap().into()
+        x.parse::<aranya_crypto::BaseId>().unwrap().into()
     }
 
     /// See tests for usage.

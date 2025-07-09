@@ -1,4 +1,4 @@
-//! [`Id`]s and generation of [`custom_id`] types.
+//! [`BaseId`] and generation of [`custom_id`] types.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(any(test, doctest)), no_std)]
@@ -8,7 +8,7 @@
 mod id;
 
 #[doc(inline)]
-pub use crate::id::{Id, ParseIdError};
+pub use crate::id::{BaseId, ParseIdError};
 
 #[doc(hidden)]
 pub mod __hidden {

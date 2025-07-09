@@ -1,4 +1,4 @@
-//! [`Id`]s and generation of [`custom_id`] types.
+//! [`aranya_id::BaseId`] related traits and types.
 
 #![forbid(unsafe_code)]
 
@@ -12,7 +12,7 @@ use crate::{CipherSuite, CipherSuiteExt};
 
 /// Extension trait for IDs.
 pub trait IdExt: Sized {
-    /// Derives an [`Id`] from the hash of some data.
+    /// Derives an ID from the hash of some data.
     fn new<'a, CS: CipherSuite>(
         tag: &'static [u8],
         context: impl IntoIterator<Item = &'a [u8]>,
@@ -26,7 +26,6 @@ impl<I> IdExt for I
 where
     [u8; 32]: Into<I>,
 {
-    /// Derives an [`Id`] from the hash of some data.
     fn new<'a, CS: CipherSuite>(
         tag: &'static [u8],
         data: impl IntoIterator<Item = &'a [u8]>,
@@ -38,7 +37,6 @@ where
             .into()
     }
 
-    /// Creates a random ID.
     fn random<R: Csprng>(rng: &mut R) -> Self {
         let mut b = [0u8; 32];
         rng.fill_bytes(&mut b);
@@ -60,13 +58,13 @@ pub trait Identified {
         + PartialOrd
         + serde::Serialize
         + serde::de::DeserializeOwned
-        + Into<Id>;
+        + Into<BaseId>;
 
     /// Uniquely identifies the object.
     fn id(&self) -> Result<Self::Id, IdError>;
 }
 
-/// An error that may occur when accessing an Id
+/// An error that may occur when accessing an ID.
 #[derive(Clone, Debug, Eq, PartialEq, thiserror::Error)]
 #[error("{0}")]
 pub struct IdError(IdErrorRepr);
