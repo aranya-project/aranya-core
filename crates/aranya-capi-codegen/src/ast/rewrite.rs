@@ -2,8 +2,8 @@ use std::{fmt::Write, mem};
 
 use aho_corasick::{AhoCorasick, MatchKind};
 use syn::{
-    visit_mut::{self, VisitMut},
     Ident, LitStr, Path,
+    visit_mut::{self, VisitMut},
 };
 use tracing::{debug, instrument, trace};
 

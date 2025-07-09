@@ -106,11 +106,11 @@ mod tests {
 
         use crate::{
             bearssl::{
-                self, Aes256Gcm, HkdfSha256, HkdfSha384, HkdfSha512, HmacSha512, Sha256, P256,
-                P384, P521,
+                self, Aes256Gcm, HkdfSha256, HkdfSha384, HkdfSha512, HmacSha512, P256, P384, P521,
+                Sha256,
             },
             kem_with_oid,
-            test_util::{test_ciphersuite, TestCs},
+            test_util::{TestCs, test_ciphersuite},
         };
 
         kem_with_oid! {
@@ -154,12 +154,12 @@ mod tests {
     mod rust {
         use spideroak_crypto::{
             oid::consts::DHKEM_P256_HKDF_SHA256,
-            rust::{self, Aes256Gcm, HkdfSha256, HkdfSha384, HmacSha512, Sha256, P256, P384},
+            rust::{self, Aes256Gcm, HkdfSha256, HkdfSha384, HmacSha512, P256, P384, Sha256},
         };
 
         use crate::{
             kem_with_oid,
-            test_util::{test_ciphersuite, TestCs},
+            test_util::{TestCs, test_ciphersuite},
         };
 
         kem_with_oid! {

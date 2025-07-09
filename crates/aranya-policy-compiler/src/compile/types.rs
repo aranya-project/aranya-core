@@ -1,13 +1,13 @@
 use std::{
     borrow::Cow,
-    collections::{hash_map, HashMap},
+    collections::{HashMap, hash_map},
     fmt::{self, Display},
 };
 
 use aranya_policy_ast::{self as ast, Identifier};
 use ast::VType;
 
-use crate::{compile::CompileState, CompileErrorType};
+use crate::{CompileErrorType, compile::CompileState};
 
 /// Describes the nature of a type error
 #[derive(Debug, PartialEq)]

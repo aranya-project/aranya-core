@@ -10,7 +10,7 @@
 use core::{convert::Infallible, fmt::Debug, hash::Hash, result::Result};
 
 use buggy::Bug;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use spideroak_crypto::{
     aead::{Aead, OpenError, SealError},
     csprng::Csprng,

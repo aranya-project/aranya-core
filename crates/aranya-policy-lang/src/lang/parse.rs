@@ -1,15 +1,15 @@
 use std::cell::RefCell;
 
 use aranya_policy_ast::{
-    self as ast, ident, AstNode, Identifier, MapStatement, MatchExpression, Text, Version,
+    self as ast, AstNode, Identifier, MapStatement, MatchExpression, Text, Version, ident,
 };
 use ast::{EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
+    Parser, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
-    Parser, Span,
 };
 
 mod error;
@@ -652,7 +652,7 @@ impl ChunkParser<'_> {
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
                         Some(token.as_span()),
-                    ))
+                    ));
                 }
             };
 
@@ -784,7 +784,7 @@ impl ChunkParser<'_> {
                         ParseErrorKind::Unknown,
                         String::from("invalid token in fact field"),
                         Some(token.as_span()),
-                    ))
+                    ));
                 }
             };
             out.push((identifier, field));
@@ -893,7 +893,7 @@ impl ChunkParser<'_> {
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
                         Some(token.as_span()),
-                    ))
+                    ));
                 }
             };
 
@@ -1058,7 +1058,7 @@ impl ChunkParser<'_> {
                         ParseErrorKind::InvalidStatement,
                         format!("found invalid rule `{:?}`", s),
                         Some(statement.as_span()),
-                    ))
+                    ));
                 }
             };
             statements.push(AstNode::new(ps, locator));
@@ -1317,7 +1317,7 @@ impl ChunkParser<'_> {
                                     ParseErrorKind::Unknown,
                                     String::from("invalid token in command definition"),
                                     Some(field.as_span()),
-                                ))
+                                ));
                             }
                         }
                     }
@@ -1343,7 +1343,7 @@ impl ChunkParser<'_> {
                         ParseErrorKind::InvalidStatement,
                         format!("found {:?} in command definition", t),
                         Some(token.as_span()),
-                    ))
+                    ));
                 }
             }
         }
@@ -1508,7 +1508,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
                 ParseErrorKind::Unknown,
                 "error location error".to_string(),
                 None,
-            )
+            );
         }
     };
 
@@ -1565,7 +1565,7 @@ pub fn parse_policy_chunk(
                     ParseErrorKind::Unknown,
                     format!("Impossible rule: {:?}", item.as_rule()),
                     Some(item.as_span()),
-                ))
+                ));
             }
         }
     }

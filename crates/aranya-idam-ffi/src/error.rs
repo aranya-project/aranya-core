@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::fmt;
 
-use aranya_crypto::{id::IdError, Id, ImportError, UnwrapError, WrapError};
+use aranya_crypto::{Id, ImportError, UnwrapError, WrapError, id::IdError};
 use aranya_policy_vm::{MachineError, MachineErrorType, MachineIOError};
 use tracing::error;
 
