@@ -1,4 +1,4 @@
-//! [`aranya_id::BaseId`] related traits and types.
+//! [`Id`] related traits and types.
 
 #![forbid(unsafe_code)]
 
@@ -22,10 +22,7 @@ pub trait IdExt: Sized {
     fn random<R: Csprng>(rng: &mut R) -> Self;
 }
 
-impl<I> IdExt for I
-where
-    [u8; 32]: Into<I>,
-{
+impl<Tag: IdTag> IdExt for Id<Tag> {
     fn new<'a, CS: CipherSuite>(
         tag: &'static [u8],
         data: impl IntoIterator<Item = &'a [u8]>,
@@ -58,7 +55,7 @@ pub trait Identified {
         + PartialOrd
         + serde::Serialize
         + serde::de::DeserializeOwned
-        + Into<BaseId>;
+        + AsRef<BaseId>;
 
     /// Uniquely identifies the object.
     fn id(&self) -> Result<Self::Id, IdError>;

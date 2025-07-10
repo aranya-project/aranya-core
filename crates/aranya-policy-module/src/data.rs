@@ -3,8 +3,8 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, collections::BTreeMap, format, string::String, vec, vec::Vec};
 use core::fmt::{self, Display};
 
-pub use aranya_crypto::BaseId;
-use aranya_crypto::{DeviceId, EncryptionKeyId};
+pub use aranya_id::BaseId;
+use aranya_id::{Id, IdTag};
 use aranya_policy_ast::{Identifier, Text, VType};
 use serde::{Deserialize, Serialize};
 
@@ -83,9 +83,9 @@ impl_typed!(u8 => Int);
 
 impl_typed!(bool => Bool);
 
-impl_typed!(BaseId => Id);
-impl_typed!(EncryptionKeyId => Id);
-impl_typed!(DeviceId => Id);
+impl<Tag: IdTag> Typed for Id<Tag> {
+    const TYPE: Type<'static> = Type::Id;
+}
 
 impl<T: Typed> Typed for Option<T> {
     const TYPE: Type<'static> = Type::Optional(const { &T::TYPE });
@@ -256,20 +256,8 @@ impl From<Fact> for Value {
     }
 }
 
-impl From<BaseId> for Value {
-    fn from(id: BaseId) -> Self {
-        Value::Id(id)
-    }
-}
-
-impl From<DeviceId> for Value {
-    fn from(id: DeviceId) -> Self {
-        Value::Id(id.into_id())
-    }
-}
-
-impl From<EncryptionKeyId> for Value {
-    fn from(id: EncryptionKeyId) -> Self {
+impl<Tag: IdTag> From<Id<Tag>> for Value {
+    fn from(id: Id<Tag>) -> Self {
         Value::Id(id.into_id())
     }
 }
@@ -379,49 +367,17 @@ impl TryFrom<Value> for Fact {
     }
 }
 
-impl TryFrom<Value> for BaseId {
+impl<Tag: IdTag> TryFrom<Value> for Id<Tag> {
     type Error = ValueConversionError;
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         if let Value::Id(id) = value {
-            Ok(id)
+            Ok(id.from_id())
         } else {
             Err(ValueConversionError::invalid_type(
                 "Id",
                 value.type_name(),
                 "Value -> Id",
-            ))
-        }
-    }
-}
-
-impl TryFrom<Value> for DeviceId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Id(id) = value {
-            Ok(id.into())
-        } else {
-            Err(ValueConversionError::invalid_type(
-                "Id",
-                value.type_name(),
-                "Value -> DeviceId",
-            ))
-        }
-    }
-}
-
-impl TryFrom<Value> for EncryptionKeyId {
-    type Error = ValueConversionError;
-
-    fn try_from(value: Value) -> Result<Self, Self::Error> {
-        if let Value::Id(id) = value {
-            Ok(id.into())
-        } else {
-            Err(ValueConversionError::invalid_type(
-                "Id",
-                value.type_name(),
-                "Value -> EncryptionKeyId",
             ))
         }
     }

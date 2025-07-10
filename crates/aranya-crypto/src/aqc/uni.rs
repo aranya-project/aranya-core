@@ -223,7 +223,6 @@ impl<CS: CipherSuite> UniPeerEncap<CS> {
 
 custom_id! {
     /// Uniquely identifies a unidirectional channel.
-    #[derive(Immutable, IntoBytes, KnownLayout, Unaligned)]
     pub struct UniChannelId;
 }
 

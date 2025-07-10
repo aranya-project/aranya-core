@@ -42,7 +42,7 @@ table_formatter = { version = "0.6.1", optional = true }
 thiserror = { workspace = true }
 
 [dev-dependencies]
-aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc"] }
+aranya-crypto = { path = "../aranya-crypto", default-features = false, features = ["alloc", "getrandom"] }
 aranya-policy-compiler = { path = "../aranya-policy-compiler" }
 aranya-policy-lang = { path = "../aranya-policy-lang" }
 aranya-policy-module = { path = "../aranya-policy-module", features = ["testing"] }

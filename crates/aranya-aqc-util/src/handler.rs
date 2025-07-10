@@ -11,7 +11,7 @@ use aranya_crypto::{
 use buggy::{Bug, bug};
 use serde::{Deserialize, Serialize};
 
-use crate::shared::{LabelId, decode_enc_pk};
+use crate::{LabelId, shared::decode_enc_pk};
 
 /// Wraps `tracing::error` to always use the `aqc-handler`
 /// target.
