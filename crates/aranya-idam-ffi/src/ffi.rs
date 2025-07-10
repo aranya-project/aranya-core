@@ -9,7 +9,7 @@ use aranya_crypto::{
     SigningKey, SigningKeyId, VerifyingKey,
     engine::Engine,
     id::IdExt as _,
-    policy::{self, RoleId},
+    policy::{self, GroupId, RoleId},
     zeroize::Zeroizing,
 };
 use aranya_policy_vm::{CommandContext, Text, ffi::ffi};
@@ -115,12 +115,15 @@ function generate_group_key() struct StoredGroupKey
         eng: &mut E,
     ) -> Result<StoredGroupKey, Error> {
         let group_key = GroupKey::new(eng);
-        let key_id = group_key.id()?.into_id();
+        let key_id = group_key.id()?;
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
         };
-        Ok(StoredGroupKey { key_id, wrapped })
+        Ok(StoredGroupKey {
+            key_id: key_id.into_id(),
+            wrapped,
+        })
     }
 
     /// Encrypts the [`GroupKey`] for another device.
@@ -137,7 +140,7 @@ function seal_group_key(
         eng: &mut E,
         wrapped_group_key: Vec<u8>,
         peer_enc_pk: Vec<u8>,
-        group_id: BaseId,
+        group_id: GroupId,
     ) -> Result<SealedGroupKey, Error> {
         let group_key: GroupKey<E::CS> = {
             let wrapped = postcard::from_bytes(&wrapped_group_key)?;
@@ -164,18 +167,17 @@ function open_group_key(
         _ctx: &CommandContext,
         eng: &mut E,
         sealed_group_key: SealedGroupKey,
-        our_enc_sk_id: BaseId,
-        group_id: BaseId,
+        our_enc_sk_id: EncryptionKeyId,
+        group_id: GroupId,
     ) -> Result<StoredGroupKey, Error> {
         let sk: EncryptionKey<E::CS> = self
             .store
             .get_key(eng, our_enc_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id)))?;
-        debug_assert_eq!(
-            sk.id().map_err(aranya_crypto::Error::from)?.into_id(),
-            our_enc_sk_id
-        );
+            .ok_or_else(|| {
+                Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_enc_sk_id.into_id()))
+            })?;
+        debug_assert_eq!(sk.id().map_err(aranya_crypto::Error::from)?, our_enc_sk_id);
 
         let group_key = {
             let enc = Encap::<E::CS>::from_bytes(&sealed_group_key.encap)?;
@@ -184,12 +186,15 @@ function open_group_key(
             sk.open_group_key(&enc, ciphertext, group_id)?
         };
 
-        let key_id = group_key.id()?.into_id();
+        let key_id = group_key.id()?;
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
         };
-        Ok(StoredGroupKey { key_id, wrapped })
+        Ok(StoredGroupKey {
+            key_id: key_id.into_id(),
+            wrapped,
+        })
     }
 
     /// Encrypt a message using the [`GroupKey`].
@@ -209,7 +214,7 @@ function encrypt_message(
         eng: &mut E,
         plaintext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
-        our_sign_sk_id: BaseId,
+        our_sign_sk_id: SigningKeyId,
         label: Text,
     ) -> Result<Vec<u8>, Error> {
         let plaintext = Zeroizing::new(plaintext);
@@ -227,12 +232,17 @@ function encrypt_message(
             .store
             .get_key(eng, our_sign_sk_id)
             .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-            .ok_or_else(|| Error::new(ErrorKind::KeyNotFound, KeyNotFound(our_sign_sk_id)))?;
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::KeyNotFound,
+                    KeyNotFound(our_sign_sk_id.into_id()),
+                )
+            })?;
         let our_sign_pk = sk.public().expect("signing key should be valid");
 
         let ctx = Context {
             label: label.as_str(),
-            parent: ctx.head_id,
+            parent: ctx.head_id.from_id(),
             author_sign_pk: &our_sign_pk,
         };
         let mut ciphertext = {
@@ -277,7 +287,7 @@ function decrypt_message(
 
         let ctx = Context {
             label: ctx.name.as_str(),
-            parent: parent_id,
+            parent: parent_id.from_id(),
             author_sign_pk: author_pk,
         };
         let mut plaintext = {

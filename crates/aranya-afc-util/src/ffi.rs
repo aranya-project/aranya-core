@@ -9,7 +9,7 @@ use alloc::vec::Vec;
 use core::result::Result;
 
 use aranya_crypto::{
-    self, BaseId, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
+    CipherSuite, CmdId, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, ImportError,
     KeyStore, KeyStoreExt, UnwrapError, WrapError,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
 };
@@ -80,7 +80,7 @@ function create_bidi_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: BaseId,
+        parent_cmd_id: CmdId,
         our_enc_key_id: EncryptionKeyId,
         our_id: DeviceId,
         their_enc_pk: Vec<u8>,
@@ -92,7 +92,7 @@ function create_bidi_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, our_enc_key_id.into_id())
+            .get_key(eng, our_enc_key_id)
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_enc_pk)?;
@@ -106,7 +106,7 @@ function create_bidi_channel(
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
-        let key_id = peer.id().into_id();
+        let key_id = peer.id();
         let wrapped = eng.wrap(author)?;
         self.store
             .lock()
@@ -118,7 +118,7 @@ function create_bidi_channel(
 
         Ok(AfcBidiChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id,
+            key_id: key_id.into_id(),
         })
     }
 
@@ -137,7 +137,7 @@ function create_uni_channel(
         &self,
         _ctx: &CommandContext,
         eng: &mut E,
-        parent_cmd_id: BaseId,
+        parent_cmd_id: CmdId,
         author_enc_key_id: EncryptionKeyId,
         their_pk: Vec<u8>,
         seal_id: DeviceId,
@@ -149,7 +149,7 @@ function create_uni_channel(
         let our_sk = &self
             .store
             .lock()
-            .get_key(eng, author_enc_key_id.into_id())
+            .get_key(eng, author_enc_key_id)
             .map_err(|_| FfiError::KeyStore)?
             .ok_or(FfiError::KeyNotFound)?;
         let their_pk = &Self::decode_enc_pk::<E::CS>(&their_pk)?;
@@ -163,7 +163,7 @@ function create_uni_channel(
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
-        let key_id = peer.id().into_id();
+        let key_id = peer.id();
         let wrapped = eng.wrap(author)?;
         self.store
             .lock()
@@ -175,7 +175,7 @@ function create_uni_channel(
 
         Ok(AfcUniChannel {
             peer_encap: peer.as_bytes().to_vec(),
-            key_id,
+            key_id: key_id.into_id(),
         })
     }
 }

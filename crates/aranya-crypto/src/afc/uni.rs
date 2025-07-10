@@ -9,6 +9,7 @@ use zerocopy::{
 };
 
 use crate::{
+    CmdId,
     afc::{
         keys::{OpenKey, SealKey, Seq},
         shared::{RawOpenKey, RawSealKey, RootChannelKey},
@@ -18,7 +19,7 @@ use crate::{
     engine::{Engine, unwrapped},
     error::Error,
     hpke::{self, Mode},
-    id::{BaseId, IdError, IdExt as _, custom_id},
+    id::{IdError, IdExt as _, custom_id},
     misc::sk_misc,
 };
 
@@ -53,7 +54,6 @@ use crate::{
 ///             DefaultEngine,
 ///         },
 ///         Engine,
-///         BaseId,
 ///         IdentityKey,
 ///         EncryptionKey,
 ///         Rng,
@@ -81,7 +81,7 @@ use crate::{
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
-/// let parent_cmd_id = BaseId::random(&mut eng);
+/// let parent_cmd_id = CmdId::random(&mut eng);
 /// let label = 42u32;
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
@@ -144,7 +144,7 @@ use crate::{
 /// ```
 pub struct UniChannel<'a, CS: CipherSuite> {
     /// The ID of the parent command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// Our secret encryption key.
     pub our_sk: &'a EncryptionKey<CS>,
     /// Their public encryption key.
@@ -180,7 +180,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
 pub(crate) struct Info {
     domain: [u8; 12],
-    parent_cmd_id: BaseId,
+    parent_cmd_id: CmdId,
     seal_id: DeviceId,
     open_id: DeviceId,
     label: U32<BE>,

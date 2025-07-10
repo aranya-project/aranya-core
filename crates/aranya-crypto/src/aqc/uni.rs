@@ -14,15 +14,16 @@ use zerocopy::{
 };
 
 use crate::{
-    Engine,
+    CmdId, Engine,
     aqc::shared::{RawPsk, RootChannelKey, SendOrRecvCtx},
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
     ciphersuite::CipherSuite,
     engine::unwrapped,
     error::Error,
     hpke::{self, Mode},
-    id::{BaseId, IdError, IdExt as _, custom_id},
+    id::{IdError, IdExt as _, custom_id},
     misc::sk_misc,
+    policy::LabelId,
     tls::CipherSuiteId,
 };
 
@@ -54,7 +55,6 @@ use crate::{
 ///         DefaultEngine,
 ///     },
 ///     Engine,
-///     BaseId,
 ///     IdentityKey,
 ///     EncryptionKey,
 ///     Rng,
@@ -64,8 +64,8 @@ use crate::{
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
-/// let parent_cmd_id = BaseId::random(&mut eng);
-/// let label = BaseId::random(&mut eng);
+/// let parent_cmd_id = CmdId::random(&mut eng);
+/// let label_id = LabelId::random(&mut eng);
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
 /// let device1_id = IdentityKey::<<E as Engine>::CS>::new(&mut eng).id().expect("device1 ID should be valid");
@@ -120,7 +120,7 @@ pub struct UniChannel<'a, CS: CipherSuite> {
     /// restriction may be lifted in the future.
     pub psk_length_in_bytes: u16,
     /// The ID of the parent command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// Our secret encryption key.
     pub our_sk: &'a EncryptionKey<CS>,
     /// Their public encryption key.
@@ -130,7 +130,7 @@ pub struct UniChannel<'a, CS: CipherSuite> {
     /// The device that is permitted to decrypt messages.
     pub open_id: DeviceId,
     /// The policy label applied to the channel.
-    pub label: BaseId,
+    pub label_id: LabelId,
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
@@ -149,7 +149,7 @@ impl<CS: CipherSuite> UniChannel<'_, CS> {
             parent_cmd_id: self.parent_cmd_id,
             seal_id: self.seal_id,
             open_id: self.open_id,
-            label: self.label,
+            label_id: self.label_id,
         }
     }
 }
@@ -160,10 +160,10 @@ pub(crate) struct Info {
     /// Always "AqcUniPsk-v1".
     domain: [u8; 12],
     psk_length_in_bytes: U16<BE>,
-    parent_cmd_id: BaseId,
+    parent_cmd_id: CmdId,
     seal_id: DeviceId,
     open_id: DeviceId,
-    label: BaseId,
+    label_id: LabelId,
 }
 
 /// A unirectional channel author's secret.

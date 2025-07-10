@@ -13,6 +13,8 @@ use alloc::{
 };
 use core::marker::PhantomData;
 
+use aranya_id::{Id, IdTag};
+
 use super::{Entry, ErrorKind, KeyStore, Occupied, Vacant};
 use crate::{engine::WrappedKey, id::BaseId, util::cbor};
 
@@ -38,7 +40,11 @@ impl KeyStore for MemStore {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
+    fn entry<T: WrappedKey>(
+        &mut self,
+        id: Id<impl IdTag>,
+    ) -> Result<Entry<'_, Self, T>, Self::Error> {
+        let id = id.into_id();
         match self.keys.entry(id) {
             btree_map::Entry::Vacant(entry) => Ok(Entry::Vacant(VacantEntry {
                 entry,
@@ -51,7 +57,8 @@ impl KeyStore for MemStore {
         }
     }
 
-    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
+    fn get<T: WrappedKey>(&self, id: Id<impl IdTag>) -> Result<Option<T>, Self::Error> {
+        let id = id.into_id();
         match self.keys.get(&id) {
             Some(v) => Ok(Some(v.to_wrapped()?)),
             None => Ok(None),
@@ -163,7 +170,7 @@ mod tests {
     macro_rules! id {
         ($id:expr) => {{
             let data = ($id as u64).to_le_bytes();
-            $crate::id::IdExt::new::<DefaultCipherSuite>(
+            <$crate::id::BaseId as $crate::id::IdExt>::new::<DefaultCipherSuite>(
                 b"TestKey",
                 ::core::iter::once(data.as_slice()),
             )

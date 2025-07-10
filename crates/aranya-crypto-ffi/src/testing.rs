@@ -95,10 +95,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -113,7 +110,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -124,7 +121,7 @@ where
                 pk,
                 BaseId::default(),
                 command.clone(),
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect("`crypto::verify` should not fail");
@@ -142,10 +139,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -160,7 +154,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -178,7 +172,7 @@ where
             pk,
             BaseId::default(),
             command,
-            command_id,
+            command_id.from_id(),
             signature,
         )
         .expect_err("`crypto::verify` should fail");
@@ -195,10 +189,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -213,7 +204,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -229,7 +220,7 @@ where
                 pk,
                 BaseId::default(),
                 command,
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -260,10 +251,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -278,7 +266,7 @@ where
             .sign(
                 &SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -290,7 +278,7 @@ where
                 pk,
                 BaseId::default(),
                 command,
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -312,10 +300,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -335,7 +320,7 @@ where
             .sign(
                 &seal_ctx,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -350,7 +335,7 @@ where
                 pk,
                 BaseId::default(),
                 command,
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -376,10 +361,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -394,7 +376,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -405,7 +387,7 @@ where
                 pk,
                 BaseId::default(),
                 command,
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -425,10 +407,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
                 .expect("should be able to insert wrapped `SigningKey`");
             sk
         };
@@ -462,7 +441,7 @@ where
                 .sign(
                     ctx,
                     &mut eng,
-                    sk.id().expect("signing key ID should be valid").into_id(),
+                    sk.id().expect("signing key ID should be valid"),
                     command.clone(),
                 )
                 .expect_err("`crypto::sign` should fail");
@@ -482,10 +461,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -500,7 +476,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -534,7 +510,7 @@ where
                     pk.clone(),
                     BaseId::default(),
                     command.clone(),
-                    command_id,
+                    command_id.from_id(),
                     signature.clone(),
                 )
                 .expect_err("`crypto::verify` should fail");

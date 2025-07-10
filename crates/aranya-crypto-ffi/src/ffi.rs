@@ -4,7 +4,8 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 
 use aranya_crypto::{
-    BaseId, Cmd, Engine, KeyStore, Signature, SigningKey, VerifyingKey, subtle::ConstantTimeEq,
+    BaseId, Cmd, CmdId, Engine, KeyStore, Signature, SigningKey, SigningKeyId, VerifyingKey,
+    subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 
@@ -113,7 +114,7 @@ function sign(
         &self,
         ctx: &CommandContext,
         eng: &mut E,
-        our_sign_sk_id: BaseId,
+        our_sign_sk_id: SigningKeyId,
         command_bytes: Vec<u8>,
     ) -> Result<Signed, Error> {
         let CommandContext::Seal(ctx) = ctx else {
@@ -125,15 +126,15 @@ function sign(
                 .store
                 .get(our_sign_sk_id)
                 .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-                .ok_or(KeyNotFound(our_sign_sk_id))?;
+                .ok_or(KeyNotFound(our_sign_sk_id.into_id()))?;
             eng.unwrap(&wrapped)?
         };
-        debug_assert_eq!(sk.id()?.into_id(), our_sign_sk_id);
+        debug_assert_eq!(sk.id()?, our_sign_sk_id);
 
         let (sig, id) = sk.sign_cmd(Cmd {
             data: &command_bytes,
             name: ctx.name.as_str(),
-            parent_id: &ctx.head_id,
+            parent_id: &ctx.head_id.from_id(),
         })?;
         Ok(Signed {
             signature: sig.to_bytes().borrow().to_vec(),
@@ -159,7 +160,7 @@ function verify(
         author_sign_pk: Vec<u8>,
         parent_id: BaseId,
         command_bytes: Vec<u8>,
-        command_id: BaseId,
+        command_id: CmdId,
         signature: Vec<u8>,
     ) -> Result<Vec<u8>, Error> {
         let CommandContext::Open(ctx) = ctx else {
@@ -172,10 +173,10 @@ function verify(
         let cmd = Cmd {
             data: &command_bytes,
             name: ctx.name.as_str(),
-            parent_id: &parent_id,
+            parent_id: &parent_id.from_id(),
         };
         let id = pk.verify_cmd(cmd, &signature)?;
-        if bool::from(id.ct_eq(&command_id.from_id())) {
+        if bool::from(id.ct_eq(&command_id)) {
             Ok(command_bytes)
         } else {
             Err(InvalidCmdId(()).into())

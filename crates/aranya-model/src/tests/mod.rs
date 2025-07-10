@@ -1504,7 +1504,7 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
 
                 if k == field_name {
                     match v {
-                        Value::Id(id) => Some(*id),
+                        Value::Id(id) => Some((*id).from_id()),
                         _ => None,
                     }
                 } else {
@@ -1513,10 +1513,10 @@ fn should_create_client_with_ffi_and_publish_chain_of_commands() -> Result<(), &
             })
             .ok_or("Relationship effect is missing a field")
     };
-    let mut expected_parent_id = eff1.command.into_id();
+    let mut expected_parent_id = eff1.command;
     for eff in [eff2, eff3] {
         // command's id and its parent_id must be different
-        assert_ne!(eff.command.into_id(), retrieve_id("parent_id", eff)?);
+        assert_ne!(eff.command, retrieve_id("parent_id", eff)?);
 
         // Observe that the actual 'parent_id' of the command that created this effect
         // is equal to the expected 'parent_id'
@@ -1604,7 +1604,7 @@ fn should_allow_remove_graph() {
     let head_id_b = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_eq!(head_id_a.into_id(), head_id_b.into_id());
+    assert_eq!(head_id_a, head_id_b);
 
     // Add our client's public keys to the graph.
     test_model
@@ -1622,7 +1622,7 @@ fn should_allow_remove_graph() {
     let head_id_after_cmd = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_ne!(head_id_a.into_id(), head_id_after_cmd.into_id());
+    assert_ne!(head_id_a, head_id_after_cmd);
 
     // Remove graph from storage.
     test_model
@@ -1651,5 +1651,5 @@ fn should_allow_remove_graph() {
     let head_id_new_sync = test_model
         .head_id(Graph::X, Device::B)
         .expect("Should be able to get ID of head command");
-    assert_eq!(head_id_new_sync.into_id(), head_id_a.into_id());
+    assert_eq!(head_id_new_sync, head_id_a);
 }

@@ -15,12 +15,13 @@ use spideroak_crypto::{
 };
 
 use crate::{
+    CmdId,
     aranya::VerifyingKey,
     ciphersuite::{CipherSuite, CipherSuiteExt},
     engine::unwrapped,
     error::Error,
     generic_array::GenericArray,
-    id::{BaseId, IdError, Identified, custom_id},
+    id::{IdError, Identified, custom_id},
 };
 
 /// Key material used to derive per-event encryption keys.
@@ -112,14 +113,13 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///         DefaultEngine,
     ///     },
     ///     GroupKey,
-    ///     BaseId,
     ///     Rng,
     ///     SigningKey,
     /// };
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const LABEL: &str = "doc test";
-    /// const PARENT: BaseId = BaseId::default();
+    /// const PARENT: CmdId = CmdId::default();
     /// let author = SigningKey::<DefaultCipherSuite>::new(&mut Rng).public().expect("signing key should be valid");
     ///
     /// let key = GroupKey::new(&mut Rng);
@@ -270,7 +270,7 @@ pub struct Context<'a, CS: CipherSuite> {
     /// For example, it could be an event name.
     pub label: &'a str,
     /// The stable ID of the parent event.
-    pub parent: BaseId,
+    pub parent: CmdId,
     /// The public key of the author of the encrypted data.
     pub author_sign_pk: &'a VerifyingKey<CS>,
 }

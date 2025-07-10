@@ -1,10 +1,11 @@
 //! An effect handler for AFC.
 
 use aranya_crypto::{
-    BaseId, CipherSuite, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
+    CipherSuite, CmdId, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
+    custom_id,
 };
 use aranya_fast_channels::{Directed, Label};
 use serde::{Deserialize, Serialize};
@@ -51,13 +52,13 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0)
+            .remove_key(eng, effect.key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.author_enc_key_id.into_id())
+            .get_key(eng, effect.author_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
@@ -100,7 +101,7 @@ impl<S: KeyStore> Handler<S> {
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.peer_enc_key_id.into_id())
+            .get_key(eng, effect.peer_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
@@ -128,7 +129,7 @@ impl<S: KeyStore> Handler<S> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BidiChannelCreated<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encryption key ID.
@@ -147,7 +148,7 @@ pub struct BidiChannelCreated<'a> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct BidiChannelReceived<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encoded [`aranya_crypto::EncryptionPublicKey`].
@@ -162,14 +163,9 @@ pub struct BidiChannelReceived<'a> {
     pub encap: &'a [u8],
 }
 
-/// Uniquely identifies a bidirectional channel.
-#[derive(Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub struct BidiKeyId(BaseId);
-
-impl From<BaseId> for BidiKeyId {
-    fn from(id: BaseId) -> Self {
-        Self(id)
-    }
+custom_id! {
+    /// Uniquely identifies a bidirectional channel.
+    pub struct BidiKeyId;
 }
 
 /// Bidirectional channel keys.
@@ -211,13 +207,13 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id.0)
+            .remove_key(eng, effect.key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.author_enc_key_id.into_id())
+            .get_key(eng, effect.author_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
@@ -263,7 +259,7 @@ impl<S: KeyStore> Handler<S> {
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.peer_enc_key_id.into_id())
+            .get_key(eng, effect.peer_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
@@ -291,7 +287,7 @@ impl<S: KeyStore> Handler<S> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct UniChannelCreated<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can encrypt messages.
@@ -312,7 +308,7 @@ pub struct UniChannelCreated<'a> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct UniChannelReceived<'a> {
     /// The unique ID of the previous command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can encrypt messages.
@@ -329,14 +325,9 @@ pub struct UniChannelReceived<'a> {
     pub encap: &'a [u8],
 }
 
-/// Uniquely identifies a unirectional channel.
-#[derive(Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
-pub struct UniKeyId(BaseId);
-
-impl From<BaseId> for UniKeyId {
-    fn from(id: BaseId) -> Self {
-        Self(id)
-    }
+custom_id! {
+    /// Uniquely identifies a unirectional channel.
+    pub struct UniKeyId;
 }
 
 /// A unidirectional channel key.

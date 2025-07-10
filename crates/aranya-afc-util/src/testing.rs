@@ -17,13 +17,13 @@ use core::{
 };
 
 use aranya_crypto::{
-    BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine,
-    IdentityKey, KeyStore, Rng,
+    BaseId, CipherSuite, CmdId, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey,
+    Engine, IdentityKey, KeyStore, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
-    id::IdExt as _,
+    id::{Id, IdExt as _, IdTag},
     keystore::{Entry, Occupied, Vacant, memstore},
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
@@ -63,7 +63,11 @@ impl KeyStore for MemStore {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
+    fn entry<T: WrappedKey>(
+        &mut self,
+        id: Id<impl IdTag>,
+    ) -> Result<Entry<'_, Self, T>, Self::Error> {
+        let id = id.into_id();
         let entry = match self.0.entry(id)? {
             GuardedEntry::Vacant(v) => Entry::Vacant(VacantEntry(v)),
             GuardedEntry::Occupied(v) => Entry::Occupied(OccupiedEntry(v)),
@@ -71,7 +75,8 @@ impl KeyStore for MemStore {
         Ok(entry)
     }
 
-    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
+    fn get<T: WrappedKey>(&self, id: Id<impl IdTag>) -> Result<Option<T>, Self::Error> {
+        let id = id.into_id();
         match self.0.entry(id)? {
             GuardedEntry::Vacant(_) => Ok(None),
             GuardedEntry::Occupied(v) => Ok(Some(v.get()?)),
@@ -241,7 +246,7 @@ impl<T: TestImpl> Device<T> {
             .wrap(enc_sk)
             .expect("should be able to wrap `EncryptionKey`");
         store
-            .try_insert(enc_key_id.into_id(), wrapped)
+            .try_insert(enc_key_id, wrapped)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
@@ -396,10 +401,10 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -431,7 +436,7 @@ where
                     peer_id: peer.device_id,
                     peer_enc_pk: &peer.enc_pk,
                     label,
-                    key_id: key_id.into(),
+                    key_id: key_id.from_id(),
                 },
             )
             .expect("author should be able to load bidi keys");
@@ -502,10 +507,10 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -538,7 +543,7 @@ where
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
                     label,
-                    key_id: key_id.into(),
+                    key_id: key_id.from_id(),
                 },
             )
             .expect("author should be able to load encryption key");
@@ -610,10 +615,10 @@ where
     let mut peer = T::new(); // seal only
 
     let label = Label::new(42);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniOnlyChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -646,7 +651,7 @@ where
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
                     label,
-                    key_id: key_id.into(),
+                    key_id: key_id.from_id(),
                 },
             )
             .expect("author should be able to load decryption key");

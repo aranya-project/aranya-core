@@ -7,7 +7,7 @@ use core::marker::PhantomData;
 
 use aranya_crypto::{
     BaseId, DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, IdentityKey, KeyStore, OpenError,
-    SigningKey, id::IdExt as _, subtle::ConstantTimeEq,
+    SigningKey, id::IdExt as _, policy::GroupId, subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
@@ -127,7 +127,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(id.into_id(), wrapped)
+                .try_insert(id, wrapped)
                 .expect("should be able to insert `SigningKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("public signing key should be valid"))
@@ -153,7 +153,7 @@ where
                 &mut eng,
                 WANT.to_vec(),
                 wrapped.clone(),
-                key_id.into_id(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -173,7 +173,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(id.into_id(), wrapped)
+                .try_insert(id, wrapped)
                 .expect("should be able to insert `SigningKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("public signing key should be valid"))
@@ -198,7 +198,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into_id(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -226,7 +226,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(id.into_id(), wrapped)
+                .try_insert(id, wrapped)
                 .expect("should be able to insert `SigningKey`");
             let pk = postcard::to_allocvec(&sk.public().expect("signing key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
@@ -250,7 +250,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into_id(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -283,7 +283,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(id.into_id(), wrapped)
+                .try_insert(id, wrapped)
                 .expect("should be able to insert `SigningKey`");
             let pk = postcard::to_allocvec(&sk.public().expect("signing key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
@@ -308,7 +308,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into_id(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -335,7 +335,7 @@ where
                 .wrap(sk.clone())
                 .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(id.into_id(), wrapped)
+                .try_insert(id, wrapped)
                 .expect("should be able to insert `SigningKey`");
             id
         };
@@ -363,7 +363,7 @@ where
                 &mut eng,
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
-                key_id.into_id(),
+                key_id,
                 text!("dummy"),
             )
             .expect("should be able to encrypt message");
@@ -385,10 +385,7 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk
-                .id()
-                .expect("encryption key ID should be valid")
-                .into_id();
+            let id = sk.id().expect("encryption key ID should be valid");
             let wrapped = eng
                 .wrap(sk.clone())
                 .expect("should be able to wrap `EncryptionKey`");
@@ -408,7 +405,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = BaseId::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -418,9 +415,7 @@ where
                 ctx,
                 &mut eng,
                 sealed,
-                sk.id()
-                    .expect("encryption key ID should be valid")
-                    .into_id(),
+                sk.id().expect("encryption key ID should be valid"),
                 group_id,
             )
             .expect("should be able to decrypt `GroupKey`");
@@ -457,10 +452,7 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk
-                .id()
-                .expect("encryption key ID should be valid")
-                .into_id();
+            let id = sk.id().expect("encryption key ID should be valid");
             let wrapped = eng
                 .wrap(sk.clone())
                 .expect("should be able to wrap `EncryptionKey`");
@@ -480,7 +472,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = BaseId::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -492,9 +484,7 @@ where
                 ctx,
                 &mut eng,
                 sealed,
-                sk.id()
-                    .expect("encryption key ID should be valid")
-                    .into_id(),
+                sk.id().expect("encryption key ID should be valid"),
                 group_id,
             )
             .expect_err("should not be able to decrypt `GroupKey` with tampered ciphertext");
@@ -515,10 +505,7 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk
-                .id()
-                .expect("encryption key ID should be valid")
-                .into_id();
+            let id = sk.id().expect("encryption key ID should be valid");
             let wrapped = eng
                 .wrap(sk.clone())
                 .expect("should be able to wrap `EncryptionKey`");
@@ -538,7 +525,7 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = BaseId::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let mut sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
@@ -553,9 +540,7 @@ where
             ctx,
             &mut eng,
             sealed,
-            sk.id()
-                .expect("encryption key ID should be valid")
-                .into_id(),
+            sk.id().expect("encryption key ID should be valid"),
             group_id,
         )
         .expect_err("should not be able to decrypt `GroupKey` with tampered encap");
@@ -569,10 +554,7 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk
-                .id()
-                .expect("encryption key ID should be valid")
-                .into_id();
+            let id = sk.id().expect("encryption key ID should be valid");
             let wrapped = eng
                 .wrap(sk.clone())
                 .expect("should be able to wrap `EncryptionKey`");
@@ -592,20 +574,18 @@ where
             .generate_group_key(ctx, &mut eng)
             .expect("should be able to create `GroupKey`");
 
-        let group_id = BaseId::random(&mut eng);
+        let group_id = GroupId::random(&mut eng);
         let sealed = ffi
             .seal_group_key(ctx, &mut eng, want.wrapped.clone(), pk, group_id)
             .expect("should be able to encrypt `GroupKey`");
 
-        let wrong_group_id = BaseId::random(&mut eng);
+        let wrong_group_id = GroupId::random(&mut eng);
         let err = ffi
             .open_group_key(
                 ctx,
                 &mut eng,
                 sealed,
-                sk.id()
-                    .expect("encryption key ID should be valid")
-                    .into_id(),
+                sk.id().expect("encryption key ID should be valid"),
                 wrong_group_id,
             )
             .expect_err(
