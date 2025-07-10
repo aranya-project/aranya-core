@@ -7,7 +7,8 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    BaseId, Csprng, DeviceId, Engine, KeyStore, Random, SignerError, SigningKey, id::IdExt as _,
+    BaseId, Csprng, DeviceId, Engine, KeyStore, KeyStoreExt as _, Random, SignerError, SigningKey,
+    id::IdExt as _,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
@@ -91,11 +92,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -135,11 +133,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -185,11 +180,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -247,11 +239,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -296,11 +285,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -357,11 +343,8 @@ where
                 postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                     .expect("should be able to encode `VerifyingKey`")
             };
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -403,11 +386,8 @@ where
     pub fn test_seal_reject_wrong_context(mut eng: E, mut store: S) {
         let sk = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             sk
         };
@@ -457,11 +437,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(sk.id().expect("signing key ID should be valid"), wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };

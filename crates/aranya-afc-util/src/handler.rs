@@ -52,7 +52,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id)
+            .remove_key(eng, effect.key_id.cast()) // TODO(jdygert): BidiKeyId vs BidiAuthorSecretId
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 
@@ -207,7 +207,7 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.key_id)
+            .remove_key(eng, effect.key_id.cast()) // TODO(jdygert): UniKeyId vs UniAuthorSecretId
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound)?;
 

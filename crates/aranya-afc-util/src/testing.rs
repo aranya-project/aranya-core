@@ -18,12 +18,12 @@ use core::{
 
 use aranya_crypto::{
     BaseId, CipherSuite, CmdId, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey,
-    Engine, IdentityKey, KeyStore, Rng,
+    Engine, IdentityKey, KeyStore, KeyStoreExt as _, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
-    id::{Id, IdExt as _, IdTag},
+    id::IdExt as _,
     keystore::{Entry, Occupied, Vacant, memstore},
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
@@ -63,11 +63,7 @@ impl KeyStore for MemStore {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(
-        &mut self,
-        id: Id<impl IdTag>,
-    ) -> Result<Entry<'_, Self, T>, Self::Error> {
-        let id = id.into_id();
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
         let entry = match self.0.entry(id)? {
             GuardedEntry::Vacant(v) => Entry::Vacant(VacantEntry(v)),
             GuardedEntry::Occupied(v) => Entry::Occupied(OccupiedEntry(v)),
@@ -75,8 +71,7 @@ impl KeyStore for MemStore {
         Ok(entry)
     }
 
-    fn get<T: WrappedKey>(&self, id: Id<impl IdTag>) -> Result<Option<T>, Self::Error> {
-        let id = id.into_id();
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match self.0.entry(id)? {
             GuardedEntry::Vacant(_) => Ok(None),
             GuardedEntry::Occupied(v) => Ok(Some(v.get()?)),
@@ -235,18 +230,14 @@ impl<T: TestImpl> Device<T> {
             .expect("device ID should be valid");
 
         let enc_sk = EncryptionKey::new(&mut eng);
-        let enc_key_id = enc_sk.id().expect("encryption key ID should be valid");
         let enc_pk = encode_enc_pk(
             &enc_sk
                 .public()
                 .expect("encryption public key should be valid"),
         );
 
-        let wrapped = eng
-            .wrap(enc_sk)
-            .expect("should be able to wrap `EncryptionKey`");
-        store
-            .try_insert(enc_key_id, wrapped)
+        let enc_key_id = store
+            .insert_key(&mut eng, enc_sk)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {

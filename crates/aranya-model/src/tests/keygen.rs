@@ -43,18 +43,11 @@ impl KeyBundle {
         macro_rules! gen_key {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
-                let id = sk.id()?;
-                let wrapped =
-                    eng.wrap(sk)
-                        .context(concat!("unable to wrap `", stringify!($key), "`"))?;
-
-                store.try_insert(id, wrapped).context(concat!(
+                store.insert_key(eng, sk).context(concat!(
                     "unable to insert wrapped `",
                     stringify!($key),
                     "`"
-                ))?;
-
-                id
+                ))?
             }};
         }
         Ok(Self {
@@ -96,18 +89,11 @@ impl MinKeyBundle {
         macro_rules! gen_key {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
-                let id = sk.id().expect("device ID should be valid");
-                let wrapped =
-                    eng.wrap(sk)
-                        .context(concat!("unable to wrap `", stringify!($key), "`"))?;
-
-                store.try_insert(id, wrapped).context(concat!(
+                store.insert_key(eng, sk).context(concat!(
                     "unable to insert wrapped `",
                     stringify!($key),
                     "`"
-                ))?;
-
-                id
+                ))?
             }};
         }
         Ok(Self {

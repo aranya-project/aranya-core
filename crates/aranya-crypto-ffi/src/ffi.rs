@@ -4,8 +4,8 @@ use alloc::vec::Vec;
 use core::borrow::Borrow;
 
 use aranya_crypto::{
-    BaseId, Cmd, CmdId, Engine, KeyStore, Signature, SigningKey, SigningKeyId, VerifyingKey,
-    subtle::ConstantTimeEq,
+    BaseId, Cmd, CmdId, Engine, KeyStore, KeyStoreExt as _, Signature, SigningKey, SigningKeyId,
+    VerifyingKey, subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{CommandContext, ffi::ffi};
 
@@ -121,14 +121,11 @@ function sign(
             return Err(WrongContext("`crypto::sign` used outside of a `seal` block").into());
         };
 
-        let sk: SigningKey<E::CS> = {
-            let wrapped = self
-                .store
-                .get(our_sign_sk_id)
-                .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
-                .ok_or(KeyNotFound(our_sign_sk_id.into_id()))?;
-            eng.unwrap(&wrapped)?
-        };
+        let sk: SigningKey<E::CS> = self
+            .store
+            .get_key(eng, our_sign_sk_id)
+            .map_err(|err| Error::new(ErrorKind::KeyStore, err))?
+            .ok_or(KeyNotFound(our_sign_sk_id.into_id()))?;
         debug_assert_eq!(sk.id()?, our_sign_sk_id);
 
         let (sig, id) = sk.sign_cmd(Cmd {

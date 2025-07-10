@@ -6,8 +6,9 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    BaseId, DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, IdentityKey, KeyStore, OpenError,
-    SigningKey, id::IdExt as _, policy::GroupId, subtle::ConstantTimeEq,
+    BaseId, DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, IdentityKey, KeyStore,
+    KeyStoreExt as _, OpenError, SigningKey, id::IdExt as _, policy::GroupId,
+    subtle::ConstantTimeEq,
 };
 use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
@@ -122,12 +123,8 @@ where
     pub fn test_encrypt_decrypt_message(mut eng: E, mut store: S) {
         let (pk, key_id) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
-            store
-                .try_insert(id, wrapped)
+            let id = store
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `SigningKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("public signing key should be valid"))
@@ -168,12 +165,8 @@ where
     pub fn test_decrypt_message_tampered_with(mut eng: E, mut store: S) {
         let (pk, key_id) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
-            store
-                .try_insert(id, wrapped)
+            let id = store
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `SigningKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("public signing key should be valid"))
@@ -221,12 +214,8 @@ where
     pub fn test_decrypt_message_different_cmd_name(mut eng: E, mut store: S) {
         let (pk, key_id) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
-            store
-                .try_insert(id, wrapped)
+            let id = store
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `SigningKey`");
             let pk = postcard::to_allocvec(&sk.public().expect("signing key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
@@ -278,12 +267,8 @@ where
     pub fn test_decrypt_message_different_parent_cmd_id(mut eng: E, mut store: S) {
         let (pk, key_id) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
-            store
-                .try_insert(id, wrapped)
+            let id = store
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `SigningKey`");
             let pk = postcard::to_allocvec(&sk.public().expect("signing key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
@@ -330,14 +315,9 @@ where
     pub fn test_decrypt_message_different_author(mut eng: E, mut store: S) {
         let key_id = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("signing key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(id, wrapped)
-                .expect("should be able to insert `SigningKey`");
-            id
+                .insert_key(&mut eng, sk)
+                .expect("should be able to insert `SigningKey`")
         };
 
         let ffi = Ffi::new(store);
@@ -385,12 +365,8 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("encryption key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `EncryptionKey`");
             store
-                .try_insert(id, wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `EncryptionKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("encryption public key should be valid"))
@@ -452,12 +428,8 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("encryption key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `EncryptionKey`");
             store
-                .try_insert(id, wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `EncryptionKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("encryption public key should be valid"))
@@ -505,12 +477,8 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("encryption key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `EncryptionKey`");
             store
-                .try_insert(id, wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `EncryptionKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("encryption public key should be valid"))
@@ -554,12 +522,8 @@ where
 
         let (sk, pk) = {
             let sk = EncryptionKey::<E::CS>::new(&mut eng);
-            let id = sk.id().expect("encryption key ID should be valid");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `EncryptionKey`");
             store
-                .try_insert(id, wrapped)
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert `EncryptionKey`");
             let pk =
                 postcard::to_allocvec(&sk.public().expect("encryption public key should be valid"))

@@ -132,14 +132,10 @@ function create_bidi_channel(
         };
         let BidiSecrets { author, peer } = BidiSecrets::new(eng, &ch)?;
 
-        let author_secrets_id = author.id().map_err(|err| FfiError::Crypto(err.into()))?;
-        self.store
-            .lock()
-            .try_insert(author_secrets_id, eng.wrap(author)?)
-            .map_err(|err| {
-                error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
-                FfiError::KeyStore
-            })?;
+        let author_secrets_id = self.store.lock().insert_key(eng, author).map_err(|err| {
+            error!("unable to insert `BidiAuthorSecret` into KeyStore: {err}");
+            FfiError::KeyStore
+        })?;
 
         Ok(AqcBidiChannel {
             channel_id: peer.id().into_id(),
@@ -190,14 +186,10 @@ function create_uni_channel(
         };
         let UniSecrets { author, peer } = UniSecrets::new(eng, &ch)?;
 
-        let author_secrets_id = author.id().map_err(|err| FfiError::Crypto(err.into()))?;
-        self.store
-            .lock()
-            .try_insert(author_secrets_id, eng.wrap(author)?)
-            .map_err(|err| {
-                error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
-                FfiError::KeyStore
-            })?;
+        let author_secrets_id = self.store.lock().insert_key(eng, author).map_err(|err| {
+            error!("unable to insert `UniAuthorSecret` into KeyStore: {err}");
+            FfiError::KeyStore
+        })?;
 
         Ok(AqcUniChannel {
             channel_id: peer.id().into_id(),

@@ -2,7 +2,6 @@
 
 use core::{any::Any, ffi::CStr, marker::PhantomData, ops::Deref};
 
-use aranya_id::{Id, IdTag};
 use buggy::BugExt;
 use cfg_if::cfg_if;
 use ciborium as cbor;
@@ -66,8 +65,8 @@ impl Store {
         Ok(Self::new(root))
     }
 
-    fn alias(&self, id: BaseId) -> Alias {
-        Alias(id.to_base58())
+    fn alias(&self, id: impl AsRef<BaseId>) -> Alias {
+        Alias(id.as_ref().to_base58())
     }
 
     /// Initializes the root directory canary. See
@@ -111,11 +110,7 @@ impl KeyStore for Store {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(
-        &mut self,
-        id: Id<impl IdTag>,
-    ) -> Result<Entry<'_, Self, T>, Self::Error> {
-        let id = id.into_id();
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
         let alias = self.alias(id);
         // The loop is kinda dumb. Normally, we'd just call
         // `open(..., O_CREAT)`. But that doesn't tell us whether
@@ -151,8 +146,7 @@ impl KeyStore for Store {
         Ok(entry)
     }
 
-    fn get<T: WrappedKey>(&self, id: Id<impl IdTag>) -> Result<Option<T>, Self::Error> {
-        let id = id.into_id();
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match Shared::openat(&self.root, &*self.alias(id)) {
             Ok(fd) => Ok(cbor::from_reader(fd)?),
             Err(Errno::NOENT) => {

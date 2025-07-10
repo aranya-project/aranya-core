@@ -53,9 +53,7 @@ fn test_get() {
     let mut store = Store::open(dir.path()).expect("should be able to create `Store`");
 
     let want = TestKey64(1);
-    store
-        .try_insert(id!(1), want)
-        .expect("should be able to store key");
+    store.try_insert(want).expect("should be able to store key");
     let got = store
         .get::<TestKey64>(id!(1))
         .expect("`get` should not fail")
@@ -69,9 +67,7 @@ fn test_get_wrong_key_type() {
     let mut store = Store::open(dir.path()).expect("should be able to create `Store`");
 
     let want = TestKey64(1);
-    store
-        .try_insert(id!(1), want)
-        .expect("should be able to store key");
+    store.try_insert(want).expect("should be able to store key");
     store
         .get::<TestKeyId>(id!(1))
         .expect_err("should not be able to get key");
@@ -83,10 +79,10 @@ fn test_remove() {
     let mut store = Store::open(dir.path()).expect("should be able to create `Store`");
 
     store
-        .try_insert(id!(1), TestKey64(1))
+        .try_insert(TestKey64(1))
         .expect("should be able to store key");
     store
-        .try_insert(id!(2), TestKey64(2))
+        .try_insert(TestKey64(2))
         .expect("should be able to store key");
 
     let got = store
@@ -118,7 +114,7 @@ fn test_get_cloned() {
 
     let want = TestKey64(1);
     store1
-        .try_insert(id!(1), want)
+        .try_insert(want)
         .expect("should be able to store key");
     let got = store1
         .get::<TestKey64>(id!(1))
@@ -141,9 +137,7 @@ fn test_deleted_directory() {
     let mut store = Store::open(dir.path()).expect("should be able to create `Store`");
 
     let want = TestKey64(1);
-    store
-        .try_insert(id!(1), want)
-        .expect("should be able to store key");
+    store.try_insert(want).expect("should be able to store key");
 
     dir.close().expect("should be able to remove `TempDir`");
 
@@ -163,9 +157,7 @@ fn test_vacant_entry_no_insert() {
     store
         .entry::<TestKey64>(id!(1))
         .expect("should be able to get entry");
-    store
-        .try_insert(id!(1), want)
-        .expect("should be able to store key");
+    store.try_insert(want).expect("should be able to store key");
     let got = store
         .get::<TestKey64>(id!(1))
         .expect("`get` should not fail")

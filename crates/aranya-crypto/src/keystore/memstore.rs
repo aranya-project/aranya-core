@@ -13,8 +13,6 @@ use alloc::{
 };
 use core::marker::PhantomData;
 
-use aranya_id::{Id, IdTag};
-
 use super::{Entry, ErrorKind, KeyStore, Occupied, Vacant};
 use crate::{engine::WrappedKey, id::BaseId, util::cbor};
 
@@ -40,11 +38,7 @@ impl KeyStore for MemStore {
     type Vacant<'a, T: WrappedKey> = VacantEntry<'a, T>;
     type Occupied<'a, T: WrappedKey> = OccupiedEntry<'a, T>;
 
-    fn entry<T: WrappedKey>(
-        &mut self,
-        id: Id<impl IdTag>,
-    ) -> Result<Entry<'_, Self, T>, Self::Error> {
-        let id = id.into_id();
+    fn entry<T: WrappedKey>(&mut self, id: BaseId) -> Result<Entry<'_, Self, T>, Self::Error> {
         match self.keys.entry(id) {
             btree_map::Entry::Vacant(entry) => Ok(Entry::Vacant(VacantEntry {
                 entry,
@@ -57,8 +51,7 @@ impl KeyStore for MemStore {
         }
     }
 
-    fn get<T: WrappedKey>(&self, id: Id<impl IdTag>) -> Result<Option<T>, Self::Error> {
-        let id = id.into_id();
+    fn get<T: WrappedKey>(&self, id: BaseId) -> Result<Option<T>, Self::Error> {
         match self.keys.get(&id) {
             Some(v) => Ok(Some(v.to_wrapped()?)),
             None => Ok(None),
@@ -208,9 +201,7 @@ mod tests {
         let mut store = MemStore::new();
 
         let want = TestKey64(1);
-        store
-            .try_insert(id!(1), want)
-            .expect("should be able to store key");
+        store.try_insert(want).expect("should be able to store key");
         let got = store
             .get::<TestKey64>(id!(1))
             .expect("`get` should not fail")
@@ -223,9 +214,7 @@ mod tests {
         let mut store = MemStore::new();
 
         let want = TestKey64(1);
-        store
-            .try_insert(id!(1), want)
-            .expect("should be able to store key");
+        store.try_insert(want).expect("should be able to store key");
         store
             .get::<TestKeyId>(id!(1))
             .expect_err("should not be able to get key");
@@ -236,10 +225,10 @@ mod tests {
         let mut store = MemStore::new();
 
         store
-            .try_insert(id!(1), TestKey64(1))
+            .try_insert(TestKey64(1))
             .expect("should be able to store key");
         store
-            .try_insert(id!(2), TestKey64(2))
+            .try_insert(TestKey64(2))
             .expect("should be able to store key");
 
         let got = store
