@@ -22,10 +22,7 @@ pub trait IdExt: Sized {
     fn random<R: Csprng>(rng: &mut R) -> Self;
 }
 
-impl<I> IdExt for I
-where
-    [u8; 32]: Into<I>,
-{
+impl<Tag: IdTag> IdExt for Id<Tag> {
     fn new<'a, CS: CipherSuite>(
         tag: &'static [u8],
         data: impl IntoIterator<Item = &'a [u8]>,
