@@ -47,8 +47,10 @@ use crate::{
 ///         UniSecrets,
 ///         UniSecret,
 ///     },
+///     policy::LabelId,
 ///     id::IdExt as _,
 ///     CipherSuite,
+///     CmdId,
 ///     Csprng,
 ///     default::{
 ///         DefaultCipherSuite,
@@ -82,7 +84,7 @@ use crate::{
 ///     their_pk: &device2_sk.public().expect("receiver encryption key should be valid"),
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
-///     label,
+///     label_id,
 /// };
 /// let UniSecrets { author, peer } = UniSecrets::new(&mut eng, &device1_ch)
 ///     .expect("unable to create `UniSecrets`");
@@ -100,7 +102,7 @@ use crate::{
 ///     their_pk: &device1_sk.public().expect("receiver encryption key should be valid"),
 ///     seal_id: device1_id,
 ///     open_id: device2_id,
-///     label,
+///     label_id,
 /// };
 /// let device2_psk = UniSecret::from_peer_encap(&device2_ch, peer)
 ///     .expect("unable to derive `UniRecvPsk` from peer encap")

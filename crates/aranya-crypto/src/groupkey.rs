@@ -112,6 +112,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///         DefaultCipherSuite,
     ///         DefaultEngine,
     ///     },
+    ///     CmdId,
     ///     GroupKey,
     ///     Rng,
     ///     SigningKey,

@@ -46,6 +46,7 @@ use crate::{
 ///         },
 ///         id::IdExt as _,
 ///         CipherSuite,
+///         CmdId,
 ///         Csprng,
 ///         default::{
 ///             DefaultCipherSuite,
