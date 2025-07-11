@@ -1,9 +1,8 @@
 //! Wrapped cryptographic key storage.
 
-use crate::{
-    engine::{Engine, UnwrappedKey, WrappedKey},
-    id::BaseId,
-};
+use aranya_id::BaseId;
+
+use crate::engine::{Engine, UnwrappedKey, WrappedKey};
 
 pub mod fs_keystore;
 pub mod memstore;
@@ -28,9 +27,13 @@ pub trait KeyStore {
     /// Stores a `WrappedKey`.
     ///
     /// It is an error if the key already exists.
-    fn try_insert<T: WrappedKey>(&mut self, id: BaseId, key: T) -> Result<(), Self::Error> {
-        match self.entry(id)? {
-            Entry::Vacant(v) => v.insert(key),
+    fn try_insert<T: WrappedKey>(&mut self, key: T) -> Result<T::Id, Self::Error> {
+        let id = key.id().map_err(<Self as KeyStore>::Error::other)?;
+        match self.entry(*id.as_ref())? {
+            Entry::Vacant(v) => {
+                v.insert(key)?;
+                Ok(id)
+            }
             Entry::Occupied(_) => Err(<Self as KeyStore>::Error::new(
                 ErrorKind::AlreadyExists,
                 DuplicateKey,
@@ -116,27 +119,46 @@ pub enum ErrorKind {
 
 /// An extension trait.
 pub trait KeyStoreExt: KeyStore {
+    /// Wraps and inserts the key.
+    fn insert_key<E, K>(&mut self, eng: &mut E, key: K) -> Result<K::Id, Self::Error>
+    where
+        E: Engine,
+        K: UnwrappedKey<E::CS>;
+
     /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: BaseId) -> Result<Option<K>, Self::Error>
+    fn get_key<E, K>(&self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: BaseId) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>;
 }
 
 impl<T: KeyStore> KeyStoreExt for T {
-    /// Retrieves and unwraps the key.
-    fn get_key<E, K>(&self, eng: &mut E, id: BaseId) -> Result<Option<K>, Self::Error>
+    /// Wraps and inserts the key.
+    fn insert_key<E, K>(&mut self, eng: &mut E, key: K) -> Result<K::Id, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
     {
-        if let Some(wrapped) = self.get(id)? {
+        let unwrapped_id = key.id().map_err(<<Self as KeyStore>::Error>::other)?;
+        let wrapped_key = eng.wrap(key).map_err(<<Self as KeyStore>::Error>::other)?;
+        let wrapped_id = self.try_insert(wrapped_key)?;
+        debug_assert_eq!(unwrapped_id.as_ref(), wrapped_id.as_ref());
+        Ok(unwrapped_id)
+    }
+
+    /// Retrieves and unwraps the key.
+    fn get_key<E, K>(&self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
+    where
+        E: Engine,
+        K: UnwrappedKey<E::CS>,
+    {
+        if let Some(wrapped) = self.get(*id.as_ref())? {
             let sk = eng
                 .unwrap(&wrapped)
                 .map_err(<<Self as KeyStore>::Error>::other)?;
@@ -147,12 +169,12 @@ impl<T: KeyStore> KeyStoreExt for T {
     }
 
     /// Removes and unwraps the key.
-    fn remove_key<E, K>(&mut self, eng: &mut E, id: BaseId) -> Result<Option<K>, Self::Error>
+    fn remove_key<E, K>(&mut self, eng: &mut E, id: K::Id) -> Result<Option<K>, Self::Error>
     where
         E: Engine,
         K: UnwrappedKey<E::CS>,
     {
-        if let Some(wrapped) = self.remove(id)? {
+        if let Some(wrapped) = self.remove(*id.as_ref())? {
             let sk = eng
                 .unwrap(&wrapped)
                 .map_err(<<Self as KeyStore>::Error>::other)?;

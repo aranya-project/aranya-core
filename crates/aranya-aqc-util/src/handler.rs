@@ -1,7 +1,7 @@
 //! An effect handler for AQC.
 
 use aranya_crypto::{
-    BaseId, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
+    CmdId, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
     aqc::{
         BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiSecret,
         UniAuthorSecretId, UniChannel, UniChannelId, UniPeerEncap, UniSecret,
@@ -52,13 +52,13 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.author_secrets_id.into_id())
+            .remove_key(eng, effect.author_secrets_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("BidiAuthorSecret"))?;
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.author_enc_key_id.into_id())
+            .get_key(eng, effect.author_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
@@ -72,7 +72,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.author_id,
             their_pk,
             their_id: effect.peer_id,
-            label: effect.label_id.into_id(),
+            label_id: effect.label_id,
         };
 
         let secret = BidiSecret::from_author_secret(&ch, secret).inspect_err(|err| {
@@ -100,7 +100,7 @@ impl<S: KeyStore> Handler<S> {
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.peer_enc_key_id.into_id())
+            .get_key(eng, effect.peer_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
@@ -114,7 +114,7 @@ impl<S: KeyStore> Handler<S> {
             our_id: effect.peer_id,
             their_pk,
             their_id: effect.author_id,
-            label: effect.label_id.into_id(),
+            label_id: effect.label_id,
         };
 
         let secret = BidiSecret::from_peer_encap(&ch, encap).inspect_err(|err| {
@@ -133,7 +133,7 @@ pub struct BidiChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encryption key ID.
@@ -162,7 +162,7 @@ pub struct BidiChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encoded
@@ -202,13 +202,13 @@ impl<S: KeyStore> Handler<S> {
 
         let secret = self
             .store
-            .remove_key(eng, effect.author_secrets_id.into_id())
+            .remove_key(eng, effect.author_secrets_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("UniAuthorSecret"))?;
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.author_enc_key_id.into_id())
+            .get_key(eng, effect.author_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.peer_enc_pk).map_err(|err| {
@@ -222,7 +222,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label_id.into_id(),
+            label_id: effect.label_id,
         };
 
         let secret = if self.device_id == effect.send_id {
@@ -257,7 +257,7 @@ impl<S: KeyStore> Handler<S> {
 
         let our_sk = &self
             .store
-            .get_key(eng, effect.peer_enc_key_id.into_id())
+            .get_key(eng, effect.peer_enc_key_id)
             .map_err(|_| Error::KeyStore)?
             .ok_or(Error::KeyNotFound("device encryption key"))?;
         let their_pk = &decode_enc_pk(effect.author_enc_pk).map_err(|err| {
@@ -271,7 +271,7 @@ impl<S: KeyStore> Handler<S> {
             open_id: effect.recv_id,
             our_sk,
             their_pk,
-            label: effect.label_id.into_id(),
+            label_id: effect.label_id,
         };
 
         let secret = if self.device_id == effect.send_id {
@@ -296,7 +296,7 @@ pub struct UniChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can send messages.
@@ -326,7 +326,7 @@ pub struct UniChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can send messages.

@@ -17,8 +17,8 @@ use core::{
 };
 
 use aranya_crypto::{
-    BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine,
-    IdentityKey, KeyStore, Rng,
+    BaseId, CipherSuite, CmdId, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey,
+    Engine, IdentityKey, KeyStore, KeyStoreExt as _, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
@@ -230,18 +230,14 @@ impl<T: TestImpl> Device<T> {
             .expect("device ID should be valid");
 
         let enc_sk = EncryptionKey::new(&mut eng);
-        let enc_key_id = enc_sk.id().expect("encryption key ID should be valid");
         let enc_pk = encode_enc_pk(
             &enc_sk
                 .public()
                 .expect("encryption public key should be valid"),
         );
 
-        let wrapped = eng
-            .wrap(enc_sk)
-            .expect("should be able to wrap `EncryptionKey`");
-        store
-            .try_insert(enc_key_id.into_id(), wrapped)
+        let enc_key_id = store
+            .insert_key(&mut eng, enc_sk)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
@@ -396,10 +392,10 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -431,7 +427,7 @@ where
                     peer_id: peer.device_id,
                     peer_enc_pk: &peer.enc_pk,
                     label,
-                    key_id: key_id.into(),
+                    key_id: key_id.from_id(),
                 },
             )
             .expect("author should be able to load bidi keys");
@@ -502,10 +498,10 @@ where
     let mut peer = T::new();
 
     let label = Label::new(42);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateSealOnlyChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -538,7 +534,7 @@ where
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
                     label,
-                    key_id: key_id.into(),
+                    key_id: key_id.from_id(),
                 },
             )
             .expect("author should be able to load encryption key");
@@ -610,10 +606,10 @@ where
     let mut peer = T::new(); // seal only
 
     let label = Label::new(42);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniOnlyChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -646,7 +642,7 @@ where
                     author_enc_key_id: author.enc_key_id,
                     peer_enc_pk: &peer.enc_pk,
                     label,
-                    key_id: key_id.into(),
+                    key_id: key_id.from_id(),
                 },
             )
             .expect("author should be able to load decryption key");

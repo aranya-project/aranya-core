@@ -7,7 +7,7 @@ use spideroak_crypto::hash::{Digest, Hash};
 use crate::{
     aranya::{Signature, SigningKeyId},
     ciphersuite::{CipherSuite, CipherSuiteExt},
-    id::{BaseId, IdExt as _, custom_id},
+    id::{IdExt as _, custom_id},
 };
 
 custom_id! {
@@ -61,7 +61,7 @@ pub struct Cmd<'a> {
     /// E.g., `AddDevice`.
     pub name: &'a str,
     /// The parent command in the graph.
-    pub parent_id: &'a BaseId,
+    pub parent_id: &'a CmdId,
 }
 
 impl Cmd<'_> {

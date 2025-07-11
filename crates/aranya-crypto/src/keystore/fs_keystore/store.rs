@@ -65,8 +65,8 @@ impl Store {
         Ok(Self::new(root))
     }
 
-    fn alias(&self, id: BaseId) -> Alias {
-        Alias(id.to_base58())
+    fn alias(&self, id: impl AsRef<BaseId>) -> Alias {
+        Alias(id.as_ref().to_base58())
     }
 
     /// Initializes the root directory canary. See

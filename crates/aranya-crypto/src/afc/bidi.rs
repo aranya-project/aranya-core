@@ -9,6 +9,7 @@ use zerocopy::{
 };
 
 use crate::{
+    CmdId,
     afc::{
         keys::{OpenKey, SealKey, Seq},
         shared::{RawOpenKey, RawSealKey, RootChannelKey},
@@ -18,7 +19,7 @@ use crate::{
     engine::{Engine, unwrapped},
     error::Error,
     hpke::{self, Mode},
-    id::{BaseId, IdError, IdExt as _, custom_id},
+    id::{IdError, IdExt as _, custom_id},
     misc::sk_misc,
 };
 
@@ -45,13 +46,13 @@ use crate::{
 ///         },
 ///         id::IdExt as _,
 ///         CipherSuite,
+///         CmdId,
 ///         Csprng,
 ///         default::{
 ///             DefaultCipherSuite,
 ///             DefaultEngine,
 ///         },
 ///         Engine,
-///         BaseId,
 ///         IdentityKey,
 ///         EncryptionKey,
 ///         Rng,
@@ -90,7 +91,7 @@ use crate::{
 /// type E = DefaultEngine<Rng, DefaultCipherSuite>;
 /// let (mut eng, _) = E::from_entropy(Rng);
 ///
-/// let parent_cmd_id = BaseId::random(&mut eng);
+/// let parent_cmd_id = CmdId::random(&mut eng);
 /// let label = 42u32;
 ///
 /// let device1_sk = EncryptionKey::<<E as Engine>::CS>::new(&mut eng);
@@ -154,7 +155,7 @@ use crate::{
 /// ```
 pub struct BidiChannel<'a, CS: CipherSuite> {
     /// The ID of the parent command.
-    pub parent_cmd_id: BaseId,
+    pub parent_cmd_id: CmdId,
     /// Our secret encryption key.
     pub our_sk: &'a EncryptionKey<CS>,
     /// Our DeviceID.
@@ -205,7 +206,7 @@ impl<CS: CipherSuite> BidiChannel<'_, CS> {
 #[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
 pub(crate) struct Info {
     domain: [u8; 14],
-    parent_cmd_id: BaseId,
+    parent_cmd_id: CmdId,
     their_id: DeviceId,
     our_id: DeviceId,
     label: U32<BE>,
@@ -448,7 +449,6 @@ mod tests {
     use crate::{
         aranya::{EncryptionKey, IdentityKey},
         default::{DefaultCipherSuite, DefaultEngine, Rng},
-        id::BaseId,
     };
 
     #[test]
@@ -456,7 +456,7 @@ mod tests {
         type E = DefaultEngine<Rng>;
         type CS = DefaultCipherSuite;
         let (mut eng, _) = E::from_entropy(Rng);
-        let parent_cmd_id = BaseId::random(&mut eng);
+        let parent_cmd_id = CmdId::random(&mut eng);
         let sk1 = EncryptionKey::<CS>::new(&mut eng);
         let sk2 = EncryptionKey::<CS>::new(&mut eng);
         let label = 123;
@@ -510,7 +510,7 @@ mod tests {
             (
                 "different parent_cmd_id",
                 BidiChannel {
-                    parent_cmd_id: BaseId::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -520,7 +520,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: BaseId::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1
@@ -533,7 +533,7 @@ mod tests {
             (
                 "different our_id",
                 BidiChannel {
-                    parent_cmd_id: BaseId::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -543,7 +543,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: BaseId::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: IdentityKey::<CS>::new(&mut eng)
                         .id()
@@ -558,7 +558,7 @@ mod tests {
             (
                 "different their_id",
                 BidiChannel {
-                    parent_cmd_id: BaseId::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -568,7 +568,7 @@ mod tests {
                     label,
                 },
                 BidiChannel {
-                    parent_cmd_id: BaseId::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1
@@ -583,7 +583,7 @@ mod tests {
             (
                 "different label",
                 BidiChannel {
-                    parent_cmd_id: BaseId::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk1,
                     our_id: device1_id,
                     their_pk: &sk2
@@ -593,7 +593,7 @@ mod tests {
                     label: 123,
                 },
                 BidiChannel {
-                    parent_cmd_id: BaseId::random(&mut eng),
+                    parent_cmd_id: CmdId::random(&mut eng),
                     our_sk: &sk2,
                     our_id: device2_id,
                     their_pk: &sk1

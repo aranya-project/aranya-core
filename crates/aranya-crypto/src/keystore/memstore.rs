@@ -163,7 +163,7 @@ mod tests {
     macro_rules! id {
         ($id:expr) => {{
             let data = ($id as u64).to_le_bytes();
-            $crate::id::IdExt::new::<DefaultCipherSuite>(
+            <$crate::id::BaseId as $crate::id::IdExt>::new::<DefaultCipherSuite>(
                 b"TestKey",
                 ::core::iter::once(data.as_slice()),
             )
@@ -201,9 +201,7 @@ mod tests {
         let mut store = MemStore::new();
 
         let want = TestKey64(1);
-        store
-            .try_insert(id!(1), want)
-            .expect("should be able to store key");
+        store.try_insert(want).expect("should be able to store key");
         let got = store
             .get::<TestKey64>(id!(1))
             .expect("`get` should not fail")
@@ -216,9 +214,7 @@ mod tests {
         let mut store = MemStore::new();
 
         let want = TestKey64(1);
-        store
-            .try_insert(id!(1), want)
-            .expect("should be able to store key");
+        store.try_insert(want).expect("should be able to store key");
         store
             .get::<TestKeyId>(id!(1))
             .expect_err("should not be able to get key");
@@ -229,10 +225,10 @@ mod tests {
         let mut store = MemStore::new();
 
         store
-            .try_insert(id!(1), TestKey64(1))
+            .try_insert(TestKey64(1))
             .expect("should be able to store key");
         store
-            .try_insert(id!(2), TestKey64(2))
+            .try_insert(TestKey64(2))
             .expect("should be able to store key");
 
         let got = store

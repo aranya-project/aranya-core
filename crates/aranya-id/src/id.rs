@@ -77,8 +77,8 @@ impl<Tag: IdTag> Id<Tag> {
 
     /// Cast between two tagged IDs.
     #[inline]
-    const fn cast<Other: IdTag>(self) -> Id<Other> {
-        Id::from_bytes(self.bytes)
+    pub const fn cast<Other: IdTag>(self) -> Id<Other> {
+        zerocopy::transmute!(self)
     }
 
     /// Convert to [`Id`].

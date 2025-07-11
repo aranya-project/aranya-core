@@ -7,7 +7,8 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    BaseId, Csprng, DeviceId, Engine, KeyStore, Random, SignerError, SigningKey, id::IdExt as _,
+    BaseId, CmdId, Csprng, DeviceId, Engine, KeyStore, KeyStoreExt as _, Random, SignerError,
+    SigningKey, id::IdExt as _,
 };
 use aranya_policy_vm::{
     ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
@@ -91,14 +92,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -113,7 +108,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -122,9 +117,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                BaseId::default(),
+                CmdId::default(),
                 command.clone(),
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect("`crypto::verify` should not fail");
@@ -138,14 +133,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -160,7 +149,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -176,9 +165,9 @@ where
             &Self::OPEN_CTX,
             &mut eng,
             pk,
-            BaseId::default(),
+            CmdId::default(),
             command,
-            command_id,
+            command_id.from_id(),
             signature,
         )
         .expect_err("`crypto::verify` should fail");
@@ -191,14 +180,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -213,7 +196,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -227,9 +210,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                BaseId::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -256,14 +239,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -278,7 +255,7 @@ where
             .sign(
                 &SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -288,9 +265,9 @@ where
                 &OPEN_CTX,
                 &mut eng,
                 pk,
-                BaseId::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -308,14 +285,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -335,7 +306,7 @@ where
             .sign(
                 &seal_ctx,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -348,9 +319,9 @@ where
                 &open_ctx,
                 &mut eng,
                 pk,
-                BaseId::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -372,14 +343,8 @@ where
                 postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                     .expect("should be able to encode `VerifyingKey`")
             };
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -394,7 +359,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -403,9 +368,9 @@ where
                 &Self::OPEN_CTX,
                 &mut eng,
                 pk,
-                BaseId::default(),
+                CmdId::default(),
                 command,
-                command_id,
+                command_id.from_id(),
                 signature,
             )
             .expect_err("`crypto::verify` should fail");
@@ -421,14 +386,8 @@ where
     pub fn test_seal_reject_wrong_context(mut eng: E, mut store: S) {
         let sk = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             sk
         };
@@ -462,7 +421,7 @@ where
                 .sign(
                     ctx,
                     &mut eng,
-                    sk.id().expect("signing key ID should be valid").into_id(),
+                    sk.id().expect("signing key ID should be valid"),
                     command.clone(),
                 )
                 .expect_err("`crypto::sign` should fail");
@@ -478,14 +437,8 @@ where
             let sk = SigningKey::<E::CS>::new(&mut eng);
             let pk = postcard::to_allocvec(&sk.public().expect("verifying key should be valid"))
                 .expect("should be able to encode `VerifyingKey`");
-            let wrapped = eng
-                .wrap(sk.clone())
-                .expect("should be able to wrap `SigningKey`");
             store
-                .try_insert(
-                    sk.id().expect("signing key ID should be valid").into_id(),
-                    wrapped,
-                )
+                .insert_key(&mut eng, sk.clone())
                 .expect("should be able to insert wrapped `SigningKey`");
             (sk, pk)
         };
@@ -500,7 +453,7 @@ where
             .sign(
                 &Self::SEAL_CTX,
                 &mut eng,
-                sk.id().expect("signing key ID should be valid").into_id(),
+                sk.id().expect("signing key ID should be valid"),
                 command.clone(),
             )
             .expect("should be able to create signature");
@@ -532,9 +485,9 @@ where
                     ctx,
                     &mut eng,
                     pk.clone(),
-                    BaseId::default(),
+                    CmdId::default(),
                     command.clone(),
-                    command_id,
+                    command_id.from_id(),
                     signature.clone(),
                 )
                 .expect_err("`crypto::verify` should fail");

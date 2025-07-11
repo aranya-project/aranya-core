@@ -17,8 +17,8 @@ use core::{
 };
 
 use aranya_crypto::{
-    self, BaseId, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey,
-    Engine, IdentityKey, KeyStore, Random, Rng,
+    BaseId, CipherSuite, CmdId, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey,
+    Engine, IdentityKey, KeyStore, KeyStoreExt as _, Random, Rng,
     aqc::{BidiPskId, CipherSuiteId, UniPskId},
     engine::WrappedKey,
     id::IdExt as _,
@@ -299,18 +299,14 @@ impl<T: TestImpl> Device<T> {
             .expect("device ID should be valid");
 
         let enc_sk = EncryptionKey::new(&mut eng);
-        let enc_key_id = enc_sk.id().expect("encryption key ID should be valid");
         let enc_pk = encode_enc_pk(
             &enc_sk
                 .public()
                 .expect("encryption public key should be valid"),
         );
 
-        let wrapped = eng
-            .wrap(enc_sk)
-            .expect("should be able to wrap `EncryptionKey`");
-        store
-            .try_insert(enc_key_id.into_id(), wrapped)
+        let enc_key_id = store
+            .insert_key(&mut eng, enc_sk)
             .expect("should be able to insert wrapped `EncryptionKey`");
 
         Self {
@@ -384,10 +380,10 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let mut peer = T::new();
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -473,10 +469,10 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let mut peer = T::new();
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniSendOnlyChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -564,10 +560,10 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
     let mut peer = T::new(); // send only
 
     let label_id = LabelId::random(&mut Rng);
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateUniRecvOnlyChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     // This is called via FFI.
@@ -658,10 +654,10 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
         .map(|_| {
-            let parent_cmd_id = BaseId::random(&mut Rng);
+            let parent_cmd_id = CmdId::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
                 name: ident!("CreateBidiChannel"),
-                head_id: parent_cmd_id,
+                head_id: parent_cmd_id.into_id(),
             });
 
             // This is called via FFI.
@@ -756,10 +752,10 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
     let mut author = T::new();
     let mut peer = T::new();
 
-    let parent_cmd_id = BaseId::random(&mut Rng);
+    let parent_cmd_id = CmdId::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
         name: ident!("CreateBidiChannel"),
-        head_id: parent_cmd_id,
+        head_id: parent_cmd_id.into_id(),
     });
 
     let (mut expect, peer_encaps): (Vec<_>, Vec<_>) = (0..50)
@@ -870,10 +866,10 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
         .iter()
         .enumerate()
         .map(|(i, peer)| {
-            let parent_cmd_id = BaseId::random(&mut Rng);
+            let parent_cmd_id = CmdId::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
                 name: ident!("CreateBidiChannel"),
-                head_id: parent_cmd_id,
+                head_id: parent_cmd_id.into_id(),
             });
 
             // This is called via FFI.
