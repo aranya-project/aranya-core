@@ -4,9 +4,9 @@ use alloc::{vec, vec::Vec};
 use core::convert::Infallible;
 
 use aranya_crypto::{
-    BaseId, CmdId, Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
+    CmdId, Context, DeviceId, Encap, EncryptedGroupKey, EncryptionKey, EncryptionKeyId,
     EncryptionPublicKey, GroupKey, IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId,
-    SigningKey, SigningKeyId, VerifyingKey,
+    SigningKey, SigningKeyId, VerifyingKey, custom_id,
     engine::Engine,
     id::IdExt as _,
     policy::{self, GroupId, RoleId},
@@ -269,7 +269,7 @@ function decrypt_message(
         &self,
         ctx: &CommandContext,
         eng: &mut E,
-        parent_id: BaseId,
+        parent_id: CmdId,
         ciphertext: Vec<u8>,
         wrapped_group_key: Vec<u8>,
         author_sign_pk: Vec<u8>,
@@ -287,7 +287,7 @@ function decrypt_message(
 
         let ctx = Context {
             label: ctx.name.as_str(),
-            parent: parent_id.from_id(),
+            parent: parent_id,
             author_sign_pk: author_pk,
         };
         let mut plaintext = {
@@ -309,11 +309,11 @@ function compute_change_id(
         &self,
         _ctx: &CommandContext,
         _eng: &mut E,
-        new_cmd_id: BaseId,
-        current_change_id: BaseId,
-    ) -> Result<BaseId, Error> {
+        new_cmd_id: CmdId,
+        current_change_id: ChangeId,
+    ) -> Result<ChangeId, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
-        Ok(BaseId::new::<E::CS>(
+        Ok(ChangeId::new::<E::CS>(
             b"ChangeId-v1",
             [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))
@@ -339,4 +339,9 @@ function label_id(
         let id = policy::role_id::<E::CS>(cmd_id, &name, policy_id);
         Ok(id)
     }
+}
+
+custom_id! {
+    /// Identifies a change.
+    pub struct ChangeId;
 }
