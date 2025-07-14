@@ -12,17 +12,17 @@
 
 use std::{fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
 
-use anyhow::{bail, Context, Result};
-use aranya_quic_syncer::{run_syncer, Syncer};
+use anyhow::{Context, Result, bail};
+use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    engine::Sink,
-    protocol::{TestActions, TestEffect, TestEngine},
-    storage::memory::MemStorageProvider,
     ClientState, Engine, GraphId, StorageProvider,
+    engine::Sink,
+    storage::memory::MemStorageProvider,
+    testing::protocol::{TestActions, TestEffect, TestEngine},
 };
 use clap::Parser;
 use s2n_quic::Server;
-use tokio::sync::{mpsc, Mutex as TMutex};
+use tokio::sync::{Mutex as TMutex, mpsc};
 
 #[derive(Parser, Debug)]
 #[clap(name = "server")]

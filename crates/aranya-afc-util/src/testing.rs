@@ -17,16 +17,16 @@ use core::{
 };
 
 use aranya_crypto::{
+    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
+    IdentityKey, KeyStore, Rng,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
     engine::WrappedKey,
-    keystore::{memstore, Entry, Occupied, Vacant},
-    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, Rng,
+    keystore::{Entry, Occupied, Vacant, memstore},
 };
 use aranya_fast_channels::{self, AfcState, AranyaState, ChannelId, Client, Label, NodeId};
-use aranya_policy_vm::{ActionContext, CommandContext};
+use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use indexmap::IndexSet;
 use siphasher::sip::SipHasher13;
 use spin::Mutex;
@@ -397,7 +397,7 @@ where
     let label = Label::new(42);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateBidiChannel",
+        name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -503,7 +503,7 @@ where
     let label = Label::new(42);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateSealOnlyChannel",
+        name: ident!("CreateSealOnlyChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -611,7 +611,7 @@ where
     let label = Label::new(42);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateUniOnlyChannel",
+        name: ident!("CreateUniOnlyChannel"),
         head_id: parent_cmd_id,
     });
 

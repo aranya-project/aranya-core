@@ -2,9 +2,9 @@ use core::{fmt, mem::MaybeUninit, ptr};
 
 use super::conv::newtype::NewType;
 use crate::{
-    safe::OwnedPtr,
-    types::{ByConstPtr, ByMutPtr, ByValue, Input, Opaque},
     Builder,
+    safe::OwnedPtr,
+    types::{ByConstPtr, ByMutPtr, ByValue, Input, Opaque, Output},
 };
 
 #[doc(hidden)]
@@ -72,6 +72,11 @@ pub const fn check_valid_input_ty_const_ptr<T: Input + ByConstPtr>(v: *const T) 
 
 /// Checks that `T` is `Input` and `ByMutPtr`.
 pub const fn check_valid_input_ty_mut_ptr<T: Input + ByMutPtr>(v: *mut T) -> *mut T {
+    v
+}
+
+/// Checks that `T` is `Output`.
+pub const fn check_valid_output_ty<T: Output>(v: T) -> T {
     v
 }
 

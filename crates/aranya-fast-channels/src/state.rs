@@ -4,11 +4,12 @@ use core::{
 };
 
 use aranya_crypto::{
+    CipherSuite,
     afc::{OpenKey, SealKey},
     subtle::ConstantTimeEq,
-    CipherSuite,
 };
 use byteorder::{ByteOrder, LittleEndian};
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -238,6 +239,7 @@ impl From<u32> for Label {
 
 /// An AFC channel.
 #[derive(Copy, Clone)]
+#[derive_where(Debug)]
 pub struct Channel<S, O> {
     /// Uniquely identifies the channel.
     pub id: ChannelId,
@@ -252,15 +254,6 @@ impl<S, O> Channel<S, O> {
             id: self.id,
             keys: self.keys.as_ref(),
         }
-    }
-}
-
-impl<S, O> Debug for Channel<S, O> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Channel")
-            .field("id", &self.id)
-            .field("keys", &self.keys)
-            .finish()
     }
 }
 
@@ -421,43 +414,29 @@ impl<S, O> Debug for Directed<S, O> {
 #[cfg(test)]
 mod test {
     use aranya_crypto::{
-        afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
         CipherSuite, Rng,
+        afc::{BidiKeys, OpenKey, SealKey, UniOpenKey, UniSealKey},
     };
     use buggy::Bug;
+    use derive_where::derive_where;
 
     use crate::{
+        AfcState, AranyaState, ChannelId, Directed, NodeId,
         error::Error,
         memory,
         testing::{
             test_impl,
             util::{MockImpl, States, TestImpl},
         },
-        AfcState, AranyaState, ChannelId, Directed, NodeId,
     };
 
     test_impl!(mock, MockImpl);
 
     /// An implementation of [`AfcState`] and [`AranyaState`]
     /// that defers to default trait methods.
+    #[derive_where(Clone, Default)]
     pub struct DefaultState<CS: CipherSuite> {
         state: memory::State<CS>,
-    }
-
-    impl<CS: CipherSuite> Clone for DefaultState<CS> {
-        fn clone(&self) -> Self {
-            DefaultState {
-                state: self.state.clone(),
-            }
-        }
-    }
-
-    impl<CS: CipherSuite> Default for DefaultState<CS> {
-        fn default() -> Self {
-            Self {
-                state: memory::State::default(),
-            }
-        }
     }
 
     impl<CS: CipherSuite> DefaultState<CS> {

@@ -105,10 +105,10 @@ pub trait StorageProvider {
     type Perspective: Perspective + Revertable;
     type Segment: Segment;
     type Storage: Storage<
-        Segment = Self::Segment,
-        Perspective = Self::Perspective,
-        FactIndex = <Self::Segment as Segment>::FactIndex,
-    >;
+            Segment = Self::Segment,
+            Perspective = Self::Perspective,
+            FactIndex = <Self::Segment as Segment>::FactIndex,
+        >;
 
     /// Create an unrooted perspective, intended for creating a new graph.
     ///
@@ -134,6 +134,13 @@ pub trait StorageProvider {
     ///
     /// * `graph` - ID of the graph, taken from the initialization command.
     fn get_storage(&mut self, graph: GraphId) -> Result<&mut Self::Storage, StorageError>;
+
+    /// Remove a graph.
+    ///
+    /// # Arguments
+    ///
+    /// * `graph` - ID of the graph, taken from the initialization command.
+    fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError>;
 
     /// Gets a list of all stored graphs by their graph ID.
     // TODO(nikki): rewrite this once we can use coroutines/generators?

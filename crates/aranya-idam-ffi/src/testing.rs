@@ -6,10 +6,10 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{
-    aead::OpenError, hpke::HpkeError, subtle::ConstantTimeEq, DeviceId, EncryptionKey, Engine,
-    GroupKey, Id, IdentityKey, KeyStore, SigningKey,
+    DeviceId, EncryptionKey, Engine, GroupKey, HpkeError, Id, IdentityKey, KeyStore, OpenError,
+    SigningKey, subtle::ConstantTimeEq,
 };
-use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext};
+use aranya_policy_vm::{ActionContext, CommandContext, PolicyContext, ident, text};
 
 use crate::{
     error::ErrorKind,
@@ -79,8 +79,8 @@ where
     E: Engine,
     S: KeyStore,
 {
-    const CTX: CommandContext<'static> = CommandContext::Policy(PolicyContext {
-        name: "dummy",
+    const CTX: CommandContext = CommandContext::Policy(PolicyContext {
+        name: ident!("dummy"),
         id: Id::default(),
         author: DeviceId::default(),
         version: Id::default(),
@@ -96,10 +96,12 @@ where
             .expect("should be able to create `GroupKey`");
         let wrapped =
             postcard::from_bytes(&wrapped).expect("should be able to decode wrapped `GroupKey`");
-        let got: GroupKey<_> = eng
-            .unwrap(&wrapped)
-            .expect("should be able to unwrap `GroupKey`");
-        assert_eq!(got.id().into_id(), key_id);
+        let got = eng
+            .unwrap::<GroupKey<_>>(&wrapped)
+            .expect("should be able to unwrap `GroupKey`")
+            .id()
+            .expect("should be able to generate `GroupKey` ID");
+        assert_eq!(got.into_id(), key_id);
     }
 
     /// Test that we generate unique `GroupKey`s.
@@ -135,7 +137,7 @@ where
 
         let ffi = Ffi::new(store);
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy_action"),
             head_id: Id::default(),
         });
         let ctx = &Self::CTX;
@@ -152,7 +154,7 @@ where
                 WANT.to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
         let got = ffi
@@ -186,7 +188,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy_action"),
             head_id: Id::default(),
         });
 
@@ -197,7 +199,7 @@ where
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
@@ -238,7 +240,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy_action"),
             head_id: Id::default(),
         });
 
@@ -249,12 +251,12 @@ where
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
         let ctx = CommandContext::Policy(PolicyContext {
-            name: "different name",
+            name: ident!("different_name"),
             id: Id::default(),
             author: DeviceId::default(),
             version: Id::default(),
@@ -296,7 +298,7 @@ where
             .expect("should be able to create `GroupKey`");
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy_action"),
             head_id: Id::random(&mut eng),
         });
 
@@ -307,7 +309,7 @@ where
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
 
@@ -351,7 +353,7 @@ where
         };
 
         let action_ctx = CommandContext::Action(ActionContext {
-            name: "dummy action",
+            name: ident!("dummy_action"),
             head_id: Id::default(),
         });
 
@@ -362,7 +364,7 @@ where
                 b"hello, world!".to_vec(),
                 wrapped.clone(),
                 key_id.into(),
-                "dummy".into(),
+                text!("dummy"),
             )
             .expect("should be able to encrypt message");
 

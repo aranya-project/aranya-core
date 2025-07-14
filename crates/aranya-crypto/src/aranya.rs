@@ -4,28 +4,30 @@
 
 use core::{borrow::Borrow, fmt, marker::PhantomData, result::Result};
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::{
+use derive_where::derive_where;
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use spideroak_crypto::{
     aead::Tag,
-    ciphersuite::SuiteIds,
     csprng::Csprng,
-    engine::unwrapped,
-    error::Error,
-    groupkey::{EncryptedGroupKey, GroupKey},
-    hash::tuple_hash,
-    hpke::{Hpke, Mode},
-    id::Id,
     import::{Import, ImportError},
     kem::{DecapKey, Kem},
-    keys::{PublicKey, SecretKey},
-    misc::{key_misc, SigData},
-    policy::{self, Cmd, CmdId},
+    keys::PublicKey,
     signer::{self, Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
-    CipherSuite,
+};
+use zerocopy::{ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned};
+
+use crate::{
+    ciphersuite::{CipherSuite, CipherSuiteExt},
+    error::Error,
+    groupkey::{EncryptedGroupKey, GroupKey},
+    hpke::{self, Mode},
+    id::Id,
+    misc::{SigData, kem_key, signing_key},
+    policy::{self, Cmd, CmdId},
 };
 
 /// A signature created by a signing key.
+#[derive_where(Clone, Debug)]
 pub struct Signature<CS: CipherSuite>(pub(crate) <CS::Signer as Signer>::Signature);
 
 impl<CS: CipherSuite> Signature<CS> {
@@ -38,7 +40,7 @@ impl<CS: CipherSuite> Signature<CS> {
     }
 
     /// Encodes itself as bytes.
-    pub fn to_bytes(&self) -> impl Borrow<[u8]> {
+    pub fn to_bytes(&self) -> impl Borrow<[u8]> + use<CS> {
         self.raw_sig()
     }
 
@@ -46,18 +48,6 @@ impl<CS: CipherSuite> Signature<CS> {
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
         let sig = <CS::Signer as Signer>::Signature::import(data)?;
         Ok(Self(sig))
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for Signature<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Signature").field(&self.0).finish()
-    }
-}
-
-impl<CS: CipherSuite> Clone for Signature<CS> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
     }
 }
 
@@ -102,18 +92,15 @@ impl<'de, CS: CipherSuite> Deserialize<'de> for Signature<CS> {
     }
 }
 
-/// The private half of [`IdentityKey`].
-pub struct IdentityKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
-
-key_misc!(IdentityKey, IdentityVerifyingKey, DeviceId);
+signing_key! {
+    /// The Device Identity Key.
+    sk = IdentityKey,
+    pk = IdentityVerifyingKey,
+    id = DeviceId,
+    context = "Device Identity Key",
+}
 
 impl<CS: CipherSuite> IdentityKey<CS> {
-    /// Creates an `IdentityKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
-        IdentityKey(sk)
-    }
-
     /// Creates a signature over `msg` bound to some `context`.
     ///
     /// `msg` must NOT be pre-hashed.
@@ -159,27 +146,11 @@ impl<CS: CipherSuite> IdentityKey<CS> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<CS::Hash, _>([
-            "IdentityKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            context,
-            msg,
-        ]);
-        let sig = self.0.sign(&sum)?;
+        let sum = CS::tuple_hash(b"IdentityKey", [self.id()?.as_bytes(), context, msg]);
+        let sig = self.sk.sign(&sum)?;
         Ok(Signature(sig))
     }
 }
-
-unwrapped! {
-    name: IdentityKey;
-    type: Signing;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
-}
-
-/// The public half of [`IdentityKey`].
-pub struct IdentityVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
 impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
     /// Verifies the signature allegedly created over `msg` and
@@ -194,29 +165,20 @@ impl<CS: CipherSuite> IdentityVerifyingKey<CS> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<CS::Hash, _>([
-            "IdentityKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            context,
-            msg,
-        ]);
-        Ok(self.0.verify(&sum, &sig.0)?)
+        let sum = CS::tuple_hash(b"IdentityKey", [self.id()?.as_bytes(), context, msg]);
+        Ok(self.pk.verify(&sum, &sig.0)?)
     }
 }
 
-/// The private half of [`SigningKey`].
-pub struct SigningKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
-
-key_misc!(SigningKey, VerifyingKey, SigningKeyId);
+signing_key! {
+    /// The Device Signing Key.
+    sk = SigningKey,
+    pk = VerifyingKey,
+    id = SigningKeyId,
+    context = "Device Signing Key",
+}
 
 impl<CS: CipherSuite> SigningKey<CS> {
-    /// Creates a `SigningKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
-        SigningKey(sk)
-    }
-
     /// Creates a signature over `msg` bound to some `context`.
     ///
     /// `msg` must NOT be pre-hashed.
@@ -262,14 +224,8 @@ impl<CS: CipherSuite> SigningKey<CS> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<CS::Hash, _>([
-            "SigningKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            context,
-            msg,
-        ]);
-        let sig = self.0.sign(&sum)?;
+        let sum = CS::tuple_hash(b"SigningKey", [self.id()?.as_bytes(), context, msg]);
+        let sig = self.sk.sign(&sum)?;
         Ok(Signature(sig))
     }
 
@@ -332,21 +288,11 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// ```
     pub fn sign_cmd(&self, cmd: Cmd<'_>) -> Result<(Signature<CS>, CmdId), Error> {
         let digest = cmd.digest::<CS>(self.id()?);
-        let sig = Signature(self.0.sign(&digest)?);
+        let sig = Signature(self.sk.sign(&digest)?);
         let id = policy::cmd_id(&digest, &sig);
         Ok((sig, id))
     }
 }
-
-unwrapped! {
-    name: SigningKey;
-    type: Signing;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
-}
-
-/// The public half of [`SigningKey`].
-pub struct VerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
 impl<CS: CipherSuite> VerifyingKey<CS> {
     /// Verifies the signature allegedly created over `msg` and
@@ -361,38 +307,29 @@ impl<CS: CipherSuite> VerifyingKey<CS> {
         //     context,
         //     msg,
         // )
-        let sum = tuple_hash::<CS::Hash, _>([
-            "SigningKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            context,
-            msg,
-        ]);
-        Ok(self.0.verify(&sum, &sig.0)?)
+        let sum = CS::tuple_hash(b"SigningKey", [self.id()?.as_bytes(), context, msg]);
+        Ok(self.pk.verify(&sum, &sig.0)?)
     }
 
     /// Verifies the signature allegedly created over a policy
     /// command and returns its ID.
     pub fn verify_cmd(&self, cmd: Cmd<'_>, sig: &Signature<CS>) -> Result<CmdId, Error> {
         let digest = cmd.digest::<CS>(self.id()?);
-        self.0.verify(&digest, &sig.0)?;
+        self.pk.verify(&digest, &sig.0)?;
         let id = policy::cmd_id(&digest, sig);
         Ok(id)
     }
 }
 
-/// The private half of [`EncryptionKey`].
-pub struct EncryptionKey<CS: CipherSuite>(pub(crate) <CS::Kem as Kem>::DecapKey);
-
-key_misc!(EncryptionKey, EncryptionPublicKey, EncryptionKeyId);
+kem_key! {
+    /// The Device Encryption Key.
+    sk = EncryptionKey,
+    pk = EncryptionPublicKey,
+    id = EncryptionKeyId,
+    context = "Device Encryption Key",
+}
 
 impl<CS: CipherSuite> EncryptionKey<CS> {
-    /// Creates a devices's `EncryptionKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
-        EncryptionKey(sk)
-    }
-
     /// Decrypts and authenticates a [`GroupKey`] received from
     /// a peer.
     pub fn open_group_key(
@@ -406,33 +343,27 @@ impl<CS: CipherSuite> EncryptionKey<CS> {
             tag,
         } = ciphertext;
 
-        // info = H(
-        //     "GroupKey",
-        //     suite_id,
-        //     engine_id,
+        // info = concat(
+        //     "GroupKey-v1",
         //     group,
         // )
-        let info = tuple_hash::<CS::Hash, _>([
-            "GroupKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            group.as_bytes(),
-        ]);
-        let mut ctx =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(Mode::Base, &enc.0, &self.0, &info)?;
-        ctx.open_in_place(&mut ciphertext, &tag, &info)?;
+        let info = GroupKeyInfo {
+            domain: *b"GroupKey-v1",
+            group,
+        };
+        let mut ctx = hpke::setup_recv::<CS>(Mode::Base, &enc.0, &self.sk, [info.as_bytes()])?;
+        ctx.open_in_place(&mut ciphertext, &tag, info.as_bytes())?;
         Ok(GroupKey::from_seed(ciphertext.into()))
     }
 }
 
-unwrapped! {
-    name: EncryptionKey;
-    type: Decap;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+struct GroupKeyInfo {
+    /// Always "GroupKey-v1".
+    domain: [u8; 11],
+    group: Id,
 }
-
-/// The public half of [`EncryptionKey`].
-pub struct EncryptionPublicKey<CS: CipherSuite>(pub(crate) <CS::Kem as Kem>::EncapKey);
 
 impl<CS: CipherSuite> EncryptionPublicKey<CS> {
     /// Encrypts and authenticates the [`GroupKey`] such that it
@@ -444,22 +375,19 @@ impl<CS: CipherSuite> EncryptionPublicKey<CS> {
         key: &GroupKey<CS>,
         group: Id,
     ) -> Result<(Encap<CS>, EncryptedGroupKey<CS>), Error> {
-        // info = H(
-        //     "GroupKey",
-        //     suite_id,
-        //     engine_id,
+        // info = concat(
+        //     "GroupKey-v1",
         //     group,
         // )
-        let info = tuple_hash::<CS::Hash, _>([
-            "GroupKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            group.as_bytes(),
-        ]);
+        let info = GroupKeyInfo {
+            domain: *b"GroupKey-v1",
+            group,
+        };
         let (enc, mut ctx) =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Base, &self.0, &info)?;
+            hpke::setup_send::<CS, _>(rng, Mode::Base, &self.pk, [info.as_bytes()])?;
         let mut ciphertext = (*key.raw_seed()).into();
         let mut tag = Tag::<CS::Aead>::default();
-        ctx.seal_in_place(&mut ciphertext, &mut tag, &info)?;
+        ctx.seal_in_place(&mut ciphertext, &mut tag, info.as_bytes())?;
         Ok((Encap(enc), EncryptedGroupKey { ciphertext, tag }))
     }
 }
@@ -480,6 +408,7 @@ impl<CS: CipherSuite> Encap<CS> {
         Ok(Self(enc))
     }
 
+    #[cfg(any(feature = "afc", feature = "aqc"))]
     pub(crate) fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
         &self.0
     }
@@ -537,5 +466,108 @@ where
             }
         }
         d.deserialize_bytes(EncapVisitor(PhantomData))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use core::cell::OnceCell;
+
+    use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust, signer::Signer};
+
+    use super::*;
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        Ed25519,
+    >;
+
+    /// Golden test for [`IdentityKey`] IDs.
+    #[test]
+    fn test_identity_key_id() {
+        let tests = [(
+            // Fixed key bytes for reproducible test
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "59UGNZdGcshSmuw3vM5AhbhNAZZNEyQDb9TKNug2cnGn",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
+                .expect("should import signing key");
+            let identity_key: IdentityKey<CS> = IdentityKey {
+                sk,
+                id: OnceCell::new(),
+            };
+
+            let got_id = identity_key.id().expect("should compute ID");
+            let expected = DeviceId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
+    }
+
+    /// Golden test for [`SigningKey`] IDs.
+    #[test]
+    fn test_signing_key_id() {
+        let tests = [(
+            // Fixed key bytes for reproducible test
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "3iA8wJfibGhEGKbhzjiANKEQdRhv7TV7hRb4FWhTzwU5",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
+                .expect("should import signing key");
+            let signing_key: SigningKey<CS> = SigningKey {
+                sk,
+                id: OnceCell::new(),
+            };
+
+            let got_id = signing_key.id().expect("should compute ID");
+            let expected = SigningKeyId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
+    }
+
+    /// Golden test for [`EncryptionKey`] IDs.
+    #[test]
+    fn test_encryption_key_id() {
+        let tests = [(
+            // Fixed key bytes for reproducible test
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "HaE6SCVCRnY4vasF8fimaTbuT1FE6jkTjJfvGc5SrXJj",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
+                .expect("should import decap key");
+            let encryption_key: EncryptionKey<CS> = EncryptionKey {
+                sk,
+                id: OnceCell::new(),
+            };
+
+            let got_id = encryption_key.id().expect("should compute ID");
+            let expected = EncryptionKeyId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
     }
 }

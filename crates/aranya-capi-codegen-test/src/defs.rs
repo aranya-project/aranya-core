@@ -1,7 +1,7 @@
 use aranya_capi_core::{
+    InvalidArg,
     prelude::*,
     safe::{TypeId, Typed},
-    InvalidArg,
 };
 
 pub fn test_unit_unit0() {}
@@ -194,6 +194,9 @@ pub fn test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
 
 pub fn test_slice_u8_unit(_a: &[u8]) {}
 
+// pub fn test_unit_arr() -> [u8; 1] {
+//     [0]
+// }
 pub fn test_ref_arr_u8_unit(_a: &[u8; 64]) {}
 pub fn test_ref_arr_u8_ret(a: &[u8; 64]) -> [u8; 64] {
     *a

@@ -1,35 +1,15 @@
 //! [`Engine`]/[`Policy`] test implementation.
 use alloc::vec::Vec;
-use core::convert::Infallible;
 
 use buggy::bug;
-use postcard::{from_bytes, ser_flavors::Slice, serialize_with_flavor};
+use postcard::ser_flavors::Slice;
 use serde::{Deserialize, Serialize};
-use tracing::trace;
+use tracing::{error, trace};
 
-use super::{
-    alloc, Command, CommandId, Engine, EngineError, FactPerspective, Perspective, Policy, PolicyId,
-    Prior, Priority, Sink, StorageError, MAX_COMMAND_LENGTH,
+use crate::{
+    Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
+    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
 };
-use crate::{Address, CommandRecall, Keys, MergeIds};
-
-impl From<StorageError> for EngineError {
-    fn from(_: StorageError) -> Self {
-        EngineError::InternalError
-    }
-}
-
-impl From<postcard::Error> for EngineError {
-    fn from(_error: postcard::Error) -> Self {
-        EngineError::Read
-    }
-}
-
-impl From<Infallible> for EngineError {
-    fn from(_error: Infallible) -> Self {
-        EngineError::Write
-    }
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WireInit {
@@ -203,10 +183,9 @@ impl TestPolicy {
 }
 
 fn write<'a>(target: &'a mut [u8], message: &WireProtocol) -> Result<&'a mut [u8], EngineError> {
-    Ok(serialize_with_flavor::<WireProtocol, Slice<'a>, &mut [u8]>(
-        message,
-        Slice::new(target),
-    )?)
+    postcard::serialize_with_flavor(message, Slice::new(target))
+        .inspect_err(|err| error!(?err))
+        .map_err(|_| EngineError::Write)
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -257,13 +236,13 @@ impl Sink<TestEffect> for TestSink {
     fn consume(&mut self, effect: TestEffect) {
         trace!(?effect, "consume");
         if !self.ignore_expect {
-            assert!(
-                !self.expect.is_empty(),
-                "Unexpected effect: {:?}, expect is empty",
-                effect
-            );
+            assert!(!self.expect.is_empty(), "consumed {effect:?} while empty");
             let expect = self.expect.remove(0);
-            assert_eq!(effect, expect);
+            trace!(consuming = ?effect, expected = ?expect, remainder = ?self.expect);
+            assert_eq!(
+                effect, expect,
+                "consumed {effect:?} while expecting {expect:?}"
+            );
         }
     }
 
@@ -298,7 +277,9 @@ impl Policy for TestPolicy {
         sink: &mut impl Sink<Self::Effect>,
         _recall: CommandRecall,
     ) -> Result<(), EngineError> {
-        let policy_command: WireProtocol = from_bytes(command.bytes())?;
+        let policy_command: WireProtocol = postcard::from_bytes(command.bytes())
+            .inspect_err(|err| error!(?err))
+            .map_err(|_| EngineError::Read)?;
         self.call_rule_internal(&policy_command, facts, sink)
     }
 
@@ -337,7 +318,10 @@ impl Policy for TestPolicy {
 
                 self.call_rule_internal(&command.command, facts, sink)?;
 
-                facts.add_command(&command)?;
+                facts
+                    .add_command(&command)
+                    .inspect_err(|err| error!(?err))
+                    .map_err(|_| EngineError::Write)?;
             }
             TestActions::SetValue(key, value) => {
                 let mut buffer = [0u8; MAX_COMMAND_LENGTH];
@@ -347,7 +331,10 @@ impl Policy for TestPolicy {
 
                 self.call_rule_internal(&command.command, facts, sink)?;
 
-                facts.add_command(&command)?;
+                facts
+                    .add_command(&command)
+                    .inspect_err(|err| error!(?err))
+                    .map_err(|_| EngineError::Write)?;
             }
         }
 

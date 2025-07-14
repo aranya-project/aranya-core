@@ -2,14 +2,16 @@ use core::{cmp::Ordering, fmt};
 
 use buggy::Bug;
 use byteorder::{ByteOrder, LittleEndian};
-pub use hpke::MessageLimitReached;
-
-use super::shared::{RawOpenKey, RawSealKey};
-use crate::{
+pub use spideroak_crypto::hpke::MessageLimitReached;
+use spideroak_crypto::{
     aead,
     hpke::{self, HpkeError, OpenCtx, SealCtx},
     import::ImportError,
-    CipherSuite,
+};
+
+use crate::{
+    afc::shared::{RawOpenKey, RawSealKey},
+    ciphersuite::CipherSuite,
 };
 
 /// Identifies the position of a ciphertext in a channel.
@@ -79,7 +81,7 @@ macro_rules! packed {
         impl $name {
             /// The size in bytes of the packed struct.
             $vis const PACKED_SIZE: usize = {
-                #[repr(packed)]
+                #[repr(C, packed)]
                 #[allow(dead_code)]
                 $vis struct $name $($tokens)*
                 ::core::mem::size_of::<$name>()

@@ -1,24 +1,25 @@
-use buggy::BugExt;
-use serde::{Deserialize, Serialize};
+use core::cell::OnceCell;
 
-use super::{
-    keys::{OpenKey, SealKey, Seq},
-    shared::{RawOpenKey, RawSealKey, RootChannelKey},
+use buggy::BugExt;
+use derive_where::derive_where;
+use spideroak_crypto::{csprng::Random, import::ImportError, kem::Kem};
+use zerocopy::{
+    ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+    byteorder::{BE, U32},
 };
+
 use crate::{
+    afc::{
+        keys::{OpenKey, SealKey, Seq},
+        shared::{RawOpenKey, RawSealKey, RootChannelKey},
+    },
     aranya::{DeviceId, Encap, EncryptionKey, EncryptionPublicKey},
-    ciphersuite::SuiteIds,
-    csprng::Random,
-    engine::unwrapped,
+    ciphersuite::CipherSuite,
+    engine::{Engine, unwrapped},
     error::Error,
-    hash::{tuple_hash, Digest, Hash},
-    hpke::{Hpke, Mode},
-    id::{custom_id, Id},
-    import::ImportError,
-    kem::Kem,
+    hpke::{self, Mode},
+    id::{Id, IdError, custom_id},
     misc::sk_misc,
-    subtle::{Choice, ConstantTimeEq},
-    CipherSuite, Engine,
 };
 
 /// Contextual information for a unidirectional AFC channel.
@@ -33,7 +34,6 @@ use crate::{
 /// use {
 ///     core::borrow::{Borrow, BorrowMut},
 ///     aranya_crypto::{
-///         aead::{Aead, KeyData},
 ///         afc::{
 ///             AuthData,
 ///             OpenKey,
@@ -54,8 +54,6 @@ use crate::{
 ///         Engine,
 ///         Id,
 ///         IdentityKey,
-///         import::Import,
-///         keys::SecretKey,
 ///         EncryptionKey,
 ///         Rng,
 ///     }
@@ -159,74 +157,86 @@ pub struct UniChannel<'a, CS: CipherSuite> {
 }
 
 impl<CS: CipherSuite> UniChannel<'_, CS> {
-    pub(crate) fn info(&self) -> Digest<<CS::Hash as Hash>::DigestSize> {
-        // info = H(
-        //     "AfcUnidirectionalKey",
-        //     suite_id,
-        //     engine_id,
+    pub(crate) const fn info(&self) -> Info {
+        // info = concat(
+        //     "AfcUniKey-v1",
         //     parent_cmd_id,
         //     seal_id,
         //     open_id,
         //     i2osp(label, 4),
         // )
-        tuple_hash::<CS::Hash, _>([
-            "AfcUnidirectionalKey".as_bytes(),
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.parent_cmd_id.as_bytes(),
-            self.seal_id.as_bytes(),
-            self.open_id.as_bytes(),
-            &self.label.to_be_bytes(),
-        ])
+        Info {
+            domain: *b"AfcUniKey-v1",
+            parent_cmd_id: self.parent_cmd_id,
+            seal_id: self.seal_id,
+            open_id: self.open_id,
+            label: U32::new(self.label),
+        }
     }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+pub(crate) struct Info {
+    domain: [u8; 12],
+    parent_cmd_id: Id,
+    seal_id: DeviceId,
+    open_id: DeviceId,
+    label: U32<BE>,
 }
 
 /// A unirectional channel author's secret.
-pub struct UniAuthorSecret<CS: CipherSuite>(RootChannelKey<CS>);
-
-sk_misc!(UniAuthorSecret, UniAuthorSecretId);
-
-impl<CS: CipherSuite> ConstantTimeEq for UniAuthorSecret<CS> {
-    #[inline]
-    fn ct_eq(&self, other: &Self) -> Choice {
-        self.0.ct_eq(&other.0)
-    }
+pub struct UniAuthorSecret<CS: CipherSuite> {
+    sk: RootChannelKey<CS>,
+    id: OnceCell<Result<UniAuthorSecretId, IdError>>,
 }
+
+sk_misc!(UniAuthorSecret, UniAuthorSecretId, "AFC Uni Author Secret");
 
 unwrapped! {
     name: UniAuthorSecret;
     type: Decap;
-    into: |key: Self| { key.0.into_inner() };
-    from: |key| { Self(RootChannelKey::new(key)) };
+    into: |key: Self| { key.sk.into_inner() };
+    from: |key| { Self { sk: RootChannelKey::new(key), id: OnceCell::new() } };
 }
 
 /// A unirectional channel peer's encapsulated secret.
 ///
 /// This should be freely shared with the channel peer.
-#[derive(Serialize, Deserialize)]
+#[derive_where(Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct UniPeerEncap<CS: CipherSuite>(Encap<CS>);
+pub struct UniPeerEncap<CS: CipherSuite> {
+    encap: Encap<CS>,
+    #[serde(skip)]
+    id: OnceCell<UniChannelId>,
+}
 
 impl<CS: CipherSuite> UniPeerEncap<CS> {
     /// Uniquely identifies the unirectional channel.
     #[inline]
     pub fn id(&self) -> UniChannelId {
-        UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId"))
+        *self
+            .id
+            .get_or_init(|| UniChannelId(Id::new::<CS>(self.as_bytes(), b"UniChannelId")))
     }
 
     /// Encodes itself as bytes.
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
+        self.encap.as_bytes()
     }
 
     /// Returns itself from its byte encoding.
     #[inline]
     pub fn from_bytes(data: &[u8]) -> Result<Self, ImportError> {
-        Ok(Self(Encap::from_bytes(data)?))
+        Ok(Self {
+            encap: Encap::from_bytes(data)?,
+            id: OnceCell::new(),
+        })
     }
 
     fn as_inner(&self) -> &<CS::Kem as Kem>::Encap {
-        self.0.as_inner()
+        self.encap.as_inner()
     }
 }
 
@@ -257,16 +267,22 @@ impl<CS: CipherSuite> UniSecrets<CS> {
 
         let root_sk = RootChannelKey::random(eng);
         let peer = {
-            let (enc, _) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                Mode::Auth(&author_sk.0),
-                &peer_pk.0,
-                &ch.info(),
+            let (enc, _) = hpke::setup_send_deterministically::<CS>(
+                Mode::Auth(&author_sk.sk),
+                &peer_pk.pk,
+                [ch.info().as_bytes()],
                 // TODO(eric): should HPKE take a ref?
                 root_sk.clone().into_inner(),
             )?;
-            UniPeerEncap(Encap(enc))
+            UniPeerEncap {
+                encap: Encap(enc),
+                id: OnceCell::new(),
+            }
         };
-        let author = UniAuthorSecret(root_sk);
+        let author = UniAuthorSecret {
+            sk: root_sk,
+            id: OnceCell::new(),
+        };
 
         Ok(UniSecrets { author, peer })
     }
@@ -298,11 +314,11 @@ macro_rules! uni_key {
                     return Err(Error::same_device_id());
                 }
 
-                let (_, ctx) = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send_deterministically(
-                    Mode::Auth(&author_sk.0),
-                    &peer_pk.0,
-                    &ch.info(),
-                    secret.0.into_inner(),
+                let (_, ctx) = hpke::setup_send_deterministically::<CS>(
+                    Mode::Auth(&author_sk.sk),
+                    &peer_pk.pk,
+                    [ch.info().as_bytes()],
+                    secret.sk.into_inner(),
                 )?;
                 let key = {
                     // `SendCtx` only gets rid of the raw key
@@ -330,12 +346,11 @@ macro_rules! uni_key {
                     return Err(Error::same_device_id());
                 }
 
-                let info = ch.info();
-                let ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
-                    Mode::Auth(&author_pk.0),
+                let ctx = hpke::setup_recv::<CS>(
+                    Mode::Auth(&author_pk.pk),
                     enc.as_inner(),
-                    &peer_sk.0,
-                    &info,
+                    &peer_sk.sk,
+                    [ch.info().as_bytes()],
                 )?;
                 let key = {
                     // `Recv` only gets rid of the raw key after
@@ -387,5 +402,51 @@ impl<CS: CipherSuite> UniOpenKey<CS> {
     pub fn into_key(self) -> Result<OpenKey<CS>, Error> {
         let open = OpenKey::from_raw(&self.0)?;
         Ok(open)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust};
+
+    use super::*;
+    use crate::{afc::shared::RootChannelKey, default::DhKemP256HkdfSha256, test_util::TestCs};
+
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        Ed25519,
+    >;
+
+    /// Golden test for [`UniAuthorSecret`] IDs.
+    #[test]
+    fn test_uni_author_secret_id() {
+        let tests = [(
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "8QFfLfKymtXHa9MJWhJcKvwYWXtsmuCK3Bsf2tCxpdK1",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
+                .expect("should import decap key");
+            let root_key = RootChannelKey::<CS>::new(sk);
+            let uni_author_secret = UniAuthorSecret {
+                sk: root_key,
+                id: OnceCell::new(),
+            };
+
+            let got_id = uni_author_secret.id().expect("should compute ID");
+            let expected =
+                UniAuthorSecretId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
     }
 }

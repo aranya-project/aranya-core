@@ -1,19 +1,45 @@
 #![cfg(test)]
 
-use anyhow::anyhow;
-use aranya_policy_ast::{FieldDefinition, VType, Version};
+use std::collections::BTreeMap;
+
+use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
+    Label, LabelType, Module, ModuleData, Value,
     ffi::{self, ModuleSchema},
-    Label, LabelType, ModuleData, Value,
 };
 
-use crate::{validate::validate, CompileError, CompileErrorType, Compiler, InvalidCallColor};
+use crate::{CompileErrorType, Compiler, InvalidCallColor, validate::validate};
+
+// Helper function which parses and compiles policy expecting success.
+#[track_caller]
+fn compile_pass(text: &str) -> Module {
+    let policy = match parse_policy_str(text, Version::V2) {
+        Ok(p) => p,
+        Err(err) => panic!("{err}"),
+    };
+    match Compiler::new(&policy).compile() {
+        Ok(m) => m,
+        Err(err) => panic!("{err}"),
+    }
+}
+
+// Helper function which parses and compiles policy expecting compile failure.
+#[track_caller]
+fn compile_fail(text: &str) -> CompileErrorType {
+    let policy = match parse_policy_str(text, Version::V2) {
+        Ok(p) => p,
+        Err(err) => panic!("{err}"),
+    };
+    match Compiler::new(&policy).compile() {
+        Ok(_) => panic!("policy compilation should have failed"),
+        Err(err) => err.err_type(),
+    }
+}
 
 #[test]
-fn test_compile() -> anyhow::Result<()> {
-    let policy = parse_policy_str(
-        r#"
+fn test_compile() {
+    let text = r#"
         command Foo {
             fields {
                 a int,
@@ -33,38 +59,28 @@ fn test_compile() -> anyhow::Result<()> {
                 b: 4
             }
         }
-    "#
-        .trim(),
-        Version::V2,
-    )?;
+    "#;
 
-    Compiler::new(&policy).compile()?;
-
-    Ok(())
+    compile_pass(text);
 }
 
 #[test]
-fn test_undefined_struct() -> anyhow::Result<()> {
+fn test_undefined_struct() {
     let text = r#"
         action foo() {
             let v = Bar {}
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
+    let err = compile_fail(text);
     assert_eq!(
-        Compiler::new(&policy)
-            .compile()
-            .expect_err("compilation succeeded where it should fail")
-            .err_type,
+        err,
         CompileErrorType::NotDefined(String::from("Struct `Bar` not defined")),
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_function_no_return() -> anyhow::Result<()> {
+fn test_function_no_return() {
     let text = r#"
         function f(x int) int {
             let y = x + 1
@@ -72,38 +88,24 @@ fn test_function_no_return() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NoReturn);
-
-    Ok(())
 }
 
 #[test]
-fn test_function_not_defined() -> anyhow::Result<()> {
+fn test_function_not_defined() {
     let text = r#"
         function f(x int) int {
             return g()
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NotDefined(String::from("g")));
-
-    Ok(())
 }
 
 #[test]
-fn test_function_already_defined() -> anyhow::Result<()> {
+fn test_function_already_defined() {
     let text = r#"
         function f(x int) int {
             return 1
@@ -112,19 +114,12 @@ fn test_function_already_defined() -> anyhow::Result<()> {
         function f() int {}
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("f")));
-
-    Ok(())
 }
 
 #[test]
-fn test_function_wrong_number_arguments() -> anyhow::Result<()> {
+fn test_function_wrong_number_arguments() {
     let text = r#"
         function f(x int) int {
             return 1
@@ -135,24 +130,17 @@ fn test_function_wrong_number_arguments() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::BadArgument(String::from(
             "call to `f` has 0 arguments and it should have 1"
         ))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_function_duplicate_arg_names() -> anyhow::Result<()> {
+fn test_function_duplicate_arg_names() {
     let text = r#"
         function f(x int, x int) int {
             return 1
@@ -163,22 +151,12 @@ fn test_function_duplicate_arg_names() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile();
-
-    assert!(matches!(
-        result,
-        Err(CompileError {
-            err_type: CompileErrorType::AlreadyDefined(_),
-            ..
-        })
-    ));
-
-    Ok(())
+    let err = compile_fail(text);
+    assert!(matches!(err, CompileErrorType::AlreadyDefined(_)));
 }
 
 #[test]
-fn test_function_wrong_color_pure() -> anyhow::Result<()> {
+fn test_function_wrong_color_pure() {
     let text = r#"
         function f(x int) int {
             return x
@@ -189,22 +167,15 @@ fn test_function_wrong_color_pure() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidCallColor(InvalidCallColor::Pure)
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_function_wrong_color_finish() -> anyhow::Result<()> {
+fn test_function_wrong_color_finish() {
     let text = r#"
         finish function f(x int) {
             emit Foo {}
@@ -215,22 +186,15 @@ fn test_function_wrong_color_finish() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidCallColor(InvalidCallColor::Finish)
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_seal_open_command() -> anyhow::Result<()> {
+fn test_seal_open_command() {
     let text = r#"
         command Foo {
             fields {}
@@ -240,24 +204,25 @@ fn test_seal_open_command() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let module = Compiler::new(&policy).compile()?;
+    let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
-    assert!(module
-        .labels
-        .iter()
-        .any(|l| *l.0 == Label::new("Foo", LabelType::CommandSeal)));
-    assert!(module
-        .labels
-        .iter()
-        .any(|l| *l.0 == Label::new("Foo", LabelType::CommandOpen)));
-
-    Ok(())
+    assert!(
+        module
+            .labels
+            .iter()
+            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal))
+    );
+    assert!(
+        module
+            .labels
+            .iter()
+            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen))
+    );
 }
 
 #[test]
-fn test_command_without_seal_block() -> anyhow::Result<()> {
+fn test_command_without_seal_block() {
     let text = r#"
         command Foo {
             fields {}
@@ -265,22 +230,15 @@ fn test_command_without_seal_block() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::Unknown(String::from("Empty/missing seal block in command"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_command_without_open_block() -> anyhow::Result<()> {
+fn test_command_without_open_block() {
     let text = r#"
         command Foo {
             fields {}
@@ -289,22 +247,15 @@ fn test_command_without_open_block() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::Unknown(String::from("Empty/missing open block in command"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_command_with_no_return_in_seal_block() -> anyhow::Result<()> {
+fn test_command_with_no_return_in_seal_block() {
     let text = r#"
         command Foo {
             fields {}
@@ -314,19 +265,12 @@ fn test_command_with_no_return_in_seal_block() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NoReturn);
-
-    Ok(())
 }
 
 #[test]
-fn test_command_with_no_return_in_open_block() -> anyhow::Result<()> {
+fn test_command_with_no_return_in_open_block() {
     let text = r#"
         command Foo {
             fields {}
@@ -336,15 +280,8 @@ fn test_command_with_no_return_in_open_block() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation succeeded where it should fail")
-        .err_type;
-
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NoReturn);
-
-    Ok(())
 }
 
 #[test]
@@ -362,8 +299,7 @@ fn test_command_attributes() {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    let m = Compiler::new(&policy).compile().expect("should compile");
+    let m = compile_pass(text);
     match m.data {
         ModuleData::V0(m) => {
             let attrs = m
@@ -377,11 +313,11 @@ fn test_command_attributes() {
             );
             assert_eq!(
                 attrs.get("s").expect("should find 2nd value"),
-                &Value::String("abc".to_string())
+                &Value::String(text!("abc"))
             );
             assert_eq!(
                 attrs.get("priority").expect("should find 3nd value"),
-                &Value::Enum("Priority".to_string(), 1)
+                &Value::Enum(ident!("Priority"), 1)
             );
         }
     }
@@ -399,9 +335,8 @@ fn test_command_attributes_should_be_unique() {
         seal { return None }
     }
     "#;
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    let err_type = Compiler::new(&policy).compile().unwrap_err().err_type;
-    assert_eq!(err_type, CompileErrorType::AlreadyDefined("a".to_string()));
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::AlreadyDefined("a".to_string()));
 }
 
 #[test]
@@ -424,14 +359,130 @@ fn test_command_attributes_must_be_literals() {
     ];
 
     for text in texts {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        let err = compile_fail(text);
         assert!(matches!(err, CompileErrorType::InvalidExpression(_)))
     }
 }
 
 #[test]
-fn test_autodefine_struct() -> anyhow::Result<()> {
+fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
+    let text = r#"
+        struct Bar { a int }
+        struct Baz { +Bar, b string }
+        command Foo {
+            fields {
+                +Baz,
+                c bool
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2)?;
+    let module = Compiler::new(&policy).compile()?;
+    let ModuleData::V0(module) = module.data;
+
+    let want = BTreeMap::from([
+        (ident!("a"), VType::Int),
+        (ident!("b"), VType::String),
+        (ident!("c"), VType::Bool),
+    ]);
+    let got = module.command_defs.get("Foo").unwrap();
+    assert_eq!(got, &want);
+
+    Ok(())
+}
+
+#[test]
+fn test_invalid_command_field_insertion() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+            command Foo {
+                fields {
+                    +Bar, // Bar is not defined
+                    b string
+                }
+                seal { return None }
+                open { return None }
+                policy {}
+            }
+            "#,
+            CompileErrorType::NotDefined(String::from("Bar")),
+        ),
+        (
+            r#"
+            struct Bar { a int }
+            command Foo {
+                fields {
+                    +Bar,
+                    a bool // Duplicate field `a`
+                }
+                seal { return None }
+                open { return None }
+                policy {}
+            }
+            "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+    ];
+
+    for (text, expected_error) in cases {
+        let policy = parse_policy_str(text, Version::V2)?;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
+        assert_eq!(err, expected_error);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_command_duplicate_fields() -> anyhow::Result<()> {
+    let cases = [
+        (
+            r#"
+        command Foo {
+            fields {
+                a int,
+                a string
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+        "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+        (
+            r#"
+        struct Bar { a int }
+        command Foo {
+            fields {
+                +Bar,
+                a string
+            }
+            seal { return None }
+            open { return None }
+            policy {}
+        }
+        "#,
+            CompileErrorType::AlreadyDefined(String::from("a")),
+        ),
+    ];
+
+    for (text, e) in cases {
+        let policy = parse_policy_str(text, Version::V2)?;
+        let err = Compiler::new(&policy).compile().unwrap_err().err_type();
+        assert_eq!(err, e);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_autodefine_struct() {
     let text = r#"
         fact Foo[a int]=>{b int}
 
@@ -442,28 +493,25 @@ fn test_autodefine_struct() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile()?;
-    let ModuleData::V0(module) = result.data;
+    let module = compile_pass(text);
+    let ModuleData::V0(module) = module.data;
 
     let want = vec![
         FieldDefinition {
-            identifier: "a".to_string(),
+            identifier: ident!("a"),
             field_type: VType::Int,
         },
         FieldDefinition {
-            identifier: "b".to_string(),
+            identifier: ident!("b"),
             field_type: VType::Int,
         },
     ];
     let got = module.struct_defs.get("Foo").unwrap();
     assert_eq!(got, &want);
-
-    Ok(())
 }
 
 #[test]
-fn test_duplicate_struct_fact_names() -> anyhow::Result<()> {
+fn test_duplicate_struct_fact_names() {
     let texts = &[
         r#"
             // Should give an "already defined" error.
@@ -477,22 +525,131 @@ fn test_duplicate_struct_fact_names() -> anyhow::Result<()> {
     ];
 
     for text in texts {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let result = Compiler::new(&policy).compile();
-        assert!(matches!(
-            result,
-            Err(CompileError {
-                err_type: CompileErrorType::AlreadyDefined(_),
-                ..
-            })
-        ));
+        let err = compile_fail(text);
+        assert!(matches!(err, CompileErrorType::AlreadyDefined(_)));
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_enum_identifiers_are_unique() -> anyhow::Result<()> {
+fn test_struct_field_insertion_errors() {
+    let cases = [
+        (
+            "struct Foo { +Bar }",
+            CompileErrorType::NotDefined("Bar".to_string()),
+        ),
+        (
+            r#"struct Bar { a int }
+            struct Foo { +Bar, a string }"#,
+            CompileErrorType::AlreadyDefined("a".to_string()),
+        ),
+        (
+            r#"struct Foo { +Foo }"#,
+            CompileErrorType::NotDefined("Foo".to_string()),
+        ),
+    ];
+    for (text, err_type) in cases {
+        let err = compile_fail(text);
+        assert_eq!(err, err_type);
+    }
+}
+
+#[test]
+fn test_struct_field_insertion() {
+    let cases = vec![
+        (
+            r#"
+            struct Bar { a int }
+            struct Foo { +Bar, b string }
+            "#,
+            vec![
+                FieldDefinition {
+                    identifier: ident!("a"),
+                    field_type: VType::Int,
+                },
+                FieldDefinition {
+                    identifier: ident!("b"),
+                    field_type: VType::String,
+                },
+            ],
+        ),
+        (
+            r#"
+            struct Bar { a int }
+            struct Baz { c bool }
+            struct Foo { +Bar, b string, +Baz }
+            "#,
+            vec![
+                FieldDefinition {
+                    identifier: ident!("a"),
+                    field_type: VType::Int,
+                },
+                FieldDefinition {
+                    identifier: ident!("b"),
+                    field_type: VType::String,
+                },
+                FieldDefinition {
+                    identifier: ident!("c"),
+                    field_type: VType::Bool,
+                },
+            ],
+        ),
+    ];
+
+    for (text, want) in cases {
+        let policy = parse_policy_str(text, Version::V2).expect("should parse");
+        let result = Compiler::new(&policy).compile().expect("should compile");
+        let ModuleData::V0(module) = result.data;
+
+        let got = module.struct_defs.get("Foo").unwrap();
+        assert_eq!(got, &want);
+    }
+}
+
+#[test]
+fn test_effect_with_field_insertion() {
+    let text = r#"
+        struct Bar { b bool }
+        effect Foo { +Bar, s string }
+        effect Baz { i int, +Foo }
+    "#;
+
+    let policy = parse_policy_str(text, Version::V2).expect("should parse");
+    let m = Compiler::new(&policy).compile().expect("should compile");
+    let ModuleData::V0(module) = m.data;
+
+    let foo_want = vec![
+        FieldDefinition {
+            identifier: ident!("b"),
+            field_type: VType::Bool,
+        },
+        FieldDefinition {
+            identifier: ident!("s"),
+            field_type: VType::String,
+        },
+    ];
+    let foo_got = module.struct_defs.get("Foo").unwrap();
+    assert_eq!(foo_got, &foo_want);
+
+    let baz_want = vec![
+        FieldDefinition {
+            identifier: ident!("i"),
+            field_type: VType::Int,
+        },
+        FieldDefinition {
+            identifier: ident!("b"),
+            field_type: VType::Bool,
+        },
+        FieldDefinition {
+            identifier: ident!("s"),
+            field_type: VType::String,
+        },
+    ];
+    let baz_got = module.struct_defs.get("Baz").unwrap();
+    assert_eq!(baz_got, &baz_want);
+}
+
+#[test]
+fn test_enum_identifiers_are_unique() {
     let text = r#"
         enum Drink {
             Water, Coffee
@@ -504,54 +661,39 @@ fn test_enum_identifiers_are_unique() -> anyhow::Result<()> {
 
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
-
-    assert_eq!(
-        result,
-        CompileErrorType::AlreadyDefined(String::from("Drink"))
-    );
-
-    Ok(())
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("Drink")));
 }
 
 #[test]
-fn test_enum_values_are_unique() -> anyhow::Result<()> {
+fn test_enum_values_are_unique() {
     let text = r#"
         enum Drink {
             Water, Tea, Water
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
-        result,
+        err,
         CompileErrorType::AlreadyDefined(String::from("Drink::Water"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_enum_reference_undefined_enum() -> anyhow::Result<()> {
+fn test_enum_reference_undefined_enum() {
     let text = r#"
         action test() {
             let n = Drink::Coffee
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
-
-    assert_eq!(result, CompileErrorType::NotDefined(String::from("Drink")));
-
-    Ok(())
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::NotDefined(String::from("Drink")));
 }
 
 #[test]
-fn test_enum_reference_undefined_value() -> anyhow::Result<()> {
+fn test_enum_reference_undefined_value() {
     let text = r#"
         enum Drink { Water, Coffee }
         action test() {
@@ -559,19 +701,15 @@ fn test_enum_reference_undefined_value() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().unwrap_err().err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
-        result,
+        err,
         CompileErrorType::NotDefined(String::from("Drink::Tea"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_enum_reference() -> anyhow::Result<()> {
+fn test_enum_reference() {
     let text = r#"
         enum Result { OK, Err }
         action test() {
@@ -586,32 +724,23 @@ fn test_enum_reference() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    Compiler::new(&policy).compile().expect("should compile");
-
-    Ok(())
+    compile_pass(text);
 }
 
 #[test]
-fn test_undefined_fact() -> anyhow::Result<()> {
+fn test_undefined_fact() {
     let text = r#"
         action test() {
             check exists Foo[]
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NotDefined(String::from("Foo")));
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_invalid_key_name() -> anyhow::Result<()> {
+fn test_fact_invalid_key_name() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
@@ -619,21 +748,15 @@ fn test_fact_invalid_key_name() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Invalid key: expected i, got k"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_incomplete_key() -> anyhow::Result<()> {
+fn test_fact_incomplete_key() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
@@ -641,21 +764,15 @@ fn test_fact_incomplete_key() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Fact keys don't match definition"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_nonexistent_key() -> anyhow::Result<()> {
+fn test_fact_nonexistent_key() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
@@ -663,21 +780,15 @@ fn test_fact_nonexistent_key() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Fact keys don't match definition"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_invalid_key_type() -> anyhow::Result<()> {
+fn test_fact_invalid_key_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
@@ -685,18 +796,12 @@ fn test_fact_invalid_key_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidType(_)));
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_duplicate_key() -> anyhow::Result<()> {
+fn test_fact_duplicate_key() {
     let text = r#"
         fact Foo[i int, j int] => {a string}
         action test() {
@@ -704,21 +809,15 @@ fn test_fact_duplicate_key() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Invalid key: expected j, got i"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_invalid_value_name() -> anyhow::Result<()> {
+fn test_fact_invalid_value_name() {
     let text = r#"
     fact Foo[k int]=>{x int}
     action test() {
@@ -726,21 +825,15 @@ fn test_fact_invalid_value_name() -> anyhow::Result<()> {
     }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::InvalidFactLiteral(String::from("Expected value x, got y"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_invalid_value_type() -> anyhow::Result<()> {
+fn test_fact_invalid_value_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
@@ -748,18 +841,12 @@ fn test_fact_invalid_value_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidType(_)));
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_bind_value_type() -> anyhow::Result<()> {
+fn test_fact_bind_value_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         action test() {
@@ -767,16 +854,11 @@ fn test_fact_bind_value_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    Compiler::new(&policy)
-        .compile()
-        .expect("compilation should have succeeded");
-
-    Ok(())
+    compile_pass(text);
 }
 
 #[test]
-fn test_fact_expression_value_type() -> anyhow::Result<()> {
+fn test_fact_expression_value_type() {
     let text = r#"
         fact Foo[i int] => {a int}
         action test() {
@@ -784,16 +866,11 @@ fn test_fact_expression_value_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    Compiler::new(&policy)
-        .compile()
-        .expect("compilation should have succeeded");
-
-    Ok(())
+    compile_pass(text);
 }
 
 #[test]
-fn test_fact_update_invalid_to_type() -> anyhow::Result<()> {
+fn test_fact_update_invalid_to_type() {
     let text = r#"
         fact Foo[i int] => {a string}
         command test {
@@ -808,18 +885,12 @@ fn test_fact_update_invalid_to_type() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidType(_)));
-
-    Ok(())
 }
 
 #[test]
-fn test_immutable_fact_can_be_created_and_deleted() -> anyhow::Result<()> {
+fn test_immutable_fact_can_be_created_and_deleted() {
     let text = r#"
         immutable fact Foo[i int] => {a string}
         command test {
@@ -835,14 +906,11 @@ fn test_immutable_fact_can_be_created_and_deleted() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    Compiler::new(&policy).compile()?;
-
-    Ok(())
+    compile_pass(text);
 }
 
 #[test]
-fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
+fn test_immutable_fact_cannot_be_updated() {
     let text = r#"
         immutable fact Foo[i int] => {a string}
         command test {
@@ -857,38 +925,37 @@ fn test_immutable_fact_cannot_be_updated() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy)
-        .compile()
-        .expect_err("compilation should have failed")
-        .err_type;
+    let err = compile_fail(text);
     assert_eq!(
         err,
         CompileErrorType::Unknown(String::from("fact is immutable"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_serialize_deserialize() -> anyhow::Result<()> {
+fn test_serialize_deserialize() {
     let text = r#"
-        function foo(input struct Foo) struct Foo {
-            let b = serialize(input)
-            return deserialize(b)
+        struct Envelope {
+            payload bytes
+        }
+        command Foo {
+            fields {}
+            seal {
+                return Envelope {
+                    payload: serialize(this),
+                }
+            }
+            open {
+                return deserialize(envelope.payload)
+            }
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    Compiler::new(&policy)
-        .compile()
-        .expect("compilation should have succeeded");
-
-    Ok(())
+    compile_pass(text);
 }
 
 #[test]
-fn finish_block_should_exit() -> anyhow::Result<()> {
+fn finish_block_should_exit() {
     let text = r#"
         fact Blah[] => {}
         command Foo {
@@ -908,19 +975,15 @@ fn finish_block_should_exit() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
-        result,
+        err,
         CompileErrorType::Unknown("`finish` must be the last statement in the block".to_owned())
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_should_not_allow_bind_key_in_fact_creation() -> anyhow::Result<()> {
+fn test_should_not_allow_bind_key_in_fact_creation() {
     let text = r#"
         fact F[i int] => {s string}
 
@@ -936,19 +999,15 @@ fn test_should_not_allow_bind_key_in_fact_creation() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
-        result,
+        err,
         CompileErrorType::BadArgument("Cannot create fact with bind values".to_owned())
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_should_not_allow_bind_value_in_fact_creation() -> anyhow::Result<()> {
+fn test_should_not_allow_bind_value_in_fact_creation() {
     let text = r#"
         fact F[i int] => {s string}
 
@@ -964,19 +1023,15 @@ fn test_should_not_allow_bind_value_in_fact_creation() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
-        result,
+        err,
         CompileErrorType::BadArgument("Cannot create fact with bind values".to_owned())
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_should_not_allow_bind_key_in_fact_update() -> anyhow::Result<()> {
+fn test_should_not_allow_bind_key_in_fact_update() {
     let text = r#"
         fact F[i int] => {s string}
 
@@ -993,39 +1048,33 @@ fn test_should_not_allow_bind_key_in_fact_update() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
-        result,
+        err,
         CompileErrorType::BadArgument("Cannot update fact to a bind value".to_owned())
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_duplicate_field_names() -> anyhow::Result<()> {
+fn test_fact_duplicate_field_names() {
     let cases = [
         ("i", "fact F[i int, i string] => {a string}"),
         ("a", "fact F[i int] => {a int, a bool}"),
         ("i", "fact F[i int] => {i int}"),
     ];
     for (identifier, case) in cases {
-        let policy = parse_policy_str(case, Version::V2)?;
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+        let err = compile_fail(case);
         assert_eq!(
-            result,
+            err,
             CompileErrorType::AlreadyDefined(String::from(identifier))
         );
     }
-    Ok(())
 }
 
 #[test]
-fn test_fact_create_too_few_values() -> anyhow::Result<()> {
+fn test_fact_create_too_few_values() {
     {
-        let policy = parse_policy_str(
+        let err = compile_fail(
             r#"
         fact Device[device_id int]=>{name string, email string}
 
@@ -1033,18 +1082,16 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
             create Device[device_id:1]=>{name: "bob"}
         }
         "#,
-            Version::V2,
-        )?;
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+        );
 
         assert_eq!(
-            result,
+            err,
             CompileErrorType::InvalidFactLiteral("incorrect number of values".to_owned())
         );
     }
 
     {
-        let policy = parse_policy_str(
+        let err = compile_fail(
             r#"
         fact Device[device_id int]=>{name string, email string}
 
@@ -1052,21 +1099,17 @@ fn test_fact_create_too_few_values() -> anyhow::Result<()> {
             create Device[device_id:1]
         }
         "#,
-            Version::V2,
-        )?;
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+        );
 
         assert_eq!(
-            result,
+            err,
             CompileErrorType::InvalidFactLiteral("fact literal requires value".to_owned())
         );
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_fact_create_too_many_values() -> anyhow::Result<()> {
+fn test_fact_create_too_many_values() {
     let text = r#"
         fact Device[device_id int]=>{name string}
 
@@ -1075,19 +1118,15 @@ fn test_fact_create_too_many_values() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let result = Compiler::new(&policy).compile().expect_err("").err_type;
-
+    let err = compile_fail(text);
     assert_eq!(
-        result,
+        err,
         CompileErrorType::InvalidFactLiteral("incorrect number of values".to_owned())
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_match_duplicate() -> anyhow::Result<()> {
+fn test_match_duplicate() {
     let policy_str = [
         (r#"
             command Result {
@@ -1124,16 +1163,13 @@ fn test_match_duplicate() -> anyhow::Result<()> {
     ];
 
     for str in policy_str {
-        let policy = parse_policy_str(str, Version::V2)?;
-        let err_type = Compiler::new(&policy).compile().unwrap_err().err_type;
-        assert!(matches!(err_type, CompileErrorType::AlreadyDefined(_)));
+        let err = compile_fail(str);
+        assert!(matches!(err, CompileErrorType::AlreadyDefined(_)));
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_match_alternation_duplicates() -> anyhow::Result<()> {
+fn test_match_alternation_duplicates() {
     let policy_str = r#"
         command Result {
             fields {
@@ -1154,18 +1190,15 @@ fn test_match_alternation_duplicates() -> anyhow::Result<()> {
             }
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let result = Compiler::new(&policy).compile().unwrap_err().err_type;
+    let err = compile_fail(policy_str);
     assert_eq!(
-        result,
+        err,
         CompileErrorType::AlreadyDefined(String::from("duplicate match arm value"))
     );
-
-    Ok(())
 }
 
 #[test]
-fn test_match_default_not_last() -> anyhow::Result<()> {
+fn test_match_default_not_last() {
     let policy_str = r#"
         command Result {
             fields {
@@ -1189,21 +1222,12 @@ fn test_match_default_not_last() -> anyhow::Result<()> {
             }
         }
     "#;
-    let policy = parse_policy_str(policy_str, Version::V2)?;
-    let res = Compiler::new(&policy).compile();
-    assert!(matches!(
-        res,
-        Err(CompileError {
-            err_type: CompileErrorType::Unknown(_),
-            ..
-        })
-    ));
-
-    Ok(())
+    let err = compile_fail(policy_str);
+    assert!(matches!(err, CompileErrorType::Unknown(_)));
 }
 
 #[test]
-fn test_match_arm_should_be_limited_to_literals() -> anyhow::Result<()> {
+fn test_match_arm_should_be_limited_to_literals() {
     let policies = vec![
         r#"
             action foo(x int) {
@@ -1223,15 +1247,12 @@ fn test_match_arm_should_be_limited_to_literals() -> anyhow::Result<()> {
     ];
 
     for text in policies {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let res = Compiler::new(&policy).compile().unwrap_err();
+        let err = compile_fail(text);
         assert_eq!(
-            res.err_type,
+            err,
             CompileErrorType::InvalidType(String::from("match arm is not a literal expression"))
         );
     }
-
-    Ok(())
 }
 
 #[test]
@@ -1249,12 +1270,9 @@ fn test_match_expression() {
             "match arm expression type mismatch; expected string, got bool".to_string(),
         ),
     )];
-    for (src, result) in invalid_cases {
-        let policy = parse_policy_str(src, Version::V2).expect("should parse");
-        assert_eq!(
-            Compiler::new(&policy).compile().unwrap_err().err_type,
-            result
-        );
+    for (src, expected) in invalid_cases {
+        let actual = compile_fail(src);
+        assert_eq!(actual, expected);
     }
 
     let valid_cases = vec![
@@ -1283,14 +1301,13 @@ fn test_match_expression() {
         }"#,
     ];
     for src in valid_cases {
-        let policy = parse_policy_str(src, Version::V2).expect("should parse");
-        Compiler::new(&policy).compile().expect("should compile");
+        compile_pass(src);
     }
 }
 
 // Note: this test is not exhaustive
 #[test]
-fn test_bad_statements() -> anyhow::Result<()> {
+fn test_bad_statements() {
     let texts = &[
         r#"
             action foo() {
@@ -1310,22 +1327,13 @@ fn test_bad_statements() -> anyhow::Result<()> {
     ];
 
     for text in texts {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let res = Compiler::new(&policy).compile();
-        assert!(matches!(
-            res,
-            Err(CompileError {
-                err_type: CompileErrorType::InvalidStatement(_),
-                ..
-            })
-        ));
+        let err = compile_fail(text);
+        assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
+fn test_global_let_invalid_expressions() {
     let texts = &[
         r#"
             struct Bar {
@@ -1358,22 +1366,13 @@ fn test_global_let_invalid_expressions() -> anyhow::Result<()> {
     ];
 
     for text in texts {
-        let policy = parse_policy_str(text, Version::V2)?;
-        let res = Compiler::new(&policy).compile();
-        assert!(matches!(
-            res,
-            Err(CompileError {
-                err_type: CompileErrorType::InvalidExpression(_),
-                ..
-            })
-        ));
+        let err = compile_fail(text);
+        assert!(matches!(err, CompileErrorType::InvalidExpression(_)));
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_global_let_duplicates() -> anyhow::Result<()> {
+fn test_global_let_duplicates() {
     let text = r#"
         let x = 10
         action foo() {
@@ -1381,26 +1380,20 @@ fn test_global_let_duplicates() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy).compile().unwrap_err();
-
-    assert_eq!(err.err_type, CompileErrorType::AlreadyDefined("x".into()));
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::AlreadyDefined("x".into()));
 
     let text = r#"
         let x = 10
         let x = 5
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let err = Compiler::new(&policy).compile().unwrap_err();
-
-    assert_eq!(err.err_type, CompileErrorType::AlreadyDefined("x".into()));
-
-    Ok(())
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::AlreadyDefined("x".into()));
 }
 
 #[test]
-fn test_field_collision() -> anyhow::Result<()> {
+fn test_field_collision() {
     let text = r#"
     struct Bar {
         x int,
@@ -1408,18 +1401,12 @@ fn test_field_collision() -> anyhow::Result<()> {
     }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2)?;
-    let machine = Compiler::new(&policy).compile();
-
-    assert!(machine.is_err_and(
-        |result| result.err_type == CompileErrorType::AlreadyDefined(String::from("x"))
-    ));
-
-    Ok(())
+    let err = compile_fail(text);
+    assert_eq!(err, CompileErrorType::AlreadyDefined(String::from("x")));
 }
 
 #[test]
-fn test_invalid_finish_expressions() -> anyhow::Result<()> {
+fn test_invalid_finish_expressions() {
     let invalid_expression = &r#"
             fact Foo[]=>{x int}
             command Test {
@@ -1430,21 +1417,12 @@ fn test_invalid_finish_expressions() -> anyhow::Result<()> {
                 }
             }
         "#;
-    let policy = parse_policy_str(invalid_expression, Version::V2)?;
-    let res = Compiler::new(&policy).compile();
-    assert!(matches!(
-        res,
-        Err(CompileError {
-            err_type: CompileErrorType::InvalidExpression(_),
-            ..
-        })
-    ));
-
-    Ok(())
+    let err = compile_fail(invalid_expression);
+    assert!(matches!(err, CompileErrorType::InvalidExpression(_)));
 }
 
 #[test]
-fn test_count_up_to() -> anyhow::Result<()> {
+fn test_count_up_to() {
     let test = r#"
         fact Foo[i int]=>{}
         function f() int {
@@ -1453,14 +1431,11 @@ fn test_count_up_to() -> anyhow::Result<()> {
         }
     "#;
 
-    let policy = parse_policy_str(test, Version::V2)?;
-    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    let err = compile_fail(test);
     assert_eq!(
         err,
         CompileErrorType::BadArgument("count limit must be greater than zero".to_string())
     );
-
-    Ok(())
 }
 
 #[test]
@@ -1472,11 +1447,8 @@ fn test_map_valid_in_action() {
             return 0
         }
     "#;
-    let policy = parse_policy_str(test, Version::V2).expect("should parse");
-    assert!(matches!(
-        Compiler::new(&policy).compile().unwrap_err().err_type,
-        CompileErrorType::InvalidStatement(..)
-    ));
+    let err = compile_fail(test);
+    assert!(matches!(err, CompileErrorType::InvalidStatement(..)));
 
     let test = r#"
         fact Pet[name string]=>{age int}
@@ -1487,12 +1459,11 @@ fn test_map_valid_in_action() {
         }
     "#;
 
-    let policy = parse_policy_str(test, Version::V2).expect("should parse");
-    let _module = Compiler::new(&policy).compile().expect("should compile");
+    compile_pass(test);
 }
 
 #[test]
-fn test_map_identifier_scope() -> anyhow::Result<()> {
+fn test_map_identifier_scope() {
     // Var should be available inside the `map` block
     {
         let test = r#"
@@ -1505,8 +1476,7 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
                 }
             }
         "#;
-        let policy = parse_policy_str(test, Version::V2)?;
-        let _module = Compiler::new(&policy).compile()?;
+        compile_pass(test);
     }
 
     let failures = [
@@ -1548,12 +1518,9 @@ fn test_map_identifier_scope() -> anyhow::Result<()> {
     ];
 
     for (test, expected) in failures {
-        let policy = parse_policy_str(test, Version::V2)?;
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
-        assert_eq!(err, expected);
+        let actual = compile_fail(test);
+        assert_eq!(actual, expected);
     }
-
-    Ok(())
 }
 
 #[test]
@@ -1599,28 +1566,28 @@ fn test_if_match_block_scope() {
             CompileErrorType::NotDefined("Unknown identifier `y`".to_string()),
         ),
     ];
-    for (text, res) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let r = Compiler::new(&policy).compile().unwrap_err().err_type;
-        assert_eq!(r, res)
+    for (text, expected) in cases {
+        let actual = compile_fail(text);
+        assert_eq!(actual, expected);
     }
 }
 
 const FAKE_SCHEMA: &[ModuleSchema<'static>] = &[ModuleSchema {
-    name: "test",
+    name: ident!("test"),
     functions: &[ffi::Func {
-        name: "doit",
+        name: ident!("doit"),
         args: &[ffi::Arg {
-            name: "x",
+            name: ident!("x"),
             vtype: ffi::Type::Int,
         }],
         return_type: ffi::Type::Bool,
     }],
     structs: &[],
+    enums: &[],
 }];
 
 #[test]
-fn test_type_errors() -> anyhow::Result<()> {
+fn test_type_errors() {
     struct Case {
         t: &'static str,
         e: &'static str,
@@ -1665,14 +1632,6 @@ fn test_type_errors() -> anyhow::Result<()> {
                 }
             "#,
             e: "Expression left of `.` is not a struct",
-        },
-        Case {
-            t: r#"
-                function g(x struct Foo) bool {
-                    return x.y
-                }
-            "#,
-            e: "Struct `Foo` not defined",
         },
         Case {
             t: r#"
@@ -1778,7 +1737,7 @@ fn test_type_errors() -> anyhow::Result<()> {
                     }
                 }
             "#,
-            e: "Serializing non-struct",
+            e: "serializing int, expected struct Foo",
         },
         Case {
             t: r#"
@@ -1895,26 +1854,25 @@ fn test_type_errors() -> anyhow::Result<()> {
     ];
 
     for (i, c) in cases.iter().enumerate() {
-        let policy = parse_policy_str(c.t, Version::V2)?;
+        let policy =
+            parse_policy_str(c.t, Version::V2).unwrap_or_else(|err| panic!("parse error: {err}"));
         let err = Compiler::new(&policy)
             .ffi_modules(FAKE_SCHEMA)
             .debug(true) // forced on to enable debug_assert()
             .compile()
-            .expect_err("Did not get error")
-            .err_type;
+            .err()
+            .unwrap_or_else(|| panic!("policy compilation should have failed"))
+            .err_type();
+
         let CompileErrorType::InvalidType(s) = err else {
-            return Err(anyhow!(
-                "Did not get InvalidType for case {i}: {err:?} ({err})"
-            ));
+            panic!("Did not get InvalidType for case {i}: {err:?} ({err})");
         };
         assert_eq!(s, c.e);
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_optional_types() -> anyhow::Result<()> {
+fn test_optional_types() {
     let cases = [
         "42 == unwrap None",
         "42 == unwrap Some(42)",
@@ -1924,28 +1882,22 @@ fn test_optional_types() -> anyhow::Result<()> {
         "(Some(42)) is None",
     ];
 
-    for (i, c) in cases.iter().enumerate() {
+    for c in cases {
         let policy_text = format!(
             r#"
             function f() bool {{
                 return {c}
             }}"#
         );
-        let policy = parse_policy_str(&policy_text, Version::V2)?;
-        Compiler::new(&policy)
-            .ffi_modules(FAKE_SCHEMA)
-            .compile()
-            .unwrap_or_else(|e| panic!("Got error in case {i}: {e}"));
+        compile_pass(&policy_text);
     }
-
-    Ok(())
 }
 
 #[test]
-fn test_duplicate_definitions() -> anyhow::Result<()> {
+fn test_duplicate_definitions() {
     struct Case {
         t: &'static str,
-        e: Option<CompileError>,
+        e: Option<CompileErrorType>,
     }
     let cases = [
         Case {
@@ -1993,19 +1945,20 @@ fn test_duplicate_definitions() -> anyhow::Result<()> {
                     return false
                 }
         "#,
-            e: Some(CompileError::new(CompileErrorType::InvalidType(
+            e: Some(CompileErrorType::InvalidType(
                 "Definitions of `x` do not have the same type: int != string".to_string(),
-            ))),
+            )),
         },
     ];
 
     for c in cases {
-        let policy = parse_policy_str(c.t, Version::V2)?;
-        let r = Compiler::new(&policy).compile().err();
-        assert_eq!(r, c.e);
+        if let Some(expected) = c.e {
+            let actual = compile_fail(c.t);
+            assert_eq!(actual, expected);
+        } else {
+            compile_pass(c.t);
+        }
     }
-
-    Ok(())
 }
 
 #[test]
@@ -2016,8 +1969,7 @@ fn test_action_duplicate_name() {
         action foo() {}
     "#;
 
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::AlreadyDefined("foo".to_string()));
 }
 
@@ -2029,8 +1981,7 @@ fn test_action_call_invalid_name() {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    let err = compile_fail(text);
     assert_eq!(err, CompileErrorType::NotDefined("bad".to_string()));
 }
 
@@ -2043,8 +1994,7 @@ fn test_action_call_without_action_keyword() {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
 }
 
@@ -2058,8 +2008,7 @@ fn test_action_call_not_in_action_context() {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+    let err = compile_fail(text);
     assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
 }
 
@@ -2091,8 +2040,7 @@ fn test_action_call_wrong_args() {
     ];
 
     for (text, expected) in texts {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let err = Compiler::new(&policy).compile().unwrap_err().err_type;
+        let err = compile_fail(text);
         assert_eq!(err, expected);
     }
 }
@@ -2106,8 +2054,7 @@ fn test_action_call() {
         }
     "#;
 
-    let policy = parse_policy_str(text, Version::V2).expect("should parse");
-    let _m = Compiler::new(&policy).compile().expect("should compile");
+    compile_pass(text);
 }
 
 #[test]
@@ -2153,7 +2100,7 @@ fn test_validate_return() {
         r#"function e() int {
             let n = 0
             if n > 0 {
-                
+
             }
             else {
                 return 0
@@ -2163,20 +2110,89 @@ fn test_validate_return() {
     ];
 
     for p in valid {
-        let policy = parse_policy_str(p, Version::V2).expect("should parse");
-        let m = Compiler::new(&policy).compile().expect("should compile");
+        let m = compile_pass(p);
         assert!(!validate(&m));
     }
 
     for p in invalid {
-        let policy = parse_policy_str(p, Version::V2).expect("should parse");
-        let m = Compiler::new(&policy).compile().expect("should compile");
+        let m = compile_pass(p);
         assert!(validate(&m));
     }
 }
 
 #[test]
-fn test_substruct_errors() -> anyhow::Result<()> {
+fn test_return_type_not_defined() {
+    let cases = [
+        (
+            r#"
+            struct Foo {}
+            function get_foo() struct Nonexistent {
+                return Foo {}
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Nonexistent".to_string()),
+        ),
+        (
+            r#"
+            function f() enum Blah {
+                return Blah::Foo
+            }
+            "#,
+            CompileErrorType::NotDefined("enum Blah".to_string()),
+        ),
+        (
+            r#"
+            function f() optional struct Foo {
+                return Some(Foo {})
+            }
+            "#,
+            CompileErrorType::NotDefined("struct Foo".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let err = compile_fail(text);
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_function_arguments_with_undefined_types() {
+    let cases = [
+        (
+            r#"
+            function foo(x struct UndefinedStruct) int {
+                return 0
+            }
+            "#,
+            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+        ),
+        (
+            r#"
+            function bar(x enum UndefinedEnum) bool {
+                return false
+            }
+            "#,
+            CompileErrorType::NotDefined("enum UndefinedEnum".to_string()),
+        ),
+        (
+            r#"
+            function baz(x optional struct UndefinedStruct) bool {
+                return true
+            }
+            "#,
+            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+        ),
+    ];
+
+    for (text, expected) in cases {
+        let err = compile_fail(text);
+        assert_eq!(err, expected);
+    }
+}
+
+#[test]
+fn test_substruct_errors() {
     struct Case {
         t: &'static str,
         e: &'static str,
@@ -2233,42 +2249,46 @@ fn test_substruct_errors() -> anyhow::Result<()> {
     ];
 
     for (i, c) in cases.iter().enumerate() {
-        let policy = parse_policy_str(c.t, Version::V2)?;
-        let err = Compiler::new(&policy)
-            .ffi_modules(FAKE_SCHEMA)
-            .compile()
-            .expect_err("Did not get error")
-            .err_type;
+        let err = compile_fail(c.t);
         match err {
             CompileErrorType::NotDefined(_) | CompileErrorType::InvalidSubstruct(_, _) => {}
             err => {
-                return Err(anyhow!(
-                    "Did not get NotDefined or InvalidSubstruct for case {i}: {err:?} ({err})"
-                ));
+                panic!("Did not get NotDefined or InvalidSubstruct for case {i}: {err:?} ({err})");
             }
         }
 
         assert_eq!(err.to_string(), c.e);
     }
-
-    Ok(())
 }
 #[test]
 fn if_expression_block() {
-    let cases = [(
-        r#"action f(n int) {
+    let text = r#"
+        action f(n int) {
             let x = if n > 1 {
                 let x = n + 1
                 :x
             } else { :0 }
-        }"#,
-        None,
-    )];
+        }
+    "#;
 
-    for (text, expected) in cases {
-        println!(">");
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let res = Compiler::new(&policy).compile().err();
-        assert_eq!(res, expected);
-    }
+    compile_pass(text);
+}
+
+#[test]
+fn test_ffi_fail_without_use() {
+    let text = r#"
+        function f(x int) bool {
+            return test::doit(x)
+        }
+    "#;
+
+    let policy =
+        parse_policy_str(text, Version::V2).unwrap_or_else(|err| panic!("parse error: {err}"));
+    let err = Compiler::new(&policy)
+        .ffi_modules(FAKE_SCHEMA)
+        .compile()
+        .err()
+        .unwrap_or_else(|| panic!("policy compilation should have failed"))
+        .err_type();
+    assert_eq!(err, CompileErrorType::NotDefined(String::from("test")));
 }

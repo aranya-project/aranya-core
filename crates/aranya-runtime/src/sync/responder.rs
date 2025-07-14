@@ -1,18 +1,18 @@
 use alloc::vec;
 use core::mem;
 
-use buggy::{bug, BugExt};
+use buggy::{BugExt, bug};
 use heapless::{Deque, Vec};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    requester::SyncRequestMessage, CommandMeta, SyncError, COMMAND_RESPONSE_MAX,
-    COMMAND_SAMPLE_MAX, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX, SEGMENT_BUFFER_MAX,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, CommandMeta, MAX_SYNC_MESSAGE_SIZE, PEER_HEAD_MAX,
+    SEGMENT_BUFFER_MAX, SyncError, requester::SyncRequestMessage,
 };
 use crate::{
+    StorageError, SyncType,
     command::{Address, Command, CommandId},
     storage::{GraphId, Location, Segment, Storage, StorageProvider},
-    StorageError, SyncType,
 };
 
 #[derive(Default, Debug)]
@@ -71,7 +71,7 @@ impl PeerCache {
 // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
 // As the buffer consts will be compile-time variables in the future, we will be
 // able to tune these buffers for smaller footprints. Right now, this enum is not
-// suitable for small devices (`SyncResponse` is 14848 bytes).
+// suitable for small devices (`SyncResponse` is 14448 bytes).
 /// Messages sent from the responder to the requester.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]

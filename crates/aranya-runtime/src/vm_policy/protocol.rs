@@ -1,14 +1,17 @@
 extern crate alloc;
 
-use alloc::{borrow::Cow, collections::BTreeMap, string::String, sync::Arc};
+use alloc::{borrow::Cow, collections::BTreeMap};
 
 use aranya_crypto::DeviceId;
-use aranya_policy_vm::{Struct, Value};
+use aranya_policy_vm::{
+    Struct, Value,
+    ast::{Identifier, ident},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{Command, CommandId, Priority},
     Address, Prior,
+    command::{Command, CommandId, Priority},
 };
 
 /// The data inside a [VmProtocol]. It gets serialized and deserialized over the wire.
@@ -17,8 +20,7 @@ pub enum VmProtocolData<'a> {
     Init {
         policy: [u8; 8],
         author_id: DeviceId,
-        #[serde(borrow)]
-        kind: &'a str,
+        kind: Identifier,
         #[serde(borrow)]
         serialized_fields: &'a [u8],
         #[serde(borrow)]
@@ -31,8 +33,7 @@ pub enum VmProtocolData<'a> {
     Basic {
         parent: Address,
         author_id: DeviceId,
-        #[serde(borrow)]
-        kind: &'a str,
+        kind: Identifier,
         #[serde(borrow)]
         serialized_fields: &'a [u8],
         #[serde(borrow)]
@@ -51,9 +52,8 @@ pub struct VmProtocol<'a> {
     id: CommandId,
     /// The deserialized data
     unpacked: VmProtocolData<'a>,
-    /// A mapping between command names and priorities, shared with the underlying
-    /// [`super::VmPolicy`] and other [`VmProtocol`] instances.
-    priority_map: Arc<BTreeMap<String, u32>>,
+    /// The command's priority.
+    priority: Priority,
 }
 
 impl<'a> VmProtocol<'a> {
@@ -61,26 +61,20 @@ impl<'a> VmProtocol<'a> {
         data: &'a [u8],
         id: CommandId,
         unpacked: VmProtocolData<'a>,
-        priority_map: Arc<BTreeMap<String, u32>>,
+        priority: Priority,
     ) -> VmProtocol<'a> {
         VmProtocol {
             data,
             id,
             unpacked,
-            priority_map,
+            priority,
         }
     }
 }
 
 impl Command for VmProtocol<'_> {
     fn priority(&self) -> Priority {
-        match self.unpacked {
-            VmProtocolData::Init { .. } => Priority::Init,
-            VmProtocolData::Merge { .. } => Priority::Merge,
-            VmProtocolData::Basic { kind, .. } => {
-                Priority::Basic(self.priority_map.get(kind).copied().unwrap_or_default())
-            }
-        }
+        self.priority.clone()
     }
 
     fn id(&self) -> CommandId {
@@ -119,13 +113,13 @@ pub struct Envelope<'a> {
 impl From<Envelope<'_>> for Struct {
     fn from(e: Envelope<'_>) -> Self {
         Self::new(
-            "Envelope",
+            ident!("Envelope"),
             [
-                ("parent_id".into(), e.parent_id.into_id().into()),
-                ("author_id".into(), e.author_id.into_id().into()),
-                ("command_id".into(), e.command_id.into_id().into()),
-                ("payload".into(), e.payload.into_owned().into()),
-                ("signature".into(), e.signature.into_owned().into()),
+                (ident!("parent_id"), e.parent_id.into_id().into()),
+                (ident!("author_id"), e.author_id.into_id().into()),
+                (ident!("command_id"), e.command_id.into_id().into()),
+                (ident!("payload"), e.payload.into_owned().into()),
+                (ident!("signature"), e.signature.into_owned().into()),
             ],
         )
     }
@@ -155,7 +149,7 @@ impl TryFrom<Struct> for Envelope<'_> {
 }
 
 fn get<T: TryFrom<Value>>(
-    fields: &mut BTreeMap<String, Value>,
+    fields: &mut BTreeMap<Identifier, Value>,
     key: &'static str,
 ) -> Result<T, EnvelopeError> {
     fields
@@ -168,7 +162,7 @@ fn get<T: TryFrom<Value>>(
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum EnvelopeError {
     #[error("invalid struct name {0:?}")]
-    InvalidName(String),
+    InvalidName(Identifier),
     #[error("missing field {0:?}")]
     MissingField(&'static str),
     #[error("invalid type for field {0:?}")]

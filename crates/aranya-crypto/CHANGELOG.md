@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.7.1...aranya-crypto-v0.8.0) - 2025-06-18
+
+### Other
+
+- "simplify" key pair creation ([#313](https://github.com/aranya-project/aranya-core/pull/313))
+- add PSK importer ([#302](https://github.com/aranya-project/aranya-core/pull/302))
+- update to `spideroak-crypto` v0.6 ([#300](https://github.com/aranya-project/aranya-core/pull/300))
+- hide DhKemP256HkdfSha256 in private module ([#306](https://github.com/aranya-project/aranya-core/pull/306))
+- use derive-where for better derive bounds ([#297](https://github.com/aranya-project/aranya-core/pull/297))
+- encrypt PSK seeds for other devices ([#296](https://github.com/aranya-project/aranya-core/pull/296))
+- add routines to compute label and role IDs ([#294](https://github.com/aranya-project/aranya-core/pull/294))
+- cache computed IDs ([#285](https://github.com/aranya-project/aranya-core/pull/285))
+- use `CS::tuple_hash` for merge ID ([#219](https://github.com/aranya-project/aranya-core/pull/219))
+
+## [0.7.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.7.0...aranya-crypto-v0.7.1) - 2025-06-13
+
+### Other
+
+- patch release v0.7.1
+- fix references to `__unwrapped_inner` ([#284](https://github.com/aranya-project/aranya-core/pull/284))
+- add generic PSK type ([#279](https://github.com/aranya-project/aranya-core/pull/279))
+
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.6.1...aranya-crypto-v0.7.0) - 2025-06-12
+
+### Other
+
+- migrate to Rust edition 2024 ([#254](https://github.com/aranya-project/aranya-core/pull/254))
+- update base58 ([#270](https://github.com/aranya-project/aranya-core/pull/270))
+- update to spideroak-crypto v0.5.x ([#263](https://github.com/aranya-project/aranya-core/pull/263))
+- clean up dependencies ([#251](https://github.com/aranya-project/aranya-core/pull/251))
+- impl `Hash` for `CipherSuiteId` and rename serde repr ([#257](https://github.com/aranya-project/aranya-core/pull/257))
+
+## [0.6.1](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.6.0...aranya-crypto-v0.6.1) - 2025-05-28
+
+### Other
+
+- update to Rust 1.85 (#248)
+
+## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.5.0...aranya-crypto-v0.6.0) - 2025-05-15
+
+### Other
+
+- pair PSKs with cipher suites ([#238](https://github.com/aranya-project/aranya-core/pull/238))
+- Switch to 32 byte IDs ([#220](https://github.com/aranya-project/aranya-core/pull/220))
+
 ## [0.5.0](https://github.com/aranya-project/aranya-core/compare/aranya-crypto-v0.4.0...aranya-crypto-v0.5.0) - 2025-04-10
 
 ### Other

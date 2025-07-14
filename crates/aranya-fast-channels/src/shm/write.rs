@@ -1,13 +1,13 @@
 use core::{cell::Cell, marker::PhantomData, ops::DerefMut, sync::atomic::Ordering};
 
 use aranya_crypto::{
-    afc::{RawOpenKey, RawSealKey},
     CipherSuite, Csprng,
+    afc::{RawOpenKey, RawSealKey},
 };
 use buggy::BugExt;
 
 use super::{
-    error::{corrupted, Corrupted, Error},
+    error::{Corrupted, Error, corrupted},
     path::{Flag, Mode, Path},
     shared::{ShmChan, State},
 };
@@ -92,8 +92,8 @@ where
 
             ShmChan::<CS>::init(chan, id, &keys, rng.deref_mut());
 
-            let gen = side.gen.fetch_add(1, Ordering::AcqRel);
-            debug!("write side gen={}", gen + 1);
+            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
+            debug!("write side generation={}", generation + 1);
 
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
@@ -114,8 +114,8 @@ where
 
             ShmChan::<CS>::init(side.raw_at(idx)?, id, &keys, rng.deref_mut());
 
-            let gen = side.gen.fetch_add(1, Ordering::AcqRel);
-            debug!("read side gen={}", gen + 1);
+            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
+            debug!("read side generation={}", generation + 1);
 
             // We've updated the generation and the channel, so
             // we're now free to grow the list.
@@ -159,8 +159,8 @@ where
 
             // As a precaution, update the generation before we
             // do anything else.
-            let gen = side.gen.fetch_add(1, Ordering::AcqRel);
-            debug!("write side gen={}", gen + 1);
+            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
+            debug!("write side generation={}", generation + 1);
 
             // side[i] = side[side.len-1]
             side.swap_remove(idx)?;
@@ -177,8 +177,8 @@ where
 
             // As a precaution, update the generation before we
             // do anything else.
-            let gen = side.gen.fetch_add(1, Ordering::AcqRel);
-            debug!("read side gen={}", gen + 1);
+            let generation = side.generation.fetch_add(1, Ordering::AcqRel);
+            debug!("read side generation={}", generation + 1);
 
             // side[i] = side[side.len-1]
             side.swap_remove(idx)?;

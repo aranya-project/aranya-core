@@ -12,24 +12,24 @@ use std::{
 
 use aranya_crypto::{Csprng, Rng};
 use aranya_runtime::{
+    COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, MAX_SYNC_MESSAGE_SIZE, PeerCache,
+    StorageError, SubscribeResult, SyncError, SyncRequestMessage, SyncRequester, SyncResponder,
+    SyncType,
     engine::{Engine, Sink},
     storage::{GraphId, StorageProvider},
-    ClientError, ClientState, Command, PeerCache, StorageError, SubscribeResult, SyncError,
-    SyncRequestMessage, SyncRequester, SyncResponder, SyncType, COMMAND_RESPONSE_MAX,
-    MAX_SYNC_MESSAGE_SIZE,
 };
-use buggy::{bug, Bug, BugExt};
+use buggy::{Bug, BugExt, bug};
 use heapless::{FnvIndexMap, Vec};
 use s2n_quic::{
+    Client, Connection, Server,
     client::Connect,
     connection,
     provider::{self},
     stream::{self, BidirectionalStream},
-    Client, Connection, Server,
 };
 use tokio::{
     select,
-    sync::{mpsc, Mutex as TMutex},
+    sync::{Mutex as TMutex, mpsc},
 };
 use tracing::error;
 

@@ -1,16 +1,16 @@
 use std::{net::SocketAddr, ops::DerefMut, sync::Arc, time::Duration};
 
 use anyhow::Result;
-use aranya_quic_syncer::{run_syncer, Syncer};
+use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    engine::{Engine, Sink},
-    protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    storage::{memory::MemStorageProvider, StorageProvider},
     ClientState, GraphId,
+    engine::{Engine, Sink},
+    storage::{StorageProvider, memory::MemStorageProvider},
+    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
 };
 use buggy::BugExt;
-use s2n_quic::{provider::congestion_controller::Bbr, Server};
-use tokio::sync::{mpsc, Mutex as TMutex};
+use s2n_quic::{Server, provider::congestion_controller::Bbr};
+use tokio::sync::{Mutex as TMutex, mpsc};
 
 #[test_log::test(tokio::test)]
 async fn test_sync() -> Result<()> {
@@ -165,7 +165,7 @@ async fn test_sync_subscribe() -> Result<()> {
         .lock()
         .await
         .subscribe(
-            5, 503, // The exact number of bytes to be sent
+            5, 286, // The exact number of bytes to be sent
             addr1, storage_id,
         )
         .await?;

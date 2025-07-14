@@ -6,23 +6,23 @@ use core::{
     fmt,
     hash::{Hash, Hasher},
     marker::{PhantomData, PhantomPinned},
-    mem::{self, size_of, ManuallyDrop, MaybeUninit},
+    mem::{self, ManuallyDrop, MaybeUninit, size_of},
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, DerefMut, Not},
     ptr::{self, NonNull},
     slice, str,
 };
 
 use aranya_libc::Path;
-use tracing::{error, instrument};
+use tracing::{error, instrument, warn};
 
 use crate::{
+    InvalidSlice,
     internal::conv::{
         alias::Alias,
         newtype::NewType,
         slice::{try_from_raw_parts, try_from_raw_parts_mut},
     },
     traits::InitDefault,
-    InvalidSlice,
 };
 
 /// Errors returned by [`Safe`].
@@ -164,8 +164,29 @@ impl<T: Typed> Safe<T> {
     /// Like [`check`][Self::check], but does not check for
     /// a changed address.
     fn sanity_check(&self) {
-        debug_assert!(self.is_valid());
-        debug_assert!(self.is_init());
+        #[allow(clippy::panic, reason = "panicking only under debug_assertions")]
+        if cfg!(debug_assertions) {
+            if !self.is_valid() {
+                error!(
+                    got = %self.id,
+                    want = %T::TYPE_ID,
+                    name = self.name(),
+                    "invalid type ID",
+                );
+                panic!("invalid type ID")
+            } else if !self.is_init() {
+                error!(flags = %self.flags, name = self.name(), "not initialized");
+                panic!("not initialized")
+            } else if self.addr_changed() {
+                warn!(
+                    old = %Hex(self.addr),
+                    new = %Hex(self as *const Self as usize),
+                    id = %self.id,
+                    name = self.name(),
+                    "address changed"
+                );
+            }
+        }
         // NB: We skip the address change because it's okay for
         // Rust to move this type around, but not external code.
     }
@@ -335,14 +356,6 @@ impl<T: Typed + fmt::Debug> fmt::Debug for Safe<T> {
 
 impl<T: Typed> Typed for Safe<T> {
     const TYPE_ID: TypeId = T::TYPE_ID;
-}
-
-// SAFETY: `T: Alias<U>`, so the alias is sound.
-unsafe impl<T, U> Alias<U> for Safe<T>
-where
-    T: Alias<U> + Typed,
-    U: Typed + Sized,
-{
 }
 
 /// Implemented by types that can be used with [`Safe`].
@@ -1074,7 +1087,7 @@ mod tests {
             assert_eq!(
                 // SAFETY: `orig` was initialized by
                 // `Safe::init`.
-                unsafe { black_box(copy).assume_init_ref() }.check(),
+                unsafe { black_box(&copy).assume_init_ref() }.check(),
                 Err(Error::AddrChanged)
             );
         }

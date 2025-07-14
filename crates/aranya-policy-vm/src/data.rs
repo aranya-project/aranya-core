@@ -1,37 +1,39 @@
 use aranya_crypto::DeviceId;
 pub use aranya_crypto::Id;
-use buggy::{bug, Bug};
+use buggy::{Bug, bug};
+
+use crate::Identifier;
 
 /// Context for actions
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ActionContext<'a> {
+pub struct ActionContext {
     /// The name of the action
-    pub name: &'a str,
+    pub name: Identifier,
     /// The head of the graph
     pub head_id: Id,
 }
 
 /// Context for seal blocks
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SealContext<'a> {
+pub struct SealContext {
     /// The name of the command
-    pub name: &'a str,
+    pub name: Identifier,
     /// The ID of the command at the head of the perspective
     pub head_id: Id,
 }
 
 /// Context for open blocks
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct OpenContext<'a> {
+pub struct OpenContext {
     /// The name of the command
-    pub name: &'a str,
+    pub name: Identifier,
 }
 
 /// Context for Policy and Recall blocks
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PolicyContext<'a> {
+pub struct PolicyContext {
     /// The name of the command
-    pub name: &'a str,
+    pub name: Identifier,
     /// The ID of the command
     pub id: Id,
     /// The ID of the author of the command
@@ -42,26 +44,26 @@ pub struct PolicyContext<'a> {
 
 /// Properties of policy execution available through FFI.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum CommandContext<'a> {
+pub enum CommandContext {
     /// Action
-    Action(ActionContext<'a>),
+    Action(ActionContext),
     /// Seal operation
-    Seal(SealContext<'a>),
+    Seal(SealContext),
     /// Open operation
-    Open(OpenContext<'a>),
+    Open(OpenContext),
     /// Policy operation
-    Policy(PolicyContext<'a>),
+    Policy(PolicyContext),
     /// Recall operation
-    Recall(PolicyContext<'a>),
+    Recall(PolicyContext),
 }
 
-impl<'a> CommandContext<'a> {
+impl CommandContext {
     /// Try to create a new command context with a new `head_id` that uses the same name as the original
     /// This method will fail if it's not called on an [`CommandContext::Action`]
-    pub fn with_new_head(&self, new_head_id: Id) -> Result<CommandContext<'a>, Bug> {
+    pub fn with_new_head(&self, new_head_id: Id) -> Result<CommandContext, Bug> {
         match &self {
-            Self::Action(ref ctx) => Ok(Self::Action(ActionContext {
-                name: ctx.name,
+            Self::Action(ctx) => Ok(Self::Action(ActionContext {
+                name: ctx.name.clone(),
                 head_id: new_head_id,
             })),
             _ => bug!("Unable to call CommandContext::with_new_head in a non-action context"),
@@ -70,18 +72,16 @@ impl<'a> CommandContext<'a> {
 
     /// Try to create a new [`CommandContext::Seal`] with the same `head_id` as the current context.
     /// This method will fail if it's not called on an [`CommandContext::Action`]
-    pub fn seal_from_action(&self, command_name: &'a str) -> Result<CommandContext<'a>, Bug> {
-        if let CommandContext::Action(ActionContext {
-            name: _,
-            ref head_id,
-        }) = self
-        {
+    pub fn seal_from_action(&self, command_name: Identifier) -> Result<CommandContext, Bug> {
+        if let CommandContext::Action(ActionContext { name: _, head_id }) = self {
             Ok(CommandContext::Seal(SealContext {
                 name: command_name,
                 head_id: *head_id,
             }))
         } else {
-            bug!("Trying to call CommandContext::seal_from_action on a variant that isn't CommandContext::Action")
+            bug!(
+                "Trying to call CommandContext::seal_from_action on a variant that isn't CommandContext::Action"
+            )
         }
     }
 }

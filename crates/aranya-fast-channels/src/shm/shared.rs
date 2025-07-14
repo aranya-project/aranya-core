@@ -2,26 +2,26 @@ use core::{
     alloc::Layout,
     fmt,
     marker::PhantomData,
-    mem::{size_of, MaybeUninit},
+    mem::{MaybeUninit, size_of},
     ptr, slice, str,
     sync::atomic::{AtomicU32, AtomicUsize, Ordering},
 };
 
 use aranya_crypto::{
-    aead::Aead,
-    afc::{RawOpenKey, RawSealKey, Seq},
-    hash::tuple_hash,
     CipherSuite, Csprng, Random,
+    afc::{RawOpenKey, RawSealKey, Seq},
+    dangerous::spideroak_crypto::{aead::Aead, hash::tuple_hash},
 };
 use buggy::{Bug, BugExt};
 use cfg_if::cfg_if;
+use derive_where::derive_where;
 
 use super::{
-    align::{is_aligned_to, layout_repeat, CacheAligned},
+    align::{CacheAligned, is_aligned_to, layout_repeat},
     error::{
-        bad_chan_direction, bad_chan_magic, bad_chanlist_magic, bad_page_alignment,
-        bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version, corrupted,
-        Corrupted, Error, LayoutError,
+        Corrupted, Error, LayoutError, bad_chan_direction, bad_chan_magic, bad_chanlist_magic,
+        bad_page_alignment, bad_state_key_size, bad_state_magic, bad_state_size, bad_state_version,
+        corrupted,
     },
     le::{U32, U64},
     path::{Flag, Mode, Path},
@@ -29,7 +29,7 @@ use super::{
 #[allow(unused_imports)]
 use crate::features::*;
 use crate::{
-    errno::{errno, Errno},
+    errno::{Errno, errno},
     mutex::Mutex,
     state::{ChannelId, Directed, NodeId},
     util::{const_assert, debug},
@@ -344,6 +344,7 @@ impl PartialEq<Op> for ChanDirection {
 ///
 /// All integers are little endian.
 #[repr(C)]
+#[derive_where(Clone, Debug)]
 pub(super) struct ShmChan<CS: CipherSuite> {
     /// Must be [`ShmChan::MAGIC`].
     pub magic: U32,
@@ -357,8 +358,10 @@ pub(super) struct ShmChan<CS: CipherSuite> {
     /// The current encryption sequence counter.
     pub seq: U64,
     /// The key/nonce used to encrypt data for the channel peer.
+    #[derive_where(skip(Debug))]
     pub seal_key: RawSealKey<CS>,
     /// The key/nonce used to decrypt data from the channel peer.
+    #[derive_where(skip(Debug))]
     pub open_key: RawOpenKey<CS>,
     /// Uniquely identifies `seal_key` and `open_key`.
     pub key_id: KeyId,
@@ -497,34 +500,6 @@ impl<CS: CipherSuite> ShmChan<CS> {
     }
 }
 
-impl<CS: CipherSuite> Clone for ShmChan<CS> {
-    fn clone(&self) -> Self {
-        Self {
-            magic: self.magic,
-            node_id: self.node_id,
-            label: self.label,
-            direction: self.direction,
-            seq: self.seq,
-            seal_key: self.seal_key.clone(),
-            open_key: self.open_key.clone(),
-            key_id: self.key_id,
-        }
-    }
-}
-
-impl<CS: CipherSuite> fmt::Debug for ShmChan<CS> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ShmChan")
-            .field("magic", &self.magic)
-            .field("node_id", &self.node_id)
-            .field("label", &self.label)
-            .field("direction", &self.direction)
-            .field("seq", &self.seq)
-            .field("key_id", &self.key_id)
-            .finish_non_exhaustive()
-    }
-}
-
 /// Describes the memory layout of a [`SharedMem`].
 pub(super) struct ShmLayout {
     layout: Layout,
@@ -566,7 +541,7 @@ impl ShmLayout {
     ),
     repr(C, align(32))
 )]
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct SharedMem<CS> {
     /// Identifies this memory as a [`SharedMem`].
     ///
@@ -735,7 +710,7 @@ impl<CS: CipherSuite> SharedMem<CS> {
     ),
     repr(C, align(32))
 )]
-#[derive(Debug)]
+#[derive_where(Debug)]
 struct ChanList<CS> {
     /// Identifies this memory as a [`ChanList`].
     ///
@@ -802,7 +777,7 @@ impl<CS: CipherSuite> ChanList<CS> {
             magic: ChanList::<CS>::MAGIC,
             _pad0: [0u8; 4],
             data: Mutex::new(ChanListData {
-                gen: AtomicU32::new(0),
+                generation: AtomicU32::new(0),
                 _pad0: [0u8; 4],
                 len: U64::new(0),
                 cap: U64::new(max_chans as u64),
@@ -816,7 +791,7 @@ impl<CS: CipherSuite> ChanList<CS> {
 ///
 /// Broken out separately so it can be placed inside a [`Mutex`].
 #[repr(C, align(8))]
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct ChanListData<CS> {
     /// The current generation.
     ///
@@ -827,8 +802,8 @@ pub(super) struct ChanListData<CS> {
     ///
     /// Putting it as the first field significantly decreases the
     /// size of the struct.
-    pub gen: AtomicU32,
-    /// Padding for `gen`.
+    pub generation: AtomicU32,
+    /// Padding for `generation`.
     _pad0: [u8; 4],
     /// The current number of channels.
     pub len: U64,
@@ -865,7 +840,7 @@ impl<CS: CipherSuite> ChanListData<CS> {
     /// Truncates the list.
     pub fn clear(&mut self) {
         self.len = U64::new(0);
-        self.gen.fetch_add(1, Ordering::AcqRel);
+        self.generation.fetch_add(1, Ordering::AcqRel);
     }
 
     /// Returns a slice of the channels.
@@ -951,8 +926,8 @@ impl<CS: CipherSuite> ChanListData<CS> {
             if !updated {
                 // As a precaution, update the generation before
                 // we actually delete anything.
-                let gen = self.gen.fetch_add(1, Ordering::AcqRel);
-                debug!("side gen={}", gen + 1);
+                let generation = self.generation.fetch_add(1, Ordering::AcqRel);
+                debug!("side generation={}", generation + 1);
 
                 updated = true;
             }

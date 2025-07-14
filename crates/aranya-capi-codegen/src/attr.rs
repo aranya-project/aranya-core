@@ -4,7 +4,7 @@ use std::{fmt, iter::Iterator};
 
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{spanned::Spanned, Error, Ident, Path};
+use syn::{Error, Ident, Path, spanned::Spanned};
 
 /// An attribute name,
 #[derive(Copy, Clone)]
@@ -16,7 +16,7 @@ impl PartialEq<Symbol> for Ident {
     }
 }
 
-impl<'a> PartialEq<Symbol> for &'a Ident {
+impl PartialEq<Symbol> for &Ident {
     fn eq(&self, word: &Symbol) -> bool {
         *self == word.0
     }
@@ -28,7 +28,7 @@ impl PartialEq<Symbol> for Path {
     }
 }
 
-impl<'a> PartialEq<Symbol> for &'a Path {
+impl PartialEq<Symbol> for &Path {
     fn eq(&self, word: &Symbol) -> bool {
         Iterator::eq(
             self.segments.iter().map(|seg| &seg.ident),

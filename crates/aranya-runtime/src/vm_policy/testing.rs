@@ -4,8 +4,8 @@ use alloc::vec::Vec;
 use core::convert::Infallible;
 
 use aranya_crypto::DeviceId;
-use aranya_policy_vm::{ffi::ffi, CommandContext, MachineError};
-use buggy::{bug, BugExt};
+use aranya_policy_vm::{CommandContext, MachineError, ffi::ffi};
+use buggy::{BugExt, bug};
 
 use crate::CommandId;
 
@@ -32,10 +32,10 @@ struct Envelope {
 "#
 )]
 impl TestFfiEnvelope {
-    #[ffi_export(def = "function seal(payload bytes) struct Envelope")]
+    #[ffi_export(def = "function do_seal(payload bytes) struct Envelope")]
     fn seal<E>(
         &self,
-        ctx: &CommandContext<'_>,
+        ctx: &CommandContext,
         _eng: &mut E,
         payload: Vec<u8>,
     ) -> Result<Envelope, MachineError> {
@@ -47,7 +47,7 @@ impl TestFfiEnvelope {
         }
 
         let CommandContext::Seal(ctx) = ctx else {
-            bug!("envelope::seal called outside seal context");
+            bug!("envelope::do_seal called outside seal context");
         };
 
         let parent_id = ctx.head_id.into();
@@ -72,10 +72,10 @@ impl TestFfiEnvelope {
         })
     }
 
-    #[ffi_export(def = "function open(envelope_input struct Envelope) bytes")]
+    #[ffi_export(def = "function do_open(envelope_input struct Envelope) bytes")]
     fn open<E>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         envelope_input: Envelope,
     ) -> Result<Vec<u8>, Infallible> {

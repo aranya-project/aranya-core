@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{spanned::Spanned, ItemStruct};
+use syn::{ItemStruct, ext::IdentExt as _, spanned::Spanned};
 
 use crate::common::get_derive;
 
@@ -8,7 +8,7 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
     let strukt: ItemStruct = syn::parse2(item)?;
 
     let ident = &strukt.ident;
-    let name = ident.to_string();
+    let name = ident.unraw().to_string();
 
     let field_idents = strukt
         .fields
@@ -19,7 +19,7 @@ pub(super) fn parse(_attr: TokenStream, item: TokenStream) -> syn::Result<TokenS
                 .ok_or_else(|| syn::Error::new(f.span(), "tuple structs not allowed"))
         })
         .collect::<syn::Result<Vec<_>>>()?;
-    let field_names = field_idents.iter().map(|f| f.to_string());
+    let field_names = field_idents.iter().map(|f| f.unraw().to_string());
 
     let derive = get_derive();
 

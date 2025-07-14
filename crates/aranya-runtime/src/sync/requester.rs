@@ -3,22 +3,22 @@ use alloc::vec;
 use aranya_crypto::Csprng;
 use buggy::BugExt;
 use heapless::Vec;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use super::{
-    dispatcher::SyncType, responder::SyncResponseMessage, PeerCache, SyncCommand, SyncError,
-    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, REQUEST_MISSING_MAX,
+    COMMAND_RESPONSE_MAX, COMMAND_SAMPLE_MAX, PEER_HEAD_MAX, PeerCache, REQUEST_MISSING_MAX,
+    SyncCommand, SyncError, dispatcher::SyncType, responder::SyncResponseMessage,
 };
 use crate::{
-    storage::{Segment, Storage, StorageError, StorageProvider},
     Address, Command, GraphId, Location,
+    storage::{Segment, Storage, StorageError, StorageProvider},
 };
 
 // TODO: Use compile-time args. This initial definition results in this clippy warning:
 // https://rust-lang.github.io/rust-clippy/master/index.html#large_enum_variant.
 // As the buffer consts will be compile-time variables in the future, we will be
 // able to tune these buffers for smaller footprints. Right now, this enum is not
-// suitable for small devices (`SyncRequest` is 6512 bytes).
+// suitable for small devices (`SyncRequest` is 4080 bytes).
 /// Messages sent from the requester to the responder.
 #[derive(Serialize, Deserialize, Debug)]
 #[allow(clippy::large_enum_variant)]
@@ -171,7 +171,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
         use SyncRequesterState as S;
         let result = match self.state {
             S::Start | S::Waiting | S::Idle | S::Closed | S::PartialSync => {
-                return Err(SyncError::NotReady)
+                return Err(SyncError::NotReady);
             }
             S::New => {
                 self.state = S::Start;

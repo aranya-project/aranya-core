@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.10.0...aranya-idam-ffi-v0.11.0) - 2025-06-18
+
+### Other
+
+- add routines to compute label and role IDs ([#294](https://github.com/aranya-project/aranya-core/pull/294))
+- use custom types for identifiers and text ([#231](https://github.com/aranya-project/aranya-core/pull/231))
+
+## [0.10.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.9.0...aranya-idam-ffi-v0.10.0) - 2025-06-12
+
+### Other
+
+- update to spideroak-crypto v0.5.x ([#263](https://github.com/aranya-project/aranya-core/pull/263))
+- clean up dependencies ([#251](https://github.com/aranya-project/aranya-core/pull/251))
+
+## [0.9.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.8.0...aranya-idam-ffi-v0.9.0) - 2025-05-28
+
+### Other
+
+- updated the following local packages: aranya-crypto, aranya-policy-vm
+
+## [0.8.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.7.0...aranya-idam-ffi-v0.8.0) - 2025-05-15
+
+### Other
+
+- updated the following local packages: aranya-crypto, aranya-policy-vm
+
+## [0.7.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.6.0...aranya-idam-ffi-v0.7.0) - 2025-04-21
+
+### Other
+
+- updated the following local packages: aranya-policy-vm
+
 ## [0.6.0](https://github.com/aranya-project/aranya-core/compare/aranya-idam-ffi-v0.5.0...aranya-idam-ffi-v0.6.0) - 2025-04-10
 
 ### Other

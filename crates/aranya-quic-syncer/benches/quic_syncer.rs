@@ -12,17 +12,17 @@ use std::{
 };
 
 use anyhow::Result;
-use aranya_quic_syncer::{run_syncer, Syncer};
+use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
-    memory::MemStorageProvider,
-    protocol::{TestActions, TestEffect, TestEngine},
     ClientState, GraphId, Sink,
+    memory::MemStorageProvider,
+    testing::protocol::{TestActions, TestEffect, TestEngine},
 };
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use s2n_quic::Server;
 use tokio::{
     runtime::Runtime,
-    sync::{mpsc, Mutex as TMutex},
+    sync::{Mutex as TMutex, mpsc},
 };
 
 #[derive(Debug, Clone)]

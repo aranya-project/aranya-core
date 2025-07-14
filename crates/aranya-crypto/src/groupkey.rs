@@ -1,32 +1,32 @@
 #![forbid(unsafe_code)]
 
-use core::{marker::PhantomData, result::Result};
+use core::{cell::OnceCell, iter, marker::PhantomData, result::Result};
 
 use buggy::Bug;
-use serde::{Deserialize, Serialize};
-
-use crate::{
+use derive_where::derive_where;
+use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError, Tag},
-    aranya::VerifyingKey,
-    ciphersuite::SuiteIds,
     csprng::{Csprng, Random},
-    engine::unwrapped,
-    error::Error,
-    generic_array::GenericArray,
-    hash::{tuple_hash, Digest, Hash},
-    hmac::Hmac,
-    id::{custom_id, Id, IdError, Identified},
+    hash::{Digest, Hash},
     import::Import,
-    kdf,
     subtle::{Choice, ConstantTimeEq},
     typenum::U64,
     zeroize::{Zeroize, ZeroizeOnDrop},
-    CipherSuite,
+};
+
+use crate::{
+    aranya::VerifyingKey,
+    ciphersuite::{CipherSuite, CipherSuiteExt},
+    engine::unwrapped,
+    error::Error,
+    generic_array::GenericArray,
+    id::{Id, IdError, Identified, custom_id},
 };
 
 /// Key material used to derive per-event encryption keys.
 pub struct GroupKey<CS> {
     seed: [u8; 64],
+    id: OnceCell<Result<GroupKeyId, IdError>>,
     _cs: PhantomData<CS>,
 }
 
@@ -41,6 +41,7 @@ impl<CS> Clone for GroupKey<CS> {
     fn clone(&self) -> Self {
         Self {
             seed: self.seed,
+            id: OnceCell::new(),
             _cs: PhantomData,
         }
     }
@@ -56,16 +57,28 @@ impl<CS: CipherSuite> GroupKey<CS> {
     ///
     /// Two keys with the same ID are the same key.
     #[inline]
-    pub fn id(&self) -> GroupKeyId {
-        // ID = HMAC(
-        //     key=GroupKey,
-        //     message="GroupKeyId-v1" || suite_id,
-        //     outputBytes=64,
-        // )
-        let mut h = Hmac::<CS::Hash>::new(&self.seed);
-        h.update(b"GroupKeyId-v1");
-        h.update(&SuiteIds::from_suite::<CS>().into_bytes());
-        GroupKeyId(h.tag().into_array().into())
+    pub fn id(&self) -> Result<GroupKeyId, IdError> {
+        self.id
+            .get_or_init(|| {
+                // prk = LabeledExtract(
+                //     "GroupKeyId-v1",
+                //     {0}^n,
+                //     "prk",
+                //     seed,
+                // )
+                // GroupKey = LabeledExpand(
+                //     "GroupKeyId-v1",
+                //     prk,
+                //     "id",
+                //     {0}^0,
+                // )
+                const DOMAIN: &[u8] = b"GroupKeyId-v1";
+                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
+                CS::labeled_expand(DOMAIN, &prk, b"id", [])
+                    .map_err(|_| IdError::new("unable to expand PRK"))
+                    .map(GroupKeyId)
+            })
+            .clone()
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -182,36 +195,28 @@ impl<CS: CipherSuite> GroupKey<CS> {
         Ok(CS::Aead::new(&key).open(dst, nonce, ciphertext, &info)?)
     }
 
-    const EXTRACT_CTX: kdf::Context = kdf::Context {
-        domain: "kdf-ext-v1",
-        suite_ids: &SuiteIds::from_suite::<CS>().into_bytes(),
-    };
-
-    const EXPAND_CTX: kdf::Context = kdf::Context {
-        domain: "kdf-exp-v1",
-        suite_ids: &SuiteIds::from_suite::<CS>().into_bytes(),
-    };
-
     /// Derives a key for [`Self::open`] and [`Self::seal`].
     fn derive_key(&self, info: &[u8]) -> Result<<CS::Aead as Aead>::Key, Error> {
-        // GroupKey = KDF(
-        //     key={0,1}^512,
-        //     salt={0}^512,
-        //     info=concat(
-        //         L,
-        //         "kdf-exp-v1",
-        //         suite_id,
-        //         "EventKey_key",
-        //         parent,
-        //     ),
-        //     outputBytes=64,
+        // prk = LabeledExtract(
+        //     "kdf-ext-v1",
+        //     {0}^n,
+        //     "EventKey_prk",
+        //     seed,
         // )
-        let prk = Self::EXTRACT_CTX.labeled_extract::<CS::Kdf>(&[], "EventKey_prk", &self.seed);
-        let key = Self::EXPAND_CTX.labeled_expand::<CS::Kdf, KeyData<CS::Aead>>(
-            &prk,
-            "EventKey_key",
-            &[info],
-        )?;
+        // GroupKey = LabeledExpand(
+        //     "kdf-exp-v1",
+        //     prk,
+        //     "EventKey_key",
+        //     info,
+        // )
+        let prk = CS::labeled_extract(
+            b"kdf-ext-v1",
+            &[],
+            b"EventKey_prk",
+            iter::once::<&[u8]>(&self.seed),
+        );
+        let key: KeyData<CS::Aead> =
+            CS::labeled_expand(b"kdr-exp-v1", &prk, b"EventKey_key", [info])?;
         Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
             key.as_bytes(),
         )?)
@@ -228,6 +233,7 @@ impl<CS: CipherSuite> GroupKey<CS> {
     pub(crate) const fn from_seed(seed: [u8; 64]) -> Self {
         Self {
             seed,
+            id: OnceCell::new(),
             _cs: PhantomData,
         }
     }
@@ -245,7 +251,7 @@ impl<CS: CipherSuite> Identified for GroupKey<CS> {
 
     #[inline]
     fn id(&self) -> Result<Self::Id, IdError> {
-        Ok(self.id())
+        self.id()
     }
 }
 
@@ -281,11 +287,14 @@ impl<CS: CipherSuite> Context<'_, CS> {
         // So, we instead hash the fields into a fixed-size
         // buffer. We use `tuple_hash` out of paranoia, but
         // a regular hash should also suffice.
-        Ok(tuple_hash::<CS::Hash, _>([
-            self.label.as_bytes(),
-            self.parent.as_ref(),
-            self.author_sign_pk.id()?.as_bytes(),
-        ]))
+        Ok(CS::tuple_hash(
+            b"GroupKey",
+            [
+                self.label.as_bytes(),
+                self.parent.as_ref(),
+                self.author_sign_pk.id()?.as_bytes(),
+            ],
+        ))
     }
 }
 
@@ -295,18 +304,8 @@ custom_id! {
 }
 
 /// An encrypted [`GroupKey`].
-#[derive(Debug, Serialize, Deserialize)]
+#[derive_where(Clone, Debug, Serialize, Deserialize)]
 pub struct EncryptedGroupKey<CS: CipherSuite> {
     pub(crate) ciphertext: GenericArray<u8, U64>,
     pub(crate) tag: Tag<CS::Aead>,
-}
-
-impl<CS: CipherSuite> Clone for EncryptedGroupKey<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            ciphertext: self.ciphertext,
-            tag: self.tag.clone(),
-        }
-    }
 }

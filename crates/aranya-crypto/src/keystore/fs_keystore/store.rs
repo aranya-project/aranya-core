@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use core::{any::Any, marker::PhantomData, ops::Deref};
+use core::{any::Any, ffi::CStr, marker::PhantomData, ops::Deref};
 
 use buggy::BugExt;
 use cfg_if::cfg_if;
@@ -12,13 +12,13 @@ use rustix::{
     io::{self, Errno},
     path::Arg,
 };
-use spideroak_base58::{String64, ToBase58};
+use spideroak_base58::{String32, ToBase58};
 
 use super::error::{Error, RootDeleted, UnexpectedEof};
 use crate::{
+    Id, KeyStore,
     engine::WrappedKey,
     keystore::{Entry, Occupied, Vacant},
-    Id, KeyStore,
 };
 
 /// A file system backed [`KeyStore`].
@@ -162,13 +162,13 @@ impl KeyStore for Store {
 /// The path to an entry, relative to the root in [`Store`].
 // TODO(eric): the resulting string might be cause us to exceed
 // PATH_MAX, should we truncate it?
-struct Alias(String64);
+struct Alias(String32);
 
 impl Deref for Alias {
-    type Target = str;
+    type Target = CStr;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.0.as_cstr()
     }
 }
 

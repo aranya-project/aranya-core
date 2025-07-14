@@ -116,23 +116,21 @@
 
 extern crate alloc;
 
-use alloc::{
-    borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, sync::Arc, vec::Vec,
-};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, rc::Rc, string::String, vec::Vec};
 use core::{borrow::Borrow, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
-    OpenContext, PolicyContext, RunState, Stack, Struct, Value,
+    OpenContext, PolicyContext, RunState, Stack, Struct, Value, ast::Identifier,
 };
-use buggy::{bug, BugExt};
+use buggy::{BugExt, bug};
 use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
+    CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
     command::{Command, CommandId},
     engine::{EngineError, NullSink, Policy, Sink},
-    CommandRecall, FactPerspective, MergeIds, Perspective, Prior,
 };
 
 mod error;
@@ -152,14 +150,14 @@ pub use protocol::*;
 ///
 /// ```ignore
 /// let x = 42;
-/// let y = String::from("asdf");
+/// let y = text!("asdf");
 /// client.action(storage_id, sink, vm_action!(foobar(x, y)))
 /// ```
 #[macro_export]
 macro_rules! vm_action {
     ($name:ident($($arg:expr),* $(,)?)) => {
         $crate::VmAction {
-            name: stringify!($name),
+            name: ::aranya_policy_vm::ident!(stringify!($name)),
             args: [$(::aranya_policy_vm::Value::from($arg)),*].as_slice().into(),
         }
     };
@@ -182,9 +180,9 @@ macro_rules! vm_action {
 macro_rules! vm_effect {
     ($name:ident { $($field:ident : $val:expr),* $(,)? }) => {
         $crate::VmEffectData {
-            name: stringify!($name).into(),
+            name: ::aranya_policy_vm::ident!(stringify!($name)),
             fields: vec![$(
-                ::aranya_policy_vm::KVPair::new(stringify!($field), $val.into())
+                ::aranya_policy_vm::KVPair::new(::aranya_policy_vm::ident!(stringify!($field)), $val.into())
             ),*],
         }
     };
@@ -195,8 +193,7 @@ pub struct VmPolicy<E> {
     machine: Machine,
     engine: Mutex<E>,
     ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
-    // TODO(chip): replace or fill this with priorities from attributes
-    priority_map: Arc<BTreeMap<String, u32>>,
+    priority_map: BTreeMap<Identifier, VmPriority>,
 }
 
 impl<E> VmPolicy<E> {
@@ -206,12 +203,12 @@ impl<E> VmPolicy<E> {
         engine: E,
         ffis: Vec<Box<dyn FfiCallable<E> + Send + 'static>>,
     ) -> Result<Self, VmPolicyError> {
-        let priority_map = VmPolicy::<E>::get_command_priorities(&machine)?;
+        let priority_map = get_command_priorities(&machine)?;
         Ok(Self {
             machine,
             engine: Mutex::new(engine),
             ffis,
-            priority_map: Arc::new(priority_map),
+            priority_map,
         })
     }
 
@@ -220,39 +217,79 @@ impl<E> VmPolicy<E> {
         M: MachineIO<MachineStack>,
     {
         rs.source_location()
-            .unwrap_or(String::from("(unknown location)"))
+            .unwrap_or_else(|| String::from("(unknown location)"))
     }
+}
 
-    /// Scans command attributes for priorities and creates the priority map from them.
-    fn get_command_priorities(machine: &Machine) -> Result<BTreeMap<String, u32>, VmPolicyError> {
-        let mut priority_map = BTreeMap::new();
-        for (name, attrs) in &machine.command_attributes {
-            if let Some(Value::Int(p)) = attrs.get("priority") {
-                let pv = (*p).try_into().map_err(|e| {
-                    error!(
-                        ?e,
-                        "Priority out of range in {name}: {p} does not fit in u32"
-                    );
-                    VmPolicyError::Unknown
-                })?;
-                priority_map.insert(name.clone(), pv);
+/// Scans command attributes for priorities and creates the priority map from them.
+fn get_command_priorities(
+    machine: &Machine,
+) -> Result<BTreeMap<Identifier, VmPriority>, AttributeError> {
+    let mut priority_map = BTreeMap::new();
+    for (name, attrs) in &machine.command_attributes {
+        let finalize = attrs
+            .get("finalize")
+            .map(|attr| match *attr {
+                Value::Bool(b) => Ok(b),
+                _ => Err(AttributeError::type_mismatch(
+                    name.as_str(),
+                    "finalize",
+                    "Bool",
+                    &attr.type_name(),
+                )),
+            })
+            .transpose()?
+            == Some(true);
+        let priority: Option<u32> = attrs
+            .get("priority")
+            .map(|attr| match *attr {
+                Value::Int(b) => b.try_into().map_err(|_| {
+                    AttributeError::int_range(
+                        name.as_str(),
+                        "priority",
+                        u32::MIN.into(),
+                        u32::MAX.into(),
+                    )
+                }),
+                _ => Err(AttributeError::type_mismatch(
+                    name.as_str(),
+                    "priority",
+                    "Int",
+                    &attr.type_name(),
+                )),
+            })
+            .transpose()?;
+        match (finalize, priority) {
+            (false, None) => {}
+            (false, Some(p)) => {
+                priority_map.insert(name.clone(), VmPriority::Basic(p));
+            }
+            (true, None) => {
+                priority_map.insert(name.clone(), VmPriority::Finalize);
+            }
+            (true, Some(_)) => {
+                return Err(AttributeError::exclusive(
+                    name.as_str(),
+                    "finalize",
+                    "priority",
+                ));
             }
         }
-        Ok(priority_map)
     }
+    Ok(priority_map)
 }
 
 impl<E: aranya_crypto::Engine> VmPolicy<E> {
     #[allow(clippy::too_many_arguments)]
-    #[instrument(skip_all, fields(name = name))]
+    #[instrument(skip_all, fields(name = name.as_str()))]
     fn evaluate_rule<'a, P>(
         &self,
-        name: &str,
+        name: Identifier,
         fields: &[KVPair],
         envelope: Envelope<'_>,
         facts: &'a mut P,
         sink: &'a mut impl Sink<VmEffect>,
-        ctx: CommandContext<'_>,
+        ctx: CommandContext,
         recall: CommandRecall,
     ) -> Result<(), EngineError>
     where
@@ -263,7 +300,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let mut rs = self.machine.create_run_state(&io, ctx);
         let self_data = Struct::new(name, fields);
-        match rs.call_command_policy(&self_data.name, &self_data, envelope.clone().into()) {
+        match rs.call_command_policy(self_data.name.clone(), &self_data, envelope.clone().into()) {
             Ok(reason) => match reason {
                 ExitReason::Normal => Ok(()),
                 ExitReason::Yield => bug!("unexpected yield"),
@@ -279,7 +316,13 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
                     };
                     let recall_ctx = CommandContext::Recall(policy_ctx.clone());
                     rs.set_context(recall_ctx);
-                    self.recall_internal(recall, &mut rs, name, &self_data, envelope)
+                    self.recall_internal(
+                        recall,
+                        &mut rs,
+                        self_data.name.clone(),
+                        &self_data,
+                        envelope,
+                    )
                 }
                 ExitReason::Panic => {
                     info!("Panicked {}", self.source_location(&rs));
@@ -297,7 +340,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         &self,
         recall: CommandRecall,
         rs: &mut RunState<'_, M>,
-        name: &str,
+        name: Identifier,
         self_data: &Struct,
         envelope: Envelope<'_>,
     ) -> Result<(), EngineError>
@@ -323,10 +366,10 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         }
     }
 
-    #[instrument(skip_all, fields(name = name))]
+    #[instrument(skip_all, fields(name = name.as_str()))]
     fn open_command<P>(
         &self,
-        name: &str,
+        name: Identifier,
         envelope: Envelope<'_>,
         facts: &mut P,
     ) -> Result<Struct, EngineError>
@@ -337,7 +380,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
         let mut sink = NullSink;
         let sink2 = RefCell::new(&mut sink);
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink2, &self.engine, &self.ffis));
-        let ctx = CommandContext::Open(OpenContext { name });
+        let ctx = CommandContext::Open(OpenContext { name: name.clone() });
         let mut rs = self.machine.create_run_state(&io, ctx);
         let status = rs.call_open(name, envelope.into());
         match status {
@@ -374,7 +417,7 @@ impl<E: aranya_crypto::Engine> VmPolicy<E> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VmAction<'a> {
     /// The name of the action.
-    pub name: &'a str,
+    pub name: Identifier,
     /// The arguments of the action.
     pub args: Cow<'a, [Value]>,
 }
@@ -385,7 +428,7 @@ pub struct VmAction<'a> {
 #[derive(Debug)]
 pub struct VmEffectData {
     /// The name of the effect.
-    pub name: String,
+    pub name: Identifier,
     /// The fields of the effect.
     pub fields: Vec<KVPair>,
 }
@@ -406,13 +449,41 @@ impl PartialEq<VmEffectData> for VmEffect {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VmEffect {
     /// The name of the effect.
-    pub name: String,
+    pub name: Identifier,
     /// The fields of the effect.
     pub fields: Vec<KVPair>,
     /// The command ID that produced this effect
     pub command: CommandId,
     /// Was this produced from a recall block?
     pub recalled: bool,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum VmPriority {
+    Basic(u32),
+    Finalize,
+}
+
+impl Default for VmPriority {
+    fn default() -> Self {
+        Self::Basic(0)
+    }
+}
+
+impl From<VmPriority> for Priority {
+    fn from(value: VmPriority) -> Self {
+        match value {
+            VmPriority::Basic(p) => Self::Basic(p),
+            VmPriority::Finalize => Self::Finalize,
+        }
+    }
+}
+
+impl<E> VmPolicy<E> {
+    fn get_command_priority(&self, name: &Identifier) -> VmPriority {
+        debug_assert!(self.machine.command_defs.contains_key(name));
+        self.priority_map.get(name).copied().unwrap_or_default()
+    }
 }
 
 impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
@@ -437,7 +508,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
             error!("Could not deserialize: {e:?}");
             EngineError::Read
         })?;
-        let command_info = {
+        let (command_info, expected_priority) = {
             match unpacked {
                 VmProtocolData::Init {
                     author_id,
@@ -445,48 +516,66 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                     serialized_fields,
                     signature,
                     ..
-                } => Some((
-                    Envelope {
-                        parent_id: CommandId::default(),
+                } => (
+                    Some((
+                        Envelope {
+                            parent_id: CommandId::default(),
+                            author_id,
+                            command_id: command.id(),
+                            payload: Cow::Borrowed(serialized_fields),
+                            signature: Cow::Borrowed(signature),
+                        },
+                        kind,
                         author_id,
-                        command_id: command.id(),
-                        payload: Cow::Borrowed(serialized_fields),
-                        signature: Cow::Borrowed(signature),
-                    },
-                    kind,
-                    author_id,
-                )),
+                    )),
+                    Priority::Init,
+                ),
                 VmProtocolData::Basic {
                     parent,
                     kind,
                     author_id,
                     serialized_fields,
                     signature,
-                } => Some((
-                    Envelope {
-                        parent_id: parent.id,
-                        author_id,
-                        command_id: command.id(),
-                        payload: Cow::Borrowed(serialized_fields),
-                        signature: Cow::Borrowed(signature),
-                    },
-                    kind,
-                    author_id,
-                )),
+                } => {
+                    let priority = self.get_command_priority(&kind).into();
+                    (
+                        Some((
+                            Envelope {
+                                parent_id: parent.id,
+                                author_id,
+                                command_id: command.id(),
+                                payload: Cow::Borrowed(serialized_fields),
+                                signature: Cow::Borrowed(signature),
+                            },
+                            kind,
+                            author_id,
+                        )),
+                        priority,
+                    )
+                }
                 // Merges always pass because they're an artifact of the graph
-                _ => None,
+                _ => (None, Priority::Merge),
             }
         };
 
+        if command.priority() != expected_priority {
+            error!(
+                "Expected priority {:?}, got {:?}",
+                expected_priority,
+                command.priority()
+            );
+            bug!("Command has invalid priority");
+        }
+
         if let Some((envelope, kind, author_id)) = command_info {
-            let command_struct = self.open_command(kind, envelope.clone(), facts)?;
+            let command_struct = self.open_command(kind.clone(), envelope.clone(), facts)?;
             let fields: Vec<KVPair> = command_struct
                 .fields
                 .into_iter()
-                .map(|(k, v)| KVPair::new(&k, v))
+                .map(|(k, v)| KVPair::new(k, v))
                 .collect();
             let ctx = CommandContext::Policy(PolicyContext {
-                name: kind,
+                name: kind.clone(),
                 id: command.id().into(),
                 author: author_id,
                 version: CommandId::default().into(),
@@ -496,7 +585,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(name = action.name))]
+    #[instrument(skip_all, fields(name = action.name.as_str()))]
     fn call_action(
         &self,
         action: Self::Action<'_>,
@@ -517,7 +606,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         let sink = Rc::new(RefCell::new(sink));
         let io = RefCell::new(VmPolicyIO::new(&facts, &sink, &self.engine, &self.ffis));
         let ctx = CommandContext::Action(ActionContext {
-            name,
+            name: name.clone(),
             head_id: ctx_parent.id.into(),
         });
         {
@@ -546,15 +635,17 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                         let fields = command_struct
                             .fields
                             .iter()
-                            .map(|(k, v)| KVPair::new(k, v.clone()));
+                            .map(|(k, v)| KVPair::new(k.clone(), v.clone()));
                         io.try_borrow_mut()
                             .assume("should be able to borrow io")?
                             .publish(command_struct.name.clone(), fields);
 
-                        let seal_ctx = rs.get_context().seal_from_action(&command_struct.name)?;
+                        let seal_ctx = rs
+                            .get_context()
+                            .seal_from_action(command_struct.name.clone())?;
                         let mut rs_seal = self.machine.create_run_state(&io, seal_ctx);
                         match rs_seal
-                            .call_seal(&command_struct.name, &command_struct)
+                            .call_seal(command_struct.name.clone(), &command_struct)
                             .map_err(|e| {
                                 error!("Cannot seal command: {}", e);
                                 EngineError::Panic
@@ -586,30 +677,33 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             Prior::Merge(_, _) => bug!("cannot have a merge parent in call_action"),
                         };
 
+                        let priority = if parent.is_some() {
+                            self.get_command_priority(&command_struct.name).into()
+                        } else {
+                            Priority::Init
+                        };
+
                         let data = match parent {
                             None => VmProtocolData::Init {
                                 // TODO(chip): where does the policy value come from?
                                 policy: 0u64.to_le_bytes(),
                                 author_id: envelope.author_id,
-                                kind: &command_struct.name,
+                                kind: command_struct.name.clone(),
                                 serialized_fields: &envelope.payload,
                                 signature: &envelope.signature,
                             },
                             Some(parent) => VmProtocolData::Basic {
                                 author_id: envelope.author_id,
                                 parent,
-                                kind: &command_struct.name,
+                                kind: command_struct.name.clone(),
                                 serialized_fields: &envelope.payload,
                                 signature: &envelope.signature,
                             },
                         };
-                        let wrapped = postcard::to_allocvec(&data)?;
-                        let new_command = VmProtocol::new(
-                            &wrapped,
-                            envelope.command_id,
-                            data,
-                            Arc::clone(&self.priority_map),
-                        );
+                        let wrapped = postcard::to_allocvec(&data)
+                            .assume("can serialize vm protocol data")?;
+                        let new_command =
+                            VmProtocol::new(&wrapped, envelope.command_id, data, priority);
 
                         self.call_rule(
                             &new_command,
@@ -655,18 +749,23 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
     ) -> Result<Self::Command<'a>, EngineError> {
         let (left, right) = ids.into();
         let c = VmProtocolData::Merge { left, right };
+        let id = aranya_crypto::merge_cmd_id::<E::CS>(
+            left.id.into_id().into(),
+            right.id.into_id().into(),
+        )
+        .into_id()
+        .into();
         let data = postcard::to_slice(&c, target).map_err(|e| {
             error!("{e}");
             EngineError::Write
         })?;
-        let id = CommandId::hash_for_testing_only(data);
-        Ok(VmProtocol::new(data, id, c, Arc::clone(&self.priority_map)))
+        Ok(VmProtocol::new(data, id, c, Priority::Merge))
     }
 }
 
 impl fmt::Display for VmAction<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_tuple(self.name);
+        let mut d = f.debug_tuple(self.name.as_str());
         for arg in self.args.as_ref() {
             d.field(&DebugViaDisplay(arg));
         }
@@ -676,9 +775,9 @@ impl fmt::Display for VmAction<'_> {
 
 impl fmt::Display for VmEffect {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut d = f.debug_struct(&self.name);
+        let mut d = f.debug_struct(self.name.as_str());
         for field in &self.fields {
-            d.field(field.key(), &DebugViaDisplay(field.value()));
+            d.field(field.key().as_str(), &DebugViaDisplay(field.value()));
         }
         d.finish()
     }
@@ -690,5 +789,92 @@ struct DebugViaDisplay<T>(T);
 impl<T: fmt::Display> fmt::Debug for DebugViaDisplay<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use alloc::format;
+
+    use aranya_policy_compiler::Compiler;
+    use aranya_policy_lang::lang::parse_policy_str;
+    use aranya_policy_vm::ast::Version;
+
+    use super::*;
+
+    #[test]
+    fn test_get_command_priorities() {
+        fn process(attrs: &str) -> Result<Option<VmPriority>, AttributeError> {
+            let policy = format!(
+                r#"
+                command Test {{
+                    attributes {{
+                        {attrs}
+                    }}
+                    fields {{ }}
+                    seal {{ return None }}
+                    open {{ return None }}
+                    policy {{ }}
+                }}
+                "#
+            );
+            let ast = parse_policy_str(&policy, Version::V2).unwrap_or_else(|e| panic!("{e}"));
+            let module = Compiler::new(&ast)
+                .compile()
+                .unwrap_or_else(|e| panic!("{e}"));
+            let machine = Machine::from_module(module).expect("can create machine");
+            let priorities = get_command_priorities(&machine)?;
+            Ok(priorities.get("Test").copied())
+        }
+
+        assert_eq!(process(""), Ok(None));
+        assert_eq!(process("finalize: false"), Ok(None));
+
+        assert_eq!(process("priority: 42"), Ok(Some(VmPriority::Basic(42))));
+        assert_eq!(
+            process("finalize: false, priority: 42"),
+            Ok(Some(VmPriority::Basic(42)))
+        );
+        assert_eq!(
+            process("priority: 42, finalize: false"),
+            Ok(Some(VmPriority::Basic(42)))
+        );
+
+        assert_eq!(process("finalize: true"), Ok(Some(VmPriority::Finalize)));
+
+        assert_eq!(
+            process("finalize: 42"),
+            Err(AttributeError::type_mismatch(
+                "Test", "finalize", "Bool", "Int"
+            ))
+        );
+        assert_eq!(
+            process("priority: false"),
+            Err(AttributeError::type_mismatch(
+                "Test", "priority", "Int", "Bool"
+            ))
+        );
+        assert_eq!(
+            process("priority: -1"),
+            Err(AttributeError::int_range(
+                "Test",
+                "priority",
+                u32::MIN.into(),
+                u32::MAX.into(),
+            ))
+        );
+        assert_eq!(
+            process(&format!("priority: {}", i64::MAX)),
+            Err(AttributeError::int_range(
+                "Test",
+                "priority",
+                u32::MIN.into(),
+                u32::MAX.into(),
+            ))
+        );
+        assert_eq!(
+            process("finalize: true, priority: 42"),
+            Err(AttributeError::exclusive("Test", "finalize", "priority"))
+        )
     }
 }

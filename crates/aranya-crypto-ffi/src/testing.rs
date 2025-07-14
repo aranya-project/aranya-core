@@ -7,7 +7,9 @@
 use core::marker::PhantomData;
 
 use aranya_crypto::{Csprng, DeviceId, Engine, Id, KeyStore, Random, SignerError, SigningKey};
-use aranya_policy_vm::{ActionContext, CommandContext, OpenContext, PolicyContext, SealContext};
+use aranya_policy_vm::{
+    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -72,12 +74,14 @@ where
     E: Engine,
     S: KeyStore,
 {
-    const SEAL_CTX: CommandContext<'static> = CommandContext::Seal(SealContext {
-        name: "dummy",
+    const SEAL_CTX: CommandContext = CommandContext::Seal(SealContext {
+        name: ident!("dummy"),
         head_id: Id::default(),
     });
 
-    const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext { name: "dummy" });
+    const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
+        name: ident!("dummy"),
+    });
 
     /// Test that we can verify valid signatures.
     pub fn test_sign_verify(mut eng: E, mut store: S) {
@@ -237,12 +241,14 @@ where
     /// Test that we reject signatures created with a different
     /// command name.
     pub fn test_verify_reject_different_cmd_name(mut eng: E, mut store: S) {
-        const SEAL_CTX: CommandContext<'static> = CommandContext::Seal(SealContext {
-            name: "foo",
+        const SEAL_CTX: CommandContext = CommandContext::Seal(SealContext {
+            name: ident!("foo"),
             head_id: Id::default(),
         });
 
-        const OPEN_CTX: CommandContext<'static> = CommandContext::Open(OpenContext { name: "bar" });
+        const OPEN_CTX: CommandContext = CommandContext::Open(OpenContext {
+            name: ident!("bar"),
+        });
 
         let (sk, pk) = {
             let sk = SigningKey::<E::CS>::new(&mut eng);
@@ -317,7 +323,7 @@ where
             .expect("should be able to encode `Command`");
 
         let seal_ctx = CommandContext::Seal(SealContext {
-            name: "dummy",
+            name: ident!("dummy"),
             head_id: Id::random(&mut eng),
         });
         let Signed {
@@ -332,7 +338,9 @@ where
             )
             .expect("should be able to create signature");
 
-        let open_ctx = CommandContext::Open(OpenContext { name: "dummy" });
+        let open_ctx = CommandContext::Open(OpenContext {
+            name: ident!("dummy"),
+        });
         let err = ffi
             .verify(
                 &open_ctx,
@@ -429,18 +437,20 @@ where
 
         for ctx in &[
             CommandContext::Action(ActionContext {
-                name: "dummy",
+                name: ident!("dummy"),
                 head_id: Id::default(),
             }),
-            CommandContext::Open(OpenContext { name: "dummy" }),
+            CommandContext::Open(OpenContext {
+                name: ident!("dummy"),
+            }),
             CommandContext::Policy(PolicyContext {
-                name: "dummy",
+                name: ident!("dummy"),
                 id: Id::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
-                name: "dummy",
+                name: ident!("dummy"),
                 id: Id::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
@@ -495,21 +505,21 @@ where
 
         for ctx in &[
             CommandContext::Action(ActionContext {
-                name: "dummy",
+                name: ident!("dummy"),
                 head_id: Id::default(),
             }),
             CommandContext::Seal(SealContext {
-                name: "dummy",
+                name: ident!("dummy"),
                 head_id: Id::default(),
             }),
             CommandContext::Policy(PolicyContext {
-                name: "dummy",
+                name: ident!("dummy"),
                 id: Id::default(),
                 author: DeviceId::default(),
                 version: Id::default(),
             }),
             CommandContext::Recall(PolicyContext {
-                name: "dummy",
+                name: ident!("dummy"),
                 id: Id::default(),
                 author: DeviceId::default(),
                 version: Id::default(),

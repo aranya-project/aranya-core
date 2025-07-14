@@ -3,11 +3,11 @@ fn benchmark_1() {
     use aranya_policy_lang::lang::parse_policy_document;
     use aranya_policy_vm::{bench_measurements, ffi::FfiModule};
     use aranya_runtime::{
+        ClientState,
         memory::MemStorageProvider,
-        testing::vm::{TestEngine, TestSink, TEST_POLICY_1},
+        testing::vm::{TEST_POLICY_1, TestEngine, TestSink},
         vm_action, vm_effect,
         vm_policy::testing::TestFfiEnvelope,
-        ClientState,
     };
 
     let policy = parse_policy_document(TEST_POLICY_1).expect("should parse");
@@ -46,8 +46,8 @@ policy-version: 1
         fact F[i int]=>{ value string }
 
         command Init {
-            seal { return envelope::seal(serialize(this)) }
-            open { return deserialize(envelope::open(envelope)) }
+            seal { return envelope::do_seal(serialize(this)) }
+            open { return deserialize(envelope::do_open(envelope)) }
             policy {
                 finish {}
             }
@@ -66,8 +66,8 @@ policy-version: 1
                 i int,
                 value string
             }
-            seal { return envelope::seal(serialize(this)) }
-            open { return deserialize(envelope::open(envelope)) }
+            seal { return envelope::do_seal(serialize(this)) }
+            open { return deserialize(envelope::do_open(envelope)) }
             policy {
                 finish {
                     create F[i: this.i]=>{value: this.value}
@@ -76,15 +76,15 @@ policy-version: 1
         }
 
         action run() {
-            map F[i:?] as f {                
+            map F[i:?] as f {
                 publish DoSomething { i: f.i }
             }
         }
 
         command DoSomething {
             fields { i int }
-            seal { return envelope::seal(serialize(this)) }
-            open { return deserialize(envelope::open(envelope)) }
+            seal { return envelope::do_seal(serialize(this)) }
+            open { return deserialize(envelope::do_open(envelope)) }
             policy {
                 finish {
                     update F[i:this.i]=>{ value:? } to { value:"updated" }
@@ -96,13 +96,13 @@ policy-version: 1
 
     use aranya_policy_compiler::Compiler;
     use aranya_policy_lang::lang::parse_policy_document;
-    use aranya_policy_vm::{bench_measurements, ffi::FfiModule};
+    use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule};
     use aranya_runtime::{
+        ClientState,
         memory::MemStorageProvider,
         testing::vm::{TestEngine, TestSink},
         vm_action,
         vm_policy::testing::TestFfiEnvelope,
-        ClientState,
     };
 
     let policy = parse_policy_document(test).expect("should parse");
@@ -120,7 +120,8 @@ policy-version: 1
         .expect("could not create graph");
 
     for i in 1..10 {
-        cs.action(storage_id, &mut sink, vm_action!(insert(i, i.to_string())))
+        let text: Text = i.to_string().parse().expect("valid text");
+        cs.action(storage_id, &mut sink, vm_action!(insert(i, text)))
             .expect("action `insert` failed");
     }
     cs.action(storage_id, &mut sink, vm_action!(run()))

@@ -60,16 +60,16 @@ use core::{
 #[cfg(any(test, feature = "std"))]
 use std::time::Instant;
 
-use aranya_crypto::{csprng::rand::Rng as RRng, Csprng, Rng};
+use aranya_crypto::{Csprng, Rng, dangerous::spideroak_crypto::csprng::rand::Rng as RRng};
 use buggy::{Bug, BugExt};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{debug, error};
 
 use crate::{
-    protocol::{TestActions, TestEffect, TestEngine, TestSink},
-    Address, ClientError, ClientState, Command, CommandId, EngineError, GraphId, Location,
-    PeerCache, Prior, Segment, Storage, StorageError, StorageProvider, SyncError, SyncRequester,
-    SyncResponder, SyncType, COMMAND_RESPONSE_MAX, MAX_SYNC_MESSAGE_SIZE,
+    Address, COMMAND_RESPONSE_MAX, ClientError, ClientState, Command, CommandId, EngineError,
+    GraphId, Location, MAX_SYNC_MESSAGE_SIZE, PeerCache, Prior, Segment, Storage, StorageError,
+    StorageProvider, SyncError, SyncRequester, SyncResponder, SyncType,
+    testing::protocol::{TestActions, TestEffect, TestEngine, TestSink},
 };
 
 fn default_repeat() -> u64 {
@@ -130,6 +130,10 @@ pub enum TestRule {
         client: u64,
         id: u64,
         policy: u64,
+    },
+    RemoveGraph {
+        client: u64,
+        id: u64,
     },
     Sync {
         graph: u64,
@@ -306,6 +310,11 @@ impl Display for TestRule {
                 f,
                 r#"{{"NewGraph": {{ "client": {}, "id": {}, "policy": {} }} }},"#,
                 client, id, policy,
+            ),
+            TestRule::RemoveGraph { client, id } => write!(
+                f,
+                r#"{{"RemoveGraph": {{ "client": {}, "id": {} }} }},"#,
+                client, id,
             ),
             TestRule::PrintGraph { client, graph } => write!(
                 f,
@@ -549,6 +558,16 @@ where
                 )?;
 
                 graphs.insert(id, storage_id);
+
+                assert_eq!(0, sink.count());
+            }
+            TestRule::RemoveGraph { client, id } => {
+                let state = clients
+                    .get_mut(&client)
+                    .ok_or(TestError::MissingClient)?
+                    .get_mut();
+                let storage_id = graphs.get(&id).ok_or(TestError::MissingGraph(id))?;
+                state.remove_graph(*storage_id)?;
 
                 assert_eq!(0, sink.count());
             }
@@ -935,6 +954,22 @@ macro_rules! test_vectors {
                 }
             )+
         }
+
+        /// Add all of the test vectors as Rust tests.
+        ///
+        /// `$backend` should be a `FnMut() -> impl StorageBackend`.
+        #[macro_export]
+        macro_rules! test_suite {
+            ($backend:expr) => {
+                $(
+                    #[::test_log::test]
+                    fn $name() -> ::core::result::Result<(), $crate::testing::dsl::TestError> {
+                        $crate::testing::dsl::vectors::$name($backend)
+                    }
+                )*
+            };
+        }
+        pub use test_suite;
     };
 }
 
@@ -947,6 +982,7 @@ test_vectors! {
     max_bytes,
     max_cut,
     missing_parent_after_sync,
+    remove_graph,
     skip_list,
     sync_graph_larger_than_command_max,
     three_client_branch,
@@ -956,47 +992,3 @@ test_vectors! {
     two_client_merge,
     two_client_sync,
 }
-
-/// Used by [`test_suite`].
-#[macro_export]
-#[doc(hidden)]
-macro_rules! test_vector {
-    ($backend:expr ; $($name:ident),+ $(,)?) => {
-        $(
-            #[test]
-            fn $name() -> ::core::result::Result<(), $crate::testing::dsl::TestError> {
-                $crate::testing::dsl::vectors::$name($backend)
-            }
-        )*
-    };
-}
-pub use test_vector;
-
-/// Add all of the test vectors as Rust tests.
-///
-/// `$backend` should be a `FnMut() -> impl StorageBackend`.
-#[macro_export]
-macro_rules! test_suite {
-    ($backend:expr) => {
-        $crate::testing::dsl::test_vector! {
-            $backend ;
-            duplicate_sync_causes_failure,
-            empty_sync,
-            large_sync,
-            list_multiple_graph_ids,
-            many_branches,
-            max_bytes,
-            max_cut,
-            missing_parent_after_sync,
-            skip_list,
-            sync_graph_larger_than_command_max,
-            three_client_branch,
-            three_client_compare_graphs,
-            three_client_sync,
-            two_client_branch,
-            two_client_merge,
-            two_client_sync,
-        }
-    };
-}
-pub use test_suite;

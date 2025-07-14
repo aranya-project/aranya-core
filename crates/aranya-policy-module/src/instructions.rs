@@ -1,18 +1,16 @@
-extern crate alloc;
-
-use alloc::string::String;
 use core::{
     fmt::{self, Display},
     num::NonZeroUsize,
 };
 
+use aranya_policy_ast::Identifier;
 use serde::{Deserialize, Serialize};
 
 mod meta;
 
 pub use meta::*;
 
-use crate::{data::Value, Label};
+use crate::{Label, data::Value};
 
 /// Reason for ending execution.
 #[must_use]
@@ -74,9 +72,6 @@ impl Display for Target {
         }
     }
 }
-
-/// An identifier for a type, field, assignment, etc.
-pub type Identifier = String;
 
 /// The machine instruction types
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

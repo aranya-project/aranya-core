@@ -5,10 +5,10 @@
 #![allow(non_snake_case)]
 #![allow(unused_imports)]
 extern crate alloc;
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 use aranya_policy_ifgen::{
     macros::{actions, effect, effects, value},
-    ClientError, Id, Value,
+    ClientError, Id, Value, Text,
 };
 /// Players policy struct.
 #[value]
@@ -25,9 +25,16 @@ pub enum Player {
 /// Enum of policy effects that can occur in response to a policy action.
 #[effects]
 pub enum Effect {
+    GameOver(GameOver),
     GameStart(GameStart),
     GameUpdate(GameUpdate),
-    GameOver(GameOver),
+}
+/// GameOver policy effect.
+#[effect]
+pub struct GameOver {
+    pub gameID: Id,
+    pub winner: Id,
+    pub p: Player,
 }
 /// GameStart policy effect.
 #[effect]
@@ -44,16 +51,9 @@ pub struct GameUpdate {
     pub X: i64,
     pub Y: i64,
 }
-/// GameOver policy effect.
-#[effect]
-pub struct GameOver {
-    pub gameID: Id,
-    pub winner: Id,
-    pub p: Player,
-}
 /// Implements all supported policy actions.
 #[actions]
 pub trait ActorExt {
-    fn StartGame(&mut self, players: Players) -> Result<(), ClientError>;
     fn MakeMove(&mut self, gameID: Id, x: i64, y: i64) -> Result<(), ClientError>;
+    fn StartGame(&mut self, players: Players) -> Result<(), ClientError>;
 }

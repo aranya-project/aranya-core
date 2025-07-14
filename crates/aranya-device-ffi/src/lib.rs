@@ -9,7 +9,7 @@ mod tests;
 use core::convert::Infallible;
 
 use aranya_crypto::DeviceId;
-use aranya_policy_vm::{ffi::ffi, CommandContext};
+use aranya_policy_vm::{CommandContext, ffi::ffi};
 
 /// Implements the FFI `Device` module
 pub struct FfiDevice {
@@ -22,7 +22,7 @@ impl FfiDevice {
     #[ffi_export(def = r#"function current_device_id() id"#)]
     pub(crate) fn current_device_id<E: aranya_crypto::Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
     ) -> Result<DeviceId, Infallible> {
         Ok(self.id)
