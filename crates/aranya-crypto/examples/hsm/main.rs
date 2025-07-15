@@ -5,6 +5,7 @@ use core::fmt;
 use std::vec::Vec;
 
 use aranya_crypto::{
+    CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
     dangerous::spideroak_crypto::{
         aead::{Aead, OpenError},
         csprng::{Csprng, Random},
@@ -14,7 +15,7 @@ use aranya_crypto::{
         kem::Kem,
         keys::{PublicKey, SecretKey, SecretKeyBytes},
         mac::Mac,
-        oid::{self, consts::DHKEM_P256_HKDF_SHA256, Oid},
+        oid::{self, Oid, consts::DHKEM_P256_HKDF_SHA256},
         rust,
         signer::{PkError, Signature, Signer, SignerError, SigningKey, VerifyingKey},
         subtle::{Choice, ConstantTimeEq},
@@ -22,9 +23,9 @@ use aranya_crypto::{
     },
     engine::{self, AlgId, RawSecret, RawSecretWrap, UnwrappedKey, WrongKeyType},
     id::IdError,
-    kem_with_oid, CipherSuite, Engine, Id, Identified, Rng, UnwrapError, WrapError,
+    kem_with_oid,
 };
-use buggy::{bug, Bug};
+use buggy::{Bug, bug};
 use serde::{Deserialize, Serialize};
 
 mod hsm;
@@ -143,7 +144,7 @@ impl RawSecretWrap<Self> for HsmEngine {
                     got: "External",
                     expected: alg_id.name(),
                 }
-                .into())
+                .into());
             }
         };
         Ok(secret)

@@ -5,8 +5,8 @@ use buggy::Bug;
 
 use super::Stack;
 use crate::{
-    error::{MachineError, MachineErrorType},
     CommandContext,
+    error::{MachineError, MachineErrorType},
 };
 
 /// An I/O error.

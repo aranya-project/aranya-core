@@ -2,15 +2,15 @@
 #![allow(clippy::indexing_slicing, clippy::missing_panics_doc, clippy::panic)]
 
 use aranya_crypto::{
+    CipherSuite, Engine, Random, Rng,
     afc::{BidiKeys, RawOpenKey, RawSealKey, UniOpenKey, UniSealKey},
     dangerous::spideroak_crypto::{hash::Hash, rust::Sha256},
-    CipherSuite, Engine, Random, Rng,
 };
 use serial_test::serial;
 
 use super::{
-    shared::{Index, ShmChan},
     Flag, Mode, Path, ReadState, WriteState,
+    shared::{Index, ShmChan},
 };
 use crate::{
     state::{AranyaState, Channel, ChannelId, Directed, Label, NodeId},

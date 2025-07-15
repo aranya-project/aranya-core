@@ -2,11 +2,11 @@
 #![allow(clippy::unwrap_used)]
 
 use aranya_crypto::{
-    default::{DefaultEngine, Rng},
     DeviceId, Id,
+    default::{DefaultEngine, Rng},
 };
 use aranya_policy_vm::{
-    ident, ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext,
+    ActionContext, CommandContext, MachineErrorType, OpenContext, PolicyContext, SealContext, ident,
 };
 
 use crate::FfiPerspective;

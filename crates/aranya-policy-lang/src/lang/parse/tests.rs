@@ -4,11 +4,11 @@ use std::{fs::OpenOptions, io::Read};
 
 use aranya_policy_ast::{ident, text};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
-use pest::{error::Error as PestError, iterators::Pair, Parser};
+use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ast, ast::AstNode, get_pratt_parser, parse_policy_document, parse_policy_str, ParseError,
-    PolicyParser, Rule, Version,
+    ParseError, PolicyParser, Rule, Version, ast, ast::AstNode, get_pratt_parser,
+    parse_policy_document, parse_policy_str,
 };
 use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 

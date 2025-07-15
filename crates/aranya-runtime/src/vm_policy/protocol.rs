@@ -4,14 +4,14 @@ use alloc::{borrow::Cow, collections::BTreeMap};
 
 use aranya_crypto::DeviceId;
 use aranya_policy_vm::{
-    ast::{ident, Identifier},
     Struct, Value,
+    ast::{Identifier, ident},
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{Command, CommandId, Priority},
     Address, Prior,
+    command::{Command, CommandId, Priority},
 };
 
 /// The data inside a [VmProtocol]. It gets serialized and deserialized over the wire.

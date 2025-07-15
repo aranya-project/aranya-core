@@ -5,7 +5,7 @@ use std::fmt;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{
-    meta::ParseNestedMeta, spanned::Spanned, Error, Expr, ExprLit, Ident, Lit, LitStr, Path,
+    Error, Expr, ExprLit, Ident, Lit, LitStr, Path, meta::ParseNestedMeta, spanned::Spanned,
 };
 
 /// An attribute name,

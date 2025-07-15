@@ -6,7 +6,7 @@ use core::{
     fmt,
     hash::{Hash, Hasher},
     marker::{PhantomData, PhantomPinned},
-    mem::{self, size_of, ManuallyDrop, MaybeUninit},
+    mem::{self, ManuallyDrop, MaybeUninit, size_of},
     ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, DerefMut, Not},
     ptr::{self, NonNull},
     slice, str,
@@ -16,13 +16,13 @@ use aranya_libc::Path;
 use tracing::{error, instrument, warn};
 
 use crate::{
+    InvalidSlice,
     internal::conv::{
         alias::Alias,
         newtype::NewType,
         slice::{try_from_raw_parts, try_from_raw_parts_mut},
     },
     traits::InitDefault,
-    InvalidSlice,
 };
 
 /// Errors returned by [`Safe`].

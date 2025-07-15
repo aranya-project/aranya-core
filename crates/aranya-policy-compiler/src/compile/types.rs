@@ -1,13 +1,13 @@
 use std::{
     borrow::Cow,
-    collections::{hash_map, HashMap},
+    collections::{HashMap, hash_map},
     fmt::Display,
 };
 
 use aranya_policy_ast::{self as ast, Identifier};
 use ast::VType;
 
-use crate::{compile::CompileState, CompileErrorType};
+use crate::{CompileErrorType, compile::CompileState};
 
 /// Describes the nature of a type error
 #[derive(Debug, PartialEq)]
@@ -207,14 +207,6 @@ impl Typeish {
     pub fn is_maybe(&self, ot: &VType) -> bool {
         match self {
             Self::Type(t) => t == ot,
-            _ => true,
-        }
-    }
-
-    /// Is this a struct of any kind or indeterminate?
-    pub fn is_any_struct(&self) -> bool {
-        match self {
-            Self::Type(t) => matches!(t, VType::Struct(_)),
             _ => true,
         }
     }

@@ -5,9 +5,9 @@ use postcard::Error as PostcardError;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    command::{Command, CommandId, Priority},
-    storage::{StorageError, MAX_COMMAND_LENGTH},
     Address, Prior,
+    command::{Command, CommandId, Priority},
+    storage::{MAX_COMMAND_LENGTH, StorageError},
 };
 
 mod dispatcher;

@@ -43,7 +43,7 @@ use spideroak_crypto::{
     zeroize::ZeroizeOnDrop,
 };
 
-use crate::{ciphersuite::CipherSuite, Aead, Hash, Kdf, Kem, Mac, Signer};
+use crate::{Aead, Hash, Kdf, Kem, Mac, Signer, ciphersuite::CipherSuite};
 
 #[macro_export]
 #[doc(hidden)]

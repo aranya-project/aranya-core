@@ -1,9 +1,8 @@
 //! Cryptographic primitives.
 
 pub use aranya_crypto::{
-    self,
+    self, Engine,
     afc::{OpenKey, SealKey},
-    Engine,
 };
 
 pub use crate::rust::*;

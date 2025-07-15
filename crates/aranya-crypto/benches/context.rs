@@ -9,7 +9,7 @@ use aranya_crypto::dangerous::spideroak_crypto::{
     rust::{HkdfSha256, Sha256},
 };
 use criterion::{
-    criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId, Criterion, Throughput,
+    BenchmarkGroup, BenchmarkId, Criterion, Throughput, criterion_main, measurement::Measurement,
 };
 
 trait Spec<K: Kdf> {

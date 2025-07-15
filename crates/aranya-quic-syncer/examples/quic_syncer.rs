@@ -12,18 +12,18 @@
 
 use std::{fs, io, net::SocketAddr, ops::DerefMut, sync::Arc, thread, time};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use aranya_crypto::Rng;
-use aranya_quic_syncer::{run_syncer, Syncer};
+use aranya_quic_syncer::{Syncer, run_syncer};
 use aranya_runtime::{
+    ClientState, Engine, GraphId, StorageProvider, SyncRequester,
     engine::Sink,
     storage::memory::MemStorageProvider,
     testing::protocol::{TestActions, TestEffect, TestEngine},
-    ClientState, Engine, GraphId, StorageProvider, SyncRequester,
 };
 use clap::Parser;
 use s2n_quic::Server;
-use tokio::sync::{mpsc, Mutex as TMutex};
+use tokio::sync::{Mutex as TMutex, mpsc};
 
 #[derive(Parser, Debug)]
 #[clap(name = "server")]

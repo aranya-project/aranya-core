@@ -3,7 +3,7 @@
 use alloc::vec::Vec;
 use core::{
     cmp::Ordering,
-    ffi::{c_char, CStr},
+    ffi::{CStr, c_char},
     fmt,
     mem::MaybeUninit,
     ops::Deref,
