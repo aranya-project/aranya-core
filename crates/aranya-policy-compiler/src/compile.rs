@@ -1570,7 +1570,18 @@ impl<'a> CompileState<'a> {
             self.wp,
         )?;
         self.map_range(function_node)?;
-        self.define_function_signature(function_node)?;
+
+        // The signature should have already been added inside
+        // `compile`.
+        if !self
+            .function_signatures
+            .contains_key(&function_node.identifier)
+        {
+            return Err(self.err_loc(
+                CompileErrorType::NotDefined(function_node.identifier.to_string()),
+                function_node.locator,
+            ));
+        }
 
         if let Some(identifier) = find_duplicate(&function.arguments, |a| &a.identifier) {
             return Err(self.err_loc(
@@ -2248,6 +2259,14 @@ impl<'a> CompileState<'a> {
         // used to catch usage errors in regular functions.
         for function_def in &self.policy.finish_functions {
             self.define_finish_function_signature(function_def)?;
+        }
+
+        // Define function signatures before compiling them to
+        // support using a function before it's defined.
+        //
+        // See https://github.com/aranya-project/aranya-core/issues/336
+        for function_def in &self.policy.functions {
+            self.define_function_signature(function_def)?;
         }
 
         for function_def in &self.policy.functions {
