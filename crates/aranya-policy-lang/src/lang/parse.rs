@@ -1687,7 +1687,7 @@ pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
 /// | Priority | Op |
 /// |----------|----|
 /// | 1        | `.` |
-/// | 2        | `substruct`, `cast` (infix) |
+/// | 2        | `substruct`, `as` (infix) |
 /// | 3        | `-` (prefix), `!`, `unwrap`, `check_unwrap` |
 /// | 4        | `%` |
 /// | 5        | `+`, `-` (infix) |
