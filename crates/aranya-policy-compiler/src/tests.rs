@@ -2280,3 +2280,82 @@ fn test_ffi_fail_without_use() {
         .err_type();
     assert_eq!(err, CompileErrorType::NotDefined(String::from("test")));
 }
+
+/// See issue #336.
+#[test]
+fn test_function_used_before_definition() {
+    let text = r#"
+        // Returns x^n
+        function pow(x int, n int) int {
+            if n == 0 {
+                // x^0 == x
+                return 1 
+            }
+            if n == 1 {
+                // x^1 = x
+                return x
+            }
+            if is_odd(n) {
+                return multiply(x, pow(double(x), divide((n-1), 2)))
+            }
+            return pow(double(x), divide(n, 2))
+        }
+
+        function is_odd(x int) bool {
+            return multiply(divide(x, 2), 2) != x
+        }
+
+        function double(x int) int {
+            return multiply(x, 2)
+        }
+
+        function multiply(x int, y int) int {
+            if x == 0 { return 0 }
+            if y == 0 { return 0 }
+            if x == 1 { return y }
+            if y == 1 { return x }
+            return (x+y) + multiply(x, y-1)
+        }
+
+        function divide(x int, y int) int {
+            check y > 0
+            if x < y { return 0 }
+            let got = divide0(Division {
+                d: y,
+                q: 0,
+                r: x,
+            })
+            return got.q
+        }
+        struct Division {
+            // Divisor
+            d int,
+            // Quotient
+            q int,
+            // Remainder. Starts == dividend
+            r int,
+        }
+        function divide0(args struct Division) struct Division {
+            let d = args.d
+            let q = args.q
+            let r = args.r
+
+            check d > 0
+
+            if r < d {
+                return Division {
+                    d: d,
+                    q: q,
+                    r: r,
+                }
+            }
+            return divide0(Division {
+                d: d,
+                q: q+1,
+                r: r-d,
+            })
+        }
+    "#;
+
+    compile_pass(text);
+}
