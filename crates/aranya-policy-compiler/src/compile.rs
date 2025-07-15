@@ -2928,6 +2928,7 @@ fn sort_defs(defs: &AstPolicy) -> Result<Vec<Def>, CompileError> {
         }
     }
     if !graph.is_empty() {
+        println!("graph = {graph:?}");
         return Err(CompileError::new(CompileErrorType::Unknown(String::from(
             "cyclic dependency in definitions",
         ))));
