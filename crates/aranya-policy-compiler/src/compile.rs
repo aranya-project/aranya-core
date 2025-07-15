@@ -3,7 +3,7 @@ pub mod target;
 mod types;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, btree_map::Entry},
+    collections::{btree_map::Entry, BTreeMap, BTreeSet, VecDeque},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -11,19 +11,19 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
-    MatchExpression, MatchStatement, StructItem, VType, ident,
+    self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
+    MatchExpression, MatchStatement, StructItem, VType,
 };
 use aranya_policy_module::{
-    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
-    ffi::ModuleSchema,
+    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
+    Target, Value,
 };
 pub use ast::Policy as AstPolicy;
 use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt, bug};
+use buggy::{bug, Bug, BugExt};
 use indexmap::IndexMap;
 use target::CompileTarget;
 use types::TypeError;
@@ -2191,6 +2191,10 @@ impl<'a> CompileState<'a> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
+        {
+            let _ = sort_defs(self.policy)?;
+        }
+
         // Compile global let statements
         for global_let in &self.policy.global_lets {
             self.compile_global_let(global_let)?;
@@ -2418,4 +2422,515 @@ where
     }
 
     None
+}
+
+trait AstNodeExt {
+    fn ident(&self) -> Identifier;
+    fn edges(&self) -> BTreeSet<Identifier>;
+}
+impl AstNodeExt for AstNode<FactDefinition> {
+    fn ident(&self) -> Identifier {
+        self.inner.identifier.clone()
+    }
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        walk_fact_def(&mut idents, &self.inner);
+        idents
+    }
+}
+impl AstNodeExt for AstNode<ast::ActionDefinition> {
+    fn ident(&self) -> Identifier {
+        self.inner.identifier.clone()
+    }
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        walk_action_def(&mut idents, &self.inner);
+        idents
+    }
+}
+impl AstNodeExt for AstNode<ast::EffectDefinition> {
+    fn ident(&self) -> Identifier {
+        self.inner.identifier.clone()
+    }
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        walk_effect_def(&mut idents, &self.inner);
+        idents
+    }
+}
+impl AstNodeExt for AstNode<ast::StructDefinition> {
+    fn ident(&self) -> Identifier {
+        self.inner.identifier.clone()
+    }
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        walk_struct_def(&mut idents, &self.inner);
+        idents
+    }
+}
+impl AstNodeExt for AstNode<EnumDefinition> {
+    fn ident(&self) -> Identifier {
+        self.inner.identifier.clone()
+    }
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        walk_enum_def(&mut idents, &self.inner);
+        idents
+    }
+}
+impl AstNodeExt for AstNode<ast::CommandDefinition> {
+    fn ident(&self) -> Identifier {
+        self.inner.identifier.clone()
+    }
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        walk_cmd_def(&mut idents, &self.inner);
+        idents
+    }
+}
+impl AstNodeExt for AstNode<ast::FunctionDefinition> {
+    fn ident(&self) -> Identifier {
+        self.inner.identifier.clone()
+    }
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        walk_fn_def(&mut idents, &self.inner);
+        idents
+    }
+}
+impl AstNodeExt for AstNode<ast::FinishFunctionDefinition> {
+    fn ident(&self) -> Identifier {
+        self.inner.identifier.clone()
+    }
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        walk_finish_fn_def(&mut idents, &self.inner);
+        idents
+    }
+}
+
+trait AstPolicyExt {
+    fn to_defs(&self) -> impl Iterator<Item = Def>;
+}
+impl AstPolicyExt for AstPolicy {
+    fn to_defs(&self) -> impl Iterator<Item = Def> {
+        self.facts
+            .iter()
+            .cloned()
+            .map(Def::Fact)
+            .chain(self.actions.iter().cloned().map(Def::Action))
+            .chain(self.effects.iter().cloned().map(Def::Effect))
+            .chain(self.structs.iter().cloned().map(Def::Struct))
+            .chain(self.enums.iter().cloned().map(Def::Enum))
+            .chain(self.commands.iter().cloned().map(Def::Command))
+            .chain(self.functions.iter().cloned().map(Def::Function))
+            .chain(
+                self.finish_functions
+                    .iter()
+                    .cloned()
+                    .map(Def::FinishFunction),
+            )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum Def {
+    Fact(AstNode<FactDefinition>),
+    Action(AstNode<ast::ActionDefinition>),
+    Effect(AstNode<ast::EffectDefinition>),
+    Struct(AstNode<ast::StructDefinition>),
+    Enum(AstNode<EnumDefinition>),
+    Command(AstNode<ast::CommandDefinition>),
+    Function(AstNode<ast::FunctionDefinition>),
+    FinishFunction(AstNode<ast::FinishFunctionDefinition>),
+}
+
+impl Def {
+    fn ident(&self) -> Identifier {
+        match self {
+            Def::Fact(f) => f.identifier.clone(),
+            Def::Action(a) => a.identifier.clone(),
+            Def::Effect(e) => e.identifier.clone(),
+            Def::Struct(s) => s.identifier.clone(),
+            Def::Enum(e) => e.identifier.clone(),
+            Def::Command(c) => c.identifier.clone(),
+            Def::Function(f) => f.identifier.clone(),
+            Def::FinishFunction(f) => f.identifier.clone(),
+        }
+    }
+
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        match self {
+            Def::Fact(v) => walk_fact_def(&mut idents, &v.inner),
+            Def::Action(v) => walk_action_def(&mut idents, &v.inner),
+            Def::Effect(v) => walk_effect_def(&mut idents, &v.inner),
+            Def::Struct(v) => walk_struct_def(&mut idents, &v.inner),
+            Def::Enum(v) => walk_enum_def(&mut idents, &v.inner),
+            Def::Command(v) => walk_cmd_def(&mut idents, &v.inner),
+            Def::Function(v) => walk_fn_def(&mut idents, &v.inner),
+            Def::FinishFunction(v) => walk_finish_fn_def(&mut idents, &v.inner),
+        }
+        idents
+    }
+}
+
+fn walk_expr(idents: &mut BTreeSet<Identifier>, expr: &Expression) {
+    match expr {
+        // No edges.
+        Expression::Int(_) | Expression::String(_) | Expression::Bool(_) => {}
+        Expression::Optional(v) => match v {
+            None => {}
+            Some(e) => walk_expr(idents, e),
+        },
+        Expression::NamedStruct(v) => {
+            idents.insert(v.identifier.clone());
+        }
+        Expression::InternalFunction(v) => match v {
+            ast::InternalFunction::Query(v) => {
+                idents.insert(v.identifier.clone());
+            }
+            ast::InternalFunction::Exists(v) => {
+                idents.insert(v.identifier.clone());
+            }
+            ast::InternalFunction::FactCount(_, _, v) => {
+                idents.insert(v.identifier.clone());
+            }
+            ast::InternalFunction::If(a, b, c) => {
+                walk_expr(idents, a);
+                walk_expr(idents, b);
+                walk_expr(idents, c);
+            }
+            ast::InternalFunction::Serialize(v) => {
+                walk_expr(idents, v);
+            }
+            ast::InternalFunction::Deserialize(v) => {
+                walk_expr(idents, v);
+            }
+        },
+        Expression::FunctionCall(v) => {
+            idents.insert(v.identifier.clone());
+        }
+        Expression::ForeignFunctionCall(v) => {
+            idents.insert(v.identifier.clone());
+        }
+        Expression::Identifier(ident) => {
+            idents.insert(ident.clone());
+        }
+        Expression::EnumReference(v) => {
+            idents.insert(v.identifier.clone());
+        }
+        Expression::Add(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::Subtract(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::And(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::Or(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::Dot(a, b) => {
+            walk_expr(idents, &a);
+            idents.insert(b.clone());
+        }
+        Expression::Equal(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::NotEqual(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::GreaterThan(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::LessThan(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::GreaterThanOrEqual(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::LessThanOrEqual(a, b) => {
+            walk_expr(idents, a);
+            walk_expr(idents, b);
+        }
+        Expression::Negative(e) => {
+            walk_expr(idents, e);
+        }
+        Expression::Not(e) => {
+            walk_expr(idents, e);
+        }
+        Expression::Unwrap(e) => {
+            walk_expr(idents, e);
+        }
+        Expression::CheckUnwrap(e) => {
+            walk_expr(idents, e);
+        }
+        Expression::Is(e, _) => {
+            walk_expr(idents, e);
+        }
+        Expression::Block(s, e) => {
+            for stmt in s {
+                walk_stmt(idents, stmt);
+            }
+            walk_expr(idents, e);
+        }
+        Expression::Substruct(e, ident) => {
+            walk_expr(idents, e);
+            idents.insert(ident.clone());
+        }
+        Expression::Match(v) => {
+            walk_expr(idents, &v.scrutinee);
+            for arm in &v.arms {
+                match &arm.pattern {
+                    MatchPattern::Values(values) => {
+                        for value in values {
+                            walk_expr(idents, value);
+                        }
+                    }
+                    MatchPattern::Default => {}
+                }
+                walk_expr(idents, &arm.expression);
+            }
+        }
+    }
+}
+
+fn walk_stmt(idents: &mut BTreeSet<Identifier>, stmt: &ast::Statement) {
+    match stmt {
+        ast::Statement::Let(v) => {
+            walk_expr(idents, &v.expression);
+        }
+        ast::Statement::Check(v) => {
+            walk_expr(idents, &v.expression);
+        }
+        ast::Statement::Match(v) => {
+            walk_expr(idents, &v.expression);
+            for arm in &v.arms {
+                match &arm.pattern {
+                    MatchPattern::Values(values) => {
+                        for value in values {
+                            walk_expr(idents, value);
+                        }
+                    }
+                    MatchPattern::Default => {}
+                }
+                for stmt in &arm.statements {
+                    walk_stmt(idents, stmt);
+                }
+            }
+        }
+        ast::Statement::If(v) => {
+            for (expr, statements) in &v.branches {
+                walk_expr(idents, expr);
+                for stmt in statements {
+                    walk_stmt(idents, stmt);
+                }
+            }
+        }
+        ast::Statement::Finish(v) => {
+            for stmt in v {
+                walk_stmt(idents, stmt);
+            }
+        }
+        ast::Statement::Map(v) => {
+            idents.insert(v.fact.identifier.clone());
+            idents.insert(v.identifier.clone());
+            for stmt in &v.statements {
+                walk_stmt(idents, stmt);
+            }
+        }
+        ast::Statement::Return(v) => {
+            walk_expr(idents, &v.expression);
+        }
+        ast::Statement::ActionCall(v) => {
+            idents.insert(v.identifier.clone());
+            for expr in &v.arguments {
+                walk_expr(idents, expr);
+            }
+        }
+        ast::Statement::Publish(v) => {
+            walk_expr(idents, v);
+        }
+        ast::Statement::Create(v) => {
+            idents.insert(v.fact.identifier.clone());
+        }
+        ast::Statement::Update(v) => {
+            idents.insert(v.fact.identifier.clone());
+            for (ident, field) in &v.to {
+                idents.insert(ident.clone());
+                match field {
+                    FactField::Expression(expr) => {
+                        walk_expr(idents, expr);
+                    }
+                    FactField::Bind => {}
+                }
+            }
+        }
+        ast::Statement::Delete(v) => {
+            idents.insert(v.fact.identifier.clone());
+        }
+        ast::Statement::Emit(v) => {
+            walk_expr(idents, v);
+        }
+        ast::Statement::FunctionCall(v) => {
+            idents.insert(v.identifier.clone());
+            for expr in &v.arguments {
+                walk_expr(idents, expr);
+            }
+        }
+        ast::Statement::DebugAssert(v) => {
+            walk_expr(idents, v);
+        }
+    }
+}
+
+fn walk_fact_def(idents: &mut BTreeSet<Identifier>, f: &FactDefinition) {
+    for def in &f.key {
+        walk_vtype(idents, &def.field_type);
+    }
+    for def in &f.value {
+        walk_vtype(idents, &def.field_type);
+    }
+}
+
+fn walk_action_def(idents: &mut BTreeSet<Identifier>, action: &ast::ActionDefinition) {
+    idents.insert(action.identifier.clone());
+    for arg in &action.arguments {
+        walk_vtype(idents, &arg.field_type);
+    }
+    for stmt in &action.statements {
+        walk_stmt(idents, stmt);
+    }
+}
+
+fn walk_effect_def(idents: &mut BTreeSet<Identifier>, effect: &ast::EffectDefinition) {
+    idents.insert(effect.identifier.clone());
+    for item in &effect.items {
+        match item {
+            StructItem::Field(f) => walk_vtype(idents, &f.field_type),
+            StructItem::StructRef(ref_name) => {
+                idents.insert(ref_name.clone());
+            }
+        }
+    }
+}
+
+fn walk_struct_def(idents: &mut BTreeSet<Identifier>, struct_def: &ast::StructDefinition) {
+    idents.insert(struct_def.identifier.clone());
+    for item in &struct_def.items {
+        match item {
+            StructItem::Field(f) => walk_vtype(idents, &f.field_type),
+            StructItem::StructRef(ref_name) => {
+                idents.insert(ref_name.clone());
+            }
+        }
+    }
+}
+
+fn walk_enum_def(idents: &mut BTreeSet<Identifier>, enum_def: &EnumDefinition) {
+    idents.insert(enum_def.identifier.clone());
+    for variant in &enum_def.variants {
+        idents.insert(variant.clone());
+    }
+}
+
+fn walk_cmd_def(idents: &mut BTreeSet<Identifier>, cmd_def: &ast::CommandDefinition) {
+    idents.insert(cmd_def.identifier.clone());
+    for item in &cmd_def.fields {
+        match item {
+            StructItem::Field(f) => walk_vtype(idents, &f.field_type),
+            StructItem::StructRef(ref_name) => {
+                idents.insert(ref_name.clone());
+            }
+        }
+    }
+}
+
+fn walk_fn_def(idents: &mut BTreeSet<Identifier>, fn_def: &ast::FunctionDefinition) {
+    idents.insert(fn_def.identifier.clone());
+    for arg in &fn_def.arguments {
+        walk_vtype(idents, &arg.field_type);
+    }
+    for stmt in &fn_def.statements {
+        walk_stmt(idents, stmt);
+    }
+}
+
+fn walk_finish_fn_def(idents: &mut BTreeSet<Identifier>, fn_def: &ast::FinishFunctionDefinition) {
+    idents.insert(fn_def.identifier.clone());
+
+    for arg in &fn_def.arguments {
+        walk_vtype(idents, &arg.field_type);
+    }
+    for stmt in &fn_def.statements {
+        walk_stmt(idents, stmt);
+    }
+}
+
+fn walk_vtype(idents: &mut BTreeSet<Identifier>, vtype: &VType) {
+    match vtype {
+        VType::Struct(ident) | VType::Enum(ident) => {
+            idents.insert(ident.clone());
+        }
+        VType::Optional(v) => walk_vtype(idents, v),
+        _ => {}
+    }
+}
+
+fn sort_defs(defs: &AstPolicy) -> Result<Vec<Def>, CompileError> {
+    let mut graph = BTreeMap::new();
+    // All edges from k <- [v...]
+    let mut incoming = BTreeMap::<Identifier, BTreeSet<Identifier>>::new();
+    for d in defs.to_defs() {
+        let edges = d.edges();
+        for e in &edges {
+            incoming
+                .entry(e.clone())
+                .and_modify(|s| {
+                    s.insert(d.ident());
+                })
+                .or_insert_with(|| {
+                    let mut set = BTreeSet::new();
+                    set.insert(d.ident());
+                    set
+                });
+        }
+        if graph.insert(d.ident(), (d, edges)).is_some() {
+            todo!()
+        }
+    }
+    let mut list = Vec::new();
+    let mut set = VecDeque::<(Def, BTreeSet<Identifier>)>::new();
+    while let Some((n, edges)) = set.pop_front() {
+        list.push(n.clone());
+        for e in edges {
+            let edges = incoming
+                .entry(e.clone())
+                .and_modify(|s| {
+                    s.remove(&n.ident());
+                })
+                .or_default();
+            if edges.is_empty() {
+                // TODO: unwrap
+                set.push_back(graph.remove(&e).unwrap());
+            }
+        }
+    }
+    if !graph.is_empty() {
+        return Err(CompileError::new(CompileErrorType::Unknown(String::from(
+            "cyclic dependency in definitions",
+        ))));
+    }
+    Ok(list)
 }
