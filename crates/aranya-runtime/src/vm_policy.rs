@@ -121,14 +121,14 @@ use core::{borrow::Borrow, cell::RefCell, fmt};
 
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, KVPair, Machine, MachineIO, MachineStack,
-    OpenContext, PolicyContext, RunState, Stack, Struct, Value, ast::Identifier,
+    OpenContext, PolicyContext, RunState, Stack, Struct, Value, ast::Identifier, ident,
 };
 use buggy::{BugExt, bug};
 use spin::Mutex;
 use tracing::{error, info, instrument};
 
 use crate::{
-    CommandRecall, FactPerspective, MergeIds, Perspective, Prior, Priority,
+    CommandRecall, FactPerspective, MergeIds, PersistenceMode, Perspective, Prior, Priority,
     command::{Command, CommandId},
     engine::{EngineError, NullSink, Policy, Sink},
 };
@@ -277,6 +277,22 @@ fn get_command_priorities(
         }
     }
     Ok(priority_map)
+}
+
+fn get_command_attribute(
+    machine: &Machine,
+    command_name: &Identifier,
+    attr_name: &Identifier,
+) -> Result<Option<Value>, EngineError> {
+    let cmd_attrs = machine
+        .command_attributes
+        .get(command_name)
+        .ok_or_else(|| {
+            error!("Command '{}' not found in command attributes", command_name);
+            EngineError::InternalError
+        })?;
+    let attr_value = cmd_attrs.get(attr_name).cloned();
+    Ok(attr_value)
 }
 
 impl<E: aranya_crypto::Engine> VmPolicy<E> {
@@ -591,6 +607,7 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        persistence_mode: PersistenceMode,
     ) -> Result<(), EngineError> {
         let VmAction { name, args } = action;
 
@@ -636,10 +653,40 @@ impl<E: aranya_crypto::Engine> Policy for VmPolicy<E> {
                             .fields
                             .iter()
                             .map(|(k, v)| KVPair::new(k.clone(), v.clone()));
-                        io.try_borrow_mut()
-                            .assume("should be able to borrow io")?
-                            .publish(command_struct.name.clone(), fields);
 
+                        // Make sure the command persistence mode matches the policy's
+                        let is_ephemeral = get_command_attribute(
+                            &self.machine,
+                            &command_struct.name,
+                            &ident!("ephemeral"),
+                        )?
+                        .map_or(false, |v| matches!(v, Value::Bool(b) if b));
+
+                        match persistence_mode {
+                            PersistenceMode::Persistent => {
+                                if is_ephemeral {
+                                    error!(
+                                        "Expected non-ephemeral command: {}",
+                                        command_struct.name
+                                    );
+                                    return Err(EngineError::InternalError); // TODO this is really a user error
+                                }
+                            }
+                            PersistenceMode::Ephemeral => {
+                                if !is_ephemeral {
+                                    error!("Expected ephemeral command: {}", command_struct.name);
+                                    return Err(EngineError::InternalError); // TODO this is really a user error
+                                }
+                            }
+                        }
+
+                        if !is_ephemeral {
+                            io.try_borrow_mut()
+                                .assume("should be able to borrow io")?
+                                .publish(command_struct.name.clone(), fields);
+                        }
+
+                        // Seal command
                         let seal_ctx = rs
                             .get_context()
                             .seal_from_action(command_struct.name.clone())?;

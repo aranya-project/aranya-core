@@ -8,7 +8,8 @@ use tracing::{error, trace};
 
 use crate::{
     Address, Command, CommandId, CommandRecall, Engine, EngineError, FactPerspective, Keys,
-    MAX_COMMAND_LENGTH, MergeIds, Perspective, Policy, PolicyId, Prior, Priority, Sink, alloc,
+    MAX_COMMAND_LENGTH, MergeIds, PersistenceMode, Perspective, Policy, PolicyId, Prior, Priority,
+    Sink, alloc,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -301,6 +302,7 @@ impl Policy for TestPolicy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        persistence: PersistenceMode, // TODO what should we do with this here?
     ) -> Result<(), EngineError> {
         let parent = match facts.head_address()? {
             Prior::None => Address {
