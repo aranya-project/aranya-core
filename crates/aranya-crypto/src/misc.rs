@@ -2,7 +2,7 @@
 
 use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
 
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use spideroak_crypto::{
     keys::PublicKey,
     signer::{Signature, Signer},
@@ -230,12 +230,14 @@ macro_rules! signing_key {
         sk = $sk:ident,
         pk = $pk:ident,
         id = $id:ident,
+        context = $context:expr,
     ) => {
         $crate::misc::keypair! {
             $(#[$meta])*
             struct $sk<CS>(<<CS as $crate::CipherSuite>::Signer as ::spideroak_crypto::signer::Signer>::SigningKey);
             struct $pk<CS>(<<CS as $crate::CipherSuite>::Signer as ::spideroak_crypto::signer::Signer>::VerifyingKey);
             id = $id,
+            context = $context,
         }
 
         $crate::engine::unwrapped! {
@@ -265,12 +267,14 @@ macro_rules! kem_key {
         sk = $sk:ident,
         pk = $pk:ident,
         id = $id:ident,
+        context = $context:expr,
     ) => {
         $crate::misc::keypair! {
             $(#[$meta])*
             struct $sk<CS>(<<CS as $crate::CipherSuite>::Kem as ::spideroak_crypto::kem::Kem>::DecapKey);
             struct $pk<CS>(<<CS as $crate::CipherSuite>::Kem as ::spideroak_crypto::kem::Kem>::EncapKey);
             id = $id,
+            context = $context,
         }
 
         $crate::engine::unwrapped! {
@@ -309,6 +313,7 @@ macro_rules! keypair {
         struct $sk:ident<CS>($sk_inner:ty);
         struct $pk:ident<CS>($pk_inner:ty);
         id = $id:ident,
+        context = $context:expr,
     ) => {
         $(#[$meta])*
         pub struct $sk<CS: $crate::CipherSuite> {
@@ -338,7 +343,7 @@ macro_rules! keypair {
 
         impl<CS: $crate::CipherSuite> $crate::zeroize::ZeroizeOnDrop for $sk<CS> {}
 
-        $crate::misc::sk_misc!($sk, $pk, $id);
+        $crate::misc::sk_misc!(@keypair $sk, $pk, $id);
 
         /// The public half of
         #[doc = ::core::concat!("`", ::core::stringify!($sk), "`")]
@@ -356,7 +361,7 @@ macro_rules! keypair {
             }
         }
 
-        $crate::misc::pk_misc!($pk, ::core::stringify!($sk), $id);
+        $crate::misc::pk_misc!($pk, $id, $context);
     };
 }
 pub(crate) use keypair;
@@ -367,7 +372,7 @@ pub(crate) use keypair;
 macro_rules! sk_misc {
     // For symmetric keys, or asymmetric key pairs when the
     // public half isn't used.
-    ($name:ident, $id:ident) => {
+    ($name:ident, $id:ident, $context:expr) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
             #[derive(
@@ -386,12 +391,10 @@ macro_rules! sk_misc {
             pub fn id(&self) -> Result<$id, $crate::id::IdError> {
                 self.id
                     .get_or_init(|| {
-                        const CONTEXT: &'static str = ::core::stringify!($sk);
-
                         let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.sk.public()?);
                         let id = $crate::id::Id::new::<CS>(
                             ::core::borrow::Borrow::borrow(&pk),
-                            CONTEXT.as_bytes(),
+                            $context.as_bytes(),
                         );
                         Ok($id(id))
                     })
@@ -403,7 +406,7 @@ macro_rules! sk_misc {
     };
 
     // For asymmetric key pairs when the public half *is* used.
-    ($name:ident, $pk:ident, $id:ident) => {
+    (@keypair $name:ident, $pk:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
             #[derive(
@@ -489,14 +492,15 @@ pub(crate) use sk_misc_inner;
 ///
 /// See [`key_misc`] for more information.
 macro_rules! pk_misc {
-    ($name:ident, $sk:expr, $id:ident) => {
+    ($name:ident, $id:ident, $context:expr) => {
         impl<CS: $crate::CipherSuite> $name<CS> {
             #[doc = ::core::concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
+                const CONTEXT: &'static str = $context;
                 ::core::result::Result::Ok($id($crate::id::Id::new::<CS>(
                     ::core::borrow::Borrow::borrow(&self.pk.export()),
-                    $sk.as_bytes(),
+                    CONTEXT.as_bytes(),
                 )))
             }
         }

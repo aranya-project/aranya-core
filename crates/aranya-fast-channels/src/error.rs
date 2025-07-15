@@ -1,8 +1,8 @@
 use core::{alloc::LayoutError, convert::Infallible};
 
 use aranya_crypto::{
-    afc::{OpenError, SealError},
     ImportError,
+    afc::{OpenError, SealError},
 };
 use buggy::Bug;
 

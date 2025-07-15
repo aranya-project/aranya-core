@@ -1,9 +1,9 @@
 mod error;
-mod target;
+pub mod target;
 mod types;
 
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, btree_map::Entry},
     fmt,
     num::NonZeroUsize,
     ops::Range,
@@ -11,20 +11,21 @@ use std::{
 };
 
 use aranya_policy_ast::{
-    self as ast, ident, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
-    MatchExpression, MatchStatement, StructItem, VType,
+    self as ast, AstNode, FactCountType, FunctionCall, Identifier, LanguageContext,
+    MatchExpression, MatchStatement, StructItem, VType, ident,
 };
 use aranya_policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
-    Target, Value,
+    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
+    ffi::ModuleSchema,
 };
 pub use ast::Policy as AstPolicy;
 use ast::{
     EnumDefinition, Expression, FactDefinition, FactField, FactLiteral, FieldDefinition,
     MatchPattern, NamedStruct,
 };
-use buggy::{Bug, BugExt};
-pub(crate) use target::CompileTarget;
+use buggy::{Bug, BugExt, bug};
+use indexmap::IndexMap;
+use target::CompileTarget;
 use types::TypeError;
 
 pub use self::error::{CompileError, CompileErrorType, InvalidCallColor};
@@ -245,16 +246,16 @@ impl<'a> CompileState<'a> {
         }
 
         // Add values to enum, checking for duplicates
-        let mut values = BTreeMap::new();
+        let mut values = IndexMap::new();
         for (i, value_name) in enum_def.variants.iter().enumerate() {
             match values.entry(value_name.clone()) {
-                Entry::Occupied(_) => {
+                indexmap::map::Entry::Occupied(_) => {
                     return Err(self.err(CompileErrorType::AlreadyDefined(format!(
                         "{}::{}",
                         enum_name, value_name
                     ))));
                 }
-                Entry::Vacant(e) => {
+                indexmap::map::Entry::Vacant(e) => {
                     // TODO ensure value is unique. Currently, it always will be, but if enum
                     // variants start allowing specific values, e.g. `enum Color { Red = 100, Green = 200 }`,
                     // then we'll need to ensure those are unique.
@@ -676,32 +677,49 @@ impl<'a> CompileState<'a> {
                         .map_err(|e| self.err(e.into()))?
                 }
                 ast::InternalFunction::Serialize(e) => {
-                    if !matches!(
-                        self.get_statement_context()?,
-                        StatementContext::PureFunction(_)
-                    ) {
-                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
+                    match self.get_statement_context()? {
+                        StatementContext::PureFunction(ast::FunctionDefinition {
+                            identifier,
+                            ..
+                        }) if identifier == "seal" => {}
+                        _ => {
+                            return Err(
+                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
+                            );
+                        }
                     }
+                    let struct_type = self
+                        .identifier_types
+                        .get(&ident!("this"))
+                        .assume("seal must have `this`")?;
+                    let Typeish::Type(struct_type @ VType::Struct(_)) = struct_type else {
+                        bug!("seal::this must be a struct type");
+                    };
                     let t = self.compile_expression(e)?;
-                    if !t.is_any_struct() {
-                        return Err(self.err(CompileErrorType::InvalidType(String::from(
-                            "Serializing non-struct",
+                    if !t.is_maybe(&struct_type) {
+                        return Err(self.err(CompileErrorType::InvalidType(format!(
+                            "serializing {t}, expected {struct_type}"
                         ))));
                     }
                     self.append_instruction(Instruction::Serialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to throw an error when this is used on a
-                    // struct that is not the current command struct
                     Typeish::Type(VType::Bytes)
                 }
                 ast::InternalFunction::Deserialize(e) => {
-                    if !matches!(
-                        self.get_statement_context()?,
-                        StatementContext::PureFunction(_)
-                    ) {
-                        return Err(self.err(CompileErrorType::InvalidExpression((**e).clone())));
-                    }
+                    // A bit hacky, but you can't manually define a function named "open".
+                    let struct_name = match self.get_statement_context()? {
+                        StatementContext::PureFunction(ast::FunctionDefinition {
+                            identifier,
+                            return_type: VType::Struct(struct_name),
+                            ..
+                        }) if identifier == "open" => struct_name,
+                        _ => {
+                            return Err(
+                                self.err(CompileErrorType::InvalidExpression((**e).clone()))
+                            );
+                        }
+                    };
+
                     let t = self.compile_expression(e)?;
                     if !t.is_maybe(&VType::Bytes) {
                         return Err(self.err(CompileErrorType::InvalidType(String::from(
@@ -710,9 +728,7 @@ impl<'a> CompileState<'a> {
                     }
                     self.append_instruction(Instruction::Deserialize);
 
-                    // TODO(chip): Use information about which command
-                    // we're in to determine this concretely
-                    Typeish::Indeterminate
+                    Typeish::Type(VType::Struct(struct_name))
                 }
             },
             Expression::FunctionCall(f) => {
@@ -1248,7 +1264,7 @@ impl<'a> CompileState<'a> {
                         Typeish::Type(ot) => {
                             return Err(self.err(CompileErrorType::InvalidType(format!(
                                 "Cannot publish `{ot}`, must be a command struct"
-                            ))))
+                            ))));
                         }
                         _ => {}
                     }
@@ -1472,11 +1488,14 @@ impl<'a> CompileState<'a> {
                             Typeish::Type(t) => {
                                 let expected_arg = &action_def.arguments[i];
                                 if t != expected_arg.field_type {
-                                    return Err(CompileError::from_locator(CompileErrorType::BadArgument(format!("invalid argument type for `{}`: expected `{}`, but got `{t}`",
-                                            expected_arg.identifier,
-                                            expected_arg.field_type)
-                                        ),
-                                        statement.locator, self.m.codemap.as_ref()));
+                                    return Err(CompileError::from_locator(
+                                        CompileErrorType::BadArgument(format!(
+                                            "invalid argument type for `{}`: expected `{}`, but got `{t}`",
+                                            expected_arg.identifier, expected_arg.field_type
+                                        )),
+                                        statement.locator,
+                                        self.m.codemap.as_ref(),
+                                    ));
                                 }
                             }
                             Typeish::Indeterminate => {}
@@ -1503,7 +1522,7 @@ impl<'a> CompileState<'a> {
                     return Err(self.err_loc(
                         CompileErrorType::InvalidStatement(context),
                         statement.locator,
-                    ))
+                    ));
                 }
             }
         }
@@ -2192,6 +2211,7 @@ impl<'a> CompileState<'a> {
                 })
                 .collect();
             self.define_struct(effect.inner.identifier.clone(), &fields)?;
+            self.m.effects.insert(effect.inner.identifier.clone());
         }
 
         // define the structs provided by FFI schema
@@ -2279,11 +2299,6 @@ impl<'a> CompileState<'a> {
         Ok(())
     }
 
-    /// Finish compilation; return the internal machine
-    pub fn into_module(self) -> Module {
-        self.m.into_module()
-    }
-
     /// Get expression value, e.g. Expression::Int => Value::Int
     fn expression_value(&self, e: &Expression) -> Option<Value> {
         match e {
@@ -2356,6 +2371,11 @@ impl<'a> Compiler<'a> {
 
     /// Consumes the builder to create a [`Module`]
     pub fn compile(self) -> Result<Module, CompileError> {
+        let target = self.compile_to_target()?;
+        Ok(target.into_module())
+    }
+
+    pub fn compile_to_target(self) -> Result<CompileTarget, CompileError> {
         let codemap = CodeMap::new(&self.policy.text, self.policy.ranges.clone());
         let machine = CompileTarget::new(codemap);
         let mut cs = CompileState {
@@ -2373,8 +2393,7 @@ impl<'a> Compiler<'a> {
         };
 
         cs.compile()?;
-
-        Ok(cs.into_module())
+        Ok(cs.m)
     }
 }
 

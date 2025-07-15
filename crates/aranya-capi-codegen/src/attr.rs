@@ -4,7 +4,7 @@ use std::{fmt, iter::Iterator};
 
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn::{spanned::Spanned, Error, Ident, Path};
+use syn::{Error, Ident, Path, spanned::Spanned};
 
 /// An attribute name,
 #[derive(Copy, Clone)]

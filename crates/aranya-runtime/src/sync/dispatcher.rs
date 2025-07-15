@@ -1,7 +1,7 @@
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
-use super::{requester::SyncRequestMessage, SyncResponseMessage, COMMAND_SAMPLE_MAX};
+use super::{COMMAND_SAMPLE_MAX, SyncResponseMessage, requester::SyncRequestMessage};
 use crate::{Address, GraphId};
 
 /// The sync type to dispatch.

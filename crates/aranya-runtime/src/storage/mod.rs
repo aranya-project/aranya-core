@@ -105,10 +105,10 @@ pub trait StorageProvider {
     type Perspective: Perspective + Revertable;
     type Segment: Segment;
     type Storage: Storage<
-        Segment = Self::Segment,
-        Perspective = Self::Perspective,
-        FactIndex = <Self::Segment as Segment>::FactIndex,
-    >;
+            Segment = Self::Segment,
+            Perspective = Self::Perspective,
+            FactIndex = <Self::Segment as Segment>::FactIndex,
+        >;
 
     /// Create an unrooted perspective, intended for creating a new graph.
     ///

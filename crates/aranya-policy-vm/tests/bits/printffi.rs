@@ -1,7 +1,8 @@
 use aranya_crypto::Engine;
 use aranya_policy_vm::{
+    CommandContext, MachineError, MachineErrorType, Stack, Text, Value,
     ffi::{self, FfiModule, ModuleSchema},
-    ident, CommandContext, MachineError, MachineErrorType, Stack, Text, Value,
+    ident,
 };
 
 pub struct PrintFfi {}

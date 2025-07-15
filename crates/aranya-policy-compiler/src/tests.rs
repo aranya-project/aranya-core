@@ -2,14 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{ident, text, FieldDefinition, VType, Version};
+use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    ffi::{self, ModuleSchema},
     Label, LabelType, Module, ModuleData, Value,
+    ffi::{self, ModuleSchema},
 };
 
-use crate::{validate::validate, CompileErrorType, Compiler, InvalidCallColor};
+use crate::{CompileErrorType, Compiler, InvalidCallColor, validate::validate};
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
@@ -207,14 +207,18 @@ fn test_seal_open_command() {
     let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
-    assert!(module
-        .labels
-        .iter()
-        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal)));
-    assert!(module
-        .labels
-        .iter()
-        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen)));
+    assert!(
+        module
+            .labels
+            .iter()
+            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal))
+    );
+    assert!(
+        module
+            .labels
+            .iter()
+            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen))
+    );
 }
 
 #[test]
@@ -385,7 +389,7 @@ fn test_command_with_struct_field_insertion() -> anyhow::Result<()> {
         (ident!("b"), VType::String),
         (ident!("c"), VType::Bool),
     ]);
-    let got = module.command_defs.get(&ident!("Foo")).unwrap();
+    let got = module.command_defs.get("Foo").unwrap();
     assert_eq!(got, &want);
 
     Ok(())
@@ -544,9 +548,8 @@ fn test_struct_field_insertion_errors() {
         ),
     ];
     for (text, err_type) in cases {
-        let policy = parse_policy_str(text, Version::V2).expect("should parse");
-        let result = Compiler::new(&policy).compile().unwrap_err().err_type();
-        assert_eq!(result, err_type);
+        let err = compile_fail(text);
+        assert_eq!(err, err_type);
     }
 }
 
@@ -571,21 +574,21 @@ fn test_struct_field_insertion() {
         ),
         (
             r#"
-            struct Bar { i int }
-            struct Baz { +Bar, b bool }
-            struct Foo { s string, +Baz }
+            struct Bar { a int }
+            struct Baz { c bool }
+            struct Foo { +Bar, b string, +Baz }
             "#,
             vec![
                 FieldDefinition {
-                    identifier: ident!("s"),
-                    field_type: VType::String,
-                },
-                FieldDefinition {
-                    identifier: ident!("i"),
+                    identifier: ident!("a"),
                     field_type: VType::Int,
                 },
                 FieldDefinition {
                     identifier: ident!("b"),
+                    field_type: VType::String,
+                },
+                FieldDefinition {
+                    identifier: ident!("c"),
                     field_type: VType::Bool,
                 },
             ],
@@ -932,10 +935,19 @@ fn test_immutable_fact_cannot_be_updated() {
 #[test]
 fn test_serialize_deserialize() {
     let text = r#"
-        struct Foo {}
-        function foo(input struct Foo) struct Foo {
-            let b = serialize(input)
-            return deserialize(b)
+        struct Envelope {
+            payload bytes
+        }
+        command Foo {
+            fields {}
+            seal {
+                return Envelope {
+                    payload: serialize(this),
+                }
+            }
+            open {
+                return deserialize(envelope.payload)
+            }
         }
     "#;
 
@@ -1725,7 +1737,7 @@ fn test_type_errors() {
                     }
                 }
             "#,
-            e: "Serializing non-struct",
+            e: "serializing int, expected struct Foo",
         },
         Case {
             t: r#"
