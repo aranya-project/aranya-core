@@ -2,14 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
+use aranya_policy_ast::{ident, text, FieldDefinition, VType, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use aranya_policy_module::{
-    Label, LabelType, Module, ModuleData, Value,
     ffi::{self, ModuleSchema},
+    Label, LabelType, Module, ModuleData, Value,
 };
 
-use crate::{CompileErrorType, Compiler, InvalidCallColor, validate::validate};
+use crate::{validate::validate, CompileErrorType, Compiler, InvalidCallColor};
 
 // Helper function which parses and compiles policy expecting success.
 #[track_caller]
@@ -207,18 +207,14 @@ fn test_seal_open_command() {
     let module = compile_pass(text);
     let ModuleData::V0(module) = module.data;
 
-    assert!(
-        module
-            .labels
-            .iter()
-            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal))
-    );
-    assert!(
-        module
-            .labels
-            .iter()
-            .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen))
-    );
+    assert!(module
+        .labels
+        .iter()
+        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandSeal)));
+    assert!(module
+        .labels
+        .iter()
+        .any(|l| *l.0 == Label::new(ident!("Foo"), LabelType::CommandOpen)));
 }
 
 #[test]
@@ -2301,24 +2297,20 @@ fn test_function_used_before_definition() {
         function pow(x int, n int) int {
             if n == 0 {
                 // x^0 == x
-                return 1 
+                return 1
             }
             if n == 1 {
                 // x^1 = x
                 return x
             }
             if is_odd(n) {
-                return multiply(x, pow(double(x), divide((n-1), 2)))
+                return multiply(x, pow(multiply(x, x), divide((n-1), 2)))
             }
-            return pow(double(x), divide(n, 2))
+            return pow(multiply(x, x), divide(n, 2))
         }
 
         function is_odd(x int) bool {
             return multiply(divide(x, 2), 2) != x
-        }
-
-        function double(x int) int {
-            return multiply(x, 2)
         }
 
         function multiply(x int, y int) int {
@@ -2326,12 +2318,20 @@ fn test_function_used_before_definition() {
             if y == 0 { return 0 }
             if x == 1 { return y }
             if y == 1 { return x }
-            return (x+y) + multiply(x, y-1)
+            if x > y {
+                return multiply0(0, x, y)
+            }
+            return multiply0(0, y, x)
+        }
+        function multiply0(p int, y int, n int) int {
+            if n == 0 { return p }
+            return multiply0(p+y, y, n-1)
         }
 
         function divide(x int, y int) int {
             check y > 0
             if x < y { return 0 }
+            if x == y { return 1 }
             let got = divide0(Division {
                 d: y,
                 q: 0,
@@ -2340,12 +2340,9 @@ fn test_function_used_before_definition() {
             return got.q
         }
         struct Division {
-            // Divisor
-            d int,
-            // Quotient
-            q int,
-            // Remainder. Starts == dividend
-            r int,
+            d int, // Divisor
+            q int, // Quotient
+            r int, // Remainder. Starts == dividend
         }
         function divide0(args struct Division) struct Division {
             let d = args.d
