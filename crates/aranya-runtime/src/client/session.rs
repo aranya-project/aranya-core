@@ -20,8 +20,9 @@ use yoke::{Yoke, Yokeable};
 
 use crate::{
     Address, Checkpoint, ClientError, ClientState, Command, CommandId, CommandRecall, Engine, Fact,
-    FactPerspective, GraphId, Keys, NullSink, Perspective, Policy, PolicyId, Prior, Priority,
-    Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError, StorageProvider,
+    FactPerspective, GraphId, Keys, NullSink, PersistenceMode, Perspective, Policy, PolicyId,
+    Prior, Priority, Query, QueryMut, Revertable, Segment, Sink, Storage, StorageError,
+    StorageProvider,
 };
 
 type Bytes = Box<[u8]>;
@@ -99,7 +100,12 @@ impl<SP: StorageProvider, E: Engine> Session<SP, E> {
         effect_sink.begin();
 
         // Try to perform action.
-        match policy.call_action(action, &mut perspective, effect_sink) {
+        match policy.call_action(
+            action,
+            &mut perspective,
+            effect_sink,
+            PersistenceMode::Ephemeral,
+        ) {
             Ok(_) => {
                 // Success, commit effects
                 effect_sink.commit();

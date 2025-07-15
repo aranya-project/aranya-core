@@ -126,6 +126,16 @@ pub enum CommandRecall {
     OnCheck,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Whether to persist published commands on the graph.
+pub enum PersistenceMode {
+    /// Commands will be stored on the graph. This is the default for new sessions.
+    Persistent,
+    /// Commands will not be stored on the graph. Their effects will still be emitted to the sink.
+    /// This is useful for commands that are only relevant to the current session, e.g. a command that is used to update a user's status.
+    Ephemeral,
+}
+
 /// [`Policy`] evaluates actions and [`Command`]s on the graph, emitting effects
 /// as a result.
 pub trait Policy {
@@ -156,6 +166,7 @@ pub trait Policy {
         action: Self::Action<'_>,
         facts: &mut impl Perspective,
         sink: &mut impl Sink<Self::Effect>,
+        persistence_mode: PersistenceMode,
     ) -> Result<(), EngineError>;
 
     /// Produces a merge message serialized to target. The `struct` representing the
