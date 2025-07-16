@@ -25,6 +25,7 @@ spin = { workspace = true, features = ["spin_mutex"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 vec1 = { version = "1.10.1", default-features = false, features = ["serde"] }
+yoke = { version = "0.8", features = ["derive"] }
 
 # Used by `testing`.
 aranya-policy-module = { version = "0.11.0", path = "../aranya-policy-module", optional = true }
@@ -32,7 +33,6 @@ serde_json = { version = "1.0.117", default-features = false, features = ["alloc
 
 # graphviz
 dot-writer = { version = "0.1.3", optional = true }
-yoke = { version = "0.7.4", features = ["derive"] }
 
 [dev-dependencies]
 aranya-runtime = { path = ".", features = ["testing", "libc"] }
