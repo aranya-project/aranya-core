@@ -3,7 +3,7 @@
 extern crate alloc;
 use alloc::{boxed::Box, vec, vec::Vec};
 
-use aranya_crypto::{DeviceId, Rng, default::DefaultEngine};
+use aranya_crypto::{DeviceId, Rng, default::DefaultEngine, id::IdExt as _};
 use aranya_policy_module::Module;
 use aranya_policy_vm::{FactKey, HashableValue, KVPair, Machine, Value, ast::ident};
 use tracing::trace;

@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 use aranya_crypto::{
     Engine, Id, Rng,
     default::{DefaultCipherSuite, DefaultEngine},
+    id::IdExt as _,
 };
 use aranya_policy_vm::{
     self, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,

@@ -1,4 +1,4 @@
-use core::cell::OnceCell;
+use core::{cell::OnceCell, iter};
 
 use buggy::BugExt;
 use derive_where::derive_where;
@@ -18,7 +18,7 @@ use crate::{
     engine::{Engine, unwrapped},
     error::Error,
     hpke::{self, Mode},
-    id::{Id, IdError, custom_id},
+    id::{Id, IdError, IdExt as _, custom_id},
     misc::sk_misc,
 };
 
@@ -43,6 +43,7 @@ use crate::{
 ///             OpenKey,
 ///             SealKey,
 ///         },
+///         id::IdExt as _,
 ///         CipherSuite,
 ///         Csprng,
 ///         default::{
@@ -244,9 +245,9 @@ impl<CS: CipherSuite> BidiPeerEncap<CS> {
     /// Uniquely identifies the bidirectional channel.
     #[inline]
     pub fn id(&self) -> BidiChannelId {
-        *self
-            .id
-            .get_or_init(|| BidiChannelId(Id::new::<CS>(self.as_bytes(), b"BidiChannelId")))
+        *self.id.get_or_init(|| {
+            BidiChannelId::new::<CS>(b"BidiChannelId-v1", iter::once(self.as_bytes()))
+        })
     }
 
     /// Encodes itself as bytes.

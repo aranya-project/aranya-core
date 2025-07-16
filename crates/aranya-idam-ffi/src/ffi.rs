@@ -6,7 +6,7 @@ use core::convert::Infallible;
 use aranya_crypto::{
     Context, Encap, EncryptedGroupKey, EncryptionKey, EncryptionPublicKey, GroupKey, Id,
     IdentityVerifyingKey, KeyStore, KeyStoreExt, PolicyId, SigningKey, VerifyingKey, custom_id,
-    engine::Engine, policy, zeroize::Zeroizing,
+    engine::Engine, id::IdExt as _, policy, zeroize::Zeroizing,
 };
 use aranya_policy_vm::{
     CommandContext, Text, Typed, Value, ValueConversionError,
@@ -67,7 +67,7 @@ function derive_enc_key_id(
         enc_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: EncryptionPublicKey<E::CS> = postcard::from_bytes(&enc_pk)?;
-        Ok(pk.id()?.into())
+        Ok(pk.id()?.into_id())
     }
 
     /// Returns the ID of an encoded [`VerifyingKey`].
@@ -84,7 +84,7 @@ function derive_sign_key_id(
         sign_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: VerifyingKey<E::CS> = postcard::from_bytes(&sign_pk)?;
-        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into())
+        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into_id())
     }
 
     /// Returns the ID of an encoded [`IdentityVerifyingKey`].
@@ -101,7 +101,7 @@ function derive_device_id(
         ident_pk: Vec<u8>,
     ) -> Result<Id, Error> {
         let pk: IdentityVerifyingKey<E::CS> = postcard::from_bytes(&ident_pk)?;
-        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into())
+        Ok(pk.id().map_err(aranya_crypto::Error::from)?.into_id())
     }
 
     /// Generates a random [`GroupKey`].
@@ -114,7 +114,7 @@ function generate_group_key() struct StoredGroupKey
         eng: &mut E,
     ) -> Result<StoredGroupKey, Error> {
         let group_key = GroupKey::new(eng);
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.into_id();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -183,7 +183,7 @@ function open_group_key(
             sk.open_group_key(&enc, ciphertext, group_id)?
         };
 
-        let key_id = group_key.id()?.into();
+        let key_id = group_key.id()?.into_id();
         let wrapped = {
             let wrapped = eng.wrap(group_key)?;
             postcard::to_allocvec(&wrapped)?
@@ -303,8 +303,8 @@ function compute_change_id(
     ) -> Result<Id, Error> {
         // ChangeID = H("ID-v1" || suites || data || tag)
         Ok(Id::new::<E::CS>(
-            current_change_id.as_bytes(),
-            new_cmd_id.as_bytes(),
+            b"ChangeId-v1",
+            [current_change_id.as_bytes(), new_cmd_id.as_bytes()],
         ))
     }
 
@@ -352,6 +352,6 @@ impl TryFrom<Value> for RoleId {
 
 impl From<RoleId> for Value {
     fn from(id: RoleId) -> Value {
-        Value::Id(id.into())
+        Value::Id(id.into_id())
     }
 }
