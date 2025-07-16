@@ -69,7 +69,7 @@ pub enum Color<'a> {
 }
 
 /// A foreign function.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Func<'a> {
     /// The function's name.
     pub name: Identifier,
@@ -80,7 +80,7 @@ pub struct Func<'a> {
 }
 
 /// An argument to a foreign function.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Arg<'a> {
     /// The argument's name.
     pub name: Identifier,
@@ -89,6 +89,7 @@ pub struct Arg<'a> {
 }
 
 /// A struct definition
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Struct<'a> {
     /// The name of the struct.
     pub name: Identifier,
@@ -97,6 +98,7 @@ pub struct Struct<'a> {
 }
 
 /// Enumeration definition
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Enum<'a> {
     /// name of enumeration
     pub name: Identifier,
@@ -255,6 +257,7 @@ macro_rules! __type {
 }
 
 /// Foreign-function module declaration.
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ModuleSchema<'a> {
     /// module name
     pub name: Identifier,

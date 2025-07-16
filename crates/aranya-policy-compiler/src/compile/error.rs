@@ -45,6 +45,9 @@ pub enum CompileErrorType {
     /// A thing by that name has already been defined
     #[error("already defined: {0}")]
     AlreadyDefined(String),
+    /// A definition is recursive.
+    #[error("invalid recursive definition: {0:?}")]
+    RecursiveDefinition(Vec<Identifier>),
     /// Fact literal doesn't match definition
     #[error("fact literal does not match definition: {0}")]
     InvalidFactLiteral(String),

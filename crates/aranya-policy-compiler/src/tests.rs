@@ -73,10 +73,7 @@ fn test_undefined_struct() {
     "#;
 
     let err = compile_fail(text);
-    assert_eq!(
-        err,
-        CompileErrorType::NotDefined(String::from("Struct `Bar` not defined")),
-    );
+    assert_eq!(err, CompileErrorType::NotDefined(String::from("Bar")),);
 }
 
 #[test]
@@ -177,6 +174,7 @@ fn test_function_wrong_color_pure() {
 #[test]
 fn test_function_wrong_color_finish() {
     let text = r#"
+        effect Foo {}
         finish function f(x int) {
             emit Foo {}
         }
@@ -540,7 +538,7 @@ fn test_struct_field_insertion_errors() {
         ),
         (
             r#"struct Foo { +Foo }"#,
-            CompileErrorType::NotDefined("Foo".to_string()),
+            CompileErrorType::RecursiveDefinition(vec![ident!("Foo")]),
         ),
     ];
     for (text, err_type) in cases {
@@ -1306,6 +1304,7 @@ fn test_match_expression() {
 fn test_bad_statements() {
     let texts = &[
         r#"
+            fact Foo[]=>{}
             action foo() {
                 create Foo[]=>{}
             }
@@ -1316,6 +1315,10 @@ fn test_bad_statements() {
             }
         "#,
         r#"
+            command Bar {
+                open { return None }
+                seal { return None }
+            }
             function foo(x int) int {
                 publish Bar{}
             }
@@ -1324,7 +1327,10 @@ fn test_bad_statements() {
 
     for text in texts {
         let err = compile_fail(text);
-        assert!(matches!(err, CompileErrorType::InvalidStatement(_)));
+        assert!(
+            matches!(err, CompileErrorType::InvalidStatement(_)),
+            "{err:?}"
+        );
     }
 }
 
@@ -1438,13 +1444,17 @@ fn test_count_up_to() {
 fn test_map_valid_in_action() {
     // map is valid only in actions
     let test = r#"
+        fact Pet[name string]=>{}
         function pets() int {
             map Pet[name:?]=>{} as p {}
             return 0
         }
     "#;
     let err = compile_fail(test);
-    assert!(matches!(err, CompileErrorType::InvalidStatement(..)));
+    assert!(
+        matches!(err, CompileErrorType::InvalidStatement(..)),
+        "{err:?}"
+    );
 
     let test = r#"
         fact Pet[name string]=>{age int}
@@ -2126,7 +2136,7 @@ fn test_return_type_not_defined() {
                 return Foo {}
             }
             "#,
-            CompileErrorType::NotDefined("struct Nonexistent".to_string()),
+            CompileErrorType::NotDefined("Nonexistent".to_string()),
         ),
         (
             r#"
@@ -2134,7 +2144,7 @@ fn test_return_type_not_defined() {
                 return Blah::Foo
             }
             "#,
-            CompileErrorType::NotDefined("enum Blah".to_string()),
+            CompileErrorType::NotDefined("Blah".to_string()),
         ),
         (
             r#"
@@ -2142,7 +2152,7 @@ fn test_return_type_not_defined() {
                 return Some(Foo {})
             }
             "#,
-            CompileErrorType::NotDefined("struct Foo".to_string()),
+            CompileErrorType::NotDefined("Foo".to_string()),
         ),
     ];
 
@@ -2161,7 +2171,7 @@ fn test_function_arguments_with_undefined_types() {
                 return 0
             }
             "#,
-            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+            CompileErrorType::NotDefined("UndefinedStruct".to_string()),
         ),
         (
             r#"
@@ -2169,7 +2179,7 @@ fn test_function_arguments_with_undefined_types() {
                 return false
             }
             "#,
-            CompileErrorType::NotDefined("enum UndefinedEnum".to_string()),
+            CompileErrorType::NotDefined("UndefinedEnum".to_string()),
         ),
         (
             r#"
@@ -2177,7 +2187,7 @@ fn test_function_arguments_with_undefined_types() {
                 return true
             }
             "#,
-            CompileErrorType::NotDefined("struct UndefinedStruct".to_string()),
+            CompileErrorType::NotDefined("UndefinedStruct".to_string()),
         ),
     ];
 
@@ -2206,7 +2216,7 @@ fn test_substruct_errors() {
                     publish new_struct
                 }
             "#,
-            e: "not defined: Struct `Bar` not defined",
+            e: "not defined: Bar",
         },
         Case {
             t: r#"
@@ -2219,7 +2229,7 @@ fn test_substruct_errors() {
                     publish new_struct
                 }
             "#,
-            e: "not defined: Struct `Foo` not defined",
+            e: "not defined: Foo",
         },
         Case {
             t: r#"
@@ -2293,78 +2303,42 @@ fn test_ffi_fail_without_use() {
 #[test]
 fn test_function_used_before_definition() {
     let text = r#"
-        // Returns x^n
-        function pow(x int, n int) int {
-            if n == 0 {
-                // x^0 == x
-                return 1
-            }
-            if n == 1 {
-                // x^1 = x
-                return x
-            }
-            if is_odd(n) {
-                return multiply(x, pow(multiply(x, x), divide((n-1), 2)))
-            }
-            return pow(multiply(x, x), divide(n, 2))
-        }
-
-        function is_odd(x int) bool {
-            return multiply(divide(x, 2), 2) != x
-        }
-
-        function multiply(x int, y int) int {
-            if x == 0 { return 0 }
-            if y == 0 { return 0 }
-            if x == 1 { return y }
-            if y == 1 { return x }
-            if x > y {
-                return multiply0(0, x, y)
-            }
-            return multiply0(0, y, x)
-        }
-        function multiply0(p int, y int, n int) int {
-            if n == 0 { return p }
-            return multiply0(p+y, y, n-1)
-        }
-
-        function divide(x int, y int) int {
-            check y > 0
-            if x < y { return 0 }
-            if x == y { return 1 }
-            let got = divide0(Division {
-                d: y,
-                q: 0,
-                r: x,
-            })
-            return got.q
-        }
-        struct Division {
-            d int, // Divisor
-            q int, // Quotient
-            r int, // Remainder. Starts == dividend
-        }
-        function divide0(args struct Division) struct Division {
-            let d = args.d
-            let q = args.q
-            let r = args.r
-
-            check d > 0
-
-            if r < d {
-                return Division {
-                    d: d,
-                    q: q,
-                    r: r,
-                }
-            }
-            return divide0(Division {
-                d: d,
-                q: q+1,
-                r: r-d,
-            })
-        }
-    "#;
+function foo() int {
+    return bar()
+}
+function bar() int {
+    return 42
+}
+"#;
 
     compile_pass(text);
+}
+
+#[test]
+fn test_invalid_recursive_definition() {
+    let tests = [
+        ("function foo() int { return foo() }", vec![ident!("foo")]),
+        (
+            r#"
+function a() int { return b() }
+function b() int { return c() }
+function c() int { return d() }
+function d() int { return a() }
+"#,
+            vec![ident!("a"), ident!("b"), ident!("c"), ident!("d")],
+        ),
+        (
+            r#"
+action a() { action b() }
+action b() { action c() }
+action c() { action d() }
+action d() { action a() }
+"#,
+            vec![ident!("a"), ident!("b"), ident!("c"), ident!("d")],
+        ),
+    ];
+    for (i, (text, path)) in tests.into_iter().enumerate() {
+        let err = compile_fail(text);
+        assert_eq!(err, CompileErrorType::RecursiveDefinition(path), "#{i}");
+    }
 }

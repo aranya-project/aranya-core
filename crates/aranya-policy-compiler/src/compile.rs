@@ -15,8 +15,8 @@ use aranya_policy_ast::{
     MatchExpression, MatchStatement, StructItem, VType,
 };
 use aranya_policy_module::{
-    ffi::ModuleSchema, CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct,
-    Target, Value,
+    ffi::{self, ModuleSchema},
+    CodeMap, ExitReason, Instruction, Label, LabelType, Meta, Module, Struct, Target, Value,
 };
 pub use ast::Policy as AstPolicy;
 use ast::{
@@ -191,6 +191,7 @@ impl<'a> CompileState<'a> {
         identifier: Identifier,
         items: &[StructItem<FieldDefinition>],
     ) -> Result<(), CompileError> {
+        println!("define_struct({identifier})");
         if self.m.struct_defs.contains_key(&identifier) {
             return Err(self.err(CompileErrorType::AlreadyDefined(identifier.to_string())));
         }
@@ -2191,112 +2192,183 @@ impl<'a> CompileState<'a> {
         // Panic when running a module without setup.
         self.append_instruction(Instruction::Exit(ExitReason::Panic));
 
-        {
-            let _ = sort_defs(self.policy)?;
-        }
+        for def in sort_defs(self.policy, self.ffi_modules)? {
+            match def {
+                Item::GlobalLet(v) => {
+                    self.compile_global_let(v)?;
+                }
+                Item::Fact(v) => {
+                    let FactDefinition { key, value, .. } = &v.inner;
 
-        // Compile global let statements
-        for global_let in &self.policy.global_lets {
-            self.compile_global_let(global_let)?;
-        }
+                    let fields: Vec<StructItem<FieldDefinition>> = key
+                        .iter()
+                        .chain(value.iter())
+                        .cloned()
+                        .map(StructItem::Field)
+                        .collect();
 
-        for struct_def in &self.policy.structs {
-            self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
-        }
-
-        for effect in &self.policy.effects {
-            let fields: Vec<StructItem<FieldDefinition>> = effect
-                .inner
-                .items
-                .iter()
-                .map(|i| match i {
-                    StructItem::Field(f) => StructItem::Field(f.into()),
-                    StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
-                })
-                .collect();
-            self.define_struct(effect.inner.identifier.clone(), &fields)?;
-            self.m.effects.insert(effect.inner.identifier.clone());
-        }
-
-        // define the structs provided by FFI schema
-        for ffi_mod in self.ffi_modules {
-            for s in ffi_mod.structs {
-                let fields: Vec<StructItem<FieldDefinition>> = s
-                    .fields
-                    .iter()
-                    .map(|a| {
-                        StructItem::Field(FieldDefinition {
-                            identifier: a.name.clone(),
-                            field_type: VType::from(&a.vtype),
+                    self.define_struct(v.identifier.clone(), &fields)?;
+                    self.define_fact(&v)?;
+                }
+                Item::Action(v) => {
+                    self.enter_statement_context(StatementContext::Action(v.inner.clone()));
+                    self.compile_action(v)?;
+                    self.exit_statement_context();
+                }
+                Item::Effect(v) => {
+                    let fields: Vec<StructItem<FieldDefinition>> = v
+                        .items
+                        .iter()
+                        .map(|i| match i {
+                            StructItem::Field(f) => StructItem::Field(f.into()),
+                            StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
                         })
-                    })
-                    .collect();
-                self.define_struct(s.name.to_owned(), &fields)?;
+                        .collect();
+                    self.define_struct(v.identifier.clone(), &fields)?;
+                    self.m.effects.insert(v.identifier.clone());
+                }
+                Item::Struct(v) => {
+                    self.define_struct(v.identifier.clone(), &v.items)?;
+                }
+                Item::Enum(v) => {
+                    self.compile_enum_definition(v)?;
+                }
+                Item::Command(v) => {
+                    self.define_struct(v.identifier.clone(), &v.fields)?;
+                    self.compile_command(v)?;
+                }
+                Item::Function(v) => {
+                    self.define_function_signature(v)?;
+                    self.enter_statement_context(StatementContext::PureFunction(v.inner.clone()));
+                    self.compile_function(v)?;
+                    self.exit_statement_context();
+                }
+                Item::FinishFunction(v) => {
+                    self.define_finish_function_signature(v)?;
+                    self.enter_statement_context(StatementContext::Finish);
+                    self.compile_finish_function(v)?;
+                    self.exit_statement_context();
+                }
+                Item::FfiStruct(v) => {
+                    let fields: Vec<StructItem<FieldDefinition>> = v
+                        .fields
+                        .iter()
+                        .map(|a| {
+                            StructItem::Field(FieldDefinition {
+                                identifier: a.name.clone(),
+                                field_type: VType::from(&a.vtype),
+                            })
+                        })
+                        .collect();
+                    self.define_struct(v.name.to_owned(), &fields)?;
+                }
+                Item::FfiEnum(_) => {}
+                Item::FfiFunc(_) => {}
             }
         }
 
-        // map enum names to constants
-        for enum_def in &self.policy.enums {
-            self.compile_enum_definition(enum_def)?;
-        }
+        // // Compile global let statements
+        // for global_let in &self.policy.global_lets {
+        //     self.compile_global_let(global_let)?;
+        // }
 
-        for fact in &self.policy.facts {
-            let FactDefinition { key, value, .. } = &fact.inner;
+        // for struct_def in &self.policy.structs {
+        //     self.define_struct(struct_def.inner.identifier.clone(), &struct_def.inner.items)?;
+        // }
 
-            let fields: Vec<StructItem<FieldDefinition>> = key
-                .iter()
-                .chain(value.iter())
-                .cloned()
-                .map(StructItem::Field)
-                .collect();
+        // for effect in &self.policy.effects {
+        //     let fields: Vec<StructItem<FieldDefinition>> = effect
+        //         .inner
+        //         .items
+        //         .iter()
+        //         .map(|i| match i {
+        //             StructItem::Field(f) => StructItem::Field(f.into()),
+        //             StructItem::StructRef(s) => StructItem::StructRef(s.clone()),
+        //         })
+        //         .collect();
+        //     self.define_struct(effect.inner.identifier.clone(), &fields)?;
+        //     self.m.effects.insert(effect.inner.identifier.clone());
+        // }
 
-            self.define_struct(fact.inner.identifier.clone(), &fields)?;
-            self.define_fact(&fact.inner)?;
-        }
+        // // define the structs provided by FFI schema
+        // for ffi_mod in self.ffi_modules {
+        //     for s in ffi_mod.structs {
+        //         let fields: Vec<StructItem<FieldDefinition>> = s
+        //             .fields
+        //             .iter()
+        //             .map(|a| {
+        //                 StructItem::Field(FieldDefinition {
+        //                     identifier: a.name.clone(),
+        //                     field_type: VType::from(&a.vtype),
+        //                 })
+        //             })
+        //             .collect();
+        //         self.define_struct(s.name.to_owned(), &fields)?;
+        //     }
+        // }
 
-        // Define command structs before compiling functions
-        for command in &self.policy.commands {
-            self.define_struct(command.identifier.clone(), &command.fields)?;
-        }
+        // // map enum names to constants
+        // for enum_def in &self.policy.enums {
+        //     self.compile_enum_definition(enum_def)?;
+        // }
 
-        // Define the finish function signatures before compiling them, so that they can be
-        // used to catch usage errors in regular functions.
-        for function_def in &self.policy.finish_functions {
-            self.define_finish_function_signature(function_def)?;
-        }
-
-        // Define function signatures before compiling them to
-        // support using a function before it's defined.
+        // for fact in &self.policy.facts {
+        //     let FactDefinition { key, value, .. } = &fact.inner;
         //
-        // See https://github.com/aranya-project/aranya-core/issues/336
-        for function_def in &self.policy.functions {
-            self.define_function_signature(function_def)?;
-        }
+        //     let fields: Vec<StructItem<FieldDefinition>> = key
+        //         .iter()
+        //         .chain(value.iter())
+        //         .cloned()
+        //         .map(StructItem::Field)
+        //         .collect();
+        //
+        //     self.define_struct(fact.inner.identifier.clone(), &fields)?;
+        //     self.define_fact(&fact.inner)?;
+        // }
 
-        for function_def in &self.policy.functions {
-            self.enter_statement_context(StatementContext::PureFunction(
-                function_def.inner.clone(),
-            ));
-            self.compile_function(function_def)?;
-            self.exit_statement_context();
-        }
+        // // Define command structs before compiling functions
+        // for command in &self.policy.commands {
+        //     self.define_struct(command.identifier.clone(), &command.fields)?;
+        // }
 
-        self.enter_statement_context(StatementContext::Finish);
-        for function_def in &self.policy.finish_functions {
-            self.compile_finish_function(function_def)?;
-        }
-        self.exit_statement_context();
+        // // Define the finish function signatures before compiling them, so that they can be
+        // // used to catch usage errors in regular functions.
+        // for function_def in &self.policy.finish_functions {
+        //     self.define_finish_function_signature(function_def)?;
+        // }
 
-        // Commands have several sub-contexts, so `compile_command` handles those.
-        for command in &self.policy.commands {
-            self.compile_command(command)?;
-        }
+        // // Define function signatures before compiling them to
+        // // support using a function before it's defined.
+        // //
+        // // See https://github.com/aranya-project/aranya-core/issues/336
+        // for function_def in &self.policy.functions {
+        //     self.define_function_signature(function_def)?;
+        // }
 
-        for action in &self.policy.actions {
-            self.enter_statement_context(StatementContext::Action(action.inner.clone()));
-            self.compile_action(action)?;
-            self.exit_statement_context();
-        }
+        // for function_def in &self.policy.functions {
+        //     self.enter_statement_context(StatementContext::PureFunction(
+        //         function_def.inner.clone(),
+        //     ));
+        //     self.compile_function(function_def)?;
+        //     self.exit_statement_context();
+        // }
+
+        // self.enter_statement_context(StatementContext::Finish);
+        // for function_def in &self.policy.finish_functions {
+        //     self.compile_finish_function(function_def)?;
+        // }
+        // self.exit_statement_context();
+
+        // // Commands have several sub-contexts, so `compile_command` handles those.
+        // for command in &self.policy.commands {
+        //     self.compile_command(command)?;
+        // }
+
+        // for action in &self.policy.actions {
+        //     self.enter_statement_context(StatementContext::Action(action.inner.clone()));
+        //     self.compile_action(action)?;
+        //     self.exit_statement_context();
+        // }
 
         self.resolve_targets()?;
 
@@ -2424,154 +2496,281 @@ where
     None
 }
 
-trait AstNodeExt {
+trait ThingExt {
+    /// Returns the definition's identifier.
     fn ident(&self) -> Identifier;
+    /// Returns all outgoing edges.
     fn edges(&self) -> BTreeSet<Identifier>;
 }
-impl AstNodeExt for AstNode<FactDefinition> {
+
+impl<'a> ThingExt for ffi::Struct<'a> {
     fn ident(&self) -> Identifier {
-        self.inner.identifier.clone()
+        self.name.clone()
     }
+
     fn edges(&self) -> BTreeSet<Identifier> {
         let mut idents = BTreeSet::new();
-        walk_fact_def(&mut idents, &self.inner);
+        for f in self.fields {
+            walk_ffi_type(&mut idents, &f.vtype);
+        }
         idents
     }
 }
-impl AstNodeExt for AstNode<ast::ActionDefinition> {
+
+impl<'a> ThingExt for ffi::Func<'a> {
     fn ident(&self) -> Identifier {
-        self.inner.identifier.clone()
+        self.name.clone()
     }
+
     fn edges(&self) -> BTreeSet<Identifier> {
         let mut idents = BTreeSet::new();
-        walk_action_def(&mut idents, &self.inner);
+        for arg in self.args {
+            walk_ffi_type(&mut idents, &arg.vtype);
+        }
+        walk_ffi_type(&mut idents, &self.return_type);
         idents
     }
 }
-impl AstNodeExt for AstNode<ast::EffectDefinition> {
+
+impl<'a> ThingExt for ffi::Enum<'a> {
     fn ident(&self) -> Identifier {
-        self.inner.identifier.clone()
+        self.name.clone()
     }
+
+    fn edges(&self) -> BTreeSet<Identifier> {
+        // Enums have no outgoing edges.
+        BTreeSet::new()
+    }
+}
+
+impl<T: ThingExt> ThingExt for AstNode<T> {
+    fn ident(&self) -> Identifier {
+        self.inner.ident()
+    }
+
+    fn edges(&self) -> BTreeSet<Identifier> {
+        self.inner.edges()
+    }
+}
+
+impl ThingExt for ast::GlobalLetStatement {
+    fn ident(&self) -> Identifier {
+        self.identifier.clone()
+    }
+
     fn edges(&self) -> BTreeSet<Identifier> {
         let mut idents = BTreeSet::new();
-        walk_effect_def(&mut idents, &self.inner);
+        walk_expr(&mut idents, &self.expression);
         idents
     }
 }
-impl AstNodeExt for AstNode<ast::StructDefinition> {
+
+impl ThingExt for FactDefinition {
     fn ident(&self) -> Identifier {
-        self.inner.identifier.clone()
+        self.identifier.clone()
     }
+
     fn edges(&self) -> BTreeSet<Identifier> {
         let mut idents = BTreeSet::new();
-        walk_struct_def(&mut idents, &self.inner);
+        for def in &self.key {
+            walk_vtype(&mut idents, &def.field_type);
+        }
+        for def in &self.value {
+            walk_vtype(&mut idents, &def.field_type);
+        }
         idents
     }
 }
-impl AstNodeExt for AstNode<EnumDefinition> {
+
+impl ThingExt for ast::ActionDefinition {
     fn ident(&self) -> Identifier {
-        self.inner.identifier.clone()
+        self.identifier.clone()
     }
+
     fn edges(&self) -> BTreeSet<Identifier> {
         let mut idents = BTreeSet::new();
-        walk_enum_def(&mut idents, &self.inner);
+        for arg in &self.arguments {
+            walk_vtype(&mut idents, &arg.field_type);
+        }
+        for stmt in &self.statements {
+            walk_stmt(&mut idents, stmt);
+        }
         idents
     }
 }
-impl AstNodeExt for AstNode<ast::CommandDefinition> {
+
+impl ThingExt for ast::EffectDefinition {
     fn ident(&self) -> Identifier {
-        self.inner.identifier.clone()
+        self.identifier.clone()
     }
+
     fn edges(&self) -> BTreeSet<Identifier> {
         let mut idents = BTreeSet::new();
-        walk_cmd_def(&mut idents, &self.inner);
+        for item in &self.items {
+            match item {
+                StructItem::Field(f) => walk_vtype(&mut idents, &f.field_type),
+                StructItem::StructRef(ref_name) => {
+                    idents.insert(ref_name.clone());
+                }
+            }
+        }
         idents
     }
 }
-impl AstNodeExt for AstNode<ast::FunctionDefinition> {
+
+impl ThingExt for ast::StructDefinition {
     fn ident(&self) -> Identifier {
-        self.inner.identifier.clone()
+        self.identifier.clone()
     }
+
     fn edges(&self) -> BTreeSet<Identifier> {
         let mut idents = BTreeSet::new();
-        walk_fn_def(&mut idents, &self.inner);
+        for item in &self.items {
+            match item {
+                StructItem::Field(f) => walk_vtype(&mut idents, &f.field_type),
+                StructItem::StructRef(ref_name) => {
+                    idents.insert(ref_name.clone());
+                }
+            }
+        }
         idents
     }
 }
-impl AstNodeExt for AstNode<ast::FinishFunctionDefinition> {
+
+impl ThingExt for EnumDefinition {
     fn ident(&self) -> Identifier {
-        self.inner.identifier.clone()
+        self.identifier.clone()
     }
+
+    fn edges(&self) -> BTreeSet<Identifier> {
+        BTreeSet::new()
+    }
+}
+
+impl ThingExt for ast::CommandDefinition {
+    fn ident(&self) -> Identifier {
+        self.identifier.clone()
+    }
+
     fn edges(&self) -> BTreeSet<Identifier> {
         let mut idents = BTreeSet::new();
-        walk_finish_fn_def(&mut idents, &self.inner);
+        for item in &self.fields {
+            match item {
+                StructItem::Field(f) => walk_vtype(&mut idents, &f.field_type),
+                StructItem::StructRef(ref_name) => {
+                    idents.insert(ref_name.clone());
+                }
+            }
+        }
+        idents
+    }
+}
+
+impl ThingExt for ast::FunctionDefinition {
+    fn ident(&self) -> Identifier {
+        self.identifier.clone()
+    }
+
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        for arg in &self.arguments {
+            walk_vtype(&mut idents, &arg.field_type);
+        }
+        walk_vtype(&mut idents, &self.return_type);
+        for stmt in &self.statements {
+            walk_stmt(&mut idents, stmt);
+        }
+        idents
+    }
+}
+
+impl ThingExt for ast::FinishFunctionDefinition {
+    fn ident(&self) -> Identifier {
+        self.identifier.clone()
+    }
+
+    fn edges(&self) -> BTreeSet<Identifier> {
+        let mut idents = BTreeSet::new();
+        for arg in &self.arguments {
+            walk_vtype(&mut idents, &arg.field_type);
+        }
+        for stmt in &self.statements {
+            walk_stmt(&mut idents, stmt);
+        }
         idents
     }
 }
 
 trait AstPolicyExt {
-    fn to_defs(&self) -> impl Iterator<Item = Def>;
+    fn to_defs(&self) -> impl Iterator<Item = Item<'_>>;
 }
+
 impl AstPolicyExt for AstPolicy {
-    fn to_defs(&self) -> impl Iterator<Item = Def> {
+    fn to_defs(&self) -> impl Iterator<Item = Item<'_>> {
         self.facts
             .iter()
-            .cloned()
-            .map(Def::Fact)
-            .chain(self.actions.iter().cloned().map(Def::Action))
-            .chain(self.effects.iter().cloned().map(Def::Effect))
-            .chain(self.structs.iter().cloned().map(Def::Struct))
-            .chain(self.enums.iter().cloned().map(Def::Enum))
-            .chain(self.commands.iter().cloned().map(Def::Command))
-            .chain(self.functions.iter().cloned().map(Def::Function))
-            .chain(
-                self.finish_functions
-                    .iter()
-                    .cloned()
-                    .map(Def::FinishFunction),
-            )
+            .map(Item::Fact)
+            .chain(self.global_lets.iter().map(Item::GlobalLet))
+            .chain(self.actions.iter().map(Item::Action))
+            .chain(self.effects.iter().map(Item::Effect))
+            .chain(self.structs.iter().map(Item::Struct))
+            .chain(self.enums.iter().map(Item::Enum))
+            .chain(self.commands.iter().map(Item::Command))
+            .chain(self.functions.iter().map(Item::Function))
+            .chain(self.finish_functions.iter().map(Item::FinishFunction))
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Def {
-    Fact(AstNode<FactDefinition>),
-    Action(AstNode<ast::ActionDefinition>),
-    Effect(AstNode<ast::EffectDefinition>),
-    Struct(AstNode<ast::StructDefinition>),
-    Enum(AstNode<EnumDefinition>),
-    Command(AstNode<ast::CommandDefinition>),
-    Function(AstNode<ast::FunctionDefinition>),
-    FinishFunction(AstNode<ast::FinishFunctionDefinition>),
+enum Item<'a> {
+    GlobalLet(&'a AstNode<ast::GlobalLetStatement>),
+    Fact(&'a AstNode<FactDefinition>),
+    Action(&'a AstNode<ast::ActionDefinition>),
+    Effect(&'a AstNode<ast::EffectDefinition>),
+    Struct(&'a AstNode<ast::StructDefinition>),
+    Enum(&'a AstNode<EnumDefinition>),
+    Command(&'a AstNode<ast::CommandDefinition>),
+    Function(&'a AstNode<ast::FunctionDefinition>),
+    FinishFunction(&'a AstNode<ast::FinishFunctionDefinition>),
+    FfiStruct(&'a ffi::Struct<'a>),
+    FfiFunc(&'a ffi::Func<'a>),
+    FfiEnum(&'a ffi::Enum<'a>),
 }
 
-impl Def {
+impl Item<'_> {
     fn ident(&self) -> Identifier {
         match self {
-            Def::Fact(f) => f.identifier.clone(),
-            Def::Action(a) => a.identifier.clone(),
-            Def::Effect(e) => e.identifier.clone(),
-            Def::Struct(s) => s.identifier.clone(),
-            Def::Enum(e) => e.identifier.clone(),
-            Def::Command(c) => c.identifier.clone(),
-            Def::Function(f) => f.identifier.clone(),
-            Def::FinishFunction(f) => f.identifier.clone(),
+            Item::GlobalLet(v) => v.identifier.clone(), // TODO
+            Item::Fact(v) => v.ident(),
+            Item::Action(v) => v.ident(),
+            Item::Effect(v) => v.ident(),
+            Item::Struct(v) => v.ident(),
+            Item::Enum(v) => v.ident(),
+            Item::Command(v) => v.ident(),
+            Item::Function(v) => v.ident(),
+            Item::FinishFunction(v) => v.ident(),
+            Item::FfiStruct(v) => v.ident(),
+            Item::FfiFunc(v) => v.ident(),
+            Item::FfiEnum(v) => v.ident(),
         }
     }
 
-    fn edges(&self) -> BTreeSet<Identifier> {
-        let mut idents = BTreeSet::new();
+    /// Returns all outgoing edges.
+    fn outgoing_edges(&self) -> BTreeSet<Identifier> {
         match self {
-            Def::Fact(v) => walk_fact_def(&mut idents, &v.inner),
-            Def::Action(v) => walk_action_def(&mut idents, &v.inner),
-            Def::Effect(v) => walk_effect_def(&mut idents, &v.inner),
-            Def::Struct(v) => walk_struct_def(&mut idents, &v.inner),
-            Def::Enum(v) => walk_enum_def(&mut idents, &v.inner),
-            Def::Command(v) => walk_cmd_def(&mut idents, &v.inner),
-            Def::Function(v) => walk_fn_def(&mut idents, &v.inner),
-            Def::FinishFunction(v) => walk_finish_fn_def(&mut idents, &v.inner),
+            Item::GlobalLet(v) => v.edges(),
+            Item::Fact(v) => v.edges(),
+            Item::Action(v) => v.edges(),
+            Item::Effect(v) => v.edges(),
+            Item::Struct(v) => v.edges(),
+            Item::Enum(v) => v.edges(),
+            Item::Command(v) => v.edges(),
+            Item::Function(v) => v.edges(),
+            Item::FinishFunction(v) => v.edges(),
+            Item::FfiStruct(v) => v.edges(),
+            Item::FfiFunc(v) => v.edges(),
+            Item::FfiEnum(v) => v.edges(),
         }
-        idents
     }
 }
 
@@ -2612,10 +2811,13 @@ fn walk_expr(idents: &mut BTreeSet<Identifier>, expr: &Expression) {
             idents.insert(v.identifier.clone());
         }
         Expression::ForeignFunctionCall(v) => {
-            idents.insert(v.identifier.clone());
+            for arg in &v.arguments {
+                walk_expr(idents, arg);
+            }
         }
-        Expression::Identifier(ident) => {
-            idents.insert(ident.clone());
+        Expression::Identifier(_) => {
+            // Variable identifiers like `foo` in `let foo = ...`
+            // don't matter for cycles.
         }
         Expression::EnumReference(v) => {
             idents.insert(v.identifier.clone());
@@ -2636,9 +2838,12 @@ fn walk_expr(idents: &mut BTreeSet<Identifier>, expr: &Expression) {
             walk_expr(idents, a);
             walk_expr(idents, b);
         }
-        Expression::Dot(a, b) => {
-            walk_expr(idents, &a);
-            idents.insert(b.clone());
+        Expression::Dot(a, _) => {
+            walk_expr(idents, a);
+            // The dot operator accesses a field in a struct or
+            // fact. We need to walk the LHS to find any
+            // reachable identifiers, but the RHS is just a field
+            // name and can be ignored.
         }
         Expression::Equal(a, b) => {
             walk_expr(idents, a);
@@ -2745,7 +2950,6 @@ fn walk_stmt(idents: &mut BTreeSet<Identifier>, stmt: &ast::Statement) {
         }
         ast::Statement::Map(v) => {
             idents.insert(v.fact.identifier.clone());
-            idents.insert(v.identifier.clone());
             for stmt in &v.statements {
                 walk_stmt(idents, stmt);
             }
@@ -2795,89 +2999,6 @@ fn walk_stmt(idents: &mut BTreeSet<Identifier>, stmt: &ast::Statement) {
     }
 }
 
-fn walk_fact_def(idents: &mut BTreeSet<Identifier>, f: &FactDefinition) {
-    for def in &f.key {
-        walk_vtype(idents, &def.field_type);
-    }
-    for def in &f.value {
-        walk_vtype(idents, &def.field_type);
-    }
-}
-
-fn walk_action_def(idents: &mut BTreeSet<Identifier>, action: &ast::ActionDefinition) {
-    idents.insert(action.identifier.clone());
-    for arg in &action.arguments {
-        walk_vtype(idents, &arg.field_type);
-    }
-    for stmt in &action.statements {
-        walk_stmt(idents, stmt);
-    }
-}
-
-fn walk_effect_def(idents: &mut BTreeSet<Identifier>, effect: &ast::EffectDefinition) {
-    idents.insert(effect.identifier.clone());
-    for item in &effect.items {
-        match item {
-            StructItem::Field(f) => walk_vtype(idents, &f.field_type),
-            StructItem::StructRef(ref_name) => {
-                idents.insert(ref_name.clone());
-            }
-        }
-    }
-}
-
-fn walk_struct_def(idents: &mut BTreeSet<Identifier>, struct_def: &ast::StructDefinition) {
-    idents.insert(struct_def.identifier.clone());
-    for item in &struct_def.items {
-        match item {
-            StructItem::Field(f) => walk_vtype(idents, &f.field_type),
-            StructItem::StructRef(ref_name) => {
-                idents.insert(ref_name.clone());
-            }
-        }
-    }
-}
-
-fn walk_enum_def(idents: &mut BTreeSet<Identifier>, enum_def: &EnumDefinition) {
-    idents.insert(enum_def.identifier.clone());
-    for variant in &enum_def.variants {
-        idents.insert(variant.clone());
-    }
-}
-
-fn walk_cmd_def(idents: &mut BTreeSet<Identifier>, cmd_def: &ast::CommandDefinition) {
-    idents.insert(cmd_def.identifier.clone());
-    for item in &cmd_def.fields {
-        match item {
-            StructItem::Field(f) => walk_vtype(idents, &f.field_type),
-            StructItem::StructRef(ref_name) => {
-                idents.insert(ref_name.clone());
-            }
-        }
-    }
-}
-
-fn walk_fn_def(idents: &mut BTreeSet<Identifier>, fn_def: &ast::FunctionDefinition) {
-    idents.insert(fn_def.identifier.clone());
-    for arg in &fn_def.arguments {
-        walk_vtype(idents, &arg.field_type);
-    }
-    for stmt in &fn_def.statements {
-        walk_stmt(idents, stmt);
-    }
-}
-
-fn walk_finish_fn_def(idents: &mut BTreeSet<Identifier>, fn_def: &ast::FinishFunctionDefinition) {
-    idents.insert(fn_def.identifier.clone());
-
-    for arg in &fn_def.arguments {
-        walk_vtype(idents, &arg.field_type);
-    }
-    for stmt in &fn_def.statements {
-        walk_stmt(idents, stmt);
-    }
-}
-
 fn walk_vtype(idents: &mut BTreeSet<Identifier>, vtype: &VType) {
     match vtype {
         VType::Struct(ident) | VType::Enum(ident) => {
@@ -2888,50 +3009,149 @@ fn walk_vtype(idents: &mut BTreeSet<Identifier>, vtype: &VType) {
     }
 }
 
-fn sort_defs(defs: &AstPolicy) -> Result<Vec<Def>, CompileError> {
-    let mut graph = BTreeMap::new();
-    // All edges from k <- [v...]
-    let mut incoming = BTreeMap::<Identifier, BTreeSet<Identifier>>::new();
-    for d in defs.to_defs() {
-        let edges = d.edges();
-        for e in &edges {
-            incoming
-                .entry(e.clone())
-                .and_modify(|s| {
-                    s.insert(d.ident());
-                })
-                .or_insert_with(|| {
-                    let mut set = BTreeSet::new();
-                    set.insert(d.ident());
-                    set
-                });
+fn walk_ffi_type(idents: &mut BTreeSet<Identifier>, ty: &ffi::Type<'_>) {
+    use ffi::Type;
+    match ty {
+        Type::String | Type::Bytes | Type::Int | Type::Bool | Type::Id => {}
+        Type::Struct(ident) => {
+            idents.insert(ident.clone());
         }
-        if graph.insert(d.ident(), (d, edges)).is_some() {
-            todo!()
+        Type::Enum(ident) => {
+            idents.insert(ident.clone());
         }
+        Type::Optional(ty) => walk_ffi_type(idents, ty),
     }
-    let mut list = Vec::new();
-    let mut set = VecDeque::<(Def, BTreeSet<Identifier>)>::new();
-    while let Some((n, edges)) = set.pop_front() {
-        list.push(n.clone());
-        for e in edges {
-            let edges = incoming
-                .entry(e.clone())
-                .and_modify(|s| {
-                    s.remove(&n.ident());
-                })
-                .or_default();
-            if edges.is_empty() {
-                // TODO: unwrap
-                set.push_back(graph.remove(&e).unwrap());
+}
+
+fn sort_defs<'a>(
+    defs: &'a AstPolicy,
+    schema: &'a [ModuleSchema<'a>],
+) -> Result<Vec<Item<'a>>, CompileError> {
+    type Edges = BTreeSet<Identifier>;
+    type Graph = BTreeMap<Identifier, Edges>;
+
+    let all_defs = defs
+        .to_defs()
+        .map(|d| {
+            let ident = d.ident();
+            (ident, d)
+        })
+        .chain(schema.iter().flat_map(|m| {
+            m.structs
+                .iter()
+                .map(|s| (s.ident(), Item::FfiStruct(s)))
+                .chain(m.functions.iter().map(|f| (f.ident(), Item::FfiFunc(f))))
+                .chain(m.enums.iter().map(|e| (e.ident(), Item::FfiEnum(e))))
+        }))
+        .collect::<BTreeMap<_, _>>();
+
+    let graph = {
+        let mut graph = Graph::new();
+        for (node, def) in &all_defs {
+            let outgoing = def.outgoing_edges();
+            for edge in &outgoing {
+                if edge == node {
+                    // The edge points back to the node.
+                    return Err(CompileError::new(CompileErrorType::RecursiveDefinition(
+                        vec![node.clone()],
+                    )));
+                }
+                if !all_defs.contains_key(edge) {
+                    return Err(CompileError::new(CompileErrorType::NotDefined(
+                        edge.to_string(),
+                    )));
+                }
+            }
+            if graph.insert(node.clone(), outgoing).is_some() {
+                // We've already seen this ident.
+                return Err(CompileError::new(CompileErrorType::AlreadyDefined(
+                    node.to_string(),
+                )));
+            }
+        }
+        graph
+    };
+
+    // Tracks how many incoming edges each node has.
+    let mut degrees = {
+        let mut degrees = BTreeMap::<Identifier, usize>::new();
+        for (node, outgoing) in &graph {
+            degrees.entry(node.clone()).or_default();
+            for edge in outgoing {
+                if edge == node {
+                    bug!("self-recursive def should have been caught earlier");
+                }
+                *degrees.entry(edge.clone()).or_default() += 1;
+            }
+        }
+        degrees
+    };
+
+    // Nodes without any incoming edges.
+    let mut set = VecDeque::from_iter(degrees.iter().filter_map(|(node, &degree)| {
+        if degree == 0 {
+            Some(node.clone())
+        } else {
+            None
+        }
+    }));
+
+    let mut list = BTreeSet::new();
+    while let Some(node) = set.pop_front() {
+        if !list.insert(node.clone()) {
+            bug!("node added to list twice");
+        }
+        if let Some(outgoing) = graph.get(&node) {
+            for edge in outgoing {
+                if let Some(n) = degrees.get_mut(edge) {
+                    *n = n.checked_sub(1).assume("v > 0")?;
+                    if *n == 0 {
+                        set.push_back(edge.clone());
+                    }
+                }
             }
         }
     }
-    if !graph.is_empty() {
-        println!("graph = {graph:?}");
-        return Err(CompileError::new(CompileErrorType::Unknown(String::from(
-            "cyclic dependency in definitions",
-        ))));
+
+    if list.len() < graph.len() {
+        let remaining = graph
+            .keys()
+            .filter_map(|k| if !list.contains(k) { Some(k) } else { None })
+            .cloned()
+            .collect::<BTreeSet<_>>();
+        let start = remaining.first().assume("remaining should not be empty")?;
+        let mut visited = BTreeSet::new();
+        let mut current = start;
+        let mut path = Vec::new();
+
+        // Follow edges until we revisit a node.
+        while !visited.contains(current) {
+            visited.insert(current);
+            path.push(current.clone());
+            if let Some(outgoing) = graph.get(current) {
+                for edge in outgoing {
+                    if remaining.contains(edge) {
+                        current = edge;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(cycle_start) = path.iter().position(|x| x == current) {
+            let cycle = path[cycle_start..].to_vec();
+            return Err(CompileError::new(CompileErrorType::RecursiveDefinition(
+                cycle,
+            )));
+        }
     }
-    Ok(list)
+
+    let sorted = all_defs
+        .into_iter()
+        .filter_map(|(k, v)| if list.contains(&k) { Some(v) } else { None })
+        .collect::<Vec<Item<'_>>>();
+    for v in &sorted {
+        println!("sorted = {}", v.ident());
+    }
+    Ok(sorted)
 }
