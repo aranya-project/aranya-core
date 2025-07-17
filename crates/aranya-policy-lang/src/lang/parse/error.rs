@@ -50,28 +50,39 @@ pub enum ParseErrorKind {
 #[derive(Debug, Clone)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
-    message: String,
+    pub message: String,
+    /// Line and column location of the error, if available.
+    pub location: Option<(usize, usize)>,
 }
 
 impl ParseError {
     pub(crate) fn new(kind: ParseErrorKind, message: String, span: Option<Span<'_>>) -> ParseError {
-        let prefix = match span {
-            Some(s) => {
-                let text = s.as_str();
-                let (line, col) = s.start_pos().line_col();
-                format!("line {line} column {col}: {text}: ")
-            }
-            None => String::from(""),
-        };
+        let location = span.map(|s| s.start_pos().line_col());
         ParseError {
             kind,
-            message: format!("{prefix}{message}"),
+            message,
+            location,
+        }
+    }
+
+    /// Return a new error with a location starting from the given line.
+    pub fn adjust_line_number(&self, start_line: usize) -> ParseError {
+        ParseError {
+            kind: self.kind.clone(),
+            message: self.message.clone(),
+            location: self
+                .location
+                .map(|(line, col)| (line.saturating_add(start_line), col)),
         }
     }
 }
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let location = match self.location {
+            Some((line, column)) => format!("line {line} column {column}: "),
+            None => String::new(),
+        };
         let prefix = match &self.kind {
             ParseErrorKind::InvalidType => "Invalid type",
             ParseErrorKind::InvalidStatement => "Invalid statement",
@@ -90,7 +101,7 @@ impl Display for ParseError {
             ParseErrorKind::Bug => "Bug",
             ParseErrorKind::Unknown => "Unknown error",
         };
-        write!(f, "{prefix}: {}", self.message)
+        write!(f, "{prefix}: {location}{}", self.message)
     }
 }
 
