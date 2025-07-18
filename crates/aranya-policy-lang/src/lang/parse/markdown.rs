@@ -1,5 +1,4 @@
 use aranya_policy_ast as ast;
-use buggy::BugExt;
 use markdown::{
     ParseOptions,
     mdast::{Node, Yaml},
@@ -37,7 +36,7 @@ fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
 #[derive(Debug)]
 pub struct PolicyChunk {
     pub text: String,
-    pub offset: usize,
+    pub start_line: usize,
 }
 
 fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
@@ -64,18 +63,10 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
                 if let Some(lang) = &c.lang {
                     if lang == "policy" {
                         let position = c.position.as_ref().expect("no code block position");
-                        // The starting position of the code block is
-                        // the triple-backtick, so add three for the
-                        // backticks, six for the language tag, and
-                        // one newline.
-                        let offset = position
-                            .start
-                            .offset
-                            .checked_add(10)
-                            .assume("start.offset + 10 must not wrap")?;
+                        let start_line = position.start.line;
                         chunks.push(PolicyChunk {
                             text: c.value.clone(),
-                            offset,
+                            start_line,
                         });
                     }
                 }
@@ -95,9 +86,16 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
 /// by the [`Compiler`](../../policy_vm/struct.Compiler.html).
 pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     let (chunks, version) = extract_policy(data)?;
+    if chunks.is_empty() {
+        return Err(ParseError::new(
+            ParseErrorKind::FrontMatter,
+            String::from("No policy code found in Markdown document"),
+            None,
+        ));
+    }
     let mut policy = ast::Policy::new(version, data);
     for c in chunks {
-        parse_policy_chunk(&c.text, &mut policy, c.offset)?;
+        parse_policy_chunk(&c.text, &mut policy, c.start_line)?;
     }
     Ok(policy)
 }

@@ -114,7 +114,7 @@ impl<'a> PairContext<'a> {
         if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
-                format!("Reserved identifier: {}", identifier),
+                identifier.to_string(),
                 Some(token.as_span()),
             ));
         }
@@ -148,15 +148,15 @@ fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
 
 /// Context information for partial parsing of a chunk of source
 pub struct ChunkParser<'a> {
-    chunk_offset: usize,
+    start_line: usize,
     text_ranges: ast::TextRanges,
     pratt: &'a PrattParser<Rule>,
 }
 
 impl ChunkParser<'_> {
-    pub fn new(offset: usize, pratt: &PrattParser<Rule>) -> ChunkParser<'_> {
+    pub fn new(start_line: usize, pratt: &PrattParser<Rule>) -> ChunkParser<'_> {
         ChunkParser {
-            chunk_offset: offset,
+            start_line,
             text_ranges: vec![],
             pratt,
         }
@@ -167,11 +167,11 @@ impl ChunkParser<'_> {
         let span = p.as_span();
         let start = span
             .start()
-            .checked_add(self.chunk_offset)
+            .checked_add(self.start_line)
             .assume("start + offset must not wrap")?;
         let end = span
             .end()
-            .checked_add(self.chunk_offset)
+            .checked_add(self.start_line)
             .assume("end + offset must not wrap")?;
         self.text_ranges.push((start, end));
         Ok(start)
@@ -1525,7 +1525,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
 pub fn parse_policy_chunk(
     data: &str,
     policy: &mut ast::Policy,
-    offset: usize,
+    start_line: usize,
 ) -> Result<(), ParseError> {
     if policy.version != Version::V2 {
         return Err(ParseError::new(
@@ -1538,10 +1538,17 @@ pub fn parse_policy_chunk(
         ));
     }
     let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(offset, &policy.text, e))?;
+        .map_err(|e| mangle_pest_error(start_line, &policy.text, e))?;
     let pratt = get_pratt_parser();
-    let mut p = ChunkParser::new(offset, &pratt);
+    let mut p = ChunkParser::new(start_line, &pratt);
+    parse_policy_chunk_inner(chunk, &mut p, policy).map_err(|e| e.adjust_line_number(start_line))
+}
 
+fn parse_policy_chunk_inner(
+    chunk: Pairs<'_, Rule>,
+    p: &mut ChunkParser<'_>,
+    policy: &mut ast::Policy,
+) -> Result<(), ParseError> {
     for item in chunk {
         match item.as_rule() {
             Rule::use_definition => policy.ffi_imports.push(p.parse_use_definition(item)?.inner), // TODO(jdygert): keep ast node?
