@@ -1,7 +1,7 @@
 //! An effect handler for AQC.
 
 use aranya_crypto::{
-    DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
+    BaseId, DeviceId, EncryptionKeyId, Engine, KeyStore, KeyStoreExt,
     aqc::{
         BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiSecret,
         UniAuthorSecretId, UniChannel, UniChannelId, UniPeerEncap, UniSecret,
@@ -133,7 +133,7 @@ pub struct BidiChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encryption key ID.
@@ -162,7 +162,7 @@ pub struct BidiChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: BidiChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The channel author's encoded
@@ -296,7 +296,7 @@ pub struct UniChannelCreated<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can send messages.
@@ -326,7 +326,7 @@ pub struct UniChannelReceived<'a> {
     /// Uniquely identifies the channel.
     pub channel_id: UniChannelId,
     /// The unique ID of the previous command.
-    pub parent_cmd_id: Id,
+    pub parent_cmd_id: BaseId,
     /// The channel author's device ID.
     pub author_id: DeviceId,
     /// The device ID of the Device that can send messages.
