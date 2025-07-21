@@ -16,7 +16,7 @@ mod error;
 mod markdown;
 
 pub use error::{ParseError, ParseErrorKind};
-pub use markdown::{extract_policy, parse_policy_document};
+pub use markdown::parse_policy_document;
 
 mod keywords;
 use keywords::KEYWORDS;
@@ -1674,6 +1674,16 @@ pub fn get_pratt_parser() -> PrattParser<Rule> {
             | Op::prefix(Rule::check_unwrap))
         .op(Op::infix(Rule::substruct, Assoc::Left))
         .op(Op::infix(Rule::dot, Assoc::Left))
+}
+
+/// Parse just an expression.
+pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
+    let mut pairs = PolicyParser::parse(Rule::expression, s)?;
+    let token = pairs.next().assume("expr has token")?;
+    let pratt = get_pratt_parser();
+    let mut p = ChunkParser::new(0, &pratt);
+    let ast = p.parse_expression(token)?;
+    Ok(ast)
 }
 
 #[cfg(test)]

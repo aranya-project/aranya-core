@@ -2,15 +2,13 @@
 
 use std::{fs::OpenOptions, io::Read};
 
-use aranya_policy_ast::{ident, text};
-use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
+use aranya_policy_ast::{self as ast, AstNode, Expression, FactField, ident, text};
 use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ParseError, PolicyParser, Rule, Version, ast, ast::AstNode, get_pratt_parser,
-    parse_policy_document, parse_policy_str,
+    ChunkParser, FfiTypes, ParseError, ParseErrorKind, PolicyParser, Rule, Version,
+    get_pratt_parser, parse_policy_document, parse_policy_str,
 };
-use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -675,7 +673,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("envelope_id"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("envelope"),
                                 identifier: ident!("command_id"),
                                 arguments: vec![Expression::Identifier(ident!("envelope"))]
@@ -686,7 +684,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("author"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("envelope"),
                                 identifier: ident!("author_id"),
                                 arguments: vec![Expression::Identifier(ident!("envelope"))]
@@ -724,7 +722,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                             expression: Expression::Identifier(ident!("x")),
                             arms: vec![
                                 ast::MatchArm {
-                                    pattern: MatchPattern::Values(vec![Expression::Int(0)]),
+                                    pattern: ast::MatchPattern::Values(vec![Expression::Int(0)]),
                                     statements: vec![AstNode::new(
                                         ast::Statement::Check(ast::CheckStatement {
                                             expression: Expression::FunctionCall(
@@ -742,7 +740,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                     )],
                                 },
                                 ast::MatchArm {
-                                    pattern: MatchPattern::Values(vec!(Expression::Int(1))),
+                                    pattern: ast::MatchPattern::Values(vec!(Expression::Int(1))),
                                     statements: vec![AstNode::new(
                                         ast::Statement::Check(ast::CheckStatement {
                                             expression: Expression::FunctionCall(
@@ -756,7 +754,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                     )],
                                 },
                                 ast::MatchArm {
-                                    pattern: MatchPattern::Default,
+                                    pattern: ast::MatchPattern::Default,
                                     statements: vec![],
                                 },
                             ],
@@ -787,7 +785,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("a"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("foo"),
                                 identifier: ident!("ext_func"),
                                 arguments: vec![Expression::Identifier(ident!("x"))],
@@ -879,7 +877,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("envelope_id"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("envelope"),
                                 identifier: ident!("command_id"),
                                 arguments: vec![Expression::Identifier(ident!("envelope"))]
@@ -890,7 +888,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("author"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("envelope"),
                                 identifier: ident!("author_id"),
                                 arguments: vec![Expression::Identifier(ident!("envelope"))]
@@ -1829,7 +1827,7 @@ fn parse_match_expression() {
                     arms: vec![
                         AstNode::new(
                             ast::MatchExpressionArm {
-                                pattern: MatchPattern::Values(vec![Expression::Int(0)]),
+                                pattern: ast::MatchPattern::Values(vec![Expression::Int(0)]),
                                 expression: Expression::Block(
                                     vec![AstNode::new(
                                         ast::Statement::Let(ast::LetStatement {
@@ -1845,7 +1843,7 @@ fn parse_match_expression() {
                         ),
                         AstNode::new(
                             ast::MatchExpressionArm {
-                                pattern: MatchPattern::Default,
+                                pattern: ast::MatchPattern::Default,
                                 expression: Expression::Bool(false)
                             },
                             173
