@@ -35,9 +35,13 @@ impl From<TypeError> for CompileErrorType {
     }
 }
 
+/// Could not unify a pair of types.
 pub struct TypeUnifyError {
+    /// The left type which could not be unified
     pub left: NullableVType,
+    /// The right type which could not be unified
     pub right: NullableVType,
+    /// Context message for the cause of the unify error.
     pub ctx: &'static str,
 }
 
