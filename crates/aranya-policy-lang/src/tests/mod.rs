@@ -1,13 +1,11 @@
 #![allow(clippy::panic)]
 
-use std::{fs::OpenOptions, io::Read};
-
-use aranya_policy_ast::{self as ast, AstNode, Expression, FactField, ident, text};
+use aranya_policy_ast::{self as ast, AstNode, Expression, FactField, Version, ident, text};
 use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ChunkParser, FfiTypes, ParseError, ParseErrorKind, PolicyParser, Rule, Version,
-    get_pratt_parser, parse_policy_document, parse_policy_str,
+    FfiTypes, ParseError, ParseErrorKind, parse_policy_document, parse_policy_str,
+    parser::{ChunkParser, PolicyParser, Rule, get_pratt_parser},
 };
 
 #[test]
@@ -1063,16 +1061,8 @@ fn parse_policy_test() -> Result<(), ParseError> {
 // which must be kept up-to-date with this test.
 #[test]
 fn parse_tictactoe() {
-    let text = {
-        let mut buf = vec![];
-        let mut f = OpenOptions::new()
-            .read(true)
-            .open("src/lang/tictactoe-policy.md")
-            .expect("could not open policy");
-        f.read_to_end(&mut buf).expect("could not read policy file");
-        String::from_utf8(buf).expect("File is not valid UTF-8")
-    };
-
+    let text = std::fs::read_to_string("src/tests/tictactoe-policy.md")
+        .expect("could not read policy file");
     let policy = parse_policy_document(&text).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(policy.facts.len(), 4);
     assert_eq!(policy.actions.len(), 2);

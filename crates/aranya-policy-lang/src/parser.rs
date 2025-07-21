@@ -12,20 +12,16 @@ use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
 
-mod error;
-mod markdown;
-
-pub use error::{ParseError, ParseErrorKind};
-pub use markdown::parse_policy_document;
-
-mod keywords;
-use keywords::KEYWORDS;
+use crate::{
+    error::{ParseError, ParseErrorKind},
+    keywords::KEYWORDS,
+};
 
 mod internal {
     // This is a hack to work around ambiguity between pest_derive::Parser and pest::Parser.
     use pest_derive::Parser;
     #[derive(Parser)]
-    #[grammar = "lang/parse/policy.pest"]
+    #[grammar = "policy.pest"]
     pub struct PolicyParser;
 }
 
@@ -1685,6 +1681,3 @@ pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
     let ast = p.parse_expression(token)?;
     Ok(ast)
 }
-
-#[cfg(test)]
-mod tests;

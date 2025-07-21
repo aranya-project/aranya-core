@@ -7,7 +7,10 @@ use markdown::{
 };
 use serde::Deserialize;
 
-use super::{ParseError, ParseErrorKind, Version, parse_policy_chunk};
+use crate::{
+    error::{ParseError, ParseErrorKind},
+    parser::parse_policy_chunk,
+};
 
 #[derive(Deserialize)]
 struct FrontMatter {
@@ -15,16 +18,16 @@ struct FrontMatter {
     policy_version: String,
 }
 
-fn parse_front_matter(yaml: Yaml) -> Result<Version, ParseError> {
+fn parse_front_matter(yaml: Yaml) -> Result<ast::Version, ParseError> {
     let fm: FrontMatter = serde_yaml::from_str(&yaml.value)
         .map_err(|e| ParseError::new(ParseErrorKind::FrontMatter, e.to_string(), None))?;
     let v = match fm.policy_version.as_str() {
-        "2" => Version::V2,
+        "2" => ast::Version::V2,
         v => {
             return Err(ParseError::new(
                 ParseErrorKind::InvalidVersion {
                     found: v.to_string(),
-                    required: Version::V2,
+                    required: ast::Version::V2,
                 },
                 "Update `policy-version`.".to_string(),
                 None,
@@ -40,7 +43,9 @@ pub struct PolicyChunk {
     pub offset: usize,
 }
 
-fn extract_policy_from_markdown(node: Node) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
+fn extract_policy_from_markdown(
+    node: Node,
+) -> Result<(Vec<PolicyChunk>, ast::Version), ParseError> {
     if let Node::Root(r) = node {
         let mut child_iter = r.children.into_iter();
         // The front matter should always be the first node below the
@@ -104,7 +109,7 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
 
 /// Extract the policy chunks from a Markdown policy document. Returns the chunks plus the
 /// policy version.
-fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
+fn extract_policy(data: &str) -> Result<(Vec<PolicyChunk>, ast::Version), ParseError> {
     let mut parseoptions = ParseOptions::gfm();
     parseoptions.constructs.frontmatter = true;
     let tree = to_mdast(data, &parseoptions)

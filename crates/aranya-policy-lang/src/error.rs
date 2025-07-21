@@ -7,7 +7,7 @@ use pest::{
     error::{Error as PestError, LineColLocation},
 };
 
-use crate::lang::parse::Rule;
+use super::parser::Rule;
 
 /// The kinds of errors a parse operation can produce
 ///
