@@ -3,6 +3,7 @@ use markdown::{
     ParseOptions,
     mdast::{Node, Yaml},
     to_mdast,
+    unist::Point,
 };
 use serde::Deserialize;
 
@@ -36,7 +37,7 @@ fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
 #[derive(Debug)]
 pub struct PolicyChunk {
     pub text: String,
-    pub start_line: usize,
+    pub start: Point,
 }
 
 fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
@@ -63,10 +64,9 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
                 if let Some(lang) = &c.lang {
                     if lang == "policy" {
                         let position = c.position.as_ref().expect("no code block position");
-                        let start_line = position.start.line;
                         chunks.push(PolicyChunk {
                             text: c.value.clone(),
-                            start_line,
+                            start: position.start.clone(),
                         });
                     }
                 }
@@ -95,7 +95,7 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     }
     let mut policy = ast::Policy::new(version, data);
     for c in chunks {
-        parse_policy_chunk(&c.text, &mut policy, c.start_line)?;
+        parse_policy_chunk(&c.text, &mut policy, &c.start)?;
     }
     Ok(policy)
 }

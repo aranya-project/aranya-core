@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use ::markdown::unist::Point;
 use aranya_policy_ast::{
     self as ast, AstNode, Identifier, MapStatement, MatchExpression, Text, Version, ident,
 };
@@ -148,15 +149,15 @@ fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
 
 /// Context information for partial parsing of a chunk of source
 pub struct ChunkParser<'a> {
-    start_line: usize,
+    start: &'a Point,
     text_ranges: ast::TextRanges,
     pratt: &'a PrattParser<Rule>,
 }
 
-impl ChunkParser<'_> {
-    pub fn new(start_line: usize, pratt: &PrattParser<Rule>) -> ChunkParser<'_> {
+impl<'a> ChunkParser<'a> {
+    pub fn new(start: &'a Point, pratt: &'a PrattParser<Rule>) -> ChunkParser<'a> {
         ChunkParser {
-            start_line,
+            start,
             text_ranges: vec![],
             pratt,
         }
@@ -167,11 +168,11 @@ impl ChunkParser<'_> {
         let span = p.as_span();
         let start = span
             .start()
-            .checked_add(self.start_line)
+            .checked_add(self.start.offset)
             .assume("start + offset must not wrap")?;
         let end = span
             .end()
-            .checked_add(self.start_line)
+            .checked_add(self.start.offset)
             .assume("end + offset must not wrap")?;
         self.text_ranges.push((start, end));
         Ok(start)
@@ -1471,7 +1472,8 @@ impl ChunkParser<'_> {
 pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, ParseError> {
     let mut policy = ast::Policy::new(version, data);
 
-    parse_policy_chunk(data, &mut policy, 0)?;
+    let start = Point::new(0, 0, 0);
+    parse_policy_chunk(data, &mut policy, &start)?;
 
     Ok(policy)
 }
@@ -1525,7 +1527,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
 pub fn parse_policy_chunk(
     data: &str,
     policy: &mut ast::Policy,
-    start_line: usize,
+    start: &Point,
 ) -> Result<(), ParseError> {
     if policy.version != Version::V2 {
         return Err(ParseError::new(
@@ -1538,10 +1540,10 @@ pub fn parse_policy_chunk(
         ));
     }
     let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(start_line, &policy.text, e))?;
+        .map_err(|e| mangle_pest_error(start.offset, &policy.text, e))?;
     let pratt = get_pratt_parser();
-    let mut p = ChunkParser::new(start_line, &pratt);
-    parse_policy_chunk_inner(chunk, &mut p, policy).map_err(|e| e.adjust_line_number(start_line))
+    let mut p = ChunkParser::new(start, &pratt);
+    parse_policy_chunk_inner(chunk, &mut p, policy).map_err(|e| e.adjust_line_number(start))
 }
 
 fn parse_policy_chunk_inner(
@@ -1633,7 +1635,8 @@ pub struct FfiTypes {
 pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
     let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
     let pratt = get_pratt_parser();
-    let mut p = ChunkParser::new(0, &pratt);
+    let start = Point::new(0, 0, 0);
+    let mut p = ChunkParser::new(&start, &pratt);
     let mut structs = vec![];
     let mut enums = vec![];
     for s in def {

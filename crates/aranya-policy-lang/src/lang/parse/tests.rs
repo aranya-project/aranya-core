@@ -4,6 +4,7 @@ use std::{fs::OpenOptions, io::Read};
 
 use aranya_policy_ast::{ident, text};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
+use markdown::unist::Point;
 use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
@@ -189,7 +190,8 @@ fn parse_expression_pratt() -> Result<(), ParseError> {
         .trim(),
     )?;
     let pratt = get_pratt_parser();
-    let mut p = ChunkParser::new(0, &pratt);
+    let start = Point::new(0, 0, 0);
+    let mut p = ChunkParser::new(&start, &pratt);
     let expr = pairs.next().unwrap();
     let expr_parsed = p.parse_expression(expr)?;
     assert_eq!(
@@ -274,7 +276,8 @@ fn parse_expression_errors() -> Result<(), ParseError> {
         },
     ];
     let pratt = get_pratt_parser();
-    let mut p = ChunkParser::new(0, &pratt);
+    let start = Point::new(0, 0, 0);
+    let mut p = ChunkParser::new(&start, &pratt);
     for case in cases {
         let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
         let expr = pairs.next().unwrap();
@@ -1936,14 +1939,38 @@ fn test_invalid_text() {
 
 #[test]
 fn test_error_line_number_in_chunks() {
-    let policy = r#"---
+    let cases = [
+        (
+            r#"---
 policy-version: 2
 ---
 
 ```policy
     let int = 0
 ```
-"#;
-    let err = parse_policy_document(policy).unwrap_err();
-    assert_eq!(err.to_string(), "Reserved identifier: line 6 column 9: int");
+"#,
+            "Reserved identifier: line 6 column 9: int",
+        ),
+        (
+            r#"---
+policy-version: 2
+---
+
+```policy
+    let x = 0
+```
+Next chunk:
+```policy
+    let x = 0
+    let y = "a\\0b"
+```
+        "#,
+            "Invalid string: line 11 column 13: invalid escape: \\",
+        ),
+    ];
+
+    for (policy, expected) in cases {
+        let err = parse_policy_document(policy).unwrap_err();
+        assert_eq!(err.to_string(), expected);
+    }
 }

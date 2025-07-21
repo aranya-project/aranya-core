@@ -9,6 +9,7 @@ use aranya_policy_lang::lang::{
     ChunkParser, PolicyParser, Rule, Version, extract_policy, get_pratt_parser, parse_policy_str,
 };
 use clap::{Parser, ValueEnum};
+use markdown::unist::Point;
 use pest::Parser as PestParser;
 
 #[derive(Parser, Debug)]
@@ -70,7 +71,8 @@ fn parse_thing(s: &str, args: &Args) -> anyhow::Result<String> {
             let token = pairs.next().context("No tokens")?;
 
             let pratt = get_pratt_parser();
-            let mut p = ChunkParser::new(0, &pratt);
+            let start = Point::new(0, 0, 0);
+            let mut p = ChunkParser::new(&start, &pratt);
             let ast = p.parse_expression(token)?;
 
             Ok(format!("{:#?}", ast))

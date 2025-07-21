@@ -2,6 +2,7 @@ use std::fmt::Display;
 
 use aranya_policy_ast::Version;
 use buggy::Bug;
+use markdown::unist::Point;
 use pest::{
     Span,
     error::{Error as PestError, LineColLocation},
@@ -66,13 +67,13 @@ impl ParseError {
     }
 
     /// Return a new error with a location starting from the given line.
-    pub fn adjust_line_number(&self, start_line: usize) -> ParseError {
+    pub fn adjust_line_number(&self, start: &Point) -> ParseError {
         ParseError {
             kind: self.kind.clone(),
             message: self.message.clone(),
             location: self
                 .location
-                .map(|(line, col)| (line.saturating_add(start_line), col)),
+                .map(|(line, col)| (line.saturating_add(start.line), col)),
         }
     }
 }
