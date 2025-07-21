@@ -190,7 +190,11 @@ impl Typeish {
         }
     }
 
-    /// If self is not indeterminate and not the target type, return a [`TypeError`]
+    /// Checks this [`Typeish`] against an expected [`VType`].
+    ///
+    /// If `self` is `Indeterminate`, it will be "upgraded" to `Probably`.
+    /// Otherwise, it will keep its value if the inner type matches the target,
+    /// or error out otherwise.
     pub fn check_type(
         self,
         target_type: VType,
