@@ -88,7 +88,7 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     let (chunks, version) = extract_policy(data)?;
     if chunks.is_empty() {
         return Err(ParseError::new(
-            ParseErrorKind::FrontMatter,
+            ParseErrorKind::Unknown,
             String::from("No policy code found in Markdown document"),
             None,
         ));

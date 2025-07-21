@@ -67,14 +67,11 @@ impl ParseError {
     }
 
     /// Return a new error with a location starting from the given line.
-    pub fn adjust_line_number(&self, start: &Point) -> ParseError {
-        ParseError {
-            kind: self.kind.clone(),
-            message: self.message.clone(),
-            location: self
-                .location
-                .map(|(line, col)| (line.saturating_add(start.line), col)),
+    pub fn adjust_line_number(mut self, start: &Point) -> ParseError {
+        if let Some((line, _)) = &mut self.location {
+            *line = line.saturating_add(start.line);
         }
+        self
     }
 }
 
