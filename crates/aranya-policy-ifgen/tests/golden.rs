@@ -4,7 +4,7 @@ use std::{io::Write, path::Path};
 
 use aranya_policy_compiler::Compiler;
 use aranya_policy_ifgen_build::generate_code;
-use aranya_policy_lang::lang::parse_policy_document;
+use aranya_policy_lang::parse_policy_document;
 
 fn dotest(name: &str) {
     let data = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data");

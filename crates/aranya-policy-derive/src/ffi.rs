@@ -1,10 +1,8 @@
 use std::{collections::HashSet, fs::File, io::Write};
 
-use aranya_policy_lang::{
-    ast::{
-        AstNode, EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, VType,
-    },
-    lang,
+use aranya_policy_lang as lang;
+use aranya_policy_lang::ast::{
+    AstNode, EnumDefinition, FieldDefinition, FunctionDecl, StructDefinition, StructItem, VType,
 };
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};

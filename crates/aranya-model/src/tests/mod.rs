@@ -15,7 +15,7 @@ use aranya_envelope_ffi::Ffi as EnvelopeFfi;
 use aranya_idam_ffi::Ffi as IdamFfi;
 use aranya_perspective_ffi::FfiPerspective as PerspectiveFfi;
 use aranya_policy_compiler::Compiler;
-use aranya_policy_lang::lang::parse_policy_document;
+use aranya_policy_lang::parse_policy_document;
 use aranya_policy_vm::{
     Machine, Value,
     ffi::{FfiModule, ModuleSchema},

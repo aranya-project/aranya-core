@@ -4,9 +4,7 @@ use std::{
     process::ExitCode,
 };
 
-use aranya_policy_lang::lang::{
-    Version, parse_expression, parse_policy_document, parse_policy_str,
-};
+use aranya_policy_lang::{Version, parse_expression, parse_policy_document, parse_policy_str};
 use clap::{Parser, ValueEnum};
 
 #[derive(Parser, Debug)]

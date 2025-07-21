@@ -1,6 +1,6 @@
 fn benchmark_1() {
     use aranya_policy_compiler::Compiler;
-    use aranya_policy_lang::lang::parse_policy_document;
+    use aranya_policy_lang::parse_policy_document;
     use aranya_policy_vm::{bench_measurements, ffi::FfiModule};
     use aranya_runtime::{
         ClientState,
@@ -95,7 +95,7 @@ policy-version: 1
     "#;
 
     use aranya_policy_compiler::Compiler;
-    use aranya_policy_lang::lang::parse_policy_document;
+    use aranya_policy_lang::parse_policy_document;
     use aranya_policy_vm::{Text, bench_measurements, ffi::FfiModule};
     use aranya_runtime::{
         ClientState,

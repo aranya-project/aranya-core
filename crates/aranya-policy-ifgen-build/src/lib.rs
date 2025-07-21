@@ -8,7 +8,7 @@ use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
 use aranya_policy_compiler::Compiler;
-use aranya_policy_lang::lang::parse_policy_document;
+use aranya_policy_lang::parse_policy_document;
 
 mod imp;
 pub use imp::generate_code;
