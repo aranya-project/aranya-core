@@ -131,7 +131,7 @@ use crate::{
 ///     assert_eq!(&plaintext, GOLDEN);
 /// }
 /// test(&mut device1, &device2); // device1 -> device2
-///     
+///
 /// # }
 /// ```
 pub struct UniChannel<'a, CS: CipherSuite> {

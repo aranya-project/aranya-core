@@ -140,7 +140,7 @@ use crate::{
 /// }
 /// test(&mut device1, &device2); // device1 -> device2
 /// test(&mut device2, &device1); // device2 -> device1
-///     
+///
 /// # }
 /// ```
 pub struct BidiChannel<'a, CS: CipherSuite> {
