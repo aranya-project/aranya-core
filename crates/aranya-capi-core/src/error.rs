@@ -19,12 +19,9 @@ use super::{
 /// # Example
 ///
 /// ```rust
-/// use core::{fmt::Debug, ffi::CStr};
+/// use core::{ffi::CStr, fmt::Debug};
 ///
-/// use aranya_capi_core::{
-///     ErrorCode,
-///     InvalidArg,
-/// };
+/// use aranya_capi_core::{ErrorCode, InvalidArg};
 ///
 /// #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 /// #[repr(u32)]
