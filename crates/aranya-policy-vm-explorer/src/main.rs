@@ -9,7 +9,7 @@ use std::{
 
 use aranya_crypto::Id;
 use aranya_policy_compiler::Compiler;
-use aranya_policy_lang::lang::{Version, parse_policy_document, parse_policy_str};
+use aranya_policy_lang::{ast::Version, parse_policy_document, parse_policy_str};
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactKey, FactKeyList, FactValue, FactValueList,
     Identifier, KVPair, LabelType, Machine, MachineError, MachineErrorType, MachineIO,

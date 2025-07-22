@@ -797,7 +797,7 @@ mod test {
     use alloc::format;
 
     use aranya_policy_compiler::Compiler;
-    use aranya_policy_lang::lang::parse_policy_str;
+    use aranya_policy_lang::parse_policy_str;
     use aranya_policy_vm::ast::Version;
 
     use super::*;

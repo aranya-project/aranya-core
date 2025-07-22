@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use aranya_policy_ast::{FieldDefinition, VType, Version, ident, text};
-use aranya_policy_lang::lang::parse_policy_str;
+use aranya_policy_lang::parse_policy_str;
 use aranya_policy_module::{
     Label, LabelType, Module, ModuleData, Value,
     ffi::{self, ModuleSchema},
@@ -2301,7 +2301,7 @@ fn test_function_used_before_definition() {
         function pow(x int, n int) int {
             if n == 0 {
                 // x^0 == x
-                return 1 
+                return 1
             }
             if n == 1 {
                 // x^1 = x

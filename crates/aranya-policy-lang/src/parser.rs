@@ -12,20 +12,16 @@ use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
 
-mod error;
-mod markdown;
-
-pub use error::{ParseError, ParseErrorKind};
-pub use markdown::{extract_policy, parse_policy_document};
-
-mod keywords;
-use keywords::KEYWORDS;
+use crate::{
+    error::{ParseError, ParseErrorKind},
+    keywords::KEYWORDS,
+};
 
 mod internal {
     // This is a hack to work around ambiguity between pest_derive::Parser and pest::Parser.
     use pest_derive::Parser;
     #[derive(Parser)]
-    #[grammar = "lang/parse/policy.pest"]
+    #[grammar = "policy.pest"]
     pub struct PolicyParser;
 }
 
@@ -1676,5 +1672,12 @@ pub fn get_pratt_parser() -> PrattParser<Rule> {
         .op(Op::infix(Rule::dot, Assoc::Left))
 }
 
-#[cfg(test)]
-mod tests;
+/// Parse just an expression.
+pub fn parse_expression(s: &str) -> Result<Expression, ParseError> {
+    let mut pairs = PolicyParser::parse(Rule::expression, s)?;
+    let token = pairs.next().assume("expr has token")?;
+    let pratt = get_pratt_parser();
+    let mut p = ChunkParser::new(0, &pratt);
+    let ast = p.parse_expression(token)?;
+    Ok(ast)
+}

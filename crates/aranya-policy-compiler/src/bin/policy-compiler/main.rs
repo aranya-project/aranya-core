@@ -1,7 +1,7 @@
 use std::{fs::File, path::PathBuf, process::ExitCode};
 
 use aranya_policy_compiler::{Compiler, validate::validate};
-use aranya_policy_lang::lang::parse_policy_document;
+use aranya_policy_lang::parse_policy_document;
 use clap::Parser;
 
 #[derive(Parser, Debug)]

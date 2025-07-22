@@ -1,16 +1,12 @@
 #![allow(clippy::panic)]
 
-use std::{fs::OpenOptions, io::Read};
-
-use aranya_policy_ast::{ident, text};
-use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
+use aranya_policy_ast::{self as ast, AstNode, Expression, FactField, Version, ident, text};
 use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{
-    ParseError, PolicyParser, Rule, Version, ast, ast::AstNode, get_pratt_parser,
-    parse_policy_document, parse_policy_str,
+    FfiTypes, ParseError, ParseErrorKind, parse_policy_document, parse_policy_str,
+    parser::{ChunkParser, PolicyParser, Rule, get_pratt_parser},
 };
-use crate::lang::{ChunkParser, FfiTypes, ParseErrorKind};
 
 #[test]
 #[allow(clippy::result_large_err)]
@@ -675,7 +671,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("envelope_id"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("envelope"),
                                 identifier: ident!("command_id"),
                                 arguments: vec![Expression::Identifier(ident!("envelope"))]
@@ -686,7 +682,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("author"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("envelope"),
                                 identifier: ident!("author_id"),
                                 arguments: vec![Expression::Identifier(ident!("envelope"))]
@@ -724,7 +720,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                             expression: Expression::Identifier(ident!("x")),
                             arms: vec![
                                 ast::MatchArm {
-                                    pattern: MatchPattern::Values(vec![Expression::Int(0)]),
+                                    pattern: ast::MatchPattern::Values(vec![Expression::Int(0)]),
                                     statements: vec![AstNode::new(
                                         ast::Statement::Check(ast::CheckStatement {
                                             expression: Expression::FunctionCall(
@@ -742,7 +738,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                     )],
                                 },
                                 ast::MatchArm {
-                                    pattern: MatchPattern::Values(vec!(Expression::Int(1))),
+                                    pattern: ast::MatchPattern::Values(vec!(Expression::Int(1))),
                                     statements: vec![AstNode::new(
                                         ast::Statement::Check(ast::CheckStatement {
                                             expression: Expression::FunctionCall(
@@ -756,7 +752,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                                     )],
                                 },
                                 ast::MatchArm {
-                                    pattern: MatchPattern::Default,
+                                    pattern: ast::MatchPattern::Default,
                                     statements: vec![],
                                 },
                             ],
@@ -787,7 +783,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("a"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("foo"),
                                 identifier: ident!("ext_func"),
                                 arguments: vec![Expression::Identifier(ident!("x"))],
@@ -879,7 +875,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("envelope_id"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("envelope"),
                                 identifier: ident!("command_id"),
                                 arguments: vec![Expression::Identifier(ident!("envelope"))]
@@ -890,7 +886,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
                     AstNode::new(
                         ast::Statement::Let(ast::LetStatement {
                             identifier: ident!("author"),
-                            expression: Expression::ForeignFunctionCall(ForeignFunctionCall {
+                            expression: Expression::ForeignFunctionCall(ast::ForeignFunctionCall {
                                 module: ident!("envelope"),
                                 identifier: ident!("author_id"),
                                 arguments: vec![Expression::Identifier(ident!("envelope"))]
@@ -1065,16 +1061,8 @@ fn parse_policy_test() -> Result<(), ParseError> {
 // which must be kept up-to-date with this test.
 #[test]
 fn parse_tictactoe() {
-    let text = {
-        let mut buf = vec![];
-        let mut f = OpenOptions::new()
-            .read(true)
-            .open("src/lang/tictactoe-policy.md")
-            .expect("could not open policy");
-        f.read_to_end(&mut buf).expect("could not read policy file");
-        String::from_utf8(buf).expect("File is not valid UTF-8")
-    };
-
+    let text = std::fs::read_to_string("src/tests/tictactoe-policy.md")
+        .expect("could not read policy file");
     let policy = parse_policy_document(&text).unwrap_or_else(|e| panic!("{e}"));
     assert_eq!(policy.facts.len(), 4);
     assert_eq!(policy.actions.len(), 2);
@@ -1829,7 +1817,7 @@ fn parse_match_expression() {
                     arms: vec![
                         AstNode::new(
                             ast::MatchExpressionArm {
-                                pattern: MatchPattern::Values(vec![Expression::Int(0)]),
+                                pattern: ast::MatchPattern::Values(vec![Expression::Int(0)]),
                                 expression: Expression::Block(
                                     vec![AstNode::new(
                                         ast::Statement::Let(ast::LetStatement {
@@ -1845,7 +1833,7 @@ fn parse_match_expression() {
                         ),
                         AstNode::new(
                             ast::MatchExpressionArm {
-                                pattern: MatchPattern::Default,
+                                pattern: ast::MatchPattern::Default,
                                 expression: Expression::Bool(false)
                             },
                             173

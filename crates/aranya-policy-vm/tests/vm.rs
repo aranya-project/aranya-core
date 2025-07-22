@@ -8,7 +8,7 @@ use std::{cell::RefCell, collections::BTreeMap, iter};
 use aranya_crypto::Id;
 use aranya_policy_ast::{self as ast, Version};
 use aranya_policy_compiler::Compiler;
-use aranya_policy_lang::lang::parse_policy_str;
+use aranya_policy_lang::parse_policy_str;
 use aranya_policy_vm::{
     ActionContext, CommandContext, ExitReason, FactValue, Identifier, KVPair, Machine,
     MachineError, MachineErrorType, MachineIO, MachineStack, Module, OpenContext, PolicyContext,
