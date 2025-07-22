@@ -111,30 +111,32 @@ impl<CS: CipherSuite> IdentityKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     default::{
-    ///         DefaultCipherSuite,
-    ///         DefaultEngine,
-    ///     },
-    ///     IdentityKey,
-    ///     Rng,
+    ///     IdentityKey, Rng,
+    ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
     /// let sk = IdentityKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
-    /// let sig = sk.sign(MESSAGE, CONTEXT)
+    /// let sig = sk.sign(MESSAGE, CONTEXT).expect("should not fail");
+    ///
+    /// sk.public()
+    ///     .expect("identity key should be valid")
+    ///     .verify(MESSAGE, CONTEXT, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("identity key should be valid").verify(MESSAGE, CONTEXT, &sig)
-    ///     .expect("should not fail");
-    ///
-    /// sk.public().expect("identity key should be valid").verify(MESSAGE, b"wrong context", &sig)
+    /// sk.public()
+    ///     .expect("identity key should be valid")
+    ///     .verify(MESSAGE, b"wrong context", &sig)
     ///     .expect_err("should fail");
     ///
-    /// let wrong_sig = sk.sign(b"different", b"signature")
+    /// let wrong_sig = sk
+    ///     .sign(b"different", b"signature")
     ///     .expect("should not fail");
-    /// sk.public().expect("identity key should be valid").verify(MESSAGE, CONTEXT, &wrong_sig)
+    /// sk.public()
+    ///     .expect("identity key should be valid")
+    ///     .verify(MESSAGE, CONTEXT, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
@@ -189,30 +191,32 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     default::{
-    ///         DefaultCipherSuite,
-    ///         DefaultEngine,
-    ///     },
-    ///     Rng,
-    ///     SigningKey,
+    ///     Rng, SigningKey,
+    ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
     /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
     ///
     /// const MESSAGE: &[u8] = b"hello, world!";
     /// const CONTEXT: &[u8] = b"doc test";
-    /// let sig = sk.sign(MESSAGE, CONTEXT)
+    /// let sig = sk.sign(MESSAGE, CONTEXT).expect("should not fail");
+    ///
+    /// sk.public()
+    ///     .expect("signing key should be valid")
+    ///     .verify(MESSAGE, CONTEXT, &sig)
     ///     .expect("should not fail");
     ///
-    /// sk.public().expect("signing key should be valid").verify(MESSAGE, CONTEXT, &sig)
-    ///     .expect("should not fail");
-    ///
-    /// sk.public().expect("signing key should be valid").verify(MESSAGE, b"wrong context", &sig)
+    /// sk.public()
+    ///     .expect("signing key should be valid")
+    ///     .verify(MESSAGE, b"wrong context", &sig)
     ///     .expect_err("should fail");
     ///
-    /// let wrong_sig = sk.sign(b"different", b"signature")
+    /// let wrong_sig = sk
+    ///     .sign(b"different", b"signature")
     ///     .expect("should not fail");
-    /// sk.public().expect("signing key should be valid").verify(MESSAGE, CONTEXT, &wrong_sig)
+    /// sk.public()
+    ///     .expect("signing key should be valid")
+    ///     .verify(MESSAGE, CONTEXT, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
@@ -237,14 +241,8 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// # #[cfg(all(feature = "alloc", not(feature = "trng")))]
     /// # {
     /// use aranya_crypto::{
-    ///     default::{
-    ///         DefaultCipherSuite,
-    ///         DefaultEngine,
-    ///     },
-    ///     Cmd,
-    ///     Id,
-    ///     Rng,
-    ///     SigningKey,
+    ///     Cmd, Id, Rng, SigningKey,
+    ///     default::{DefaultCipherSuite, DefaultEngine},
     /// };
     ///
     /// let sk = SigningKey::<DefaultCipherSuite>::new(&mut Rng);
@@ -253,10 +251,15 @@ impl<CS: CipherSuite> SigningKey<CS> {
     /// let name = "AddDevice";
     /// let parent_id = &Id::random(&mut Rng);
     ///
-    /// let good_cmd = Cmd { data, name, parent_id };
-    /// let (sig, _) = sk.sign_cmd(good_cmd)
-    ///     .expect("should not fail");
-    /// sk.public().expect("signing key should be valid").verify_cmd(good_cmd, &sig)
+    /// let good_cmd = Cmd {
+    ///     data,
+    ///     name,
+    ///     parent_id,
+    /// };
+    /// let (sig, _) = sk.sign_cmd(good_cmd).expect("should not fail");
+    /// sk.public()
+    ///     .expect("signing key should be valid")
+    ///     .verify_cmd(good_cmd, &sig)
     ///     .expect("should not fail");
     ///
     /// let wrong_name_cmd = Cmd {
@@ -264,7 +267,9 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     name: "wrong name",
     ///     parent_id,
     /// };
-    /// sk.public().expect("signing key should be valid").verify_cmd(wrong_name_cmd, &sig)
+    /// sk.public()
+    ///     .expect("signing key should be valid")
+    ///     .verify_cmd(wrong_name_cmd, &sig)
     ///     .expect_err("should fail");
     ///
     /// let wrong_id_cmd = Cmd {
@@ -272,7 +277,9 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     name,
     ///     parent_id: &Id::random(&mut Rng),
     /// };
-    /// sk.public().expect("signing key should be valid").verify_cmd(wrong_id_cmd, &sig)
+    /// sk.public()
+    ///     .expect("signing key should be valid")
+    ///     .verify_cmd(wrong_id_cmd, &sig)
     ///     .expect_err("should fail");
     ///
     /// let wrong_sig_cmd = Cmd {
@@ -280,9 +287,10 @@ impl<CS: CipherSuite> SigningKey<CS> {
     ///     name: "signature",
     ///     parent_id: &Id::random(&mut Rng),
     /// };
-    /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd)
-    ///     .expect("should not fail");
-    /// sk.public().expect("signing key should be valid").verify_cmd(good_cmd, &wrong_sig)
+    /// let (wrong_sig, _) = sk.sign_cmd(wrong_sig_cmd).expect("should not fail");
+    /// sk.public()
+    ///     .expect("signing key should be valid")
+    ///     .verify_cmd(good_cmd, &wrong_sig)
     ///     .expect_err("should fail");
     /// # }
     /// ```
