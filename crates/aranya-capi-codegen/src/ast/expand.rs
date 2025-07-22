@@ -1,12 +1,12 @@
 use std::{collections::HashMap, iter::Peekable, mem, slice};
 
 use proc_macro2::{Span, TokenStream};
-use quote::{format_ident, quote, ToTokens, TokenStreamExt};
+use quote::{ToTokens, TokenStreamExt, format_ident, quote};
 use syn::{
-    parse_quote, parse_quote_spanned,
+    Attribute, Expr, Ident, ItemConst, ItemImpl, ItemStruct, Path, Result, Token, parse_quote,
+    parse_quote_spanned,
     punctuated::{Pair, Punctuated},
     spanned::Spanned,
-    Attribute, Expr, Ident, ItemConst, ItemImpl, ItemStruct, Path, Result, Token,
 };
 use tracing::{debug, instrument, trace};
 
@@ -14,12 +14,12 @@ use super::{Ast, IdentMap};
 use crate::{
     ctx::Ctx,
     syntax::{
-        attrs::{NoExtError, Repr},
-        trace::Instrument,
         Alias, AttrsExt, Builds, DeriveTrait, Enum, FfiFn, Fields, FnArg, Lifetimes, MaybeUninit,
         Node, Ptr, Ref, ReturnType, RustFn, Scalar, ScalarType, Struct, Type, Union, Unit,
+        attrs::{NoExtError, Repr},
+        trace::Instrument,
     },
-    util::{parse_doc, IdentExt, PathExt},
+    util::{IdentExt, PathExt, parse_doc},
 };
 
 impl Ast {
@@ -61,7 +61,7 @@ impl Ast {
             doc,
             derives,
             ext_error,
-            opaque,
+            mut opaque,
             builds,
             attrs,
             vis,
@@ -70,6 +70,9 @@ impl Ast {
             semi_token,
             ..
         } = alias;
+        if let Some(o) = &mut opaque {
+            o.generated = true;
+        }
         let strukt = Struct {
             doc,
             derives,
@@ -784,7 +787,7 @@ impl Ast {
                 #doc
                 #(#attrs)*
                 #tracing
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 pub extern "C" fn #name(#inputs) #ret {
                     #[allow(clippy::blocks_in_conditions)]
                     #[allow(clippy::match_single_binding)]
@@ -884,7 +887,7 @@ impl Ast {
                     #doc
                     #(#attrs)*
                     #tracing
-                    #[no_mangle]
+                    #[unsafe(no_mangle)]
                     pub extern "C" fn #name(#inputs) #ret {
                         #[allow(clippy::blocks_in_conditions)]
                         #[allow(clippy::match_single_binding)]

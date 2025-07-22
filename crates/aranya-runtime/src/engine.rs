@@ -7,9 +7,9 @@ use buggy::Bug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    Address,
     command::{Command, CommandId},
     storage::{FactPerspective, Perspective},
-    Address,
 };
 
 /// An error returned by the runtime engine.
@@ -27,6 +27,12 @@ pub enum EngineError {
     InternalError,
     #[error(transparent)]
     Bug(#[from] Bug),
+}
+
+impl From<core::convert::Infallible> for EngineError {
+    fn from(error: core::convert::Infallible) -> Self {
+        match error {}
+    }
 }
 
 #[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Serialize, Deserialize)]

@@ -1,9 +1,9 @@
 use core::marker::PhantomData;
 
-use serde::{Deserialize, Serialize};
-
-use crate::{
+use derive_where::derive_where;
+use spideroak_crypto::{
     csprng::{Csprng, Random},
+    hpke::{RecvCtx, SendCtx},
     import::{ExportError, Import, ImportError},
     kdf::{Expand, Kdf, KdfError, Prk},
     kem::{DecapKey, Kem},
@@ -12,10 +12,12 @@ use crate::{
     subtle::{Choice, ConstantTimeEq},
     typenum::U32,
     zeroize::{Zeroize, ZeroizeOnDrop},
-    CipherSuite,
 };
 
+use crate::ciphersuite::CipherSuite;
+
 /// The root key material for a channel.
+#[derive_where(Clone)]
 pub(crate) struct RootChannelKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
 
 impl<CS: CipherSuite> RootChannelKey<CS> {
@@ -32,12 +34,6 @@ impl<CS: CipherSuite> RootChannelKey<CS> {
     }
 }
 
-impl<CS: CipherSuite> Clone for RootChannelKey<CS> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
 impl<CS: CipherSuite> ConstantTimeEq for RootChannelKey<CS> {
     fn ct_eq(&self, other: &Self) -> Choice {
         self.0.ct_eq(&other.0)
@@ -46,15 +42,11 @@ impl<CS: CipherSuite> ConstantTimeEq for RootChannelKey<CS> {
 
 impl<CS: CipherSuite> Random for RootChannelKey<CS> {
     fn random<R: Csprng>(rng: &mut R) -> Self {
-        Self(<<CS::Kem as Kem>::DecapKey as SecretKey>::new(rng))
+        Self(Random::random(rng))
     }
 }
 
 impl<CS: CipherSuite> SecretKey for RootChannelKey<CS> {
-    fn new<R: Csprng>(rng: &mut R) -> Self {
-        Random::random(rng)
-    }
-
     type Size = <<CS::Kem as Kem>::DecapKey as SecretKey>::Size;
 
     fn try_export_secret(&self) -> Result<SecretKeyBytes<Self::Size>, ExportError> {
@@ -73,8 +65,8 @@ impl<'a, CS: CipherSuite> Import<&'a [u8]> for RootChannelKey<CS> {
 }
 
 /// A raw PSK.
-#[derive(Serialize, Deserialize)]
-pub struct RawPsk<CS> {
+#[derive_where(Clone, Serialize, Deserialize)]
+pub(super) struct RawPsk<CS> {
     // TODO(eric): support different sizes?
     psk: [u8; 32],
     _marker: PhantomData<CS>,
@@ -83,18 +75,8 @@ pub struct RawPsk<CS> {
 impl<CS: CipherSuite> RawPsk<CS> {
     /// Returns the raw PSK secret bytes.
     #[inline]
-    pub const fn raw_secret_bytes(&self) -> &[u8] {
+    pub(super) const fn raw_secret_bytes(&self) -> &[u8] {
         &self.psk
-    }
-}
-
-impl<CS: CipherSuite> Clone for RawPsk<CS> {
-    #[inline]
-    fn clone(&self) -> Self {
-        Self {
-            psk: self.psk,
-            _marker: PhantomData,
-        }
     }
 }
 
@@ -127,5 +109,22 @@ impl<CS> ZeroizeOnDrop for RawPsk<CS> {}
 impl<CS> Drop for RawPsk<CS> {
     fn drop(&mut self) {
         self.psk.zeroize();
+    }
+}
+
+pub(super) enum SendOrRecvCtx<CS: CipherSuite> {
+    Send(SendCtx<CS::Kem, CS::Kdf, CS::Aead>),
+    Recv(RecvCtx<CS::Kem, CS::Kdf, CS::Aead>),
+}
+
+impl<CS: CipherSuite> SendOrRecvCtx<CS> {
+    pub(super) fn export<T>(&self, context: &[u8]) -> Result<T, KdfError>
+    where
+        T: Expand,
+    {
+        match self {
+            SendOrRecvCtx::Send(ctx) => ctx.export(context),
+            SendOrRecvCtx::Recv(ctx) => ctx.export(context),
+        }
     }
 }

@@ -1,6 +1,6 @@
 use alloc::sync::Arc;
 use core::{
-    ffi::{c_int, CStr},
+    ffi::{CStr, c_int},
     marker::PhantomData,
 };
 
@@ -21,8 +21,8 @@ cfg_if! {
 }
 
 pub use imp::{
-    mode_t, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP,
-    S_IRUSR, S_IWGRP, S_IWUSR,
+    LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR,
+    S_IWGRP, S_IWUSR, mode_t,
 };
 
 /// Allows borrowing the file descriptor.
@@ -186,6 +186,11 @@ pub fn pwrite(fd: impl AsFd, buf: &[u8], off: i64) -> Result<usize, Errno> {
 /// See `fsync(2)`.
 pub fn fsync(fd: impl AsFd) -> Result<(), Errno> {
     imp::fsync(fd.as_fd())
+}
+
+/// See `unlinkat(2)`.
+pub fn unlinkat(fd: impl AsAtRoot, path: impl AsRef<Path>, flags: c_int) -> Result<(), Errno> {
+    imp::unlinkat(fd.as_root(), path.as_ref(), flags)
 }
 
 /// See `dup(2)`.

@@ -8,10 +8,11 @@ extern crate alloc;
 use alloc::{collections::BTreeMap, sync::Arc};
 
 use aranya_crypto::{
-    afc::{OpenKey, SealKey},
     CipherSuite,
+    afc::{OpenKey, SealKey},
 };
 use buggy::{Bug, BugExt};
+use derive_where::derive_where;
 
 use crate::{
     error::Error,
@@ -21,25 +22,10 @@ use crate::{
 
 /// An im-memory implementation of [`AfcState`] and
 /// [`AranyaState`].
+#[derive_where(Clone, Default)]
 pub struct State<CS: CipherSuite> {
     #[allow(clippy::type_complexity)]
     chans: Arc<StdMutex<BTreeMap<ChannelId, Directed<SealKey<CS>, OpenKey<CS>>>>>,
-}
-
-impl<CS: CipherSuite> Clone for State<CS> {
-    fn clone(&self) -> Self {
-        State {
-            chans: self.chans.clone(),
-        }
-    }
-}
-
-impl<CS: CipherSuite> Default for State<CS> {
-    fn default() -> Self {
-        Self {
-            chans: Arc::default(),
-        }
-    }
 }
 
 impl<CS: CipherSuite> State<CS> {
@@ -132,11 +118,9 @@ where
 mod tests {
     #![allow(clippy::indexing_slicing)]
 
-    use std::str;
-
     use aranya_crypto::{
-        afc::{BidiKeys, UniOpenKey, UniSealKey},
         Rng,
+        afc::{BidiKeys, UniOpenKey, UniSealKey},
     };
 
     use super::*;

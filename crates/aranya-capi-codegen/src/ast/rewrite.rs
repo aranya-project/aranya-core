@@ -2,8 +2,8 @@ use std::{fmt::Write, mem};
 
 use aho_corasick::{AhoCorasick, MatchKind};
 use syn::{
-    visit_mut::{self, VisitMut},
     Ident, LitStr, Path,
+    visit_mut::{self, VisitMut},
 };
 use tracing::{debug, instrument, trace};
 
@@ -141,7 +141,7 @@ impl Ast {
                     for arg in &mut f.sig.inputs {
                         rewrite_ty(ctx, &mut arg.ty, idents);
                     }
-                    if let ReturnType::Type(_, ref mut ty) = &mut f.sig.output {
+                    if let ReturnType::Type(_, ty) = &mut f.sig.output {
                         rewrite_ty(ctx, ty, idents);
                     }
                     let mut visitor = Visitor {
@@ -155,7 +155,7 @@ impl Ast {
                     for arg in &mut f.sig.inputs {
                         rewrite_ty(ctx, &mut arg.ty, idents);
                     }
-                    if let ReturnType::Type(_, ref mut ty) = &mut f.sig.output {
+                    if let ReturnType::Type(_, ty) = &mut f.sig.output {
                         rewrite_ty(ctx, ty, idents);
                     }
                     let mut visitor = Visitor {

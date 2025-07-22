@@ -1,11 +1,10 @@
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::{
-    parse_quote,
+    Expr, Ident, Token, parse_quote,
     punctuated::Punctuated,
     spanned::Spanned,
     token::{Bracket, Paren},
-    Expr, Ident, Token,
 };
 
 use super::{node::FnArg, types::Type};
@@ -27,7 +26,7 @@ impl Instrument {
     where
         I: IntoIterator<Item = &'a FnArg>,
     {
-        let mut gen = Self {
+        let mut instrument = Self {
             level: Some("trace".to_owned()),
             ..Default::default()
         };
@@ -83,9 +82,9 @@ impl Instrument {
                     },
                 },
             };
-            gen.fields.push(field);
+            instrument.fields.push(field);
         }
-        gen
+        instrument
     }
 }
 

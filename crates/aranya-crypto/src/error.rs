@@ -1,17 +1,19 @@
 #![forbid(unsafe_code)]
 
 use buggy::Bug;
-
-use crate::{
+pub use spideroak_crypto::{
     aead::{OpenError, SealError},
-    engine::{UnwrapError, WrapError},
     hpke::HpkeError,
-    id::IdError,
     import::{ExportError, ImportError},
     kdf::KdfError,
     kem::{EcdhError, KemError},
     mac::MacError,
     signer::{PkError, SignerError},
+};
+
+use crate::{
+    engine::{UnwrapError, WrapError},
+    id::IdError,
 };
 
 /// Encompasses the different errors directly returned by this
@@ -70,4 +72,11 @@ pub enum Error {
     /// A public key failure.
     #[error(transparent)]
     Pk(#[from] PkError),
+}
+
+#[cfg(any(feature = "afc", feature = "aqc"))]
+impl Error {
+    pub(crate) const fn same_device_id() -> Self {
+        Self::InvalidArgument("same `DeviceId`")
+    }
 }

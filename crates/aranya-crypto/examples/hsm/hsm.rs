@@ -6,16 +6,18 @@ use std::{
 };
 
 use aranya_crypto::{
-    aead::{Aead, Nonce},
-    csprng::Random,
-    custom_id,
-    ed25519::{SigningKey, VerifyingKey},
-    hash::tuple_hash,
-    import::{Import, ImportError},
-    keys::{PublicKey, SecretKey},
-    rust::{Aes256Gcm, Sha256},
-    signer::PkError,
-    Rng,
+    Rng, custom_id,
+    dangerous::spideroak_crypto::{
+        aead::Aead,
+        csprng::Random,
+        ed25519::{SigningKey, VerifyingKey},
+        generic_array::GenericArray,
+        hash::tuple_hash,
+        import::{Import, ImportError},
+        keys::PublicKey as _,
+        rust::{Aes256Gcm, Sha256},
+        signer::PkError,
+    },
 };
 use buggy::{Bug, BugExt};
 use serde::{Deserialize, Serialize};
@@ -84,7 +86,7 @@ impl Hsm {
         // A random nonce is fine for this example. In practice,
         // you would probably want to ensure that you never
         // repeat nonces.
-        let nonce = Nonce::<_>::random(&mut Rng);
+        let nonce = GenericArray::<u8, _>::random(&mut Rng);
 
         // Bind the ciphertext to the (alias, context) tuple.
         let ad = postcard::to_allocvec(&AuthData { alias, context })
@@ -133,7 +135,7 @@ impl Hsm {
 /// The structure of a key wrapped by the HSM.
 #[derive(Serialize, Deserialize)]
 struct WrappedKey<'a> {
-    nonce: Nonce<<Aes256Gcm as Aead>::NonceSize>,
+    nonce: GenericArray<u8, <Aes256Gcm as Aead>::NonceSize>,
     #[serde(borrow)]
     ciphertext: &'a [u8],
 }
@@ -159,7 +161,7 @@ impl Hsm {
 
     /// Creates a new `SigningKey`.
     pub fn new_signing_key(&mut self) -> KeyId {
-        let sk = SigningKey::new(&mut Rng);
+        let sk = SigningKey::random(&mut Rng);
         let id = Self::signer_key_id(&SigningKey::public(&sk));
         self.keys.insert(id, HsmKey::Signing(sk));
         id
@@ -189,7 +191,7 @@ impl Hsm {
         F: FnOnce(&SigningKey) -> R,
     {
         match self.load_key(id)? {
-            HsmKey::Signing(ref sk) => Ok(f(sk)),
+            HsmKey::Signing(sk) => Ok(f(sk)),
             _ => Err(HsmError::WrongKeyType),
         }
     }

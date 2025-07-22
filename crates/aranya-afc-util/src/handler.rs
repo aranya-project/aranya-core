@@ -1,13 +1,12 @@
 //! An effect handler for AFC.
 
 use aranya_crypto::{
+    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiPeerEncap, UniAuthorSecret, UniChannel, UniPeerEncap,
     },
-    CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
 };
 use aranya_fast_channels::{Directed, Label};
-use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 
 use crate::{shared::decode_enc_pk, transform::Transform};
@@ -164,9 +163,7 @@ pub struct BidiChannelReceived<'a> {
 }
 
 /// Uniquely identifies a bidirectional channel.
-#[derive(
-    Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, MaxSize,
-)]
+#[derive(Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct BidiKeyId(Id);
 
 impl From<Id> for BidiKeyId {
@@ -176,7 +173,7 @@ impl From<Id> for BidiKeyId {
 }
 
 /// Bidirectional channel keys.
-#[derive(Clone, Debug, Serialize, Deserialize, MaxSize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BidiKeys<S, O> {
     /// The encryption key.
     pub seal: S,
@@ -333,9 +330,7 @@ pub struct UniChannelReceived<'a> {
 }
 
 /// Uniquely identifies a unirectional channel.
-#[derive(
-    Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, MaxSize,
-)]
+#[derive(Copy, Clone, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct UniKeyId(Id);
 
 impl From<Id> for UniKeyId {
@@ -345,7 +340,7 @@ impl From<Id> for UniKeyId {
 }
 
 /// A unidirectional channel key.
-#[derive(Clone, Debug, Serialize, Deserialize, MaxSize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UniKey<S, O> {
     /// May only be used for encryption.
     SealOnly(S),

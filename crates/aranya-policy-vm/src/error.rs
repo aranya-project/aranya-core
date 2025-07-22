@@ -3,6 +3,7 @@ extern crate alloc;
 use alloc::{borrow::ToOwned, string::String};
 use core::{convert::Infallible, fmt};
 
+use aranya_policy_ast::Identifier;
 use aranya_policy_module::{CodeMap, Label, ValueConversionError};
 use buggy::Bug;
 
@@ -24,7 +25,7 @@ pub enum MachineErrorType {
     /// Name already defined - an attempt was made to define a name
     /// that was already defined. Parameter is the name.
     #[error("name `{0}` already defined")]
-    AlreadyDefined(String),
+    AlreadyDefined(Identifier),
     /// Name not defined - an attempt was made to access a name that
     /// has not been defined. Parameter is the name.
     #[error("name `{0}` not defined")]
@@ -43,15 +44,15 @@ pub enum MachineErrorType {
     /// Invalid struct member - An attempt to access a member not
     /// present in a struct. Parameter is the key name.
     #[error("invalid struct member `{0}`")]
-    InvalidStructMember(String),
+    InvalidStructMember(Identifier),
     /// Invalid fact - An attempt was made to use a fact in a way
     /// that does not match the Fact schema.
     #[error("invalid fact: {0}")]
-    InvalidFact(String),
+    InvalidFact(Identifier),
     /// Invalid schema - An attempt to publish a Command struct or emit
     /// an Effect that does not match its definition.
     #[error("invalid schema: {0}")]
-    InvalidSchema(String),
+    InvalidSchema(Identifier),
     /// Unresolved target - A branching instruction attempted to jump
     /// to a target whose address has not yet been resolved.
     #[error("unresolved branch/jump target: {0}")]
@@ -60,7 +61,7 @@ pub enum MachineErrorType {
     /// beyond instruction bounds, or an action/command lookup did not
     /// find an address for the given name.
     #[error("invalid address: {0}")]
-    InvalidAddress(String),
+    InvalidAddress(Identifier),
     /// Bad state - Some internal state is invalid and execution cannot
     /// continue.
     #[error("bad state: {0}")]
@@ -86,7 +87,7 @@ pub enum MachineErrorType {
     FfiModuleNotDefined(usize),
     /// FFI module was found, but the procedure index is invalid.
     #[error("FFI proc {0} not defined in module {1}")]
-    FfiProcedureNotDefined(String, usize),
+    FfiProcedureNotDefined(Identifier, usize),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(Bug),

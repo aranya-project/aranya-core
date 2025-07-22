@@ -17,6 +17,13 @@ skip_rust_env_info = true
 description = "List tasks"
 script = "cargo make --quiet --list-all-steps --hide-uninteresting"
 
+# Check
+[tasks.check]
+category = "check"
+description = "Check code"
+command = "cargo"
+args = ["check", "${@}"]
+
 
 # Build
 [tasks.build-code]
@@ -48,13 +55,13 @@ run_task = { name = [
 
 [tasks.cargo-audit]
 category = "security"
-install_crate = { crate_name = "cargo-audit", version = "0.21.0", binary = "cargo-audit", test_arg = "-V" }
+install_crate = { crate_name = "cargo-audit", version = "0.21.2", binary = "cargo-audit", test_arg = "-V" }
 command = "cargo"
 args = ["audit"]
 
 [tasks.cargo-deny]
 category = "security"
-install_crate = { crate_name = "cargo-deny", version = "0.16.3", binary = "cargo-deny", test_arg = "-V" }
+install_crate = { crate_name = "cargo-deny", version = "0.18.2", binary = "cargo-deny", test_arg = "-V" }
 command = "cargo"
 args = ["deny", "check"]
 
@@ -122,7 +129,7 @@ dependencies = ["install-cargo-vet"]
 
 [tasks.install-taplo]
 private = true
-install_crate = { crate_name = "taplo-cli", version = "0.9.0", binary = "taplo", test_arg = ["-V"] }
+install_crate = { crate_name = "taplo-cli", version = "0.9.3", binary = "taplo", test_arg = ["-V"] }
 
 [tasks.check-features]
 category = "correctness"
@@ -170,7 +177,7 @@ script = "rustup target add aarch64-unknown-none"
 [tasks.machete]
 command = "cargo"
 args = ["machete"]
-install_crate = { crate_name = "cargo-machete", version = "0.6.2", binary = "cargo-machete", test_arg = "--version" }
+install_crate = { crate_name = "cargo-machete", version = "0.8.0", binary = "cargo-machete", test_arg = "--version" }
 
 
 # Docs
@@ -178,7 +185,7 @@ install_crate = { crate_name = "cargo-machete", version = "0.6.2", binary = "car
 category = "docs"
 description = "Generate docs with rust nightly"
 toolchain = "${NIGHTLY}"
-env = { RUSTDOCFLAGS = "--cfg docs ${RUSTDOCFLAGS}" }
+env = { RUSTDOCFLAGS = "--cfg docsrs ${RUSTDOCFLAGS}" }
 command = "cargo"
 args = ["doc", "--all-features"]
 dependencies = ["install-nightly"]

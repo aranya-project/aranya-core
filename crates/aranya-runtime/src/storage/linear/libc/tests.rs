@@ -7,7 +7,7 @@ use tracing::info;
 use super::*;
 use crate::{
     storage::linear::LinearStorageProvider,
-    testing::dsl::{test_suite, StorageBackend},
+    testing::dsl::{StorageBackend, test_suite},
 };
 
 struct LinearBackend {

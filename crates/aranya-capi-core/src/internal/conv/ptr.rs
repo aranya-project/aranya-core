@@ -116,7 +116,7 @@ impl CStrTag {
     ///   from `ptr`.
     pub unsafe fn try_from_ptr(self, ptr: *const c_char) -> Result<CStr, Error> {
         // SAFETY: See the method's docs.
-        unsafe { CStr::try_from_ptr(ptr) }.map_err(Into::into)
+        unsafe { CStr::try_from_ptr(ptr) }
     }
 }
 
@@ -145,7 +145,7 @@ impl SafeTag {
         ptr: *const Safe<T>,
     ) -> Result<&'a Safe<T>, Error> {
         // SAFETY: See the method's docs.
-        unsafe { Safe::try_from_ptr(ptr) }.map_err(Into::into)
+        unsafe { Safe::try_from_ptr(ptr) }
     }
 
     /// Returns an exclusive reference from `ptr`.
@@ -159,7 +159,7 @@ impl SafeTag {
         ptr: *mut Safe<T>,
     ) -> Result<&'a mut Safe<T>, Error> {
         // SAFETY: See the method's docs.
-        unsafe { Safe::try_from_mut_ptr(ptr) }.map_err(Into::into)
+        unsafe { Safe::try_from_mut_ptr(ptr) }
     }
 
     /// Returns a possibly uninitialized exclusive reference from
@@ -173,7 +173,7 @@ impl SafeTag {
         ptr: *mut MaybeUninit<Safe<T>>,
     ) -> Result<&'a mut MaybeUninit<Safe<T>>, Error> {
         // SAFETY: See the method's docs.
-        unsafe { Safe::try_from_uninit_mut_ptr(ptr) }.map_err(Into::into)
+        unsafe { Safe::try_from_uninit_mut_ptr(ptr) }
     }
 
     /// Returns an [`OwnedPtr`] from `ptr`.
@@ -187,7 +187,7 @@ impl SafeTag {
         ptr: *mut Safe<T>,
     ) -> Result<OwnedPtr<Safe<T>>, Error> {
         // SAFETY: See the method's docs.
-        unsafe { Safe::try_from_owned_ptr(ptr) }.map_err(Into::into)
+        unsafe { Safe::try_from_owned_ptr(ptr) }
     }
 }
 
@@ -211,7 +211,7 @@ macro_rules! try_as_ref {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }
@@ -238,7 +238,7 @@ macro_rules! try_as_mut {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }
@@ -266,7 +266,7 @@ macro_rules! try_as_uninit_mut {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }
@@ -307,7 +307,7 @@ macro_rules! try_consume {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }
@@ -331,7 +331,7 @@ macro_rules! try_consume_opt {
                 ::core::result::Result::Err(err) => {
                     return ::core::result::Result::Err(::core::convert::From::from(
                         $crate::InvalidArg::new(::core::stringify!($ptr), err),
-                    ))
+                    ));
                 }
             },
         }

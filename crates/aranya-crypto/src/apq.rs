@@ -3,35 +3,37 @@
 //! [APQ]: https://git.spideroak-inc.com/spideroak-inc/apq
 
 #![forbid(unsafe_code)]
+#![cfg(feature = "apq")]
+#![cfg_attr(docsrs, doc(cfg(feature = "apq")))]
 
-use core::{borrow::Borrow, fmt, ops::Add, result::Result};
+use core::{cell::OnceCell, fmt, iter, ops::Add, result::Result};
 
-use postcard::experimental::max_size::MaxSize;
 use serde::{Deserialize, Serialize};
 use siphasher::sip128::SipHasher24;
-
-use crate::{
+use spideroak_crypto::{
     aead::{Aead, BufferTooSmallError, KeyData, OpenError, SealError},
-    aranya::{Encap, Signature},
-    ciphersuite::SuiteIds,
     csprng::{Csprng, Random},
-    engine::unwrapped,
-    error::Error,
     generic_array::{ArrayLength, GenericArray},
-    hash::tuple_hash,
     hex::ToHex,
-    hmac::Hmac,
-    hpke::{Hpke, Mode},
-    id::custom_id,
     import::{Import, ImportError},
-    kdf::Context,
-    kem::{DecapKey, Kem},
-    keys::{PublicKey, SecretKey},
-    misc::{ciphertext, key_misc},
-    signer::{Signer, SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
+    kem::DecapKey,
+    keys::PublicKey,
+    signer::{SigningKey as SigningKey_, VerifyingKey as VerifyingKey_},
     typenum::{Sum, U64},
     zeroize::{Zeroize, ZeroizeOnDrop},
-    CipherSuite,
+};
+use zerocopy::{
+    ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned,
+    byteorder::{BE, U32},
+};
+
+use crate::{
+    aranya::{Encap, Signature},
+    ciphersuite::{CipherSuite, CipherSuiteExt},
+    error::Error,
+    hpke::{self, Mode},
+    id::{IdError, custom_id},
+    misc::{ciphertext, kem_key, signing_key},
 };
 
 /// A sender's identity.
@@ -63,9 +65,7 @@ impl Version {
 }
 
 /// The APQ topic being used.
-#[derive(
-    Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize, MaxSize,
-)]
+#[derive(Copy, Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Topic([u8; 16]);
 
 impl Topic {
@@ -135,6 +135,7 @@ pub struct TopicKey<CS: CipherSuite> {
     // large and we have to handle two pieces of key material.
     key: <CS::Aead as Aead>::Key,
     seed: [u8; 64],
+    id: OnceCell<Result<TopicKeyId, IdError>>,
 }
 
 impl<CS: CipherSuite> ZeroizeOnDrop for TopicKey<CS> {}
@@ -149,6 +150,7 @@ impl<CS: CipherSuite> Clone for TopicKey<CS> {
         Self {
             key: self.key.clone(),
             seed: self.seed,
+            id: OnceCell::new(),
         }
     }
 }
@@ -163,16 +165,28 @@ impl<CS: CipherSuite> TopicKey<CS> {
     ///
     /// Two keys with the same ID are the same key.
     #[inline]
-    pub fn id(&self) -> TopicKeyId {
-        // ID = HMAC(
-        //     key=TopicKey,
-        //     message="TopicKeyId-v1" || suite_id,
-        //     outputBytes=64,
-        // )
-        let mut h = Hmac::<CS::Hash>::new(&self.seed);
-        h.update(b"TopicKeyId-v1");
-        h.update(&SuiteIds::from_suite::<CS>().into_bytes());
-        TopicKeyId(h.tag().into_array().into())
+    pub fn id(&self) -> Result<TopicKeyId, IdError> {
+        self.id
+            .get_or_init(|| {
+                // prk = LabeledExtract(
+                //     "TopicKeyId-v1",
+                //     {0}^n,
+                //     "prk",
+                //     seed,
+                // )
+                // TopicKey = LabeledExpand(
+                //     "TopicKeyId-v1",
+                //     prk,
+                //     "id",
+                //     {0}^0,
+                // )
+                const DOMAIN: &[u8] = b"TopicKeyId-v1";
+                let prk = CS::labeled_extract(DOMAIN, &[], b"prk", iter::once::<&[u8]>(&self.seed));
+                CS::labeled_expand(DOMAIN, &prk, b"id", [])
+                    .map_err(|_| IdError::new("unable to expand PRK"))
+                    .map(TopicKeyId)
+            })
+            .clone()
     }
 
     /// The size in bytes of the overhead added to plaintexts
@@ -272,19 +286,22 @@ impl<CS: CipherSuite> TopicKey<CS> {
             ))));
         }
         // ad = concat(
-        //     i2osp(version, 4),
-        //     topic,
-        //     suite_id,
-        //     hash(pk(SenderKey)),
-        //     hash(pk(SenderSigningKey)),
+        //      "apq msg"
+        //      suite_ids,
+        //      i2osp(version, 4),
+        //      topic,
+        //      hash(pk(SenderKey)),
+        //      hash(pk(SenderSigningKey)),
         // )
-        let ad = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes()[..],
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            ident.enc_key.id()?.as_bytes(),
-            ident.sign_key.id()?.as_bytes(),
-        ]);
+        let ad = CS::tuple_hash(
+            b"apq msg",
+            [
+                &version.to_be_bytes()[..],
+                &topic.as_bytes()[..],
+                ident.enc_key.id()?.as_bytes(),
+                ident.sign_key.id()?.as_bytes(),
+            ],
+        );
         let (nonce, out) = dst.split_at_mut(CS::Aead::NONCE_SIZE);
         rng.fill_bytes(nonce);
         Ok(CS::Aead::new(&self.key).seal(out, nonce, plaintext, &ad)?)
@@ -311,30 +328,33 @@ impl<CS: CipherSuite> TopicKey<CS> {
         }
         let (nonce, ciphertext) = ciphertext.split_at(CS::Aead::NONCE_SIZE);
         // ad = concat(
-        //     i2osp(version, 4),
-        //     topic,
-        //     suite_id,
-        //     hash(pk(SenderSigningKey)),
+        //     "apq msg",
+        //      suite_ids,
+        //      i2osp(version, 4),
+        //      topic,
+        //      hash(pk(SenderKey)),
+        //      hash(pk(SenderSigningKey)),
         // )
-        let ad = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes()[..],
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            ident.enc_key.id()?.as_bytes(),
-            ident.sign_key.id()?.as_bytes(),
-        ]);
+        let ad = CS::tuple_hash(
+            b"apq msg",
+            [
+                &version.to_be_bytes()[..],
+                &topic.as_bytes()[..],
+                ident.enc_key.id()?.as_bytes(),
+                ident.sign_key.id()?.as_bytes(),
+            ],
+        );
         Ok(CS::Aead::new(&self.key).open(dst, nonce, ciphertext, &ad)?)
     }
 
     fn from_seed(seed: [u8; 64], version: Version, topic: &Topic) -> Result<Self, Error> {
         let key = Self::derive_key(&seed, version, topic)?;
-        Ok(Self { key, seed })
+        Ok(Self {
+            key,
+            seed,
+            id: OnceCell::new(),
+        })
     }
-
-    const KDF_CTX: Context = Context {
-        domain: "APQ-v1",
-        suite_ids: &SuiteIds::from_suite::<CS>().into_bytes(),
-    };
 
     /// Derives a key for [`Self::open`] and [`Self::seal`].
     ///
@@ -344,17 +364,19 @@ impl<CS: CipherSuite> TopicKey<CS> {
         version: Version,
         topic: &Topic,
     ) -> Result<<CS::Aead as Aead>::Key, Error> {
-        // prk = LabeledExtract({0}^512, seed, "topic_key_prk")
-        let prk = Self::KDF_CTX.labeled_extract::<CS::Kdf>(&[], "topic_key_prk", seed);
+        const DOMAIN: &[u8] = b"APQ-v1";
+        //  prk = LabeledExtract("APQ-V1", {0}^512, "topic_key_prk", seed)
+        let prk = CS::labeled_extract(DOMAIN, &[], b"topic_key_prk", iter::once::<&[u8]>(seed));
         // info = concat(
         //     i2osp(version, 4),
         //     topic,
         // )
-        // key = LabeledExpand(prk, "topic_key_key", info, L)
-        let key = Self::KDF_CTX.labeled_expand::<CS::Kdf, KeyData<CS::Aead>>(
+        // key = LabeledExpand("APQ-v1", prk, "topic_key_key", info)
+        let key: KeyData<CS::Aead> = CS::labeled_expand(
+            DOMAIN,
             &prk,
-            "topic_key_key",
-            &[&version.to_be_bytes(), &topic.as_bytes()[..]],
+            b"topic_key_key",
+            [&version.to_be_bytes(), topic.as_bytes()],
         )?;
 
         Ok(<<CS::Aead as Aead>::Key as Import<_>>::import(
@@ -365,20 +387,17 @@ impl<CS: CipherSuite> TopicKey<CS> {
 
 ciphertext!(EncryptedTopicKey, U64, "An encrypted [`TopicKey`].");
 
-/// The private half of a [SenderSigningKey].
-///
-/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
-pub struct SenderSigningKey<CS: CipherSuite>(<CS::Signer as Signer>::SigningKey);
-
-key_misc!(SenderSigningKey, SenderVerifyingKey, SenderSigningKeyId);
+signing_key! {
+    /// The private half of a [SenderSigningKey].
+    ///
+    /// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
+    sk = SenderSigningKey,
+    pk = SenderVerifyingKey,
+    id = SenderSigningKeyId,
+    context = "APQ Sender Signing Key",
+}
 
 impl<CS: CipherSuite> SenderSigningKey<CS> {
-    /// Creates a `SenderSigningKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Signer as Signer>::SigningKey::new(rng);
-        SenderSigningKey(sk)
-    }
-
     /// Creates a signature over an encoded record.
     ///
     /// # Example
@@ -434,35 +453,26 @@ impl<CS: CipherSuite> SenderSigningKey<CS> {
         record: &[u8],
     ) -> Result<Signature<CS>, Error> {
         // message = concat(
-        //     i2osp(version, 4),
-        //     topic,
-        //     suite_id,
-        //     pk(SenderSigningKey),
-        //     encode(record),
+        //      "apq record",
+        //      suite_ids,
+        //      i2osp(version, 4),
+        //      topic,
+        //      pk(SenderSigningKey),
+        //      encode(record),
         // )
-        let msg = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes(),
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.public()?.id()?.as_bytes(),
-            record,
-        ]);
-        let sig = self.0.sign(&msg)?;
+        let msg = CS::tuple_hash(
+            b"apq record",
+            [
+                &version.to_be_bytes(),
+                &topic.as_bytes()[..],
+                self.public()?.id()?.as_bytes(),
+                record,
+            ],
+        );
+        let sig = self.sk.sign(&msg)?;
         Ok(Signature(sig))
     }
 }
-
-unwrapped! {
-    name: SenderSigningKey;
-    type: Signing;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
-}
-
-/// The public half of a [SenderSigningKey].
-///
-/// [SenderSigningKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#sendersigningkey
-pub struct SenderVerifyingKey<CS: CipherSuite>(<CS::Signer as Signer>::VerifyingKey);
 
 impl<CS: CipherSuite> SenderVerifyingKey<CS> {
     /// Verifies the signature allegedly created over an encoded
@@ -475,65 +485,48 @@ impl<CS: CipherSuite> SenderVerifyingKey<CS> {
         sig: &Signature<CS>,
     ) -> Result<(), Error> {
         // message = concat(
-        //     i2osp(version, 4),
-        //     topic,
-        //     suite_id,
-        //     pk(SenderSigningKey),
-        //     context,
-        //     encode(record),
+        //      "apq record",
+        //      suite_ids,
+        //      i2osp(version, 4),
+        //      topic,
+        //      pk(SenderSigningKey),
+        //      context,
+        //      encode(record),
         // )
-        let msg = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes(),
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            self.id()?.as_bytes(),
-            record,
-        ]);
-        Ok(self.0.verify(&msg, &sig.0)?)
+        let msg = CS::tuple_hash(
+            b"apq record",
+            [
+                &version.to_be_bytes(),
+                &topic.as_bytes()[..],
+                self.id()?.as_bytes(),
+                record,
+            ],
+        );
+        Ok(self.pk.verify(&msg, &sig.0)?)
     }
 }
 
-/// The private half of a [SenderKey].
-///
-/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
-pub struct SenderSecretKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
-
-key_misc!(SenderSecretKey, SenderPublicKey, SenderKeyId);
-
-impl<CS: CipherSuite> SenderSecretKey<CS> {
-    /// Creates a `SenderSecretKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
-        SenderSecretKey(sk)
-    }
+kem_key! {
+    /// The private half of a [SenderKey].
+    ///
+    /// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
+    sk = SenderSecretKey,
+    pk = SenderPublicKey,
+    id = SenderKeyId,
+    context = "APQ Sender Secret Key",
 }
 
-unwrapped! {
-    name: SenderSecretKey;
-    type: Decap;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+kem_key! {
+    /// The private half of a [ReceiverKey].
+    ///
+    /// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
+    sk = ReceiverSecretKey,
+    pk = ReceiverPublicKey,
+    id = ReceiverKeyId,
+    context = "APQ Receiver Secret Key",
 }
-
-/// The public half of a [SenderKey].
-///
-/// [SenderKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#senderkey
-pub struct SenderPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
-
-/// The private half of a [ReceiverKey].
-///
-/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
-pub struct ReceiverSecretKey<CS: CipherSuite>(<CS::Kem as Kem>::DecapKey);
-
-key_misc!(ReceiverSecretKey, ReceiverPublicKey, ReceiverKeyId);
 
 impl<CS: CipherSuite> ReceiverSecretKey<CS> {
-    /// Creates a `ReceiverSecretKey`.
-    pub fn new<R: Csprng>(rng: &mut R) -> Self {
-        let sk = <CS::Kem as Kem>::DecapKey::new(rng);
-        ReceiverSecretKey(sk)
-    }
-
     /// Decrypts and authenticates a [`TopicKey`] received from
     /// a peer.
     pub fn open_topic_key(
@@ -549,17 +542,15 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
+        //     "TopicKeyRotation-v1",
         //     i2osp(version, 4),
         //     topic,
-        //     suite_id,
-        //     "TopicKeyRotation",
         // )
-        let ad = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes()[..],
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            b"TopicKeyRotation",
-        ]);
+        let ad = TopicKeyRotationInfo {
+            domain: *b"TopicKeyRotation-v1",
+            version: U32::new(version.as_u32()),
+            topic: topic.0,
+        };
         // ciphertext = HPKE_OneShotOpen(
         //     mode=mode_auth,
         //     skR=sk(ReceiverKey),
@@ -569,29 +560,23 @@ impl<CS: CipherSuite> ReceiverSecretKey<CS> {
         //     ciphertext=ciphertext,
         //     ad=ad,
         // )
-        let mut ctx = Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_recv(
-            Mode::Auth(&pk.0),
-            &enc.0,
-            &self.0,
-            &ad,
-        )?;
+        let mut ctx =
+            hpke::setup_recv::<CS>(Mode::Auth(&pk.pk), &enc.0, &self.sk, [ad.as_bytes()])?;
         let mut seed = [0u8; 64];
-        ctx.open(&mut seed, ciphertext.as_bytes(), &ad)?;
+        ctx.open(&mut seed, ciphertext.as_bytes(), ad.as_bytes())?;
         TopicKey::from_seed(seed, version, topic)
     }
 }
 
-unwrapped! {
-    name: ReceiverSecretKey;
-    type: Decap;
-    into: |key: Self| { key.0 };
-    from: |key| { Self(key) };
+#[repr(C)]
+#[derive(Copy, Clone, Debug, ByteEq, Immutable, IntoBytes, KnownLayout, Unaligned)]
+struct TopicKeyRotationInfo {
+    /// Always "TopicKeyRotation-v1".
+    domain: [u8; 19],
+    version: U32<BE>,
+    /// [`Topic`].
+    topic: [u8; 16],
 }
-
-/// The public half of a [ReceiverKey].
-///
-/// [ReceiverKey]: https://git.spideroak-inc.com/spideroak-inc/aranya-docs/blob/main/src/apq.md#receiverkey
-pub struct ReceiverPublicKey<CS: CipherSuite>(<CS::Kem as Kem>::EncapKey);
 
 impl<CS: CipherSuite> ReceiverPublicKey<CS> {
     /// Encrypts and authenticates the [`TopicKey`] such that it
@@ -681,17 +666,15 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         Sum<<CS::Aead as Aead>::Overhead, U64>: ArrayLength,
     {
         // ad = concat(
+        //     "TopicKeyRotation-v1",
         //     i2osp(version, 4),
         //     topic,
-        //     suite_id,
-        //     "TopicKeyRotation",
         // )
-        let ad = tuple_hash::<CS::Hash, _>([
-            &version.to_be_bytes()[..],
-            &topic.as_bytes()[..],
-            &SuiteIds::from_suite::<CS>().into_bytes(),
-            b"TopicKeyRotation",
-        ]);
+        let ad = TopicKeyRotationInfo {
+            domain: *b"TopicKeyRotation-v1",
+            version: U32::new(version.as_u32()),
+            topic: topic.0,
+        };
         // (enc, ciphertext) = HPKE_OneShotSeal(
         //     mode=mode_auth,
         //     pkR=pk(ReceiverKey),
@@ -701,9 +684,99 @@ impl<CS: CipherSuite> ReceiverPublicKey<CS> {
         //     ad=ad,
         // )
         let (enc, mut ctx) =
-            Hpke::<CS::Kem, CS::Kdf, CS::Aead>::setup_send(rng, Mode::Auth(&sk.0), &self.0, &ad)?;
+            hpke::setup_send::<CS, _>(rng, Mode::Auth(&sk.sk), &self.pk, [ad.as_bytes()])?;
         let mut dst = GenericArray::default();
-        ctx.seal(&mut dst, &key.seed, &ad)?;
+        ctx.seal(&mut dst, &key.seed, ad.as_bytes())?;
         Ok((Encap(enc), EncryptedTopicKey(dst)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use spideroak_crypto::{ed25519::Ed25519, import::Import, kem::Kem, rust, signer::Signer};
+
+    use super::*;
+    use crate::{default::DhKemP256HkdfSha256, test_util::TestCs};
+
+    type CS = TestCs<
+        rust::Aes256Gcm,
+        rust::Sha256,
+        rust::HkdfSha512,
+        DhKemP256HkdfSha256,
+        rust::HmacSha512,
+        Ed25519,
+    >;
+
+    /// Golden test for [`SenderSigningKey`] IDs.
+    #[test]
+    fn test_sender_signing_key_id() {
+        let tests = [(
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "G4Pkv96MYr9yAfVgzCpU4kFkHSxZmSjaPsSBe7Fvt9Tk",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Signer as Signer>::SigningKey::import(key_bytes)
+                .expect("should import signing key");
+            let sender_signing_key = SenderSigningKey::<CS>::from_inner(sk);
+
+            let got_id = sender_signing_key.id().expect("should compute ID");
+            let expected =
+                SenderSigningKeyId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
+    }
+
+    /// Golden test for [`SenderSecretKey`] IDs.
+    #[test]
+    fn test_sender_secret_key_id() {
+        let tests = [(
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "FVZQtS6DA1exxJgBHdrsMHX58m5dXgtxtJJqpeUTXxPp",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
+                .expect("should import decap key");
+            let sender_secret_key = SenderSecretKey::<CS>::from_inner(sk);
+
+            let got_id = sender_secret_key.id().expect("should compute ID");
+            let expected = SenderKeyId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
+    }
+
+    /// Golden test for [`ReceiverSecretKey`] IDs.
+    #[test]
+    fn test_receiver_secret_key_id() {
+        let tests = [(
+            [
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+                0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c,
+                0x1d, 0x1e, 0x1f, 0x20,
+            ],
+            "BLHC25sfZNYzq6G9oHvBkmR22hyj7tCGbUwi7QCDDv8n",
+        )];
+
+        for (i, (key_bytes, expected_id)) in tests.iter().enumerate() {
+            let sk = <<CS as CipherSuite>::Kem as Kem>::DecapKey::import(key_bytes)
+                .expect("should import decap key");
+            let receiver_secret_key = ReceiverSecretKey::<CS>::from_inner(sk);
+
+            let got_id = receiver_secret_key.id().expect("should compute ID");
+            let expected = ReceiverKeyId::decode(expected_id).expect("should decode expected ID");
+
+            assert_eq!(got_id, expected, "test case #{i}");
+        }
     }
 }

@@ -13,7 +13,7 @@ use core::{
 };
 
 use aranya_crypto::Id;
-use aranya_policy_ast as ast;
+use aranya_policy_ast::{self as ast, Identifier, ident};
 use aranya_policy_module::{
     CodeMap, ExitReason, Fact, FactKey, FactValue, HashableValue, Instruction, KVPair, Label,
     LabelType, Module, ModuleData, ModuleV0, Struct, Target, TryAsMut, UnsupportedVersion, Value,
@@ -23,13 +23,13 @@ use buggy::{Bug, BugExt};
 use heapless::Vec as HVec;
 
 #[cfg(feature = "bench")]
-use crate::bench::{bench_aggregate, Stopwatch};
+use crate::bench::{Stopwatch, bench_aggregate};
 use crate::{
+    CommandContext, OpenContext, SealContext,
     error::{MachineError, MachineErrorType},
     io::MachineIO,
     scope::ScopeManager,
     stack::Stack,
-    CommandContext, OpenContext, SealContext,
 };
 
 const STACK_SIZE: usize = 100;
@@ -130,21 +130,21 @@ pub struct Machine {
     /// Mapping of Label names to addresses
     pub labels: BTreeMap<Label, usize>,
     /// Action definitions
-    pub action_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    pub action_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Command definitions
-    pub command_defs: BTreeMap<String, BTreeMap<String, ast::VType>>,
+    pub command_defs: BTreeMap<Identifier, BTreeMap<Identifier, ast::VType>>,
     /// Fact schemas
-    pub fact_defs: BTreeMap<String, ast::FactDefinition>,
+    pub fact_defs: BTreeMap<Identifier, ast::FactDefinition>,
     /// Struct schemas
-    pub struct_defs: BTreeMap<String, Vec<ast::FieldDefinition>>,
+    pub struct_defs: BTreeMap<Identifier, Vec<ast::FieldDefinition>>,
     /// Enum definitions
-    pub enum_defs: BTreeMap<String, BTreeMap<String, i64>>,
+    pub enum_defs: BTreeMap<Identifier, BTreeMap<Identifier, i64>>,
     /// Command attributes
-    pub command_attributes: BTreeMap<String, BTreeMap<String, Value>>,
+    pub command_attributes: BTreeMap<Identifier, BTreeMap<Identifier, Value>>,
     /// Mapping between program instructions and original code
     pub codemap: Option<CodeMap>,
     /// Globally scoped variables
-    pub globals: BTreeMap<String, Value>,
+    pub globals: BTreeMap<Identifier, Value>,
 }
 
 impl Machine {
@@ -228,22 +228,23 @@ impl Machine {
                 "invalid enum reference",
             )));
         };
-        let variants = self
+
+        let (name, variants) = self
             .enum_defs
-            .get(name)
+            .get_key_value(name)
             .ok_or_else(|| MachineErrorType::NotDefined(alloc::format!("enum {name}")))?;
         let int_value = variants.get(variant).ok_or_else(|| {
             MachineErrorType::NotDefined(alloc::format!("no value `{variant}` in enum `{name}`"))
         })?;
 
-        Ok(Value::Enum(name.to_owned(), *int_value))
+        Ok(Value::Enum(name.clone(), *int_value))
     }
 
     /// Create a RunState associated with this Machine.
     pub fn create_run_state<'a, M>(
         &'a self,
         io: &'a RefCell<M>,
-        ctx: CommandContext<'a>,
+        ctx: CommandContext,
     ) -> RunState<'a, M>
     where
         M: MachineIO<MachineStack>,
@@ -254,10 +255,10 @@ impl Machine {
     /// Call an action
     pub fn call_action<Args, M>(
         &mut self,
-        name: &str,
+        name: Identifier,
         args: Args,
         io: &'_ RefCell<M>,
-        ctx: CommandContext<'_>,
+        ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
@@ -271,11 +272,11 @@ impl Machine {
     /// Call a command
     pub fn call_command_policy<M>(
         &mut self,
-        name: &str,
+        name: Identifier,
         this_data: &Struct,
         envelope: Struct,
         io: &'_ RefCell<M>,
-        ctx: CommandContext<'_>,
+        ctx: CommandContext,
     ) -> Result<ExitReason, MachineError>
     where
         M: MachineIO<MachineStack>,
@@ -327,7 +328,7 @@ pub struct RunState<'a, M: MachineIO<MachineStack>> {
     /// I/O callbacks
     io: &'a RefCell<M>,
     /// Execution Context (actually used for more than Commands)
-    ctx: CommandContext<'a>,
+    ctx: CommandContext,
     // Cursors for `QueryStart` results
     query_iter_stack: Vec<M::QueryIterator>,
     #[cfg(feature = "bench")]
@@ -339,11 +340,7 @@ where
     M: MachineIO<MachineStack>,
 {
     /// Create a new, empty MachineState
-    pub fn new(
-        machine: &'a Machine,
-        io: &'a RefCell<M>,
-        ctx: CommandContext<'a>,
-    ) -> RunState<'a, M> {
+    pub fn new(machine: &'a Machine, io: &'a RefCell<M>, ctx: CommandContext) -> RunState<'a, M> {
         RunState {
             machine,
             scope: ScopeManager::new(&machine.globals),
@@ -359,14 +356,14 @@ where
     }
 
     /// Returns the current context
-    pub fn get_context(&self) -> &CommandContext<'a> {
+    pub fn get_context(&self) -> &CommandContext {
         &self.ctx
     }
 
     /// Set the internal context object to a new reference. The old reference is not
     /// preserved. This is a hack to allow a policy context to mutate into a recall context
     /// when recall happens.
-    pub fn set_context(&mut self, ctx: CommandContext<'a>) {
+    pub fn set_context(&mut self, ctx: CommandContext) {
         self.ctx = ctx;
     }
 
@@ -462,10 +459,10 @@ where
     // TODO(chip): This does not distinguish between Commands and
     // Effects and it should.
     fn validate_struct_schema(&mut self, s: &Struct) -> Result<(), MachineError> {
-        let err = self.err(MachineErrorType::InvalidSchema(s.name.clone()));
-
         #[cfg(feature = "bench")]
         self.stopwatch.start("validate_struct_schema");
+
+        let mk_err = || self.err(MachineErrorType::InvalidSchema(s.name.clone()));
 
         match self.machine.struct_defs.get(&s.name) {
             Some(fields) => {
@@ -473,7 +470,7 @@ where
                 // definition.
                 for f in &s.fields {
                     if !fields.iter().any(|v| &v.identifier == f.0) {
-                        return Err(err);
+                        return Err(mk_err());
                     }
                 }
                 // Ensure all defined fields exist and have the same
@@ -482,10 +479,10 @@ where
                     match s.fields.get(&f.identifier) {
                         Some(f) => {
                             if f.vtype() != f.vtype() {
-                                return Err(err);
+                                return Err(mk_err());
                             }
                         }
-                        None => return Err(err),
+                        None => return Err(mk_err()),
                     }
                 }
 
@@ -494,7 +491,7 @@ where
 
                 Ok(())
             }
-            None => Err(err),
+            None => Err(mk_err()),
         }
     }
 
@@ -502,7 +499,7 @@ where
     /// machine or a MachineError.
     pub fn step(&mut self) -> Result<MachineStatus, MachineError> {
         if self.pc() >= self.machine.progmem.len() {
-            return Err(self.err(MachineErrorType::InvalidAddress("pc".to_owned())));
+            return Err(self.err(MachineErrorType::InvalidAddress(ident!("pc"))));
         }
         // Clone the instruction so we don't take an immutable
         // reference to self while we manipulate the stack later.
@@ -552,7 +549,7 @@ where
             Instruction::End => self.scope.exit_block().map_err(|e| self.err(e))?,
             Instruction::Jump(t) => match t {
                 Target::Unresolved(label) => {
-                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                 }
                 Target::Resolved(n) => {
                     // We set the PC and return here to skip the
@@ -568,7 +565,7 @@ where
                 if conditional {
                     match t {
                         Target::Unresolved(label) => {
-                            return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
+                            return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                         }
                         Target::Resolved(n) => {
                             self.pc = n;
@@ -581,7 +578,7 @@ where
             Instruction::Last => todo!(),
             Instruction::Call(t) => match t {
                 Target::Unresolved(label) => {
-                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)))
+                    return Err(self.err(MachineErrorType::UnresolvedTarget(label)));
                 }
                 Target::Resolved(n) => {
                     self.scope.enter_function();
@@ -722,7 +719,7 @@ where
 
                 for _ in 0..n {
                     let field_val = self.ipop_value()?;
-                    let field_name = self.ipop::<String>()?;
+                    let field_name = self.ipop::<Identifier>()?;
 
                     field_name_value_pairs.push((field_name, field_val));
                 }
@@ -751,7 +748,7 @@ where
             }
             Instruction::MStructGet(n) => {
                 let field_names = (0..n.into())
-                    .map(|_| self.ipop::<String>())
+                    .map(|_| self.ipop::<Identifier>())
                     .collect::<Result<Vec<_>, _>>()?;
                 let mut s: Struct = self.ipop()?;
 
@@ -811,14 +808,14 @@ where
             Instruction::Emit => {
                 let s: Struct = self.ipop()?;
                 self.validate_struct_schema(&s)?;
-                let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(&k, v));
+                let fields = s.fields.into_iter().map(|(k, v)| KVPair::new(k, v));
                 let (command, recall) = match &self.ctx {
                     CommandContext::Policy(ctx) => (ctx.id, false),
                     CommandContext::Recall(ctx) => (ctx.id, true),
                     _ => {
                         return Err(
                             self.err(MachineErrorType::BadState("Emit: wrong command context"))
-                        )
+                        );
                     }
                 };
                 self.io
@@ -856,7 +853,7 @@ where
                         let mut fields: Vec<KVPair> = vec![];
                         fields.append(&mut f.0.into_iter().map(|e| e.into()).collect());
                         fields.append(&mut f.1.into_iter().map(|e| e.into()).collect());
-                        let s = Struct::new(&qf.name, &fields);
+                        let s = Struct::new(qf.name, fields);
                         self.ipush(s)?;
                     }
                     None => self.ipush(Value::None)?,
@@ -917,7 +914,7 @@ where
                         let mut fields: Vec<KVPair> = vec![];
                         fields.append(&mut k.into_iter().map(|e| e.into()).collect());
                         fields.append(&mut v.into_iter().map(|e| e.into()).collect());
-                        let s = Struct::new(&ident, &fields);
+                        let s = Struct::new(ident.clone(), fields);
                         self.scope.set(ident, Value::Struct(s))?;
                         self.ipush(Value::Bool(false))?;
                     }
@@ -929,14 +926,15 @@ where
                 }
             }
             Instruction::Serialize => {
-                let CommandContext::Seal(SealContext { name, .. }) = self.ctx else {
+                let CommandContext::Seal(SealContext { name, .. }) = &self.ctx else {
                     return Err(self.err(MachineErrorType::BadState(
                         "Serialize: expected seal context",
                     )));
                 };
+                let name = name.clone();
 
                 let command_struct: Struct = self.ipop()?;
-                if command_struct.name != *name {
+                if command_struct.name != name {
                     return Err(MachineError::from_position(
                         MachineErrorType::BadState(
                             "Serialize: context name doesn't match command name",
@@ -953,13 +951,15 @@ where
                 self.ipush(bytes)?;
             }
             Instruction::Deserialize => {
-                let &CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
+                let CommandContext::Open(OpenContext { name, .. }) = &self.ctx else {
                     return Err(MachineError::from_position(
                         MachineErrorType::InvalidInstruction,
                         self.pc,
                         self.machine.codemap.as_ref(),
                     ));
                 };
+                let name = name.clone();
+
                 let bytes: Vec<u8> = self.ipop()?;
                 let s: Struct = postcard::from_bytes(&bytes).map_err(|_| {
                     MachineError::from_position(
@@ -968,7 +968,7 @@ where
                         self.machine.codemap.as_ref(),
                     )
                 })?;
-                if name != s.name {
+                if name != s.name.as_str() {
                     return Err(MachineError::from_position(
                         MachineErrorType::InvalidInstruction,
                         self.pc,
@@ -1033,7 +1033,7 @@ where
     /// Set up machine state for a command policy call
     pub fn setup_command(
         &mut self,
-        name: &str,
+        name: Identifier,
         label_type: LabelType,
         this_data: &Struct,
     ) -> Result<(), MachineError> {
@@ -1041,14 +1041,14 @@ where
         self.stopwatch
             .start(format!("setup_command: {}", name).as_str());
 
-        self.setup_function(&Label::new(name, label_type))?;
+        self.setup_function(&Label::new(name.clone(), label_type))?;
 
         // Verify 'this' arg matches command's fields
         let command_def = self
             .machine
             .command_defs
-            .get(name)
-            .ok_or(self.err(MachineErrorType::NotDefined(String::from(name))))?;
+            .get(&name)
+            .ok_or_else(|| self.err(MachineErrorType::NotDefined(name.to_string())))?;
 
         if this_data.fields.len() != command_def.len() {
             return Err(self.err(MachineErrorType::Unknown(alloc::format!(
@@ -1061,7 +1061,7 @@ where
         for (name, value) in &this_data.fields {
             let expected_type = command_def
                 .get(name)
-                .ok_or(self.err(MachineErrorType::InvalidStructMember(String::from(name))))?;
+                .ok_or_else(|| self.err(MachineErrorType::InvalidStructMember(name.clone())))?;
 
             if !value.fits_type(expected_type) {
                 return Err(self.err(MachineErrorType::invalid_type(
@@ -1072,7 +1072,7 @@ where
             }
         }
         self.scope
-            .set("this", Value::Struct(this_data.to_owned()))
+            .set(ident!("this"), Value::Struct(this_data.to_owned()))
             .map_err(|e| self.err(e))?;
 
         #[cfg(feature = "bench")]
@@ -1087,7 +1087,7 @@ where
     /// If the command check-exits, its recall block will be executed.
     pub fn call_command_policy(
         &mut self,
-        name: &str,
+        name: Identifier,
         this_data: &Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
@@ -1101,7 +1101,7 @@ where
     /// structs or a MachineError.
     pub fn call_command_recall(
         &mut self,
-        name: &str,
+        name: Identifier,
         this_data: &Struct,
         envelope: Struct,
     ) -> Result<ExitReason, MachineError> {
@@ -1119,7 +1119,7 @@ where
     }
 
     /// Set up machine state for an action call.
-    pub fn setup_action<Args>(&mut self, name: &str, args: Args) -> Result<(), MachineError>
+    pub fn setup_action<Args>(&mut self, name: Identifier, args: Args) -> Result<(), MachineError>
     where
         Args: IntoIterator,
         Args::Item: Into<Value>,
@@ -1129,9 +1129,11 @@ where
             .start(format!("setup_action: {}", name).as_str());
 
         // verify number and types of arguments
-        let arg_def = self.machine.action_defs.get(name).ok_or(MachineError::new(
-            MachineErrorType::NotDefined(String::from(name)),
-        ))?;
+        let arg_def = self
+            .machine
+            .action_defs
+            .get(&name)
+            .ok_or_else(|| MachineError::new(MachineErrorType::NotDefined(name.to_string())))?;
         let args: Vec<Value> = args.into_iter().map(|a| a.into()).collect();
         if args.len() != arg_def.len() {
             return Err(MachineError::new(MachineErrorType::Unknown(
@@ -1171,7 +1173,11 @@ where
     // TODO(chip): I don't really like how V: Into<Value> works here
     // because it still means all of the args have to have the same
     // type.
-    pub fn call_action<Args>(&mut self, name: &str, args: Args) -> Result<ExitReason, MachineError>
+    pub fn call_action<Args>(
+        &mut self,
+        name: Identifier,
+        args: Args,
+    ) -> Result<ExitReason, MachineError>
     where
         Args: IntoIterator,
         Args::Item: Into<Value>,
@@ -1185,7 +1191,7 @@ where
     /// return an opaque envelope struct on the stack.
     pub fn call_seal(
         &mut self,
-        name: &str,
+        name: Identifier,
         this_data: &Struct,
     ) -> Result<ExitReason, MachineError> {
         self.setup_function(&Label::new(name, LabelType::CommandSeal))?;
@@ -1198,7 +1204,11 @@ where
     }
 
     /// Call the open block on an envelope struct to produce a command struct.
-    pub fn call_open(&mut self, name: &str, envelope: Struct) -> Result<ExitReason, MachineError> {
+    pub fn call_open(
+        &mut self,
+        name: Identifier,
+        envelope: Struct,
+    ) -> Result<ExitReason, MachineError> {
         self.setup_function(&Label::new(name, LabelType::CommandOpen))?;
         self.ipush(envelope)?;
         self.run()

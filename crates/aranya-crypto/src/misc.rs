@@ -2,14 +2,13 @@
 
 use core::{borrow::Borrow, fmt, fmt::Debug, marker::PhantomData, result::Result};
 
-use postcard::experimental::max_size::MaxSize;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-
-use crate::{
-    ciphersuite::{CipherSuite, SuiteIds},
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use spideroak_crypto::{
     keys::PublicKey,
     signer::{Signature, Signer},
 };
+
+use crate::ciphersuite::{CipherSuite, Oids};
 
 // Shorthand for lots::of::turbo::fish.
 pub(crate) type SigData<CS> = <<<CS as CipherSuite>::Signer as Signer>::Signature as Signature<
@@ -17,27 +16,37 @@ pub(crate) type SigData<CS> = <<<CS as CipherSuite>::Signer as Signer>::Signatur
 >>::Data;
 
 // A fixed-size ciphertext.
+#[cfg(feature = "apq")]
 macro_rules! ciphertext {
     ($name:ident, $size:ty, $doc:expr) => {
         #[doc = $doc]
         pub struct $name<CS>(
             pub(crate)  $crate::generic_array::GenericArray<
                 u8,
-                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                $crate::typenum::Sum<
+                    <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                    $size,
+                >,
             >,
         )
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength;
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength;
 
         impl<CS> $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             /// The size in bytes of the ciphertext.
             pub const SIZE: usize =
@@ -51,13 +60,17 @@ macro_rules! ciphertext {
             /// Returns itself from its byte encoding.
             pub fn from_bytes(
                 data: &[u8],
-            ) -> ::core::result::Result<Self, $crate::import::InvalidSizeError> {
+            ) -> ::core::result::Result<
+                Self,
+                $crate::dangerous::spideroak_crypto::import::InvalidSizeError,
+            > {
                 let v: &$crate::generic_array::GenericArray<u8, _> =
-                    data.try_into()
-                        .map_err(|_| $crate::import::InvalidSizeError {
+                    data.try_into().map_err(|_| {
+                        $crate::dangerous::spideroak_crypto::import::InvalidSizeError {
                             got: data.len(),
                             want: Self::SIZE..Self::SIZE,
-                        })?;
+                        }
+                    })?;
                 Ok(Self(v.clone()))
             }
         }
@@ -65,11 +78,14 @@ macro_rules! ciphertext {
         impl<CS> ::core::convert::TryFrom<&[u8]> for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
-            type Error = $crate::import::InvalidSizeError;
+            type Error = $crate::dangerous::spideroak_crypto::import::InvalidSizeError;
 
             fn try_from(data: &[u8]) -> ::core::result::Result<Self, Self::Error> {
                 $name::<CS>::from_bytes(data)
@@ -79,49 +95,44 @@ macro_rules! ciphertext {
         impl<CS> ::core::clone::Clone for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             fn clone(&self) -> Self {
                 Self(::core::clone::Clone::clone(&self.0))
             }
         }
 
-        impl<CS> ::postcard::experimental::max_size::MaxSize for $name<CS>
-        where
-            CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
-            $crate::generic_array::GenericArray<
-                u8,
-                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
-            >: ::postcard::experimental::max_size::MaxSize,
-        {
-            const POSTCARD_MAX_SIZE: usize = <$crate::generic_array::GenericArray<
-                u8,
-                $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
-            > as ::postcard::experimental::max_size::MaxSize>::POSTCARD_MAX_SIZE;
-        }
-
         impl<CS>
             ::core::convert::From<
                 $crate::generic_array::GenericArray<
                     u8,
-                    $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                    $crate::typenum::Sum<
+                        <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                        $size,
+                    >,
                 >,
             > for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             fn from(
                 buf: $crate::generic_array::GenericArray<
                     u8,
-                    $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>,
+                    $crate::typenum::Sum<
+                        <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                        $size,
+                    >,
                 >,
             ) -> Self {
                 Self(buf)
@@ -131,9 +142,12 @@ macro_rules! ciphertext {
         impl<CS> ::serde::Serialize for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             fn serialize<S>(&self, s: S) -> ::core::result::Result<S::Ok, S::Error>
             where
@@ -146,9 +160,12 @@ macro_rules! ciphertext {
         impl<'de, CS> ::serde::Deserialize<'de> for $name<CS>
         where
             CS: $crate::CipherSuite,
-            <CS::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-            $crate::typenum::Sum<<CS::Aead as $crate::aead::Aead>::Overhead, $size>:
-                $crate::generic_array::ArrayLength,
+            <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                ::core::ops::Add<$size>,
+            $crate::typenum::Sum<
+                <CS::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                $size,
+            >: $crate::generic_array::ArrayLength,
         {
             fn deserialize<D>(d: D) -> ::core::result::Result<Self, D::Error>
             where
@@ -158,9 +175,12 @@ macro_rules! ciphertext {
                 impl<'de, G> ::serde::de::Visitor<'de> for CiphertextVisitor<G>
                 where
                     G: $crate::CipherSuite,
-                    <G::Aead as $crate::aead::Aead>::Overhead: ::core::ops::Add<$size>,
-                    $crate::typenum::Sum<<G::Aead as $crate::aead::Aead>::Overhead, $size>:
-                        $crate::generic_array::ArrayLength,
+                    <G::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead:
+                        ::core::ops::Add<$size>,
+                    $crate::typenum::Sum<
+                        <G::Aead as $crate::dangerous::spideroak_crypto::aead::Aead>::Overhead,
+                        $size,
+                    >: $crate::generic_array::ArrayLength,
                 {
                     type Value = $name<G>;
 
@@ -190,23 +210,177 @@ macro_rules! ciphertext {
         }
     };
 }
+#[cfg(feature = "apq")]
 pub(crate) use ciphertext;
 
-/// Asymmetric key misc. impls.
-macro_rules! key_misc {
-    ($sk:ident, $pk:ident, $id:ident) => {
-        $crate::misc::sk_misc!($sk, $pk, $id);
-        $crate::misc::pk_misc!($pk, ::core::stringify!($sk), $id);
+/// Generates a signing key pair.
+///
+/// - `sk` is the name of the secret (signing) half.
+/// - `pk` is the name of the public (verifying) half.
+/// - `id` is the name of the key pair's unique ID.
+///
+/// The inner types for `sk` and `pk` come from
+/// [`CipherSuite::Signer`]. `sk` uses `SigningKey` and `pk` uses
+/// `VerifyingKey`.
+///
+/// See [`keypair!`] for more information.
+macro_rules! signing_key {
+    (
+        $(#[$meta:meta])*
+        sk = $sk:ident,
+        pk = $pk:ident,
+        id = $id:ident,
+        context = $context:expr,
+    ) => {
+        $crate::misc::keypair! {
+            $(#[$meta])*
+            struct $sk<CS>(<<CS as $crate::CipherSuite>::Signer as ::spideroak_crypto::signer::Signer>::SigningKey);
+            struct $pk<CS>(<<CS as $crate::CipherSuite>::Signer as ::spideroak_crypto::signer::Signer>::VerifyingKey);
+            id = $id,
+            context = $context,
+        }
+
+        $crate::engine::unwrapped! {
+            name: $sk;
+            type: Signing;
+            into: |key: Self| { key.sk };
+            from: |sk| { Self::from_inner(sk) };
+        }
     };
 }
-pub(crate) use key_misc;
+pub(crate) use signing_key;
 
-/// Secret key misc. impls.
+/// Generates a KEM key pair.
+///
+/// - `sk` is the name of the secret (decapsulation) half.
+/// - `pk` is the name of the public (encapsulation) half.
+/// - `id` is the name of the key pair's unique ID.
+///
+/// The inner types for `sk` and `pk` come from
+/// [`CipherSuite::Kem`]. `sk` uses `DecapKey` and `pk` uses
+/// `EncapKey`.
+///
+/// See [`keypair!`] for more information.
+macro_rules! kem_key {
+    (
+        $(#[$meta:meta])*
+        sk = $sk:ident,
+        pk = $pk:ident,
+        id = $id:ident,
+        context = $context:expr,
+    ) => {
+        $crate::misc::keypair! {
+            $(#[$meta])*
+            struct $sk<CS>(<<CS as $crate::CipherSuite>::Kem as ::spideroak_crypto::kem::Kem>::DecapKey);
+            struct $pk<CS>(<<CS as $crate::CipherSuite>::Kem as ::spideroak_crypto::kem::Kem>::EncapKey);
+            id = $id,
+            context = $context,
+        }
+
+        $crate::engine::unwrapped! {
+            name: $sk;
+            type: Decap;
+            into: |key: Self| { key.sk };
+            from: |sk| { Self::from_inner(sk) };
+        }
+    };
+}
+pub(crate) use kem_key;
+
+/// Generates an asymmetric key pair.
+///
+/// - `sk` is the name of the secret half.
+/// - `sk_inner` is the underlying secret key type.
+/// - `pk` is the name of the public half.
+/// - `pk_inner` is the underlying public key type.
+///
+/// It generates the following:
+///
+/// - A `fn id(&self) -> Result<id, IdError>` method on both
+///   `sk` and `pk`.
+/// - A `fn public(&self) -> Result<pk, PkError>` method on `sk`.
+/// - `Clone`, `Display`, `Debug`, and `Identified` methods for
+///   both `sk` and `pk`.
+/// - `AsRef`, `Eq`, `PartialEq`, `Serialize`, and `Deserialize`
+///   methods for `pk`.
+/// - The type definition for `id`.
+///
+/// The key pair is generic over the parameter `CS`, which must
+/// be [`CipherSuite`].
+macro_rules! keypair {
+    (
+        $(#[$meta:meta])*
+        struct $sk:ident<CS>($sk_inner:ty);
+        struct $pk:ident<CS>($pk_inner:ty);
+        id = $id:ident,
+        context = $context:expr,
+    ) => {
+        $(#[$meta])*
+        pub struct $sk<CS: $crate::CipherSuite> {
+            pub(crate) sk: $sk_inner,
+            id: ::core::cell::OnceCell<::core::result::Result<$id, $crate::id::IdError>>,
+        }
+
+        impl<CS: $crate::CipherSuite> $sk<CS> {
+            /// Creates a random
+            #[doc = ::core::concat!("`", ::core::stringify!($sk), "`")]
+            pub fn new<R: $crate::Csprng>(rng: &mut R) -> Self {
+                Self::from_inner($crate::Random::random(rng))
+            }
+
+            pub(crate) fn from_inner(sk: $sk_inner) -> Self {
+                Self {
+                    sk,
+                    id: ::core::cell::OnceCell::new(),
+                }
+            }
+
+            #[allow(dead_code)]
+            fn __assert_is_zeroize_on_drop() {
+                $crate::util::type_is_zeroize_on_drop::<$sk_inner>();
+            }
+        }
+
+        impl<CS: $crate::CipherSuite> $crate::zeroize::ZeroizeOnDrop for $sk<CS> {}
+
+        $crate::misc::sk_misc!(@keypair $sk, $pk, $id);
+
+        /// The public half of
+        #[doc = ::core::concat!("`", ::core::stringify!($sk), "`")]
+        pub struct $pk<CS: $crate::CipherSuite> {
+            pub(crate) pk: $pk_inner,
+            id: ::core::cell::OnceCell<::core::result::Result<$id, $crate::id::IdError>>,
+        }
+
+        impl<CS: $crate::CipherSuite> $pk<CS> {
+            pub(crate) fn from_inner(pk: $pk_inner) -> Self {
+                Self {
+                    pk,
+                    id: ::core::cell::OnceCell::new(),
+                }
+            }
+        }
+
+        $crate::misc::pk_misc!($pk, $id, $context);
+    };
+}
+pub(crate) use keypair;
+
+/// Generate boilerplate for secret keys.
+///
+/// See [`key_misc`] for more information.
 macro_rules! sk_misc {
-    // For when the public key isn't used.
-    ($name:ident, $id:ident) => {
+    // For symmetric keys, or asymmetric key pairs when the
+    // public half isn't used.
+    ($name:ident, $id:ident, $context:expr) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
+            #[derive(
+                ::zerocopy::Immutable,
+                ::zerocopy::IntoBytes,
+                ::zerocopy::KnownLayout,
+                ::zerocopy::Unaligned,
+            )]
             pub struct $id;
         }
 
@@ -215,24 +389,32 @@ macro_rules! sk_misc {
             #[doc = ::core::concat!("Two `", ::core::stringify!($name), "s` with the same ID are the same secret.")]
             #[inline]
             pub fn id(&self) -> Result<$id, $crate::id::IdError> {
-                const CONTEXT: &'static str = ::core::stringify!($sk);
-
-                let pk = $crate::keys::PublicKey::export(&self.0.public()?);
-                let id = $crate::id::Id::new::<CS>(
-                    ::core::borrow::Borrow::borrow(&pk),
-                    CONTEXT.as_bytes(),
-                );
-                Ok($id(id))
+                self.id
+                    .get_or_init(|| {
+                        let pk = $crate::dangerous::spideroak_crypto::keys::PublicKey::export(&self.sk.public()?);
+                        let id = $crate::id::Id::new::<CS>(
+                            ::core::borrow::Borrow::borrow(&pk),
+                            $context.as_bytes(),
+                        );
+                        Ok($id(id))
+                    })
+                    .clone()
             }
         }
 
         $crate::misc::sk_misc_inner!($name, $id);
     };
 
-    // For when the public key *is* used.
-    ($name:ident, $pk:ident, $id:ident) => {
+    // For asymmetric key pairs when the public half *is* used.
+    (@keypair $name:ident, $pk:ident, $id:ident) => {
         $crate::id::custom_id! {
             #[doc = ::core::concat!("Uniquely identifies [`", ::core::stringify!($name), "`].")]
+            #[derive(
+                ::zerocopy::Immutable,
+                ::zerocopy::IntoBytes,
+                ::zerocopy::KnownLayout,
+                ::zerocopy::Unaligned,
+            )]
             pub struct $id;
         }
 
@@ -240,14 +422,17 @@ macro_rules! sk_misc {
             #[doc = ::core::concat!("Uniquely identifies the `", ::core::stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
             #[inline]
-            pub fn id(&self) -> Result<$id,$crate::id::IdError> {
-                self.public()?.id()
+            pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
+                self.id
+                    .get_or_init(|| self.public()?.id())
+                    .clone()
             }
 
             /// Returns the public half of the key.
             #[inline]
-            pub fn public(&self) -> Result<$pk<CS>,$crate::signer::PkError>{
-                Ok($pk(self.0.public()?))
+            pub fn public(&self) -> ::core::result::Result<$pk<CS>, $crate::dangerous::spideroak_crypto::signer::PkError> {
+                let pk = $pk::from_inner(self.sk.public()?);
+                ::core::result::Result::Ok(pk)
             }
         }
 
@@ -261,7 +446,17 @@ macro_rules! sk_misc_inner {
         impl<CS: $crate::CipherSuite> ::core::clone::Clone for $name<CS> {
             #[inline]
             fn clone(&self) -> Self {
-                Self(::core::clone::Clone::clone(&self.0))
+                Self {
+                    sk: ::core::clone::Clone::clone(&self.sk),
+                    id: ::core::clone::Clone::clone(&self.id),
+                }
+            }
+        }
+
+        impl<CS: $crate::CipherSuite> $crate::subtle::ConstantTimeEq for $name<CS> {
+            #[inline]
+            fn ct_eq(&self, other: &Self) -> $crate::subtle::Choice {
+                $crate::subtle::ConstantTimeEq::ct_eq(&self.sk, &other.sk)
             }
         }
 
@@ -285,7 +480,7 @@ macro_rules! sk_misc_inner {
             type Id = $id;
 
             #[inline]
-            fn id(&self) -> Result<Self::Id, $crate::id::IdError> {
+            fn id(&self) -> ::core::result::Result<Self::Id, $crate::id::IdError> {
                 self.id()
             }
         }
@@ -293,16 +488,19 @@ macro_rules! sk_misc_inner {
 }
 pub(crate) use sk_misc_inner;
 
-/// Public key misc. impls.
+/// Generate boilerplate for public keys.
+///
+/// See [`key_misc`] for more information.
 macro_rules! pk_misc {
-    ($name:ident, $sk:expr, $id:ident) => {
+    ($name:ident, $id:ident, $context:expr) => {
         impl<CS: $crate::CipherSuite> $name<CS> {
             #[doc = ::core::concat!("Uniquely identifies the `", stringify!($name), "`")]
             #[doc = "Two keys with the same ID are the same key."]
-            pub fn id(&self) -> Result<$id, $crate::id::IdError> {
-                Ok($id($crate::id::Id::new::<CS>(
-                    self.0.export().borrow(),
-                    $sk.as_bytes(),
+            pub fn id(&self) -> ::core::result::Result<$id, $crate::id::IdError> {
+                const CONTEXT: &'static str = $context;
+                ::core::result::Result::Ok($id($crate::id::Id::new::<CS>(
+                    ::core::borrow::Borrow::borrow(&self.pk.export()),
+                    CONTEXT.as_bytes(),
                 )))
             }
         }
@@ -310,7 +508,10 @@ macro_rules! pk_misc {
         impl<CS: $crate::CipherSuite> ::core::clone::Clone for $name<CS> {
             #[inline]
             fn clone(&self) -> Self {
-                Self(self.0.clone())
+                Self {
+                    pk: ::core::clone::Clone::clone(&self.pk),
+                    id: ::core::clone::Clone::clone(&self.id),
+                }
             }
         }
 
@@ -350,8 +551,8 @@ macro_rules! pk_misc {
             where
                 S: ::serde::Serializer,
             {
-                $crate::misc::ExportedData::from_key::<CS>(
-                    &self.0,
+                $crate::misc::ExportedData::<CS, _>::from_key(
+                    &self.pk,
                     $crate::misc::ExportedDataType::$name,
                 )
                 .serialize(serializer)
@@ -364,13 +565,15 @@ macro_rules! pk_misc {
                 D: ::serde::Deserializer<'de>,
             {
                 let data =
-                    $crate::misc::ExportedData::<$crate::misc::SerdeOwnedKey<_>>::deserialize(
+                    $crate::misc::ExportedData::<CS, $crate::misc::SerdeOwnedKey<_>>::deserialize(
                         deserializer,
                     )?;
-                if !data.valid_context::<CS>($crate::misc::ExportedDataType::$name) {
-                    Err(::serde::de::Error::custom(ImportError::InvalidContext))
+                if !data.is_type($crate::misc::ExportedDataType::$name) {
+                    ::core::result::Result::Err(::serde::de::Error::custom(
+                        ImportError::InvalidContext,
+                    ))
                 } else {
-                    Ok(Self(data.data.0))
+                    ::core::result::Result::Ok(Self::from_inner(data.data.0))
                 }
             }
         }
@@ -379,7 +582,7 @@ macro_rules! pk_misc {
             type Id = $id;
 
             #[inline]
-            fn id(&self) -> Result<Self::Id, $crate::id::IdError> {
+            fn id(&self) -> ::core::result::Result<Self::Id, $crate::id::IdError> {
                 self.id()
             }
         }
@@ -390,7 +593,7 @@ pub(crate) use pk_misc;
 // Allow repeated suffixes since different types will be added in
 // the future.
 #[allow(clippy::enum_variant_names)]
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize, MaxSize)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub(crate) enum ExportedDataType {
     EncryptionPublicKey,
     IdentityVerifyingKey,
@@ -401,27 +604,37 @@ pub(crate) enum ExportedDataType {
 }
 
 /// Non-secret exported from an `Engine`.
-#[derive(Serialize, Deserialize, MaxSize)]
+#[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct ExportedData<T> {
+pub(crate) struct ExportedData<CS, T>
+where
+    CS: CipherSuite,
+{
     /// Uniquely idenitifies the chosen algorithms.
-    suite_id: SuiteIds,
+    #[serde(bound = "CS: CipherSuite")]
+    oids: Oids<CS>,
     /// Uniquely idenitifes the type of data.
     name: ExportedDataType,
     /// The exported data.
     pub(crate) data: T,
 }
 
-impl<T> ExportedData<T> {
-    pub(crate) fn valid_context<CS: CipherSuite>(&self, name: ExportedDataType) -> bool {
-        self.suite_id == SuiteIds::from_suite::<CS>() && self.name == name
+impl<CS, T> ExportedData<CS, T>
+where
+    CS: CipherSuite,
+{
+    pub(crate) fn is_type(&self, name: ExportedDataType) -> bool {
+        self.name == name
     }
 }
 
-impl<'a, K: PublicKey> ExportedData<SerdeBorrowedKey<'a, K>> {
-    pub(crate) fn from_key<CS: CipherSuite>(pk: &'a K, name: ExportedDataType) -> Self {
+impl<'a, CS, K: PublicKey> ExportedData<CS, SerdeBorrowedKey<'a, K>>
+where
+    CS: CipherSuite,
+{
+    pub(crate) fn from_key(pk: &'a K, name: ExportedDataType) -> Self {
         Self {
-            suite_id: SuiteIds::from_suite::<CS>(),
+            oids: CS::OIDS,
             name,
             data: SerdeBorrowedKey(pk),
         }

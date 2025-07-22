@@ -1,11 +1,11 @@
 use core::convert::Infallible;
 
 use aranya_crypto::{
+    CipherSuite,
     afc::{
         BidiAuthorSecret, BidiChannel, BidiKeys, BidiPeerEncap, OpenKey, RawOpenKey, RawSealKey,
         SealKey, UniAuthorSecret, UniChannel, UniOpenKey, UniPeerEncap, UniSealKey,
     },
-    CipherSuite,
 };
 
 /// Like [`TryFrom`], but with a different spelling.

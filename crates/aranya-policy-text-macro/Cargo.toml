@@ -1,0 +1,24 @@
+[package]
+name = "aranya-policy-text-macro"
+description = "Proc macros for constructing text and identifiers"
+version = "0.1.0"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+
+[lints]
+workspace = true
+
+
+[lib]
+proc-macro = true
+
+
+[dependencies]
+macro-string = { version = "0.1.4" }
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }

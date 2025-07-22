@@ -4,10 +4,7 @@ extern crate aranya_capi_core as __capi;
 use __capi::Builder;
 use __capi::internal::tracing;
 mod __imports {
-    pub(super) use aranya_capi_core::{
-        prelude::*, safe::{TypeId, Typed},
-        InvalidArg,
-    };
+    pub(super) use aranya_capi_core::{InvalidArg, prelude::*, safe::{TypeId, Typed}};
 }
 #[derive(::core::marker::Copy)]
 #[derive(::core::clone::Clone)]
@@ -38,7 +35,7 @@ pub struct PrefixSafeStruct(crate::defs::SafeStruct);
 #[cfg(not(cbindgen))]
 pub type PrefixSafeStruct = self::__hidden::PrefixSafeStruct;
 /// Extended error information.
-#[aranya_capi_core::opaque(size = 72, align = 8)]
+#[__capi::opaque(size = 72, align = 8, generated = true)]
 pub type PrefixExtError = self::__hidden::PrefixExtError;
 #[derive(::core::marker::Copy)]
 #[derive(::core::clone::Clone)]
@@ -69,7 +66,7 @@ pub struct PrefixTestConfigInheritance2(::core::primitive::u8);
 #[cfg(not(feature = "test_cfg"))]
 #[cfg(not(cbindgen))]
 pub type PrefixTestConfigInheritance2 = self::__hidden::PrefixTestConfigInheritance2;
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit0() {
@@ -89,7 +86,7 @@ fn __tramp_prefix_test_unit_unit0() -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_unit1() -> () {
@@ -109,7 +106,7 @@ fn __tramp_prefix_test_unit_unit1() -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_result_unit_error() -> PrefixError {
@@ -128,7 +125,7 @@ pub extern "C" fn prefix_test_unit_result_unit_error() -> PrefixError {
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -169,7 +166,7 @@ fn __tramp_prefix_test_unit_result_unit_error() -> ::core::result::Result<
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u8_unit(_a: ::core::primitive::u8) {
@@ -191,7 +188,7 @@ fn __tramp_prefix_test_u8_unit(_a: ::core::primitive::u8) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u16_unit(_a: ::core::primitive::u16) {
@@ -215,7 +212,7 @@ fn __tramp_prefix_test_u16_unit(_a: ::core::primitive::u16) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u32_unit(_a: ::core::primitive::u32) {
@@ -239,7 +236,7 @@ fn __tramp_prefix_test_u32_unit(_a: ::core::primitive::u32) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u64_unit(_a: ::core::primitive::u64) {
@@ -263,7 +260,7 @@ fn __tramp_prefix_test_u64_unit(_a: ::core::primitive::u64) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_usize_unit(_a: ::core::primitive::usize) {
@@ -287,7 +284,7 @@ fn __tramp_prefix_test_usize_unit(_a: ::core::primitive::usize) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i8_unit(_a: ::core::primitive::i8) {
@@ -309,7 +306,7 @@ fn __tramp_prefix_test_i8_unit(_a: ::core::primitive::i8) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i16_unit(_a: ::core::primitive::i16) {
@@ -333,7 +330,7 @@ fn __tramp_prefix_test_i16_unit(_a: ::core::primitive::i16) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i32_unit(_a: ::core::primitive::i32) {
@@ -357,7 +354,7 @@ fn __tramp_prefix_test_i32_unit(_a: ::core::primitive::i32) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i64_unit(_a: ::core::primitive::i64) {
@@ -381,7 +378,7 @@ fn __tramp_prefix_test_i64_unit(_a: ::core::primitive::i64) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_isize_unit(_a: ::core::primitive::isize) {
@@ -405,7 +402,7 @@ fn __tramp_prefix_test_isize_unit(_a: ::core::primitive::isize) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8 {
@@ -427,7 +424,7 @@ fn __tramp_prefix_test_u8_u8(_a: ::core::primitive::u8) -> ::core::primitive::u8
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u16_u16(
@@ -451,7 +448,7 @@ fn __tramp_prefix_test_u16_u16(_a: ::core::primitive::u16) -> ::core::primitive:
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u32_u32(
@@ -475,7 +472,7 @@ fn __tramp_prefix_test_u32_u32(_a: ::core::primitive::u32) -> ::core::primitive:
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_u64_u64(
@@ -499,7 +496,7 @@ fn __tramp_prefix_test_u64_u64(_a: ::core::primitive::u64) -> ::core::primitive:
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_usize_usize(
@@ -527,7 +524,7 @@ fn __tramp_prefix_test_usize_usize(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8 {
@@ -549,7 +546,7 @@ fn __tramp_prefix_test_i8_i8(_a: ::core::primitive::i8) -> ::core::primitive::i8
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i16_i16(
@@ -573,7 +570,7 @@ fn __tramp_prefix_test_i16_i16(_a: ::core::primitive::i16) -> ::core::primitive:
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i32_i32(
@@ -597,7 +594,7 @@ fn __tramp_prefix_test_i32_i32(_a: ::core::primitive::i32) -> ::core::primitive:
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_i64_i64(
@@ -621,7 +618,7 @@ fn __tramp_prefix_test_i64_i64(_a: ::core::primitive::i64) -> ::core::primitive:
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a))]
 pub extern "C" fn prefix_test_isize_isize(
@@ -649,7 +646,7 @@ fn __tramp_prefix_test_isize_isize(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u8_u8_u8(
@@ -680,7 +677,7 @@ fn __tramp_prefix_test_u8_u8_u8(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u16_u16_u16(
@@ -711,7 +708,7 @@ fn __tramp_prefix_test_u16_u16_u16(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u32_u32_u32(
@@ -742,7 +739,7 @@ fn __tramp_prefix_test_u32_u32_u32(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_u64_u64_u64(
@@ -773,7 +770,7 @@ fn __tramp_prefix_test_u64_u64_u64(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_usize_usize_usize(
@@ -804,7 +801,7 @@ fn __tramp_prefix_test_usize_usize_usize(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i8_i8_i8(
@@ -835,7 +832,7 @@ fn __tramp_prefix_test_i8_i8_i8(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i16_i16_i16(
@@ -866,7 +863,7 @@ fn __tramp_prefix_test_i16_i16_i16(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i32_i32_i32(
@@ -897,7 +894,7 @@ fn __tramp_prefix_test_i32_i32_i32(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_i64_i64_i64(
@@ -928,7 +925,7 @@ fn __tramp_prefix_test_i64_i64_i64(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = _a, _b = _b))]
 pub extern "C" fn prefix_test_isize_isize_isize(
@@ -959,7 +956,7 @@ fn __tramp_prefix_test_isize_isize_isize(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_enum_unit(_a: PrefixEnum) -> PrefixError {
@@ -982,7 +979,7 @@ pub extern "C" fn prefix_test_enum_unit(_a: PrefixEnum) -> PrefixError {
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1035,7 +1032,7 @@ fn __tramp_prefix_test_enum_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_enum() -> PrefixEnum {
@@ -1055,7 +1052,7 @@ fn __tramp_prefix_test_unit_enum() -> PrefixEnum {
         __pattern => PrefixEnum::from(__pattern),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1088,7 +1085,7 @@ pub extern "C" fn prefix_test_enum_enum(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1153,7 +1150,7 @@ fn __tramp_prefix_test_enum_enum(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1193,7 +1190,7 @@ pub extern "C" fn prefix_test_enum_result_enum_error(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1279,7 +1276,7 @@ fn __tramp_prefix_test_enum_result_enum_error(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(_a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_unit(_a: PrefixStruct) {
@@ -1305,7 +1302,7 @@ fn __tramp_prefix_test_struct_unit(_a: PrefixStruct) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
 pub extern "C" fn prefix_test_unit_struct() -> PrefixStruct {
@@ -1328,7 +1325,7 @@ fn __tramp_prefix_test_unit_struct() -> PrefixStruct {
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1354,7 +1351,7 @@ pub extern "C" fn prefix_test_ref_struct_unit(_a: *const PrefixStruct) -> Prefix
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1407,7 +1404,7 @@ fn __tramp_prefix_test_ref_struct_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1436,7 +1433,7 @@ fn __tramp_prefix_test_ptr_struct_unit(_a: *const PrefixStruct) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace", fields(a = ::tracing::field::Empty))]
 pub extern "C" fn prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
@@ -1465,7 +1462,7 @@ fn __tramp_prefix_test_struct_struct(a: PrefixStruct) -> PrefixStruct {
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1500,7 +1497,7 @@ pub extern "C" fn prefix_test_unit_result_struct_error(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1577,7 +1574,7 @@ fn __tramp_prefix_test_unit_result_struct_error(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1605,7 +1602,7 @@ pub extern "C" fn prefix_test_optional_ref_struct(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1658,7 +1655,7 @@ fn __tramp_prefix_test_optional_ref_struct(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1686,7 +1683,7 @@ pub extern "C" fn prefix_test_optional_mut_ref_struct(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1739,7 +1736,7 @@ fn __tramp_prefix_test_optional_mut_ref_struct(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1767,7 +1764,7 @@ pub extern "C" fn prefix_test_ref_safestruct_unit(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1820,7 +1817,7 @@ fn __tramp_prefix_test_ref_safestruct_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1849,7 +1846,7 @@ fn __tramp_prefix_test_ptr_safestruct_unit(_a: *const PrefixSafeStruct) -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1884,7 +1881,7 @@ pub extern "C" fn prefix_test_unit_result_safestruct_error(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1961,7 +1958,7 @@ fn __tramp_prefix_test_unit_result_safestruct_error(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -1989,7 +1986,7 @@ pub extern "C" fn prefix_test_ownedptr_u32_unit(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2042,7 +2039,7 @@ fn __tramp_prefix_test_ownedptr_u32_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2070,7 +2067,7 @@ pub extern "C" fn prefix_test_ownedptr_struct_unit(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2123,7 +2120,7 @@ fn __tramp_prefix_test_ownedptr_struct_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2151,7 +2148,7 @@ pub extern "C" fn prefix_test_ownedptr_safestruct_unit(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2204,7 +2201,7 @@ fn __tramp_prefix_test_ownedptr_safestruct_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2235,7 +2232,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_unit(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2266,7 +2263,7 @@ fn __tramp_prefix_test_ptr_ptr_ptr_ptr_u32_ptr_ptr_ptr_ptr_u32(
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2296,7 +2293,7 @@ pub extern "C" fn prefix_test_slice_u8_unit(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2353,7 +2350,7 @@ fn __tramp_prefix_test_slice_u8_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2379,7 +2376,7 @@ pub extern "C" fn prefix_test_ref_arr_u8_unit(_a: *const [u8; 64]) -> PrefixErro
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2428,7 +2425,7 @@ fn __tramp_prefix_test_ref_arr_u8_unit(
         __pattern => ::core::result::Result::Ok(__pattern.into()),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2461,7 +2458,7 @@ pub extern "C" fn prefix_test_ref_arr_u8_ret(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2522,7 +2519,7 @@ fn __tramp_prefix_test_ref_arr_u8_ret(
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2548,7 +2545,7 @@ pub extern "C" fn prefix_test_mut_ref_arr_u8_unit(_a: *mut [u8; 64]) -> PrefixEr
         }
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2603,7 +2600,7 @@ fn __tramp_prefix_test_mut_ref_arr_u8_unit(
 /// with its cleanup routine.
 ///
 /// @relates PrefixExtError
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2644,7 +2641,7 @@ pub extern "C" fn prefix_ext_error_init(
 /// with its cleanup routine.
 ///
 /// @relates PrefixExtError
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2721,7 +2718,7 @@ fn ext_error_init(
 /// `ptr` must either be null or initialized by `::prefix_ext_error_init`.
 ///
 /// @relates PrefixExtError
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2759,7 +2756,7 @@ pub extern "C" fn prefix_ext_error_cleanup(ptr: *mut PrefixExtError) -> PrefixEr
 /// `ptr` must either be null or initialized by `::prefix_ext_error_init`.
 ///
 /// @relates PrefixExtError
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(
     level = "trace",
@@ -2837,7 +2834,7 @@ fn ext_error_cleanup(
     }
     ::core::result::Result::Ok(())
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[cfg(feature = "test_cfg")]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]
@@ -2859,7 +2856,7 @@ fn __tramp_prefix_test_cfg_inheritance() -> () {
         __pattern => __pattern.into(),
     }
 }
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[cfg(not(feature = "test_cfg"))]
 #[deny(improper_ctypes_definitions)]
 #[::tracing::instrument(level = "trace")]

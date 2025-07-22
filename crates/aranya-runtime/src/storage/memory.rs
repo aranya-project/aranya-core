@@ -1,7 +1,7 @@
 use alloc::{boxed::Box, collections::BTreeMap, string::String, sync::Arc, vec::Vec};
 use core::ops::{Bound, Deref};
 
-use buggy::{bug, Bug, BugExt};
+use buggy::{Bug, BugExt, bug};
 use vec1::Vec1;
 
 use crate::{
@@ -108,6 +108,14 @@ impl StorageProvider for MemStorageProvider {
         self.storage
             .get_mut(&graph)
             .ok_or(StorageError::NoSuchStorage)
+    }
+
+    fn remove_storage(&mut self, graph: GraphId) -> Result<(), StorageError> {
+        self.storage
+            .remove(&graph)
+            .ok_or(StorageError::NoSuchStorage)?;
+
+        Ok(())
     }
 
     fn list_graph_ids(
@@ -669,7 +677,9 @@ impl Revertable for MemPerspective {
         }
 
         if checkpoint.index > self.commands.len() {
-            bug!("A checkpoint's index should always be less than or equal to the length of a perspective's command history!");
+            bug!(
+                "A checkpoint's index should always be less than or equal to the length of a perspective's command history!"
+            );
         }
 
         self.commands.truncate(checkpoint.index);
@@ -954,7 +964,7 @@ pub mod graphviz {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::testing::dsl::{test_suite, StorageBackend};
+    use crate::testing::dsl::{StorageBackend, test_suite};
 
     #[test]
     fn test_query_prefix() {

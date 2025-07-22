@@ -3,6 +3,7 @@ use aranya_crypto::{
     CipherSuite, DeviceId, Engine, IdentityKey, IdentityVerifyingKey, KeyStore, KeyStoreExt,
     SigningKey, SigningKeyId, VerifyingKey,
 };
+use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
 /// A key bundle.
@@ -22,7 +23,7 @@ pub struct MinKeyBundle {
 }
 
 /// Public keys from key bundle.
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub struct PublicKeys<CS: CipherSuite> {
     /// Public identity key.
     pub ident_pk: IdentityVerifyingKey<CS>,
@@ -39,7 +40,7 @@ impl KeyBundle {
         E: Engine,
         S: KeyStore,
     {
-        macro_rules! gen {
+        macro_rules! gen_key {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
                 let id = sk.id()?;
@@ -57,8 +58,8 @@ impl KeyBundle {
             }};
         }
         Ok(Self {
-            device_id: gen!(IdentityKey),
-            sign_id: gen!(SigningKey),
+            device_id: gen_key!(IdentityKey),
+            sign_id: gen_key!(SigningKey),
         })
     }
 
@@ -92,7 +93,7 @@ impl MinKeyBundle {
         E: Engine,
         S: KeyStore,
     {
-        macro_rules! gen {
+        macro_rules! gen_key {
             ($key:ident) => {{
                 let sk = $key::<E::CS>::new(eng);
                 let id = sk.id().expect("device ID should be valid");
@@ -110,7 +111,7 @@ impl MinKeyBundle {
             }};
         }
         Ok(Self {
-            device_id: gen!(IdentityKey),
+            device_id: gen_key!(IdentityKey),
         })
     }
 }

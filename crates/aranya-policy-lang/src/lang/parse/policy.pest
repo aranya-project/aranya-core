@@ -42,22 +42,26 @@ vtype = _{ string_t | bytes_t | int_t | bool_t | id_t | struct_t | enum_t | opti
 // A field definition is an identifier followed by a type. Used in
 // struct definitions, function arguments, etc.
 field_definition = { identifier ~ vtype }
+// Reference to struct from which to copy fields into the current struct
+field_insertion = { "+" ~ identifier }
 // A field definition list is a list of field definitions. Trailing
 // commas are allowed in any list.
 field_definition_list = _{ field_definition ~ ("," ~ field_definition)* ~ ","? }
+// Similar to field_definition_list, but allows field insertion
+field_definition_and_insertion_list = _{ (field_definition | field_insertion) ~ ("," ~ (field_definition | field_insertion))* ~ ","? }
 // Keyword for dynamic effect fields
 dynamic = { "dynamic" }
 // An effect field definition works like a regular field but adds the
 // optional "dynamic" keyword.
 effect_field_definition = { identifier ~ vtype ~ dynamic? }
 // Ditto the list form
-effect_field_definition_list = _{ effect_field_definition ~ ("," ~ effect_field_definition)* ~ ","? }
+effect_field_definition_list = _{ (effect_field_definition | field_insertion) ~ ("," ~ (effect_field_definition | field_insertion))* ~ ","? }
 
 // ## Structs
 // A struct definition is a list of field definitions surrounded by
 // curly brackets. Note that there are no actual struct types yet -
 // this is only used as a building block for other definitions.
-struct_def = _{ "{" ~ field_definition_list? ~ "}" }
+struct_def = _{ "{" ~ field_definition_and_insertion_list? ~ "}" }
 // An effect struct definition is similar but supports the additional
 // "dynamic" keyword.
 effect_struct_def = _{ "{" ~ effect_field_definition_list? ~ "}" }
@@ -192,10 +196,12 @@ atom = _{
     function_call |
     foreign_function_call |
     enum_reference |
+    this |
     identifier |
     block_expression |
     "(" ~ expression ~ ")"
 }
+this = { "this" }
 
 // ## Infix operators
 add = { "+" }
@@ -361,4 +367,4 @@ file = _{ SOI ~ top_level_statement* ~ EOI }
 ffi_function_decl = _{ function_decl | finish_function_decl }
 ffi_def = _{ SOI ~ ffi_function_decl ~ EOI }
 
-ffi_struct_def = _{ SOI ~ struct_definition* ~ EOI }
+ffi_struct_or_enum_def = _{ SOI ~ (struct_definition | enum_definition)* ~ EOI }

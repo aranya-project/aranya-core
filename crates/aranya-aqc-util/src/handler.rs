@@ -1,16 +1,17 @@
 //! An effect handler for AQC.
 
 use aranya_crypto::{
+    DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
     aqc::{
-        BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiPsk, UniAuthorSecretId,
-        UniChannel, UniChannelId, UniPeerEncap, UniRecvPsk, UniSendPsk,
+        BidiAuthorSecretId, BidiChannel, BidiChannelId, BidiPeerEncap, BidiSecret,
+        UniAuthorSecretId, UniChannel, UniChannelId, UniPeerEncap, UniSecret,
     },
-    custom_id, CipherSuite, DeviceId, EncryptionKeyId, Engine, Id, KeyStore, KeyStoreExt,
+    custom_id,
 };
-use buggy::{bug, Bug};
+use buggy::{Bug, bug};
 use serde::{Deserialize, Serialize};
 
-use crate::shared::{decode_enc_pk, LabelId};
+use crate::shared::{LabelId, decode_enc_pk};
 
 /// Wraps `tracing::error` to always use the `aqc-handler`
 /// target.
@@ -34,7 +35,7 @@ impl<S> Handler<S> {
 
 // Bidi impl.
 impl<S: KeyStore> Handler<S> {
-    /// Retrieves the PSK for the channel identified in the
+    /// Retrieves the secret for the channel identified in the
     /// effect.
     ///
     /// This method removes the secret from the keystore; calling
@@ -44,7 +45,7 @@ impl<S: KeyStore> Handler<S> {
         &mut self,
         eng: &mut E,
         effect: &BidiChannelCreated<'_>,
-    ) -> Result<BidiPsk<E::CS>, Error> {
+    ) -> Result<BidiSecret<E::CS>, Error> {
         if self.device_id != effect.author_id {
             return Err(Error::NotAuthor);
         }
@@ -74,14 +75,14 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label_id.into(),
         };
 
-        let psk = BidiPsk::from_author_secret(&ch, secret).inspect_err(|err| {
+        let secret = BidiSecret::from_author_secret(&ch, secret).inspect_err(|err| {
             error!(?err, "unable to derive bidi PSK from author secret");
         })?;
-        if psk.identity() != effect.channel_id {
-            bug!("PSK identity does not match `effect.channel_id`");
+        if secret.id() != &effect.channel_id {
+            bug!("`BidiSecret::id` does not match `effect.channel_id`");
         }
 
-        Ok(psk)
+        Ok(secret)
     }
 
     /// Converts a [`BidiPeerEncap`] into a PSK.
@@ -89,7 +90,7 @@ impl<S: KeyStore> Handler<S> {
         &mut self,
         eng: &mut E,
         effect: &BidiChannelReceived<'_>,
-    ) -> Result<BidiPsk<E::CS>, Error> {
+    ) -> Result<BidiSecret<E::CS>, Error> {
         if self.device_id != effect.peer_id {
             return Err(Error::NotRecipient);
         }
@@ -116,14 +117,13 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label_id.into(),
         };
 
-        let psk = BidiPsk::from_peer_encap(&ch, encap).inspect_err(|err| {
-            error!(?err, "unable to derive bidi PSK from peer encap");
+        let secret = BidiSecret::from_peer_encap(&ch, encap).inspect_err(|err| {
+            error!(?err, "unable to derive `BidiSecret` from peer encap");
         })?;
-        if psk.identity() != effect.channel_id {
-            bug!("PSK identity does not match `effect.channel_id`");
+        if secret.id() != &effect.channel_id {
+            bug!("`BidiSecret::id` does not match `effect.channel_id`");
         }
-
-        Ok(psk)
+        Ok(secret)
     }
 }
 
@@ -193,7 +193,7 @@ impl<S: KeyStore> Handler<S> {
         &mut self,
         eng: &mut E,
         effect: &UniChannelCreated<'_>,
-    ) -> Result<UniPsk<E::CS>, Error> {
+    ) -> Result<UniSecret<E::CS>, Error> {
         if (self.device_id != effect.send_id && self.device_id != effect.recv_id)
             || self.device_id != effect.author_id
         {
@@ -225,23 +225,19 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label_id.into(),
         };
 
-        let psk = if self.device_id == effect.send_id {
-            UniSendPsk::from_author_secret(&ch, secret)
-                .inspect_err(|err| {
-                    error!(?err, "unable to derive uni send PSK from author secret");
-                })
-                .map(UniPsk::SendOnly)?
+        let secret = if self.device_id == effect.send_id {
+            UniSecret::from_author_secret(&ch, secret).inspect_err(|err| {
+                error!(?err, "unable to derive `UniSecret` from author secret");
+            })?
         } else {
-            UniRecvPsk::from_author_secret(&ch, secret)
-                .inspect_err(|err| {
-                    error!(?err, "unable to derive uni recv PSK from author secret");
-                })
-                .map(UniPsk::RecvOnly)?
+            UniSecret::from_author_secret(&ch, secret).inspect_err(|err| {
+                error!(?err, "unable to derive `UniSecret`from author secret");
+            })?
         };
-        if psk.identity() != effect.channel_id {
-            bug!("PSK identity does not match `effect.channel_id`");
+        if secret.id() != &effect.channel_id {
+            bug!("`UniSecret::id` does not match `effect.channel_id`");
         }
-        Ok(psk)
+        Ok(secret)
     }
 
     /// Converts a [`UniPeerEncap`] into a PSK.
@@ -249,7 +245,7 @@ impl<S: KeyStore> Handler<S> {
         &mut self,
         eng: &mut E,
         effect: &UniChannelReceived<'_>,
-    ) -> Result<UniPsk<E::CS>, Error> {
+    ) -> Result<UniSecret<E::CS>, Error> {
         if (self.device_id != effect.send_id && self.device_id != effect.recv_id)
             || self.device_id == effect.author_id
         {
@@ -278,23 +274,19 @@ impl<S: KeyStore> Handler<S> {
             label: effect.label_id.into(),
         };
 
-        let psk = if self.device_id == effect.send_id {
-            UniSendPsk::from_peer_encap(&ch, encap)
-                .inspect_err(|err| {
-                    error!(?err, "unable to derive uni send PSK from peer encap");
-                })
-                .map(UniPsk::SendOnly)?
+        let secret = if self.device_id == effect.send_id {
+            UniSecret::from_peer_encap(&ch, encap).inspect_err(|err| {
+                error!(?err, "unable to derive uni send PSK from peer encap");
+            })?
         } else {
-            UniRecvPsk::from_peer_encap(&ch, encap)
-                .inspect_err(|err| {
-                    error!(?err, "unable to derive uni recv PSK from peer encap");
-                })
-                .map(UniPsk::RecvOnly)?
+            UniSecret::from_peer_encap(&ch, encap).inspect_err(|err| {
+                error!(?err, "unable to derive uni recv PSK from peer encap");
+            })?
         };
-        if psk.identity() != effect.channel_id {
-            bug!("PSK identity does not match `effect.channel_id`");
+        if secret.id() != &effect.channel_id {
+            bug!("`UniSecret::id` does not match `effect.channel_id`");
         }
-        Ok(psk)
+        Ok(secret)
     }
 }
 
@@ -360,35 +352,6 @@ pub struct UniChannelReceived<'a> {
 custom_id! {
     /// Uniquely identifies a unirectional channel.
     pub struct UniKeyId;
-}
-
-/// A unidirectional channel key.
-#[derive(Debug)]
-pub enum UniPsk<CS: CipherSuite> {
-    /// May only be used to send data.
-    SendOnly(UniSendPsk<CS>),
-    /// May only be used to recv data.
-    RecvOnly(UniRecvPsk<CS>),
-}
-
-impl<CS: CipherSuite> UniPsk<CS> {
-    /// Returns the raw PSK secret.
-    #[inline]
-    pub fn identity(&self) -> UniChannelId {
-        match self {
-            Self::SendOnly(psk) => psk.identity(),
-            Self::RecvOnly(psk) => psk.identity(),
-        }
-    }
-
-    /// Returns the raw PSK secret.
-    #[inline]
-    pub fn raw_secret_bytes(&self) -> &[u8] {
-        match self {
-            Self::SendOnly(psk) => psk.raw_secret_bytes(),
-            Self::RecvOnly(psk) => psk.raw_secret_bytes(),
-        }
-    }
 }
 
 /// An error returned by [`Handler`].

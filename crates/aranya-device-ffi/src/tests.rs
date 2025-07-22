@@ -1,10 +1,12 @@
 #![cfg(test)]
 
 use aranya_crypto::{
-    default::{DefaultEngine, Rng},
     DeviceId, Id,
+    default::{DefaultEngine, Rng},
 };
-use aranya_policy_vm::{ActionContext, CommandContext, OpenContext, PolicyContext, SealContext};
+use aranya_policy_vm::{
+    ActionContext, CommandContext, OpenContext, PolicyContext, SealContext, ident,
+};
 
 use crate::FfiDevice;
 
@@ -16,22 +18,24 @@ fn test_current_device_id() {
 
     let contexts = vec![
         CommandContext::Action(ActionContext {
-            name: "action",
+            name: ident!("action"),
             head_id: Id::default(),
         }),
         CommandContext::Seal(SealContext {
-            name: "seal",
+            name: ident!("seal"),
             head_id: Id::default(),
         }),
-        CommandContext::Open(OpenContext { name: "open" }),
+        CommandContext::Open(OpenContext {
+            name: ident!("open"),
+        }),
         CommandContext::Policy(PolicyContext {
-            name: "policy",
+            name: ident!("policy"),
             id: Id::default(),
             author: DeviceId::default(),
             version: Id::default(),
         }),
         CommandContext::Recall(PolicyContext {
-            name: "recall",
+            name: ident!("recall"),
             id: Id::default(),
             author: DeviceId::default(),
             version: Id::default(),

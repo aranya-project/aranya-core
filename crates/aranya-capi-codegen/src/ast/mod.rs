@@ -3,7 +3,7 @@ mod rewrite;
 
 use std::collections::HashMap;
 
-use bimap::{hash::LeftValues, BiHashMap};
+use bimap::{BiHashMap, hash::LeftValues};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{Error, Ident, Path, Result};

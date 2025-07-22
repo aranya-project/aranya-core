@@ -15,10 +15,10 @@ mod ast;
 pub mod attr;
 mod ctx;
 mod error;
-mod gen;
+mod generate;
 pub mod syntax;
 mod util;
 
 pub use error::BuildError;
-pub use gen::{dump, format, Config};
+pub use generate::{Config, dump, format};
 pub use util::{IdentExt, KeyValPair};

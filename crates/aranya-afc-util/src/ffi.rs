@@ -9,15 +9,14 @@ use alloc::vec::Vec;
 use core::result::Result;
 
 use aranya_crypto::{
-    self,
+    self, CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError,
+    KeyStore, KeyStoreExt, UnwrapError, WrapError,
     afc::{BidiChannel, BidiSecrets, UniChannel, UniSecrets},
-    CipherSuite, DeviceId, EncryptionKeyId, EncryptionPublicKey, Engine, Id, ImportError, KeyStore,
-    KeyStoreExt, UnwrapError, WrapError,
 };
 use aranya_policy_vm::{
-    ffi::{ffi, Type},
     CommandContext, MachineError, MachineErrorType, MachineIOError, Typed, Value,
     ValueConversionError,
+    ffi::{Type, ffi},
 };
 use buggy::Bug;
 use spin::Mutex;
@@ -79,7 +78,7 @@ function create_bidi_channel(
 "#)]
     pub(crate) fn create_bidi_channel<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         eng: &mut E,
         parent_cmd_id: Id,
         our_enc_key_id: EncryptionKeyId,
@@ -136,7 +135,7 @@ function create_uni_channel(
 "#)]
     pub(crate) fn create_uni_channel<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         eng: &mut E,
         parent_cmd_id: Id,
         author_enc_key_id: EncryptionKeyId,

@@ -1,14 +1,14 @@
 use std::{collections::HashMap, convert::Infallible, marker::PhantomData};
 
 use aranya_crypto::{
-    default::{DefaultCipherSuite, DefaultEngine},
     Engine, Id, Rng,
+    default::{DefaultCipherSuite, DefaultEngine},
 };
 use aranya_policy_vm::{
-    self,
-    ffi::{ffi, FfiModule, Type},
-    CommandContext, MachineError, MachineErrorType, MachineStack, PolicyContext, Stack, Typed,
-    Value, ValueConversionError,
+    self, CommandContext, Identifier, MachineError, MachineErrorType, MachineStack, PolicyContext,
+    Stack, Text, Typed, Value, ValueConversionError,
+    ffi::{FfiModule, Type, ffi},
+    ident, text,
 };
 
 #[derive(Debug, PartialEq)]
@@ -22,7 +22,7 @@ where
 
 struct TestState<M, E> {
     module: M,
-    procs: HashMap<String, usize>,
+    procs: HashMap<Identifier, usize>,
     stack: MachineStack,
     engine: E,
 }
@@ -34,7 +34,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
             .functions
             .iter()
             .enumerate()
-            .map(|(i, f)| (f.name.to_owned(), i))
+            .map(|(i, f)| (f.name.clone(), i))
             .collect();
         Self {
             module,
@@ -46,7 +46,7 @@ impl<M: FfiModule> TestState<M, DefaultEngine<Rng>> {
 
     fn call(&mut self, name: &str) -> Result<(), TestStateError<M::Error>> {
         let ctx = CommandContext::Policy(PolicyContext {
-            name: "SomeCommand",
+            name: ident!("SomeCommand"),
             id: Id::default(),
             author: Id::default().into(),
             version: Id::default(),
@@ -160,12 +160,14 @@ struct S2 {
     a struct S0,
     b struct S1,
 }
+
+enum TestEnum { A, B }
 "#
 )]
 impl<T, G> TestModule<'_, T, G> {
     #[ffi_export(def = "function add(x int, y int) int")]
     fn add<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         x: i64,
         y: i64,
@@ -175,7 +177,7 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = "function sub(x int, y int) int")]
     fn sub<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         x: i64,
         y: i64,
@@ -185,18 +187,19 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = "function concat(a string, b string) string")]
     fn concat<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
-        a: String,
-        b: String,
-    ) -> Result<String, MachineError> {
-        Ok(a + b.as_str())
+        a: Text,
+        b: Text,
+    ) -> Result<Text, MachineError> {
+        #[allow(clippy::arithmetic_side_effects)]
+        Ok(&a + &b)
     }
 
     #[ffi_export(def = "function renamed_identity(id_input id) id")]
     fn identity<E: Engine>(
         &self,
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         id_input: Id,
     ) -> Result<Id, Infallible> {
@@ -204,17 +207,13 @@ impl<T, G> TestModule<'_, T, G> {
     }
 
     #[ffi_export(def = "function no_args() int")]
-    fn no_args<E: Engine>(
-        &self,
-        _ctx: &CommandContext<'_>,
-        _eng: &mut E,
-    ) -> Result<i64, MachineError> {
+    fn no_args<E: Engine>(&self, _ctx: &CommandContext, _eng: &mut E) -> Result<i64, MachineError> {
         Ok(Self::NO_ARGS_RESULT)
     }
 
     #[ffi_export(def = "function custom_type(label int) int")]
     fn custom_type<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         label: Label,
     ) -> Result<Label, Infallible> {
@@ -224,7 +223,7 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = "function custom_type_optional(label optional int) optional int")]
     fn custom_type_optional<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         label: Option<Label>,
     ) -> Result<Option<Label>, Infallible> {
@@ -234,7 +233,7 @@ impl<T, G> TestModule<'_, T, G> {
 
     #[ffi_export(def = "function custom_def(a int, b bytes) bool")]
     fn custom_def<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         _a: i64,
         _b: Vec<u8>,
@@ -249,7 +248,7 @@ function struct_fn(
 ) struct S2
 "#)]
     fn struct_fn<E: Engine>(
-        _ctx: &CommandContext<'_>,
+        _ctx: &CommandContext,
         _eng: &mut E,
         a: S0,
         b: S1,
@@ -260,6 +259,15 @@ function struct_fn(
     #[allow(dead_code)]
     fn ignored(&self, _a: Vec<u8>) -> Result<(), MachineError> {
         Ok(())
+    }
+
+    #[ffi_export(def = r#"function test_enum(e enum TestEnum) enum TestEnum"#)]
+    fn test_enum<E: Engine>(
+        _ctx: &CommandContext,
+        _eng: &mut E,
+        e: TestEnum,
+    ) -> Result<TestEnum, MachineError> {
+        Ok(e)
     }
 }
 
@@ -320,12 +328,12 @@ fn test_ffi_derive() {
 
     // Positive test case for `concat`
     {
-        state.push("hello, ");
-        state.push("world!");
+        state.push(text!("hello, "));
+        state.push(text!("world!"));
         state
             .call("concat")
             .expect("`test::concat` should not fail");
-        let got = state.pop::<String>().expect("should have got a `String`");
+        let got = state.pop::<Text>().expect("should have got a `String`");
         assert_eq!(
             got, "hello, world!",
             "`test::concat` returned the wrong result",
@@ -356,7 +364,7 @@ fn test_ffi_derive() {
 
     // Positive test for `no_args`.
     {
-        state.push("existing arg");
+        state.push(text!("existing arg"));
         state
             .call("no_args")
             .expect("`test::no_args` should not fail");
@@ -367,7 +375,7 @@ fn test_ffi_derive() {
             "`test::no_args` returned the wrong result`"
         );
         assert_eq!(state.len(), 1, "should be one item on the stack");
-        let got = state.pop::<String>().expect("should have got a `String`");
+        let got = state.pop::<Text>().expect("should have got a `String`");
         assert_eq!(got, "existing arg", "existing stack item is incorrect");
     }
 
@@ -404,7 +412,7 @@ fn test_ffi_derive() {
 
         let a = S0 { x: 42 };
         let b = S1 {
-            a: "hello, world!".to_owned(),
+            a: text!("hello, world!"),
             b: vec![1, 2, 3, 4],
             c: 42,
             d: true,
@@ -421,4 +429,36 @@ fn test_ffi_derive() {
         assert_eq!(got, S2 { a, b });
         assert!(state.is_empty());
     }
+
+    // test enum
+    {
+        use __test_ffi::TestEnum;
+
+        state.push(TestEnum::A);
+        state
+            .call("test_enum")
+            .expect("`test::test_enum` should not fail");
+        let got = state
+            .pop::<TestEnum>()
+            .expect("should have got a `TestEnum`");
+        assert_eq!(
+            got,
+            TestEnum::A,
+            "`test::test_enum` returned the wrong result"
+        );
+
+        state.push(TestEnum::B);
+        state
+            .call("test_enum")
+            .expect("`test::test_enum` should not fail");
+        let got = state
+            .pop::<TestEnum>()
+            .expect("should have got a `TestEnum`");
+        assert_eq!(
+            got,
+            TestEnum::B,
+            "`test::test_enum` returned the wrong result"
+        );
+    }
+    {}
 }

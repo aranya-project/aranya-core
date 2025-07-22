@@ -7,6 +7,7 @@ use core::{
 };
 
 use buggy::BugExt;
+use derive_where::derive_where;
 use libc::off_t;
 
 use super::{
@@ -14,7 +15,7 @@ use super::{
     error::Error,
     path::{Flag, Mode, Path},
 };
-use crate::errno::{errno, Errno};
+use crate::errno::{Errno, errno};
 
 const MMU_ATTR_PROT_SUP_READ: c_uint = 0x00000001;
 const MMU_ATTR_PROT_SUP_WRITE: c_uint = 0x00000002;
@@ -35,7 +36,7 @@ const OM_CREATE: c_int = 0x10000000;
 const OM_EXCL: c_int = 0x20000000;
 
 // From the VxWorks Application API reference 6.9.
-extern "C" {
+unsafe extern "C" {
     fn sdOpen(
         name: *const c_char,
         options: c_int,
@@ -76,25 +77,17 @@ where
     }
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { sdDelete(id, 0) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 fn unmap(id: c_int) -> Result<(), Errno> {
     // SAFETY: FFI call, no invariants.
     let ret = unsafe { sdUnmap(id, 0) };
-    if ret < 0 {
-        Err(errno())
-    } else {
-        Ok(())
-    }
+    if ret < 0 { Err(errno()) } else { Ok(()) }
 }
 
 /// Shared data mapping.
-#[derive(Debug)]
+#[derive_where(Debug)]
 pub(super) struct Mapping<T> {
     /// The usable section of the mapping.
     ptr: Aligned<T>,

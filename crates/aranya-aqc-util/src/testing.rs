@@ -17,22 +17,19 @@ use core::{
 };
 
 use aranya_crypto::{
-    self,
-    aqc::{BidiChannelId, UniChannelId},
-    csprng::Random,
+    self, CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
+    IdentityKey, KeyStore, Random, Rng,
+    aqc::{BidiPskId, CipherSuiteId, UniPskId},
     engine::WrappedKey,
-    keystore::{memstore, Entry, Occupied, Vacant},
-    CipherSuite, DeviceId, EncryptionKey, EncryptionKeyId, EncryptionPublicKey, Engine, Id,
-    IdentityKey, KeyStore, Rng,
+    keystore::{Entry, Occupied, Vacant, memstore},
 };
-use aranya_policy_vm::{ActionContext, CommandContext};
+use aranya_policy_vm::{ActionContext, CommandContext, ident};
 use spin::Mutex;
 
 use crate::{
     ffi::{AqcBidiChannel, AqcUniChannel, Ffi},
     handler::{
         BidiChannelCreated, BidiChannelReceived, Handler, UniChannelCreated, UniChannelReceived,
-        UniPsk,
     },
     shared::LabelId,
 };
@@ -388,7 +385,7 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateBidiChannel",
+        name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -412,9 +409,11 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
         )
         .expect("author should be able to create a bidi channel");
 
+    let suite = CipherSuiteId::TlsAes128GcmSha256;
+
     // This is called by the author of the channel after
     // receiving the effect.
-    let author_psk = author
+    let author_secret = author
         .handler
         .bidi_channel_created(
             &mut author.eng,
@@ -430,11 +429,14 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
-        .expect("author should be able to load bidi PSK");
+        .expect("author should be able to load secret");
+    let author_psk = author_secret
+        .generate_psk(suite)
+        .expect("author should be able to generate PSK");
 
     // This is called by the channel peer after receiving the
     // effect.
-    let peer_psk = peer
+    let peer_secret = peer
         .handler
         .bidi_channel_received(
             &mut peer.eng,
@@ -450,9 +452,15 @@ pub fn test_create_bidi_channel<T: TestImpl>() {
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
-        .expect("peer should be able to load bidi keys");
+        .expect("peer should be able to load secret");
+    let peer_psk = peer_secret
+        .generate_psk(suite)
+        .expect("peer should be able to generate PSK");
 
-    assert_eq!(BidiChannelId::from(channel_id), author_psk.identity());
+    assert_eq!(
+        &BidiPskId::from((channel_id.into(), suite)),
+        author_psk.identity()
+    );
     assert_eq!(author_psk.identity(), peer_psk.identity());
     assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
 }
@@ -466,7 +474,7 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateUniSendOnlyChannel",
+        name: ident!("CreateUniSendOnlyChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -490,9 +498,11 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
         )
         .expect("author should be able to create a uni channel");
 
+    let suite = CipherSuiteId::TlsAes128GcmSha256;
+
     // This is called by the author of the channel after
     // receiving the effect.
-    let author_psk = author
+    let author_secret = author
         .handler
         .uni_channel_created(
             &mut author.eng,
@@ -509,12 +519,14 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
-        .expect("author should be able to load encryption key");
-    assert!(matches!(author_psk, UniPsk::SendOnly(_)));
+        .expect("author should be able to load secret");
+    let author_psk = author_secret
+        .generate_send_only_psk(suite)
+        .expect("author should be able to generate PSK");
 
     // This is called by the channel peer after receiving the
     // effect.
-    let peer_psk = peer
+    let peer_secret = peer
         .handler
         .uni_channel_received(
             &mut peer.eng,
@@ -531,10 +543,15 @@ pub fn test_create_send_only_uni_channel<T: TestImpl>() {
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
-        .expect("peer should be able to load decryption key");
-    assert!(matches!(peer_psk, UniPsk::RecvOnly(_)));
+        .expect("peer should be able to load secret");
+    let peer_psk = peer_secret
+        .generate_recv_only_psk(suite)
+        .expect("peer should be able to generate PSK");
 
-    assert_eq!(UniChannelId::from(channel_id), author_psk.identity());
+    assert_eq!(
+        &UniPskId::from((channel_id.into(), suite)),
+        author_psk.identity()
+    );
     assert_eq!(author_psk.identity(), peer_psk.identity());
     assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
 }
@@ -548,7 +565,7 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
     let label_id = LabelId::random(&mut Rng);
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateUniRecvOnlyChannel",
+        name: ident!("CreateUniRecvOnlyChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -572,9 +589,11 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
         )
         .expect("author should be able to create a uni channel");
 
+    let suite = CipherSuiteId::TlsAes128GcmSha256;
+
     // This is called by the author of the channel after
     // receiving the effect.
-    let author_psk = author
+    let author_secret = author
         .handler
         .uni_channel_created(
             &mut author.eng,
@@ -591,12 +610,14 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
-        .expect("author should be able to load decryption key");
-    assert!(matches!(author_psk, UniPsk::RecvOnly(_)));
+        .expect("author should be able to load secret");
+    let author_psk = author_secret
+        .generate_recv_only_psk(suite)
+        .expect("author should be able to generate PSK");
 
     // This is called by the channel peer after receiving the
     // effect.
-    let peer_psk = peer
+    let peer_secret = peer
         .handler
         .uni_channel_received(
             &mut peer.eng,
@@ -613,10 +634,15 @@ pub fn test_create_recv_only_uni_channel<T: TestImpl>() {
                 psk_length_in_bytes: psk_length_in_bytes.try_into().unwrap(),
             },
         )
-        .expect("peer should be able to load encryption key");
-    assert!(matches!(peer_psk, UniPsk::SendOnly(_)));
+        .expect("peer should be able to load secret");
+    let peer_psk = peer_secret
+        .generate_send_only_psk(suite)
+        .expect("peer should be able to generate PSK");
 
-    assert_eq!(UniChannelId::from(channel_id), author_psk.identity());
+    assert_eq!(
+        &UniPskId::from((channel_id.into(), suite)),
+        author_psk.identity()
+    );
     assert_eq!(author_psk.identity(), peer_psk.identity());
     assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
 }
@@ -633,7 +659,7 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
         .map(|_| {
             let parent_cmd_id = Id::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
-                name: "CreateBidiChannel",
+                name: ident!("CreateBidiChannel"),
                 head_id: parent_cmd_id,
             });
 
@@ -697,20 +723,29 @@ pub fn test_create_multi_bidi_channels_same_label<T: TestImpl>() {
     for (created, received) in &expect {
         // This is called by the author of the channel after
         // receiving the effect.
-        let author_psk = author
+        let author_secret = author
             .handler
             .bidi_channel_created(&mut author.eng, created)
-            .expect("author should be able to load bidi PSK");
+            .expect("author should be able to load secret");
 
         // This is called by the channel peer after receiving the
         // effect.
-        let peer_psk = peer
+        let peer_secret = peer
             .handler
             .bidi_channel_received(&mut peer.eng, received)
-            .expect("peer should be able to load bidi keys");
+            .expect("peer should be able to load secret");
 
-        assert_eq!(author_psk.identity(), peer_psk.identity());
-        assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+        for &suite in CipherSuiteId::all() {
+            let author_psk = author_secret
+                .generate_psk(suite)
+                .expect("author should be able to generate PSK");
+            let peer_psk = peer_secret
+                .generate_psk(suite)
+                .expect("peer should be able to generate PSK");
+
+            assert_eq!(author_psk.identity(), peer_psk.identity());
+            assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+        }
     }
 }
 
@@ -722,7 +757,7 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
 
     let parent_cmd_id = Id::random(&mut Rng);
     let ctx = CommandContext::Action(ActionContext {
-        name: "CreateBidiChannel",
+        name: ident!("CreateBidiChannel"),
         head_id: parent_cmd_id,
     });
 
@@ -790,21 +825,30 @@ pub fn test_create_multi_bidi_channels_same_parent_cmd_id<T: TestImpl>() {
     for (created, received) in &expect {
         // This is called by the author of the channel after
         // receiving the effect.
-        let author_psk = author
+        let author_secret = author
             .handler
             .bidi_channel_created(&mut author.eng, created)
-            .expect("author should be able to load bidi PSK");
+            .expect("author should be able to load secret");
 
         // This is called by the channel peer after receiving the
         // effect.
-        let peer_psk = peer
+        let peer_secret = peer
             .handler
             .bidi_channel_received(&mut peer.eng, received)
-            .expect("peer should be able to load bidi keys");
+            .expect("peer should be able to load secret");
 
-        assert_eq!(created.channel_id, author_psk.identity());
-        assert_eq!(author_psk.identity(), peer_psk.identity());
-        assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+        for &suite in CipherSuiteId::all() {
+            let author_psk = author_secret
+                .generate_psk(suite)
+                .expect("author should be able to generate PSK");
+            let peer_psk = peer_secret
+                .generate_psk(suite)
+                .expect("peer should be able to generate PSK");
+
+            assert_eq!(&created.channel_id, author_psk.identity().channel_id());
+            assert_eq!(author_psk.identity(), peer_psk.identity());
+            assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+        }
     }
 }
 
@@ -827,7 +871,7 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
         .map(|(i, peer)| {
             let parent_cmd_id = Id::random(&mut Rng);
             let ctx = CommandContext::Action(ActionContext {
-                name: "CreateBidiChannel",
+                name: ident!("CreateBidiChannel"),
                 head_id: parent_cmd_id,
             });
 
@@ -894,20 +938,29 @@ pub fn test_create_multi_bidi_channels_same_label_multi_peers<T: TestImpl>() {
     for ((created, received), mut peer) in expect.iter().zip(peers) {
         // This is called by the author of the channel after
         // receiving the effect.
-        let author_psk = author
+        let author_secret = author
             .handler
             .bidi_channel_created(&mut author.eng, created)
             .expect("author should be able to load bidi PSK");
 
         // This is called by the channel peer after receiving the
         // effect.
-        let peer_psk = peer
+        let peer_secret = peer
             .handler
             .bidi_channel_received(&mut peer.eng, received)
             .expect("peer should be able to load bidi keys");
 
-        assert_eq!(author_psk.identity(), peer_psk.identity());
-        assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+        for &suite in CipherSuiteId::all() {
+            let author_psk = author_secret
+                .generate_psk(suite)
+                .expect("author should be able to generate PSK");
+            let peer_psk = peer_secret
+                .generate_psk(suite)
+                .expect("peer should be able to generate PSK");
+
+            assert_eq!(author_psk.identity(), peer_psk.identity());
+            assert_eq!(author_psk.raw_secret_bytes(), peer_psk.raw_secret_bytes());
+        }
     }
 }
 

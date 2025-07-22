@@ -34,6 +34,10 @@ impl io::IoManager for Manager {
         Ok(None)
     }
 
+    fn remove(&mut self, _id: GraphId) -> Result<(), StorageError> {
+        Ok(())
+    }
+
     fn list(
         &mut self,
     ) -> Result<impl Iterator<Item = Result<GraphId, StorageError>>, StorageError> {

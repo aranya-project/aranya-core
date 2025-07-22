@@ -2,17 +2,17 @@ use alloc::sync::Arc;
 use core::{cmp::Ordering, hash::Hasher};
 
 use aranya_libc::{
-    self as libc, AsAtRoot, Errno, OwnedDir, OwnedFd, Path, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT,
-    O_DIRECTORY, O_EXCL, O_RDONLY, O_RDWR, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
+    self as libc, AsAtRoot, Errno, LOCK_EX, LOCK_NB, O_CLOEXEC, O_CREAT, O_DIRECTORY, O_EXCL,
+    O_RDONLY, O_RDWR, OwnedDir, OwnedFd, Path, S_IRGRP, S_IRUSR, S_IWGRP, S_IWUSR,
 };
-use buggy::{bug, BugExt};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use buggy::{BugExt, bug};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, warn};
 
 use super::error::Error;
 use crate::{
-    linear::io::{IoManager, Read, Write},
     GraphId, Location, StorageError,
+    linear::io::{IoManager, Read, Write},
 };
 
 struct GraphIdIterator {
@@ -104,7 +104,7 @@ impl IoManager for FileManager {
     type Writer = Writer;
 
     fn create(&mut self, id: GraphId) -> Result<Self::Writer, StorageError> {
-        let name = id.to_path()?;
+        let name = id.to_path();
         let fd = libc::openat(
             self.root(),
             name,
@@ -117,7 +117,7 @@ impl IoManager for FileManager {
     }
 
     fn open(&mut self, id: GraphId) -> Result<Option<Self::Writer>, StorageError> {
-        let name = id.to_path()?;
+        let name = id.to_path();
         let fd = match libc::openat(self.root(), name, O_RDWR | O_CLOEXEC, 0) {
             Ok(fd) => fd,
             Err(Errno::ENOENT) => return Ok(None),
@@ -125,6 +125,13 @@ impl IoManager for FileManager {
         };
         libc::flock(&fd, LOCK_EX | LOCK_NB)?;
         Ok(Some(Writer::open(fd)?))
+    }
+
+    fn remove(&mut self, id: GraphId) -> Result<(), StorageError> {
+        let name = id.to_path();
+        libc::unlinkat(self.root(), name, 0)?;
+
+        Ok(())
     }
 
     fn list(
@@ -277,7 +284,7 @@ impl Root {
     }
 
     fn calc_checksum(&self) -> u64 {
-        let mut hasher = aranya_crypto::siphasher::sip::SipHasher::new();
+        let mut hasher = aranya_crypto::dangerous::siphasher::sip::SipHasher::new();
         hasher.write_u64(self.generation);
         hasher.write_u64(self.head.segment as u64);
         hasher.write_u64(self.head.command as u64);

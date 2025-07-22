@@ -1,5 +1,5 @@
 use aranya_crypto::afc::Seq;
-use buggy::{bug, Bug, BugExt};
+use buggy::{Bug, BugExt, bug};
 use serde::{Deserialize, Serialize};
 
 use crate::state::Label;
@@ -14,7 +14,7 @@ macro_rules! packed {
         impl $name {
             /// The size in bytes of the packed struct.
             $vis const PACKED_SIZE: usize = {
-                #[repr(packed)]
+                #[repr(C, packed)]
                 #[allow(dead_code)]
                 $vis struct $name $($tokens)*
                 ::core::mem::size_of::<$name>()

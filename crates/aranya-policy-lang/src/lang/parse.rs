@@ -1,13 +1,15 @@
 use std::cell::RefCell;
 
-use aranya_policy_ast::{self as ast, AstNode, MapStatement, MatchExpression, Version};
-use ast::{EnumDefinition, EnumReference, Expression, FactField, MatchPattern};
+use aranya_policy_ast::{
+    self as ast, AstNode, Identifier, MapStatement, MatchExpression, Text, Version, ident,
+};
+use ast::{EnumReference, Expression, FactField, MatchPattern};
 use buggy::BugExt;
 use pest::{
+    Parser, Span,
     error::{InputLocation, LineColLocation},
     iterators::{Pair, Pairs},
     pratt_parser::{Assoc, Op, PrattParser},
-    Parser, Span,
 };
 
 mod error;
@@ -85,13 +87,6 @@ impl<'a> PairContext<'a> {
         Ok(vtype)
     }
 
-    /// Consumes the next Pair out of this context and returns it as a
-    /// string. Same error conditions as [consume].
-    fn consume_string(&self, rule: Rule) -> Result<String, ParseError> {
-        let token = self.consume_of_type(rule)?;
-        Ok(token.as_str().to_owned())
-    }
-
     fn consume_fact(&self, p: &mut ChunkParser<'_>) -> Result<ast::FactLiteral, ParseError> {
         let token = self.consume_of_type(Rule::fact_literal)?;
         p.parse_fact_literal(token)
@@ -112,11 +107,11 @@ impl<'a> PairContext<'a> {
 
     /// Consumes the next Pair out of this context and returns it as a
     /// string that is the identifier if it doesn't collide with a keyword.
-    fn consume_identifier(&self) -> Result<String, ParseError> {
+    fn consume_identifier(&self) -> Result<Identifier, ParseError> {
         let token = self.consume_of_type(Rule::identifier)?;
-        let identifier = token.as_str().to_owned();
+        let identifier = token.as_str();
 
-        if KEYWORDS.contains(&identifier.as_str()) {
+        if KEYWORDS.contains(&identifier) {
             return Err(ParseError::new(
                 ParseErrorKind::ReservedIdentifier,
                 format!("Reserved identifier: {}", identifier),
@@ -124,7 +119,9 @@ impl<'a> PairContext<'a> {
             ));
         }
 
-        Ok(identifier)
+        Ok(identifier
+            .parse()
+            .assume("grammar produces valid identifiers")?)
     }
 }
 
@@ -139,6 +136,16 @@ fn descend(p: Pair<'_, Rule>) -> PairContext<'_> {
     }
 }
 
+/// Helper function which consumes and returns an iterator over
+/// a single token, rather than descending.
+fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
+    let span = p.as_span();
+    PairContext {
+        pairs: RefCell::new(Pairs::single(p)),
+        span,
+    }
+}
+
 /// Context information for partial parsing of a chunk of source
 pub struct ChunkParser<'a> {
     chunk_offset: usize,
@@ -146,7 +153,7 @@ pub struct ChunkParser<'a> {
     pratt: &'a PrattParser<Rule>,
 }
 
-impl<'a> ChunkParser<'a> {
+impl ChunkParser<'_> {
     pub fn new(offset: usize, pratt: &PrattParser<Rule>) -> ChunkParser<'_> {
         ChunkParser {
             chunk_offset: offset,
@@ -186,7 +193,7 @@ impl<'a> ChunkParser<'a> {
             }
             Rule::enum_t => {
                 let pc = descend(token);
-                let name = pc.consume_string(Rule::identifier)?;
+                let name = pc.consume_identifier()?;
                 Ok(ast::VType::Enum(name))
             }
             Rule::optional_t => {
@@ -242,7 +249,7 @@ impl<'a> ChunkParser<'a> {
     /// Parse a Rule::string_literal into a String.
     ///
     /// Processes \\, \n, and \xNN escapes.
-    fn parse_string_literal(string: Pair<'_, Rule>) -> Result<String, ParseError> {
+    fn parse_string_literal(string: Pair<'_, Rule>) -> Result<Text, ParseError> {
         let src = string.as_str();
         let it = &mut src.chars();
         let mut out = String::new();
@@ -294,7 +301,13 @@ impl<'a> ChunkParser<'a> {
             }
         }
 
-        Ok(out)
+        out.try_into().map_err(|_| {
+            ParseError::new(
+                ParseErrorKind::InvalidString,
+                String::from("string contained nul byte"),
+                Some(string.as_span()),
+            )
+        })
     }
 
     fn parse_named_struct_literal(
@@ -314,7 +327,7 @@ impl<'a> ChunkParser<'a> {
         call: Pair<'_, Rule>,
     ) -> Result<ast::FunctionCall, ParseError> {
         let pc = descend(call);
-        let identifier = pc.consume_string(Rule::identifier)?;
+        let identifier = pc.consume_identifier()?;
 
         // all following tokens are function arguments
         let mut arguments = vec![];
@@ -333,7 +346,7 @@ impl<'a> ChunkParser<'a> {
         call: Pair<'_, Rule>,
     ) -> Result<ast::ForeignFunctionCall, ParseError> {
         let pc = descend(call);
-        let module = pc.consume_string(Rule::identifier)?;
+        let module = pc.consume_identifier()?;
         let function_call = pc.consume_of_type(Rule::function_call)?;
 
         let function = self.parse_function_call(function_call)?;
@@ -503,7 +516,8 @@ impl<'a> ChunkParser<'a> {
                         ast::InternalFunction::Deserialize(Box::new(inner)),
                     ))
                 }
-                Rule::identifier => Ok(Expression::Identifier(primary.as_str().to_owned())),
+                Rule::this => Ok(Expression::Identifier(ident!("this"))),
+                Rule::identifier => Ok(Expression::Identifier(remain(primary).consume_identifier()?)),
                 Rule::block_expression => self.parse_block_expression(primary),
                 Rule::expression => self.parse_expression(primary),
                 _ => Err(ParseError::new(
@@ -637,7 +651,7 @@ impl<'a> ChunkParser<'a> {
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
                         Some(token.as_span()),
-                    ))
+                    ));
                 }
             };
 
@@ -737,7 +751,7 @@ impl<'a> ChunkParser<'a> {
     fn parse_kv_literal_fields(
         &mut self,
         fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(String, Expression)>, ParseError> {
+    ) -> Result<Vec<(Identifier, Expression)>, ParseError> {
         let mut out = vec![];
 
         for field in fields {
@@ -753,12 +767,12 @@ impl<'a> ChunkParser<'a> {
     fn parse_fact_literal_fields(
         &mut self,
         fields: Pairs<'_, Rule>,
-    ) -> Result<Vec<(String, FactField)>, ParseError> {
+    ) -> Result<Vec<(Identifier, FactField)>, ParseError> {
         let mut out = vec![];
 
         for field in fields {
             let pc = descend(field);
-            let identifier = pc.consume_string(Rule::identifier)?;
+            let identifier = pc.consume_identifier()?;
 
             let token = pc.consume()?;
             let field = match token.as_rule() {
@@ -769,7 +783,7 @@ impl<'a> ChunkParser<'a> {
                         ParseErrorKind::Unknown,
                         String::from("invalid token in fact field"),
                         Some(token.as_span()),
-                    ))
+                    ));
                 }
             };
             out.push((identifier, field));
@@ -878,7 +892,7 @@ impl<'a> ChunkParser<'a> {
                         ParseErrorKind::Unknown,
                         String::from("invalid token in match arm"),
                         Some(token.as_span()),
-                    ))
+                    ));
                 }
             };
 
@@ -1043,7 +1057,7 @@ impl<'a> ChunkParser<'a> {
                         ParseErrorKind::InvalidStatement,
                         format!("found invalid rule `{:?}`", s),
                         Some(statement.as_span()),
-                    ))
+                    ));
                 }
             };
             statements.push(AstNode::new(ps, locator));
@@ -1070,10 +1084,10 @@ impl<'a> ChunkParser<'a> {
     fn parse_use_definition(
         &mut self,
         field: Pair<'_, Rule>,
-    ) -> Result<AstNode<String>, ParseError> {
+    ) -> Result<AstNode<Identifier>, ParseError> {
         let locator = self.add_range(&field)?;
         let pc = descend(field);
-        let identifier = pc.consume_string(Rule::identifier)?;
+        let identifier = pc.consume_identifier()?;
         Ok(AstNode::new(identifier, locator))
     }
 
@@ -1159,13 +1173,28 @@ impl<'a> ChunkParser<'a> {
         let identifier = pc.consume_identifier()?;
 
         // All remaining tokens are fields
-        let mut fields = vec![];
+        let mut items = vec![];
         for field in pc.into_inner() {
-            fields.push(Self::parse_effect_field_definition(field)?);
+            match field.as_rule() {
+                Rule::effect_field_definition => items.push(ast::StructItem::Field(
+                    Self::parse_effect_field_definition(field)?,
+                )),
+                Rule::field_insertion => {
+                    let ident = descend(field).consume_identifier()?;
+                    items.push(ast::StructItem::StructRef(ident));
+                }
+                _ => {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("invalid token in effect definition"),
+                        Some(field.as_span()),
+                    ));
+                }
+            }
         }
 
         Ok(AstNode::new(
-            ast::EffectDefinition { identifier, fields },
+            ast::EffectDefinition { identifier, items },
             locator,
         ))
     }
@@ -1182,13 +1211,28 @@ impl<'a> ChunkParser<'a> {
         let identifier = pc.consume_identifier()?;
 
         // All remaining tokens are fields
-        let mut fields = vec![];
+        let mut items = vec![];
         for field in pc.into_inner() {
-            fields.push(Self::parse_field_definition(field)?);
+            match field.as_rule() {
+                Rule::field_definition => {
+                    items.push(ast::StructItem::Field(Self::parse_field_definition(field)?))
+                }
+                Rule::field_insertion => {
+                    let ident = descend(field).consume_identifier()?;
+                    items.push(ast::StructItem::StructRef(ident));
+                }
+                _ => {
+                    return Err(ParseError::new(
+                        ParseErrorKind::Unknown,
+                        String::from("invalid token in struct definition"),
+                        Some(field.as_span()),
+                    ));
+                }
+            }
         }
 
         Ok(AstNode::new(
-            ast::StructDefinition { identifier, fields },
+            ast::StructDefinition { identifier, items },
             locator,
         ))
     }
@@ -1196,27 +1240,33 @@ impl<'a> ChunkParser<'a> {
     fn parse_enum_definition(
         &mut self,
         item: Pair<'_, Rule>,
-    ) -> Result<AstNode<EnumDefinition>, ParseError> {
+    ) -> Result<AstNode<ast::EnumDefinition>, ParseError> {
         assert_eq!(item.as_rule(), Rule::enum_definition);
 
         let locator = self.add_range(&item)?;
         let pc = descend(item);
-        let identifier = pc.consume_string(Rule::identifier)?;
-        let mut values = Vec::<String>::new();
+        let identifier = pc.consume_identifier()?;
+        let mut variants = Vec::<Identifier>::new();
         for value in pc.into_inner() {
-            let identifier = String::from(value.as_str());
-            values.push(identifier);
+            let value = remain(value).consume_identifier()?;
+            variants.push(value);
         }
 
-        Ok(AstNode::new(EnumDefinition { identifier, values }, locator))
+        Ok(AstNode::new(
+            ast::EnumDefinition {
+                identifier,
+                variants,
+            },
+            locator,
+        ))
     }
 
     fn parse_enum_reference(item: Pair<'_, Rule>) -> Result<EnumReference, ParseError> {
         assert_eq!(item.as_rule(), Rule::enum_reference);
 
         let pc = descend(item);
-        let identifier = pc.consume_string(Rule::identifier)?;
-        let value = pc.consume_string(Rule::identifier)?;
+        let identifier = pc.consume_identifier()?;
+        let value = pc.consume_identifier()?;
         Ok(EnumReference { identifier, value })
     }
 
@@ -1251,7 +1301,24 @@ impl<'a> ChunkParser<'a> {
                 Rule::fields_block => {
                     let pairs = token.into_inner();
                     for field in pairs {
-                        fields.push(Self::parse_field_definition(field)?);
+                        match field.as_rule() {
+                            Rule::field_definition => {
+                                fields.push(ast::StructItem::Field(Self::parse_field_definition(
+                                    field,
+                                )?));
+                            }
+                            Rule::field_insertion => {
+                                let ident = descend(field).consume_identifier()?;
+                                fields.push(ast::StructItem::StructRef(ident));
+                            }
+                            _ => {
+                                return Err(ParseError::new(
+                                    ParseErrorKind::Unknown,
+                                    String::from("invalid token in command definition"),
+                                    Some(field.as_span()),
+                                ));
+                            }
+                        }
                     }
                 }
                 Rule::policy_block => {
@@ -1275,7 +1342,7 @@ impl<'a> ChunkParser<'a> {
                         ParseErrorKind::InvalidStatement,
                         format!("found {:?} in command definition", t),
                         Some(token.as_span()),
-                    ))
+                    ));
                 }
             }
         }
@@ -1440,7 +1507,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
                 ParseErrorKind::Unknown,
                 "error location error".to_string(),
                 None,
-            )
+            );
         }
     };
 
@@ -1477,9 +1544,7 @@ pub fn parse_policy_chunk(
 
     for item in chunk {
         match item.as_rule() {
-            Rule::use_definition => policy
-                .ffi_imports
-                .push(p.parse_use_definition(item)?.to_string()),
+            Rule::use_definition => policy.ffi_imports.push(p.parse_use_definition(item)?.inner), // TODO(jdygert): keep ast node?
             Rule::fact_definition => policy.facts.push(p.parse_fact_definition(item)?),
             Rule::action_definition => policy.actions.push(p.parse_action_definition(item)?),
             Rule::effect_definition => policy.effects.push(p.parse_effect_definition(item)?),
@@ -1499,7 +1564,7 @@ pub fn parse_policy_chunk(
                     ParseErrorKind::Unknown,
                     format!("Impossible rule: {:?}", item.as_rule()),
                     Some(item.as_span()),
-                ))
+                ));
             }
         }
     }
@@ -1528,7 +1593,7 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     ));
 
     let pc = descend(decl);
-    let identifier = pc.consume_string(Rule::identifier)?;
+    let identifier = pc.consume_identifier()?;
 
     let token = pc.consume_of_type(Rule::function_arguments)?;
     let mut arguments = vec![];
@@ -1551,20 +1616,33 @@ pub fn parse_ffi_decl(data: &str) -> Result<ast::FunctionDecl, ParseError> {
     Ok(fn_decl)
 }
 
-/// Parse a series of Struct definitions for the FFI
-pub fn parse_ffi_structs(data: &str) -> Result<Vec<AstNode<ast::StructDefinition>>, ParseError> {
-    let def = PolicyParser::parse(Rule::ffi_struct_def, data)?;
+/// A series of Struct or Enum definitions for the FFI
+pub struct FfiTypes {
+    pub structs: Vec<AstNode<ast::StructDefinition>>,
+    pub enums: Vec<AstNode<ast::EnumDefinition>>,
+}
+
+/// Parse a series of type definitions for the FFI
+pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
+    let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
+    let pratt = get_pratt_parser();
+    let mut p = ChunkParser::new(0, &pratt);
     let mut structs = vec![];
+    let mut enums = vec![];
     for s in def {
-        if let Rule::EOI = s.as_rule() {
-            break;
+        match s.as_rule() {
+            Rule::struct_definition => {
+                structs.push(p.parse_struct_definition(s)?);
+            }
+            Rule::enum_definition => {
+                enums.push(p.parse_enum_definition(s)?);
+            }
+            Rule::EOI => break,
+            _ => break,
         }
-        let pratt = get_pratt_parser();
-        let mut p = ChunkParser::new(0, &pratt);
-        structs.push(p.parse_struct_definition(s)?);
     }
 
-    Ok(structs)
+    Ok(FfiTypes { structs, enums })
 }
 
 /// Creates the default pratt parser ruleset.

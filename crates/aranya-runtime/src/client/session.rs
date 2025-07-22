@@ -6,14 +6,14 @@
 
 use alloc::{
     boxed::Box,
-    collections::{btree_map, BTreeMap},
+    collections::{BTreeMap, btree_map},
     string::String,
     sync::Arc,
     vec::Vec,
 };
 use core::{cmp::Ordering, iter::Peekable, marker::PhantomData, mem, ops::Bound};
 
-use buggy::{bug, Bug, BugExt};
+use buggy::{Bug, BugExt, bug};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 use yoke::{Yoke, Yokeable};
@@ -441,7 +441,9 @@ where
         }
 
         if checkpoint.index > self.session.fact_log.len() {
-            bug!("A checkpoint's index should always be less than or equal to the length of a session's fact log!");
+            bug!(
+                "A checkpoint's index should always be less than or equal to the length of a session's fact log!"
+            );
         }
 
         self.session.fact_log.truncate(checkpoint.index);
