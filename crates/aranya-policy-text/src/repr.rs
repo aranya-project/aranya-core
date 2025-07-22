@@ -1,3 +1,4 @@
+use alloc::string::String;
 use core::slice;
 
 use rkyv::{
