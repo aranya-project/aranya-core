@@ -29,6 +29,8 @@ proptest = ["dep:proptest"]
 [dependencies]
 aranya-policy-text-macro = { version = "0.1.0", path = "../aranya-policy-text-macro" }
 
+rkyv = { workspace = true }
+rkyv_derive = {version="*"}
 serde = { workspace = true, default-features = false, features = ["alloc"] }
 thiserror = { workspace = true, default-features = false }
 

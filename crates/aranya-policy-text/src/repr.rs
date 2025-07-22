@@ -1,5 +1,10 @@
 use core::slice;
 
+use rkyv::{
+    rancor::{Fallible, Source},
+    string::ArchivedString,
+};
+
 // TODO(jdygert): Better repr to fit in 16 bytes.
 #[derive(Clone)]
 pub enum Repr {
@@ -216,6 +221,48 @@ mod arc {
                 alloc::alloc::dealloc(self.ptr.as_ptr().cast(), layout);
             }
         }
+    }
+}
+
+#[derive(
+    Debug, PartialEq, Eq, Hash, PartialOrd, Ord, rkyv_derive::Portable, rkyv::bytecheck::CheckBytes,
+)]
+#[bytecheck(crate = rkyv::bytecheck)]
+#[repr(transparent)]
+pub struct ArchivedRepr(ArchivedString);
+
+impl rkyv::Archive for Repr {
+    type Archived = ArchivedRepr;
+    type Resolver = rkyv::Resolver<String>;
+
+    fn resolve(&self, resolver: Self::Resolver, out: rkyv::Place<Self::Archived>) {
+        let out = unsafe { out.cast_unchecked::<ArchivedString>() };
+        ArchivedString::resolve_from_str(self.as_str(), resolver, out)
+    }
+}
+
+impl<S> rkyv::Serialize<S> for Repr
+where
+    S: Fallible<Error: Source> + ?Sized,
+    str: rkyv::SerializeUnsized<S>,
+{
+    fn serialize(&self, serializer: &mut S) -> Result<Self::Resolver, S::Error> {
+        ArchivedString::serialize_from_str(self.as_str(), serializer)
+    }
+}
+
+impl<D> rkyv::Deserialize<Repr, D> for ArchivedRepr
+where
+    D: Fallible + ?Sized,
+{
+    fn deserialize(&self, _deserializer: &mut D) -> Result<Repr, <D as Fallible>::Error> {
+        Ok(Repr::from_str(self.0.as_str()))
+    }
+}
+
+impl ArchivedRepr {
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
     }
 }
 

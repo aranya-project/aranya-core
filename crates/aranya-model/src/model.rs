@@ -531,7 +531,7 @@ where
                     break;
                 }
 
-                if let Some(cmds) = request_syncer.receive(&target[..len], request_state.provider(), &mut request_cache)? {
+                if let Some(cmds) = request_syncer.receive(&target[..len])? {
                     request_state.add_commands(&mut request_trx, &mut sink, &cmds)?;
                 };
             }
