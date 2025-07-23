@@ -639,6 +639,7 @@ impl Display for HashableValue {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+#[rkyv(attr(expect(missing_docs)))]
 #[cfg_attr(feature = "proptest", derive(proptest_derive::Arbitrary))]
 pub struct FactKey {
     /// key name
@@ -675,6 +676,7 @@ impl Display for FactKey {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+#[rkyv(attr(expect(missing_docs)))]
 pub struct FactValue {
     /// value name
     pub identifier: Identifier,
@@ -785,6 +787,7 @@ impl From<FactValue> for KVPair {
         __C::Error: rkyv::rancor::Source,
     )
 ))]
+#[rkyv(attr(expect(missing_docs)))]
 pub struct Fact {
     /// The name of the fact
     pub name: Identifier,
@@ -887,6 +890,7 @@ impl Display for Fact {
         __C::Error: rkyv::rancor::Source,
     )
 ))]
+#[rkyv(attr(expect(missing_docs)))]
 pub struct Struct {
     /// The name of the struct
     pub name: Identifier,
