@@ -80,7 +80,7 @@ impl SyncRequestMessage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SyncRequesterState {
+enum SyncRequesterState {
     /// Object initialized; no messages sent
     New,
     /// Have sent a start message but have received no response
