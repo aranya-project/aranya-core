@@ -458,7 +458,7 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             self.state,
             SyncRequesterState::Start | SyncRequesterState::New
         ) {
-            self.state = SyncRequesterState::Closed;
+            self.state = SyncRequesterState::Reset;
             return Err(SyncError::SessionState);
         }
 
