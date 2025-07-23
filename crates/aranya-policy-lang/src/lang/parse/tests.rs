@@ -190,8 +190,7 @@ fn parse_expression_pratt() -> Result<(), ParseError> {
         .trim(),
     )?;
     let pratt = get_pratt_parser();
-    let start = Point::new(0, 0, 0);
-    let mut p = ChunkParser::new(&start, &pratt);
+    let mut p = ChunkParser::new(0, &pratt);
     let expr = pairs.next().unwrap();
     let expr_parsed = p.parse_expression(expr)?;
     assert_eq!(
@@ -276,8 +275,7 @@ fn parse_expression_errors() -> Result<(), ParseError> {
         },
     ];
     let pratt = get_pratt_parser();
-    let start = Point::new(0, 0, 0);
-    let mut p = ChunkParser::new(&start, &pratt);
+    let mut p = ChunkParser::new(0, &pratt);
     for case in cases {
         let mut pairs = PolicyParser::parse(case.rule, &case.input)?;
         let expr = pairs.next().unwrap();

@@ -149,15 +149,15 @@ fn remain(p: Pair<'_, Rule>) -> PairContext<'_> {
 
 /// Context information for partial parsing of a chunk of source
 pub struct ChunkParser<'a> {
-    start: &'a Point,
+    offset: usize,
     text_ranges: ast::TextRanges,
     pratt: &'a PrattParser<Rule>,
 }
 
-impl<'a> ChunkParser<'a> {
-    pub fn new(start: &'a Point, pratt: &'a PrattParser<Rule>) -> ChunkParser<'a> {
+impl ChunkParser<'_> {
+    pub fn new(offset: usize, pratt: &PrattParser<Rule>) -> ChunkParser<'_> {
         ChunkParser {
-            start,
+            offset,
             text_ranges: vec![],
             pratt,
         }
@@ -168,11 +168,11 @@ impl<'a> ChunkParser<'a> {
         let span = p.as_span();
         let start = span
             .start()
-            .checked_add(self.start.offset)
+            .checked_add(self.offset)
             .assume("start + offset must not wrap")?;
         let end = span
             .end()
-            .checked_add(self.start.offset)
+            .checked_add(self.offset)
             .assume("end + offset must not wrap")?;
         self.text_ranges.push((start, end));
         Ok(start)
@@ -1542,7 +1542,7 @@ pub fn parse_policy_chunk(
     let chunk = PolicyParser::parse(Rule::file, data)
         .map_err(|e| mangle_pest_error(start.offset, &policy.text, e))?;
     let pratt = get_pratt_parser();
-    let mut p = ChunkParser::new(start, &pratt);
+    let mut p = ChunkParser::new(start.offset, &pratt);
     parse_policy_chunk_inner(chunk, &mut p, policy).map_err(|e| e.adjust_line_number(start))
 }
 
@@ -1635,8 +1635,7 @@ pub struct FfiTypes {
 pub fn parse_ffi_structs_enums(data: &str) -> Result<FfiTypes, ParseError> {
     let def = PolicyParser::parse(Rule::ffi_struct_or_enum_def, data)?;
     let pratt = get_pratt_parser();
-    let start = Point::new(0, 0, 0);
-    let mut p = ChunkParser::new(&start, &pratt);
+    let mut p = ChunkParser::new(0, &pratt);
     let mut structs = vec![];
     let mut enums = vec![];
     for s in def {
