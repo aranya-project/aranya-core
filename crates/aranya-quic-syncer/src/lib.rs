@@ -198,7 +198,7 @@ where
     pub async fn sync(
         &mut self,
         client: &mut ClientState<EN, SP>,
-        mut syncer: SyncRequester<'_, SocketAddr>,
+        mut syncer: SyncRequester<SocketAddr>,
         sink: &mut S,
         storage_id: GraphId,
     ) -> Result<usize, QuicSyncError> {
@@ -249,7 +249,7 @@ where
     pub async fn subscribe(
         &mut self,
         client: &mut ClientState<EN, SP>,
-        mut sync_requester: SyncRequester<'_, SocketAddr>,
+        mut sync_requester: SyncRequester<SocketAddr>,
         remain_open: u64,
         max_bytes: u64,
         peer_addr: SocketAddr,
@@ -288,7 +288,7 @@ where
     /// Unsubscribe the specified graph to a peer at the given address.
     pub async fn unsubscribe(
         &mut self,
-        mut sync_requester: SyncRequester<'_, SocketAddr>,
+        mut sync_requester: SyncRequester<SocketAddr>,
         peer_addr: SocketAddr,
     ) -> Result<(), QuicSyncError> {
         let mut buffer = vec![0u8; MAX_SYNC_MESSAGE_SIZE];

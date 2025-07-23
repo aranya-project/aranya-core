@@ -66,6 +66,7 @@ impl Display for LabelType {
 )]
 // Ensures what is archived (zero-copy serialized representation) derives these traits. Necessarily derived in fields as well
 #[rkyv(derive(Ord, PartialOrd, Eq, PartialEq))]
+#[rkyv(attr(expect(missing_docs)))]
 pub struct Label {
     /// The address of the label
     pub name: Identifier,

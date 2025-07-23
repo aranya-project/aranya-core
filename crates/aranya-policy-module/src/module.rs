@@ -51,6 +51,7 @@ pub struct UnsupportedVersion(());
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+#[rkyv(attr(expect(missing_docs)))]
 pub struct Module {
     /// The module data
     pub data: ModuleData,
@@ -96,6 +97,7 @@ pub enum ModuleData {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+#[rkyv(attr(expect(missing_docs)))]
 #[serde(deny_unknown_fields)]
 pub struct ModuleV0 {
     /// Program memory

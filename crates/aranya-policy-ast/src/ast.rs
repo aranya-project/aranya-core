@@ -146,6 +146,7 @@ impl fmt::Display for VType {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+#[rkyv(attr(expect(missing_docs)))]
 pub struct FieldDefinition {
     /// the field's name
     pub identifier: Identifier,
@@ -542,6 +543,7 @@ pub enum Statement {
     rkyv::Deserialize,
     rkyv::Serialize,
 )]
+#[rkyv(attr(expect(missing_docs)))]
 pub struct FactDefinition {
     /// Is this fact immutable?
     pub immutable: bool,
