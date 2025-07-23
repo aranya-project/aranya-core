@@ -99,20 +99,16 @@ pub enum SyncRequesterState {
     Reset,
 }
 
-// The length of the Out Of Order buffer
-const OOO_LEN: usize = 4;
-pub struct SyncRequester<'a, A> {
+pub struct SyncRequester<A> {
     session_id: u128,
     storage_id: GraphId,
     state: SyncRequesterState,
     max_bytes: u64,
     next_message_index: u64,
-    #[allow(unused)] // TODO(jdygert): Figure out what this is for...
-    ooo_buffer: [Option<&'a [u8]>; OOO_LEN], // REMOVE
     server_address: A,
 }
 
-impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
+impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<A> {
     /// Create a new [`SyncRequester`] with a random session ID.
     pub fn new<R: Csprng>(storage_id: GraphId, rng: &mut R, server_address: A) -> Self {
         // Randomly generate session id.
@@ -126,7 +122,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             state: SyncRequesterState::New,
             max_bytes: 0,
             next_message_index: 0,
-            ooo_buffer: core::array::from_fn(|_| None),
             server_address,
         }
     }
@@ -139,7 +134,6 @@ impl<A: DeserializeOwned + Serialize + Clone> SyncRequester<'_, A> {
             state: SyncRequesterState::Waiting,
             max_bytes: 0,
             next_message_index: 0,
-            ooo_buffer: core::array::from_fn(|_| None),
             server_address,
         }
     }
