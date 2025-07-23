@@ -1,5 +1,7 @@
 //! Wrapped cryptographic key storage.
 
+use core::fmt::{self, Display};
+
 use crate::{
     engine::{Engine, UnwrappedKey, WrappedKey},
     id::Id,
@@ -112,6 +114,15 @@ pub enum ErrorKind {
     AlreadyExists,
     /// Any other error.
     Other,
+}
+
+impl Display for ErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::AlreadyExists => "key entry already exists",
+            Self::Other => "some keystore error occurred",
+        })
+    }
 }
 
 /// An extension trait.
