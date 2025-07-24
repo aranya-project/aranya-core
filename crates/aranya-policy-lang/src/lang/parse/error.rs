@@ -114,15 +114,15 @@ impl Display for ParseError {
 
 impl From<PestError<Rule>> for ParseError {
     fn from(e: PestError<Rule>) -> Self {
-        let (line, column) = match e.line_col {
+        let p = match e.line_col {
             LineColLocation::Pos(p) => p,
             LineColLocation::Span(p, _) => p,
         };
-        let message = match e.path() {
-            Some(path) => format!("in {} line {} column {}: {}", path, line, column, e),
-            None => format!("line {} column {}: {}", line, column, e),
-        };
-        ParseError::new(ParseErrorKind::Syntax, message, None)
+        ParseError {
+            kind: ParseErrorKind::Syntax,
+            message: e.to_string(),
+            location: Some(p),
+        }
     }
 }
 
