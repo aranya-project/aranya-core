@@ -48,6 +48,32 @@ pub enum ParseErrorKind {
     Unknown,
 }
 
+impl Display for ParseErrorKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseErrorKind::InvalidType => write!(f, "Invalid type"),
+            ParseErrorKind::InvalidStatement => write!(f, "Invalid statement"),
+            ParseErrorKind::InvalidNumber => write!(f, "Invalid number"),
+            ParseErrorKind::InvalidString => write!(f, "Invalid string"),
+            ParseErrorKind::InvalidFunctionCall => write!(f, "Invalid function call"),
+            ParseErrorKind::InvalidMember => write!(f, "Invalid member"),
+            ParseErrorKind::InvalidSubstruct => write!(f, "Invalid substruct operation"),
+            ParseErrorKind::InvalidVersion { found, required } => {
+                write!(
+                    f,
+                    "Invalid policy version {found}, supported version is {required}"
+                )
+            }
+            ParseErrorKind::Expression => write!(f, "Invalid expression"),
+            ParseErrorKind::Syntax => write!(f, "Syntax error"),
+            ParseErrorKind::FrontMatter => write!(f, "Front matter YAML parse error"),
+            ParseErrorKind::ReservedIdentifier => write!(f, "Reserved identifier"),
+            ParseErrorKind::Bug => write!(f, "Bug"),
+            ParseErrorKind::Unknown => write!(f, "Unknown error"),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ParseError {
     pub kind: ParseErrorKind,
@@ -77,29 +103,12 @@ impl ParseError {
 
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let location = match self.location {
-            Some((line, column)) => format!("line {line} column {column}: "),
-            None => String::new(),
-        };
-        let prefix = match &self.kind {
-            ParseErrorKind::InvalidType => "Invalid type",
-            ParseErrorKind::InvalidStatement => "Invalid statement",
-            ParseErrorKind::InvalidNumber => "Invalid number",
-            ParseErrorKind::InvalidString => "Invalid string",
-            ParseErrorKind::InvalidFunctionCall => "Invalid function call",
-            ParseErrorKind::InvalidMember => "Invalid member",
-            ParseErrorKind::InvalidVersion { found, required } => {
-                &{ format!("Invalid policy version {found}, supported version is {required}") }
-            }
-            ParseErrorKind::InvalidSubstruct => "Invalid substruct operation",
-            ParseErrorKind::Expression => "Invalid expression",
-            ParseErrorKind::Syntax => "Syntax error",
-            ParseErrorKind::FrontMatter => "Front matter YAML parse error",
-            ParseErrorKind::ReservedIdentifier => "Reserved identifier",
-            ParseErrorKind::Bug => "Bug",
-            ParseErrorKind::Unknown => "Unknown error",
-        };
-        write!(f, "{prefix}: {location}{}", self.message)
+        write!(f, "{}: ", self.kind)?;
+        if let Some((line, column)) = self.location {
+            write!(f, "line {line} column {column}: ")?;
+        }
+        write!(f, "{}", self.message)?;
+        Ok(())
     }
 }
 

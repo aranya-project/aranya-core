@@ -4,7 +4,6 @@ use std::{fs::OpenOptions, io::Read};
 
 use aranya_policy_ast::{ident, text};
 use ast::{Expression, FactField, ForeignFunctionCall, MatchPattern};
-use markdown::unist::Point;
 use pest::{Parser, error::Error as PestError, iterators::Pair};
 
 use super::{

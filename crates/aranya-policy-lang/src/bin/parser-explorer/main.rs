@@ -9,7 +9,6 @@ use aranya_policy_lang::lang::{
     ChunkParser, PolicyParser, Rule, Version, extract_policy, get_pratt_parser, parse_policy_str,
 };
 use clap::{Parser, ValueEnum};
-use markdown::unist::Point;
 use pest::Parser as PestParser;
 
 #[derive(Parser, Debug)]
