@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 
-use ::markdown::unist::Point;
 use aranya_policy_ast::{
     self as ast, AstNode, Identifier, MapStatement, MatchExpression, Text, Version, ident,
 };
@@ -17,7 +16,7 @@ mod error;
 mod markdown;
 
 pub use error::{ParseError, ParseErrorKind};
-pub use markdown::{extract_policy, parse_policy_document};
+pub use markdown::{ChunkOffset, extract_policy, parse_policy_document};
 
 mod keywords;
 use keywords::KEYWORDS;
@@ -1472,8 +1471,7 @@ impl ChunkParser<'_> {
 pub fn parse_policy_str(data: &str, version: Version) -> Result<ast::Policy, ParseError> {
     let mut policy = ast::Policy::new(version, data);
 
-    let start = Point::new(0, 0, 0);
-    parse_policy_chunk(data, &mut policy, &start)?;
+    parse_policy_chunk(data, &mut policy, ChunkOffset::default())?;
 
     Ok(policy)
 }
@@ -1527,7 +1525,7 @@ fn mangle_pest_error(offset: usize, text: &str, mut e: pest::error::Error<Rule>)
 pub fn parse_policy_chunk(
     data: &str,
     policy: &mut ast::Policy,
-    start: &Point,
+    start: ChunkOffset,
 ) -> Result<(), ParseError> {
     if policy.version != Version::V2 {
         return Err(ParseError::new(
@@ -1540,10 +1538,10 @@ pub fn parse_policy_chunk(
         ));
     }
     let chunk = PolicyParser::parse(Rule::file, data)
-        .map_err(|e| mangle_pest_error(start.offset, &policy.text, e))?;
+        .map_err(|e| mangle_pest_error(start.byte, &policy.text, e))?;
     let pratt = get_pratt_parser();
-    let mut p = ChunkParser::new(start.offset, &pratt);
-    parse_policy_chunk_inner(chunk, &mut p, policy).map_err(|e| e.adjust_line_number(start))
+    let mut p = ChunkParser::new(start.byte, &pratt);
+    parse_policy_chunk_inner(chunk, &mut p, policy).map_err(|e| e.adjust_line_number(start.line))
 }
 
 fn parse_policy_chunk_inner(

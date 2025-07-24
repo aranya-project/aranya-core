@@ -2,7 +2,6 @@ use std::fmt::Display;
 
 use aranya_policy_ast::Version;
 use buggy::Bug;
-use markdown::unist::Point;
 use pest::{
     Span,
     error::{Error as PestError, LineColLocation},
@@ -93,9 +92,9 @@ impl ParseError {
     }
 
     /// Return a new error with a location starting from the given line.
-    pub fn adjust_line_number(mut self, start: &Point) -> ParseError {
+    pub fn adjust_line_number(mut self, start_line: usize) -> ParseError {
         if let Some((line, _)) = &mut self.location {
-            *line = line.saturating_add(start.line);
+            *line = line.saturating_add(start_line);
         }
         self
     }

@@ -1,9 +1,9 @@
 use aranya_policy_ast as ast;
+use buggy::BugExt as _;
 use markdown::{
     ParseOptions,
     mdast::{Node, Yaml},
     to_mdast,
-    unist::Point,
 };
 use serde::Deserialize;
 
@@ -37,7 +37,15 @@ fn parse_front_matter(yaml: &Yaml) -> Result<Version, ParseError> {
 #[derive(Debug)]
 pub struct PolicyChunk {
     pub text: String,
-    pub start: Point,
+    pub start: ChunkOffset,
+}
+
+#[derive(Default, Debug)]
+pub struct ChunkOffset {
+    /// 0-based line offset of policy code within document.
+    pub line: usize,
+    /// 0-based byte offset of policy code within document.
+    pub byte: usize,
 }
 
 fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Version), ParseError> {
@@ -63,10 +71,24 @@ fn extract_policy_from_markdown(node: &Node) -> Result<(Vec<PolicyChunk>, Versio
             if let Node::Code(c) = c {
                 if let Some(lang) = &c.lang {
                     if lang == "policy" {
-                        let position = c.position.as_ref().expect("no code block position");
+                        let point = &c.position.as_ref().expect("no code block position").start;
+
+                        // The 1-based start line of the code block is
+                        // the 0-based start line of the policy code.
+                        let line = point.line;
+
+                        // The starting position of the code block is
+                        // the triple-backtick, so add three for the
+                        // backticks, six for the language tag, and
+                        // one newline.
+                        let byte = point
+                            .offset
+                            .checked_add(10)
+                            .assume("start.offset + 10 must not wrap")?;
+
                         chunks.push(PolicyChunk {
                             text: c.value.clone(),
-                            start: position.start.clone(),
+                            start: ChunkOffset { line, byte },
                         });
                     }
                 }
@@ -95,7 +117,7 @@ pub fn parse_policy_document(data: &str) -> Result<ast::Policy, ParseError> {
     }
     let mut policy = ast::Policy::new(version, data);
     for c in chunks {
-        parse_policy_chunk(&c.text, &mut policy, &c.start)?;
+        parse_policy_chunk(&c.text, &mut policy, c.start)?;
     }
     Ok(policy)
 }

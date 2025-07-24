@@ -1964,6 +1964,27 @@ Next chunk:
         "#,
             "Invalid string: line 11 column 13: invalid escape: \\",
         ),
+        (
+            r#"---
+policy-version: 2
+---
+
+```policy
+    let x = 0
+```
+Next chunk:
+```policy
+    let x = 0
+    let = 2
+```
+        "#,
+            r#"Syntax error: line 11 column 9:   --> 11:9
+   |
+11 |     let = 2
+   |         ^---
+   |
+   = expected identifier"#,
+        ),
     ];
 
     for (policy, expected) in cases {
