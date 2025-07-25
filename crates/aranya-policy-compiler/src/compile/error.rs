@@ -58,6 +58,9 @@ pub enum CompileErrorType {
     /// operator is not a subset of the struct on the LHS of the substruct operator
     #[error("invalid substruct operation: `Struct {0}` must be a strict subset of `Struct {1}`")]
     InvalidSubstruct(Identifier, Identifier),
+    /// Invalid cast - LHS cannot be converted to RHS
+    #[error("invalid cast: `{0}` cannot be converted to `{1}`")]
+    InvalidCast(Identifier, Identifier),
     /// An implementation bug
     #[error("bug: {0}")]
     Bug(#[from] Bug),
