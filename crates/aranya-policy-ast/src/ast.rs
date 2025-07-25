@@ -517,6 +517,8 @@ pub struct FactDefinition {
 /// An action definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActionDefinition {
+    /// Whether the action is persisted on-graph (ephemeral=false)
+    pub ephemeral: bool,
     /// The name of the action
     pub identifier: Identifier,
     /// The arguments to the action

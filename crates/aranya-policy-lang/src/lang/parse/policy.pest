@@ -325,12 +325,14 @@ open_block = { "open" ~ statement_block }
 command_blocks = _{ attributes_block | fields_block | seal_block | open_block | policy_block | recall_block }
 
 // # Top-level Statements
+ephemeral_modifier = { "ephemeral" }
 // fact Foo[]=>{}
 immutable_modifier = { "immutable" }
 use_definition = { "use" ~ identifier }
 fact_definition = { immutable_modifier? ~ "fact" ~ fact_signature }
-// action foo(a int) { ... }
-action_definition = { "action" ~ identifier ~ function_arguments ~ statement_block }
+// [ephemeral] action foo(a int) { ... }
+action_def = { identifier ~ function_arguments ~ statement_block }
+action_definition = { ephemeral_modifier? ~ "action" ~ action_def }
 // effect Foo { bar id }
 effect_definition = { "effect" ~ identifier ~ effect_struct_def }
 // struct Foo { bar id }
