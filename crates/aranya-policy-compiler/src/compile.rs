@@ -1288,15 +1288,33 @@ impl<'a> CompileState<'a> {
                     }
                     self.define_label(end_label, self.wp)?;
                 }
-                (ast::Statement::Publish(s), StatementContext::Action(_)) => {
+                (ast::Statement::Publish(s), StatementContext::Action(action)) => {
                     let t = self.compile_expression(s)?;
                     let _ty: Typeish = t
                         .try_map(|nty| match nty {
-                            NullableVType::Type(VType::Struct(ref n)) => {
-                                if !self.m.command_defs.contains_key(n.as_str()) {
+                            NullableVType::Type(VType::Struct(ref ident)) => {
+                                if !self.m.command_defs.contains_key(ident.as_str()) {
                                     return Err(CompileErrorType::InvalidType(format!(
-                                        "Struct `{n}` is not a Command struct",
+                                        "Struct `{ident}` is not a Command struct",
                                     )));
+                                }
+
+                                // Check persistence constraints:
+                                // - Persistent actions can publish both ephemeral and persistent commands
+                                // - Ephemeral actions can only publish ephemeral commands
+                                if action.ephemeral {
+                                    let command = self
+                                        .policy
+                                        .commands
+                                        .iter()
+                                        .find(|c| c.identifier == *ident)
+                                        .assume("command must be defined")?;
+                                    if !command.ephemeral {
+                                        return Err(CompileErrorType::InvalidType(format!(
+                                            "Ephemeral action cannot publish persistent command `{}`",
+                                            ident
+                                        )));
+                                    }
                                 }
                                 Ok(nty)
                             }

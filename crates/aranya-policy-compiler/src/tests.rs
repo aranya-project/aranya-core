@@ -2375,3 +2375,68 @@ fn test_function_used_before_definition() {
 
     compile_pass(text);
 }
+
+#[test]
+fn test_action_command_persistence() {
+    // Test case 1: Ephemeral action publishing ephemeral command (valid)
+    let valid_ephemeral_to_ephemeral = r#"
+        ephemeral command EphemeralCmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+        }
+        
+        ephemeral action ValidAction() {
+            publish EphemeralCmd {}
+        }
+    "#;
+    compile_pass(valid_ephemeral_to_ephemeral);
+
+    // Test case 2: Ephemeral action publishing persistent command (invalid)
+    let invalid_ephemeral_to_persistent = r#"
+        command PersistentCmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+        }
+        
+        ephemeral action InvalidAction() {
+            publish PersistentCmd {}
+        }
+    "#;
+    let err = compile_fail(invalid_ephemeral_to_persistent);
+    assert_eq!(
+        err,
+        CompileErrorType::InvalidType(
+            "Ephemeral action cannot publish persistent command `PersistentCmd`".to_string()
+        )
+    );
+
+    // Test case 3: Persistent action publishing ephemeral command (valid)
+    let valid_persistent_to_ephemeral = r#"
+        ephemeral command EphemeralCmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+        }
+        
+        action PersistentAction() {
+            publish EphemeralCmd {}
+        }
+    "#;
+    compile_pass(valid_persistent_to_ephemeral);
+
+    // Test case 4: Persistent action publishing persistent command (valid)
+    let valid_persistent_to_persistent = r#"
+        command PersistentCmd {
+            fields {}
+            seal { return todo() }
+            open { return todo() }
+        }
+        
+        action PersistentAction() {
+            publish PersistentCmd {}
+        }
+    "#;
+    compile_pass(valid_persistent_to_persistent);
+}
