@@ -9,11 +9,11 @@ use crate::hir::{
     arena::AstNodes,
     hir::{
         ActionArg, ActionDef, ActionId, Block, BlockId, CmdDef, CmdField, CmdFieldKind, CmdId,
-        EffectDef, EffectField, EffectFieldId, EffectId, EnumDef, EnumId, Expr, ExprId, ExprKind,
+        EffectDef, EffectField, EffectFieldId, EffectFieldKind, EffectId, EnumDef, EnumId, Expr, ExprId, ExprKind,
         FactDef, FactField, FactId, FactKey, FactLiteral, FactVal, FinishFuncArg, FinishFuncDef,
         FinishFuncId, FuncArg, FuncDef, FuncId, GlobalId, GlobalLetDef, Hir, Ident, IdentId,
-        InternalFunction, MatchPattern, Stmt, StmtId, StmtKind, StructDef, StructField,
-        StructFieldId, StructId, VType, VTypeId, VTypeKind,
+        InternalFunction, MatchPattern, ReturnStmt, Stmt, StmtId, StmtKind, StructDef, StructField,
+        StructFieldId, StructFieldKind, StructId, VType, VTypeId, VTypeKind,
     },
     lower::LowerCtx,
     visit::{Visitor, VisitorResult},
@@ -217,6 +217,460 @@ macro_rules! build_expected {
         } [$policy]}
     };
 
+    // cmds
+    (@munch (cmds => [ $($idx:expr),* ], $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| CmdDef {
+                        id,
+                        fields: Vec::new(),
+                        seal: BlockId::default(),
+                        open: BlockId::default(),
+                        policy: BlockId::default(),
+                        recall: BlockId::default(),
+                    });
+                    ast.cmds.insert(id, &policy.commands[$idx]);
+                )*
+                hir.cmds = map;
+            })))
+        } [$policy]}
+    };
+
+    // effects
+    (@munch (effects => [ $($idx:expr),* ], $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| EffectDef {
+                        id,
+                        items: Vec::new(),
+                    });
+                    ast.effects.insert(id, &policy.effects[$idx]);
+                )*
+                hir.effects = map;
+            })))
+        } [$policy]}
+    };
+
+    // enums
+    (@munch (enums => [ $($idx:expr),* ], $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| EnumDef {
+                        id,
+                    });
+                    ast.enums.insert(id, &policy.enums[$idx]);
+                )*
+                hir.enums = map;
+            })))
+        } [$policy]}
+    };
+
+    // facts
+    (@munch (facts => [ $($idx:expr),* ], $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| FactDef {
+                        id,
+                        keys: Vec::new(),
+                        vals: Vec::new(),
+                    });
+                    ast.facts.insert(id, &policy.facts[$idx]);
+                )*
+                hir.facts = map;
+            })))
+        } [$policy]}
+    };
+
+    // finish_funcs
+    (@munch (finish_funcs => [ $($idx:expr),* ], $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| FinishFuncDef {
+                        id,
+                        args: Vec::new(),
+                        stmts: Vec::new(),
+                    });
+                    ast.finish_funcs.insert(id, &policy.finish_functions[$idx]);
+                )*
+                hir.finish_funcs = map;
+            })))
+        } [$policy]}
+    };
+
+    // funcs
+    (@munch (funcs => [ $($idx:expr),* ], $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| FuncDef {
+                        id,
+                        args: Vec::new(),
+                        result: VTypeId::default(),
+                        stmts: Vec::new(),
+                    });
+                    ast.funcs.insert(id, &policy.functions[$idx]);
+                )*
+                hir.funcs = map;
+            })))
+        } [$policy]}
+    };
+
+    // global_lets
+    (@munch (global_lets => [ $($idx:expr),* ], $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| GlobalLetDef {
+                        id,
+                        expr: ExprId::default(),
+                    });
+                    ast.global_lets.insert(id, &policy.global_lets[$idx]);
+                )*
+                hir.global_lets = map;
+            })))
+        } [$policy]}
+    };
+
+    // structs
+    (@munch (structs => [ $($idx:expr),* ], $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| StructDef {
+                        id,
+                        items: Vec::new(),
+                    });
+                    ast.structs.insert(id, &policy.structs[$idx]);
+                )*
+                hir.structs = map;
+            })))
+        } [$policy]}
+    };
+
+    // cmd_fields
+    (@munch (cmd_fields => { $($cmd_idx:expr => [$($field_idx:expr),+]),* }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $({
+                    $(
+                        let id = map.insert_with_key(|id| CmdField {
+                            id,
+                            kind: CmdFieldKind::Field { 
+                                ident: IdentId::default(), 
+                                ty: VTypeId::default() 
+                            },
+                        });
+                        ast.cmd_fields.insert(id, &policy.commands[$cmd_idx].fields[$field_idx]);
+                    )+
+                })*
+                hir.cmd_fields = map;
+            })))
+        } [$policy]}
+    };
+
+    // effect_fields
+    (@munch (effect_fields => { $($effect_idx:expr => [$($field_idx:expr),+]),* }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $({
+                    let id = map.insert_with_key(|id| EffectField {
+                        id,
+                        kind: EffectFieldKind::Field {
+                            ident: IdentId::default(),
+                            ty: VTypeId::default(),
+                        },
+                    });
+                    $( ast.effect_fields.insert(id,
+                            &policy.effects[$effect_idx].items[$field_idx]); )+
+                })*
+                hir.effect_fields = map;
+            })))
+        } [$policy]}
+    };
+
+    // fact_keys
+    (@munch (fact_keys => { $($fact_idx:expr => [$($key_idx:expr),+]),* }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $({
+                    let id = map.insert_with_key(|id| FactKey {
+                        id,
+                        ident: IdentId::default(),
+                        ty: VTypeId::default(),
+                    });
+                    $( ast.fact_keys.insert(id,
+                            &policy.facts[$fact_idx].key[$key_idx]); )+
+                })*
+                hir.fact_keys = map;
+            })))
+        } [$policy]}
+    };
+
+    // fact_vals
+    (@munch (fact_vals => { $($fact_idx:expr => [$($val_idx:expr),+]),* }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $({
+                    let id = map.insert_with_key(|id| FactVal {
+                        id,
+                        ident: IdentId::default(),
+                        ty: VTypeId::default(),
+                    });
+                    $( ast.fact_vals.insert(id,
+                            &policy.facts[$fact_idx].value[$val_idx]); )+
+                })*
+                hir.fact_vals = map;
+            })))
+        } [$policy]}
+    };
+
+    // finish_func_args
+    (@munch (finish_func_args => { $($func_idx:expr => [$($arg_idx:expr),+]),* }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $({
+                    let id = map.insert_with_key(|id| FinishFuncArg {
+                        id,
+                        ident: IdentId::default(),
+                        ty: VTypeId::default(),
+                    });
+                    $( ast.finish_func_args.insert(id,
+                            &policy.finish_functions[$func_idx].arguments[$arg_idx]); )+
+                })*
+                hir.finish_func_args = map;
+            })))
+        } [$policy]}
+    };
+
+    // func_args
+    (@munch (func_args => { $($func_idx:expr => [$($arg_idx:expr),+]),* }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $({
+                    let id = map.insert_with_key(|id| FuncArg {
+                        id,
+                        ident: IdentId::default(),
+                        ty: VTypeId::default(),
+                    });
+                    $( ast.func_args.insert(id,
+                            &policy.functions[$func_idx].arguments[$arg_idx]); )+
+                })*
+                hir.func_args = map;
+            })))
+        } [$policy]}
+    };
+
+    // struct_fields
+    (@munch (struct_fields => { $($struct_idx:expr => [$($field_idx:expr),+]),* }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $({
+                    let id = map.insert_with_key(|id| StructField {
+                        id,
+                        kind: StructFieldKind::Field {
+                            ident: IdentId::default(),
+                            ty: VTypeId::default(),
+                        },
+                    });
+                    $( ast.struct_fields.insert(id,
+                            &policy.structs[$struct_idx].items[$field_idx]); )+
+                })*
+                hir.struct_fields = map;
+            })))
+        } [$policy]}
+    };
+
+    // blocks - using expression syntax with parentheses
+    // Example usage:
+    // blocks => {
+    //     (actions[1].statements),
+    //     (commands[0].seal),
+    //     (commands[0].open),
+    //     (functions[0].statements),
+    // }
+    (@munch (blocks => { $(($($path:tt)+)),* $(,)? }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| Block {
+                        id,
+                        stmts: Vec::new(),
+                    });
+                    ast.blocks.insert(id, &policy.$($path)+);
+                )*
+                hir.blocks = map;
+            })))
+        } [$policy]}
+    };
+
+    // stmts - using expression syntax with parentheses
+    // Example usage:
+    // stmts => {
+    //     (actions[1].statements[0]),
+    //     (commands[0].seal[0]),
+    //     (functions[0].statements[0]),
+    // }
+    (@munch (stmts => { $(($($path:tt)+)),* $(,)? }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| Stmt {
+                        id,
+                        kind: StmtKind::Return(ReturnStmt { expr: ExprId::default() }),
+                    });
+                    ast.stmts.insert(id, &policy.$($path)+);
+                )*
+                hir.stmts = map;
+            })))
+        } [$policy]}
+    };
+
+    // types - using expression syntax with parentheses
+    // Example usage:
+    // types => {
+    //     (functions[0].return_type),
+    //     (functions[1].return_type),
+    // }
+    (@munch (types => { $(($($path:tt)+)),* $(,)? }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| VType {
+                        id,
+                        kind: VTypeKind::Int,
+                    });
+                    ast.types.insert(id, &policy.$($path)+);
+                )*
+                hir.types = map;
+            })))
+        } [$policy]}
+    };
+
+    // exprs - using expression syntax with parentheses
+    // Example usage:
+    // exprs => {
+    //     // expressions provided by caller if needed
+    // }
+    (@munch (exprs => { $(($($path:tt)+)),* $(,)? }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| Expr {
+                        id,
+                        kind: ExprKind::Int,
+                    });
+                    ast.exprs.insert(id, &policy.$($path)+);
+                )*
+                hir.exprs = map;
+            })))
+        } [$policy]}
+    };
+
+    // idents - using expression syntax with parentheses 
+    // Example usage:
+    // idents => {
+    //     // identifiers provided by caller if needed
+    // }
+    (@munch (idents => { $(($($path:tt)+)),* $(,)? }, $($next:tt)*) -> {
+        $($output:tt)*
+    } [$policy:ident]) => {
+        build_expected! { @munch ($($next)*) -> {
+            $($output)*
+            ((trampoline(|policy, hir, ast| {
+                let mut map = SlotMap::with_key();
+                $(
+                    let id = map.insert_with_key(|id| Ident {
+                        id,
+                        ident: policy.$($path)+.clone(),
+                    });
+                    ast.idents.insert(id, &policy.$($path)+);
+                )*
+                hir.idents = map;
+            })))
+        } [$policy]}
+    };
+
     // The entry point for the macro.
     ($policy:ident => $($tt:tt)*) => {{
         build_expected! {
@@ -276,8 +730,72 @@ struct Struct1 {
     println!("got_ast = {got_ast:#?}");
 
     let (_want_hir, want_ast) = build_expected! { policy =>
-        actions => [0, 1, 2 ],
+        actions => [0, 1, 2],
         action_args => { 1 => [0] },
+        cmds => [0],
+        cmd_fields => {},  // Cmd1 has empty fields
+        effects => [0, 1],
+        effect_fields => { 0 => [0, 1] },
+        enums => [],  // No enums in test policy
+        facts => [0, 1],
+        fact_keys => { 0 => [0, 1] },
+        fact_vals => { 0 => [0] },
+        finish_funcs => [0, 1],
+        finish_func_args => {},  // No arguments in test finish functions
+        funcs => [0, 1, 2],
+        func_args => {},  // No arguments in test functions
+        global_lets => [],  // No global lets in test policy
+        structs => [0],
+        struct_fields => { 0 => [0, 1] },
+        blocks => {
+            (actions[0].statements),  // action1 - empty
+            (actions[1].statements),  // action2 - has statements
+            (actions[2].statements),  // action3 - empty
+            (commands[0].seal),
+            (commands[0].open),
+            (commands[0].policy),     // policy block (empty in this test)
+            (commands[0].recall),     // recall block (empty in this test)
+            (functions[0].statements),
+            (functions[1].statements),
+            (functions[2].statements),
+            (finish_functions[0].statements),
+            (finish_functions[1].statements),
+        },
+        stmts => {
+            (actions[1].statements[0]),
+            (actions[1].statements[1]),
+            (commands[0].seal[0]),
+            (commands[0].open[0]),
+            (functions[0].statements[0]),
+            (functions[1].statements[0]),
+            (functions[2].statements[0]),
+            (finish_functions[1].statements[0]),
+            (finish_functions[1].statements[1]),
+        },
+        types => {
+            (functions[0].return_type),
+            (functions[1].return_type),
+            (functions[2].return_type),
+        },
+        exprs => {
+            // Expressions that can be accessed directly from the policy
+            // Most expressions are nested within statements and would require
+            // deep extraction. Adding the ones we can reference:
+        },
+        idents => {
+            // Identifiers in the order they appear in the HIR
+            // Based on the got_ast output:
+            (actions[1].arguments[0].identifier),  // "x" - IdentId(1v1)
+            (actions[0].identifier),      // "action1" - IdentId(2v1)
+            (commands[0].identifier),     // "Cmd1" - IdentId(3v1)
+            (facts[0].key[0].identifier), // "a" - IdentId(4v1)
+            (facts[0].key[1].identifier), // "b" - IdentId(5v1)
+            (facts[0].value[0].identifier), // "c" - IdentId(6v1)
+            (finish_functions[0].identifier), // "func4" - IdentId(7v1)
+            (facts[0].identifier),        // "Fact1" - IdentId(8v1)
+            // Note: There appear to be duplicate "a" and "b" identifiers
+            // in the HIR, likely from different contexts
+        },
     };
 
     /*

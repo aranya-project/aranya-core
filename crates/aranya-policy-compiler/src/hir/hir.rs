@@ -39,17 +39,37 @@ pub(crate) trait Node {
     type Id: fmt::Debug;
 }
 
-/// An identifier.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Ident {
-    pub id: IdentId,
-    pub ident: ast::Identifier,
+macro_rules! hir_node {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            pub id: $id:ty,
+            $(pub $field:ident: $ty:ty),* $(,)?
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, Eq, PartialEq)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        $vis struct $name {
+            pub id: $id,
+            $(pub $field: $ty),*
+        }
+    };
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct VType {
-    pub id: VTypeId,
-    pub kind: VTypeKind,
+hir_node! {
+    /// An identifier.
+    pub(crate) struct Ident {
+        pub id: IdentId,
+        pub ident: ast::Identifier,
+    }
+}
+
+hir_node! {
+    pub(crate) struct VType {
+        pub id: VTypeId,
+        pub kind: VTypeKind,
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -64,11 +84,12 @@ pub(crate) enum VTypeKind {
     Optional(VTypeId),
 }
 
-/// An expression.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Expr {
-    pub id: ExprId,
-    pub kind: ExprKind,
+hir_node! {
+    /// An expression.
+    pub(crate) struct Expr {
+        pub id: ExprId,
+        pub kind: ExprKind,
+    }
 }
 
 /// An expression.
@@ -168,11 +189,12 @@ pub(crate) struct FactLiteral {
     pub vals: Vec<(IdentId, FactField)>,
 }
 
-/// A statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Stmt {
-    pub id: StmtId,
-    pub kind: StmtKind,
+hir_node! {
+    /// A statement.
+    pub(crate) struct Stmt {
+        pub id: StmtId,
+        pub kind: StmtKind,
+    }
 }
 
 /// The kind of a statement.
@@ -308,61 +330,68 @@ pub(crate) struct DebugAssert {
     pub expr: ExprId,
 }
 
-/// A block.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Block {
-    pub id: BlockId,
-    pub stmts: Vec<StmtId>,
+hir_node! {
+    /// A block.
+    pub(crate) struct Block {
+        pub id: BlockId,
+        pub stmts: Vec<StmtId>,
+    }
 }
 
-/// An action definition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ActionDef {
-    pub id: ActionId,
-    pub args: Vec<ActionArgId>,
-    pub block: BlockId,
+hir_node! {
+    /// An action definition.
+    pub(crate) struct ActionDef {
+        pub id: ActionId,
+        pub args: Vec<ActionArgId>,
+        pub block: BlockId,
+    }
 }
 
-/// An action argument
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ActionArg {
-    pub id: ActionArgId,
-    pub ident: IdentId,
-    pub ty: VTypeId,
+hir_node! {
+    /// An action argument
+    pub(crate) struct ActionArg {
+        pub id: ActionArgId,
+        pub ident: IdentId,
+        pub ty: VTypeId,
+    }
 }
 
-/// A finish function argument
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FinishFuncArg {
-    pub id: FinishFuncArgId,
-    pub ident: IdentId,
-    pub ty: VTypeId,
+hir_node! {
+    /// A finish function argument
+    pub(crate) struct FinishFuncArg {
+        pub id: FinishFuncArgId,
+        pub ident: IdentId,
+        pub ty: VTypeId,
+    }
 }
 
-/// A function argument
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FuncArg {
-    pub id: FuncArgId,
-    pub ident: IdentId,
-    pub ty: VTypeId,
+hir_node! {
+    /// A function argument
+    pub(crate) struct FuncArg {
+        pub id: FuncArgId,
+        pub ident: IdentId,
+        pub ty: VTypeId,
+    }
 }
 
-/// A command definition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct CmdDef {
-    pub id: CmdId,
-    pub fields: Vec<CmdFieldId>,
-    pub seal: BlockId,
-    pub open: BlockId,
-    pub policy: BlockId,
-    pub recall: BlockId,
+hir_node! {
+    /// A command definition.
+    pub(crate) struct CmdDef {
+        pub id: CmdId,
+        pub fields: Vec<CmdFieldId>,
+        pub seal: BlockId,
+        pub open: BlockId,
+        pub policy: BlockId,
+        pub recall: BlockId,
+    }
 }
 
-/// A command field.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct CmdField {
-    pub id: CmdFieldId,
-    pub kind: CmdFieldKind,
+hir_node! {
+    /// A command field.
+    pub(crate) struct CmdField {
+        pub id: CmdFieldId,
+        pub kind: CmdFieldKind,
+    }
 }
 
 /// The kind of a command field.
@@ -374,18 +403,20 @@ pub(crate) enum CmdFieldKind {
     StructRef(IdentId),
 }
 
-/// An effect definition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct EffectDef {
-    pub id: EffectId,
-    pub items: Vec<EffectFieldId>,
+hir_node! {
+    /// An effect definition.
+    pub(crate) struct EffectDef {
+        pub id: EffectId,
+        pub items: Vec<EffectFieldId>,
+    }
 }
 
-/// An effect field.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct EffectField {
-    pub id: EffectFieldId,
-    pub kind: EffectFieldKind,
+hir_node! {
+    /// An effect field.
+    pub(crate) struct EffectField {
+        pub id: EffectFieldId,
+        pub kind: EffectFieldKind,
+    }
 }
 
 /// The kind of an effect field.
@@ -397,72 +428,81 @@ pub(crate) enum EffectFieldKind {
     StructRef(IdentId),
 }
 
-/// An enum definition.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct EnumDef {
-    pub id: EnumId,
+hir_node! {
+    /// An enum definition.
+    pub(crate) struct EnumDef {
+        pub id: EnumId,
+    }
 }
 
-/// A fact definition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FactDef {
-    pub id: FactId,
-    pub keys: Vec<FactKeyId>,
-    pub vals: Vec<FactValId>,
+hir_node! {
+    /// A fact definition.
+    pub(crate) struct FactDef {
+        pub id: FactId,
+        pub keys: Vec<FactKeyId>,
+        pub vals: Vec<FactValId>,
+    }
 }
 
-/// A fact key.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FactKey {
-    pub id: FactKeyId,
-    pub ident: IdentId,
-    pub ty: VTypeId,
+hir_node! {
+    /// A fact key.
+    pub(crate) struct FactKey {
+        pub id: FactKeyId,
+        pub ident: IdentId,
+        pub ty: VTypeId,
+    }
 }
 
-/// A fact value.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FactVal {
-    pub id: FactValId,
-    pub ident: IdentId,
-    pub ty: VTypeId,
+hir_node! {
+    /// A fact value.
+    pub(crate) struct FactVal {
+        pub id: FactValId,
+        pub ident: IdentId,
+        pub ty: VTypeId,
+    }
 }
 
-/// A finish function definition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FinishFuncDef {
-    pub id: FinishFuncId,
-    pub args: Vec<FinishFuncArgId>,
-    pub stmts: Vec<StmtId>,
+hir_node! {
+    /// A finish function definition.
+    pub(crate) struct FinishFuncDef {
+        pub id: FinishFuncId,
+        pub args: Vec<FinishFuncArgId>,
+        pub stmts: Vec<StmtId>,
+    }
 }
 
-/// A function definition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FuncDef {
-    pub id: FuncId,
-    pub args: Vec<FuncArgId>,
-    pub result: VTypeId,
-    pub stmts: Vec<StmtId>,
+hir_node! {
+    /// A function definition.
+    pub(crate) struct FuncDef {
+        pub id: FuncId,
+        pub args: Vec<FuncArgId>,
+        pub result: VTypeId,
+        pub stmts: Vec<StmtId>,
+    }
 }
 
-/// A global let definition.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct GlobalLetDef {
-    pub id: GlobalId,
-    pub expr: ExprId,
+hir_node! {
+    /// A global let definition.
+    pub(crate) struct GlobalLetDef {
+        pub id: GlobalId,
+        pub expr: ExprId,
+    }
 }
 
-/// A struct definition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct StructDef {
-    pub id: StructId,
-    pub items: Vec<StructFieldId>,
+hir_node! {
+    /// A struct definition.
+    pub(crate) struct StructDef {
+        pub id: StructId,
+        pub items: Vec<StructFieldId>,
+    }
 }
 
-/// A struct field.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct StructField {
-    pub id: StructFieldId,
-    pub kind: StructFieldKind,
+hir_node! {
+    /// A struct field.
+    pub(crate) struct StructField {
+        pub id: StructFieldId,
+        pub kind: StructFieldKind,
+    }
 }
 
 /// The kind of an struct field.
@@ -484,17 +524,17 @@ pub(crate) trait NodeId:
     type Node<'ast>: PartialEq + fmt::Debug;
 }
 
-macro_rules! new_id_type {
+macro_rules! make_node_id {
     ($(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)*) => {
         slotmap::new_key_type! {
             $(#[$outer])*
             $vis struct $name;
         }
-        new_id_type!($($rest)*);
+        make_node_id!($($rest)*);
     };
     () => {};
 }
-new_id_type! {
+make_node_id! {
     /// Uniquely identifies an action.
     pub(crate) struct ActionId;
     /// Uniquely identifies an action parameter.
