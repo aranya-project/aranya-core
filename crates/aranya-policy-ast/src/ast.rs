@@ -515,6 +515,8 @@ pub struct FactDefinition {
 /// An action definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct ActionDefinition {
+    /// Whether the action is persisted on-graph (ephemeral=false)
+    pub ephemeral: bool,
     /// The name of the action
     pub identifier: Identifier,
     /// The arguments to the action
@@ -563,6 +565,8 @@ impl<T> StructItem<T> {
 /// A command definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct CommandDefinition {
+    /// Whether the command is ephemeral (not persisted on-graph)
+    pub ephemeral: bool,
     /// Optional attributes
     pub attributes: Vec<(Identifier, Expression)>,
     /// The name of the command

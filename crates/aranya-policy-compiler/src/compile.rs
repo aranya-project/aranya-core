@@ -1250,15 +1250,38 @@ impl<'a> CompileState<'a> {
                     }
                     self.define_label(end_label, self.wp)?;
                 }
-                (ast::Statement::Publish(s), StatementContext::Action(_)) => {
+                (ast::Statement::Publish(s), StatementContext::Action(action)) => {
                     let t = self.compile_expression(s)?;
                     match t {
-                        Typeish::Type(VType::Struct(n)) => {
-                            if !self.m.command_defs.contains_key(&n) {
+                        Typeish::Type(VType::Struct(ident)) => {
+                            if !self.m.command_defs.contains_key(&ident) {
                                 return Err(self.err(CompileErrorType::InvalidType(format!(
                                     "Struct `{}` is not a Command struct",
-                                    n
+                                    ident
                                 ))));
+                            }
+
+                            // Check persistence constraints:
+                            // - Persistent actions can publish both ephemeral and persistent commands
+                            // - Ephemeral actions can only publish ephemeral commands
+                            if action.ephemeral {
+                                let command = self
+                                    .policy
+                                    .commands
+                                    .iter()
+                                    .find(|c| c.identifier == ident)
+                                    .ok_or_else(|| {
+                                        self.err(CompileErrorType::NotDefined(format!(
+                                            "Command `{}` not defined",
+                                            ident
+                                        )))
+                                    })?;
+                                if !command.ephemeral {
+                                    return Err(self.err(CompileErrorType::InvalidType(format!(
+                                        "Ephemeral action cannot publish persistent command `{}`",
+                                        ident
+                                    ))));
+                                }
                             }
                         }
                         Typeish::Type(ot) => {
@@ -1266,8 +1289,11 @@ impl<'a> CompileState<'a> {
                                 "Cannot publish `{ot}`, must be a command struct"
                             ))));
                         }
-                        _ => {}
+                        _ => {
+                            // TODO What to do here? We don't know if it's a command, so we can't do the persistence check
+                        }
                     }
+
                     self.append_instruction(Instruction::Publish);
                 }
                 (ast::Statement::Return(s), StatementContext::PureFunction(fd)) => {
