@@ -2325,7 +2325,13 @@ function b() int { return c() }
 function c() int { return d() }
 function d() int { return a() }
 "#,
-            vec![ident!("a"), ident!("b"), ident!("c"), ident!("d")],
+            vec![
+                ident!("a"),
+                ident!("b"),
+                ident!("c"),
+                ident!("d"),
+                ident!("a"),
+            ],
         ),
         (
             r#"
@@ -2334,7 +2340,27 @@ action b() { action c() }
 action c() { action d() }
 action d() { action a() }
 "#,
-            vec![ident!("a"), ident!("b"), ident!("c"), ident!("d")],
+            vec![
+                ident!("a"),
+                ident!("b"),
+                ident!("c"),
+                ident!("d"),
+                ident!("a"),
+            ],
+        ),
+        (
+            r#"
+struct A {
+    a int,
+}
+let a = A {
+    a: foo()
+}
+function foo() int {
+    return a.a
+}
+"#,
+            vec![],
         ),
     ];
     for (i, (text, path)) in tests.into_iter().enumerate() {
