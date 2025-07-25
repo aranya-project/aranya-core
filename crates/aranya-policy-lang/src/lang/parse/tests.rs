@@ -568,6 +568,7 @@ fn parse_policy_test() -> Result<(), ParseError> {
             create Next[]=>{}
         }
 
+        ephemeral action a() {}
     "#;
 
     let policy = parse_policy_str(policy_str, Version::V2)?;
@@ -598,41 +599,53 @@ fn parse_policy_test() -> Result<(), ParseError> {
     );
     assert_eq!(
         policy.actions,
-        vec![AstNode::new(
-            ast::ActionDefinition {
-                identifier: ident!("add"),
-                arguments: vec![
-                    ast::FieldDefinition {
-                        identifier: ident!("x"),
-                        field_type: ast::VType::Int,
-                    },
-                    ast::FieldDefinition {
-                        identifier: ident!("y"),
-                        field_type: ast::VType::Int,
-                    },
-                ],
-                statements: vec![
-                    AstNode::new(
-                        ast::Statement::Let(ast::LetStatement {
-                            identifier: ident!("obj"),
-                            expression: Expression::NamedStruct(ast::NamedStruct {
-                                identifier: ident!("Add"),
-                                fields: vec![(
-                                    ident!("count"),
-                                    Expression::Identifier(ident!("x")),
-                                )],
+        vec![
+            AstNode::new(
+                ast::ActionDefinition {
+                    ephemeral: false,
+                    identifier: ident!("add"),
+                    arguments: vec![
+                        ast::FieldDefinition {
+                            identifier: ident!("x"),
+                            field_type: ast::VType::Int,
+                        },
+                        ast::FieldDefinition {
+                            identifier: ident!("y"),
+                            field_type: ast::VType::Int,
+                        },
+                    ],
+                    statements: vec![
+                        AstNode::new(
+                            ast::Statement::Let(ast::LetStatement {
+                                identifier: ident!("obj"),
+                                expression: Expression::NamedStruct(ast::NamedStruct {
+                                    identifier: ident!("Add"),
+                                    fields: vec![(
+                                        ident!("count"),
+                                        Expression::Identifier(ident!("x")),
+                                    )],
+                                }),
                             }),
-                        }),
-                        227,
-                    ),
-                    AstNode::new(
-                        ast::Statement::Publish(Expression::Identifier(ident!("obj"))),
-                        295,
-                    ),
-                ],
-            },
-            188,
-        )]
+                            227,
+                        ),
+                        AstNode::new(
+                            ast::Statement::Publish(Expression::Identifier(ident!("obj"))),
+                            295,
+                        ),
+                    ],
+                },
+                188,
+            ),
+            AstNode::new(
+                ast::ActionDefinition {
+                    ephemeral: true,
+                    identifier: ident!("a"),
+                    arguments: vec![],
+                    statements: vec![],
+                },
+                2189,
+            )
+        ]
     );
     assert_eq!(
         policy.effects,
@@ -1567,6 +1580,7 @@ fn parse_global_let_statements() -> Result<(), ParseError> {
         policy.actions,
         vec![AstNode::new(
             ast::ActionDefinition {
+                ephemeral: false,
                 identifier: ident!("foo"),
                 arguments: vec![],
                 statements: vec![
@@ -1709,6 +1723,7 @@ fn test_action_call() -> anyhow::Result<()> {
         policy.actions[1],
         AstNode {
             inner: ast::ActionDefinition {
+                ephemeral: false,
                 identifier: ident!("pong"),
                 arguments: vec![],
                 statements: vec![AstNode {
