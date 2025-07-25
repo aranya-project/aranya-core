@@ -1,5 +1,7 @@
 //! Lowers [`Policy`] items into the HIR.
 
+use std::borrow::Cow;
+
 use aranya_policy_ast::{self as ast, AstNode, Policy};
 
 use crate::hir::{
@@ -62,7 +64,7 @@ impl<'ast> LowerCtx<'ast> {
             id,
             ident: ident.clone(),
         });
-        self.arena.idents.insert(id, ident);
+        self.arena.idents.insert(id, Cow::Borrowed(ident));
         id
     }
 
@@ -79,7 +81,7 @@ impl<'ast> LowerCtx<'ast> {
             ast::VType::Optional(v) => VTypeKind::Optional(v.lower(self)),
         };
         let id = self.ast.types.insert_with_key(|id| VType { id, kind });
-        self.arena.types.insert(id, vtype);
+        self.arena.types.insert(id, Cow::Borrowed(vtype));
         id
     }
 
@@ -187,7 +189,7 @@ impl<'ast> LowerCtx<'ast> {
             }
         };
         let id = self.ast.exprs.insert_with_key(|id| Expr { id, kind });
-        self.arena.exprs.insert(id, expr);
+        self.arena.exprs.insert(id, Cow::Borrowed(expr));
         id
     }
 
@@ -247,7 +249,7 @@ impl<'ast> LowerCtx<'ast> {
             }),
         };
         let id = self.ast.stmts.insert_with_key(|id| Stmt { id, kind });
-        self.arena.stmts.insert(id, stmt);
+        self.arena.stmts.insert(id, Cow::Borrowed(stmt));
         id
     }
 
@@ -255,7 +257,7 @@ impl<'ast> LowerCtx<'ast> {
     fn lower_block(&mut self, block: &'ast Vec<AstNode<ast::Statement>>) -> BlockId {
         let stmts = self.lower_stmts(block);
         let id = self.ast.blocks.insert_with_key(|id| Block { id, stmts });
-        self.arena.blocks.insert(id, block);
+        self.arena.blocks.insert(id, Cow::Borrowed(block));
         id
     }
 
@@ -274,7 +276,7 @@ impl<'ast> LowerCtx<'ast> {
             .ast
             .actions
             .insert_with_key(|id| ActionDef { id, args, block });
-        self.arena.actions.insert(id, node);
+        self.arena.actions.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -285,7 +287,7 @@ impl<'ast> LowerCtx<'ast> {
             .ast
             .action_args
             .insert_with_key(|id| ActionArg { id, ident, ty });
-        self.arena.action_args.insert(id, node);
+        self.arena.action_args.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -296,7 +298,7 @@ impl<'ast> LowerCtx<'ast> {
             .ast
             .fact_keys
             .insert_with_key(|id| FactKey { id, ident, ty });
-        self.arena.fact_keys.insert(id, node);
+        self.arena.fact_keys.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -307,7 +309,7 @@ impl<'ast> LowerCtx<'ast> {
             .ast
             .fact_vals
             .insert_with_key(|id| FactVal { id, ident, ty });
-        self.arena.fact_vals.insert(id, node);
+        self.arena.fact_vals.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -318,7 +320,7 @@ impl<'ast> LowerCtx<'ast> {
             .ast
             .finish_func_args
             .insert_with_key(|id| FinishFuncArg { id, ident, ty });
-        self.arena.finish_func_args.insert(id, node);
+        self.arena.finish_func_args.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -329,7 +331,7 @@ impl<'ast> LowerCtx<'ast> {
             .ast
             .func_args
             .insert_with_key(|id| FuncArg { id, ident, ty });
-        self.arena.func_args.insert(id, node);
+        self.arena.func_args.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -347,7 +349,7 @@ impl<'ast> LowerCtx<'ast> {
             policy,
             recall,
         });
-        self.arena.cmds.insert(id, node);
+        self.arena.cmds.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -367,7 +369,7 @@ impl<'ast> LowerCtx<'ast> {
             .ast
             .cmd_fields
             .insert_with_key(|id| CmdField { id, kind });
-        self.arena.cmd_fields.insert(id, node);
+        self.arena.cmd_fields.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -378,7 +380,7 @@ impl<'ast> LowerCtx<'ast> {
         // For now, we don't store effect fields in the HIR, just return the ID
         // The arena stores the AST node for later reference
         let id = EffectFieldId::default();
-        self.arena.effect_fields.insert(id, node);
+        self.arena.effect_fields.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -389,7 +391,7 @@ impl<'ast> LowerCtx<'ast> {
         // For now, we don't store struct fields in the HIR, just return the ID
         // The arena stores the AST node for later reference
         let id = StructFieldId::default();
-        self.arena.struct_fields.insert(id, node);
+        self.arena.struct_fields.insert(id, Cow::Borrowed(node));
         id
     }
 
@@ -406,7 +408,7 @@ impl<'ast> LowerCtx<'ast> {
                 .ast
                 .effects
                 .insert_with_key(|id| EffectDef { id, items });
-            self.arena.effects.insert(id, e);
+            self.arena.effects.insert(id, Cow::Borrowed(e));
         }
     }
 
@@ -415,7 +417,7 @@ impl<'ast> LowerCtx<'ast> {
             // Lower enum variants as identifiers
             self.lower_list::<_, _, Ident, Discard>(&e.variants);
             let id = self.ast.enums.insert_with_key(|id| EnumDef { id });
-            self.arena.enums.insert(id, e);
+            self.arena.enums.insert(id, Cow::Borrowed(e));
         }
     }
 
@@ -427,7 +429,7 @@ impl<'ast> LowerCtx<'ast> {
                 .ast
                 .facts
                 .insert_with_key(|id| FactDef { id, keys, vals });
-            self.arena.facts.insert(id, f);
+            self.arena.facts.insert(id, Cow::Borrowed(f));
         }
     }
 
@@ -440,7 +442,7 @@ impl<'ast> LowerCtx<'ast> {
                 .ast
                 .finish_funcs
                 .insert_with_key(|id| FinishFuncDef { id, args, stmts });
-            self.arena.finish_funcs.insert(id, f);
+            self.arena.finish_funcs.insert(id, Cow::Borrowed(f));
         }
     }
 
@@ -455,7 +457,7 @@ impl<'ast> LowerCtx<'ast> {
                 result,
                 stmts,
             });
-            self.arena.funcs.insert(id, f);
+            self.arena.funcs.insert(id, Cow::Borrowed(f));
         }
     }
 
@@ -466,7 +468,7 @@ impl<'ast> LowerCtx<'ast> {
                 .ast
                 .global_lets
                 .insert_with_key(|id| GlobalLetDef { id, expr });
-            self.arena.global_lets.insert(id, g);
+            self.arena.global_lets.insert(id, Cow::Borrowed(g));
         }
     }
 
@@ -477,7 +479,7 @@ impl<'ast> LowerCtx<'ast> {
                 .ast
                 .structs
                 .insert_with_key(|id| StructDef { id, items });
-            self.arena.structs.insert(id, s);
+            self.arena.structs.insert(id, Cow::Borrowed(s));
         }
     }
 }

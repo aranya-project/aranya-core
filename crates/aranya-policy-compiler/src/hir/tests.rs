@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+use std::borrow::Cow;
+
 use aranya_policy_ast::{Policy, Version};
 use aranya_policy_lang::lang::parse_policy_str;
 use slotmap::{SecondaryMap, SlotMap};
@@ -185,7 +187,7 @@ macro_rules! build_expected {
                         args: Vec::new(),
                         block: BlockId::default(),
                     });
-                    ast.actions.insert(id, &policy.actions[$idx]);
+                    ast.actions.insert(id, Cow::Borrowed(&policy.actions[$idx]));
                 })*
                 hir.actions = map;
             })))
@@ -210,7 +212,7 @@ macro_rules! build_expected {
                         ty: VTypeId::default(),
                     });
                     $( ast.action_args.insert(id,
-                            &policy.actions[$act_idx].arguments[$arg_idx]); )+
+                            Cow::Borrowed(&policy.actions[$act_idx].arguments[$arg_idx])); )+
                 })*
                 hir.action_args = map;
             })))
@@ -234,7 +236,7 @@ macro_rules! build_expected {
                         policy: BlockId::default(),
                         recall: BlockId::default(),
                     });
-                    ast.cmds.insert(id, &policy.commands[$idx]);
+                    ast.cmds.insert(id, Cow::Borrowed(&policy.commands[$idx]));
                 )*
                 hir.cmds = map;
             })))
@@ -254,7 +256,7 @@ macro_rules! build_expected {
                         id,
                         items: Vec::new(),
                     });
-                    ast.effects.insert(id, &policy.effects[$idx]);
+                    ast.effects.insert(id, Cow::Borrowed(&policy.effects[$idx]));
                 )*
                 hir.effects = map;
             })))
@@ -273,7 +275,7 @@ macro_rules! build_expected {
                     let id = map.insert_with_key(|id| EnumDef {
                         id,
                     });
-                    ast.enums.insert(id, &policy.enums[$idx]);
+                    ast.enums.insert(id, Cow::Borrowed(&policy.enums[$idx]));
                 )*
                 hir.enums = map;
             })))
@@ -294,7 +296,7 @@ macro_rules! build_expected {
                         keys: Vec::new(),
                         vals: Vec::new(),
                     });
-                    ast.facts.insert(id, &policy.facts[$idx]);
+                    ast.facts.insert(id, Cow::Borrowed(&policy.facts[$idx]));
                 )*
                 hir.facts = map;
             })))
@@ -315,7 +317,7 @@ macro_rules! build_expected {
                         args: Vec::new(),
                         stmts: Vec::new(),
                     });
-                    ast.finish_funcs.insert(id, &policy.finish_functions[$idx]);
+                    ast.finish_funcs.insert(id, Cow::Borrowed(&policy.finish_functions[$idx]));
                 )*
                 hir.finish_funcs = map;
             })))
@@ -337,7 +339,7 @@ macro_rules! build_expected {
                         result: VTypeId::default(),
                         stmts: Vec::new(),
                     });
-                    ast.funcs.insert(id, &policy.functions[$idx]);
+                    ast.funcs.insert(id, Cow::Borrowed(&policy.functions[$idx]));
                 )*
                 hir.funcs = map;
             })))
@@ -357,7 +359,7 @@ macro_rules! build_expected {
                         id,
                         expr: ExprId::default(),
                     });
-                    ast.global_lets.insert(id, &policy.global_lets[$idx]);
+                    ast.global_lets.insert(id, Cow::Borrowed(&policy.global_lets[$idx]));
                 )*
                 hir.global_lets = map;
             })))
@@ -377,7 +379,7 @@ macro_rules! build_expected {
                         id,
                         items: Vec::new(),
                     });
-                    ast.structs.insert(id, &policy.structs[$idx]);
+                    ast.structs.insert(id, Cow::Borrowed(&policy.structs[$idx]));
                 )*
                 hir.structs = map;
             })))
@@ -401,7 +403,7 @@ macro_rules! build_expected {
                                 ty: VTypeId::default() 
                             },
                         });
-                        ast.cmd_fields.insert(id, &policy.commands[$cmd_idx].fields[$field_idx]);
+                        ast.cmd_fields.insert(id, Cow::Borrowed(&policy.commands[$cmd_idx].fields[$field_idx]));
                     )+
                 })*
                 hir.cmd_fields = map;
@@ -426,7 +428,7 @@ macro_rules! build_expected {
                         },
                     });
                     $( ast.effect_fields.insert(id,
-                            &policy.effects[$effect_idx].items[$field_idx]); )+
+                            Cow::Borrowed(&policy.effects[$effect_idx].items[$field_idx])); )+
                 })*
                 hir.effect_fields = map;
             })))
@@ -448,7 +450,7 @@ macro_rules! build_expected {
                         ty: VTypeId::default(),
                     });
                     $( ast.fact_keys.insert(id,
-                            &policy.facts[$fact_idx].key[$key_idx]); )+
+                            Cow::Borrowed(&policy.facts[$fact_idx].key[$key_idx])); )+
                 })*
                 hir.fact_keys = map;
             })))
@@ -470,7 +472,7 @@ macro_rules! build_expected {
                         ty: VTypeId::default(),
                     });
                     $( ast.fact_vals.insert(id,
-                            &policy.facts[$fact_idx].value[$val_idx]); )+
+                            Cow::Borrowed(&policy.facts[$fact_idx].value[$val_idx])); )+
                 })*
                 hir.fact_vals = map;
             })))
@@ -492,7 +494,7 @@ macro_rules! build_expected {
                         ty: VTypeId::default(),
                     });
                     $( ast.finish_func_args.insert(id,
-                            &policy.finish_functions[$func_idx].arguments[$arg_idx]); )+
+                            Cow::Borrowed(&policy.finish_functions[$func_idx].arguments[$arg_idx])); )+
                 })*
                 hir.finish_func_args = map;
             })))
@@ -514,7 +516,7 @@ macro_rules! build_expected {
                         ty: VTypeId::default(),
                     });
                     $( ast.func_args.insert(id,
-                            &policy.functions[$func_idx].arguments[$arg_idx]); )+
+                            Cow::Borrowed(&policy.functions[$func_idx].arguments[$arg_idx])); )+
                 })*
                 hir.func_args = map;
             })))
@@ -538,7 +540,7 @@ macro_rules! build_expected {
                         },
                     });
                     $( ast.struct_fields.insert(id,
-                            &policy.structs[$struct_idx].items[$field_idx]); )+
+                            Cow::Borrowed(&policy.structs[$struct_idx].items[$field_idx])); )+
                 })*
                 hir.struct_fields = map;
             })))
@@ -565,7 +567,7 @@ macro_rules! build_expected {
                         id,
                         stmts: Vec::new(),
                     });
-                    ast.blocks.insert(id, &policy.$($path)+);
+                    ast.blocks.insert(id, Cow::Borrowed(&policy.$($path)+));
                 )*
                 hir.blocks = map;
             })))
@@ -591,7 +593,7 @@ macro_rules! build_expected {
                         id,
                         kind: StmtKind::Return(ReturnStmt { expr: ExprId::default() }),
                     });
-                    ast.stmts.insert(id, &policy.$($path)+);
+                    ast.stmts.insert(id, Cow::Borrowed(&policy.$($path)+));
                 )*
                 hir.stmts = map;
             })))
@@ -616,7 +618,7 @@ macro_rules! build_expected {
                         id,
                         kind: VTypeKind::Int,
                     });
-                    ast.types.insert(id, &policy.$($path)+);
+                    ast.types.insert(id, Cow::Borrowed(&policy.$($path)+));
                 )*
                 hir.types = map;
             })))
@@ -640,7 +642,7 @@ macro_rules! build_expected {
                         id,
                         kind: ExprKind::Int,
                     });
-                    ast.exprs.insert(id, &policy.$($path)+);
+                    ast.exprs.insert(id, Cow::Borrowed(&policy.$($path)+));
                 )*
                 hir.exprs = map;
             })))
@@ -664,7 +666,7 @@ macro_rules! build_expected {
                         id,
                         ident: policy.$($path)+.clone(),
                     });
-                    ast.idents.insert(id, &policy.$($path)+);
+                    ast.idents.insert(id, Cow::Borrowed(&policy.$($path)+));
                 )*
                 hir.idents = map;
             })))

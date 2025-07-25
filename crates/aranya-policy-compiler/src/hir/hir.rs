@@ -10,6 +10,7 @@ use slotmap::SlotMap;
 /// code generation easier. It stores all policy definitions in
 /// arena-allocated collections indexed by typed IDs.
 #[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct Hir {
     pub actions: SlotMap<ActionId, ActionDef>,
     pub action_args: SlotMap<ActionArgId, ActionArg>,
@@ -66,6 +67,36 @@ macro_rules! make_node_id {
         make_node_id!($($rest)*);
     };
     () => {};
+}
+
+/// Macro for consistent derives on HIR helper types
+macro_rules! hir_type {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            $($body:tt)*
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, Eq, PartialEq)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        $vis struct $name {
+            $($body)*
+        }
+    };
+    (
+        $(#[$meta:meta])*
+        $vis:vis enum $name:ident {
+            $($body:tt)*
+        }
+    ) => {
+        $(#[$meta])*
+        #[derive(Clone, Debug, Eq, PartialEq)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        $vis enum $name {
+            $($body)*
+        }
+    };
 }
 
 make_node_id! {
@@ -139,13 +170,14 @@ hir_node! {
     }
 }
 
-/// The kind of a command field.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum CmdFieldKind {
-    /// A regular field with an identifier and type
-    Field { ident: IdentId, ty: VTypeId },
-    /// A reference to another struct whose fields should be included
-    StructRef(IdentId),
+hir_type! {
+    /// The kind of a command field.
+    pub(crate) enum CmdFieldKind {
+        /// A regular field with an identifier and type
+        Field { ident: IdentId, ty: VTypeId },
+        /// A reference to another struct whose fields should be included
+        StructRef(IdentId),
+    }
 }
 
 make_node_id! {
@@ -174,13 +206,14 @@ hir_node! {
     }
 }
 
-/// The kind of an effect field.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum EffectFieldKind {
-    /// A regular field with an identifier and type
-    Field { ident: IdentId, ty: VTypeId },
-    /// A reference to another struct whose fields should be included
-    StructRef(IdentId),
+hir_type! {
+    /// The kind of an effect field.
+    pub(crate) enum EffectFieldKind {
+        /// A regular field with an identifier and type
+        Field { ident: IdentId, ty: VTypeId },
+        /// A reference to another struct whose fields should be included
+        StructRef(IdentId),
+    }
 }
 
 make_node_id! {
@@ -208,108 +241,117 @@ hir_node! {
     }
 }
 
-/// An expression.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum ExprKind {
-    /// An integer literal.
-    Int,
-    /// A text string.
-    String,
-    /// A boolean literal.
-    Bool,
-    /// An optional literal.
-    Optional(Option<ExprId>),
+hir_type! {
+    /// An expression.
+    pub(crate) enum ExprKind {
+        /// An integer literal.
+        Int,
+        /// A text string.
+        String,
+        /// A boolean literal.
+        Bool,
+        /// An optional literal.
+        Optional(Option<ExprId>),
+        /// A named struct literal.
+        NamedStruct(NamedStruct),
+        InternalFunction(InternalFunction),
+        FunctionCall(FunctionCall),
+        ForeignFunctionCall(ForeignFunctionCall),
+        Identifier(IdentId),
+        EnumReference(EnumReference),
+        Add(ExprId, ExprId),
+        Sub(ExprId, ExprId),
+        And(ExprId, ExprId),
+        Or(ExprId, ExprId),
+        Dot(ExprId, IdentId),
+        Equal(ExprId, ExprId),
+        NotEqual(ExprId, ExprId),
+        GreaterThan(ExprId, ExprId),
+        LessThan(ExprId, ExprId),
+        GreaterThanOrEqual(ExprId, ExprId),
+        LessThanOrEqual(ExprId, ExprId),
+        Negative(ExprId),
+        Not(ExprId),
+        Unwrap(ExprId),
+        CheckUnwrap(ExprId),
+        Is(ExprId, bool),
+        Block(BlockId, ExprId),
+        Substruct(ExprId, IdentId),
+        Match(ExprId),
+    }
+}
+
+hir_type! {
+    /// A named struct.
+    pub(crate) struct NamedStruct {
+        pub ident: IdentId,
+        pub fields: Vec<(IdentId, ExprId)>,
+    }
+}
+
+hir_type! {
+    pub(crate) enum InternalFunction {
+        Query(FactLiteral),
+        Exists(FactLiteral),
+        FactCount(FactCountType, i64, FactLiteral),
+        If(ExprId, ExprId, ExprId),
+        Serialize(ExprId),
+        Deserialize(ExprId),
+    }
+}
+
+hir_type! {
+    /// How many facts to expect when counting
+    pub(crate) enum FactCountType {
+        /// Up to
+        UpTo,
+        /// At least
+        AtLeast,
+        /// At most
+        AtMost,
+        /// Exactly
+        Exactly,
+    }
+}
+
+hir_type! {
     /// A named struct literal.
-    NamedStruct(NamedStruct),
-    InternalFunction(InternalFunction),
-    FunctionCall(FunctionCall),
-    ForeignFunctionCall(ForeignFunctionCall),
-    Identifier(IdentId),
-    EnumReference(EnumReference),
-    Add(ExprId, ExprId),
-    Sub(ExprId, ExprId),
-    And(ExprId, ExprId),
-    Or(ExprId, ExprId),
-    Dot(ExprId, IdentId),
-    Equal(ExprId, ExprId),
-    NotEqual(ExprId, ExprId),
-    GreaterThan(ExprId, ExprId),
-    LessThan(ExprId, ExprId),
-    GreaterThanOrEqual(ExprId, ExprId),
-    LessThanOrEqual(ExprId, ExprId),
-    Negative(ExprId),
-    Not(ExprId),
-    Unwrap(ExprId),
-    CheckUnwrap(ExprId),
-    Is(ExprId, bool),
-    Block(BlockId, ExprId),
-    Substruct(ExprId, IdentId),
-    Match(ExprId),
+    pub(crate) struct FactLiteral {
+        pub ident: IdentId,
+        pub keys: Vec<(IdentId, FactField)>,
+        pub vals: Vec<(IdentId, FactField)>,
+    }
 }
 
-/// A named struct.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct NamedStruct {
-    pub ident: IdentId,
-    pub fields: Vec<(IdentId, ExprId)>,
+hir_type! {
+    /// Either an expression or "?".
+    pub(crate) enum FactField {
+        Expr(ExprId),
+        Bind,
+    }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum InternalFunction {
-    Query(FactLiteral),
-    Exists(FactLiteral),
-    FactCount(FactCountType, i64, FactLiteral),
-    If(ExprId, ExprId, ExprId),
-    Serialize(ExprId),
-    Deserialize(ExprId),
+hir_type! {
+    /// A function call.
+    pub(crate) struct FunctionCall {
+        pub ident: IdentId,
+        pub args: Vec<ExprId>,
+    }
 }
 
-/// How many facts to expect when counting
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) enum FactCountType {
-    /// Up to
-    UpTo,
-    /// At least
-    AtLeast,
-    /// At most
-    AtMost,
-    /// Exactly
-    Exactly,
+hir_type! {
+    pub(crate) struct ForeignFunctionCall {
+        pub module: IdentId,
+        pub ident: IdentId,
+        pub args: Vec<ExprId>,
+    }
 }
 
-/// A named struct literal.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FactLiteral {
-    pub ident: IdentId,
-    pub keys: Vec<(IdentId, FactField)>,
-    pub vals: Vec<(IdentId, FactField)>,
-}
-
-/// Either an expression or "?".
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) enum FactField {
-    Expr(ExprId),
-    Bind,
-}
-
-/// A function call.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct FunctionCall {
-    pub ident: IdentId,
-    pub args: Vec<ExprId>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ForeignFunctionCall {
-    pub module: IdentId,
-    pub ident: IdentId,
-    pub args: Vec<ExprId>,
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct EnumReference {
-    pub ident: IdentId,
-    pub value: IdentId,
+hir_type! {
+    pub(crate) struct EnumReference {
+        pub ident: IdentId,
+        pub value: IdentId,
+    }
 }
 
 make_node_id! {
@@ -437,130 +479,147 @@ hir_node! {
     }
 }
 
-/// The kind of a statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum StmtKind {
-    Let(LetStmt),
-    Check(CheckStmt),
-    Match(MatchStmt),
-    If(IfStmt),
-    Finish(BlockId),
-    Map(MapStmt),
-    Return(ReturnStmt),
-    ActionCall(ActionCall),
-    Publish(Publish),
-    Create(Create),
-    Update(Update),
-    Delete(Delete),
-    Emit(Emit),
-    FunctionCall(FunctionCall),
-    DebugAssert(DebugAssert),
+hir_type! {
+    /// The kind of a statement.
+    pub(crate) enum StmtKind {
+        Let(LetStmt),
+        Check(CheckStmt),
+        Match(MatchStmt),
+        If(IfStmt),
+        Finish(BlockId),
+        Map(MapStmt),
+        Return(ReturnStmt),
+        ActionCall(ActionCall),
+        Publish(Publish),
+        Create(Create),
+        Update(Update),
+        Delete(Delete),
+        Emit(Emit),
+        FunctionCall(FunctionCall),
+        DebugAssert(DebugAssert),
+    }
 }
 
-/// A let statement.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct LetStmt {
-    pub ident: IdentId,
-    pub expr: ExprId,
+hir_type! {
+    /// A let statement.
+    pub(crate) struct LetStmt {
+        pub ident: IdentId,
+        pub expr: ExprId,
+    }
 }
 
-/// A check statement.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct CheckStmt {
-    pub expr: ExprId,
+hir_type! {
+    /// A check statement.
+    pub(crate) struct CheckStmt {
+        pub expr: ExprId,
+    }
 }
 
-/// A match statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct MatchStmt {
-    pub expr: ExprId,
-    pub arms: Vec<MatchArm>,
+hir_type! {
+    /// A match statement.
+    pub(crate) struct MatchStmt {
+        pub expr: ExprId,
+        pub arms: Vec<MatchArm>,
+    }
 }
 
-/// A match statement arm.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct MatchArm {
-    pub pattern: MatchPattern,
-    pub stmts: Vec<StmtId>,
+hir_type! {
+    /// A match statement arm.
+    pub(crate) struct MatchArm {
+        pub pattern: MatchPattern,
+        pub stmts: Vec<StmtId>,
+    }
 }
 
-/// A match arm pattern.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum MatchPattern {
-    Default,
-    Values(Vec<ExprId>),
+hir_type! {
+    /// A match arm pattern.
+    pub(crate) enum MatchPattern {
+        Default,
+        Values(Vec<ExprId>),
+    }
 }
 
-/// An if statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct IfStmt {
-    pub branches: Vec<IfBranch>,
-    pub else_block: Option<BlockId>,
+hir_type! {
+    /// An if statement.
+    pub(crate) struct IfStmt {
+        pub branches: Vec<IfBranch>,
+        pub else_block: Option<BlockId>,
+    }
 }
 
-/// An if statement branch.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct IfBranch {
-    pub expr: ExprId,
-    pub stmts: Vec<StmtId>,
+hir_type! {
+    /// An if statement branch.
+    pub(crate) struct IfBranch {
+        pub expr: ExprId,
+        pub stmts: Vec<StmtId>,
+    }
 }
 
-/// A map statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct MapStmt {
-    pub fact: FactLiteral,
-    pub ident: IdentId,
-    pub stmts: Vec<StmtId>,
+hir_type! {
+    /// A map statement.
+    pub(crate) struct MapStmt {
+        pub fact: FactLiteral,
+        pub ident: IdentId,
+        pub stmts: Vec<StmtId>,
+    }
 }
 
-/// A return statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ReturnStmt {
-    pub expr: ExprId,
+hir_type! {
+    /// A return statement.
+    pub(crate) struct ReturnStmt {
+        pub expr: ExprId,
+    }
 }
 
-/// Calling an action.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct ActionCall {
-    pub ident: IdentId,
-    pub args: Vec<ExprId>,
+hir_type! {
+    /// Calling an action.
+    pub(crate) struct ActionCall {
+        pub ident: IdentId,
+        pub args: Vec<ExprId>,
+    }
 }
 
-/// A publish statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Publish {
-    pub exor: ExprId,
+hir_type! {
+    /// A publish statement.
+    pub(crate) struct Publish {
+        pub exor: ExprId,
+    }
 }
 
-/// A create statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Create {
-    pub fact: FactLiteral,
+hir_type! {
+    /// A create statement.
+    pub(crate) struct Create {
+        pub fact: FactLiteral,
+    }
 }
 
-/// An update statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Update {
-    pub fact: FactLiteral,
-    pub to: Vec<(IdentId, FactField)>,
+hir_type! {
+    /// An update statement.
+    pub(crate) struct Update {
+        pub fact: FactLiteral,
+        pub to: Vec<(IdentId, FactField)>,
+    }
 }
 
-/// A delete statement.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Delete {
-    pub fact: FactLiteral,
+hir_type! {
+    /// A delete statement.
+    pub(crate) struct Delete {
+        pub fact: FactLiteral,
+    }
 }
 
-/// An emit statement.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct Emit {
-    pub expr: ExprId,
+hir_type! {
+    /// An emit statement.
+    pub(crate) struct Emit {
+        pub expr: ExprId,
+    }
 }
 
-/// A debug assert statement.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct DebugAssert {
-    pub expr: ExprId,
+hir_type! {
+    /// A debug assert statement.
+    pub(crate) struct DebugAssert {
+        pub expr: ExprId,
+    }
 }
 
 make_node_id! {
@@ -589,13 +648,14 @@ hir_node! {
     }
 }
 
-/// The kind of an struct field.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum StructFieldKind {
-    /// A regular field with an identifier and type
-    Field { ident: IdentId, ty: VTypeId },
-    /// A reference to another struct whose fields should be included
-    StructRef(IdentId),
+hir_type! {
+    /// The kind of an struct field.
+    pub(crate) enum StructFieldKind {
+        /// A regular field with an identifier and type
+        Field { ident: IdentId, ty: VTypeId },
+        /// A reference to another struct whose fields should be included
+        StructRef(IdentId),
+    }
 }
 
 make_node_id! {
@@ -623,16 +683,17 @@ hir_node! {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum VTypeKind {
-    String,
-    Bytes,
-    Int,
-    Bool,
-    Id,
-    Struct(IdentId),
-    Enum(IdentId),
-    Optional(VTypeId),
+hir_type! {
+    pub(crate) enum VTypeKind {
+        String,
+        Bytes,
+        Int,
+        Bool,
+        Id,
+        Struct(IdentId),
+        Enum(IdentId),
+        Optional(VTypeId),
+    }
 }
 
 /// Uniquely identifies a HIR node.
