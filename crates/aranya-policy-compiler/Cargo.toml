@@ -24,6 +24,7 @@ ciborium = { version = "0.2" }
 clap = { version = "4.4", features = ["derive"] }
 indexmap = { version = "2.9.0", default-features = false, features = ["serde"] }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }

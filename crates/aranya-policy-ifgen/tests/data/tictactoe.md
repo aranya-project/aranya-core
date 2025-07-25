@@ -17,8 +17,8 @@ command Start {
     fields {
         players struct Players
     }
-    seal { return None }
-    open { return None }
+    seal { return todo() }
+    open { return todo() }
 }
 
 command Move {
@@ -27,8 +27,8 @@ command Move {
         X int,
         Y int,
     }
-    seal { return None }
-    open { return None }
+    seal { return todo() }
+    open { return todo() }
 }
 
 
