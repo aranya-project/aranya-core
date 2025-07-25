@@ -1288,7 +1288,17 @@ impl ChunkParser<'_> {
         assert_eq!(item.as_rule(), Rule::command_definition);
 
         let locator = self.add_range(&item)?;
+
         let pc = descend(item);
+        let token = pc.consume()?;
+        let ephemeral = token.as_rule() == Rule::ephemeral_modifier;
+        let token = if ephemeral {
+            pc.consume_of_type(Rule::command_def)?
+        } else {
+            token
+        };
+        let pc = descend(token);
+
         let identifier = pc.consume_identifier()?;
 
         let mut attributes = vec![];
@@ -1359,6 +1369,7 @@ impl ChunkParser<'_> {
 
         Ok(AstNode::new(
             ast::CommandDefinition {
+                ephemeral,
                 attributes,
                 identifier,
                 fields,
