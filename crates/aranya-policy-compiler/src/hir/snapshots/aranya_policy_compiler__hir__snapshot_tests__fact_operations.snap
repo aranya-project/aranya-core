@@ -1,0 +1,2960 @@
+---
+source: crates/aranya-policy-compiler/src/hir/snapshot_tests.rs
+expression: "&snapshot"
+---
+{
+  "hir": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 1,
+              "version": 1
+            }
+          ],
+          "block": {
+            "idx": 1,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ],
+          "block": {
+            "idx": 2,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 1,
+            "version": 1
+          },
+          "ty": {
+            "idx": 1,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": {
+            "idx": 9,
+            "version": 1
+          },
+          "ty": {
+            "idx": 2,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "items": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 16,
+                "version": 1
+              },
+              "ty": {
+                "idx": 3,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 17,
+                "version": 1
+              },
+              "ty": {
+                "idx": 4,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "keys": [
+            {
+              "idx": 1,
+              "version": 1
+            }
+          ],
+          "vals": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "keys": [
+            {
+              "idx": 2,
+              "version": 1
+            },
+            {
+              "idx": 3,
+              "version": 1
+            }
+          ],
+          "vals": [
+            {
+              "idx": 3,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 18,
+            "version": 1
+          },
+          "ty": {
+            "idx": 5,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": {
+            "idx": 21,
+            "version": 1
+          },
+          "ty": {
+            "idx": 8,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": {
+            "idx": 22,
+            "version": 1
+          },
+          "ty": {
+            "idx": 9,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 19,
+            "version": 1
+          },
+          "ty": {
+            "idx": 6,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": {
+            "idx": 20,
+            "version": 1
+          },
+          "ty": {
+            "idx": 7,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": {
+            "idx": 23,
+            "version": 1
+          },
+          "ty": {
+            "idx": 10,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ],
+          "stmts": [
+            {
+              "idx": 5,
+              "version": 1
+            },
+            {
+              "idx": 6,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 3,
+              "version": 1
+            },
+            {
+              "idx": 4,
+              "version": 1
+            }
+          ],
+          "stmts": [
+            {
+              "idx": 7,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 24,
+            "version": 1
+          },
+          "ty": {
+            "idx": 11,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": {
+            "idx": 25,
+            "version": 1
+          },
+          "ty": {
+            "idx": 12,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": {
+            "idx": 37,
+            "version": 1
+          },
+          "ty": {
+            "idx": 13,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "ident": {
+            "idx": 38,
+            "version": 1
+          },
+          "ty": {
+            "idx": 14,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Check": {
+              "expr": {
+                "idx": 3,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Map": {
+              "fact": {
+                "ident": {
+                  "idx": 2,
+                  "version": 1
+                },
+                "keys": [
+                  [
+                    {
+                      "idx": 3,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 1,
+                        "version": 1
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "idx": 5,
+                      "version": 1
+                    },
+                    "Bind"
+                  ]
+                ],
+                "vals": []
+              },
+              "ident": {
+                "idx": 6,
+                "version": 1
+              },
+              "stmts": [
+                {
+                  "idx": 1,
+                  "version": 1
+                }
+              ]
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "Let": {
+              "ident": {
+                "idx": 10,
+                "version": 1
+              },
+              "expr": {
+                "idx": 5,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": {
+            "Check": {
+              "expr": {
+                "idx": 9,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "Create": {
+              "fact": {
+                "ident": {
+                  "idx": 26,
+                  "version": 1
+                },
+                "keys": [
+                  [
+                    {
+                      "idx": 27,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 10,
+                        "version": 1
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "idx": 29,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 11,
+                        "version": 1
+                      }
+                    }
+                  ]
+                ],
+                "vals": [
+                  [
+                    {
+                      "idx": 31,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 12,
+                        "version": 1
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": {
+            "Emit": {
+              "expr": {
+                "idx": 15,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": {
+            "Delete": {
+              "fact": {
+                "ident": {
+                  "idx": 39,
+                  "version": 1
+                },
+                "keys": [
+                  [
+                    {
+                      "idx": 40,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 16,
+                        "version": 1
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "idx": 42,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 17,
+                        "version": 1
+                      }
+                    }
+                  ]
+                ],
+                "vals": []
+              }
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 4,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 7,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "Dot": [
+              {
+                "idx": 2,
+                "version": 1
+              },
+              {
+                "idx": 8,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 13,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "InternalFunction": {
+              "Query": {
+                "ident": {
+                  "idx": 11,
+                  "version": 1
+                },
+                "keys": [
+                  [
+                    {
+                      "idx": 12,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 4,
+                        "version": 1
+                      }
+                    }
+                  ]
+                ],
+                "vals": []
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 14,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": {
+            "Dot": [
+              {
+                "idx": 6,
+                "version": 1
+              },
+              {
+                "idx": 15,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "kind": {
+            "Equal": [
+              {
+                "idx": 7,
+                "version": 1
+              },
+              {
+                "idx": 8,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 28,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 30,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "kind": "Bool"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 13,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 34,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 36,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 15,
+            "version": 1
+          },
+          "kind": {
+            "NamedStruct": {
+              "ident": {
+                "idx": 32,
+                "version": 1
+              },
+              "fields": [
+                [
+                  {
+                    "idx": 33,
+                    "version": 1
+                  },
+                  {
+                    "idx": 13,
+                    "version": 1
+                  }
+                ],
+                [
+                  {
+                    "idx": 35,
+                    "version": 1
+                  },
+                  {
+                    "idx": 14,
+                    "version": 1
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 16,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 41,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 17,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 43,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": "Permission"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "ident": "perm"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "ident": "perm"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "ident": "allowed"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "ident": "user"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "ident": "User"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 13,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "ident": "user"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 15,
+            "version": 1
+          },
+          "ident": "role"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 16,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 17,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 18,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 19,
+            "version": 1
+          },
+          "ident": "name"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 20,
+            "version": 1
+          },
+          "ident": "role"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 21,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 22,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 23,
+            "version": 1
+          },
+          "ident": "allowed"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 24,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 25,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 26,
+            "version": 1
+          },
+          "ident": "Permission"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 27,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 28,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 29,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 30,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 31,
+            "version": 1
+          },
+          "ident": "allowed"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 32,
+            "version": 1
+          },
+          "ident": "PermissionGranted"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 33,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 34,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 35,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 36,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 37,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 38,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 39,
+            "version": 1
+          },
+          "ident": "Permission"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 40,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 41,
+            "version": 1
+          },
+          "ident": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 42,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 43,
+            "version": 1
+          },
+          "ident": "resource"
+        },
+        "version": 1
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 3,
+              "version": 1
+            },
+            {
+              "idx": 4,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "kind": "Bool"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 13,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      }
+    ]
+  },
+  "ast_nodes": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "check_permissions",
+            "arguments": [
+              {
+                "identifier": "user_id",
+                "field_type": "String"
+              }
+            ],
+            "statements": [
+              {
+                "inner": {
+                  "Map": {
+                    "fact": {
+                      "identifier": "Permission",
+                      "key_fields": [
+                        [
+                          "user_id",
+                          {
+                            "Expression": {
+                              "Identifier": "user_id"
+                            }
+                          }
+                        ],
+                        [
+                          "resource",
+                          "Bind"
+                        ]
+                      ],
+                      "value_fields": null
+                    },
+                    "identifier": "perm",
+                    "statements": [
+                      {
+                        "inner": {
+                          "Check": {
+                            "expression": {
+                              "Dot": [
+                                {
+                                  "Identifier": "perm"
+                                },
+                                "allowed"
+                              ]
+                            }
+                          }
+                        },
+                        "locator": 263
+                      }
+                    ]
+                  }
+                },
+                "locator": 199
+              }
+            ]
+          },
+          "locator": 121
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "check_admin",
+            "arguments": [
+              {
+                "identifier": "user_id",
+                "field_type": "String"
+              }
+            ],
+            "statements": [
+              {
+                "inner": {
+                  "Let": {
+                    "identifier": "user",
+                    "expression": {
+                      "InternalFunction": {
+                        "Query": {
+                          "identifier": "User",
+                          "key_fields": [
+                            [
+                              "user_id",
+                              {
+                                "Expression": {
+                                  "Identifier": "user_id"
+                                }
+                              }
+                            ]
+                          ],
+                          "value_fields": null
+                        }
+                      }
+                    }
+                  }
+                },
+                "locator": 332
+              },
+              {
+                "inner": {
+                  "Check": {
+                    "expression": {
+                      "Equal": [
+                        {
+                          "Dot": [
+                            {
+                              "Identifier": "user"
+                            },
+                            "role"
+                          ]
+                        },
+                        {
+                          "String": "admin"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "locator": 376
+              }
+            ]
+          },
+          "locator": 291
+        },
+        "version": 1
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "user_id",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "user_id",
+          "field_type": "String"
+        },
+        "version": 1
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "PermissionGranted",
+            "items": [
+              {
+                "Field": {
+                  "identifier": "user_id",
+                  "field_type": "String",
+                  "dynamic": false
+                }
+              },
+              {
+                "Field": {
+                  "identifier": "resource",
+                  "field_type": "String",
+                  "dynamic": false
+                }
+              }
+            ]
+          },
+          "locator": 406
+        },
+        "version": 1
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "user_id",
+            "field_type": "String",
+            "dynamic": false
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "resource",
+            "field_type": "String",
+            "dynamic": false
+          }
+        },
+        "version": 1
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "immutable": false,
+            "identifier": "User",
+            "key": [
+              {
+                "identifier": "user_id",
+                "field_type": "String"
+              }
+            ],
+            "value": [
+              {
+                "identifier": "name",
+                "field_type": "String"
+              },
+              {
+                "identifier": "role",
+                "field_type": "String"
+              }
+            ]
+          },
+          "locator": 1
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "immutable": false,
+            "identifier": "Permission",
+            "key": [
+              {
+                "identifier": "user_id",
+                "field_type": "String"
+              },
+              {
+                "identifier": "resource",
+                "field_type": "String"
+              }
+            ],
+            "value": [
+              {
+                "identifier": "allowed",
+                "field_type": "Bool"
+              }
+            ]
+          },
+          "locator": 55
+        },
+        "version": 1
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "user_id",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "user_id",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "resource",
+          "field_type": "String"
+        },
+        "version": 1
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "name",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "role",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "allowed",
+          "field_type": "Bool"
+        },
+        "version": 1
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "grant_permission",
+            "arguments": [
+              {
+                "identifier": "user_id",
+                "field_type": "String"
+              },
+              {
+                "identifier": "resource",
+                "field_type": "String"
+              }
+            ],
+            "statements": [
+              {
+                "inner": {
+                  "Create": {
+                    "fact": {
+                      "identifier": "Permission",
+                      "key_fields": [
+                        [
+                          "user_id",
+                          {
+                            "Expression": {
+                              "Identifier": "user_id"
+                            }
+                          }
+                        ],
+                        [
+                          "resource",
+                          {
+                            "Expression": {
+                              "Identifier": "resource"
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": [
+                        [
+                          "allowed",
+                          {
+                            "Expression": {
+                              "Bool": true
+                            }
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "locator": 549
+              },
+              {
+                "inner": {
+                  "Emit": {
+                    "NamedStruct": {
+                      "identifier": "PermissionGranted",
+                      "fields": [
+                        [
+                          "user_id",
+                          {
+                            "Identifier": "user_id"
+                          }
+                        ],
+                        [
+                          "resource",
+                          {
+                            "Identifier": "resource"
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "locator": 667
+              }
+            ]
+          },
+          "locator": 477
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "revoke_permission",
+            "arguments": [
+              {
+                "identifier": "user_id",
+                "field_type": "String"
+              },
+              {
+                "identifier": "resource",
+                "field_type": "String"
+              }
+            ],
+            "statements": [
+              {
+                "inner": {
+                  "Delete": {
+                    "fact": {
+                      "identifier": "Permission",
+                      "key_fields": [
+                        [
+                          "user_id",
+                          {
+                            "Expression": {
+                              "Identifier": "user_id"
+                            }
+                          }
+                        ],
+                        [
+                          "resource",
+                          {
+                            "Expression": {
+                              "Identifier": "resource"
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": null
+                    }
+                  }
+                },
+                "locator": 828
+              }
+            ]
+          },
+          "locator": 755
+        },
+        "version": 1
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "user_id",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "resource",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "user_id",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "resource",
+          "field_type": "String"
+        },
+        "version": 1
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "Check": {
+              "expression": {
+                "Dot": [
+                  {
+                    "Identifier": "perm"
+                  },
+                  "allowed"
+                ]
+              }
+            }
+          },
+          "locator": 263
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Map": {
+              "fact": {
+                "identifier": "Permission",
+                "key_fields": [
+                  [
+                    "user_id",
+                    {
+                      "Expression": {
+                        "Identifier": "user_id"
+                      }
+                    }
+                  ],
+                  [
+                    "resource",
+                    "Bind"
+                  ]
+                ],
+                "value_fields": null
+              },
+              "identifier": "perm",
+              "statements": [
+                {
+                  "inner": {
+                    "Check": {
+                      "expression": {
+                        "Dot": [
+                          {
+                            "Identifier": "perm"
+                          },
+                          "allowed"
+                        ]
+                      }
+                    }
+                  },
+                  "locator": 263
+                }
+              ]
+            }
+          },
+          "locator": 199
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Let": {
+              "identifier": "user",
+              "expression": {
+                "InternalFunction": {
+                  "Query": {
+                    "identifier": "User",
+                    "key_fields": [
+                      [
+                        "user_id",
+                        {
+                          "Expression": {
+                            "Identifier": "user_id"
+                          }
+                        }
+                      ]
+                    ],
+                    "value_fields": null
+                  }
+                }
+              }
+            }
+          },
+          "locator": 332
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Check": {
+              "expression": {
+                "Equal": [
+                  {
+                    "Dot": [
+                      {
+                        "Identifier": "user"
+                      },
+                      "role"
+                    ]
+                  },
+                  {
+                    "String": "admin"
+                  }
+                ]
+              }
+            }
+          },
+          "locator": 376
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Create": {
+              "fact": {
+                "identifier": "Permission",
+                "key_fields": [
+                  [
+                    "user_id",
+                    {
+                      "Expression": {
+                        "Identifier": "user_id"
+                      }
+                    }
+                  ],
+                  [
+                    "resource",
+                    {
+                      "Expression": {
+                        "Identifier": "resource"
+                      }
+                    }
+                  ]
+                ],
+                "value_fields": [
+                  [
+                    "allowed",
+                    {
+                      "Expression": {
+                        "Bool": true
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          "locator": 549
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Emit": {
+              "NamedStruct": {
+                "identifier": "PermissionGranted",
+                "fields": [
+                  [
+                    "user_id",
+                    {
+                      "Identifier": "user_id"
+                    }
+                  ],
+                  [
+                    "resource",
+                    {
+                      "Identifier": "resource"
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          "locator": 667
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Delete": {
+              "fact": {
+                "identifier": "Permission",
+                "key_fields": [
+                  [
+                    "user_id",
+                    {
+                      "Expression": {
+                        "Identifier": "user_id"
+                      }
+                    }
+                  ],
+                  [
+                    "resource",
+                    {
+                      "Expression": {
+                        "Identifier": "resource"
+                      }
+                    }
+                  ]
+                ],
+                "value_fields": null
+              }
+            }
+          },
+          "locator": 828
+        },
+        "version": 1
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "Identifier": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "perm"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Dot": [
+            {
+              "Identifier": "perm"
+            },
+            "allowed"
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "InternalFunction": {
+            "Query": {
+              "identifier": "User",
+              "key_fields": [
+                [
+                  "user_id",
+                  {
+                    "Expression": {
+                      "Identifier": "user_id"
+                    }
+                  }
+                ]
+              ],
+              "value_fields": null
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "user"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Dot": [
+            {
+              "Identifier": "user"
+            },
+            "role"
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "String": "admin"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Equal": [
+            {
+              "Dot": [
+                {
+                  "Identifier": "user"
+                },
+                "role"
+              ]
+            },
+            {
+              "String": "admin"
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Bool": true
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "resource"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "NamedStruct": {
+            "identifier": "PermissionGranted",
+            "fields": [
+              [
+                "user_id",
+                {
+                  "Identifier": "user_id"
+                }
+              ],
+              [
+                "resource",
+                {
+                  "Identifier": "resource"
+                }
+              ]
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "user_id"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "resource"
+        },
+        "version": 1
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "Permission",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "perm",
+        "version": 1
+      },
+      {
+        "value": "perm",
+        "version": 1
+      },
+      {
+        "value": "allowed",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "user",
+        "version": 1
+      },
+      {
+        "value": "User",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "user",
+        "version": 1
+      },
+      {
+        "value": "role",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "name",
+        "version": 1
+      },
+      {
+        "value": "role",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "allowed",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "Permission",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "allowed",
+        "version": 1
+      },
+      {
+        "value": "PermissionGranted",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "Permission",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "user_id",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      },
+      {
+        "value": "resource",
+        "version": 1
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Map": {
+                "fact": {
+                  "identifier": "Permission",
+                  "key_fields": [
+                    [
+                      "user_id",
+                      {
+                        "Expression": {
+                          "Identifier": "user_id"
+                        }
+                      }
+                    ],
+                    [
+                      "resource",
+                      "Bind"
+                    ]
+                  ],
+                  "value_fields": null
+                },
+                "identifier": "perm",
+                "statements": [
+                  {
+                    "inner": {
+                      "Check": {
+                        "expression": {
+                          "Dot": [
+                            {
+                              "Identifier": "perm"
+                            },
+                            "allowed"
+                          ]
+                        }
+                      }
+                    },
+                    "locator": 263
+                  }
+                ]
+              }
+            },
+            "locator": 199
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Let": {
+                "identifier": "user",
+                "expression": {
+                  "InternalFunction": {
+                    "Query": {
+                      "identifier": "User",
+                      "key_fields": [
+                        [
+                          "user_id",
+                          {
+                            "Expression": {
+                              "Identifier": "user_id"
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": null
+                    }
+                  }
+                }
+              }
+            },
+            "locator": 332
+          },
+          {
+            "inner": {
+              "Check": {
+                "expression": {
+                  "Equal": [
+                    {
+                      "Dot": [
+                        {
+                          "Identifier": "user"
+                        },
+                        "role"
+                      ]
+                    },
+                    {
+                      "String": "admin"
+                    }
+                  ]
+                }
+              }
+            },
+            "locator": 376
+          }
+        ],
+        "version": 1
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "Bool",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      }
+    ]
+  }
+}

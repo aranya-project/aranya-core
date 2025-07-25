@@ -1,0 +1,274 @@
+---
+source: crates/aranya-policy-compiler/src/hir/snapshot_tests.rs
+expression: "&snapshot"
+---
+{
+  "hir": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ]
+  },
+  "ast_nodes": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ]
+  }
+}

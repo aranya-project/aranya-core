@@ -386,12 +386,14 @@ version = "0.11.0"
 dependencies = [
  "anyhow",
  "aranya-policy-ast",
+ "aranya-policy-compiler",
  "aranya-policy-lang",
  "aranya-policy-module",
  "buggy",
  "ciborium",
  "clap",
  "indexmap",
+ "insta",
  "serde",
  "slotmap",
  "thiserror 2.0.7",
@@ -1695,6 +1697,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0c10553d664a4d0bcff9f4215d0aac67a639cc68ef660840afe309b807bc9f5"
 dependencies = [
  "generic-array 0.14.7",
+]
+
+[[package]]
+name = "insta"
+version = "1.43.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "154934ea70c58054b556dd430b99a98c2a7ff5309ac9891597e339b5c28f4371"
+dependencies = [
+ "console",
+ "once_cell",
+ "serde",
+ "similar",
 ]
 
 [[package]]

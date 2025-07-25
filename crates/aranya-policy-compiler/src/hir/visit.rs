@@ -790,18 +790,1462 @@ pub(crate) use try_branch;
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::VecDeque, ops::ControlFlow};
+
+    use aranya_policy_ast as ast;
+
     use super::*;
+    use crate::hir::hir::*;
+
+    /// Enum representing all visitable items in the HIR
+    #[derive(Clone, Debug)]
+    enum Item {
+        ActionDef(ActionDef),
+        ActionArg(ActionArg),
+        Block(Block),
+        CmdDef(CmdDef),
+        CmdField(CmdField),
+        EffectDef(EffectDef),
+        EffectField(EffectField),
+        EnumDef(EnumDef),
+        Expr(Expr),
+        FactDef(FactDef),
+        FactKey(FactKey),
+        FactVal(FactVal),
+        FactLiteral(FactLiteral),
+        FinishFuncDef(FinishFuncDef),
+        FinishFuncArg(FinishFuncArg),
+        FuncDef(FuncDef),
+        FuncArg(FuncArg),
+        GlobalLetDef(GlobalLetDef),
+        Ident(Ident),
+        Stmt(Stmt),
+        StructDef(StructDef),
+        StructField(StructField),
+        VType(VType),
+    }
+
+    /// A visitor that verifies the exact HIR nodes being visited
+    struct ExactVisitor {
+        expected: VecDeque<Item>,
+    }
+
+    impl ExactVisitor {
+        fn new(expected: Vec<Item>) -> Self {
+            Self {
+                expected: expected.into(),
+            }
+        }
+
+        fn assert_done(&self) {
+            assert!(
+                self.expected.is_empty(),
+                "expected items not visited: {:?}",
+                self.expected
+            );
+        }
+    }
+
+    impl<'hir> Visitor<'hir> for ExactVisitor {
+        type Result = ();
+
+        fn visit_action_def(&mut self, def: &'hir ActionDef) {
+            match self.expected.pop_front() {
+                Some(Item::ActionDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected ActionDef, got {:?}", other),
+            }
+        }
+
+        fn visit_action_arg(&mut self, arg: &'hir ActionArg) {
+            match self.expected.pop_front() {
+                Some(Item::ActionArg(expected)) => assert_eq!(arg, &expected),
+                other => panic!("Expected ActionArg, got {:?}", other),
+            }
+        }
+
+        fn visit_block(&mut self, block: &'hir Block) {
+            match self.expected.pop_front() {
+                Some(Item::Block(expected)) => assert_eq!(block, &expected),
+                other => panic!("Expected Block, got {:?}", other),
+            }
+        }
+
+        fn visit_cmd_def(&mut self, def: &'hir CmdDef) {
+            match self.expected.pop_front() {
+                Some(Item::CmdDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected CmdDef, got {:?}", other),
+            }
+        }
+
+        fn visit_cmd_field(&mut self, field: &'hir CmdField) {
+            match self.expected.pop_front() {
+                Some(Item::CmdField(expected)) => assert_eq!(field, &expected),
+                other => panic!("Expected CmdField, got {:?}", other),
+            }
+        }
+
+        fn visit_effect_def(&mut self, def: &'hir EffectDef) {
+            match self.expected.pop_front() {
+                Some(Item::EffectDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected EffectDef, got {:?}", other),
+            }
+        }
+
+        fn visit_effect_field(&mut self, field: &'hir EffectField) {
+            match self.expected.pop_front() {
+                Some(Item::EffectField(expected)) => assert_eq!(field, &expected),
+                other => panic!("Expected EffectField, got {:?}", other),
+            }
+        }
+
+        fn visit_enum_def(&mut self, def: &'hir EnumDef) {
+            match self.expected.pop_front() {
+                Some(Item::EnumDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected EnumDef, got {:?}", other),
+            }
+        }
+
+        fn visit_expr(&mut self, expr: &'hir Expr) {
+            match self.expected.pop_front() {
+                Some(Item::Expr(expected)) => assert_eq!(expr, &expected),
+                other => panic!("Expected Expr, got {:?}", other),
+            }
+        }
+
+        fn visit_fact_def(&mut self, def: &'hir FactDef) {
+            match self.expected.pop_front() {
+                Some(Item::FactDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected FactDef, got {:?}", other),
+            }
+        }
+
+        fn visit_fact_key(&mut self, key: &'hir FactKey) {
+            match self.expected.pop_front() {
+                Some(Item::FactKey(expected)) => assert_eq!(key, &expected),
+                other => panic!("Expected FactKey, got {:?}", other),
+            }
+        }
+
+        fn visit_fact_value(&mut self, val: &'hir FactVal) {
+            match self.expected.pop_front() {
+                Some(Item::FactVal(expected)) => assert_eq!(val, &expected),
+                other => panic!("Expected FactVal, got {:?}", other),
+            }
+        }
+
+        fn visit_finish_func_def(&mut self, def: &'hir FinishFuncDef) {
+            match self.expected.pop_front() {
+                Some(Item::FinishFuncDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected FinishFuncDef, got {:?}", other),
+            }
+        }
+
+        fn visit_finish_func_arg(&mut self, arg: &'hir FinishFuncArg) {
+            match self.expected.pop_front() {
+                Some(Item::FinishFuncArg(expected)) => assert_eq!(arg, &expected),
+                other => panic!("Expected FinishFuncArg, got {:?}", other),
+            }
+        }
+
+        fn visit_func_def(&mut self, def: &'hir FuncDef) {
+            match self.expected.pop_front() {
+                Some(Item::FuncDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected FuncDef, got {:?}", other),
+            }
+        }
+
+        fn visit_func_arg(&mut self, arg: &'hir FuncArg) {
+            match self.expected.pop_front() {
+                Some(Item::FuncArg(expected)) => assert_eq!(arg, &expected),
+                other => panic!("Expected FuncArg, got {:?}", other),
+            }
+        }
+
+        fn visit_global_def(&mut self, def: &'hir GlobalLetDef) {
+            match self.expected.pop_front() {
+                Some(Item::GlobalLetDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected GlobalLetDef, got {:?}", other),
+            }
+        }
+
+        fn visit_ident(&mut self, ident: &'hir Ident) {
+            match self.expected.pop_front() {
+                Some(Item::Ident(expected)) => assert_eq!(ident, &expected),
+                other => panic!("Expected Ident, got {:?}", other),
+            }
+        }
+
+        fn visit_stmt(&mut self, stmt: &'hir Stmt) {
+            match self.expected.pop_front() {
+                Some(Item::Stmt(expected)) => assert_eq!(stmt, &expected),
+                other => panic!("Expected Stmt, got {:?}", other),
+            }
+        }
+
+        fn visit_struct_def(&mut self, def: &'hir StructDef) {
+            match self.expected.pop_front() {
+                Some(Item::StructDef(expected)) => assert_eq!(def, &expected),
+                other => panic!("Expected StructDef, got {:?}", other),
+            }
+        }
+
+        fn visit_struct_field(&mut self, field: &'hir StructField) {
+            match self.expected.pop_front() {
+                Some(Item::StructField(expected)) => assert_eq!(field, &expected),
+                other => panic!("Expected StructField, got {:?}", other),
+            }
+        }
+
+        fn visit_vtype(&mut self, ty: &'hir VType) {
+            match self.expected.pop_front() {
+                Some(Item::VType(expected)) => assert_eq!(ty, &expected),
+                other => panic!("Expected VType, got {:?}", other),
+            }
+        }
+
+        fn visit_fact_literal(&mut self, fact: &'hir FactLiteral) {
+            match self.expected.pop_front() {
+                Some(Item::FactLiteral(expected)) => assert_eq!(fact, &expected),
+                other => panic!("Expected FactLiteral, got {:?}", other),
+            }
+        }
+    }
 
     #[test]
-    fn test_foo() {
-        struct MyVisitor {}
-        impl<'hir> Visitor<'hir> for MyVisitor {
-            type Result = ();
-            fn visit_expr(&mut self, _expr: &'hir Expr) -> Self::Result {}
-            fn visit_block(&mut self, _block: &'hir Block) -> Self::Result {}
+    fn test_visitor_simple_action() {
+        let mut hir = Hir::default();
+
+        // Create empty block
+        let block_id = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![],
+        });
+
+        // Create simple action
+        let action_id = hir.actions.insert_with_key(|id| ActionDef {
+            id,
+            args: vec![],
+            block: block_id,
+        });
+
+        // Expected visit order
+        let expected = vec![
+            Item::ActionDef(hir.actions[action_id].clone()),
+            Item::Block(hir.blocks[block_id].clone()),
+        ];
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_action_with_args() {
+        let mut hir = Hir::default();
+
+        // Create action argument
+        let arg_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("name"),
+        });
+        let arg_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::String,
+        });
+        let action_arg = hir.action_args.insert_with_key(|id| ActionArg {
+            id,
+            ident: arg_ident,
+            ty: arg_type,
+        });
+
+        // Create check statement with expression
+        let name_ident_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Identifier(arg_ident),
+        });
+        let empty_string_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::String,
+        });
+        let not_equal_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::NotEqual(name_ident_expr, empty_string_expr),
+        });
+        let check_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Check(CheckStmt {
+                expr: not_equal_expr,
+            }),
+        });
+
+        // Create block with check statement
+        let block_id = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![check_stmt],
+        });
+
+        // Create action
+        let action_id = hir.actions.insert_with_key(|id| ActionDef {
+            id,
+            args: vec![action_arg],
+            block: block_id,
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::ActionDef(hir.actions[action_id].clone()));
+        expected.push(Item::ActionArg(hir.action_args[action_arg].clone()));
+        expected.push(Item::Ident(hir.idents[arg_ident].clone()));
+        expected.push(Item::VType(hir.types[arg_type].clone()));
+        expected.push(Item::Block(hir.blocks[block_id].clone()));
+        expected.push(Item::Stmt(hir.stmts[check_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[not_equal_expr].clone()));
+        expected.push(Item::Expr(hir.exprs[name_ident_expr].clone()));
+        expected.push(Item::Ident(hir.idents[arg_ident].clone()));
+        expected.push(Item::Expr(hir.exprs[empty_string_expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_control_flow() {
+        // Test that visitor can break early
+        struct BreakOnSecondExpr {
+            count: usize,
         }
-        let mut v = MyVisitor {};
+
+        impl<'hir> Visitor<'hir> for BreakOnSecondExpr {
+            type Result = ControlFlow<()>;
+
+            fn visit_expr(&mut self, _: &'hir Expr) -> Self::Result {
+                self.count += 1;
+                if self.count >= 2 {
+                    ControlFlow::Break(())
+                } else {
+                    ControlFlow::Continue(())
+                }
+            }
+        }
+
+        let mut hir = Hir::default();
+
+        // Create multiple expressions
+        let expr1 = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let expr2 = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let expr3 = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+
+        // Create let statements
+        let ident_a = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("a"),
+        });
+        let stmt1 = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Let(LetStmt {
+                ident: ident_a,
+                expr: expr1,
+            }),
+        });
+
+        let ident_b = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("b"),
+        });
+        let stmt2 = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Let(LetStmt {
+                ident: ident_b,
+                expr: expr2,
+            }),
+        });
+
+        let ident_c = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("c"),
+        });
+        let stmt3 = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Let(LetStmt {
+                ident: ident_c,
+                expr: expr3,
+            }),
+        });
+
+        // Create function
+        let result_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::Int,
+        });
+        let _func_id = hir.funcs.insert_with_key(|id| FuncDef {
+            id,
+            args: vec![],
+            result: result_type,
+            stmts: vec![stmt1, stmt2, stmt3],
+        });
+
+        let mut visitor = BreakOnSecondExpr { count: 0 };
+        hir.walk(&mut visitor);
+        assert_eq!(visitor.count, 2); // Should have stopped at 2
+    }
+
+    #[test]
+    fn test_visitor_struct_and_fields() {
+        let mut hir = Hir::default();
+
+        // Create struct fields
+        let name_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("name"),
+        });
+        let name_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::String,
+        });
+        let name_field = hir.struct_fields.insert_with_key(|id| StructField {
+            id,
+            kind: StructFieldKind::Field {
+                ident: name_ident,
+                ty: name_type,
+            },
+        });
+
+        let age_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("age"),
+        });
+        let age_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::Int,
+        });
+        let age_field = hir.struct_fields.insert_with_key(|id| StructField {
+            id,
+            kind: StructFieldKind::Field {
+                ident: age_ident,
+                ty: age_type,
+            },
+        });
+
+        // Create struct
+        let struct_id = hir.structs.insert_with_key(|id| StructDef {
+            id,
+            items: vec![name_field, age_field],
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::StructDef(hir.structs[struct_id].clone()));
+        expected.push(Item::StructField(hir.struct_fields[name_field].clone()));
+        expected.push(Item::Ident(hir.idents[name_ident].clone()));
+        expected.push(Item::VType(hir.types[name_type].clone()));
+        expected.push(Item::StructField(hir.struct_fields[age_field].clone()));
+        expected.push(Item::Ident(hir.idents[age_ident].clone()));
+        expected.push(Item::VType(hir.types[age_type].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_empty_hir() {
         let hir = Hir::default();
-        hir.walk_actions(&mut v);
+
+        let mut visitor = ExactVisitor::new(vec![]);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_nested_expressions() {
+        let mut hir = Hir::default();
+
+        // Create function arguments
+        let x_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("x"),
+        });
+        let y_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("y"),
+        });
+        let int_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::Int,
+        });
+        let x_arg = hir.func_args.insert_with_key(|id| FuncArg {
+            id,
+            ident: x_ident,
+            ty: int_type,
+        });
+        let y_arg = hir.func_args.insert_with_key(|id| FuncArg {
+            id,
+            ident: y_ident,
+            ty: int_type,
+        });
+
+        // Create nested expression: x + y > 10
+        let x_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Identifier(x_ident),
+        });
+        let y_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Identifier(y_ident),
+        });
+        let add_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Add(x_expr, y_expr),
+        });
+        let ten_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let gt_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::GreaterThan(add_expr, ten_expr),
+        });
+
+        // Create return statement
+        let return_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Return(ReturnStmt { expr: gt_expr }),
+        });
+
+        // Create function
+        let bool_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::Bool,
+        });
+        let _func_id = hir.funcs.insert_with_key(|id| FuncDef {
+            id,
+            args: vec![x_arg, y_arg],
+            result: bool_type,
+            stmts: vec![return_stmt],
+        });
+
+        // Track all expressions visited
+        struct ExprCollector {
+            exprs: Vec<ExprKind>,
+        }
+
+        impl<'hir> Visitor<'hir> for ExprCollector {
+            type Result = ();
+
+            fn visit_expr(&mut self, expr: &'hir Expr) {
+                self.exprs.push(expr.kind.clone());
+            }
+        }
+
+        let mut collector = ExprCollector { exprs: Vec::new() };
+        hir.walk(&mut collector);
+
+        // Should have visited 5 expressions
+        assert_eq!(collector.exprs.len(), 5);
+    }
+
+    #[test]
+    fn test_visitor_enum_and_fact() {
+        // Manually construct HIR with enums and facts
+        let mut hir = Hir::default();
+
+        // Create enum
+        let enum_id = hir.enums.insert_with_key(|id| EnumDef { id });
+
+        // Create fact with keys and values
+        let key_ident_id = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("id"),
+        });
+        let key_type_id = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::Int,
+        });
+        let fact_key_id = hir.fact_keys.insert_with_key(|id| FactKey {
+            id,
+            ident: key_ident_id,
+            ty: key_type_id,
+        });
+
+        let val_ident_id = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("name"),
+        });
+        let val_type_id = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::String,
+        });
+        let fact_val_id = hir.fact_vals.insert_with_key(|id| FactVal {
+            id,
+            ident: val_ident_id,
+            ty: val_type_id,
+        });
+
+        let fact_id = hir.facts.insert_with_key(|id| FactDef {
+            id,
+            keys: vec![fact_key_id],
+            vals: vec![fact_val_id],
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        
+        // Enums are visited first
+        expected.push(Item::EnumDef(hir.enums[enum_id].clone()));
+
+        // Then facts
+        expected.push(Item::FactDef(hir.facts[fact_id].clone()));
+        expected.push(Item::FactKey(hir.fact_keys[fact_key_id].clone()));
+        expected.push(Item::Ident(hir.idents[key_ident_id].clone()));
+        expected.push(Item::VType(hir.types[key_type_id].clone()));
+        expected.push(Item::FactVal(hir.fact_vals[fact_val_id].clone()));
+        expected.push(Item::Ident(hir.idents[val_ident_id].clone()));
+        expected.push(Item::VType(hir.types[val_type_id].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_command_with_all_blocks() {
+        let mut hir = Hir::default();
+
+        // Create command fields
+        let field_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("value"),
+        });
+        let field_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::Int,
+        });
+        let cmd_field = hir.cmd_fields.insert_with_key(|id| CmdField {
+            id,
+            kind: CmdFieldKind::Field {
+                ident: field_ident,
+                ty: field_type,
+            },
+        });
+
+        // Create empty blocks for each command phase
+        let seal_block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![],
+        });
+        let open_block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![],
+        });
+        let policy_block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![],
+        });
+        let recall_block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![],
+        });
+
+        let cmd_id = hir.cmds.insert_with_key(|id| CmdDef {
+            id,
+            fields: vec![cmd_field],
+            seal: seal_block,
+            open: open_block,
+            policy: policy_block,
+            recall: recall_block,
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::CmdDef(hir.cmds[cmd_id].clone()));
+        expected.push(Item::CmdField(hir.cmd_fields[cmd_field].clone()));
+        expected.push(Item::Ident(hir.idents[field_ident].clone()));
+        expected.push(Item::VType(hir.types[field_type].clone()));
+        expected.push(Item::Block(hir.blocks[seal_block].clone()));
+        expected.push(Item::Block(hir.blocks[open_block].clone()));
+        expected.push(Item::Block(hir.blocks[policy_block].clone()));
+        expected.push(Item::Block(hir.blocks[recall_block].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_effect_with_struct_ref() {
+        let mut hir = Hir::default();
+
+        // Create effect with both regular field and struct ref
+        let field_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("status"),
+        });
+        let field_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::Bool,
+        });
+        let regular_field = hir.effect_fields.insert_with_key(|id| EffectField {
+            id,
+            kind: EffectFieldKind::Field {
+                ident: field_ident,
+                ty: field_type,
+            },
+        });
+
+        let struct_ref_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("UserData"),
+        });
+        let struct_ref_field = hir.effect_fields.insert_with_key(|id| EffectField {
+            id,
+            kind: EffectFieldKind::StructRef(struct_ref_ident),
+        });
+
+        let effect_id = hir.effects.insert_with_key(|id| EffectDef {
+            id,
+            items: vec![regular_field, struct_ref_field],
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::EffectDef(hir.effects[effect_id].clone()));
+        expected.push(Item::EffectField(hir.effect_fields[regular_field].clone()));
+        expected.push(Item::Ident(hir.idents[field_ident].clone()));
+        expected.push(Item::VType(hir.types[field_type].clone()));
+        expected.push(Item::EffectField(hir.effect_fields[struct_ref_field].clone()));
+        expected.push(Item::Ident(hir.idents[struct_ref_ident].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_global_let() {
+        let mut hir = Hir::default();
+
+        // Create a global let with an integer expression
+        let expr_id = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let global_id = hir.global_lets.insert_with_key(|id| GlobalLetDef {
+            id,
+            expr: expr_id,
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::GlobalLetDef(hir.global_lets[global_id].clone()));
+        expected.push(Item::Expr(hir.exprs[expr_id].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_finish_function() {
+        let mut hir = Hir::default();
+
+        // Create finish function with argument and statement
+        let arg_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("result"),
+        });
+        let arg_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::String,
+        });
+        let finish_arg = hir.finish_func_args.insert_with_key(|id| FinishFuncArg {
+            id,
+            ident: arg_ident,
+            ty: arg_type,
+        });
+
+        // Create a check statement
+        let check_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Bool,
+        });
+        let check_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Check(CheckStmt { expr: check_expr }),
+        });
+
+        let finish_id = hir.finish_funcs.insert_with_key(|id| FinishFuncDef {
+            id,
+            args: vec![finish_arg],
+            stmts: vec![check_stmt],
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::FinishFuncDef(hir.finish_funcs[finish_id].clone()));
+        expected.push(Item::FinishFuncArg(hir.finish_func_args[finish_arg].clone()));
+        expected.push(Item::Ident(hir.idents[arg_ident].clone()));
+        expected.push(Item::VType(hir.types[arg_type].clone()));
+        expected.push(Item::Stmt(hir.stmts[check_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[check_expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_struct_with_mixed_fields() {
+        let mut hir = Hir::default();
+
+        // Create struct with regular field and struct ref
+        let field_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("age"),
+        });
+        let field_type = hir.types.insert_with_key(|id| VType {
+            id,
+            kind: VTypeKind::Int,
+        });
+        let regular_field = hir.struct_fields.insert_with_key(|id| StructField {
+            id,
+            kind: StructFieldKind::Field {
+                ident: field_ident,
+                ty: field_type,
+            },
+        });
+
+        let struct_ref_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("BaseStruct"),
+        });
+        let struct_ref = hir.struct_fields.insert_with_key(|id| StructField {
+            id,
+            kind: StructFieldKind::StructRef(struct_ref_ident),
+        });
+
+        let struct_id = hir.structs.insert_with_key(|id| StructDef {
+            id,
+            items: vec![regular_field, struct_ref],
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::StructDef(hir.structs[struct_id].clone()));
+        expected.push(Item::StructField(hir.struct_fields[regular_field].clone()));
+        expected.push(Item::Ident(hir.idents[field_ident].clone()));
+        expected.push(Item::VType(hir.types[field_type].clone()));
+        expected.push(Item::StructField(hir.struct_fields[struct_ref].clone()));
+        expected.push(Item::Ident(hir.idents[struct_ref_ident].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_match_statement() {
+        let mut hir = Hir::default();
+
+        // Create match expression
+        let match_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+
+        // Create pattern expressions
+        let pattern1 = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let pattern2 = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+
+        // Create arm statements
+        let arm1_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Return(ReturnStmt {
+                expr: hir.exprs.insert_with_key(|id| Expr {
+                    id,
+                    kind: ExprKind::Bool,
+                }),
+            }),
+        });
+        let arm2_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Return(ReturnStmt {
+                expr: hir.exprs.insert_with_key(|id| Expr {
+                    id,
+                    kind: ExprKind::Bool,
+                }),
+            }),
+        });
+
+        // Create match statement
+        let match_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Match(MatchStmt {
+                expr: match_expr,
+                arms: vec![
+                    MatchArm {
+                        pattern: MatchPattern::Values(vec![pattern1, pattern2]),
+                        stmts: vec![arm1_stmt],
+                    },
+                    MatchArm {
+                        pattern: MatchPattern::Default,
+                        stmts: vec![arm2_stmt],
+                    },
+                ],
+            }),
+        });
+
+        // Create a function to hold the match statement
+        let _func_id = hir.funcs.insert_with_key(|id| FuncDef {
+            id,
+            args: vec![],
+            result: hir.types.insert_with_key(|id| VType {
+                id,
+                kind: VTypeKind::Bool,
+            }),
+            stmts: vec![match_stmt],
+        });
+
+        // Expected visit order (only for the match part)
+        let mut expected = Vec::new();
+        expected.push(Item::FuncDef(hir.funcs[func_id].clone()));
+        expected.push(Item::VType(hir.types[hir.funcs[func_id].result].clone()));
+        expected.push(Item::Stmt(hir.stmts[match_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[match_expr].clone()));
+        expected.push(Item::Expr(hir.exprs[pattern1].clone()));
+        expected.push(Item::Expr(hir.exprs[pattern2].clone()));
+        expected.push(Item::Stmt(hir.stmts[arm1_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[hir.stmts[arm1_stmt].kind.as_return().unwrap().expr].clone()));
+        expected.push(Item::Stmt(hir.stmts[arm2_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[hir.stmts[arm2_stmt].kind.as_return().unwrap().expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_if_statement() {
+        let mut hir = Hir::default();
+
+        // Create if condition expression
+        let if_cond = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Bool,
+        });
+
+        // Create if branch statement
+        let if_stmt_inner = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Return(ReturnStmt {
+                expr: hir.exprs.insert_with_key(|id| Expr {
+                    id,
+                    kind: ExprKind::Int,
+                }),
+            }),
+        });
+
+        // Create else block
+        let else_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Return(ReturnStmt {
+                expr: hir.exprs.insert_with_key(|id| Expr {
+                    id,
+                    kind: ExprKind::Int,
+                }),
+            }),
+        });
+        let else_block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![else_stmt],
+        });
+
+        // Create if statement
+        let if_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::If(IfStmt {
+                branches: vec![IfBranch {
+                    expr: if_cond,
+                    stmts: vec![if_stmt_inner],
+                }],
+                else_block: Some(else_block),
+            }),
+        });
+
+        // Create function to hold if statement
+        let _func_id = hir.funcs.insert_with_key(|id| FuncDef {
+            id,
+            args: vec![],
+            result: hir.types.insert_with_key(|id| VType {
+                id,
+                kind: VTypeKind::Int,
+            }),
+            stmts: vec![if_stmt],
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::FuncDef(hir.funcs[func_id].clone()));
+        expected.push(Item::VType(hir.types[hir.funcs[func_id].result].clone()));
+        expected.push(Item::Stmt(hir.stmts[if_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[if_cond].clone()));
+        expected.push(Item::Stmt(hir.stmts[if_stmt_inner].clone()));
+        expected.push(Item::Expr(hir.exprs[hir.stmts[if_stmt_inner].kind.as_return().unwrap().expr].clone()));
+        expected.push(Item::Block(hir.blocks[else_block].clone()));
+        expected.push(Item::Stmt(hir.stmts[else_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[hir.stmts[else_stmt].kind.as_return().unwrap().expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_fact_literal() {
+        let mut hir = Hir::default();
+
+        // Create identifiers for fact literal
+        let fact_name = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("User"),
+        });
+        let key_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("id"),
+        });
+        let val_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("name"),
+        });
+
+        // Create expressions for fact fields
+        let key_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let val_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::String,
+        });
+
+        // Create fact literal
+        let fact_literal = FactLiteral {
+            ident: fact_name,
+            keys: vec![(key_ident, FactField::Expr(key_expr))],
+            vals: vec![(val_ident, FactField::Expr(val_expr))],
+        };
+
+        // Create a statement that uses the fact literal
+        let create_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Create(Create {
+                fact: fact_literal.clone(),
+            }),
+        });
+
+        // Create action to hold the statement
+        let block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![create_stmt],
+        });
+        let action_id = hir.actions.insert_with_key(|id| ActionDef {
+            id,
+            args: vec![],
+            block,
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::ActionDef(hir.actions[action_id].clone()));
+        expected.push(Item::Block(hir.blocks[block].clone()));
+        expected.push(Item::Stmt(hir.stmts[create_stmt].clone()));
+        expected.push(Item::FactLiteral(fact_literal));
+        expected.push(Item::Ident(hir.idents[fact_name].clone()));
+        expected.push(Item::Ident(hir.idents[key_ident].clone()));
+        expected.push(Item::Expr(hir.exprs[key_expr].clone()));
+        expected.push(Item::Ident(hir.idents[val_ident].clone()));
+        expected.push(Item::Expr(hir.exprs[val_expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_all_statement_kinds() {
+        let mut hir = Hir::default();
+
+        // Create various statements
+        let let_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("x"),
+        });
+        let let_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let let_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Let(LetStmt {
+                ident: let_ident,
+                expr: let_expr,
+            }),
+        });
+
+        let publish_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::String,
+        });
+        let publish_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Publish(Publish { exor: publish_expr }),
+        });
+
+        let emit_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Bool,
+        });
+        let emit_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Emit(Emit { expr: emit_expr }),
+        });
+
+        let action_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("do_something"),
+        });
+        let action_arg = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let action_call_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::ActionCall(ActionCall {
+                ident: action_ident,
+                args: vec![action_arg],
+            }),
+        });
+
+        let func_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("helper"),
+        });
+        let func_arg = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::String,
+        });
+        let func_call_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::FunctionCall(FunctionCall {
+                ident: func_ident,
+                args: vec![func_arg],
+            }),
+        });
+
+        let debug_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Bool,
+        });
+        let debug_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::DebugAssert(DebugAssert { expr: debug_expr }),
+        });
+
+        // Create action to hold all statements
+        let block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![
+                let_stmt,
+                publish_stmt,
+                emit_stmt,
+                action_call_stmt,
+                func_call_stmt,
+                debug_stmt,
+            ],
+        });
+        let action_id = hir.actions.insert_with_key(|id| ActionDef {
+            id,
+            args: vec![],
+            block,
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::ActionDef(hir.actions[action_id].clone()));
+        expected.push(Item::Block(hir.blocks[block].clone()));
+        
+        // Let statement
+        expected.push(Item::Stmt(hir.stmts[let_stmt].clone()));
+        expected.push(Item::Ident(hir.idents[let_ident].clone()));
+        expected.push(Item::Expr(hir.exprs[let_expr].clone()));
+        
+        // Publish statement
+        expected.push(Item::Stmt(hir.stmts[publish_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[publish_expr].clone()));
+        
+        // Emit statement
+        expected.push(Item::Stmt(hir.stmts[emit_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[emit_expr].clone()));
+        
+        // Action call statement
+        expected.push(Item::Stmt(hir.stmts[action_call_stmt].clone()));
+        expected.push(Item::Ident(hir.idents[action_ident].clone()));
+        expected.push(Item::Expr(hir.exprs[action_arg].clone()));
+        
+        // Function call statement
+        expected.push(Item::Stmt(hir.stmts[func_call_stmt].clone()));
+        expected.push(Item::Ident(hir.idents[func_ident].clone()));
+        expected.push(Item::Expr(hir.exprs[func_arg].clone()));
+        
+        // Debug assert statement
+        expected.push(Item::Stmt(hir.stmts[debug_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[debug_expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_map_statement() {
+        let mut hir = Hir::default();
+
+        // Create fact literal for map
+        let fact_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("User"),
+        });
+        let fact_literal = FactLiteral {
+            ident: fact_ident,
+            keys: vec![],
+            vals: vec![],
+        };
+
+        // Create binding identifier
+        let bind_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("u"),
+        });
+
+        // Create inner statement
+        let inner_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Bool,
+        });
+        let inner_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Check(CheckStmt { expr: inner_expr }),
+        });
+
+        // Create map statement
+        let map_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Map(MapStmt {
+                fact: fact_literal.clone(),
+                ident: bind_ident,
+                stmts: vec![inner_stmt],
+            }),
+        });
+
+        // Create action to hold the map statement
+        let block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![map_stmt],
+        });
+        let action_id = hir.actions.insert_with_key(|id| ActionDef {
+            id,
+            args: vec![],
+            block,
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::ActionDef(hir.actions[action_id].clone()));
+        expected.push(Item::Block(hir.blocks[block].clone()));
+        expected.push(Item::Stmt(hir.stmts[map_stmt].clone()));
+        expected.push(Item::FactLiteral(fact_literal));
+        expected.push(Item::Ident(hir.idents[fact_ident].clone()));
+        expected.push(Item::Ident(hir.idents[bind_ident].clone()));
+        expected.push(Item::Stmt(hir.stmts[inner_stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[inner_expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_update_statement() {
+        let mut hir = Hir::default();
+
+        // Create fact literal for update
+        let fact_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("User"),
+        });
+        let key_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("id"),
+        });
+        let key_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let fact_literal = FactLiteral {
+            ident: fact_ident,
+            keys: vec![(key_ident, FactField::Expr(key_expr))],
+            vals: vec![],
+        };
+
+        // Create update fields
+        let update_ident = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("name"),
+        });
+        let update_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::String,
+        });
+
+        // Create update statement
+        let update_stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Update(Update {
+                fact: fact_literal.clone(),
+                to: vec![(update_ident, FactField::Expr(update_expr))],
+            }),
+        });
+
+        // Create action to hold the update statement
+        let block = hir.blocks.insert_with_key(|id| Block {
+            id,
+            stmts: vec![update_stmt],
+        });
+        let action_id = hir.actions.insert_with_key(|id| ActionDef {
+            id,
+            args: vec![],
+            block,
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::ActionDef(hir.actions[action_id].clone()));
+        expected.push(Item::Block(hir.blocks[block].clone()));
+        expected.push(Item::Stmt(hir.stmts[update_stmt].clone()));
+        expected.push(Item::FactLiteral(fact_literal));
+        expected.push(Item::Ident(hir.idents[fact_ident].clone()));
+        expected.push(Item::Ident(hir.idents[key_ident].clone()));
+        expected.push(Item::Expr(hir.exprs[key_expr].clone()));
+        expected.push(Item::Ident(hir.idents[update_ident].clone()));
+        expected.push(Item::Expr(hir.exprs[update_expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    #[test]
+    fn test_visitor_complex_expressions() {
+        let mut hir = Hir::default();
+
+        // Create various expression types
+        let ident1 = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("x"),
+        });
+        let ident2 = hir.idents.insert_with_key(|id| Ident {
+            id,
+            ident: ast::ident!("y"),
+        });
+
+        // Create identifier expressions
+        let x_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Identifier(ident1),
+        });
+        let y_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Identifier(ident2),
+        });
+
+        // Create binary expressions
+        let add_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Add(x_expr, y_expr),
+        });
+        let int_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Int,
+        });
+        let gt_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::GreaterThan(add_expr, int_expr),
+        });
+
+        // Create unary expressions
+        let not_expr = hir.exprs.insert_with_key(|id| Expr {
+            id,
+            kind: ExprKind::Not(gt_expr),
+        });
+
+        // Create statement with the expression
+        let stmt = hir.stmts.insert_with_key(|id| Stmt {
+            id,
+            kind: StmtKind::Return(ReturnStmt { expr: not_expr }),
+        });
+
+        // Create function to hold the statement
+        let _func_id = hir.funcs.insert_with_key(|id| FuncDef {
+            id,
+            args: vec![],
+            result: hir.types.insert_with_key(|id| VType {
+                id,
+                kind: VTypeKind::Bool,
+            }),
+            stmts: vec![stmt],
+        });
+
+        // Expected visit order
+        let mut expected = Vec::new();
+        expected.push(Item::FuncDef(hir.funcs[func_id].clone()));
+        expected.push(Item::VType(hir.types[hir.funcs[func_id].result].clone()));
+        expected.push(Item::Stmt(hir.stmts[stmt].clone()));
+        expected.push(Item::Expr(hir.exprs[not_expr].clone()));
+        expected.push(Item::Expr(hir.exprs[gt_expr].clone()));
+        expected.push(Item::Expr(hir.exprs[add_expr].clone()));
+        expected.push(Item::Expr(hir.exprs[x_expr].clone()));
+        expected.push(Item::Ident(hir.idents[ident1].clone()));
+        expected.push(Item::Expr(hir.exprs[y_expr].clone()));
+        expected.push(Item::Ident(hir.idents[ident2].clone()));
+        expected.push(Item::Expr(hir.exprs[int_expr].clone()));
+
+        let mut visitor = ExactVisitor::new(expected);
+        hir.walk(&mut visitor);
+        visitor.assert_done();
+    }
+
+    // Helper to check if StmtKind is a Return variant
+    impl StmtKind {
+        fn as_return(&self) -> Option<&ReturnStmt> {
+            match self {
+                StmtKind::Return(r) => Some(r),
+                _ => None,
+            }
+        }
     }
 }

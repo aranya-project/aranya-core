@@ -1,0 +1,2343 @@
+---
+source: crates/aranya-policy-compiler/src/hir/snapshot_tests.rs
+expression: "&snapshot"
+---
+{
+  "hir": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ],
+          "result": {
+            "idx": 3,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            },
+            {
+              "idx": 3,
+              "version": 1
+            },
+            {
+              "idx": 4,
+              "version": 1
+            },
+            {
+              "idx": 5,
+              "version": 1
+            },
+            {
+              "idx": 6,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 3,
+              "version": 1
+            }
+          ],
+          "result": {
+            "idx": 6,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 7,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 4,
+              "version": 1
+            }
+          ],
+          "result": {
+            "idx": 8,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 11,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 1,
+            "version": 1
+          },
+          "ty": {
+            "idx": 1,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": {
+            "idx": 2,
+            "version": 1
+          },
+          "ty": {
+            "idx": 2,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": {
+            "idx": 19,
+            "version": 1
+          },
+          "ty": {
+            "idx": 5,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "ident": {
+            "idx": 21,
+            "version": 1
+          },
+          "ty": {
+            "idx": 7,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Let": {
+              "ident": {
+                "idx": 3,
+                "version": 1
+              },
+              "expr": {
+                "idx": 3,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Let": {
+              "ident": {
+                "idx": 6,
+                "version": 1
+              },
+              "expr": {
+                "idx": 6,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "Let": {
+              "ident": {
+                "idx": 9,
+                "version": 1
+              },
+              "expr": {
+                "idx": 9,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": {
+            "Let": {
+              "ident": {
+                "idx": 11,
+                "version": 1
+              },
+              "expr": {
+                "idx": 12,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "Let": {
+              "ident": {
+                "idx": 14,
+                "version": 1
+              },
+              "expr": {
+                "idx": 16,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 21,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 23,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 26,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 28,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 29,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "kind": {
+            "Match": {
+              "expr": {
+                "idx": 24,
+                "version": 1
+              },
+              "arms": [
+                {
+                  "pattern": {
+                    "Values": [
+                      {
+                        "idx": 25,
+                        "version": 1
+                      }
+                    ]
+                  },
+                  "stmts": [
+                    {
+                      "idx": 8,
+                      "version": 1
+                    }
+                  ]
+                },
+                {
+                  "pattern": {
+                    "Values": [
+                      {
+                        "idx": 27,
+                        "version": 1
+                      }
+                    ]
+                  },
+                  "stmts": [
+                    {
+                      "idx": 9,
+                      "version": 1
+                    }
+                  ]
+                },
+                {
+                  "pattern": "Default",
+                  "stmts": [
+                    {
+                      "idx": 10,
+                      "version": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 4,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 5,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "Add": [
+              {
+                "idx": 1,
+                "version": 1
+              },
+              {
+                "idx": 2,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 7,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 8,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": {
+            "Sub": [
+              {
+                "idx": 4,
+                "version": 1
+              },
+              {
+                "idx": 5,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 10,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "kind": {
+            "GreaterThan": [
+              {
+                "idx": 7,
+                "version": 1
+              },
+              {
+                "idx": 8,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 12,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 13,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "kind": {
+            "Equal": [
+              {
+                "idx": 10,
+                "version": 1
+              },
+              {
+                "idx": 11,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 13,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 15,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 16,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 15,
+            "version": 1
+          },
+          "kind": {
+            "Not": {
+              "idx": 14,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 16,
+            "version": 1
+          },
+          "kind": {
+            "And": [
+              {
+                "idx": 13,
+                "version": 1
+              },
+              {
+                "idx": 15,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 17,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 17,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 18,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 18,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 19,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 20,
+            "version": 1
+          },
+          "kind": {
+            "LessThan": [
+              {
+                "idx": 18,
+                "version": 1
+              },
+              {
+                "idx": 19,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 21,
+            "version": 1
+          },
+          "kind": {
+            "Or": [
+              {
+                "idx": 17,
+                "version": 1
+              },
+              {
+                "idx": 20,
+                "version": 1
+              }
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 22,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 20,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 23,
+            "version": 1
+          },
+          "kind": {
+            "Unwrap": {
+              "idx": 22,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 24,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 22,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 25,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 26,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 27,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 28,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 29,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": "y"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": "sum"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "ident": "y"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "ident": "diff"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "ident": "y"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "ident": "is_positive"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "ident": "sum"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "ident": "is_equal"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 13,
+            "version": 1
+          },
+          "ident": "y"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "ident": "result"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 15,
+            "version": 1
+          },
+          "ident": "is_positive"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 16,
+            "version": 1
+          },
+          "ident": "is_equal"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 17,
+            "version": 1
+          },
+          "ident": "result"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 18,
+            "version": 1
+          },
+          "ident": "diff"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 19,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 20,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 21,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 22,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": "Bool"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "Optional": {
+              "idx": 4,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      }
+    ]
+  },
+  "ast_nodes": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "complex_expr",
+            "arguments": [
+              {
+                "identifier": "x",
+                "field_type": "Int"
+              },
+              {
+                "identifier": "y",
+                "field_type": "Int"
+              }
+            ],
+            "return_type": "Bool",
+            "statements": [
+              {
+                "inner": {
+                  "Let": {
+                    "identifier": "sum",
+                    "expression": {
+                      "Add": [
+                        {
+                          "Identifier": "x"
+                        },
+                        {
+                          "Identifier": "y"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "locator": 48
+              },
+              {
+                "inner": {
+                  "Let": {
+                    "identifier": "diff",
+                    "expression": {
+                      "Subtract": [
+                        {
+                          "Identifier": "x"
+                        },
+                        {
+                          "Identifier": "y"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "locator": 68
+              },
+              {
+                "inner": {
+                  "Let": {
+                    "identifier": "is_positive",
+                    "expression": {
+                      "GreaterThan": [
+                        {
+                          "Identifier": "sum"
+                        },
+                        {
+                          "Int": 0
+                        }
+                      ]
+                    }
+                  }
+                },
+                "locator": 89
+              },
+              {
+                "inner": {
+                  "Let": {
+                    "identifier": "is_equal",
+                    "expression": {
+                      "Equal": [
+                        {
+                          "Identifier": "x"
+                        },
+                        {
+                          "Identifier": "y"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "locator": 119
+              },
+              {
+                "inner": {
+                  "Let": {
+                    "identifier": "result",
+                    "expression": {
+                      "And": [
+                        {
+                          "Identifier": "is_positive"
+                        },
+                        {
+                          "Not": {
+                            "Identifier": "is_equal"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "locator": 145
+              },
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "Or": [
+                        {
+                          "Identifier": "result"
+                        },
+                        {
+                          "LessThan": [
+                            {
+                              "Identifier": "diff"
+                            },
+                            {
+                              "Int": 0
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                },
+                "locator": 187
+              }
+            ]
+          },
+          "locator": 1
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "optional_handling",
+            "arguments": [
+              {
+                "identifier": "x",
+                "field_type": {
+                  "Optional": "Int"
+                }
+              }
+            ],
+            "return_type": "Int",
+            "statements": [
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "Unwrap": {
+                        "Identifier": "x"
+                      }
+                    }
+                  }
+                },
+                "locator": 271
+              }
+            ]
+          },
+          "locator": 218
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "match_expr",
+            "arguments": [
+              {
+                "identifier": "x",
+                "field_type": "Int"
+              }
+            ],
+            "return_type": "String",
+            "statements": [
+              {
+                "inner": {
+                  "Match": {
+                    "expression": {
+                      "Identifier": "x"
+                    },
+                    "arms": [
+                      {
+                        "pattern": {
+                          "Values": [
+                            {
+                              "Int": 1
+                            }
+                          ]
+                        },
+                        "statements": [
+                          {
+                            "inner": {
+                              "Return": {
+                                "expression": {
+                                  "String": "one"
+                                }
+                              }
+                            },
+                            "locator": 355
+                          }
+                        ]
+                      },
+                      {
+                        "pattern": {
+                          "Values": [
+                            {
+                              "Int": 2
+                            }
+                          ]
+                        },
+                        "statements": [
+                          {
+                            "inner": {
+                              "Return": {
+                                "expression": {
+                                  "String": "two"
+                                }
+                              }
+                            },
+                            "locator": 385
+                          }
+                        ]
+                      },
+                      {
+                        "pattern": "Default",
+                        "statements": [
+                          {
+                            "inner": {
+                              "Return": {
+                                "expression": {
+                                  "String": "other"
+                                }
+                              }
+                            },
+                            "locator": 415
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "locator": 330
+              }
+            ]
+          },
+          "locator": 290
+        },
+        "version": 1
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "x",
+          "field_type": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "y",
+          "field_type": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "x",
+          "field_type": {
+            "Optional": "Int"
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "x",
+          "field_type": "Int"
+        },
+        "version": 1
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "Let": {
+              "identifier": "sum",
+              "expression": {
+                "Add": [
+                  {
+                    "Identifier": "x"
+                  },
+                  {
+                    "Identifier": "y"
+                  }
+                ]
+              }
+            }
+          },
+          "locator": 48
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Let": {
+              "identifier": "diff",
+              "expression": {
+                "Subtract": [
+                  {
+                    "Identifier": "x"
+                  },
+                  {
+                    "Identifier": "y"
+                  }
+                ]
+              }
+            }
+          },
+          "locator": 68
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Let": {
+              "identifier": "is_positive",
+              "expression": {
+                "GreaterThan": [
+                  {
+                    "Identifier": "sum"
+                  },
+                  {
+                    "Int": 0
+                  }
+                ]
+              }
+            }
+          },
+          "locator": 89
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Let": {
+              "identifier": "is_equal",
+              "expression": {
+                "Equal": [
+                  {
+                    "Identifier": "x"
+                  },
+                  {
+                    "Identifier": "y"
+                  }
+                ]
+              }
+            }
+          },
+          "locator": 119
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Let": {
+              "identifier": "result",
+              "expression": {
+                "And": [
+                  {
+                    "Identifier": "is_positive"
+                  },
+                  {
+                    "Not": {
+                      "Identifier": "is_equal"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "locator": 145
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "Or": [
+                  {
+                    "Identifier": "result"
+                  },
+                  {
+                    "LessThan": [
+                      {
+                        "Identifier": "diff"
+                      },
+                      {
+                        "Int": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "locator": 187
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "Unwrap": {
+                  "Identifier": "x"
+                }
+              }
+            }
+          },
+          "locator": 271
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "String": "one"
+              }
+            }
+          },
+          "locator": 355
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "String": "two"
+              }
+            }
+          },
+          "locator": 385
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "String": "other"
+              }
+            }
+          },
+          "locator": 415
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Match": {
+              "expression": {
+                "Identifier": "x"
+              },
+              "arms": [
+                {
+                  "pattern": {
+                    "Values": [
+                      {
+                        "Int": 1
+                      }
+                    ]
+                  },
+                  "statements": [
+                    {
+                      "inner": {
+                        "Return": {
+                          "expression": {
+                            "String": "one"
+                          }
+                        }
+                      },
+                      "locator": 355
+                    }
+                  ]
+                },
+                {
+                  "pattern": {
+                    "Values": [
+                      {
+                        "Int": 2
+                      }
+                    ]
+                  },
+                  "statements": [
+                    {
+                      "inner": {
+                        "Return": {
+                          "expression": {
+                            "String": "two"
+                          }
+                        }
+                      },
+                      "locator": 385
+                    }
+                  ]
+                },
+                {
+                  "pattern": "Default",
+                  "statements": [
+                    {
+                      "inner": {
+                        "Return": {
+                          "expression": {
+                            "String": "other"
+                          }
+                        }
+                      },
+                      "locator": 415
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "locator": 330
+        },
+        "version": 1
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "Identifier": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "y"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Add": [
+            {
+              "Identifier": "x"
+            },
+            {
+              "Identifier": "y"
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "y"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Subtract": [
+            {
+              "Identifier": "x"
+            },
+            {
+              "Identifier": "y"
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "sum"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Int": 0
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "GreaterThan": [
+            {
+              "Identifier": "sum"
+            },
+            {
+              "Int": 0
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "y"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Equal": [
+            {
+              "Identifier": "x"
+            },
+            {
+              "Identifier": "y"
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "is_positive"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "is_equal"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Not": {
+            "Identifier": "is_equal"
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "And": [
+            {
+              "Identifier": "is_positive"
+            },
+            {
+              "Not": {
+                "Identifier": "is_equal"
+              }
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "result"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "diff"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Int": 0
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "LessThan": [
+            {
+              "Identifier": "diff"
+            },
+            {
+              "Int": 0
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Or": [
+            {
+              "Identifier": "result"
+            },
+            {
+              "LessThan": [
+                {
+                  "Identifier": "diff"
+                },
+                {
+                  "Int": 0
+                }
+              ]
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Unwrap": {
+            "Identifier": "x"
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Int": 1
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "String": "one"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Int": 2
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "String": "two"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "String": "other"
+        },
+        "version": 1
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": "x",
+        "version": 1
+      },
+      {
+        "value": "y",
+        "version": 1
+      },
+      {
+        "value": "sum",
+        "version": 1
+      },
+      {
+        "value": "x",
+        "version": 1
+      },
+      {
+        "value": "y",
+        "version": 1
+      },
+      {
+        "value": "diff",
+        "version": 1
+      },
+      {
+        "value": "x",
+        "version": 1
+      },
+      {
+        "value": "y",
+        "version": 1
+      },
+      {
+        "value": "is_positive",
+        "version": 1
+      },
+      {
+        "value": "sum",
+        "version": 1
+      },
+      {
+        "value": "is_equal",
+        "version": 1
+      },
+      {
+        "value": "x",
+        "version": 1
+      },
+      {
+        "value": "y",
+        "version": 1
+      },
+      {
+        "value": "result",
+        "version": 1
+      },
+      {
+        "value": "is_positive",
+        "version": 1
+      },
+      {
+        "value": "is_equal",
+        "version": 1
+      },
+      {
+        "value": "result",
+        "version": 1
+      },
+      {
+        "value": "diff",
+        "version": 1
+      },
+      {
+        "value": "x",
+        "version": 1
+      },
+      {
+        "value": "x",
+        "version": 1
+      },
+      {
+        "value": "x",
+        "version": 1
+      },
+      {
+        "value": "x",
+        "version": 1
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "Bool",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": {
+          "Optional": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      }
+    ]
+  }
+}

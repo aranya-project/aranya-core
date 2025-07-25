@@ -19,11 +19,11 @@ pub use error::SymbolResolutionError;
 pub use resolver::FieldLike;
 pub use symbols::{Symbol, SymbolKind};
 
-use crate::symbol_resolution::resolver::Resolver;
+use crate::{hir::Hir, symbol_resolution::resolver::Resolver};
 
 /// Entry point for symbol resolution.
 pub fn resolve<'a>(
-    policy: &'a Policy,
+    hir: &Hir,
     ffi_modules: &'a [ModuleSchema<'a>],
 ) -> Result<ResolvedAst<'a>, SymbolResolutionError> {
     let resolver = Resolver::new(policy, ffi_modules)?;

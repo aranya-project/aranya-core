@@ -9,12 +9,13 @@ use crate::hir::{
     hir::{
         ActionArg, ActionArgId, ActionCall, ActionDef, ActionId, Block, BlockId, CheckStmt, CmdDef,
         CmdField, CmdFieldId, CmdFieldKind, CmdId, Create, DebugAssert, Delete, EffectDef,
-        EffectFieldId, Emit, EnumDef, EnumReference, Expr, ExprId, ExprKind, FactCountType,
-        FactDef, FactField, FactKey, FactKeyId, FactLiteral, FactVal, FactValId, FinishFuncArg,
-        FinishFuncArgId, FinishFuncDef, ForeignFunctionCall, FuncArg, FuncArgId, FuncDef,
-        FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch, IfStmt, InternalFunction,
-        LetStmt, MapStmt, MatchArm, MatchPattern, MatchStmt, NamedStruct, Publish, ReturnStmt,
-        Stmt, StmtId, StmtKind, StructDef, StructFieldId, Update, VType, VTypeId, VTypeKind,
+        EffectField, EffectFieldId, EffectFieldKind, Emit, EnumDef, EnumReference, Expr, ExprId, 
+        ExprKind, FactCountType, FactDef, FactField, FactKey, FactKeyId, FactLiteral, FactVal, 
+        FactValId, FinishFuncArg, FinishFuncArgId, FinishFuncDef, ForeignFunctionCall, FuncArg, 
+        FuncArgId, FuncDef, FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch, IfStmt, 
+        InternalFunction, LetStmt, MapStmt, MatchArm, MatchPattern, MatchStmt, NamedStruct, 
+        Publish, ReturnStmt, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldId, 
+        StructFieldKind, Update, VType, VTypeId, VTypeKind,
     },
 };
 
@@ -377,9 +378,21 @@ impl<'ast> LowerCtx<'ast> {
         &mut self,
         node: &'ast ast::StructItem<ast::EffectFieldDefinition>,
     ) -> EffectFieldId {
-        // For now, we don't store effect fields in the HIR, just return the ID
-        // The arena stores the AST node for later reference
-        let id = EffectFieldId::default();
+        let kind = match node {
+            ast::StructItem::Field(field) => {
+                let ident = self.lower_ident(&field.identifier);
+                let ty = self.lower_vtype(&field.field_type);
+                EffectFieldKind::Field { ident, ty }
+            }
+            ast::StructItem::StructRef(struct_ref) => {
+                let ident = self.lower_ident(struct_ref);
+                EffectFieldKind::StructRef(ident)
+            }
+        };
+        let id = self
+            .ast
+            .effect_fields
+            .insert_with_key(|id| EffectField { id, kind });
         self.arena.effect_fields.insert(id, Cow::Borrowed(node));
         id
     }
@@ -388,9 +401,21 @@ impl<'ast> LowerCtx<'ast> {
         &mut self,
         node: &'ast ast::StructItem<ast::FieldDefinition>,
     ) -> StructFieldId {
-        // For now, we don't store struct fields in the HIR, just return the ID
-        // The arena stores the AST node for later reference
-        let id = StructFieldId::default();
+        let kind = match node {
+            ast::StructItem::Field(field) => {
+                let ident = self.lower_ident(&field.identifier);
+                let ty = self.lower_vtype(&field.field_type);
+                StructFieldKind::Field { ident, ty }
+            }
+            ast::StructItem::StructRef(struct_ref) => {
+                let ident = self.lower_ident(struct_ref);
+                StructFieldKind::StructRef(ident)
+            }
+        };
+        let id = self
+            .ast
+            .struct_fields
+            .insert_with_key(|id| StructField { id, kind });
         self.arena.struct_fields.insert(id, Cow::Borrowed(node));
         id
     }

@@ -7,7 +7,7 @@
 mod arena;
 mod hir;
 mod lower;
-mod tests;
+mod snapshot_tests;
 mod visit;
 
 use aranya_policy_ast::Policy;

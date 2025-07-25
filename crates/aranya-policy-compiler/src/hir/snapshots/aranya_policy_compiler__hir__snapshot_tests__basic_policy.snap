@@ -1,0 +1,2065 @@
+---
+source: crates/aranya-policy-compiler/src/hir/snapshot_tests.rs
+expression: "&snapshot"
+---
+{
+  "hir": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "args": [],
+          "block": {
+            "idx": 1,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 1,
+              "version": 1
+            }
+          ],
+          "block": {
+            "idx": 2,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "args": [],
+          "block": {
+            "idx": 3,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 1,
+            "version": 1
+          },
+          "ty": {
+            "idx": 1,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "fields": [],
+          "seal": {
+            "idx": 4,
+            "version": 1
+          },
+          "open": {
+            "idx": 5,
+            "version": 1
+          },
+          "policy": {
+            "idx": 6,
+            "version": 1
+          },
+          "recall": {
+            "idx": 7,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "items": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "items": []
+        },
+        "version": 1
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 4,
+                "version": 1
+              },
+              "ty": {
+                "idx": 2,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 5,
+                "version": 1
+              },
+              "ty": {
+                "idx": 3,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "keys": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ],
+          "vals": [
+            {
+              "idx": 1,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "keys": [],
+          "vals": []
+        },
+        "version": 1
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 6,
+            "version": 1
+          },
+          "ty": {
+            "idx": 4,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": {
+            "idx": 7,
+            "version": 1
+          },
+          "ty": {
+            "idx": 5,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 8,
+            "version": 1
+          },
+          "ty": {
+            "idx": 6,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "args": [],
+          "stmts": []
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "args": [],
+          "stmts": [
+            {
+              "idx": 5,
+              "version": 1
+            },
+            {
+              "idx": 6,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "args": [],
+          "result": {
+            "idx": 7,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 7,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "args": [],
+          "result": {
+            "idx": 8,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 8,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "args": [],
+          "result": {
+            "idx": 9,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 9,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "items": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 14,
+                "version": 1
+              },
+              "ty": {
+                "idx": 10,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 15,
+                "version": 1
+              },
+              "ty": {
+                "idx": 11,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "ActionCall": {
+              "ident": {
+                "idx": 2,
+                "version": 1
+              },
+              "args": []
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Publish": {
+              "exor": {
+                "idx": 1,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 2,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 3,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "FunctionCall": {
+              "ident": {
+                "idx": 9,
+                "version": 1
+              },
+              "args": []
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": {
+            "Delete": {
+              "fact": {
+                "ident": {
+                  "idx": 10,
+                  "version": 1
+                },
+                "keys": [
+                  [
+                    {
+                      "idx": 11,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 4,
+                        "version": 1
+                      }
+                    }
+                  ],
+                  [
+                    {
+                      "idx": 12,
+                      "version": 1
+                    },
+                    {
+                      "Expr": {
+                        "idx": 5,
+                        "version": 1
+                      }
+                    }
+                  ]
+                ],
+                "vals": []
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 6,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 7,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 8,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "NamedStruct": {
+              "ident": {
+                "idx": 3,
+                "version": 1
+              },
+              "fields": []
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Optional": null
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "Optional": null
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": "Bool"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": {
+            "FunctionCall": {
+              "ident": {
+                "idx": 13,
+                "version": 1
+              },
+              "args": []
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": "x"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": "action1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": "Cmd1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "ident": "field1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "ident": "field2"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "ident": "a"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "ident": "b"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "ident": "c"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "ident": "func4"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "ident": "Fact1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "ident": "a"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "ident": "b"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 13,
+            "version": 1
+          },
+          "ident": "func1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "ident": "field1"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 15,
+            "version": 1
+          },
+          "ident": "field2"
+        },
+        "version": 1
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "stmts": []
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "stmts": []
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 3,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 4,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "stmts": []
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "stmts": []
+        },
+        "version": 1
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": "Bool"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": "Bool"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "kind": "Bool"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      }
+    ]
+  },
+  "ast_nodes": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "action1",
+            "arguments": [],
+            "statements": []
+          },
+          "locator": 1
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "action2",
+            "arguments": [
+              {
+                "identifier": "x",
+                "field_type": "Int"
+              }
+            ],
+            "statements": [
+              {
+                "inner": {
+                  "ActionCall": {
+                    "identifier": "action1",
+                    "arguments": []
+                  }
+                },
+                "locator": 49
+              },
+              {
+                "inner": {
+                  "Publish": {
+                    "NamedStruct": {
+                      "identifier": "Cmd1",
+                      "fields": []
+                    }
+                  }
+                },
+                "locator": 70
+              }
+            ]
+          },
+          "locator": 21
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "action3",
+            "arguments": [],
+            "statements": []
+          },
+          "locator": 88
+        },
+        "version": 1
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "x",
+          "field_type": "Int"
+        },
+        "version": 1
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "attributes": [],
+            "identifier": "Cmd1",
+            "fields": [],
+            "seal": [
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "Optional": null
+                    }
+                  }
+                },
+                "locator": 149
+              }
+            ],
+            "open": [
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "Optional": null
+                    }
+                  }
+                },
+                "locator": 174
+              }
+            ],
+            "policy": [],
+            "recall": []
+          },
+          "locator": 109
+        },
+        "version": 1
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "Effect1",
+            "items": [
+              {
+                "Field": {
+                  "identifier": "field1",
+                  "field_type": "Int",
+                  "dynamic": false
+                }
+              },
+              {
+                "Field": {
+                  "identifier": "field2",
+                  "field_type": "String",
+                  "dynamic": false
+                }
+              }
+            ]
+          },
+          "locator": 191
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "Effect2",
+            "items": []
+          },
+          "locator": 245
+        },
+        "version": 1
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "field1",
+            "field_type": "Int",
+            "dynamic": false
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "field2",
+            "field_type": "String",
+            "dynamic": false
+          }
+        },
+        "version": 1
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "immutable": false,
+            "identifier": "Fact1",
+            "key": [
+              {
+                "identifier": "a",
+                "field_type": "Int"
+              },
+              {
+                "identifier": "b",
+                "field_type": "String"
+              }
+            ],
+            "value": [
+              {
+                "identifier": "c",
+                "field_type": "Bool"
+              }
+            ]
+          },
+          "locator": 283
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "immutable": false,
+            "identifier": "Fact2",
+            "key": [],
+            "value": []
+          },
+          "locator": 321
+        },
+        "version": 1
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "a",
+          "field_type": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "b",
+          "field_type": "String"
+        },
+        "version": 1
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "c",
+          "field_type": "Bool"
+        },
+        "version": 1
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "func4",
+            "arguments": [],
+            "statements": []
+          },
+          "locator": 368
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "func5",
+            "arguments": [],
+            "statements": [
+              {
+                "inner": {
+                  "FunctionCall": {
+                    "identifier": "func4",
+                    "arguments": []
+                  }
+                },
+                "locator": 425
+              },
+              {
+                "inner": {
+                  "Delete": {
+                    "fact": {
+                      "identifier": "Fact1",
+                      "key_fields": [
+                        [
+                          "a",
+                          {
+                            "Expression": {
+                              "Int": 42
+                            }
+                          }
+                        ],
+                        [
+                          "b",
+                          {
+                            "Expression": {
+                              "String": "test"
+                            }
+                          }
+                        ]
+                      ],
+                      "value_fields": null
+                    }
+                  }
+                },
+                "locator": 437
+              }
+            ]
+          },
+          "locator": 395
+        },
+        "version": 1
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "func1",
+            "arguments": [],
+            "return_type": "Int",
+            "statements": [
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "Int": 42
+                    }
+                  }
+                },
+                "locator": 523
+              }
+            ]
+          },
+          "locator": 500
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "func2",
+            "arguments": [],
+            "return_type": "Bool",
+            "statements": [
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "Bool": true
+                    }
+                  }
+                },
+                "locator": 559
+              }
+            ]
+          },
+          "locator": 535
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "func3",
+            "arguments": [],
+            "return_type": "Int",
+            "statements": [
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "FunctionCall": {
+                        "identifier": "func1",
+                        "arguments": []
+                      }
+                    }
+                  }
+                },
+                "locator": 596
+              }
+            ]
+          },
+          "locator": 573
+        },
+        "version": 1
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "Struct1",
+            "items": [
+              {
+                "Field": {
+                  "identifier": "field1",
+                  "field_type": "Bool"
+                }
+              },
+              {
+                "Field": {
+                  "identifier": "field2",
+                  "field_type": "Int"
+                }
+              }
+            ]
+          },
+          "locator": 614
+        },
+        "version": 1
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "field1",
+            "field_type": "Bool"
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "field2",
+            "field_type": "Int"
+          }
+        },
+        "version": 1
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "ActionCall": {
+              "identifier": "action1",
+              "arguments": []
+            }
+          },
+          "locator": 49
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Publish": {
+              "NamedStruct": {
+                "identifier": "Cmd1",
+                "fields": []
+              }
+            }
+          },
+          "locator": 70
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "Optional": null
+              }
+            }
+          },
+          "locator": 149
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "Optional": null
+              }
+            }
+          },
+          "locator": 174
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "FunctionCall": {
+              "identifier": "func4",
+              "arguments": []
+            }
+          },
+          "locator": 425
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Delete": {
+              "fact": {
+                "identifier": "Fact1",
+                "key_fields": [
+                  [
+                    "a",
+                    {
+                      "Expression": {
+                        "Int": 42
+                      }
+                    }
+                  ],
+                  [
+                    "b",
+                    {
+                      "Expression": {
+                        "String": "test"
+                      }
+                    }
+                  ]
+                ],
+                "value_fields": null
+              }
+            }
+          },
+          "locator": 437
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "Int": 42
+              }
+            }
+          },
+          "locator": 523
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "Bool": true
+              }
+            }
+          },
+          "locator": 559
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "FunctionCall": {
+                  "identifier": "func1",
+                  "arguments": []
+                }
+              }
+            }
+          },
+          "locator": 596
+        },
+        "version": 1
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "NamedStruct": {
+            "identifier": "Cmd1",
+            "fields": []
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Optional": null
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Optional": null
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Int": 42
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "String": "test"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Int": 42
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Bool": true
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "FunctionCall": {
+            "identifier": "func1",
+            "arguments": []
+          }
+        },
+        "version": 1
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": "x",
+        "version": 1
+      },
+      {
+        "value": "action1",
+        "version": 1
+      },
+      {
+        "value": "Cmd1",
+        "version": 1
+      },
+      {
+        "value": "field1",
+        "version": 1
+      },
+      {
+        "value": "field2",
+        "version": 1
+      },
+      {
+        "value": "a",
+        "version": 1
+      },
+      {
+        "value": "b",
+        "version": 1
+      },
+      {
+        "value": "c",
+        "version": 1
+      },
+      {
+        "value": "func4",
+        "version": 1
+      },
+      {
+        "value": "Fact1",
+        "version": 1
+      },
+      {
+        "value": "a",
+        "version": 1
+      },
+      {
+        "value": "b",
+        "version": 1
+      },
+      {
+        "value": "func1",
+        "version": 1
+      },
+      {
+        "value": "field1",
+        "version": 1
+      },
+      {
+        "value": "field2",
+        "version": 1
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": [],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "ActionCall": {
+                "identifier": "action1",
+                "arguments": []
+              }
+            },
+            "locator": 49
+          },
+          {
+            "inner": {
+              "Publish": {
+                "NamedStruct": {
+                  "identifier": "Cmd1",
+                  "fields": []
+                }
+              }
+            },
+            "locator": 70
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "Optional": null
+                }
+              }
+            },
+            "locator": 149
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "Optional": null
+                }
+              }
+            },
+            "locator": 174
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [],
+        "version": 1
+      },
+      {
+        "value": [],
+        "version": 1
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "Bool",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "Bool",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "Bool",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      }
+    ]
+  }
+}

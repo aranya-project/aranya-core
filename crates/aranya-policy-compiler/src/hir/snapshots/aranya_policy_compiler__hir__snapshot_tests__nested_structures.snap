@@ -1,0 +1,2170 @@
+---
+source: crates/aranya-policy-compiler/src/hir/snapshot_tests.rs
+expression: "&snapshot"
+---
+{
+  "hir": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "args": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            },
+            {
+              "idx": 3,
+              "version": 1
+            },
+            {
+              "idx": 4,
+              "version": 1
+            }
+          ],
+          "block": {
+            "idx": 1,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": {
+            "idx": 1,
+            "version": 1
+          },
+          "ty": {
+            "idx": 1,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": {
+            "idx": 2,
+            "version": 1
+          },
+          "ty": {
+            "idx": 2,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": {
+            "idx": 3,
+            "version": 1
+          },
+          "ty": {
+            "idx": 3,
+            "version": 1
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "ident": {
+            "idx": 4,
+            "version": 1
+          },
+          "ty": {
+            "idx": 4,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "fields": [
+            {
+              "idx": 1,
+              "version": 1
+            }
+          ],
+          "seal": {
+            "idx": 2,
+            "version": 1
+          },
+          "open": {
+            "idx": 3,
+            "version": 1
+          },
+          "policy": {
+            "idx": 4,
+            "version": 1
+          },
+          "recall": {
+            "idx": 5,
+            "version": 1
+          }
+        },
+        "version": 1
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 22,
+                "version": 1
+              },
+              "ty": {
+                "idx": 5,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "items": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "items": [
+            {
+              "idx": 3,
+              "version": 1
+            },
+            {
+              "idx": 4,
+              "version": 1
+            },
+            {
+              "idx": 5,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 24,
+                "version": 1
+              },
+              "ty": {
+                "idx": 6,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 25,
+                "version": 1
+              },
+              "ty": {
+                "idx": 7,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 26,
+                "version": 1
+              },
+              "ty": {
+                "idx": 8,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 27,
+                "version": 1
+              },
+              "ty": {
+                "idx": 9,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "Field": {
+              "ident": {
+                "idx": 28,
+                "version": 1
+              },
+              "ty": {
+                "idx": 10,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Let": {
+              "ident": {
+                "idx": 5,
+                "version": 1
+              },
+              "expr": {
+                "idx": 3,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Let": {
+              "ident": {
+                "idx": 11,
+                "version": 1
+              },
+              "expr": {
+                "idx": 7,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "Publish": {
+              "exor": {
+                "idx": 9,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 10,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "Return": {
+              "expr": {
+                "idx": 11,
+                "version": 1
+              }
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 8,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 10,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": {
+            "NamedStruct": {
+              "ident": {
+                "idx": 6,
+                "version": 1
+              },
+              "fields": [
+                [
+                  {
+                    "idx": 7,
+                    "version": 1
+                  },
+                  {
+                    "idx": 1,
+                    "version": 1
+                  }
+                ],
+                [
+                  {
+                    "idx": 9,
+                    "version": 1
+                  },
+                  {
+                    "idx": 2,
+                    "version": 1
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 14,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 16,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 18,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": {
+            "NamedStruct": {
+              "ident": {
+                "idx": 12,
+                "version": 1
+              },
+              "fields": [
+                [
+                  {
+                    "idx": 13,
+                    "version": 1
+                  },
+                  {
+                    "idx": 4,
+                    "version": 1
+                  }
+                ],
+                [
+                  {
+                    "idx": 15,
+                    "version": 1
+                  },
+                  {
+                    "idx": 5,
+                    "version": 1
+                  }
+                ],
+                [
+                  {
+                    "idx": 17,
+                    "version": 1
+                  },
+                  {
+                    "idx": 6,
+                    "version": 1
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": {
+            "Identifier": {
+              "idx": 21,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "kind": {
+            "NamedStruct": {
+              "ident": {
+                "idx": 19,
+                "version": 1
+              },
+              "fields": [
+                [
+                  {
+                    "idx": 20,
+                    "version": 1
+                  },
+                  {
+                    "idx": 8,
+                    "version": 1
+                  }
+                ]
+              ]
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "kind": {
+            "Optional": null
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "kind": {
+            "Optional": null
+          }
+        },
+        "version": 1
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "ident": "name"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "ident": "age"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "ident": "street"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "ident": "city"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "ident": "addr"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "ident": "Address"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "ident": "street"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "ident": "street"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "ident": "city"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "ident": "city"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 11,
+            "version": 1
+          },
+          "ident": "person"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 12,
+            "version": 1
+          },
+          "ident": "Person"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 13,
+            "version": 1
+          },
+          "ident": "name"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 14,
+            "version": 1
+          },
+          "ident": "name"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 15,
+            "version": 1
+          },
+          "ident": "age"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 16,
+            "version": 1
+          },
+          "ident": "age"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 17,
+            "version": 1
+          },
+          "ident": "address"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 18,
+            "version": 1
+          },
+          "ident": "addr"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 19,
+            "version": 1
+          },
+          "ident": "CreatePerson"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 20,
+            "version": 1
+          },
+          "ident": "person"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 21,
+            "version": 1
+          },
+          "ident": "person"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 22,
+            "version": 1
+          },
+          "ident": "person"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 23,
+            "version": 1
+          },
+          "ident": "Person"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 24,
+            "version": 1
+          },
+          "ident": "street"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 25,
+            "version": 1
+          },
+          "ident": "city"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 26,
+            "version": 1
+          },
+          "ident": "name"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 27,
+            "version": 1
+          },
+          "ident": "age"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 28,
+            "version": 1
+          },
+          "ident": "address"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 29,
+            "version": 1
+          },
+          "ident": "Address"
+        },
+        "version": 1
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 1,
+              "version": 1
+            },
+            {
+              "idx": 2,
+              "version": 1
+            },
+            {
+              "idx": 3,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 4,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "stmts": [
+            {
+              "idx": 5,
+              "version": 1
+            }
+          ]
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "stmts": []
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "stmts": []
+        },
+        "version": 1
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 1,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 2,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 3,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 4,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 5,
+            "version": 1
+          },
+          "kind": {
+            "Struct": {
+              "idx": 23,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 6,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 7,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 8,
+            "version": 1
+          },
+          "kind": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 9,
+            "version": 1
+          },
+          "kind": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "id": {
+            "idx": 10,
+            "version": 1
+          },
+          "kind": {
+            "Struct": {
+              "idx": 29,
+              "version": 1
+            }
+          }
+        },
+        "version": 1
+      }
+    ]
+  },
+  "ast_nodes": {
+    "actions": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "create_person",
+            "arguments": [
+              {
+                "identifier": "name",
+                "field_type": "String"
+              },
+              {
+                "identifier": "age",
+                "field_type": "Int"
+              },
+              {
+                "identifier": "street",
+                "field_type": "String"
+              },
+              {
+                "identifier": "city",
+                "field_type": "String"
+              }
+            ],
+            "statements": [
+              {
+                "inner": {
+                  "Let": {
+                    "identifier": "addr",
+                    "expression": {
+                      "NamedStruct": {
+                        "identifier": "Address",
+                        "fields": [
+                          [
+                            "street",
+                            {
+                              "Identifier": "street"
+                            }
+                          ],
+                          [
+                            "city",
+                            {
+                              "Identifier": "city"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                },
+                "locator": 336
+              },
+              {
+                "inner": {
+                  "Let": {
+                    "identifier": "person",
+                    "expression": {
+                      "NamedStruct": {
+                        "identifier": "Person",
+                        "fields": [
+                          [
+                            "name",
+                            {
+                              "Identifier": "name"
+                            }
+                          ],
+                          [
+                            "age",
+                            {
+                              "Identifier": "age"
+                            }
+                          ],
+                          [
+                            "address",
+                            {
+                              "Identifier": "addr"
+                            }
+                          ]
+                        ]
+                      }
+                    }
+                  }
+                },
+                "locator": 411
+              },
+              {
+                "inner": {
+                  "Publish": {
+                    "NamedStruct": {
+                      "identifier": "CreatePerson",
+                      "fields": [
+                        [
+                          "person",
+                          {
+                            "Identifier": "person"
+                          }
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "locator": 504
+              }
+            ]
+          },
+          "locator": 259
+        },
+        "version": 1
+      }
+    ],
+    "action_args": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "identifier": "name",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "age",
+          "field_type": "Int"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "street",
+          "field_type": "String"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "identifier": "city",
+          "field_type": "String"
+        },
+        "version": 1
+      }
+    ],
+    "cmds": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "attributes": [],
+            "identifier": "CreatePerson",
+            "fields": [
+              {
+                "Field": {
+                  "identifier": "person",
+                  "field_type": {
+                    "Struct": "Person"
+                  }
+                }
+              }
+            ],
+            "seal": [
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "Optional": null
+                    }
+                  }
+                },
+                "locator": 217
+              }
+            ],
+            "open": [
+              {
+                "inner": {
+                  "Return": {
+                    "expression": {
+                      "Optional": null
+                    }
+                  }
+                },
+                "locator": 242
+              }
+            ],
+            "policy": [],
+            "recall": []
+          },
+          "locator": 134
+        },
+        "version": 1
+      }
+    ],
+    "cmd_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "person",
+            "field_type": {
+              "Struct": "Person"
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "effects": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "effect_fields": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "enums": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "facts": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_keys": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "fact_vals": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "finish_func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "funcs": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "func_args": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "global_lets": [
+      {
+        "value": null,
+        "version": 0
+      }
+    ],
+    "structs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "Address",
+            "items": [
+              {
+                "Field": {
+                  "identifier": "street",
+                  "field_type": "String"
+                }
+              },
+              {
+                "Field": {
+                  "identifier": "city",
+                  "field_type": "String"
+                }
+              }
+            ]
+          },
+          "locator": 1
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "identifier": "Person",
+            "items": [
+              {
+                "Field": {
+                  "identifier": "name",
+                  "field_type": "String"
+                }
+              },
+              {
+                "Field": {
+                  "identifier": "age",
+                  "field_type": "Int"
+                }
+              },
+              {
+                "Field": {
+                  "identifier": "address",
+                  "field_type": {
+                    "Struct": "Address"
+                  }
+                }
+              }
+            ]
+          },
+          "locator": 57
+        },
+        "version": 1
+      }
+    ],
+    "struct_fields": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "street",
+            "field_type": "String"
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "city",
+            "field_type": "String"
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "name",
+            "field_type": "String"
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "age",
+            "field_type": "Int"
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Field": {
+            "identifier": "address",
+            "field_type": {
+              "Struct": "Address"
+            }
+          }
+        },
+        "version": 1
+      }
+    ],
+    "stmts": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "inner": {
+            "Let": {
+              "identifier": "addr",
+              "expression": {
+                "NamedStruct": {
+                  "identifier": "Address",
+                  "fields": [
+                    [
+                      "street",
+                      {
+                        "Identifier": "street"
+                      }
+                    ],
+                    [
+                      "city",
+                      {
+                        "Identifier": "city"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          },
+          "locator": 336
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Let": {
+              "identifier": "person",
+              "expression": {
+                "NamedStruct": {
+                  "identifier": "Person",
+                  "fields": [
+                    [
+                      "name",
+                      {
+                        "Identifier": "name"
+                      }
+                    ],
+                    [
+                      "age",
+                      {
+                        "Identifier": "age"
+                      }
+                    ],
+                    [
+                      "address",
+                      {
+                        "Identifier": "addr"
+                      }
+                    ]
+                  ]
+                }
+              }
+            }
+          },
+          "locator": 411
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Publish": {
+              "NamedStruct": {
+                "identifier": "CreatePerson",
+                "fields": [
+                  [
+                    "person",
+                    {
+                      "Identifier": "person"
+                    }
+                  ]
+                ]
+              }
+            }
+          },
+          "locator": 504
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "Optional": null
+              }
+            }
+          },
+          "locator": 217
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "inner": {
+            "Return": {
+              "expression": {
+                "Optional": null
+              }
+            }
+          },
+          "locator": 242
+        },
+        "version": 1
+      }
+    ],
+    "exprs": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": {
+          "Identifier": "street"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "city"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "NamedStruct": {
+            "identifier": "Address",
+            "fields": [
+              [
+                "street",
+                {
+                  "Identifier": "street"
+                }
+              ],
+              [
+                "city",
+                {
+                  "Identifier": "city"
+                }
+              ]
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "name"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "age"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "addr"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "NamedStruct": {
+            "identifier": "Person",
+            "fields": [
+              [
+                "name",
+                {
+                  "Identifier": "name"
+                }
+              ],
+              [
+                "age",
+                {
+                  "Identifier": "age"
+                }
+              ],
+              [
+                "address",
+                {
+                  "Identifier": "addr"
+                }
+              ]
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Identifier": "person"
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "NamedStruct": {
+            "identifier": "CreatePerson",
+            "fields": [
+              [
+                "person",
+                {
+                  "Identifier": "person"
+                }
+              ]
+            ]
+          }
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Optional": null
+        },
+        "version": 1
+      },
+      {
+        "value": {
+          "Optional": null
+        },
+        "version": 1
+      }
+    ],
+    "idents": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": "name",
+        "version": 1
+      },
+      {
+        "value": "age",
+        "version": 1
+      },
+      {
+        "value": "street",
+        "version": 1
+      },
+      {
+        "value": "city",
+        "version": 1
+      },
+      {
+        "value": "addr",
+        "version": 1
+      },
+      {
+        "value": "Address",
+        "version": 1
+      },
+      {
+        "value": "street",
+        "version": 1
+      },
+      {
+        "value": "street",
+        "version": 1
+      },
+      {
+        "value": "city",
+        "version": 1
+      },
+      {
+        "value": "city",
+        "version": 1
+      },
+      {
+        "value": "person",
+        "version": 1
+      },
+      {
+        "value": "Person",
+        "version": 1
+      },
+      {
+        "value": "name",
+        "version": 1
+      },
+      {
+        "value": "name",
+        "version": 1
+      },
+      {
+        "value": "age",
+        "version": 1
+      },
+      {
+        "value": "age",
+        "version": 1
+      },
+      {
+        "value": "address",
+        "version": 1
+      },
+      {
+        "value": "addr",
+        "version": 1
+      },
+      {
+        "value": "CreatePerson",
+        "version": 1
+      },
+      {
+        "value": "person",
+        "version": 1
+      },
+      {
+        "value": "person",
+        "version": 1
+      },
+      {
+        "value": "person",
+        "version": 1
+      },
+      {
+        "value": "Person",
+        "version": 1
+      },
+      {
+        "value": "street",
+        "version": 1
+      },
+      {
+        "value": "city",
+        "version": 1
+      },
+      {
+        "value": "name",
+        "version": 1
+      },
+      {
+        "value": "age",
+        "version": 1
+      },
+      {
+        "value": "address",
+        "version": 1
+      },
+      {
+        "value": "Address",
+        "version": 1
+      }
+    ],
+    "blocks": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Let": {
+                "identifier": "addr",
+                "expression": {
+                  "NamedStruct": {
+                    "identifier": "Address",
+                    "fields": [
+                      [
+                        "street",
+                        {
+                          "Identifier": "street"
+                        }
+                      ],
+                      [
+                        "city",
+                        {
+                          "Identifier": "city"
+                        }
+                      ]
+                    ]
+                  }
+                }
+              }
+            },
+            "locator": 336
+          },
+          {
+            "inner": {
+              "Let": {
+                "identifier": "person",
+                "expression": {
+                  "NamedStruct": {
+                    "identifier": "Person",
+                    "fields": [
+                      [
+                        "name",
+                        {
+                          "Identifier": "name"
+                        }
+                      ],
+                      [
+                        "age",
+                        {
+                          "Identifier": "age"
+                        }
+                      ],
+                      [
+                        "address",
+                        {
+                          "Identifier": "addr"
+                        }
+                      ]
+                    ]
+                  }
+                }
+              }
+            },
+            "locator": 411
+          },
+          {
+            "inner": {
+              "Publish": {
+                "NamedStruct": {
+                  "identifier": "CreatePerson",
+                  "fields": [
+                    [
+                      "person",
+                      {
+                        "Identifier": "person"
+                      }
+                    ]
+                  ]
+                }
+              }
+            },
+            "locator": 504
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "Optional": null
+                }
+              }
+            },
+            "locator": 217
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [
+          {
+            "inner": {
+              "Return": {
+                "expression": {
+                  "Optional": null
+                }
+              }
+            },
+            "locator": 242
+          }
+        ],
+        "version": 1
+      },
+      {
+        "value": [],
+        "version": 1
+      },
+      {
+        "value": [],
+        "version": 1
+      }
+    ],
+    "types": [
+      {
+        "value": null,
+        "version": 0
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": {
+          "Struct": "Person"
+        },
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "String",
+        "version": 1
+      },
+      {
+        "value": "Int",
+        "version": 1
+      },
+      {
+        "value": {
+          "Struct": "Address"
+        },
+        "version": 1
+      }
+    ]
+  }
+}

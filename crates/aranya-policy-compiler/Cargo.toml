@@ -33,4 +33,7 @@ slotmap = { version = "1" }
 thiserror = { workspace = true }
 
 [dev-dependencies]
+aranya-policy-compiler = { path = ".", features = ["serde"] }
+
 anyhow = { workspace = true }
+insta = { version = "1", features = ["json"] }
