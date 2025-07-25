@@ -340,7 +340,8 @@ struct_definition = { "struct" ~ identifier ~ struct_def }
 // enum Result { OK, Err }
 enum_definition = { "enum" ~ identifier ~ "{" ~ identifier ~ ("," ~ identifier)* ~ ","? ~ "}" }
 // command Foo { ... }
-command_definition = { "command" ~ identifier ~ "{" ~ command_blocks+ ~ "}" }
+command_def = { identifier ~ "{" ~ command_blocks+ ~ "}" }
+command_definition = { ephemeral_modifier? ~ "command" ~ command_def }
 // function foo(a int) int { return a }
 function_decl = { "function" ~ identifier ~ function_arguments ~ vtype }
 function_definition = { function_decl ~ statement_block }
