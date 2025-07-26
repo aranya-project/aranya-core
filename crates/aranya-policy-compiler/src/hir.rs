@@ -5,6 +5,7 @@
 #![allow(clippy::module_inception)]
 
 mod arena;
+mod dsl;
 mod hir;
 mod lower;
 mod snapshot_tests;

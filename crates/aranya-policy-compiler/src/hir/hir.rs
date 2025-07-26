@@ -1,3 +1,27 @@
+//! High-level Intermediate Representation (HIR) for Aranya
+//! policy code.
+//!
+//! All HIR nodes are stored in flat collections and can be
+//! referenced with stable IDs (e.g., [`ActionId`], [`ExprId`]).
+//!
+//! # Example Structure
+//!
+//! An action like
+//!
+//! ```text
+//! action foo(x int) {
+//!     let y = x + 1
+//!     check y > 0
+//! }
+//! ```
+//!
+//! Becomes the following HIR nodes:
+//! - `ActionDef` with ID referencing:
+//!   - `ActionArg` for parameter `x`
+//!   - `Block` containing:
+//!     - `Stmt::Let` referencing `Expr::Add`
+//!     - `Stmt::Check` referencing `Expr::GreaterThan`
+
 use std::{fmt, hash::Hash};
 
 use aranya_policy_ast::{self as ast};
@@ -12,34 +36,65 @@ use slotmap::SlotMap;
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(crate) struct Hir {
+    /// Action definitions.
     pub actions: SlotMap<ActionId, ActionDef>,
+    /// Arguments for action definitions
     pub action_args: SlotMap<ActionArgId, ActionArg>,
+    /// Command definitions.
     pub cmds: SlotMap<CmdId, CmdDef>,
+    /// Fields within command definitions
     pub cmd_fields: SlotMap<CmdFieldId, CmdField>,
+    /// Effect definitions
     pub effects: SlotMap<EffectId, EffectDef>,
+    /// Fields within effect definitions
     pub effect_fields: SlotMap<EffectFieldId, EffectField>,
+    /// Enumeration type definitions
     pub enums: SlotMap<EnumId, EnumDef>,
+    /// Fact definitions
     pub facts: SlotMap<FactId, FactDef>,
+    /// Key fields for fact definitions
     pub fact_keys: SlotMap<FactKeyId, FactKey>,
+    /// Value fields for fact definitions
     pub fact_vals: SlotMap<FactValId, FactVal>,
+    /// Finish function definitions
     pub finish_funcs: SlotMap<FinishFuncId, FinishFuncDef>,
+    /// Arguments for finish function definitions
     pub finish_func_args: SlotMap<FinishFuncArgId, FinishFuncArg>,
+    /// Regular function definitions
     pub funcs: SlotMap<FuncId, FuncDef>,
+    /// Arguments for function definitions
     pub func_args: SlotMap<FuncArgId, FuncArg>,
+    /// Global constant definitions
     pub global_lets: SlotMap<GlobalId, GlobalLetDef>,
+    /// Structure type definitions
     pub structs: SlotMap<StructId, StructDef>,
+    /// Fields within structure definitions
     pub struct_fields: SlotMap<StructFieldId, StructField>,
+    /// All statements
     pub stmts: SlotMap<StmtId, Stmt>,
+    /// All expressions
     pub exprs: SlotMap<ExprId, Expr>,
+    /// All identifiers
     pub idents: SlotMap<IdentId, Ident>,
+    /// Statement blocks (collections of statements)
     pub blocks: SlotMap<BlockId, Block>,
+    /// Type definitions and references
     pub types: SlotMap<VTypeId, VType>,
 }
 
+/// Trait for HIR nodes.
 pub(crate) trait Node {
+    /// The ID type for this node.
     type Id: fmt::Debug;
 }
 
+/// Generates a HIR node struct with consistent derives and an ID
+/// field.
+///
+/// This macro ensures all HIR nodes have:
+/// - A unique `id` field of the specified type
+/// - Consistent derive attributes (Clone, Debug, Eq, PartialEq)
+/// - Optional serde support when the feature is enabled
 macro_rules! hir_node {
     (
         $(#[$meta:meta])*
@@ -58,6 +113,10 @@ macro_rules! hir_node {
     };
 }
 
+/// Generates typed ID structs for use with SlotMap.
+///
+/// This macro creates newtype wrappers that serve as keys for
+/// the arena-allocated collections in the HIR.
 macro_rules! make_node_id {
     ($(#[$outer:meta])* $vis:vis struct $name:ident; $($rest:tt)*) => {
         slotmap::new_key_type! {
@@ -69,7 +128,11 @@ macro_rules! make_node_id {
     () => {};
 }
 
-/// Macro for consistent derives on HIR helper types
+/// Generates HIR helper types with consistent derives.
+///
+/// This macro ensures all HIR helper types (structs and enums
+/// that aren't nodes themselves) have consistent derive
+/// attributes.
 macro_rules! hir_type {
     (
         $(#[$meta:meta])*
@@ -406,6 +469,7 @@ hir_node! {
     pub(crate) struct FinishFuncDef {
         pub id: FinishFuncId,
         pub args: Vec<FinishFuncArgId>,
+        // TODO(eric): Make this `BlockId`.
         pub stmts: Vec<StmtId>,
     }
 }
@@ -435,6 +499,7 @@ hir_node! {
         pub id: FuncId,
         pub args: Vec<FuncArgId>,
         pub result: VTypeId,
+        // TODO(eric): Make this `BlockId`.
         pub stmts: Vec<StmtId>,
     }
 }
@@ -527,6 +592,7 @@ hir_type! {
     /// A match statement arm.
     pub(crate) struct MatchArm {
         pub pattern: MatchPattern,
+        // TODO(eric): Make this `BlockId`.
         pub stmts: Vec<StmtId>,
     }
 }
@@ -551,6 +617,7 @@ hir_type! {
     /// An if statement branch.
     pub(crate) struct IfBranch {
         pub expr: ExprId,
+        // TODO(eric): Make this `BlockId`.
         pub stmts: Vec<StmtId>,
     }
 }
@@ -560,6 +627,7 @@ hir_type! {
     pub(crate) struct MapStmt {
         pub fact: FactLiteral,
         pub ident: IdentId,
+        // TODO(eric): Make this `BlockId`.
         pub stmts: Vec<StmtId>,
     }
 }

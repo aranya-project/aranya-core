@@ -4,10 +4,12 @@ use std::{
     hash::Hash,
 };
 
-use aranya_policy_ast::Identifier;
 use buggy::{Bug, BugExt};
 
-use crate::symbol_resolution::symbols::SymbolId;
+use crate::{
+    hir::hir::IdentId,
+    symbol_resolution::symbols::SymbolId,
+};
 
 /// Uniquely identifies a [`Scope`] in an [`Arena`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -62,7 +64,7 @@ pub struct DuplicateSymbolId(SymbolId);
 pub struct Scope {
     id: ScopeId,
     parent: Option<ScopeId>,
-    symbols: HashMap<Identifier, SymbolId>,
+    symbols: HashMap<IdentId, SymbolId>,
     // TODO: scope kind (e.g., function, block, etc.)
 }
 
@@ -110,11 +112,11 @@ impl Scopes {
     pub fn insert(
         &mut self,
         scope: ScopeId,
-        ident: Identifier,
+        ident: IdentId,
         sym: SymbolId,
     ) -> Result<(), InsertError> {
         let scope = self.scopes.get_mut(scope.0).ok_or(InvalidScopeId(scope))?;
-        match scope.symbols.entry(ident.clone()) {
+        match scope.symbols.entry(ident) {
             Entry::Occupied(_) => Err(InsertError::Duplicate(DuplicateSymbolId(sym))),
             Entry::Vacant(entry) => {
                 entry.insert(sym);
@@ -124,7 +126,7 @@ impl Scopes {
     }
 
     /// Looks up a symbol given its name and scope.
-    pub fn get(&self, id: ScopeId, ident: &Identifier) -> Result<Option<SymbolId>, LookupError> {
+    pub fn get(&self, id: ScopeId, ident: &IdentId) -> Result<Option<SymbolId>, LookupError> {
         let scope = self.scopes.get(id.0).ok_or(InvalidScopeId(id))?;
         if let Some(sym) = scope.symbols.get(ident) {
             return Ok(Some(*sym));

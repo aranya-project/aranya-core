@@ -9,12 +9,12 @@ use crate::hir::{
     hir::{
         ActionArg, ActionArgId, ActionCall, ActionDef, ActionId, Block, BlockId, CheckStmt, CmdDef,
         CmdField, CmdFieldId, CmdFieldKind, CmdId, Create, DebugAssert, Delete, EffectDef,
-        EffectField, EffectFieldId, EffectFieldKind, Emit, EnumDef, EnumReference, Expr, ExprId, 
-        ExprKind, FactCountType, FactDef, FactField, FactKey, FactKeyId, FactLiteral, FactVal, 
-        FactValId, FinishFuncArg, FinishFuncArgId, FinishFuncDef, ForeignFunctionCall, FuncArg, 
-        FuncArgId, FuncDef, FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch, IfStmt, 
-        InternalFunction, LetStmt, MapStmt, MatchArm, MatchPattern, MatchStmt, NamedStruct, 
-        Publish, ReturnStmt, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldId, 
+        EffectField, EffectFieldId, EffectFieldKind, Emit, EnumDef, EnumReference, Expr, ExprId,
+        ExprKind, FactCountType, FactDef, FactField, FactKey, FactKeyId, FactLiteral, FactVal,
+        FactValId, FinishFuncArg, FinishFuncArgId, FinishFuncDef, ForeignFunctionCall, FuncArg,
+        FuncArgId, FuncDef, FunctionCall, GlobalLetDef, Hir, Ident, IdentId, IfBranch, IfStmt,
+        InternalFunction, LetStmt, MapStmt, MatchArm, MatchPattern, MatchStmt, NamedStruct,
+        Publish, ReturnStmt, Stmt, StmtId, StmtKind, StructDef, StructField, StructFieldId,
         StructFieldKind, Update, VType, VTypeId, VTypeKind,
     },
 };

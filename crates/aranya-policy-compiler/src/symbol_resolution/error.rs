@@ -1,9 +1,14 @@
 //! Error types for symbol resolution.
 
-use aranya_policy_ast::Identifier;
 use buggy::Bug;
 
-use crate::symbol_resolution::symbols::{Duplicate, Symbol};
+use crate::{
+    hir::hir::IdentId,
+    symbol_resolution::{
+        scope::DuplicateSymbolId,
+        symbols::Symbol,
+    },
+};
 
 /// Kinds of symbol resolution errors.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -13,17 +18,17 @@ pub enum SymbolResolutionError {
     Bug(#[from] Bug),
 
     /// An identifier was used but not defined.
-    #[error("undefined identifier {ident}")]
-    Undefined { ident: Identifier, location: usize },
+    #[error("undefined identifier")]
+    Undefined { ident: IdentId, location: usize },
 
     /// A symbol was defined multiple times in the same scope.
     #[error("{0}")]
-    Duplicate(Duplicate),
+    Duplicate(DuplicateSymbolId),
 
     /// Invalid shadowing.
-    #[error("invalid shadowing of identifier {name}")]
+    #[error("invalid shadowing of identifier")]
     InvalidShadowing {
-        name: Identifier,
+        name: IdentId,
         original_location: usize,
         shadow_location: usize,
     },

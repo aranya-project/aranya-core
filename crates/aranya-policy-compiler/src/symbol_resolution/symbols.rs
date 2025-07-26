@@ -4,7 +4,10 @@ use std::hash::Hash;
 
 use aranya_policy_ast::{Identifier, VType};
 
-use crate::symbol_resolution::scope::ScopeId;
+use crate::{
+    hir::hir::{IdentId, VTypeId},
+    symbol_resolution::scope::ScopeId,
+};
 
 /// Uniquely identifies a [`Symbol`] in a [`Symbols`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -48,7 +51,7 @@ impl Symbols {
 /// A symbol in the symbol table.
 #[derive(Clone, Debug)]
 pub struct Symbol {
-    pub ident: Identifier,
+    pub ident: IdentId,
     pub kind: SymbolKind,
     /// The scope that the symbol was defined in.
     ///
@@ -96,14 +99,14 @@ pub struct SymLocalVar {
 /// A `fact` declaration.
 #[derive(Clone, Debug)]
 pub struct SymFact {
-    pub keys: Vec<(Identifier, SymType)>,
-    pub values: Vec<(Identifier, SymType)>,
+    pub keys: Vec<(IdentId, SymType)>,
+    pub values: Vec<(IdentId, SymType)>,
 }
 
 /// An `action` declaration.
 #[derive(Clone, Debug)]
 pub struct SymAction {
-    pub params: Vec<(Identifier, SymType)>,
+    pub params: Vec<(IdentId, SymType)>,
     /// Action-local scope.
     pub scope: ScopeId,
 }
@@ -111,25 +114,25 @@ pub struct SymAction {
 /// An `effect` declaration.
 #[derive(Clone, Debug)]
 pub struct SymEffect {
-    pub fields: Status<Vec<(Identifier, SymType)>>,
+    pub fields: Status<Vec<(IdentId, SymType)>>,
 }
 
 /// A `struct` declaration.
 #[derive(Clone, Debug)]
 pub struct SymStruct {
-    pub fields: Status<Vec<(Identifier, SymType)>>,
+    pub fields: Status<Vec<(IdentId, SymType)>>,
 }
 
 /// An `enum` declaration.
 #[derive(Clone, Debug)]
 pub struct SymEnum {
-    pub variants: Vec<Identifier>,
+    pub variants: Vec<IdentId>,
 }
 
 /// A `command` declaration.
 #[derive(Clone, Debug)]
 pub struct SymCommand {
-    pub fields: Status<Vec<(Identifier, SymType)>>,
+    pub fields: Status<Vec<(IdentId, SymType)>>,
     pub policy: Status<PolicyBlock>,
     pub finish: Status<FinishBlock>,
     pub recall: Status<RecallBlock>,
@@ -168,7 +171,7 @@ pub struct SymFfiModule {
 /// A `function` declaration.
 #[derive(Clone, Debug)]
 pub struct SymFunction {
-    pub params: Vec<(Identifier, SymType)>,
+    pub params: Vec<(IdentId, SymType)>,
     pub result: SymType,
     /// Function-local scope.
     pub scope: ScopeId,
@@ -177,7 +180,7 @@ pub struct SymFunction {
 /// A `finish function` declaration.
 #[derive(Clone, Debug)]
 pub struct SymFinishFunction {
-    pub params: Vec<(Identifier, SymType)>,
+    pub params: Vec<(IdentId, SymType)>,
     /// Function-local scope.
     pub scope: ScopeId,
 }
@@ -191,24 +194,10 @@ pub enum Status<T> {
     Unresolved,
 }
 
-/// A maybe resolved [`VType`].
-pub type SymType = Status<VType>;
+/// A maybe resolved [`VTypeId`].
+pub type SymType = Status<VTypeId>;
 
-impl From<&VType> for SymType {
-    fn from(vtype: &VType) -> Self {
-        match vtype {
-            VType::Enum(_) | VType::Struct(_) | VType::Optional(_) => Self::Unresolved,
-            ty @ (VType::Int | VType::Bool | VType::String | VType::Id | VType::Bytes) => {
-                Self::Resolved(ty.clone())
-            }
-        }
-    }
-}
+// Note: VTypeId resolution will be handled during symbol resolution
+// All types start as Unresolved and are resolved later
 
-/// A duplicate symbol.
-#[derive(Clone, Debug, thiserror::Error)]
-#[error("duplicate symbol")] // TODO
-pub struct Duplicate {
-    pub new: Symbol,
-    pub old: Symbol,
-}
+
