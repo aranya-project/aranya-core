@@ -1311,8 +1311,8 @@ impl<'a> CompileState<'a> {
                                         .assume("command must be defined")?;
                                     if !command.ephemeral {
                                         return Err(CompileErrorType::InvalidType(format!(
-                                            "Ephemeral action cannot publish persistent command `{}`",
-                                            ident
+                                            "Ephemeral action `{}` cannot publish persistent command `{}`",
+                                            action.identifier, ident
                                         )));
                                     }
                                 }

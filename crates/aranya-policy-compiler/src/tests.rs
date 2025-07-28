@@ -2400,7 +2400,7 @@ fn test_action_command_persistence() {
             open { return todo() }
         }
         
-        ephemeral action InvalidAction() {
+        ephemeral action EphemeralAction() {
             publish PersistentCmd {}
         }
     "#;
@@ -2408,7 +2408,8 @@ fn test_action_command_persistence() {
     assert_eq!(
         err,
         CompileErrorType::InvalidType(
-            "Ephemeral action cannot publish persistent command `PersistentCmd`".to_string()
+            "Ephemeral action `EphemeralAction` cannot publish persistent command `PersistentCmd`"
+                .to_string()
         )
     );
 
